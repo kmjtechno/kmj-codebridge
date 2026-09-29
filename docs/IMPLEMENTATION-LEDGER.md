@@ -20,3 +20,11 @@
 - Ruling: `/proc/PID` is not a valid liveness oracle in this runtime's namespace; heartbeat files prove descendant termination. Cost if wrong: false confidence in process cleanup; the heartbeat test remains in CI.
 - Known preview limits remain explicit in STATUS.md and SECURITY.md, including host isolation, live Main Platform integration and public ChatGPT authentication.
 - Final local verification: 58 tests passed, 0 failed, 0 skipped on Linux/Node 24; formatting and syntax checks passed. Production dependency audit reported 0 vulnerabilities at inspection time. Windows results are pending GitHub CI.
+
+## Configuration destination hardening
+
+- Found a pre-existing setup path bug: lexical outside-project paths could resolve through a symlink/junction into an authorized project.
+- Two regressions failed before the fix: in-project alias secret creation and noncanonical stateDir persistence.
+- Canonicalize the existing destination parent before checking project containment and creating any credentials. Existing destinations still fail closed.
+- Both regressions now pass; complete Linux suite: 87 passed, 0 failed, 0 skipped. Formatting and syntax checks pass.
+- This protects against pre-existing path aliases; hostile concurrent filesystem mutation still requires OS isolation, as documented for the developer preview.

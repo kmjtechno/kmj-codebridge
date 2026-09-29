@@ -8,7 +8,11 @@ try {
       "Usage: npm run init -- /outside-project/config-dir /absolute/project",
     );
   const root = fs.realpathSync(project),
-    dest = path.resolve(destination),
+    requested = path.resolve(destination),
+    dest = path.join(
+      fs.realpathSync(path.dirname(requested)),
+      path.basename(requested),
+    ),
     rel = path.relative(root, dest);
   if (
     !path.isAbsolute(project) ||
