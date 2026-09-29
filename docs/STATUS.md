@@ -17,3 +17,7 @@ Version 0.1.0 is a developer preview. The full nine-phase roadmap is not complet
 No generated local credentials are published. No production system is modified. No
 cloud deployment or payment is claimed. Test counts and CI links are reported only
 after actual runs; see the implementation ledger for observations.
+
+## OAuth resource-server slice
+
+Implemented optional JWT validation with pinned public JWKS, protected-resource metadata, scope challenges and administrator-controlled subject mapping. See [OAuth configuration](OAUTH.md). No live issuer, payment connection, lease renewal service or ChatGPT installation is claimed.

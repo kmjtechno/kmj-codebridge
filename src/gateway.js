@@ -1,3 +1,4 @@
+import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
 import { readJsonLimited } from "./http.js";
 import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
@@ -35,11 +36,17 @@ export async function startGateway(rawConfig) {
   const config = gatewaySchema.parse(rawConfig);
   if (
     new Set(config.agents.map((a) => a.id)).size !== config.agents.length ||
-    new Set([...config.users, ...config.agents].map((a) => a.tokenHash))
-      .size !==
-      config.users.length + config.agents.length
+    new Set(
+      [...config.users, ...config.agents]
+        .map((a) => a.tokenHash)
+        .filter(Boolean),
+    ).size !==
+      [...config.users, ...config.agents].filter((a) => a.tokenHash).length
   )
     fail("DUPLICATE_IDENTITY");
+  const verifyOAuth = config.oauth
+    ? createOAuthVerifier(config.oauth, config.users)
+    : null;
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const pending = new Map(),
     waiting = new Map(),
@@ -127,6 +134,14 @@ export async function startGateway(rawConfig) {
         json(res, 403, { error: "ORIGIN_DENIED" });
         return;
       }
+      if (
+        config.oauth &&
+        req.url === "/.well-known/oauth-protected-resource" &&
+        req.method === "GET"
+      ) {
+        json(res, 200, oauthMetadata(config.oauth));
+        return;
+      }
       if (req.url === "/healthz" && req.method === "GET") {
         json(res, 200, { status: "ok", version: "0.1.0" });
         return;
@@ -195,8 +210,12 @@ export async function startGateway(rawConfig) {
         json(res, 404, { error: "NOT_FOUND" });
         return;
       }
-      const user = identify(req, config.users);
+      const user = verifyOAuth
+        ? await verifyOAuth(req.headers.authorization)
+        : identify(req, config.users);
       if (!user) {
+        if (config.oauth)
+          res.setHeader("WWW-Authenticate", oauthChallenge(config.oauth));
         json(res, 401, { error: "UNAUTHORIZED" });
         return;
       }
@@ -222,6 +241,15 @@ export async function startGateway(rawConfig) {
           {
             description: d.description,
             inputSchema: d.input,
+            ...(config.oauth
+              ? {
+                  _meta: {
+                    securitySchemes: [
+                      { type: "oauth2", scopes: [`codebridge:${d.access}`] },
+                    ],
+                  },
+                }
+              : {}),
             annotations: {
               readOnlyHint: d.access === "read",
               destructiveHint: d.access !== "read",
@@ -231,6 +259,26 @@ export async function startGateway(rawConfig) {
           },
           async (args) => {
             try {
+              if (!user.permissions.includes(d.access))
+                return {
+                  isError: true,
+                  content: [
+                    { type: "text", text: '{"error":"ACCESS_DENIED"}' },
+                  ],
+                  ...(config.oauth &&
+                  !user.grantedScopes.includes(`codebridge:${d.access}`)
+                    ? {
+                        _meta: {
+                          "mcp/www_authenticate": [
+                            oauthChallenge(
+                              config.oauth,
+                              `codebridge:${d.access}`,
+                            ) + ', error="insufficient_scope"',
+                          ],
+                        },
+                      }
+                    : {}),
+                };
               if (name === "list_devices") {
                 const devices = config.agents
                   .filter(

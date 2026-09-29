@@ -12,7 +12,7 @@ SDK, an outbound-polling device agent, scoped file operations, administrator-def
 quality gates, durable job results and an Ed25519 entitlement verifier. The tests
 exercise a real MCP client, gateway and agent over loopback HTTP.
 
-**Not yet delivered:** public hosted endpoint, OAuth account linking, live Main
+**Not yet delivered:** public hosted endpoint, live OAuth account linking, live Main
 Platform billing/renewal adapter, native Rust agent, signed OS installers, public
 plugin approval, SSO, or a production security certification. A source upload is
 not a connected ChatGPT installation. See [status](docs/STATUS.md).

@@ -2,24 +2,83 @@ import { z } from "zod";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const permission = z.enum(["read", "write", "execute"]);
-export const gatewaySchema = z.object({
-  host: z.string().default("127.0.0.1"),
-  port: z.number().int().min(0).max(65535).default(8787),
-  allowedHosts: z.array(z.string()).default([]),
-  allowedOrigins: z.array(z.string().url()).default([]),
-  users: z
-    .array(
-      z.object({
-        id,
-        tenant: id,
-        tokenHash: digest,
-        devices: z.record(z.array(id)),
-        permissions: z.array(permission),
-      }),
-    )
-    .min(1),
-  agents: z.array(z.object({ id, tenant: id, tokenHash: digest })).min(1),
-});
+const httpsUrl = z
+  .string()
+  .url()
+  .refine((value) => {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.search &&
+      !url.hash &&
+      !/["\\\s]/.test(value)
+    );
+  }, "Requires a canonical HTTPS URL");
+export const gatewaySchema = z
+  .object({
+    oauth: z
+      .object({
+        issuer: httpsUrl,
+        resource: httpsUrl.refine(
+          (value) => new URL(value).pathname === "/mcp",
+        ),
+        jwks: z.object({
+          keys: z
+            .array(
+              z
+                .object({ kty: z.enum(["RSA", "EC", "OKP"]) })
+                .passthrough()
+                .refine(
+                  (key) =>
+                    !["d", "p", "q", "dp", "dq", "qi", "oth", "k"].some(
+                      (name) => name in key,
+                    ),
+                  "Public keys only",
+                ),
+            )
+            .min(1)
+            .max(20),
+        }),
+      })
+      .optional(),
+    host: z.string().default("127.0.0.1"),
+    port: z.number().int().min(0).max(65535).default(8787),
+    allowedHosts: z.array(z.string()).default([]),
+    allowedOrigins: z.array(z.string().url()).default([]),
+    users: z
+      .array(
+        z.object({
+          id,
+          tenant: id,
+          tokenHash: digest.optional(),
+          subject: z.string().min(1).max(256).optional(),
+          devices: z.record(z.array(id)),
+          permissions: z.array(permission),
+        }),
+      )
+      .min(1),
+    agents: z.array(z.object({ id, tenant: id, tokenHash: digest })).min(1),
+  })
+  .superRefine((config, ctx) => {
+    const names = new Set();
+    const subjects = new Set();
+    for (const user of config.users) {
+      if (
+        names.has(user.id) ||
+        (config.oauth
+          ? !user.subject || subjects.has(user.subject)
+          : !user.tokenHash)
+      )
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "Invalid or duplicate user identity",
+        });
+      names.add(user.id);
+      subjects.add(user.subject);
+    }
+  });
 export const agentSchema = z.object({
   gateway: z.string().url(),
   token: z.string().min(32),
