@@ -14,7 +14,8 @@
     "agent": "node src/cli.js agent",
     "init": "node scripts/init.js",
     "package:plugin": "node scripts/package-plugin.js",
-    "format": "prettier --write src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md"
+    "format": "prettier --write src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md",
+    "start": "node src/hosted-cli.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
