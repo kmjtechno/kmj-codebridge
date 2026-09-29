@@ -1,0 +1,453 @@
+# KMJ CodeBridge — full product, engineering and commercial roadmap
+# Roadmap only: no implementation, deployment, revenue or benchmark is claimed.
+roadmap:
+  schema_version: '1.0'
+  document_version: '1.0.0'
+  created_on: '2026-09-29'
+  timezone: Asia/Bangkok
+  language: English
+  status: proposed_implementation_roadmap
+  product:
+    name: KMJ CodeBridge
+    name_status: confirmed_by_user
+    owner: KMJ TECHNO
+    tagline: Connect your systems. Build with AI.
+    positioning: One ChatGPT plugin for controlled coding across authorized computers and VPSs.
+    visual_identity: Premium black and red, accessible contrast, clear device and environment labels.
+    trademark_domain_and_directory_clearance: pending
+  confirmed_requirements:
+    - One customer-facing plugin across all plans, projects and devices.
+    - Support authorized VPS and computers with minimal background overhead.
+    - KMJ Main Platform is authoritative for billing, licensing and trials.
+    - Optimize coding speed, reliability, reconnect recovery and ease of installation.
+    - Build a revenue-generating product with a useful trial and a clear paid value proposition.
+  planning_rules:
+    - Dates, prices, budgets and performance numbers below are proposals, not guarantees.
+    - No percentage-complete claims without accepted milestone evidence.
+    - No production deployment until relevant release gates pass.
+    - Do not imply zero resource consumption, universal compatibility or unmeasured superiority.
+    - Reuse verified Commander components when suitable; audit before deciding to rewrite.
+    - Roadmap approval does not authorize production migrations, purchases or customer outreach.
+  target_customers:
+    primary: Freelance developers and small software agencies managing multiple projects or VPSs.
+    secondary: Internal engineering teams and managed development providers.
+    first_value: Connect one machine, inspect a project, apply a reviewed patch and verify tests.
+  product_boundaries:
+    single_plugin: true
+    internal_modules_allowed: true
+    device_installation_required: true
+    initial_platforms: [Linux_x86_64, Windows_x86_64]
+    subsequent_platforms: [Linux_arm64, macOS_arm64, macOS_x86_64]
+    support_rule: Publish exact tested OS versions and architectures, never claim every computer.
+    initial_exclusions:
+      - Mandatory screen streaming or a full remote desktop replacement.
+      - Unlimited hosted AI inference or build compute.
+      - Unrestricted root shell exposed as the default tool.
+      - Autonomous new AI decisions after chat closes without a separately designed orchestrator.
+      - Unapproved production changes or collection of credentials through chat.
+architecture:
+  request_path: ChatGPT plugin -> authenticated MCP gateway -> authorized device agent -> scoped project/job runner
+  commercial_path: KMJ Main Platform -> signed CodeBridge entitlements -> gateway and device verification
+  components:
+    plugin:
+      responsibilities: [skills, tool_descriptions, optional_status_UI, device_and_project_selection]
+      packaging: One manifest and listing; plans change entitlements, not plugin identity.
+    gateway:
+      responsibilities: [MCP_transport, user_authentication, tenant_isolation, routing, job_status]
+      public_transport: Stable HTTPS MCP endpoint using Streamable HTTP.
+      implementation_candidate: TypeScript with a maintained official MCP SDK; version pinned after validation.
+      scale_strategy: Start with one service and a small durable database; add complexity only after measurement.
+    agent:
+      implementation_candidate: Rust native executable; confirm with prototype benchmarks and support cost.
+      responsibilities: [device_identity, outbound_connection, path_policy, file_operations, job_supervision]
+      persistence: Small bounded local job journal; SQLite is a candidate.
+      service_integration: [systemd, Windows_Service, later_launchd]
+      privileges: Unprivileged by default; any privileged helper is narrow, explicit and separately audited.
+    runner:
+      responsibilities: [allowlisted_commands, timeouts, resource_budgets, cancellation, artifacts]
+      isolation: Dedicated worktrees plus OS process restrictions; worktrees alone are not a security sandbox.
+      untrusted_code: Use stronger container or VM isolation before executing untrusted repository code.
+    optional_build_worker:
+      purpose: Move heavy tests and compilation away from production VPSs.
+      default: Customer-owned worker; hosted compute is a separately costed future option.
+    main_platform:
+      responsibilities: [accounts, plans, billing, invoices, trials, licenses, activation_history, audit]
+      excluded_responsibilities: No relay of ordinary source files or per-command execution traffic.
+  connectivity:
+    primary: Agent-initiated authenticated outbound connection to the gateway.
+    private_option: OpenAI Secure MCP Tunnel where account and workspace eligibility is verified.
+    controls: [TLS, per_device_identity, expiry, revocation, reconnect_backoff, bounded_queues]
+    recovery: Resume job status from durable IDs; never blindly replay a state-changing request.
+    proxy_support: Test outbound HTTPS proxies and restrictive firewalls before advertising support.
+    note: A connected plugin shell is not evidence of working MCP tool discovery.
+coding_workflows:
+  core_tools_proposed:
+    - {name: list_devices, access: read, purpose: List only devices authorized for the authenticated user.}
+    - {name: inspect_project, access: read, purpose: Return bounded project metadata and available gates.}
+    - {name: git_status, access: read, purpose: Show branch and working-tree changes without exposing credentials.}
+    - {name: search_code, access: read, purpose: Search authorized files with bounded output.}
+    - {name: read_file_range, access: read, purpose: Retrieve relevant lines while excluding secrets.}
+    - {name: preview_patch, access: read, purpose: Validate a patch against current content hashes.}
+    - {name: apply_patch, access: write, purpose: Apply an authorized patch with conflict protection.}
+    - {name: run_quality_gate, access: execute, purpose: Start a configured test or build with budgets.}
+    - {name: get_job_status, access: read, purpose: Fetch durable state and incremental logs.}
+    - {name: cancel_job, access: write, purpose: Stop an authorized job and its process tree safely.}
+    - {name: connection_doctor, access: read, purpose: Identify transport authentication and permission failures.}
+  adapters:
+    first_release: [Node_TypeScript, PHP_Laravel, Python]
+    next: [Rust, Go, Java, dotNET]
+    detection: Inspect manifests and project instructions; never execute scripts merely because they exist.
+    gate_configuration: Project-owned explicit commands with validated arguments and policy boundaries.
+  git:
+    preserve_user_changes: true
+    concurrency: Worktree per independent task plus repository locks for conflicting operations.
+    patch_guards: [expected_content_hash, path_validation, atomic_write_where_supported, rollback_record]
+    forbidden_defaults: [force_push, hard_reset, overwrite_dirty_files, automatic_merge_to_production]
+  job_model:
+    states: [queued, running, succeeded, failed, cancel_requested, cancelled, interrupted, unknown]
+    evidence: [job_id, device_id, project_id, commit_SHA_when_available, exit_code, start_time, end_time]
+    restart_semantics: Recover status and logs; restart execution only if the task is explicitly safe to retry.
+    exactly_once_claim: false
+    idempotency: Durable request keys and recorded outcomes; reconcile ambiguous execution before retry.
+    chat_closed_behavior: Started jobs may continue within policy; no promise of ongoing AI reasoning.
+licensing:
+  authority: KMJ Main Platform
+  product_id: KMJ_CODEBRIDGE
+  protocol: Proposed KSLP-v1 product extension; validate against the existing contract before reuse.
+  signing: Ed25519 signed entitlements with kid and key rotation.
+  private_key_location: Isolated server-side signing service or KMS; never shipped to agents.
+  required_claims:
+    - protocol_version
+    - license_id
+    - customer_or_tenant_id
+    - product_id
+    - plan_id
+    - activation_id
+    - device_public_key_fingerprint
+    - features
+    - resource_limits
+    - issued_at
+    - not_before
+    - lease_expiry
+    - token_id
+    - nonce_or_sequence
+    - kid
+  proposed_policy:
+    lease_hours: 24
+    renew_after_hours: 6
+    offline_grace_hours: 48
+    status: Values require threat-model and product review.
+    renewal: Jittered background renewal; no synchronous billing call on each coding action.
+    invalid_token: Reject forged, wrong-product, wrong-device or invalid-signature entitlements.
+    outage: Honor previously valid cached leases and bounded grace; do not delete customer data.
+    expiry: Restrict new paid operations; retain safe cancellation, export and access to prior job results.
+    revocation: Stop new authorized paid work when revocation is learned; offline delay is bounded by lease policy.
+  states: [ACTIVE, RENEWAL_DUE, GRACE, RESTRICTED, REACTIVATED, REVOKED]
+  trial:
+    duration_days_proposed: 14
+    begins: First successful authorized device connection.
+    card_required: false
+    scope: Pro experience with 3 devices and 1 concurrent job.
+    anti_reset: Account and activation history; reinstall does not reset the entitlement.
+    recovery: Audited admin override for legitimate replacement or recovery.
+    expiry: Downgrade to Free limits without deleting code or interrupting unrelated workloads.
+    relationship_to_cloudos: CodeBridge trial policy is separate from the CloudOS 30-day policy.
+  admin_capabilities:
+    - Create, extend or suspend trials with reason and audit history.
+    - Revoke or reactivate licenses and transfer device activations.
+    - Change plans and override limits with an expiry and reason.
+    - View signing-key health and entitlement security events without revealing secrets.
+  customer_portal:
+    - Devices, activations, subscription and renewal status.
+    - Deactivate lost devices, download invoices and cancel renewal.
+    - Transparent limits and exportable job history.
+  billing_integration:
+    provider: Use the provider configured by KMJ Main Platform; do not invent credentials.
+    requirements: [verified_webhooks, idempotent_events, payment_reconciliation, refund_handling, explicit_renewal_consent]
+    commercial_only: CodeBridge execution must not be hosted inside the billing application request cycle.
+commercial:
+  status: Proposed pricing experiment; not published or charged.
+  currency: INR
+  tax_display: Establish applicable tax treatment and display it clearly before launch.
+  plans:
+    Free:
+      monthly_price: 0
+      devices: 1
+      active_projects: 1
+      concurrent_jobs: 1
+      features: [basic_files_and_git, quality_gates, secure_access, cancellation, export]
+    Pro:
+      monthly_price: 799
+      devices: 3
+      active_projects: 20
+      concurrent_jobs: 2
+      features: [durable_jobs, reconnect_recovery, multiple_projects, extended_history]
+    Team:
+      monthly_price: 2499
+      seats: 3
+      devices: 10
+      active_projects: 100
+      concurrent_jobs: 4
+      features: [shared_workspace, roles, team_audit, device_policies]
+    Business:
+      monthly_price: quote
+      limits: Contract-defined and configuration-driven.
+      features: [organization_policies, custom_limits, optional_SSO, support_agreement]
+  safety_features_available_to_all: [encryption, access_revocation, patch_validation, secret_redaction, safe_cancellation]
+  exclusions: [ChatGPT_subscription, external_AI_API_usage, hosted_build_compute]
+  founding_offer: Consider a clearly disclosed first-year discount for the first 25 paid customers.
+  avoid: [unlimited_lifetime_hosting, fake_scarcity, fabricated_reviews, unmeasured_speed_claims]
+  additional_revenue: Optional clearly scoped installation and onboarding service sold independently on KMJ website.
+  unit_economics:
+    measure: [gateway_cost_per_active_customer, bandwidth_cost, support_hours, payment_fees, refunds, retention]
+    decision: Adjust limits and pricing after pilot data; do not scale a structurally loss-making plan.
+chatgpt_distribution:
+  checked_on: '2026-09-29'
+  review_required_before_launch: true
+  policy_baseline:
+    - Public submission requires a stable public HTTPS MCP endpoint; tunnel alone is insufficient.
+    - Existing paid accounts may access included functionality through the plugin.
+    - Do not display subscription plans, promote upgrades or initiate digital subscription checkout inside the plugin.
+    - Market and sell the independent service on KMJ website, not through an in-plugin upsell funnel.
+    - If a feature is unavailable, explain the entitlement limitation neutrally.
+    - Submit a complete stable product, not an unfinished demo; verify trial-model acceptability with review.
+    - Do not promise acceptance, directory placement or a review completion date.
+  onboarding:
+    - Install one signed platform-specific agent.
+    - Pair device through authenticated browser flow with an expiring code.
+    - Select allowed projects and permissions.
+    - Connect the single plugin and run a real read-only connection test.
+    - Complete the first approved coding and verification task.
+  sources:
+    - https://developers.openai.com/plugins/build/mcp-server
+    - https://developers.openai.com/plugins/deploy/connect-chatgpt
+    - https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
+    - https://developers.openai.com/plugins/app-guidelines
+    - https://developers.openai.com/plugins/deploy/submission
+security_and_privacy:
+  threat_model: Malicious repository text, hostile tool arguments, stolen device credentials, tenant crossover and replay.
+  enforcement:
+    - Authenticate user independently of model-supplied tenant or device identifiers.
+    - Check tenant, device, project and action permissions server-side on every operation.
+    - Enforce canonical paths, symlink boundaries and argument validation on the device.
+    - Treat repository instructions and logs as untrusted data, never as permission grants.
+    - Use TLS, short-lived tokens and revocable per-device asymmetric identities.
+    - Store private material in OS credential facilities when supported; document fallback limits.
+    - Redact credentials before logs or model-facing results; never request passwords or private keys in chat.
+    - Apply bounded outputs, timeouts, resource controls and process-tree cancellation.
+    - Keep production actions separately controlled and explicitly approved under policy.
+  updates: Signed manifests and binaries, staged rollout, rollback protection and emergency recovery.
+  supply_chain: Pinned dependencies, vulnerability review, SBOM and provenance for release artifacts.
+  telemetry: Minimal disclosed operational telemetry; no source-code collection by default.
+  retention_proposed:
+    local_job_logs_days: 7
+    gateway_operational_logs_days: 14
+    security_audit_days: 90
+    controls: Redaction, size caps, deletion and tenant-configurable retention; legal obligations reviewed separately.
+  audit: Append-only security events with integrity checks and restricted access.
+  controls_for_customers: [device_revoke, disconnect, data_export, deletion_request, visible_permissions]
+performance:
+  status: Unmeasured engineering targets for prototype validation.
+  reference_environment: Record OS, CPU, RAM, repository size, network RTT and test versions for every run.
+  initial_budgets:
+    idle_agent_RSS_MB_max: 50
+    idle_agent_CPU_percent_of_one_core_max: 0.5
+    idle_measurement_minutes: 30
+    small_read_agent_p95_ms_max: 100
+    reconnect_after_network_restored_seconds_max: 10
+    onboarding_to_first_success_minutes_max: 5
+    caveat: Excludes model generation, network RTT, build subprocesses and optional language servers.
+  tactics:
+    - Reuse connections and return bounded structured results.
+    - Batch independent reads without expanding permissions.
+    - Transfer changed content and requested file ranges, not entire repositories.
+    - Use bounded filesystem watchers and incremental indexes only when required.
+    - Lazy-start language servers; expire inactive resources.
+    - Cap logs, caches, job queues and concurrent work.
+    - Offload heavy builds from production machines to authorized workers.
+  comparison:
+    baseline: Existing KMJ Desktop Commander, if an accessible working deployment is available.
+    scenarios: [cold_connect, warm_read, large_repo_search, patch_and_test, reconnect, concurrent_jobs]
+    metrics: [p50_latency, p95_latency, RAM, CPU, bytes_transferred, tool_calls, success_rate]
+    publication: Publish reproducible conditions and both wins and regressions; no assumed speed multiplier.
+roadmap_phases:
+  - id: M0
+    name: Baseline, scope and contracts
+    priority: P0
+    depends_on: []
+    status: not_started
+    deliverables:
+      - Inventory authorized Commander code and actual MCP capabilities.
+      - Verify KMJ Main Platform licensing integration and product boundaries.
+      - Finalize supported OS matrix, threat model and benchmark harness.
+      - Confirm brand clearance and public distribution constraints.
+    acceptance:
+      - Current capability matrix and reusable components documented with evidence.
+      - Versioned agent/gateway and entitlement contracts reviewed.
+      - First-release scope and measurable budgets agreed.
+  - id: M1
+    name: Reliable connection and read-only vertical slice
+    priority: P0
+    depends_on: [M0]
+    status: not_started
+    deliverables:
+      - Linux agent, authenticated gateway and single plugin package.
+      - Device pairing, project allowlists, inspect, search and Git status.
+      - Connection doctor and structured failures.
+    acceptance:
+      - Real ChatGPT tool discovery and authorized project inspection succeed.
+      - Wrong-tenant and outside-root reads are rejected.
+      - Disconnect and reconnect tests pass with bounded resource usage.
+  - id: M2
+    name: Safe coding and durable verification
+    priority: P0
+    depends_on: [M1]
+    status: not_started
+    deliverables:
+      - Preview and apply patches with conflict detection.
+      - Worktree isolation, quality gate execution and durable job journal.
+      - Incremental logs, cancellation and replay reconciliation.
+    acceptance:
+      - Complete inspect-edit-test workflow passes on representative repositories.
+      - User changes survive concurrent edits and failed operations.
+      - Network loss and agent restart do not cause blind duplicate execution.
+      - Test evidence maps to the actual device, revision and exit result.
+  - id: M3
+    name: Main Platform licensing and trial
+    priority: P0
+    depends_on: [M0, M2]
+    status: not_started
+    deliverables:
+      - Product registration and signed entitlement issue, renew and revoke flows.
+      - Trial activation, device limits and Free downgrade.
+      - Customer and admin controls with auditable billing events.
+    acceptance:
+      - Signature, binding, replay, clock rollback and revocation tests pass.
+      - Payment event retries do not duplicate licenses or entitlements.
+      - Licensing outage, grace expiry and recovery preserve customer data.
+      - No per-tool synchronous billing dependency.
+  - id: M4
+    name: Windows support and pilot readiness
+    priority: P0
+    depends_on: [M2, M3]
+    status: not_started
+    deliverables:
+      - Signed Windows service installer and Linux install/uninstall flow.
+      - Cross-platform path handling, process cancellation and resource controls.
+      - Onboarding, privacy documentation, backup/restore and support runbooks.
+    acceptance:
+      - Clean install, upgrade, rollback and uninstall pass on the support matrix.
+      - First-success onboarding observed with external pilot users.
+      - No unresolved critical or high-severity security findings.
+  - id: M5
+    name: Paid pilot and launch preparation
+    priority: P0
+    depends_on: [M4]
+    status: not_started
+    deliverables:
+      - Independent website pricing, signup, checkout and activation workflow.
+      - Real demo videos and consented customer case studies.
+      - Pilot support, cost measurement and product feedback loop.
+      - Complete public plugin submission package and reviewer test account.
+    acceptance:
+      - End-to-end purchase and cancellation tested before collecting live revenue.
+      - Paying-user and retention metrics use real records only.
+      - Policy review and private-data handling documentation complete.
+      - Public release remains conditional on review and engineering gates.
+  - id: M6
+    name: Team product and public release
+    priority: P1
+    depends_on: [M5]
+    status: not_started
+    deliverables:
+      - Team roles, shared device access, project policies and organization audit.
+      - Rate limits, measured gateway capacity and operational alerting.
+      - Public directory publishing if approved, plus staged rollout.
+    acceptance:
+      - Cross-tenant isolation and role-change revocation verified.
+      - Load tests show documented capacity with headroom.
+      - Incident response and rollback rehearsed.
+  - id: M7
+    name: Platform expansion and advanced development
+    priority: P2
+    depends_on: [M6]
+    status: not_started
+    deliverables:
+      - macOS and ARM support after platform-specific verification.
+      - Rust, Go, Java and .NET adapters.
+      - Optional symbol indexing and language-server integration.
+      - Optional customer-owned remote build workers.
+    acceptance:
+      - Each advertised platform and adapter passes its published compatibility suite.
+      - Optional modules remain disabled without need and respect resource budgets.
+  - id: M8
+    name: Enterprise and optional autonomy
+    priority: P2
+    depends_on: [M7]
+    status: not_started
+    deliverables:
+      - Optional SSO, enterprise policy bundles and dedicated deployment model.
+      - Separately scoped autonomous orchestrator with budgets and approval boundaries.
+      - Optional desktop-control module only after demand and isolation review.
+    acceptance:
+      - Separate design, security review and cost model approved for each subsystem.
+      - Autonomy has time, money, action and infrastructure limits with a stop control.
+      - Main Platform remains the commercial authority without executing device workloads.
+release_gates:
+  correctness: Unit and integration tests for permissions, patching, licensing and job state transitions.
+  end_to_end: Real ChatGPT onboarding, inspection, editing, test execution and reconnect.
+  security: Tenant isolation, traversal/symlink attacks, replay, privilege escalation and secret leakage.
+  resilience: Lost network, gateway restart, agent restart, disk full and licensing unavailability.
+  performance: Measure budgets on documented hardware; approve or explicitly revise failed targets.
+  packaging: Signed artifacts, provenance, clean installation and tested rollback.
+  commerce: Verified billing events, transparent renewal, cancellation and entitlement reconciliation.
+  publication: Current policy review and platform approval where required.
+  stop_conditions:
+    - Customer data corruption or unexplained destructive operation.
+    - Cross-tenant access or credential exposure.
+    - Non-idempotent operation duplicated after retry.
+    - Misreported test success or incorrect revision evidence.
+  completion_record: Commit SHA, test run link or artifact, environment, date, reviewer and unresolved limitations.
+growth_and_revenue:
+  strategy: Prove one recurring developer workflow before broad feature expansion.
+  pilot_targets_not_forecasts:
+    activated_trials: 20
+    weekly_active_users: 10
+    first_paying_customers: 5
+  funnel:
+    - Consent-based customer interviews and qualified developer outreach.
+    - Independent KMJ website signup and trial activation.
+    - First successful project task with guided onboarding.
+    - Repeated weekly use, then independent website conversion.
+    - Retention, team expansion and genuine referrals.
+  launch_assets: [short_real_demo, setup_guides, example_repositories, compatibility_matrix, privacy_page, benchmark_report]
+  channels: [GitHub_documentation, developer_tutorials, Hindi_and_English_videos, relevant_communities, customer_case_studies]
+  referral_proposal: Website credit after a verified referred payment; fraud controls and clear conditions.
+  metrics:
+    - First connection and first successful coding-task conversion.
+    - Median time to first useful result.
+    - Trial-to-paid conversion by signup cohort.
+    - Weekly active customers and paid customer retention.
+    - Monthly recurring revenue excluding one-time onboarding fees.
+    - Infrastructure and support cost per paid account.
+    - Refunds, failed payments and cancellation reasons.
+  prohibited_tactics: [spam, fake_stars, purchased_reviews, fabricated_testimonials, guaranteed_popularity]
+execution_and_governance:
+  sequence: M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6 -> M7 -> M8
+  scheduling: Gate-based; estimate calendar dates only after M0 establishes team capacity and existing code quality.
+  critical_path: Working authenticated MCP connection -> safe edit/test -> licensing -> verified onboarding -> paid pilot.
+  role_assignments_proposed:
+    product_owner: KMJ TECHNO
+    engineering_owner: Assign before implementation.
+    security_reviewer: Assign before pilot.
+    commercial_owner: KMJ TECHNO
+  reporting: Report verified commits, gate results, blockers and next deliverable; avoid invented completion percentages.
+  current_delivery:
+    completed: [product_name_confirmed, YAML_roadmap_authored]
+    not_claimed: [code_implemented, servers_connected, tests_passed, license_integrated, plugin_published, revenue_generated]
+  decisions_before_implementation:
+    - Review this roadmap and convert M0-M2 into a repository-specific implementation plan.
+    - Identify the authorized repository and non-production test machines.
+    - Confirm Main Platform contract compatibility and safe integration environment.
+    - Finalize pricing, trial duration and limits after cost and pilot feedback.
+    - Verify name clearance and current publication policies before public branding.

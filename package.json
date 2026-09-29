@@ -1,0 +1,26 @@
+{
+  "name": "@kmjtechno/codebridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "KMJ CodeBridge controlled coding MCP gateway and outbound device agent",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "check": "prettier --check src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md && node scripts/check.js",
+    "gateway": "node src/cli.js gateway",
+    "agent": "node src/cli.js agent",
+    "init": "node scripts/init.js",
+    "package:plugin": "node scripts/package-plugin.js",
+    "format": "prettier --write src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.31.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
+}
