@@ -56,3 +56,50 @@ test("plugin manifest has one identity and accurate workflow", () => {
   );
   assert.ok(fs.existsSync(path.join(cwd, "plugin/skills/codebridge/SKILL.md")));
 });
+
+test("init rejects an outside alias resolving into the project before writing secrets", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-init-alias-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const root = path.join(dir, "project");
+  fs.mkdirSync(root);
+  const alias = path.join(dir, "alias");
+  fs.symlinkSync(
+    root,
+    alias,
+    process.platform === "win32" ? "junction" : "dir",
+  );
+  const result = spawnSync(
+    process.execPath,
+    ["scripts/init.js", path.join(alias, "config"), root],
+    { cwd },
+  );
+  assert.notEqual(result.status, 0);
+  assert.equal(fs.existsSync(path.join(root, "config")), false);
+});
+
+test("init uses canonical outside destination for agent state", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-init-outside-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const root = path.join(dir, "project");
+  const outside = path.join(dir, "outside");
+  fs.mkdirSync(root);
+  fs.mkdirSync(outside);
+  const alias = path.join(dir, "alias");
+  fs.symlinkSync(
+    outside,
+    alias,
+    process.platform === "win32" ? "junction" : "dir",
+  );
+  execFileSync(
+    process.execPath,
+    ["scripts/init.js", path.join(alias, "config"), root],
+    { cwd },
+  );
+  const config = JSON.parse(
+    fs.readFileSync(path.join(outside, "config", "agent.json")),
+  );
+  assert.equal(
+    config.stateDir,
+    path.join(fs.realpathSync(outside), "config", "state"),
+  );
+});
