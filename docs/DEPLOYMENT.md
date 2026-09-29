@@ -77,3 +77,18 @@ This entry point is tested over HTTP behind the expected TLS termination boundar
 A hosting deployment, TLS endpoint or successful live account link is not implied by
 passing source tests. Provider-specific cold starts, quotas and availability must be
 validated for the selected plan before promising always-on connectivity.
+
+## Verified runtime downloads
+
+Every successful CI matrix job now builds a source-runtime `.tar.gz`, `manifest.json`
+and `SHA256SUMS`, uploaded as a workflow artifact for 14 days. The manifest pins the
+full source commit. Download from that run's Artifacts section, verify the archive
+checksum, extract, then run `npm ci --ignore-scripts` with Node.js 24 before startup.
+This source bundle still needs npm registry access and private configuration. It is
+not a self-contained native executable, signed installer or connected ChatGPT plugin.
+
+`npm run package:runtime` builds from a clean committed tree and refuses to overwrite
+an existing output directory. Untracked files are excluded; known credential filenames
+cause packaging to fail if tracked. This filename check is defense in depth, not a
+full secret scanner. SHA256 detects corruption when compared against a trusted manifest;
+it does not establish publisher identity without a separately trusted signature.

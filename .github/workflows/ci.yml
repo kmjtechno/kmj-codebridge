@@ -21,3 +21,10 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npm run check
       - run: npm test
+      - run: npm run package:runtime
+      - uses: actions/upload-artifact@v4
+        with:
+          name: codebridge-runtime-${{ matrix.os }}
+          path: dist/runtime/
+          if-no-files-found: error
+          retention-days: 14
