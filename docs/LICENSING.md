@@ -66,3 +66,32 @@ No synchronous Main Platform call is made for each tool invocation.
 
 Never treat Free mode as a locally issued commercial trial. No payments are taken by
 this preview. Pricing and trial limits in the roadmap remain proposals.
+
+## Optional renewal client (proposed contract)
+
+Signed agent configuration now accepts `renewal` with `endpoint` (HTTPS URL without
+credentials/query/fragment), `credential` (private service credential, at least 32
+characters) and `intervalSeconds` (60–86400; default 3600). The agent attempts renewal
+at startup and periodically, independently of tool invocation. A request is limited
+to five seconds, redirects are refused and the response is limited to 32 KiB.
+
+The POST body is `{product, tenant, device, sequence}`; the expected response is
+`{token: "<signed compact JWS>"}`. Only an ACTIVE signature-verified token with a
+strictly higher sequence is installed using a synced temporary file and atomic
+replacement. Existing replay/time checks remain enforced. Transport errors, unsigned
+errors and invalid responses preserve the existing cache; they never extend its
+signed expiry/grace. HTTP 403 alone is not a signed revocation and does not erase
+cached access. Immediate signed revocation distribution remains outstanding.
+
+This transport contract has not been verified against the live Main Platform API.
+Do not point it at the sandbox HMAC issuer. Initial activation must supply the token
+file; this client does not issue trials, accept payments or enroll a device. Renewal
+runs on the polling loop, so a renewal can delay the next poll by up to five seconds.
+A failed renewal waits until the configured next interval. Choose the interval well
+below the issuer's lease lifetime and rotate service credentials outside the model.
+
+The entitlement path is canonicalized before checking project boundaries and before
+replacement, including configured symlink aliases. Replay-state persistence is not a
+power-loss-proof database: directory fsync and transactional state/token recovery
+remain production durability work. Keep state outside project access and back it up
+with controlled recovery procedures.

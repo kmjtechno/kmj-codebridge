@@ -1,3 +1,4 @@
+import { requestRenewal } from "./renewal.js";
 import { readJsonLimited } from "./http.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -32,6 +33,8 @@ export async function startAgent(rawConfig) {
     fail("DUPLICATE_PROJECT");
   fs.mkdirSync(c.stateDir, { recursive: true, mode: 0o700 });
   const state = fs.realpathSync(c.stateDir);
+  if (c.license.mode === "signed")
+    c.license.tokenFile = fs.realpathSync(c.license.tokenFile);
   for (const project of c.projects) {
     const root = fs.realpathSync(project.root);
     if (c.license.mode === "signed") {
@@ -116,10 +119,57 @@ export async function startAgent(rawConfig) {
     if (!response.ok) throw Error("GATEWAY_REQUEST_FAILED");
     return readJsonLimited(response.body);
   };
+  let nextRenewal = 0;
+  const renew = async () => {
+    if (
+      c.license.mode !== "signed" ||
+      !c.license.renewal ||
+      Date.now() < nextRenewal
+    )
+      return;
+    nextRenewal = Date.now() + c.license.renewal.intervalSeconds * 1000;
+    const now = Math.floor(Date.now() / 1000);
+    if (now + 60 < trusted.lastTime) return;
+    try {
+      // Check the installed cache before requesting a strictly newer signed lease.
+      // If it is expired, persisted high-water marks still constrain renewal.
+      try {
+        licenseProvider();
+      } catch (e) {
+        if (e.code === "LICENSE_CLOCK_ROLLBACK" || e.code === "LICENSE_REPLAY")
+          return;
+      }
+      const renewal = await requestRenewal(
+        c.license.renewal,
+        c.license.keys,
+        { tenant: c.tenant, device: c.id },
+        trusted.sequence,
+        { signal: controller.signal },
+      );
+      const tmp = c.license.tokenFile + ".renew-" + process.pid;
+      let fd;
+      try {
+        fd = fs.openSync(tmp, "wx", 0o600);
+        fs.writeFileSync(fd, renewal.token);
+        fs.fsyncSync(fd);
+        fs.closeSync(fd);
+        fd = undefined;
+        fs.renameSync(tmp, c.license.tokenFile);
+      } finally {
+        if (fd !== undefined) fs.closeSync(fd);
+        if (fs.existsSync(tmp)) fs.unlinkSync(tmp);
+      }
+      licenseProvider();
+    } catch {
+      // An outage never fabricates an entitlement or extends signed grace.
+      // Tool dispatch independently revalidates the installed lease.
+    }
+  };
   const loop = (async () => {
     let failures = 0;
     while (!stopped) {
       try {
+        await renew();
         const work = await post("/agent/poll", {});
         failures = 0;
         if (work) {

@@ -109,6 +109,13 @@ export const agentSchema = z.object({
     z.object({
       mode: z.literal("signed"),
       tokenFile: z.string(),
+      renewal: z
+        .object({
+          endpoint: httpsUrl,
+          credential: z.string().min(32).max(4096),
+          intervalSeconds: z.number().int().min(60).max(86400).default(3600),
+        })
+        .optional(),
       keys: z.record(z.string()),
     }),
   ]),
