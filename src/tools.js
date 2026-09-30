@@ -18,45 +18,53 @@ const patch = {
 };
 export const definitions = {
   list_devices: {
+    title: "List authorized devices",
     description: "List devices and projects authorized for this account.",
     input: {},
     access: "read",
   },
   inspect_project: {
+    title: "Inspect project",
     description: "Inspect an authorized project and configured quality gates.",
     input: scoped,
     access: "read",
   },
   git_status: {
+    title: "Git status",
     description: "Read Git working-tree status for an authorized project.",
     input: scoped,
     access: "read",
   },
   search_code: {
+    title: "Search code",
     description:
       "Search literal text in allowed project files with bounded results.",
     input: { ...scoped, query: z.string().min(1).max(200) },
     access: "read",
   },
   read_file: {
+    title: "Read file",
     description:
       "Read a bounded UTF-8 project file and its SHA-256 precondition.",
     input: file,
     access: "read",
   },
   preview_file: {
+    title: "Preview file change",
     description:
       "Validate a proposed file replacement without changing the file.",
     input: patch,
     access: "read",
   },
   write_file: {
+    title: "Write file",
     description:
       "Replace an authorized file only when its current hash matches; null hash creates a new file.",
     input: patch,
     access: "write",
   },
   run_quality_gate: {
+    title: "Run quality gate",
     description:
       "Start an administrator-configured command. It can execute project code and change files. Use a stable requestKey for retries.",
     input: {
@@ -67,18 +75,21 @@ export const definitions = {
     access: "execute",
   },
   get_job_status: {
+    title: "Get job status",
     description:
       "Read a job result and bounded redacted logs within the authorized project.",
     input: { ...scoped, job: identifier },
     access: "read",
   },
   cancel_job: {
+    title: "Cancel job",
     description:
       "Cancel an authorized project job and terminate its subprocesses.",
     input: { ...scoped, job: identifier },
     access: "write",
   },
   connection_doctor: {
+    title: "Connection doctor",
     description:
       "Read connection health and available project capabilities without changing settings.",
     input: scoped,

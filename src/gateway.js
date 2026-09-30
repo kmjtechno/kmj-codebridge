@@ -1,4 +1,8 @@
 import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
+import {
+  insufficientScopeMeta,
+  toolSecurityMeta,
+} from "./client-extensions.js";
 import { readJsonLimited } from "./http.js";
 import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
@@ -88,7 +92,7 @@ export async function startGateway(rawConfig) {
       const timer = setTimeout(() => {
         pending.delete(id);
         reject(Object.assign(new Error(), { code: "DEVICE_TIMEOUT" }));
-      }, 15000);
+      }, config.deviceTimeoutMs);
       pending.set(id, {
         id,
         agent: a.id,
@@ -134,9 +138,12 @@ export async function startGateway(rawConfig) {
         json(res, 403, { error: "ORIGIN_DENIED" });
         return;
       }
+      // RFC 9728: the path-suffixed location is canonical for the /mcp
+      // resource; the root location is kept for existing clients.
       if (
         config.oauth &&
-        req.url === "/.well-known/oauth-protected-resource" &&
+        (req.url === "/.well-known/oauth-protected-resource" ||
+          req.url === "/.well-known/oauth-protected-resource/mcp") &&
         req.method === "GET"
       ) {
         json(res, 200, oauthMetadata(config.oauth));
@@ -239,18 +246,12 @@ export async function startGateway(rawConfig) {
         mcp.registerTool(
           name,
           {
+            title: d.title,
             description: d.description,
             inputSchema: d.input,
-            ...(config.oauth
-              ? {
-                  _meta: {
-                    securitySchemes: [
-                      { type: "oauth2", scopes: [`codebridge:${d.access}`] },
-                    ],
-                  },
-                }
-              : {}),
+            ...toolSecurityMeta(config.oauth, d.access),
             annotations: {
+              title: d.title,
               readOnlyHint: d.access === "read",
               destructiveHint: d.access !== "read",
               idempotentHint: d.access === "read",
@@ -265,19 +266,7 @@ export async function startGateway(rawConfig) {
                   content: [
                     { type: "text", text: '{"error":"ACCESS_DENIED"}' },
                   ],
-                  ...(config.oauth &&
-                  !user.grantedScopes.includes(`codebridge:${d.access}`)
-                    ? {
-                        _meta: {
-                          "mcp/www_authenticate": [
-                            oauthChallenge(
-                              config.oauth,
-                              `codebridge:${d.access}`,
-                            ) + ', error="insufficient_scope"',
-                          ],
-                        },
-                      }
-                    : {}),
+                  ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
               if (name === "list_devices") {
                 const devices = config.agents

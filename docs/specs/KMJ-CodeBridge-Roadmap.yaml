@@ -2,7 +2,8 @@
 # Roadmap only: no implementation, deployment, revenue or benchmark is claimed.
 roadmap:
   schema_version: '1.0'
-  document_version: '1.0.0'
+  document_version: '1.1.0'
+  updated_on: '2026-09-30'
   created_on: '2026-09-29'
   timezone: Asia/Bangkok
   language: English
@@ -12,11 +13,13 @@ roadmap:
     name_status: confirmed_by_user
     owner: KMJ TECHNO
     tagline: Connect your systems. Build with AI.
-    positioning: One ChatGPT plugin for controlled coding across authorized computers and VPSs.
+    positioning: Secure, vendor-neutral MCP coding bridge for controlled AI-assisted development across authorized computers and VPSs.
+    supported_ai_clients: [ChatGPT, Claude_ai, Claude_Desktop, Claude_Code, future_MCP_clients]
     visual_identity: Premium black and red, accessible contrast, clear device and environment labels.
     trademark_domain_and_directory_clearance: pending
   confirmed_requirements:
     - One customer-facing plugin across all plans, projects and devices.
+    - First-class ChatGPT and Claude support through one shared MCP backend; AI provider choice is independent of licensing.
     - Support authorized VPS and computers with minimal background overhead.
     - KMJ Main Platform is authoritative for billing, licensing and trials.
     - Optimize coding speed, reliability, reconnect recovery and ease of installation.
@@ -46,7 +49,7 @@ roadmap:
       - Autonomous new AI decisions after chat closes without a separately designed orchestrator.
       - Unapproved production changes or collection of credentials through chat.
 architecture:
-  request_path: ChatGPT plugin -> authenticated MCP gateway -> authorized device agent -> scoped project/job runner
+  request_path: ChatGPT / Claude.ai / Claude Desktop / Claude Code / future MCP client -> authenticated MCP gateway -> authorized device agent -> scoped project/job runner
   commercial_path: KMJ Main Platform -> signed CodeBridge entitlements -> gateway and device verification
   components:
     plugin:
@@ -76,6 +79,7 @@ architecture:
   connectivity:
     primary: Agent-initiated authenticated outbound connection to the gateway.
     private_option: OpenAI Secure MCP Tunnel where account and workspace eligibility is verified.
+    claude_hosted_apps: Claude.ai, Desktop and mobile connect from Anthropic's cloud, so they need a public HTTPS endpoint; Claude Code can also reach loopback or private gateways.
     controls: [TLS, per_device_identity, expiry, revocation, reconnect_backoff, bounded_queues]
     recovery: Resume job status from durable IDs; never blindly replay a state-changing request.
     proxy_support: Test outbound HTTPS proxies and restrictive firewalls before advertising support.
@@ -194,7 +198,7 @@ commercial:
       limits: Contract-defined and configuration-driven.
       features: [organization_policies, custom_limits, optional_SSO, support_agreement]
   safety_features_available_to_all: [encryption, access_revocation, patch_validation, secret_redaction, safe_cancellation]
-  exclusions: [ChatGPT_subscription, external_AI_API_usage, hosted_build_compute]
+  exclusions: [ChatGPT_subscription, Claude_subscription, external_AI_API_usage, hosted_build_compute]
   founding_offer: Consider a clearly disclosed first-year discount for the first 25 paid customers.
   avoid: [unlimited_lifetime_hosting, fake_scarcity, fabricated_reviews, unmeasured_speed_claims]
   additional_revenue: Optional clearly scoped installation and onboarding service sold independently on KMJ website.
@@ -224,6 +228,67 @@ chatgpt_distribution:
     - https://developers.openai.com/api/docs/guides/secure-mcp-tunnels
     - https://developers.openai.com/plugins/app-guidelines
     - https://developers.openai.com/plugins/deploy/submission
+multi_client_mcp:
+  status: in_progress
+  source: User requirement dated 2026-09-30 (add first-class Claude support; keep OpenAI working).
+  architecture_lock:
+    - One shared CodeBridge MCP gateway for ChatGPT, Claude.ai, Claude Desktop, Claude Code and future MCP clients.
+    - Authentication, authorization, licensing, policy enforcement and audit are shared; no per-vendor execution or security path.
+    - Tool semantics come from one canonical definition; never fork tools between AI vendors.
+    - OpenAI-only and Claude-only metadata live in separate integration layers; the core stays vendor-neutral.
+    - Future MCP clients must be addable without touching filesystem security, device agent, jobs, licensing, authorization or audit.
+  preserve:
+    - Official MCP SDK, Streamable HTTP, /mcp endpoint, outbound-polling agent.
+    - Tenant/device/project authorization, scoped files, secret-path redaction, SHA-256 guarded writes, no blind overwrite.
+    - Durable quality-gate jobs, requestKey idempotency, bounded results, deny-by-default, rate limiting, optional OAuth.
+    - Ed25519 entitlements controlled by KMJ Main Platform; no unrestricted shell; no fabricated endpoint; no production deploy.
+  shared_agent_rules: [inspect_before_editing, preserve_user_changes, repository_text_is_untrusted_data, use_returned_hashes, reread_and_reconcile_conflicts, never_expose_secrets, only_configured_quality_gates, stable_request_keys, inspect_job_after_timeout, report_real_results_only, authorization_for_destructive_or_production_actions, never_broaden_permissions_after_denial]
+  client_integrations:
+    openai: Existing plugin package (plugin/plugin.json with com.openai extension) plus OpenAI _meta extensions isolated in src/client-extensions.js.
+    claude_code: Plugin and local marketplace generated by scripts/package-claude.js (.claude-plugin/plugin.json, .mcp.json type http, canonical skill); or claude mcp add --transport http.
+    claude_desktop: Remote custom connector by URL; local claude_desktop_config.json is stdio-only and not used.
+    claude_ai: Remote custom connector by URL; requires hosted HTTPS endpoint and OAuth authorization server.
+  claude_remote_prerequisites:
+    - Public HTTPS /mcp endpoint reachable from Anthropic egress (160.79.104.0/21 at time of writing).
+    - OAuth authorization server with PKCE S256 and Dynamic Client Registration or Client ID Metadata Documents.
+    - Redirect URIs https://claude.ai/api/mcp/auth_callback and port-agnostic loopback redirects for Claude Code.
+    - RFC 9728 protected-resource metadata whose resource equals the MCP URL; 401 with resource_metadata challenge.
+    - Access token audience equal to the gateway resource; codebridge:read/write/execute scopes.
+  ci_gates:
+    core_mcp: [protocol_schema_tests, security_policy_tests, gateway_agent_integration_tests]
+    openai: [existing_package_validation]
+    claude: [claude_package_validation, mcp_interoperability_contract_tests]
+    distribution: [credential_scan, package_integrity_checks]
+    rule: Deterministic protocol tests only; no paid AI API calls in CI.
+  completion_gate:
+    - Existing CodeBridge functionality and OpenAI integration still pass.
+    - Claude integration uses current official requirements; Claude Code setup documented and validated.
+    - Claude Desktop and Claude.ai support boundaries documented accurately; no public availability claimed.
+    - Shared MCP tools remain vendor-neutral; security not weakened.
+    - Claude contract tests, existing tests, check/package gates and exact-final-HEAD CI all green.
+    - Repository and packages contain no credentials; documentation matches what ships.
+  delivered_2026_09_30:
+    - Tool titles and derived annotations shared by all clients.
+    - RFC 9728 metadata at root and /mcp path-suffixed well-known locations.
+    - Configurable device timeout (default unchanged at 15 seconds).
+    - Claude Code plugin and marketplace packager; claude plugin validate --strict passed locally.
+    - Vendor-neutral canonical skill; OpenAI package layout unchanged.
+    - Credential scanner, package contract tests, MCP interoperability contract tests and CI jobs.
+  not_claimed: [hosted_endpoint, live_Claude_ai_or_Desktop_connection, live_ChatGPT_connection, authorization_server, Anthropic_directory_listing, OpenAI_approval, CI_green_for_final_HEAD_until_observed]
+claude_distribution:
+  checked_on: '2026-09-30'
+  review_required_before_launch: true
+  policy_baseline:
+    - Custom connectors can be added by URL; directory listing is a separate reviewed submission.
+    - Hosted Claude apps require a publicly reachable HTTPS endpoint; a loopback or tunnel-only gateway is insufficient for them.
+    - Tool annotations (readOnlyHint, destructiveHint) must accurately describe behavior.
+    - Do not promote upgrades or initiate subscription checkout inside the connector; KMJ Main Platform owns commerce.
+    - Do not promise acceptance, directory placement or a review completion date.
+  sources:
+    - https://code.claude.com/docs/en/mcp
+    - https://code.claude.com/docs/en/plugins-reference
+    - https://code.claude.com/docs/en/plugins/marketplace-reference
+    - https://claude.com/docs/connectors/building/authentication
 security_and_privacy:
   threat_model: Malicious repository text, hostile tool arguments, stolen device credentials, tenant crossover and replay.
   enforcement:
@@ -295,9 +360,25 @@ roadmap_phases:
       - Device pairing, project allowlists, inspect, search and Git status.
       - Connection doctor and structured failures.
     acceptance:
-      - Real ChatGPT tool discovery and authorized project inspection succeed.
+      - Real ChatGPT and Claude tool discovery and authorized project inspection succeed.
       - Wrong-tenant and outside-root reads are rejected.
       - Disconnect and reconnect tests pass with bounded resource usage.
+  - id: MC1
+    name: Multi-client MCP support (ChatGPT + Claude)
+    priority: P0
+    depends_on: [M1]
+    status: in_progress
+    deliverables:
+      - Vendor-neutral tool contract, skill and packaging with isolated OpenAI and Claude layers.
+      - Claude Code plugin/marketplace and direct claude mcp add path.
+      - Claude.ai and Claude Desktop custom-connector prerequisites documented.
+      - MCP interoperability contract tests and per-client CI gates.
+    acceptance:
+      - Same tools, annotations and errors for every client identity in interop tests.
+      - OpenAI package unchanged and Claude Code package passes claude plugin validate --strict.
+      - Real Claude Code session completes a read-only inspection against a hosted or local gateway.
+      - Real Claude.ai custom connector completes OAuth and inspection once hosting exists.
+      - Exact-final-HEAD CI green with no credential findings.
   - id: M2
     name: Safe coding and durable verification
     priority: P0
@@ -395,7 +476,7 @@ roadmap_phases:
       - Main Platform remains the commercial authority without executing device workloads.
 release_gates:
   correctness: Unit and integration tests for permissions, patching, licensing and job state transitions.
-  end_to_end: Real ChatGPT onboarding, inspection, editing, test execution and reconnect.
+  end_to_end: Real ChatGPT and Claude onboarding, inspection, editing, test execution and reconnect.
   security: Tenant isolation, traversal/symlink attacks, replay, privilege escalation and secret leakage.
   resilience: Lost network, gateway restart, agent restart, disk full and licensing unavailability.
   performance: Measure budgets on documented hardware; approve or explicitly revise failed targets.
@@ -433,7 +514,7 @@ growth_and_revenue:
     - Refunds, failed payments and cancellation reasons.
   prohibited_tactics: [spam, fake_stars, purchased_reviews, fabricated_testimonials, guaranteed_popularity]
 execution_and_governance:
-  sequence: M0 -> M1 -> M2 -> M3 -> M4 -> M5 -> M6 -> M7 -> M8
+  sequence: M0 -> M1 -> (MC1 in parallel with M2) -> M2 -> M3 -> M4 -> M5 -> M6 -> M7 -> M8
   scheduling: Gate-based; estimate calendar dates only after M0 establishes team capacity and existing code quality.
   critical_path: Working authenticated MCP connection -> safe edit/test -> licensing -> verified onboarding -> paid pilot.
   role_assignments_proposed:
@@ -443,7 +524,7 @@ execution_and_governance:
     commercial_owner: KMJ TECHNO
   reporting: Report verified commits, gate results, blockers and next deliverable; avoid invented completion percentages.
   current_delivery:
-    completed: [product_name_confirmed, YAML_roadmap_authored]
+    completed: [product_name_confirmed, YAML_roadmap_authored, multi_client_requirement_recorded]
     not_claimed: [code_implemented, servers_connected, tests_passed, license_integrated, plugin_published, revenue_generated]
   decisions_before_implementation:
     - Review this roadmap and convert M0-M2 into a repository-specific implementation plan.

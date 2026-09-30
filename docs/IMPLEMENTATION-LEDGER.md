@@ -28,3 +28,14 @@
 - Canonicalize the existing destination parent before checking project containment and creating any credentials. Existing destinations still fail closed.
 - Both regressions now pass; complete Linux suite: 87 passed, 0 failed, 0 skipped. Formatting and syntax checks pass.
 - This protects against pre-existing path aliases; hostile concurrent filesystem mutation still requires OS isolation, as documented for the developer preview.
+
+## Multi-client MCP support (ChatGPT + Claude)
+
+- Requirement: vendor-neutral bridge with first-class Claude.ai, Claude Desktop and Claude Code support; existing OpenAI integration preserved; one backend, no forked tool semantics.
+- Inspected main 0b861ba (all feature branches already merged). OpenAI-specific pieces found: `extensions.com.openai` in plugin.json (already isolated), OpenAI `_meta` keys emitted by the gateway, and "Never imply endorsement by OpenAI" in the skill.
+- Verified current requirements from official docs: Claude Code plugin manifest, marketplace and MCP references (code.claude.com) and connector authentication (claude.com/docs/connectors/building/authentication).
+- Ruling: Claude support is standard MCP, so no Claude-specific server code. Changes are protocol-level (titles, RFC 9728 path-suffixed metadata) and packaging. Cost if wrong: a client needing a nonstandard field would fail discovery; interop tests pin current behavior.
+- Ruling: OpenAI `_meta` extensions stay on for all clients inside `src/client-extensions.js` rather than branching on client identity, because MCP `_meta` is an open extension point and identity-based branching would fork semantics.
+- Ruling: Claude Desktop uses remote custom connectors, not `claude_desktop_config.json` (stdio only), so no Desktop artifact is shipped.
+- Workspace limit: npm registry returned 403 under organization egress policy; `@modelcontextprotocol/sdk`, `jose` and `zod` could not be installed and local Node was 22. Only dependency-free suites ran locally; MCP interop tests are CI-only.
+- Local verification: `tests/client-packages.test.js` 6/6 passed including the real `claude plugin validate --strict` run; `tests/secrets.test.js` 3/3 passed; generated plugin installed into an isolated Claude Code config (1 skill, 1 MCP server); prettier and syntax checks passed.

@@ -28,4 +28,5 @@ that the plugin package alone gives machine access.
 
 Plans and billing are controlled by KMJ Main Platform. Explain unavailable
 entitlements neutrally. Do not promote upgrades or initiate subscription checkout
-from the plugin. Never imply endorsement by OpenAI.
+from the plugin. Never imply endorsement by OpenAI, Anthropic or any other AI
+provider. The same tools and rules apply in every connected AI client.

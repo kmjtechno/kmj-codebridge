@@ -2,8 +2,10 @@
 
 **Connect your systems. Build with AI.**
 
-One MCP plugin for controlled coding on authorized computers and VPSs. Commercial
-licensing belongs to **KMJ Main Platform**.
+KMJ CodeBridge is a secure, vendor-neutral MCP coding bridge for controlled
+AI-assisted development across authorized computers and VPSs. ChatGPT, Claude.ai,
+Claude Desktop, Claude Code and other MCP clients use the same gateway, tools and
+security controls. Commercial licensing belongs to **KMJ Main Platform**.
 
 ## Status: executable developer preview, not production GA
 
@@ -14,8 +16,22 @@ exercise a real MCP client, gateway and agent over loopback HTTP.
 
 **Not yet delivered:** public hosted endpoint, live OAuth account linking, live Main
 Platform billing/renewal adapter, native Rust agent, signed OS installers, public
-plugin approval, SSO, or a production security certification. A source upload is
-not a connected ChatGPT installation. See [status](docs/STATUS.md).
+plugin or connector approval (OpenAI or Anthropic), SSO, or a production security
+certification. A source upload is not a connected ChatGPT or Claude installation.
+See [status](docs/STATUS.md).
+
+## Supported AI clients
+
+| Client         | How it connects                                  | Current state                                      |
+| -------------- | ------------------------------------------------ | -------------------------------------------------- |
+| ChatGPT        | Plugin package + remote MCP                      | Package tested; live connection needs hosted OAuth |
+| Claude Code    | `claude mcp add` or the CodeBridge Claude plugin | Plugin validated by `claude plugin validate`       |
+| Claude Desktop | Custom connector to a public HTTPS `/mcp` URL    | Documented; needs hosted endpoint and OAuth        |
+| Claude.ai      | Custom connector to a public HTTPS `/mcp` URL    | Documented; not available until hosting and OAuth  |
+| Other MCP      | Streamable HTTP with bearer or MCP OAuth         | Covered by the vendor-neutral interop contract     |
+
+All clients share one tool contract, one skill and one security model. Setup,
+prerequisites and limits for each client are in [AI client support](docs/CLIENTS.md).
 
 ## Quick start
 
@@ -25,6 +41,7 @@ Requires Node.js 24 and npm. Use a disposable development project initially.
 npm ci --ignore-scripts
 npm run check
 npm test
+npm run scan:secrets
 npm run init -- /absolute/private-codebridge-config /absolute/development-project
 npm run gateway -- /absolute/private-codebridge-config/gateway.json
 ```
@@ -42,8 +59,9 @@ On Windows, use absolute Windows paths and restrict configuration ACLs to the se
 account. Unix configuration mode must be `0600`.
 
 A compatible MCP client can connect to `http://127.0.0.1:8787/mcp` using the bearer
-credential from `client-token.txt`. That is a local developer connection, not a public
-ChatGPT endpoint. For remote connections, configure TLS and the approved hostname;
+credential from `client-token.txt`, for example Claude Code (see
+[AI client support](docs/CLIENTS.md#claude-code)). That is a local developer
+connection, not a public ChatGPT or Claude endpoint. For remote connections, configure TLS and the approved hostname;
 plain HTTP agents are limited to loopback. See [deployment](docs/DEPLOYMENT.md).
 
 To enable editing, set the chosen project's `writable` to `true` in the private agent
@@ -88,15 +106,21 @@ The source plugin contains no fabricated MCP URL. Once a real approved HTTPS end
 with compatible authentication is available:
 
 ```sh
-npm run package:plugin -- https://YOUR-ACTUAL-HOST/mcp
+npm run package:plugin -- https://YOUR-ACTUAL-HOST/mcp   # ChatGPT / OpenAI package
+npm run package:claude -- https://YOUR-ACTUAL-HOST/mcp   # Claude Code plugin + marketplace
 ```
 
-This produces one archive under `dist/`. It does not publish the plugin or add OAuth.
-The current bearer-auth developer preview requires a client capable of supplying a
-header; production ChatGPT account linking is an outstanding integration gate.
+Both build from the same `plugin/` metadata and skill and write only to `dist/` (or
+an empty `--out` directory). They do not publish anything, add OAuth or check that
+the endpoint is reachable. `npm run package:claude -- URL --auth bearer-env` makes
+Claude Code read the bearer credential from `KMJ_CODEBRIDGE_TOKEN`; no credential is
+ever written into a package. The bearer-auth developer preview requires a client
+capable of supplying a header; production OAuth account linking for ChatGPT and
+Claude is an outstanding integration gate.
 
 ## Documentation
 
+- [AI client support: ChatGPT, Claude Code, Claude Desktop, Claude.ai](docs/CLIENTS.md)
 - [Full YAML roadmap](docs/specs/KMJ-CodeBridge-Roadmap.yaml)
 - [Implementation plan](docs/superpowers/plans/2026-09-29-codebridge.md)
 - [Security boundaries](SECURITY.md)
