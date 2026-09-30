@@ -2,6 +2,8 @@
 
 # KMJ CodeBridge
 
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
 **Connect your systems. Build with AI.**
 
 KMJ CodeBridge is a secure, vendor-neutral MCP coding bridge for controlled
@@ -129,9 +131,17 @@ Claude is an outstanding integration gate.
 - [Deployment and operations](docs/DEPLOYMENT.md)
 - [Main Platform entitlement contract](docs/LICENSING.md)
 - [Current delivery status](docs/STATUS.md)
+- [Contributing](CONTRIBUTING.md)
+- [Apache License 2.0](LICENSE)
 
 If this project is useful, star the repository and share a reproducible feature
 request. Please do not post credentials, source-code secrets or customer data in issues.
 
-Copyright KMJ TECHNO. No open-source license is granted by this repository; public
-visibility alone does not grant permission to redistribute or commercialize the code.
+## License
+
+Copyright 2026 KMJ TECHNO.
+
+KMJ CodeBridge is open-source software licensed under the [Apache License 2.0](LICENSE).
+The license permits use, modification and distribution subject to its terms. The
+Apache License does not grant permission to use KMJ TECHNO trade names, trademarks,
+service marks or product names except as allowed by the license.
