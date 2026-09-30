@@ -8,6 +8,7 @@
   },
   "homepage": "https://github.com/kmjtechno/kmj-codebridge",
   "repository": "https://github.com/kmjtechno/kmj-codebridge",
+  "license": "MIT",
   "keywords": [
     "mcp",
     "coding",

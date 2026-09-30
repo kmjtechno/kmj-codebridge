@@ -87,6 +87,11 @@ test("OpenAI package keeps its layout, metadata and exact endpoint", (t) => {
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(files(out), [
     "kmj-codebridge.tar.gz",
+    "kmj-codebridge/LICENSE",
+    "kmj-codebridge/PRIVACY.md",
+    "kmj-codebridge/TERMS.md",
+    "kmj-codebridge/assets/icon.png",
+    "kmj-codebridge/assets/logo.png",
     "kmj-codebridge/mcp.json",
     "kmj-codebridge/plugin.json",
     "kmj-codebridge/skills/codebridge/SKILL.md",
@@ -120,6 +125,10 @@ test("Claude Code package follows the plugin and marketplace layout", (t) => {
     ".claude-plugin/marketplace.json",
     "kmj-codebridge/.claude-plugin/plugin.json",
     "kmj-codebridge/.mcp.json",
+    "kmj-codebridge/LICENSE",
+    "kmj-codebridge/PRIVACY.md",
+    "kmj-codebridge/TERMS.md",
+    "kmj-codebridge/assets/logo.png",
     "kmj-codebridge/skills/codebridge/SKILL.md",
   ]);
   const marketplace = readJson(
@@ -216,6 +225,43 @@ test("client packagers reject unsafe endpoints, options and output locations", (
   assert.notEqual(
     run("scripts/package-claude.js", [endpoint, "--out", cwd]).status,
     0,
+  );
+});
+
+test("branding, license and policies are present in every client package", () => {
+  const i = canonical.extensions["com.openai"].interface;
+  assert.equal(canonical.license, "MIT");
+  assert.equal(i.logo, "./assets/logo.png");
+  assert.equal(i.composerIcon, "./assets/icon.png");
+  assert.match(i.brandColor, /^#[0-9A-F]{6}$/);
+  assert.equal(i.privacyPolicyURL, "https://kmjtechno.com/privacy");
+  assert.equal(i.termsOfServiceURL, "https://kmjtechno.com/terms");
+  const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+  for (const dir of ["plugin", "claude-plugin"]) {
+    const assets = path.join(cwd, dir, "assets");
+    for (const name of fs.readdirSync(assets)) {
+      const data = fs.readFileSync(path.join(assets, name));
+      assert.ok(data.subarray(0, 8).equals(png), `${dir}/assets/${name}`);
+      assert.ok(data.length < 1024 * 1024, `${dir}/assets/${name} size`);
+    }
+    for (const doc of ["LICENSE", "PRIVACY.md", "TERMS.md"])
+      assert.equal(
+        fs.readFileSync(path.join(cwd, dir, doc), "utf8"),
+        fs.readFileSync(path.join(cwd, "plugin", doc), "utf8"),
+      );
+  }
+  const manifest = readJson(
+    path.join(cwd, "claude-plugin/.claude-plugin/plugin.json"),
+  );
+  assert.equal(manifest.license, "MIT");
+  const readme = fs.readFileSync(
+    path.join(cwd, "claude-plugin/README.md"),
+    "utf8",
+  );
+  assert.match(readme, /!\[KMJ TECHNO\]\(assets\/logo\.png\)/);
+  assert.match(
+    readme,
+    /not affiliated with or endorsed by Anthropic or OpenAI/,
   );
 });
 

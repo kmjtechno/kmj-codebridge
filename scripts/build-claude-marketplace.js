@@ -46,6 +46,8 @@ export const selfHostedUserConfig = {
 
 export const pluginReadme = `# KMJ CodeBridge for Claude
 
+![KMJ TECHNO](assets/logo.png)
+
 KMJ CodeBridge lets Claude inspect authorized projects, read and update approved
 files, and run administrator-configured quality gates on computers and VPSs that
 you control. It is a developer preview.
@@ -86,6 +88,16 @@ that Claude requests return from your gateway into the Claude conversation.
 
 Plans and licensing for CodeBridge are managed by KMJ Main Platform, not by this
 plugin. The plugin does not start purchases or promote upgrades.
+
+## License and policies
+
+The files in this plugin are provided under the MIT License (see \`LICENSE\`).
+Use of CodeBridge is also subject to the plugin terms in \`TERMS.md\`, the
+privacy notice in \`PRIVACY.md\`, and the KMJ TECHNO
+[Terms & Conditions](https://kmjtechno.com/terms),
+[Privacy Policy](https://kmjtechno.com/privacy) and
+[Acceptable Use Policy](https://kmjtechno.com/acceptable-use).
+KMJ CodeBridge is not affiliated with or endorsed by Anthropic or OpenAI.
 `;
 
 export function buildInto(base) {

@@ -1,3 +1,5 @@
+<p align="center"><img src="plugin/assets/logo.png" alt="KMJ TECHNO" width="220"></p>
+
 # KMJ CodeBridge
 
 **Connect your systems. Build with AI.**

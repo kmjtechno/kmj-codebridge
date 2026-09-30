@@ -61,6 +61,8 @@ export function readCanonical() {
     version: manifest.version,
     description: manifest.description,
     author: manifest.author,
+    license: manifest.license,
+    pluginDir: path.join(root, "plugin"),
     displayName:
       manifest.extensions?.["com.openai"]?.interface?.displayName ??
       manifest.name,
@@ -113,6 +115,7 @@ export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
     author: meta.author,
     homepage: "https://github.com/kmjtechno/kmj-codebridge",
     repository: "https://github.com/kmjtechno/kmj-codebridge",
+    license: meta.license,
     keywords: CLAUDE_KEYWORDS,
     ...(userConfig ? { userConfig } : {}),
   });
@@ -122,6 +125,9 @@ export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
   fs.cpSync(meta.skillsDir, path.join(pluginDir, "skills"), {
     recursive: true,
   });
+  // Shared license, legal notices and brand logo from the canonical plugin.
+  for (const file of ["LICENSE", "PRIVACY.md", "TERMS.md", "assets/logo.png"])
+    fs.cpSync(path.join(meta.pluginDir, file), path.join(pluginDir, file));
 }
 
 export function writeClaudeMarketplace(marketplaceRoot, meta, source) {
