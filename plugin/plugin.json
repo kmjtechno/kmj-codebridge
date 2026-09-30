@@ -3,7 +3,12 @@
   "name": "kmj-codebridge",
   "version": "0.1.0",
   "description": "Controlled coding tools for authorized computers and VPSs through an authenticated MCP gateway. Developer preview.",
-  "author": { "name": "KMJ TECHNO" },
+  "author": {
+    "name": "KMJ TECHNO"
+  },
+  "homepage": "https://github.com/kmjtechno/kmj-codebridge",
+  "repository": "https://github.com/kmjtechno/kmj-codebridge",
+  "license": "MIT",
   "extensions": {
     "com.openai": {
       "interface": {
@@ -17,7 +22,13 @@
           "Inspect my authorized project with KMJ CodeBridge.",
           "Show Git status and run my configured quality gates.",
           "Check my CodeBridge connection and latest job results."
-        ]
+        ],
+        "logo": "./assets/logo.png",
+        "composerIcon": "./assets/icon.png",
+        "brandColor": "#ED010B",
+        "websiteURL": "https://kmjtechno.com",
+        "privacyPolicyURL": "https://kmjtechno.com/privacy",
+        "termsOfServiceURL": "https://kmjtechno.com/terms"
       }
     }
   }

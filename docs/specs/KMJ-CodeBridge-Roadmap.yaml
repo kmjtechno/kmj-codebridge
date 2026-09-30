@@ -274,6 +274,8 @@ multi_client_mcp:
     - Claude Code plugin and marketplace packager; claude plugin validate --strict passed locally.
     - Vendor-neutral canonical skill; OpenAI package layout unchanged.
     - Credential scanner, package contract tests, MCP interoperability contract tests and CI jobs.
+    - Repository-root Claude Code marketplace with a self-hosted plugin (endpoint and sensitive token via userConfig) and a CI drift guard.
+  pending_owner_actions: [choose_plugin_license, submit_to_Anthropic_plugin_directory, host_public_HTTPS_gateway, deploy_OAuth_authorization_server]
   not_claimed: [hosted_endpoint, live_Claude_ai_or_Desktop_connection, live_ChatGPT_connection, authorization_server, Anthropic_directory_listing, OpenAI_approval, CI_green_for_final_HEAD_until_observed]
 claude_distribution:
   checked_on: '2026-09-30'

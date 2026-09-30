@@ -1,0 +1,33 @@
+{
+  "name": "kmj-codebridge",
+  "displayName": "KMJ CodeBridge",
+  "version": "0.1.0",
+  "description": "Controlled coding tools for authorized computers and VPSs through an authenticated MCP gateway. Developer preview.",
+  "author": {
+    "name": "KMJ TECHNO"
+  },
+  "homepage": "https://github.com/kmjtechno/kmj-codebridge",
+  "repository": "https://github.com/kmjtechno/kmj-codebridge",
+  "license": "MIT",
+  "keywords": [
+    "mcp",
+    "coding",
+    "remote-development",
+    "quality-gates"
+  ],
+  "userConfig": {
+    "endpoint": {
+      "type": "string",
+      "title": "CodeBridge MCP endpoint",
+      "description": "Your CodeBridge gateway URL ending in /mcp, for example https://bridge.example.com/mcp or http://127.0.0.1:8787/mcp for a local gateway.",
+      "required": true
+    },
+    "token": {
+      "type": "string",
+      "title": "CodeBridge client token",
+      "description": "The client credential from your private CodeBridge configuration (client-token.txt). Stored in your system's secure credential store.",
+      "sensitive": true,
+      "required": true
+    }
+  }
+}

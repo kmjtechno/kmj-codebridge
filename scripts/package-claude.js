@@ -24,11 +24,11 @@ import {
   readCanonical,
   root,
   validateEndpoint,
-  writeJson,
+  writeClaudeMarketplace,
+  writeClaudePlugin,
 } from "./package-common.js";
 
 const TOKEN_ENV = "KMJ_CODEBRIDGE_TOKEN";
-const MARKETPLACE = "kmj-techno";
 
 try {
   const options = parseArgs(process.argv.slice(2));
@@ -43,39 +43,11 @@ try {
   fs.mkdirSync(base, { recursive: true });
   const pluginDir = path.join(base, meta.name);
 
-  writeJson(path.join(pluginDir, ".claude-plugin", "plugin.json"), {
-    name: meta.name,
-    displayName: meta.displayName,
-    version: meta.version,
-    description: meta.description,
-    author: meta.author,
-    keywords: ["mcp", "coding", "remote-development", "quality-gates"],
-  });
-
   const server = { type: "http", url: url.href };
   if (auth === "bearer-env")
     server.headers = { Authorization: `Bearer \${${TOKEN_ENV}}` };
-  writeJson(path.join(pluginDir, ".mcp.json"), {
-    mcpServers: { codebridge: server },
-  });
-
-  fs.cpSync(meta.skillsDir, path.join(pluginDir, "skills"), {
-    recursive: true,
-  });
-
-  writeJson(path.join(base, ".claude-plugin", "marketplace.json"), {
-    name: MARKETPLACE,
-    owner: meta.author,
-    description:
-      "KMJ TECHNO plugins for Claude Code. Developer preview; requires your own configured CodeBridge gateway.",
-    plugins: [
-      {
-        name: meta.name,
-        source: `./${meta.name}`,
-        description: meta.description,
-      },
-    ],
-  });
+  writeClaudePlugin(pluginDir, meta, server);
+  writeClaudeMarketplace(base, meta, `./${meta.name}`);
 
   let archive = "";
   if (!options.out) {

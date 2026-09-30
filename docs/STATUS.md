@@ -43,6 +43,16 @@ Claude.ai, Claude Desktop, Claude Code or ChatGPT session against a hosted gatew
 and any authorization server. Claude.ai and Claude Desktop remain unavailable until a public HTTPS
 endpoint and OAuth authorization server exist.
 
+## Claude Code marketplace
+
+The repository is a Claude Code plugin marketplace. `claude plugin marketplace add
+kmjtechno/kmj-codebridge` installs the `kmj-codebridge` plugin, which asks each
+user for their own gateway URL and a sensitive client token; no endpoint or
+credential is committed. Verified locally: marketplace add, install and
+configuration in an isolated Claude Code 2.1.285 profile. Not done: listing in
+Anthropic's plugin directory, which requires the owner to choose a license and
+submit for review.
+
 ## Milestone accounting
 
 No full M0–M8 phase has all its acceptance gates verified yet: **0/9 fully accepted

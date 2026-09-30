@@ -20,13 +20,13 @@ Future MCP client┘        │  policy · rate limits · audit/evidence
 
 ## Support status (developer preview)
 
-| Client         | Integration artifact                                 | Status in this repository                                                                  |
-| -------------- | ---------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| ChatGPT        | `plugin/` package via `npm run package:plugin`       | Package contract tested; live ChatGPT connection needs a hosted HTTPS endpoint and OAuth   |
-| Claude Code    | Plugin + marketplace via `npm run package:claude`    | Package validated with `claude plugin validate --strict`; `claude mcp add` path documented |
-| Claude Desktop | Custom connector (Settings, remote MCP URL)          | Documented only; needs the same public HTTPS endpoint and OAuth as Claude.ai               |
-| Claude.ai      | Custom connector (remote MCP URL)                    | Documented only; not available until a hosted endpoint and authorization server exist      |
-| Other clients  | Any MCP client supporting Streamable HTTP and bearer | Covered by the vendor-neutral interoperability contract (`tests/interop.test.js`)          |
+| Client         | Integration artifact                                           | Status in this repository                                                                |
+| -------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| ChatGPT        | `plugin/` package via `npm run package:plugin`                 | Package contract tested; live ChatGPT connection needs a hosted HTTPS endpoint and OAuth |
+| Claude Code    | Plugin from this repository's marketplace, or `package:claude` | Committed plugin and generated packages pass `claude plugin validate --strict` in CI     |
+| Claude Desktop | Custom connector (Settings, remote MCP URL)                    | Documented only; needs the same public HTTPS endpoint and OAuth as Claude.ai             |
+| Claude.ai      | Custom connector (remote MCP URL)                              | Documented only; not available until a hosted endpoint and authorization server exist    |
+| Other clients  | Any MCP client supporting Streamable HTTP and bearer           | Covered by the vendor-neutral interoperability contract (`tests/interop.test.js`)        |
 
 No public hosted endpoint, directory listing, Anthropic or OpenAI approval, or
 production availability is claimed. See [status](STATUS.md).
@@ -53,6 +53,28 @@ production availability is claimed. See [status](STATUS.md).
 Claude Code connects to remote MCP servers over Streamable HTTP
 ([Claude Code MCP docs](https://code.claude.com/docs/en/mcp)). Use either
 option below. Both talk to the same gateway.
+
+### Recommended: install the plugin from GitHub
+
+This repository is itself a Claude Code plugin marketplace
+(`.claude-plugin/marketplace.json`, plugin in `claude-plugin/`). Nothing about
+your deployment is committed: when you enable the plugin, Claude Code asks for
+your gateway URL (ending in `/mcp`) and your client token, and stores the token
+in your system's secure credential store.
+
+```sh
+claude plugin marketplace add kmjtechno/kmj-codebridge
+claude plugin install kmj-codebridge@kmj-techno
+```
+
+Then enter the two values when prompted, or later with
+`/plugin configure kmj-codebridge@kmj-techno`, and restart Claude Code. This
+path uses the gateway's bearer credential. For an OAuth-only gateway, use
+Option A with OAuth instead.
+
+The committed plugin is generated from the canonical `plugin/` source by
+`npm run build:claude-marketplace`; CI fails if it drifts
+(`npm run check:claude-marketplace`).
 
 ### Option A: add the server directly
 
@@ -159,3 +181,15 @@ OAuth needs no gateway, agent, policy, licensing or audit changes. Add a
 packaging script only if the client has its own plugin format, reuse
 `scripts/package-common.js`, copy the canonical skill, and add a package
 contract test beside `tests/client-packages.test.js`.
+
+## Publishing to Anthropic's plugin directory
+
+Listing in Anthropic's directory is a reviewed submission made by the repository
+owner at [claude.ai/directory/manage](https://claude.ai/directory/manage)
+(**Submit new → Plugin bundle**, repository `kmjtechno/kmj-codebridge`, plugin
+path `claude-plugin`). Before submitting, the owner must add a license to the
+plugin (a `LICENSE` file in `claude-plugin/` or `license` in its manifest; the
+directory blocks submission without one), answer the data-handling questions,
+and accept the directory terms. Review outcome and timing are decided by
+Anthropic. See the [submission guide](https://claude.com/docs/plugins/submit)
+and [pre-submission checklist](https://claude.com/docs/plugins/pre-submission-checklist).

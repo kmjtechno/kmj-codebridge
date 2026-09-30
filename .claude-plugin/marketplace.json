@@ -1,0 +1,14 @@
+{
+  "name": "kmj-techno",
+  "owner": {
+    "name": "KMJ TECHNO"
+  },
+  "description": "KMJ TECHNO plugins for Claude Code. Developer preview; requires your own configured CodeBridge gateway.",
+  "plugins": [
+    {
+      "name": "kmj-codebridge",
+      "source": "./claude-plugin",
+      "description": "Controlled coding tools for authorized computers and VPSs through an authenticated MCP gateway. Developer preview."
+    }
+  ]
+}
