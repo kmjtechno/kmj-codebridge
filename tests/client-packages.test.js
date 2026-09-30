@@ -219,14 +219,19 @@ test("client packagers reject unsafe endpoints, options and output locations", (
   );
 });
 
-// Runs the official validator when Claude Code is installed (for example on a
-// developer machine); skipped otherwise so CI needs no paid or networked tools.
+// Runs the official validator, which needs no login or API key. CI installs a
+// pinned Claude Code and sets CODEBRIDGE_REQUIRE_CLAUDE_CLI=1 so a missing CLI
+// fails instead of skipping; elsewhere the test runs only when `claude` exists.
 const claude = spawnSync("claude", ["--version"], { encoding: "utf8" });
+const requireCli = process.env.CODEBRIDGE_REQUIRE_CLAUDE_CLI === "1";
 test(
   "Claude Code CLI validates the generated marketplace and plugin",
-  { skip: claude.status !== 0 && "claude CLI not installed" },
+  { skip: claude.status !== 0 && !requireCli && "claude CLI not installed" },
   (t) => {
+    assert.equal(claude.status, 0, "claude CLI is required but unavailable");
     const base = tempDir(t, "cb-claude-cli-");
+    // Isolated configuration: never reads or writes the user's Claude setup.
+    const env = { ...process.env, CLAUDE_CONFIG_DIR: path.join(base, "cfg") };
     for (const [name, extra] of [
       ["oauth", []],
       ["env", ["--auth", "bearer-env"]],
@@ -241,7 +246,7 @@ test(
         const result = spawnSync(
           "claude",
           ["plugin", "validate", "--strict", target],
-          { encoding: "utf8" },
+          { encoding: "utf8", env },
         );
         assert.equal(result.status, 0, result.stdout + result.stderr);
         assert.match(result.stdout, /Validation passed/);

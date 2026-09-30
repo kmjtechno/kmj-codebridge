@@ -36,10 +36,11 @@ dedicated CI jobs.
 Verified in the development workspace: the generated Claude Code marketplace and
 plugins pass `claude plugin validate --strict` (Claude Code 2.1.285) and install
 into an isolated Claude Code configuration with one skill and one MCP server.
-Not verified here: the MCP SDK interoperability tests (npm registry access was
-unavailable in that workspace; they run in CI), any live Claude.ai, Claude Desktop,
-Claude Code or ChatGPT session against a hosted gateway, and any authorization
-server. Claude.ai and Claude Desktop remain unavailable until a public HTTPS
+In CI (Node 24, real MCP SDK) the vendor-neutral interoperability contract passes
+11/11 and the full Linux and Windows suites pass; the `clients` job also runs the
+official Claude Code plugin validator as an enforced gate. Not verified: any live
+Claude.ai, Claude Desktop, Claude Code or ChatGPT session against a hosted gateway,
+and any authorization server. Claude.ai and Claude Desktop remain unavailable until a public HTTPS
 endpoint and OAuth authorization server exist.
 
 ## Milestone accounting
