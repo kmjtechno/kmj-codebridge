@@ -92,3 +92,44 @@ export function prepareOutput(custom, name) {
   fs.mkdirSync(base, { recursive: true });
   return base;
 }
+
+// Claude Code plugin + marketplace writer shared by the endpoint-specific
+// packager and the committed self-hosted marketplace. `server` is the MCP
+// server entry; `userConfig` (optional) declares install-time prompts.
+export const CLAUDE_MARKETPLACE = "kmj-techno";
+export const CLAUDE_KEYWORDS = [
+  "mcp",
+  "coding",
+  "remote-development",
+  "quality-gates",
+];
+
+export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
+  writeJson(path.join(pluginDir, ".claude-plugin", "plugin.json"), {
+    name: meta.name,
+    displayName: meta.displayName,
+    version: meta.version,
+    description: meta.description,
+    author: meta.author,
+    homepage: "https://github.com/kmjtechno/kmj-codebridge",
+    repository: "https://github.com/kmjtechno/kmj-codebridge",
+    keywords: CLAUDE_KEYWORDS,
+    ...(userConfig ? { userConfig } : {}),
+  });
+  writeJson(path.join(pluginDir, ".mcp.json"), {
+    mcpServers: { codebridge: server },
+  });
+  fs.cpSync(meta.skillsDir, path.join(pluginDir, "skills"), {
+    recursive: true,
+  });
+}
+
+export function writeClaudeMarketplace(marketplaceRoot, meta, source) {
+  writeJson(path.join(marketplaceRoot, ".claude-plugin", "marketplace.json"), {
+    name: CLAUDE_MARKETPLACE,
+    owner: meta.author,
+    description:
+      "KMJ TECHNO plugins for Claude Code. Developer preview; requires your own configured CodeBridge gateway.",
+    plugins: [{ name: meta.name, source, description: meta.description }],
+  });
+}

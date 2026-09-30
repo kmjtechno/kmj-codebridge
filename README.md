@@ -22,13 +22,13 @@ See [status](docs/STATUS.md).
 
 ## Supported AI clients
 
-| Client         | How it connects                                  | Current state                                      |
-| -------------- | ------------------------------------------------ | -------------------------------------------------- |
-| ChatGPT        | Plugin package + remote MCP                      | Package tested; live connection needs hosted OAuth |
-| Claude Code    | `claude mcp add` or the CodeBridge Claude plugin | Plugin validated by `claude plugin validate`       |
-| Claude Desktop | Custom connector to a public HTTPS `/mcp` URL    | Documented; needs hosted endpoint and OAuth        |
-| Claude.ai      | Custom connector to a public HTTPS `/mcp` URL    | Documented; not available until hosting and OAuth  |
-| Other MCP      | Streamable HTTP with bearer or MCP OAuth         | Covered by the vendor-neutral interop contract     |
+| Client         | How it connects                                          | Current state                                      |
+| -------------- | -------------------------------------------------------- | -------------------------------------------------- |
+| ChatGPT        | Plugin package + remote MCP                              | Package tested; live connection needs hosted OAuth |
+| Claude Code    | `claude plugin marketplace add kmjtechno/kmj-codebridge` | Plugin validated by `claude plugin validate` in CI |
+| Claude Desktop | Custom connector to a public HTTPS `/mcp` URL            | Documented; needs hosted endpoint and OAuth        |
+| Claude.ai      | Custom connector to a public HTTPS `/mcp` URL            | Documented; not available until hosting and OAuth  |
+| Other MCP      | Streamable HTTP with bearer or MCP OAuth                 | Covered by the vendor-neutral interop contract     |
 
 All clients share one tool contract, one skill and one security model. Setup,
 prerequisites and limits for each client are in [AI client support](docs/CLIENTS.md).

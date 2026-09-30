@@ -219,19 +219,80 @@ test("client packagers reject unsafe endpoints, options and output locations", (
   );
 });
 
+test("committed Claude marketplace matches canonical sources", () => {
+  const result = run("scripts/build-claude-marketplace.js", ["--check"]);
+  assert.equal(result.status, 0, result.stderr);
+});
+
+test("committed Claude plugin asks each user for endpoint and token", () => {
+  const marketplace = readJson(
+    path.join(cwd, ".claude-plugin/marketplace.json"),
+  );
+  assert.equal(marketplace.name, "kmj-techno");
+  assert.deepEqual(marketplace.plugins, [
+    {
+      name: "kmj-codebridge",
+      source: "./claude-plugin",
+      description: canonical.description,
+    },
+  ]);
+  const manifest = readJson(
+    path.join(cwd, "claude-plugin/.claude-plugin/plugin.json"),
+  );
+  assert.equal(manifest.version, canonical.version);
+  assert.equal(manifest.userConfig.endpoint.required, true);
+  assert.equal(manifest.userConfig.endpoint.sensitive, undefined);
+  assert.equal(manifest.userConfig.token.required, true);
+  assert.equal(manifest.userConfig.token.sensitive, true);
+  // No committed endpoint or credential: only install-time placeholders.
+  assert.deepEqual(readJson(path.join(cwd, "claude-plugin/.mcp.json")), {
+    mcpServers: {
+      codebridge: {
+        type: "http",
+        url: "${user_config.endpoint}",
+        headers: { Authorization: "Bearer ${user_config.token}" },
+      },
+    },
+  });
+  assert.equal(
+    fs.readFileSync(
+      path.join(cwd, "claude-plugin/skills/codebridge/SKILL.md"),
+      "utf8",
+    ),
+    canonicalSkill,
+  );
+  // Directory submission needs a README of at least 40 words outside code.
+  const readme = fs
+    .readFileSync(path.join(cwd, "claude-plugin/README.md"), "utf8")
+    .replace(/```[\s\S]*?```/g, "");
+  assert.ok(readme.split(/\s+/).filter(Boolean).length >= 40);
+  assert.match(readme, /sends nothing to\s+any other destination/);
+  assertCredentialFree(path.join(cwd, "claude-plugin"));
+  assertCredentialFree(path.join(cwd, ".claude-plugin"));
+});
+
 // Runs the official validator, which needs no login or API key. CI installs a
 // pinned Claude Code and sets CODEBRIDGE_REQUIRE_CLAUDE_CLI=1 so a missing CLI
 // fails instead of skipping; elsewhere the test runs only when `claude` exists.
 const claude = spawnSync("claude", ["--version"], { encoding: "utf8" });
 const requireCli = process.env.CODEBRIDGE_REQUIRE_CLAUDE_CLI === "1";
 test(
-  "Claude Code CLI validates the generated marketplace and plugin",
+  "Claude Code CLI validates the committed and generated marketplaces and plugins",
   { skip: claude.status !== 0 && !requireCli && "claude CLI not installed" },
   (t) => {
     assert.equal(claude.status, 0, "claude CLI is required but unavailable");
     const base = tempDir(t, "cb-claude-cli-");
     // Isolated configuration: never reads or writes the user's Claude setup.
     const env = { ...process.env, CLAUDE_CONFIG_DIR: path.join(base, "cfg") };
+    for (const target of [cwd, path.join(cwd, "claude-plugin")]) {
+      const result = spawnSync(
+        "claude",
+        ["plugin", "validate", "--strict", target],
+        { encoding: "utf8", env },
+      );
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stdout, /Validation passed/);
+    }
     for (const [name, extra] of [
       ["oauth", []],
       ["env", ["--auth", "bearer-env"]],

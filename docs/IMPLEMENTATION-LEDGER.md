@@ -41,3 +41,11 @@
 - Local verification: `tests/client-packages.test.js` 6/6 passed including the real `claude plugin validate --strict` run; `tests/secrets.test.js` 3/3 passed; generated plugin installed into an isolated Claude Code config (1 skill, 1 MCP server); prettier and syntax checks passed.
 - First CI run on 57e25ea (CodeBridge CI #13, PR #2): all jobs green. `clients`: MCP interop contract 11/11 passed on Node 24 with the real SDK; package contracts 5 passed, 1 skipped (Claude CLI absent). `verify` ubuntu 106 passed/1 skipped of 107; windows 103 passed/4 skipped (3 pre-existing platform skips plus the Claude CLI test); `distribution` built all three packages with 0 credential findings.
 - Follow-up: the `clients` job installs pinned Claude Code 2.1.285 and sets `CODEBRIDGE_REQUIRE_CLAUDE_CLI=1`, so the official `claude plugin validate --strict` check is an enforced CI gate instead of a skip. The validator needs no login; it runs with an isolated `CLAUDE_CONFIG_DIR`.
+
+## Claude Code marketplace (self-hosted plugin)
+
+- Requirement: make CodeBridge installable as a Claude plugin quickly.
+- Ruling: publish the repository itself as a Claude Code marketplace with a plugin whose endpoint and token come from `userConfig` (token `sensitive`), because no hosted KMJ endpoint exists and committing or inventing one is prohibited. Cost: users must run their own gateway; OAuth-only gateways use `claude mcp add` instead.
+- Verified against current docs: `${user_config.KEY}` is allowed in remote MCP `url` and `headers`; the directory requires a README of 40+ words and a license in the plugin folder.
+- Local verification: `claude plugin validate --strict` passes for the repository marketplace and `claude-plugin/`; marketplace add, install and `--values-stdin` configuration succeed in an isolated Claude Code 2.1.285 profile, with the token kept out of settings.
+- Not done: license selection and Anthropic directory submission, both owner decisions.
