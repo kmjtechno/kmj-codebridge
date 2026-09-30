@@ -45,6 +45,7 @@ export const gatewaySchema = z
       .optional(),
     host: z.string().default("127.0.0.1"),
     port: z.number().int().min(0).max(65535).default(8787),
+    deviceTimeoutMs: z.number().int().min(100).max(120000).default(15000),
     allowedHosts: z.array(z.string()).default([]),
     allowedOrigins: z.array(z.string().url()).default([]),
     users: z

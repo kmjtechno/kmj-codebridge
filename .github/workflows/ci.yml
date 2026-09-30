@@ -5,6 +5,7 @@ on:
 permissions:
   contents: read
 jobs:
+  # CORE MCP: protocol/schema, security/policy and gateway/agent integration.
   verify:
     strategy:
       fail-fast: false
@@ -28,3 +29,44 @@ jobs:
           path: dist/runtime/
           if-no-files-found: error
           retention-days: 14
+  # CLIENTS: one MCP contract for every AI client, plus per-client packaging.
+  # Deterministic protocol tests; no paid AI API calls.
+  clients:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Vendor-neutral MCP interoperability contract
+        run: npm run test:interop
+      # Official Claude Code plugin validator; runs offline with no login.
+      - name: Install pinned Claude Code CLI for plugin validation
+        run: npm install -g @anthropic-ai/claude-code@2.1.285
+      - name: OpenAI and Claude Code package contracts
+        env:
+          CODEBRIDGE_REQUIRE_CLAUDE_CLI: "1"
+        run: npm run test:clients
+  # DISTRIBUTION: build every client package and scan for credentials.
+  distribution:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts
+      # codebridge.example.invalid is an RFC 6761 reserved name used only to
+      # exercise packaging; it is not a deployed endpoint.
+      - name: Build OpenAI and Claude Code packages
+        run: |
+          node scripts/package-plugin.js https://codebridge.example.invalid/mcp --out "$RUNNER_TEMP/pkg/openai"
+          node scripts/package-claude.js https://codebridge.example.invalid/mcp --out "$RUNNER_TEMP/pkg/claude-oauth"
+          node scripts/package-claude.js https://codebridge.example.invalid/mcp --auth bearer-env --out "$RUNNER_TEMP/pkg/claude-env"
+      - name: Credential scan of repository and packages
+        run: npm run scan:secrets -- "$RUNNER_TEMP/pkg"

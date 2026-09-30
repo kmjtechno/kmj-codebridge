@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "KMJ CodeBridge controlled coding MCP gateway and outbound device agent",
+  "description": "KMJ CodeBridge vendor-neutral MCP coding gateway and outbound device agent",
   "engines": {
     "node": ">=24.0.0"
   },
@@ -14,9 +14,13 @@
     "agent": "node src/cli.js agent",
     "init": "node scripts/init.js",
     "package:plugin": "node scripts/package-plugin.js",
+    "package:claude": "node scripts/package-claude.js",
     "format": "prettier --write src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md",
     "start": "node src/hosted-cli.js",
-    "package:runtime": "node scripts/package-runtime.js"
+    "package:runtime": "node scripts/package-runtime.js",
+    "test:interop": "node --test --test-concurrency=1 tests/interop.test.js",
+    "test:clients": "node --test --test-concurrency=1 tests/client-packages.test.js",
+    "scan:secrets": "node scripts/scan-secrets.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
