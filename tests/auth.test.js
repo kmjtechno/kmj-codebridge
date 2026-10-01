@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPair, exportJWK, SignJWT } from "jose";\nimport { createServer } from "node:http";
+import { generateKeyPair, exportJWK, SignJWT } from "jose";
+import { createServer } from "node:http";
 import { createOAuthVerifier } from "../src/auth.js";
 const pair = await generateKeyPair("EdDSA");
 const jwk = { ...(await exportJWK(pair.publicKey)), kid: "test" };
