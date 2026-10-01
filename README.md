@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/brand/fix-corrupt-cinematic-hero/docs/assets/codebridge-cinematic-hero-final.jpg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
+  <img src="https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/ec13429127d33ea0b2d47da978d17110a070324d/docs/assets/codebridge-cinematic-hero-final.jpg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
 </p>
 
 <h1 align="center">KMJ CodeBridge</h1>
@@ -109,7 +109,7 @@ The installer is designed to detect architecture, stage the runtime, enroll the 
 
 **Current production gate:** fresh zero-touch enrollment depends on the matching KMJ Main Platform enrollment/approval APIs being live. Existing source and local developer mode remain usable. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
 
-## Free forever + ultra-low-cost launch plans
+## Free forever + launch plans
 
 The open-source Community tier stays useful. Hosted convenience and higher commercial limits are paid entitlements through **KMJ Main Platform**.
 
