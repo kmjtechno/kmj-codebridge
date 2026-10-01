@@ -1,0 +1,51 @@
+name: Import exact cinematic hero
+
+on:
+  push:
+    branches:
+      - brand/fix-corrupt-cinematic-hero
+    paths:
+      - .github/workflows/import-exact-cinematic-hero.yml
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download exact generated hero
+        env:
+          HERO_URL: "https://pikaso.cdnpk.net/private/production/5611132820/3670672835.jpg?token=exp=1791072000~hmac=1a3263ad62e274c3ec9880ed36d0d1131e5cfec81ac914165e71ba22a1995fa1"
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --silent --show-error "$HERO_URL"             --output docs/assets/codebridge-cinematic-hero-final.jpg
+          test "$(stat -c%s docs/assets/codebridge-cinematic-hero-final.jpg)" -gt 20000
+          file docs/assets/codebridge-cinematic-hero-final.jpg | grep -qi 'JPEG image data'
+
+      - name: Point README to exact raster and remove temporary workflow
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("README.md")
+          text = p.read_text()
+          old = "docs/assets/codebridge-cinematic-hero-exact.jpg"
+          new = "docs/assets/codebridge-cinematic-hero-final.jpg"
+          if old not in text:
+              raise SystemExit(f"expected README hero path not found: {old}")
+          p.write_text(text.replace(old, new))
+          PY
+          rm -f .github/workflows/import-exact-cinematic-hero.yml
+
+      - name: Commit imported asset
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md docs/assets/codebridge-cinematic-hero-final.jpg .github/workflows/import-exact-cinematic-hero.yml
+          git commit -m "brand: import exact cinematic hero raster"
+          git push origin HEAD:brand/fix-corrupt-cinematic-hero
