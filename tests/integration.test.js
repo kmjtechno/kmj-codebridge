@@ -391,3 +391,87 @@ test("signed entitlement file must remain outside project roots", async (t) => {
     if (service) await service.close();
   }
 });
+
+test("dynamically enrolled agent introspects once then serves MCP tools from cache", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-dynamic-agent-"));
+  const root = path.join(dir, "project");
+  fs.mkdirSync(root);
+  fs.writeFileSync(path.join(root, "hello.txt"), "dynamic");
+  const dynamicToken = "d".repeat(48);
+  const seedToken = "s".repeat(48);
+  const originalFetch = globalThis.fetch;
+  let introspections = 0;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (
+      String(url) ===
+      "https://platform.example/api/codebridge/v1/device-credentials/introspect"
+    ) {
+      introspections++;
+      assert.equal(options.headers.authorization, `Bearer ${dynamicToken}`);
+      return Response.json({
+        active: true,
+        device_id: "dyn1",
+        tenant_id: "t1",
+        projects: ["p1"],
+      });
+    }
+    return originalFetch(url, options);
+  });
+
+  const gw = await startGateway({
+    host: "127.0.0.1",
+    port: 0,
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: digest(userToken),
+        devices: {},
+        permissions: ["read", "write", "execute"],
+      },
+    ],
+    agents: [{ id: "seed", tenant: "t1", tokenHash: digest(seedToken) }],
+    agentIntrospection: {
+      endpoint:
+        "https://platform.example/api/codebridge/v1/device-credentials/introspect",
+      cacheSeconds: 60,
+    },
+  });
+  const agent = await startAgent({
+    gateway: gw.url,
+    token: dynamicToken,
+    id: "dyn1",
+    tenant: "t1",
+    stateDir: path.join(dir, "state"),
+    pollMs: 10,
+    projects: [{ id: "p1", root, writable: true, gates: {} }],
+    license: { mode: "free" },
+  });
+  const client = new Client({ name: "dynamic-test", version: "1.0" });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL("/mcp", gw.url), {
+      requestInit: { headers: { Authorization: `Bearer ${userToken}` } },
+    }),
+  );
+  t.after(async () => {
+    await client.close();
+    await agent.close();
+    await gw.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const devices = content(
+    await client.callTool({ name: "list_devices", arguments: {} }),
+  ).devices;
+  assert.deepEqual(devices.find((device) => device.id === "dyn1")?.projects, [
+    "p1",
+  ]);
+  const read = content(
+    await client.callTool({
+      name: "read_file",
+      arguments: { device: "dyn1", project: "p1", path: "hello.txt" },
+    }),
+  );
+  assert.equal(read.content, "dynamic");
+  assert.equal(introspections, 1);
+});
