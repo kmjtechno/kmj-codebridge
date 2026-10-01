@@ -2,7 +2,7 @@
   "name": "kmj-codebridge",
   "displayName": "KMJ CodeBridge",
   "version": "0.1.0",
-  "description": "Controlled coding tools for authorized computers and VPSs through an authenticated MCP gateway. Developer preview.",
+  "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one authenticated MCP bridge. Developer preview.",
   "author": {
     "name": "KMJ TECHNO"
   },
@@ -11,9 +11,12 @@
   "license": "Apache-2.0",
   "keywords": [
     "mcp",
-    "coding",
+    "ai-coding",
     "remote-development",
-    "quality-gates"
+    "vps",
+    "project-scoped",
+    "quality-gates",
+    "developer-tools"
   ],
   "userConfig": {
     "endpoint": {
