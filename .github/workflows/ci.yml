@@ -20,11 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Diagnostic formatting diff
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          npx prettier --write src/enrollment.js tests/installer.test.js docs/ENROLLMENT.md
-          git diff -- src/enrollment.js tests/installer.test.js docs/ENROLLMENT.md
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
