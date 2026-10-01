@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/kmjtechno/kmj-codebridge/security
+    about: Do not publish security vulnerabilities in public issues.
+  - name: Documentation and setup
+    url: https://github.com/kmjtechno/kmj-codebridge#quick-start-for-developers
+    about: Check the README and client setup docs before opening an issue.
