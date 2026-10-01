@@ -39,24 +39,34 @@ prerequisites and limits for each client are in [AI client support](docs/CLIENTS
 
 ## One-command VPS install
 
-For a provisioned CodeBridge account, the VPS agent can install itself, verify or
-install Node.js 24 from the official signed-checksum release channel, detect common
-project quality gates, write the private configuration, install a hardened systemd
-unit and start on boot. The agent needs no inbound port.
+The Linux installer now implements the client side of secure zero-manual-token
+enrollment. From an authorized project directory, the target customer flow is:
 
 ```sh
-curl -fsSLo /tmp/install-codebridge.sh https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/main/scripts/install-vps.sh
-sudo CODEBRIDGE_AGENT_TOKEN='<provisioned-agent-token>' bash /tmp/install-codebridge.sh --project /absolute/project
+curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
 ```
 
-The credential is never printed and is stored only in the mode-0600 agent
-configuration. For the public product, the planned pairing flow replaces the
-provisioned token with a short-lived, user-approved device code so customers do not
-edit JSON or copy long-lived credentials. OAuth consent remains explicit by design.
+It detects x64/arm64, verifies or installs Node.js 24 from official checksum data,
+stages the CodeBridge runtime, detects common fixed quality gates, requests a
+short-lived verifier-bound device enrollment, prints only an HTTPS approval URL and
+human pairing code, securely stores the approved independent device credential,
+installs a hardened boot-enabled systemd service, starts it, and verifies gateway
+metadata connectivity. The agent remains outbound-only: no inbound VPS port and no
+GitHub Actions self-hosted runner are required.
+
+Re-running the installer preserves a valid existing device configuration and performs
+an update/repair. Runtime/config backups are retained until the replacement service
+and gateway checks pass; failure rolls back automatically.
+
+**Production blocker:** KMJ Main Platform must implement the versioned enrollment,
+approval and redemption endpoints in [the enrollment contract](docs/ENROLLMENT.md).
+Until those live endpoints exist, a completely fresh production VPS will fail
+enrollment rather than fabricate a credential. Existing enrolled installations can
+still use the idempotent update/repair path.
 
 The installer auto-detects useful fixed gates when present: npm
-`test/check/lint/build`, Laravel tests, Composer tests, Cargo tests and pytest. It
-does not expose arbitrary shell execution.
+`test/check/lint/build`, Laravel tests, Composer tests, Cargo tests, Go tests and
+pytest. It does not expose arbitrary shell execution.
 
 ## Quick start
 
@@ -151,6 +161,7 @@ Claude is an outstanding integration gate.
 - [Implementation plan](docs/superpowers/plans/2026-09-29-codebridge.md)
 - [Security boundaries](SECURITY.md)
 - [Deployment and operations](docs/DEPLOYMENT.md)
+- [Secure device enrollment contract](docs/ENROLLMENT.md)
 - [Main Platform entitlement contract](docs/LICENSING.md)
 - [Current delivery status](docs/STATUS.md)
 - [Contributing](CONTRIBUTING.md)
