@@ -114,19 +114,19 @@ isolated VM/container without host credentials.
 
 ## Tools
 
-| Tool                                         | Behavior                                                    |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| `list_devices`                               | Devices and projects allowed for the authenticated tenant   |
-| `inspect_project`, `connection_doctor`       | Capabilities and connection information                     |
-| `git_status`                                 | Bounded Git status with fsmonitor disabled                  |
-| `list_directory`, `read_file`, `search_code` | Bounded project navigation, UTF-8 reads and literal search  |
-| `edit_file`                                  | Exact unique-fragment edit with SHA-256 conflict protection |
-| `preview_file`, `write_file`                 | Expected-hash guarded replacements; no blind overwrite      |
-| `run_quality_gate`                           | Fixed administrator-configured command and arguments        |
-| `get_job_status`, `cancel_job`               | Recorded state, output, exit code and process cancellation  |
-| `github_repository`, `github_pull_request*`   | Server-side GitHub repository and PR inspection             |
-| `github_actions_*`                              | Bounded/redacted GitHub Actions status, jobs and logs       |
-| `github_create_branch`, `github_create_pull_request` | Allowlisted GitHub write operations via server credential |
+| Tool                                                 | Behavior                                                    |
+| ---------------------------------------------------- | ----------------------------------------------------------- |
+| `list_devices`                                       | Devices and projects allowed for the authenticated tenant   |
+| `inspect_project`, `connection_doctor`               | Capabilities and connection information                     |
+| `git_status`                                         | Bounded Git status with fsmonitor disabled                  |
+| `list_directory`, `read_file`, `search_code`         | Bounded project navigation, UTF-8 reads and literal search  |
+| `edit_file`                                          | Exact unique-fragment edit with SHA-256 conflict protection |
+| `preview_file`, `write_file`                         | Expected-hash guarded replacements; no blind overwrite      |
+| `run_quality_gate`                                   | Fixed administrator-configured command and arguments        |
+| `get_job_status`, `cancel_job`                       | Recorded state, output, exit code and process cancellation  |
+| `github_repository`, `github_pull_request*`          | Server-side GitHub repository and PR inspection             |
+| `github_actions_*`                                   | Bounded/redacted GitHub Actions status, jobs and logs       |
+| `github_create_branch`, `github_create_pull_request` | Allowlisted GitHub write operations via server credential   |
 
 The gateway routes to devices that poll outbound; it cannot independently read their
 files. Authorization is enforced at both the gateway and the agent. Devices do not
