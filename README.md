@@ -238,14 +238,16 @@ Read **[SECURITY.md](SECURITY.md)** before production use.
 
 CodeBridge uses **JSON configuration as the primary interface**. Local/developer mode does not require a large environment-variable surface.
 
-### Hosted environment variables
+### Environment variables
 
-| Variable | Required | Safe default / example | Purpose |
+| Variable | Required | Default | Safe example |
 | --- | --- | --- | --- |
-| `CODEBRIDGE_GATEWAY_CONFIG` | **Yes** for `npm start` hosted mode | No default. Example: a private JSON value supplied by the hosting provider's secret/config store | Complete gateway configuration. Keep it private; startup fails if it is missing or invalid. |
-| `PORT` | No | `10000` | Hosted HTTP listen port. The hosted entry point binds to `0.0.0.0` and uses this port. |
+| `CODEBRIDGE_GATEWAY_CONFIG` | **Yes** for hosted `npm start` mode | None | Private JSON stored in the hosting provider's secret/config store |
+| `PORT` | No | `10000` | `10000` |
 
-> Do **not** commit `CODEBRIDGE_GATEWAY_CONFIG`, paste it into issues/chat, or place secrets in command-line URLs.
+`CODEBRIDGE_GATEWAY_CONFIG` contains the complete hosted gateway configuration and must be treated as sensitive. Hosted startup fails closed when it is missing or invalid. `PORT` controls the hosted HTTP listen port; the hosted entry point binds to `0.0.0.0`.
+
+> Local/developer mode does **not** require these environment variables; it normally uses private `gateway.json` and `agent.json` files created outside the project. Do **not** commit `CODEBRIDGE_GATEWAY_CONFIG`, paste it into issues/chat, or put secrets in command-line URLs.
 
 ### Gateway JSON
 
