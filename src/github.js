@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { readJsonLimited } from "./http.js";
+import { readJsonLimited, readTextLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 
@@ -134,7 +134,7 @@ export function createGitHubBridge(config) {
 
     const response = await fetch(url, {
       method,
-      redirect: "error",
+      redirect: "follow",
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${token}`,
@@ -181,7 +181,7 @@ export function createGitHubBridge(config) {
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) fail("GITHUB_REQUEST_FAILED");
-    const text = await response.text();
+    const text = await readTextLimited(response.body, 65536);
     return bounded(text, 65536);
   };
 
