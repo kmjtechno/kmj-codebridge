@@ -22,7 +22,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - name: Diagnostic exact GitHub formatting
         if: matrix.os == 'ubuntu-latest'
-        run: npx prettier src/github.js
+        run: |
+          npx prettier --write src/github.js
+          git diff -- src/github.js
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
