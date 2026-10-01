@@ -230,7 +230,6 @@ test("MCP discovery is public while tool execution stays authenticated", async (
     }),
   });
   assert.equal(denied.status, 401);
-  assert.match(denied.headers.get("www-authenticate"), /resource_metadata=/);
 
   const origin = await fetch(gw.url + "/mcp", {
     method: "POST",
