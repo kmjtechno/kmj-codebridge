@@ -22,7 +22,10 @@ test("fresh installer uses secure enrollment and never requires manual agent tok
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
   assert.doesNotMatch(script, /github.*token/i);
   assert.doesNotMatch(script, /actions[-_. ]?runner/i);
-  assert.match(script, /No inbound VPS port or GitHub Actions runner is required/);
+  assert.match(
+    script,
+    /No inbound VPS port or GitHub Actions runner is required/,
+  );
 });
 
 test("installer verifies Node download and supports x64 plus arm64", () => {
@@ -34,14 +37,19 @@ test("installer verifies Node download and supports x64 plus arm64", () => {
 });
 
 test("installer is idempotent and preserves valid enrollment on rerun", () => {
-  assert.match(script, /Existing device enrollment found; preserving credential/);
+  assert.match(
+    script,
+    /Existing device enrollment found; preserving credential/,
+  );
   assert.match(script, /have_config=1/);
   assert.match(script, /refusing to overwrite it automatically/);
   assert.match(script, /agent\.json\.rollback/);
   assert.match(script, /\.rollback/);
 });
 
-test("installer stages updates and rolls back failed service or gateway verification", () => {
+test(
+  "installer stages updates and rolls back failed service or gateway verification",
+  () => {
   assert.match(script, /INSTALL_DIR.*\.new/);
   assert.match(script, /rollback\(\)/);
   assert.match(script, /systemctl is-active --quiet/);
