@@ -1,119 +1,319 @@
 #!/usr/bin/env bash
 set -euo pipefail
 umask 077
+
 [[ $EUID -eq 0 ]] || { echo "Run with sudo/root." >&2; exit 1; }
 
-PROJECT=""
-GATEWAY="https://kmjtechno.com"
-DEVICE="$(hostname -s | tr -cd 'A-Za-z0-9._-' | cut -c1-48)"
-TENANT="kmj"
-PROJECT_ID="project1"
-SERVICE_USER="${SUDO_USER:-}"
+GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmjtechno.com}"
+ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
+PROJECT="${CODEBRIDGE_PROJECT:-}"
+PROJECT_ID="${CODEBRIDGE_PROJECT_ID:-project1}"
+DEVICE="${CODEBRIDGE_DEVICE_ID:-$(hostname -s | tr -cd 'A-Za-z0-9._-' | cut -c1-48)}"
+SERVICE_USER="${CODEBRIDGE_SERVICE_USER:-${SUDO_USER:-}}"
 REF="${CODEBRIDGE_REF:-main}"
+INSTALL_DIR="${CODEBRIDGE_INSTALL_DIR:-/opt/kmj-codebridge-agent}"
+CONFIG_DIR="${CODEBRIDGE_CONFIG_DIR:-/etc/kmj-codebridge}"
+STATE_DIR="${CODEBRIDGE_STATE_DIR:-/var/lib/kmj-codebridge}"
+NODE_DIR="${CODEBRIDGE_NODE_DIR:-/opt/kmj-codebridge-node}"
+NODE_VERSION="${CODEBRIDGE_NODE_VERSION:-24.21.0}"
+CONFIG="$CONFIG_DIR/agent.json"
+SERVICE="kmj-codebridge-agent.service"
+ROLLBACK_CODE="${INSTALL_DIR}.rollback"
+ROLLBACK_CONFIG="$CONFIG_DIR/agent.json.rollback"
+ENROLLMENT_RESULT="/run/kmj-codebridge-enrollment-$$.json"
+NEW_DIR="${INSTALL_DIR}.new"
+
+cleanup() {
+  rm -f "$ENROLLMENT_RESULT"
+  rm -rf "$NEW_DIR"
+}
+trap cleanup EXIT
+
 while (($#)); do
   case "$1" in
     --project) PROJECT="$2"; shift 2 ;;
     --gateway) GATEWAY="$2"; shift 2 ;;
-    --device) DEVICE="$2"; shift 2 ;;
-    --tenant) TENANT="$2"; shift 2 ;;
+    --enrollment-base) ENROLLMENT_BASE="$2"; shift 2 ;;
     --project-id) PROJECT_ID="$2"; shift 2 ;;
+    --device) DEVICE="$2"; shift 2 ;;
     --service-user) SERVICE_USER="$2"; shift 2 ;;
     --ref) REF="$2"; shift 2 ;;
+    --help|-h)
+      cat <<'EOF'
+KMJ CodeBridge secure VPS installer
+
+Run from the project directory:
+  curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+
+Optional:
+  --project /absolute/project
+  --gateway https://gateway.example
+  --enrollment-base https://account.example
+  --project-id project1
+  --device device-id
+  --service-user user
+  --ref main
+EOF
+      exit 0
+      ;;
     *) echo "Unknown option: $1" >&2; exit 2 ;;
   esac
 done
-[[ -n "$PROJECT" ]] || { echo "--project /absolute/path is required." >&2; exit 2; }
-PROJECT="$(readlink -f "$PROJECT")"
-[[ -d "$PROJECT" ]] || { echo "Project not found." >&2; exit 2; }
-[[ "$GATEWAY" =~ ^https://[^/?#]+/?$ ]] || { echo "Gateway must be an HTTPS origin." >&2; exit 2; }
-GATEWAY="${GATEWAY%/}"
-[[ -n "$SERVICE_USER" ]] || SERVICE_USER="$(stat -c '%U' "$PROJECT")"
-id "$SERVICE_USER" >/dev/null
-TOKEN="${CODEBRIDGE_AGENT_TOKEN:-}"
-[[ ${#TOKEN} -ge 32 ]] || { echo "CODEBRIDGE_AGENT_TOKEN is required; it is never printed." >&2; exit 2; }
 
-for c in curl git tar xz sha256sum; do
-  if ! command -v "$c" >/dev/null; then
-    if command -v apt-get >/dev/null; then
-      apt-get update -qq
-      DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git tar xz-utils
-      break
-    fi
+canonical_https_origin() {
+  [[ "$1" =~ ^https://[^/?#]+/?$ ]]
+}
+canonical_https_origin "$GATEWAY" || { echo "Gateway must be a canonical HTTPS origin." >&2; exit 2; }
+canonical_https_origin "$ENROLLMENT_BASE" || { echo "Enrollment base must be a canonical HTTPS origin." >&2; exit 2; }
+GATEWAY="${GATEWAY%/}"
+ENROLLMENT_BASE="${ENROLLMENT_BASE%/}"
+
+if [[ -z "$PROJECT" ]]; then
+  candidate="$(pwd -P)"
+  if [[ "$candidate" == "/" || ! -d "$candidate" ]]; then
+    echo "Run the installer from the project directory or pass --project." >&2
+    exit 2
+  fi
+  if [[ ! -e "$candidate/.git" && ! -e "$candidate/package.json" && ! -e "$candidate/composer.json" && ! -e "$candidate/pyproject.toml" && ! -e "$candidate/Cargo.toml" && ! -e "$candidate/go.mod" ]]; then
+    echo "Current directory does not look like a project; pass --project explicitly." >&2
+    exit 2
+  fi
+  PROJECT="$candidate"
+fi
+PROJECT="$(readlink -f "$PROJECT")"
+[[ -d "$PROJECT" && "$PROJECT" != "/" ]] || { echo "Project not found or unsafe." >&2; exit 2; }
+
+[[ -n "$SERVICE_USER" ]] || SERVICE_USER="$(stat -c '%U' "$PROJECT")"
+id "$SERVICE_USER" >/dev/null 2>&1 || { echo "Service user does not exist." >&2; exit 2; }
+SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+
+install_dependencies() {
+  local missing=0
+  for c in curl git tar xz sha256sum; do command -v "$c" >/dev/null 2>&1 || missing=1; done
+  (( missing == 0 )) && return
+  if command -v apt-get >/dev/null 2>&1; then
+    apt-get update -qq
+    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq ca-certificates curl git tar xz-utils
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y ca-certificates curl git tar xz
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y ca-certificates curl git tar xz
+  else
     echo "Install curl, git, tar, xz and sha256sum first." >&2
     exit 1
   fi
-done
+}
+install_dependencies
 
 NODE=""
-if command -v node >/dev/null && [[ "$(node -p 'process.versions.node.split(".")[0]')" == 24 ]]; then
+if command -v node >/dev/null 2>&1 && [[ "$(node -p 'process.versions.node.split(".")[0]')" == "24" ]]; then
   NODE="$(command -v node)"
 else
-  case "$(uname -m)" in x86_64) ARCH=x64;; aarch64) ARCH=arm64;; *) echo "Unsupported CPU." >&2; exit 1;; esac
-  VER="${CODEBRIDGE_NODE_VERSION:-24.21.0}"
-  BASE="https://nodejs.org/download/release/v$VER"
-  FILE="node-v$VER-linux-$ARCH.tar.xz"
+  case "$(uname -m)" in
+    x86_64|amd64) ARCH=x64 ;;
+    aarch64|arm64) ARCH=arm64 ;;
+    *) echo "Unsupported CPU architecture." >&2; exit 1 ;;
+  esac
+  BASE="https://nodejs.org/download/release/v$NODE_VERSION"
+  FILE="node-v$NODE_VERSION-linux-$ARCH.tar.xz"
   TMP="$(mktemp -d)"
-  trap 'rm -rf "$TMP"' EXIT
   curl -fsSLo "$TMP/$FILE" "$BASE/$FILE"
   curl -fsSLo "$TMP/SHASUMS256.txt" "$BASE/SHASUMS256.txt"
   (cd "$TMP" && grep "  $FILE$" SHASUMS256.txt | sha256sum -c -)
-  rm -rf /opt/kmj-codebridge-node
-  mkdir -p /opt/kmj-codebridge-node
-  tar -xJf "$TMP/$FILE" -C /opt/kmj-codebridge-node --strip-components=1
-  NODE=/opt/kmj-codebridge-node/bin/node
+  rm -rf "$NODE_DIR.new"
+  mkdir -p "$NODE_DIR.new"
+  tar -xJf "$TMP/$FILE" -C "$NODE_DIR.new" --strip-components=1
+  rm -rf "$NODE_DIR"
+  mv "$NODE_DIR.new" "$NODE_DIR"
+  rm -rf "$TMP"
+  NODE="$NODE_DIR/bin/node"
 fi
 NPM="$(dirname "$NODE")/npm"
 [[ -x "$NPM" ]] || NPM="$(command -v npm)"
 
-rm -rf /opt/kmj-codebridge-agent.new
-git clone -q https://github.com/kmjtechno/kmj-codebridge.git /opt/kmj-codebridge-agent.new
-git -C /opt/kmj-codebridge-agent.new checkout -q "$REF"
-(cd /opt/kmj-codebridge-agent.new && PATH="$(dirname "$NODE"):$PATH" "$NPM" ci --omit=dev --ignore-scripts)
-rm -rf /opt/kmj-codebridge-agent.old
-[[ ! -e /opt/kmj-codebridge-agent ]] || mv /opt/kmj-codebridge-agent /opt/kmj-codebridge-agent.old
-mv /opt/kmj-codebridge-agent.new /opt/kmj-codebridge-agent
+echo "Installing KMJ CodeBridge runtime..."
+git clone -q https://github.com/kmjtechno/kmj-codebridge.git "$NEW_DIR"
+git -C "$NEW_DIR" checkout -q "$REF"
+(
+  cd "$NEW_DIR"
+  PATH="$(dirname "$NODE"):$PATH" "$NPM" ci --omit=dev --ignore-scripts
+  "$NODE" --check src/agent.js
+  "$NODE" --check src/enrollment.js
+  "$NODE" --check scripts/enroll-device.js
+)
 
-install -d -m 0700 -o "$SERVICE_USER" -g "$(id -gn "$SERVICE_USER")" /etc/kmj-codebridge /var/lib/kmj-codebridge
-PROJECT="$PROJECT" GATEWAY="$GATEWAY" DEVICE="$DEVICE" TENANT="$TENANT" PROJECT_ID="$PROJECT_ID" TOKEN="$TOKEN" "$NODE" <<'NODE'
+install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$CONFIG_DIR" "$STATE_DIR"
+
+have_config=0
+if [[ -f "$CONFIG" ]]; then
+  if "$NODE" -e '
+    const fs=require("node:fs");
+    const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+    const root=fs.realpathSync(process.argv[2]);
+    if(
+      typeof c.token!=="string"||
+      c.token.length<32||
+      !Array.isArray(c.projects)||
+      !c.projects.some(p=>p.id===process.argv[3]&&fs.realpathSync(p.root)===root)
+    ) process.exit(1);
+  ' "$CONFIG" "$PROJECT" "$PROJECT_ID"; then
+    have_config=1
+    echo "Existing device enrollment found; preserving credential and repairing/updating installation."
+  else
+    echo "Existing configuration is invalid or bound to a different project; refusing automatic overwrite." >&2
+    exit 1
+  fi
+fi
+
+if (( have_config == 0 )); then
+  echo "Starting secure KMJ CodeBridge device pairing..."
+  "$NODE" "$NEW_DIR/scripts/enroll-device.js"     "$ENROLLMENT_BASE" "$DEVICE" "$PROJECT_ID" "$PROJECT" "$ENROLLMENT_RESULT"
+
+  [[ -f "$ENROLLMENT_RESULT" ]] || { echo "Enrollment did not return a credential." >&2; exit 1; }
+
+  PROJECT="$PROJECT" PROJECT_ID="$PROJECT_ID" GATEWAY="$GATEWAY" STATE_DIR="$STATE_DIR"   ENROLLMENT_RESULT="$ENROLLMENT_RESULT" "$NODE" <<'NODE'
 const fs=require("node:fs"),path=require("node:path"),{execFileSync}=require("node:child_process");
+const result=JSON.parse(fs.readFileSync(process.env.ENROLLMENT_RESULT,"utf8"));
+if(!result.agent||typeof result.agent.token!=="string"||result.agent.token.length<32) throw Error("invalid enrollment result");
+if(!result.projects?.some(p=>p.id===process.env.PROJECT_ID)) throw Error("project not approved");
 const which=n=>{try{return execFileSync("sh",["-c","command -v -- "+n],{encoding:"utf8"}).trim()}catch{return null}};
-const root=process.env.PROJECT,gates={},add=(id,c,args)=>{if(c)gates[id]={command:c,args,timeoutMs:120000}};
-const npm=which("npm"),php=which("php"),composer=which("composer"),python=which("python3"),cargo=which("cargo");
+const root=fs.realpathSync(process.env.PROJECT),gates={},add=(id,c,args)=>{if(c)gates[id]={command:c,args,timeoutMs:120000}};
+const npm=which("npm"),php=which("php"),composer=which("composer"),python=which("python3"),cargo=which("cargo"),go=which("go");
 if(fs.existsSync(path.join(root,"package.json"))&&npm){const p=JSON.parse(fs.readFileSync(path.join(root,"package.json")));for(const n of ["test","check","lint","build"])if(p.scripts?.[n])add("npm_"+n,npm,["run",n])}
 if(fs.existsSync(path.join(root,"artisan"))&&php)add("laravel_test",php,["artisan","test"]);
 if(fs.existsSync(path.join(root,"composer.json"))&&composer)add("composer_test",composer,["test"]);
 if(fs.existsSync(path.join(root,"Cargo.toml"))&&cargo)add("cargo_test",cargo,["test","--locked"]);
+if(fs.existsSync(path.join(root,"go.mod"))&&go)add("go_test",go,["test","./..."]);
 if(python&&(fs.existsSync(path.join(root,"pyproject.toml"))||fs.existsSync(path.join(root,"pytest.ini"))))add("python_test",python,["-m","pytest"]);
-const c={gateway:process.env.GATEWAY,token:process.env.TOKEN,id:process.env.DEVICE,tenant:process.env.TENANT,stateDir:"/var/lib/kmj-codebridge",pollMs:100,projects:[{id:process.env.PROJECT_ID,root,writable:true,gates}],license:{mode:"free"}};
-fs.writeFileSync("/etc/kmj-codebridge/agent.json",JSON.stringify(c,null,2)+"\n",{mode:0o600});
+const c={
+  gateway:process.env.GATEWAY,
+  token:result.agent.token,
+  id:result.agent.id,
+  tenant:result.agent.tenant,
+  stateDir:process.env.STATE_DIR,
+  pollMs:100,
+  projects:[{id:process.env.PROJECT_ID,root,writable:result.permissions.includes("write"),gates}],
+  license:{mode:"free"}
+};
+const target="/etc/kmj-codebridge/agent.json";
+const fd=fs.openSync(target,"wx",0o600);
+try{fs.writeFileSync(fd,JSON.stringify(c,null,2)+"\n");fs.fsyncSync(fd)}finally{fs.closeSync(fd)}
 NODE
-chown "$SERVICE_USER:$(id -gn "$SERVICE_USER")" /etc/kmj-codebridge/agent.json
+  chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
+  rm -f "$ENROLLMENT_RESULT"
+fi
 
-cat >/etc/systemd/system/kmj-codebridge-agent.service <<EOF
+if [[ -f "$CONFIG" ]]; then
+  cp -a "$CONFIG" "$ROLLBACK_CONFIG"
+fi
+rm -rf "$ROLLBACK_CODE"
+if [[ -d "$INSTALL_DIR" ]]; then
+  mv "$INSTALL_DIR" "$ROLLBACK_CODE"
+fi
+mv "$NEW_DIR" "$INSTALL_DIR"
+
+rm -f "$ROLLBACK_SERVICE"
+if [[ -f "$SERVICE_FILE" ]]; then
+  cp -a "$SERVICE_FILE" "$ROLLBACK_SERVICE"
+fi
+
+write_service() {
+cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge Agent
 After=network-online.target
 Wants=network-online.target
+
 [Service]
 Type=simple
 User=$SERVICE_USER
-Group=$(id -gn "$SERVICE_USER")
-WorkingDirectory=/opt/kmj-codebridge-agent
-ExecStart=$NODE /opt/kmj-codebridge-agent/src/cli.js agent /etc/kmj-codebridge/agent.json
+Group=$SERVICE_GROUP
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$NODE $INSTALL_DIR/src/cli.js agent $CONFIG
 Restart=always
 RestartSec=2
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=read-only
-ReadWritePaths=$PROJECT /var/lib/kmj-codebridge
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=$PROJECT $STATE_DIR
 UMask=0077
+
 [Install]
 WantedBy=multi-user.target
 EOF
+}
+write_service
+
+rollback() {
+  echo "Update/start verification failed; rolling back CodeBridge." >&2
+  systemctl stop "$SERVICE" >/dev/null 2>&1 || true
+  if [[ -d "$ROLLBACK_CODE" ]]; then
+    rm -rf "$INSTALL_DIR"
+    mv "$ROLLBACK_CODE" "$INSTALL_DIR"
+  fi
+  if [[ -f "$ROLLBACK_CONFIG" ]]; then
+    cp -a "$ROLLBACK_CONFIG" "$CONFIG"
+    chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
+    chmod 0600 "$CONFIG"
+  fi
+  if [[ -f "$ROLLBACK_SERVICE" ]]; then
+    cp -a "$ROLLBACK_SERVICE" "$SERVICE_FILE"
+  else
+    rm -f "$SERVICE_FILE"
+  fi
+  systemctl daemon-reload
+  systemctl start "$SERVICE" >/dev/null 2>&1 || true
+}
+
 systemctl daemon-reload
-systemctl enable --now kmj-codebridge-agent
-sleep 1
-systemctl is-active --quiet kmj-codebridge-agent
-unset TOKEN CODEBRIDGE_AGENT_TOKEN
-echo "KMJ CodeBridge installed and running: $DEVICE / $PROJECT_ID"
+systemctl enable "$SERVICE" >/dev/null
+START_EPOCH="$(date +%s)"
+if ! systemctl restart "$SERVICE"; then
+  rollback
+  exit 1
+fi
+sleep 2
+if ! systemctl is-active --quiet "$SERVICE"; then
+  journalctl -u "$SERVICE" -n 30 --no-pager >&2 || true
+  rollback
+  exit 1
+fi
+
+chmod 0600 "$CONFIG"
+chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
+
+if ! curl -fsS --max-time 10 "$GATEWAY/.well-known/oauth-protected-resource" >/dev/null; then
+  echo "Agent service is active, but gateway metadata connectivity check failed." >&2
+  rollback
+  exit 1
+fi
+
+connected=0
+for _ in {1..25}; do
+  if [[ -f "$STATE_DIR/connection.json" ]] && [[ "$(stat -c %Y "$STATE_DIR/connection.json")" -ge "$START_EPOCH" ]]; then
+    connected=1
+    break
+  fi
+  sleep 1
+done
+if (( connected == 0 )); then
+  echo "Agent did not complete an authenticated gateway request; rolling back." >&2
+  journalctl -u "$SERVICE" -n 30 --no-pager >&2 || true
+  rollback
+  exit 1
+fi
+
+rm -rf "$ROLLBACK_CODE"
+rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE"
+
+echo "KMJ CodeBridge is installed, enrolled and running."
+echo "Device: $DEVICE"
+echo "Project: $PROJECT"
+echo "Service: systemctl status $SERVICE --no-pager"
+echo "No inbound VPS port or GitHub Actions runner is required."

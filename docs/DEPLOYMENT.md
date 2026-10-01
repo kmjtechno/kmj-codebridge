@@ -6,9 +6,11 @@ Follow README. Gateway defaults to loopback port 8787. Agent connections use out
 HTTP only on loopback, otherwise HTTPS. Agent performs a long poll up to 10 seconds
 and backs off on errors. It never follows gateway redirects with credentials.
 
-Generate configuration outside the repository/project. The initializer is deliberately
-non-overwriting and read-only by default. There is no auto-installed service or paid
-cloud resource. Stop processes with SIGINT/SIGTERM for a clean shutdown.
+Generate configuration outside the repository/project. The development initializer
+is deliberately non-overwriting and read-only by default. The production-oriented
+Linux installer can create/update the agent systemd service after explicit device
+enrollment; it does not provision paid cloud resources. Stop development processes
+with SIGINT/SIGTERM for a clean shutdown.
 
 ## Gateway container (operator-managed staging)
 
@@ -31,8 +33,39 @@ per device. A user record maps each device ID to its authorized project IDs and 
 permissions. The agent independently maps project IDs to absolute canonical roots.
 Device IDs never imply authorization. Keep credentials out of URLs, code and chat.
 
-The preview accepts static provisioned accounts. Account linking, pairing UI, global
-revocation and live commercial provisioning are future release gates.
+The repository now implements the CodeBridge client side of verifier-bound,
+short-lived device pairing. Main Platform browser approval, atomic one-time redemption,
+credential rotation and global revocation remain server-side release gates. See
+[secure device enrollment](ENROLLMENT.md). Static provisioned accounts remain useful
+for deterministic development tests but are not the final customer onboarding flow.
+
+## Linux install, update and rollback
+
+Target customer flow, once the Main Platform enrollment API is live:
+
+```sh
+cd /absolute/project
+curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+```
+
+The installer does not accept or require a permanent token in the URL or command.
+On first install it requests a short-lived S256 verifier-bound enrollment, displays
+the approval URL/code and waits for the Main Platform response. On success it writes
+the independent device credential into mode-0600 configuration and starts a hardened
+systemd service.
+
+On rerun, an existing valid configuration is preserved and the runtime is staged as
+an update. The previous runtime/configuration remain available until service startup
+and gateway metadata connectivity both pass. A failed replacement triggers rollback.
+Invalid existing configuration is not silently overwritten.
+
+Project selection defaults to the current directory only when it contains a recognized
+project marker (.git, package.json, composer.json, pyproject.toml, Cargo.toml or
+go.mod); otherwise --project is required. No inbound agent port or GitHub Actions
+runner is installed.
+
+A live first-install enrollment is **not** claimed until Main Platform implements and
+verifies the API described in [ENROLLMENT.md](ENROLLMENT.md).
 
 ## Recovery
 

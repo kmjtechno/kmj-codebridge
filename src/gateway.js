@@ -165,6 +165,10 @@ export async function startGateway(rawConfig) {
         }
         const data = await body(req);
         lastSeen.set(a.id, Date.now());
+        if (req.url === "/agent/health") {
+          json(res, 200, { ok: true });
+          return;
+        }
         if (req.url === "/agent/poll") {
           if (waiting.has(a.id)) {
             json(res, 409, { error: "POLL_ALREADY_OPEN" });
