@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/codebridge-hero.svg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
+  <img src="docs/assets/codebridge-hero-cinematic-v2.svg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
 </p>
 
 <h1 align="center">KMJ CodeBridge</h1>
@@ -40,7 +40,7 @@ CodeBridge takes a narrower approach:
 - **Open-source core** — Apache-2.0 source you can inspect, self-host and contribute to.
 
 <p align="center">
-  <img src="docs/assets/codebridge-architecture.svg" alt="KMJ CodeBridge architecture" width="100%">
+  <img src="docs/assets/codebridge-architecture-cinematic-v2.svg" alt="KMJ CodeBridge architecture" width="100%">
 </p>
 
 ## The workflow
