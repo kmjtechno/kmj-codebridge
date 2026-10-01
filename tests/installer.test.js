@@ -42,7 +42,7 @@ test("installer is idempotent and preserves valid enrollment on rerun", () => {
     /Existing device enrollment found; preserving credential/,
   );
   assert.match(script, /have_config=1/);
-  assert.match(script, /refusing to overwrite it automatically/);
+  assert.match(script, /refusing automatic overwrite/);
   assert.match(script, /agent\.json\.rollback/);
   assert.match(script, /\.rollback/);
 });
