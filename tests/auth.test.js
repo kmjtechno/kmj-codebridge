@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { generateKeyPair, exportJWK, SignJWT } from "jose";
+import { generateKeyPair, exportJWK, SignJWT } from "jose";\nimport { createServer } from "node:http";
 import { createOAuthVerifier } from "../src/auth.js";
 const pair = await generateKeyPair("EdDSA");
 const jwk = { ...(await exportJWK(pair.publicKey)), kid: "test" };
@@ -37,6 +37,32 @@ test("OAuth permissions intersect scopes and server ACL", async () => {
   const user = await verify("Bearer " + (await token()));
   assert.deepEqual(user.permissions, ["read"]);
   assert.equal(user.tenant, "t1");
+});
+
+test("OAuth verifier loads and caches public keys from a remote JWKS endpoint", async () => {
+  let requests = 0;
+  const server = createServer((request, response) => {
+    requests += 1;
+    response.writeHead(200, { "content-type": "application/json" });
+    response.end(JSON.stringify({ keys: [jwk] }));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  try {
+    const address = server.address();
+    const remote = createOAuthVerifier(
+      {
+        issuer: config.issuer,
+        resource: config.resource,
+        jwksUri: `http://127.0.0.1:${address.port}/jwks.json`,
+      },
+      users,
+    );
+    assert.equal((await remote("Bearer " + (await token()))).id, "alice");
+    assert.equal((await remote("Bearer " + (await token()))).id, "alice");
+    assert.equal(requests, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
 });
 test("OAuth refuses forged, expired, missing expiry, unknown subject and wrong audience tokens", async () => {
   const valid = await token();
@@ -188,11 +214,32 @@ test("OAuth config rejects private keys, duplicate subjects and insecure URLs", 
   for (const oauth of [
     { ...config, issuer: "http://identity.example" },
     { ...config, jwks: { keys: [{ ...jwk, d: "secret" }] } },
+    { ...config, jwks: undefined, jwksUri: "http://identity.example/jwks" },
+    {
+      ...config,
+      jwks: undefined,
+      jwksUri: "https://keys.example/.well-known/jwks.json",
+    },
+    {
+      ...config,
+      jwksUri: "https://identity.example/.well-known/jwks.json",
+    },
   ])
     assert.equal(
       gatewaySchema.safeParse({ ...gatewayConfig, oauth }).success,
       false,
     );
+  assert.equal(
+    gatewaySchema.safeParse({
+      ...gatewayConfig,
+      oauth: {
+        ...config,
+        jwks: undefined,
+        jwksUri: "https://identity.example/.well-known/jwks.json",
+      },
+    }).success,
+    true,
+  );
   assert.equal(
     gatewaySchema.safeParse({
       ...gatewayConfig,
