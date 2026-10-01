@@ -174,6 +174,23 @@ Unchanged. See the README "Licensing and packaging" section and
 [OAuth configuration](OAUTH.md). `npm run package:plugin` produces the same
 package layout as before, now from shared packaging code.
 
+## Universal MCP IDE / CLI setup
+
+Any client that supports remote MCP over Streamable HTTP can use the same CodeBridge
+gateway and OAuth flow. Generate a credential-free configuration template with:
+
+```sh
+npm run client:config -- https://YOUR-ACTUAL-HOST/mcp
+npm run client:config -- https://YOUR-ACTUAL-HOST/mcp --format mcp-json
+npm run client:config -- https://YOUR-ACTUAL-HOST/mcp --format claude-json
+```
+
+The generic output describes the canonical transport and OAuth requirement. The JSON
+adapters exist only for clients that expect an `mcpServers` object; they never embed
+a bearer token. A client that cannot speak remote Streamable HTTP MCP or cannot
+complete the configured OAuth flow needs its own transport adapter, but does not get
+a separate CodeBridge security, licensing or tool implementation.
+
 ## Adding another MCP client
 
 A client that supports MCP Streamable HTTP and either bearer headers or MCP
