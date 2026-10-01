@@ -6,6 +6,7 @@ import { generateKeyPairSync } from "node:crypto";
 const { publicKey } = generateKeyPairSync("ed25519");
 const config = {
   allowedHosts: ["bridge.example"],
+  openaiAppsChallenge: "openai-test-challenge",
   oauth: {
     issuer: "https://identity.example",
     resource: "https://bridge.example/mcp",
@@ -43,7 +44,7 @@ test("hosted config binds platform port and all interfaces", () => {
   assert.equal(parsed.host, "0.0.0.0");
   assert.deepEqual(parsed.allowedHosts, ["bridge.example"]);
 });
-test("hosted gateway starts and protects MCP over real HTTP", async () => {
+test("hosted gateway starts, serves the OpenAI challenge and protects MCP", async () => {
   const gateway = await startHostedGateway(JSON.stringify(config), "0");
   const url = gateway.url.replace("0.0.0.0", "127.0.0.1");
   try {
@@ -51,6 +52,13 @@ test("hosted gateway starts and protects MCP over real HTTP", async () => {
       headers: { host: "bridge.example" },
     });
     assert.equal(health.status, 200);
+    const challenge = await httpRequest(
+      url + "/.well-known/openai-apps-challenge",
+      { headers: { host: "bridge.example" } },
+    );
+    assert.equal(challenge.status, 200);
+    assert.equal(challenge.body, "openai-test-challenge");
+    assert.match(challenge.headers.get("content-type"), /^text\/plain/);
     const denied = await httpRequest(url + "/mcp", {
       method: "POST",
       headers: { host: "bridge.example" },
@@ -67,11 +75,13 @@ test("hosted gateway starts and protects MCP over real HTTP", async () => {
 function httpRequest(url, options) {
   return new Promise((resolve, reject) => {
     const request = http.request(url, options, (response) => {
-      response.resume();
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
       response.on("end", () =>
         resolve({
           status: response.statusCode,
           headers: { get: (key) => response.headers[key] },
+          body: Buffer.concat(chunks).toString("utf8"),
         }),
       );
     });
