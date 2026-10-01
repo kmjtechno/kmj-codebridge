@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/brand/fix-corrupt-cinematic-hero/docs/assets/codebridge-cinematic-hero-final.jpg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
+  <img src="docs/assets/codebridge-cinematic-hero-exact.jpg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
 </p>
 
 <h1 align="center">KMJ CodeBridge</h1>
