@@ -17,9 +17,7 @@
         "longDescription": "Connect AI-assisted development to approved projects on your laptops, workstations and VPSs through one authenticated MCP bridge. Inspect code, make guarded file changes, check Git state and run administrator-defined quality gates without exposing an unrestricted shell. Developer preview; hosted onboarding and commercial plans are delivered separately through KMJ TECHNO.",
         "developerName": "KMJ TECHNO",
         "category": "Productivity",
-        "capabilities": [
-          "Interactive"
-        ],
+        "capabilities": ["Interactive"],
         "defaultPrompt": [
           "Inspect my authorized project with KMJ CodeBridge.",
           "Show Git status and run my configured quality gates.",
