@@ -105,6 +105,20 @@ export async function startAgent(rawConfig) {
   const dispatch = createDispatcher(c, runner, licenseProvider);
   const controller = new AbortController();
   let stopped = false;
+  const connectionState = path.join(state, "connection.json");
+  let lastConnectionWrite = 0;
+  const markConnected = () => {
+    const now = Date.now();
+    if (now - lastConnectionWrite < 30000) return;
+    lastConnectionWrite = now;
+    const tmp = connectionState + ".tmp";
+    fs.writeFileSync(
+      tmp,
+      JSON.stringify({ connectedAt: new Date(now).toISOString() }),
+      { mode: 0o600 },
+    );
+    fs.renameSync(tmp, connectionState);
+  };
   const post = async (endpoint, data) => {
     const response = await fetch(new URL(endpoint, c.gateway), {
       method: "POST",
@@ -117,6 +131,7 @@ export async function startAgent(rawConfig) {
       redirect: "error",
     });
     if (!response.ok) throw Error("GATEWAY_REQUEST_FAILED");
+    markConnected();
     return readJsonLimited(response.body);
   };
   let nextRenewal = 0;
