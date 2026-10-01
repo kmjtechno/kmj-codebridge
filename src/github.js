@@ -106,7 +106,8 @@ function bounded(value, max = 65536) {
 export function createGitHubBridge(config) {
   if (!config) return null;
   const token = process.env[config.tokenEnv];
-  if (typeof token !== "string" || token.length < 20) fail("GITHUB_CREDENTIAL_MISSING");
+  if (typeof token !== "string" || token.length < 20)
+    fail("GITHUB_CREDENTIAL_MISSING");
 
   const allowed = new Set(config.repositories);
   const cache = new Map();
@@ -119,10 +120,7 @@ export function createGitHubBridge(config) {
     verifyRepo(repository);
     const key = cacheKey ? `${repository}:${cacheKey}` : null;
     const cached = key ? cache.get(key) : null;
-    if (
-      cached &&
-      Date.now() - cached.at < config.cacheSeconds * 1000
-    )
+    if (cached && Date.now() - cached.at < config.cacheSeconds * 1000)
       return cached.value;
 
     const base = new URL(config.apiBase);
