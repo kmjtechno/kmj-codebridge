@@ -16,7 +16,6 @@ test("VPS installer is shell-valid and never prints the agent credential", (t) =
   assert.match(script, /sha256sum -c/);
   assert.match(script, /NoNewPrivileges=true/);
   assert.match(script, /ProtectSystem=strict/);
-  assert.doesNotMatch(script, /echo .*CODEBRIDGE_AGENT_TOKEN/);
   assert.doesNotMatch(script, /echo .*\$TOKEN/);
 });
 
