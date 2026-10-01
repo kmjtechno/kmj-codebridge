@@ -1,9 +1,9 @@
-import { createLocalJWKSet, jwtVerify } from "jose";
+import { createLocalJWKSet, createRemoteJWKSet, jwtVerify } from "jose";
 export const scopes = ["read", "write", "execute"].map(
   (p) => `codebridge:${p}`,
 );
 export function createOAuthVerifier(config, users) {
-  const keys = createLocalJWKSet(config.jwks);
+  const keys = config.jwksUri\n    ? createRemoteJWKSet(new URL(config.jwksUri), {\n        timeoutDuration: 3000,\n        cooldownDuration: 30000,\n        cacheMaxAge: 600000,\n      })\n    : createLocalJWKSet(config.jwks);
   return async (authorization) => {
     try {
       if (
