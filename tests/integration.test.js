@@ -88,7 +88,7 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
 test("directory listing and precise edit accelerate scoped coding", async (t) => {
   const { client, root } = await setup(t);
   fs.mkdirSync(path.join(root, "src"));
-  fs.writeFileSync(path.join(root, "src", "app.js"), "const mode = \"slow\";\n");
+  fs.writeFileSync(path.join(root, "src", "app.js"), 'const mode = "slow";\n');
   fs.writeFileSync(path.join(root, ".env"), "SECRET=hidden\n");
 
   const listed = content(
@@ -117,7 +117,7 @@ test("directory listing and precise edit accelerate scoped coding", async (t) =>
   assert.equal(
     content(await client.callTool({ name: "read_file", arguments: args }))
       .content,
-    "const mode = \"fast\";\n",
+    'const mode = "fast";\n',
   );
 });
 
