@@ -23,11 +23,8 @@ jobs:
       - name: Diagnostic exact index formatting
         if: matrix.os == 'ubuntu-latest'
         run: |
-          npx prettier src/indexer.js
-          echo '---TOOLS---'
-          npx prettier src/tools.js
-          echo '---TEST---'
-          npx prettier tests/indexer.test.js
+          npx prettier --write src/indexer.js src/tools.js tests/indexer.test.js
+          git diff -- src/indexer.js src/tools.js tests/indexer.test.js
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
