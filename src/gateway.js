@@ -369,7 +369,10 @@ export async function startGateway(rawConfig) {
                     ? {
                         _meta: {
                           "mcp/www_authenticate": [
-                            oauthChallenge(config.oauth, `codebridge:${d.access}`),
+                            oauthChallenge(
+                              config.oauth,
+                              `codebridge:${d.access}`,
+                            ),
                           ],
                         },
                       }
