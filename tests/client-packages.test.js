@@ -230,7 +230,7 @@ test("client packagers reject unsafe endpoints, options and output locations", (
 
 test("branding, license and policies are present in every client package", () => {
   const i = canonical.extensions["com.openai"].interface;
-  assert.equal(canonical.license, "MIT");
+  assert.equal(canonical.license, "Apache-2.0");
   assert.equal(i.logo, "./assets/logo.png");
   assert.equal(i.composerIcon, "./assets/icon.png");
   assert.match(i.brandColor, /^#[0-9A-F]{6}$/);
@@ -253,7 +253,7 @@ test("branding, license and policies are present in every client package", () =>
   const manifest = readJson(
     path.join(cwd, "claude-plugin/.claude-plugin/plugin.json"),
   );
-  assert.equal(manifest.license, "MIT");
+  assert.equal(manifest.license, "Apache-2.0");
   const readme = fs.readFileSync(
     path.join(cwd, "claude-plugin/README.md"),
     "utf8",
