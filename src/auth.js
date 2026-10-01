@@ -1,7 +1,5 @@
 import { createLocalJWKSet, jwtVerify } from "jose";
-export const scopes = ["read", "write", "execute"].map(
-  (p) => `codebridge:${p}`,
-);
+export const scopes = ["mcp:use"];
 export function createOAuthVerifier(config, users) {
   const keys = createLocalJWKSet(config.jwks);
   return async (authorization) => {
@@ -26,9 +24,9 @@ export function createOAuthVerifier(config, users) {
       return {
         ...user,
         grantedScopes: [...granted],
-        permissions: user.permissions.filter((p) =>
-          granted.has(`codebridge:${p}`),
-        ),
+        permissions: granted.has("mcp:use")
+          ? user.permissions
+          : user.permissions.filter((p) => granted.has(`codebridge:${p}`)),
       };
     } catch {
       return null;
