@@ -32,7 +32,9 @@ try {
   };
   const handle = await beginDeviceEnrollment(base, request);
   console.log("KMJ CodeBridge device approval required.");
-  console.log(`Open: ${handle.verification_uri_complete ?? handle.verification_uri}`);
+  console.log(
+    `Open: ${handle.verification_uri_complete ?? handle.verification_uri}`,
+  );
   console.log(`Pairing code: ${handle.user_code}`);
   console.log("Waiting for approval. No device credential will be printed.");
 
