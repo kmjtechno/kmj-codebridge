@@ -92,3 +92,13 @@ an existing output directory. Untracked files are excluded; known credential fil
 cause packaging to fail if tracked. This filename check is defense in depth, not a
 full secret scanner. SHA256 detects corruption when compared against a trusted manifest;
 it does not establish publisher identity without a separately trusted signature.
+
+## OpenAI directory domain verification
+
+When the OpenAI submission portal supplies a domain-verification token, put the exact
+value in the private gateway configuration as `openaiAppsChallenge`. The gateway then
+serves that value as plain text at `/.well-known/openai-apps-challenge` on the
+configured allowed host. Remove or rotate the value when the portal requires a
+different challenge. Never invent a challenge token or commit a real portal token to
+the repository.
+\n
