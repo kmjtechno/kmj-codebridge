@@ -59,13 +59,13 @@ The gateway cannot independently browse your machine. The device agent must be o
 
 ## What you can do
 
-| Tool family | Examples | Safety boundary |
-| --- | --- | --- |
-| Discover | `list_devices`, `inspect_project`, `connection_doctor` | Tenant/project scoped |
-| Read | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root |
-| Edit | `edit_file`, `write_file`, `preview_file` | Expected-hash / exact-fragment checks |
-| Verify | `run_quality_gate` | Only administrator-configured executable + arguments |
-| Jobs | `get_job_status`, `cancel_job` | Durable bounded job state |
+| Tool family | Examples                                                   | Safety boundary                                      |
+| ----------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| Discover    | `list_devices`, `inspect_project`, `connection_doctor`     | Tenant/project scoped                                |
+| Read        | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                        |
+| Edit        | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                |
+| Verify      | `run_quality_gate`                                         | Only administrator-configured executable + arguments |
+| Jobs        | `get_job_status`, `cancel_job`                             | Durable bounded job state                            |
 
 No generic “run any shell command” MCP tool is exposed.
 
@@ -115,12 +115,12 @@ The installer is designed to detect architecture, stage the runtime, enroll the 
 
 The open-source Community tier stays useful. Hosted convenience and higher commercial limits are paid entitlements through **KMJ Main Platform**.
 
-| Plan | Launch price | Best for |
-| --- | ---: | --- |
-| **Community** | **Free** | OSS users, evaluation, one device/project |
-| **Pro Launch** | **₹149/mo India · US$1.99/mo global** | Individual developers |
-| **Team Launch** | **₹399/user/mo India · US$4.99/user/mo global** | Small engineering teams |
-| **Business** | Custom | Larger deployments, support, procurement |
+| Plan            |                                    Launch price | Best for                                  |
+| --------------- | ----------------------------------------------: | ----------------------------------------- |
+| **Community**   |                                        **Free** | OSS users, evaluation, one device/project |
+| **Pro Launch**  |           **₹149/mo India · US$1.99/mo global** | Individual developers                     |
+| **Team Launch** | **₹399/user/mo India · US$4.99/user/mo global** | Small engineering teams                   |
+| **Business**    |                                          Custom | Larger deployments, support, procurement  |
 
 **Launch trial:** eligible new accounts get **30 days of Pro** with no automatic paid conversion unless they explicitly choose a paid subscription.
 
@@ -161,13 +161,13 @@ Read **[SECURITY.md](SECURITY.md)** before production use.
 
 ## Supported clients
 
-| Client | Integration |
-| --- | --- |
-| ChatGPT | OpenAI plugin package + remote MCP |
-| Claude Code | Claude plugin / MCP |
-| Claude Desktop | Custom MCP connector |
-| Claude.ai | Custom MCP connector where supported |
-| Other MCP clients | Streamable HTTP MCP |
+| Client            | Integration                          |
+| ----------------- | ------------------------------------ |
+| ChatGPT           | OpenAI plugin package + remote MCP   |
+| Claude Code       | Claude plugin / MCP                  |
+| Claude Desktop    | Custom MCP connector                 |
+| Claude.ai         | Custom MCP connector where supported |
+| Other MCP clients | Streamable HTTP MCP                  |
 
 Client capabilities and hosted availability can differ. See [docs/CLIENTS.md](docs/CLIENTS.md).
 
