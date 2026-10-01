@@ -105,6 +105,18 @@ export const gatewaySchema = z
       names.add(user.id);
       subjects.add(user.subject);
     }
+  })
+  .transform((config) => {
+    if (!config.agentIntrospection && config.oauth) {
+      config.agentIntrospection = {
+        endpoint: new URL(
+          "/api/codebridge/v1/device-credentials/introspect",
+          config.oauth.issuer,
+        ).href,
+        cacheSeconds: 60,
+      };
+    }
+    return config;
   });
 export const agentSchema = z.object({
   gateway: z.string().url(),

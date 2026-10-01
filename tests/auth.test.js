@@ -211,6 +211,29 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
     await gateway.close();
   }
 });
+test("OAuth gateway derives zero-config agent introspection from trusted issuer", () => {
+  const parsed = gatewaySchema.parse(gatewayConfig);
+  assert.deepEqual(parsed.agentIntrospection, {
+    endpoint:
+      "https://identity.example/api/codebridge/v1/device-credentials/introspect",
+    cacheSeconds: 60,
+  });
+
+  const explicit = gatewaySchema.parse({
+    ...gatewayConfig,
+    agentIntrospection: {
+      endpoint:
+        "https://platform.example/api/codebridge/v1/device-credentials/introspect",
+      cacheSeconds: 30,
+    },
+  });
+  assert.equal(
+    explicit.agentIntrospection.endpoint,
+    "https://platform.example/api/codebridge/v1/device-credentials/introspect",
+  );
+  assert.equal(explicit.agentIntrospection.cacheSeconds, 30);
+});
+
 test("OAuth config rejects private keys, duplicate subjects and insecure URLs", () => {
   for (const oauth of [
     { ...config, issuer: "http://identity.example" },
