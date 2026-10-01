@@ -182,9 +182,14 @@ export async function startAgent(rawConfig) {
   };
   const loop = (async () => {
     let failures = 0;
+    let needsHealthProbe = true;
     while (!stopped) {
       try {
         await renew();
+        if (needsHealthProbe) {
+          await post("/agent/health", {});
+          needsHealthProbe = false;
+        }
         const work = await post("/agent/poll", {});
         failures = 0;
         if (work) {
@@ -208,6 +213,7 @@ export async function startAgent(rawConfig) {
         }
       } catch {
         if (stopped) break;
+        needsHealthProbe = true;
         failures = Math.min(failures + 1, 6);
       }
       if (!stopped)
