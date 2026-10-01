@@ -10,6 +10,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { gatewaySchema } from "./config.js";
 import { definitions } from "./tools.js";
+import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { fail, publicError } from "./errors.js";
 function identify(req, records) {
   const raw = req.headers.authorization;
@@ -51,6 +52,10 @@ export async function startGateway(rawConfig) {
   const verifyOAuth = config.oauth
     ? createOAuthVerifier(config.oauth, config.users)
     : null;
+  const githubDispatch = createGitHubBridge(config.github);
+  const allDefinitions = githubDispatch
+    ? { ...definitions, ...githubDefinitions }
+    : definitions;
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const dynamicByToken = new Map();
   const pending = new Map(),
@@ -334,7 +339,7 @@ export async function startGateway(rawConfig) {
       }
       const data = await body(req);
       const mcp = new McpServer({ name: "kmj-codebridge", version: "0.1.0" });
-      for (const [name, d] of Object.entries(definitions))
+      for (const [name, d] of Object.entries(allDefinitions))
         mcp.registerTool(
           name,
           {
@@ -347,7 +352,8 @@ export async function startGateway(rawConfig) {
               readOnlyHint: d.access === "read",
               destructiveHint: d.access !== "read",
               idempotentHint: d.access === "read",
-              openWorldHint: name === "run_quality_gate",
+              openWorldHint:
+                name === "run_quality_gate" || name.startsWith("github_"),
             },
           },
           async (args) => {
@@ -375,6 +381,12 @@ export async function startGateway(rawConfig) {
                   content: [
                     { type: "text", text: JSON.stringify({ devices }) },
                   ],
+                };
+              }
+              if (githubDispatch && name.startsWith("github_")) {
+                const result = await githubDispatch(name, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
               return await forward(user, name, args);

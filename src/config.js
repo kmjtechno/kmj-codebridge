@@ -69,6 +69,17 @@ export const gatewaySchema = z
         cacheSeconds: z.number().int().min(5).max(300).default(60),
       })
       .optional(),
+    github: z
+      .object({
+        apiBase: httpsUrl.default("https://api.github.com/"),
+        tokenEnv: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+        repositories: z
+          .array(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/))
+          .min(1)
+          .max(100),
+        cacheSeconds: z.number().int().min(5).max(300).default(30),
+      })
+      .optional(),
     host: z.string().default("127.0.0.1"),
     port: z.number().int().min(0).max(65535).default(8787),
     deviceTimeoutMs: z.number().int().min(100).max(120000).default(15000),
