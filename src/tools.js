@@ -251,7 +251,7 @@ export function createDispatcher(config, runner, licenseProvider) {
             cwd: p.files.root,
             encoding: "utf8",
             timeout: 5000,
-            maxBuffer: name === "git_diff" ? 65536 : 32768,
+            maxBuffer: name === "git_diff" ? 131072 : 32768,
             env: {
               PATH: process.env.PATH,
               SystemRoot: process.env.SystemRoot,
@@ -264,9 +264,15 @@ export function createDispatcher(config, runner, licenseProvider) {
           },
         );
         const redacted = redact(output);
-        return name === "git_diff"
-          ? { diff: redacted, truncated: Buffer.byteLength(output) >= 65536 }
-          : { status: redacted };
+        if (name === "git_diff") {
+          const bytes = Buffer.from(redacted);
+          const truncated = bytes.length > 65536;
+          return {
+            diff: truncated ? bytes.subarray(0, 65536).toString("utf8") : redacted,
+            truncated,
+          };
+        }
+        return { status: redacted };
       } catch {
         fail(name === "git_diff" ? "GIT_DIFF_FAILED" : "GIT_STATUS_FAILED");
       }
