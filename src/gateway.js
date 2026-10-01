@@ -360,22 +360,20 @@ export async function startGateway(rawConfig) {
           },
           async (args) => {
             try {
-              if (!user)
+              if (!user) {
+                const authenticate = config.oauth
+                  ? [oauthChallenge(config.oauth, `codebridge:${d.access}`)]
+                  : null;
                 return {
                   isError: true,
                   content: [
                     { type: "text", text: '{"error":"UNAUTHORIZED"}' },
                   ],
-                  ...(config.oauth
-                    ? {
-                        _meta: {
-                          "mcp/www_authenticate": [
-                            oauthChallenge(config.oauth, `codebridge:${d.access}`),
-                          ],
-                        },
-                      }
+                  ...(authenticate
+                    ? { _meta: { "mcp/www_authenticate": authenticate } }
                     : {}),
                 };
+              }
               if (!user.permissions.includes(d.access))
                 return {
                   isError: true,
