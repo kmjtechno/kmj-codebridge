@@ -4,6 +4,7 @@ import { z } from "zod";
 import { execFileSync } from "node:child_process";
 import { identifier } from "./config.js";
 import { ProjectFiles } from "./policy.js";
+import { ProjectIndex } from "./indexer.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 const scoped = { device: identifier, project: identifier };
@@ -74,6 +75,26 @@ export const definitions = {
     description:
       "Search literal text in allowed project files with bounded results.",
     input: { ...scoped, query: z.string().min(1).max(200) },
+    access: "read",
+  },
+  search_symbols: {
+    title: "Search symbols",
+    description:
+      "Search a lazy low-resource symbol index for classes, functions, types and interfaces in an authorized project.",
+    input: {
+      ...scoped,
+      query: z.string().min(1).max(100),
+      kind: z
+        .enum(["class", "function", "interface", "trait", "struct", "enum", "type"])
+        .optional(),
+    },
+    access: "read",
+  },
+  project_index_status: {
+    title: "Project index status",
+    description:
+      "Refresh and report bounded lazy symbol-index statistics for an authorized project.",
+    input: scoped,
     access: "read",
   },
   read_file: {
@@ -198,9 +219,15 @@ export function createDispatcher(config, runner, licenseProvider) {
   const projects = new Map(
     config.projects.map((p) => [
       p.id,
-      { ...p, files: new ProjectFiles(p.root) },
+      {
+        ...p,
+        files: new ProjectFiles(p.root),
+      },
     ]),
   );
+  for (const project of projects.values())
+    project.index = new ProjectIndex(project.files);
+
   return async function dispatch(name, input, permissions) {
     const definition = definitions[name];
     if (!definition || name === "list_devices") fail("UNKNOWN_TOOL");
@@ -263,6 +290,11 @@ export function createDispatcher(config, runner, licenseProvider) {
         ...r,
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
+    }
+    if (name === "search_symbols") return p.index.search(a.query, a.kind);
+    if (name === "project_index_status") {
+      p.index.refresh();
+      return p.index.status();
     }
     if (name === "preview_file")
       return p.files.preview(a.path, a.content, a.expectedHash);
