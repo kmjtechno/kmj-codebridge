@@ -49,6 +49,26 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  git_log: {
+    title: "Git log",
+    description:
+      "Read up to 50 recent commits from the authorized repository with bounded output.",
+    input: {
+      ...scoped,
+      limit: z.number().int().min(1).max(50).default(20),
+    },
+    access: "read",
+  },
+  git_show: {
+    title: "Git show",
+    description:
+      "Read one bounded commit summary and patch by full or abbreviated hexadecimal commit id.",
+    input: {
+      ...scoped,
+      commit: z.string().regex(/^[a-f0-9]{7,40}$/i),
+    },
+    access: "read",
+  },
   search_code: {
     title: "Search code",
     description:
@@ -71,6 +91,25 @@ export const definitions = {
       ...file,
       startLine: z.number().int().min(1).default(1),
       maxLines: z.number().int().min(1).max(500).default(200),
+    },
+    access: "read",
+  },
+  read_files_batch: {
+    title: "Read files batch",
+    description:
+      "Read up to 20 authorized UTF-8 files or line ranges in one round trip with per-file hashes.",
+    input: {
+      ...scoped,
+      files: z
+        .array(
+          z.object({
+            path: z.string().min(1).max(1024),
+            startLine: z.number().int().min(1).optional(),
+            maxLines: z.number().int().min(1).max(500).optional(),
+          }),
+        )
+        .min(1)
+        .max(20),
     },
     access: "read",
   },
@@ -97,6 +136,28 @@ export const definitions = {
       oldText: z.string().min(1).max(65536),
       newText: z.string().max(65536),
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
+    },
+    access: "write",
+  },
+  write_files_atomic: {
+    title: "Write files atomically",
+    description:
+      "Replace or create up to 50 authorized files as one transaction. Every existing file must match its expected SHA-256 or no file is changed.",
+    input: {
+      ...scoped,
+      changes: z
+        .array(
+          z.object({
+            path: z.string().min(1).max(1024),
+            content: z.string().max(262144),
+            expectedHash: z
+              .string()
+              .regex(/^[a-f0-9]{64}$/)
+              .nullable(),
+          }),
+        )
+        .min(1)
+        .max(50),
     },
     access: "write",
   },
@@ -181,6 +242,21 @@ export function createDispatcher(config, runner, licenseProvider) {
         redacted: redact(r.content) !== r.content,
       };
     }
+    if (name === "read_files_batch") {
+      const files = a.files.map((item) => {
+        const r =
+          item.startLine === undefined && item.maxLines === undefined
+            ? p.files.read(item.path)
+            : p.files.readRange(
+                item.path,
+                item.startLine ?? 1,
+                item.maxLines ?? 200,
+              );
+        const content = redact(r.content);
+        return { ...r, content, redacted: content !== r.content };
+      });
+      return { files, count: files.length };
+    }
     if (name === "search_code") {
       const r = p.files.search(a.query);
       return {
@@ -206,7 +282,22 @@ export function createDispatcher(config, runner, licenseProvider) {
         fail("SENSITIVE_CONTENT_PROTECTED");
       return p.files.edit(a.path, a.oldText, a.newText, a.expectedHash);
     }
-    if (name === "git_status" || name === "git_diff") {
+    if (name === "write_files_atomic") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      for (const change of a.changes) {
+        if (change.expectedHash === null) continue;
+        const before = p.files.read(change.path);
+        if (redact(before.content) !== before.content)
+          fail("SENSITIVE_CONTENT_PROTECTED");
+      }
+      return p.files.writeBatch(a.changes);
+    }
+    if (
+      name === "git_status" ||
+      name === "git_diff" ||
+      name === "git_log" ||
+      name === "git_show"
+    ) {
       const gitDir = path.join(p.files.root, ".git");
       let gitStat;
       try {
@@ -217,14 +308,17 @@ export function createDispatcher(config, runner, licenseProvider) {
       if (!gitStat.isDirectory() || gitStat.isSymbolicLink())
         fail("GIT_ROOT_OUTSIDE_PROJECT");
       try {
+        const common = [
+          "--no-optional-locks",
+          "-c",
+          "core.fsmonitor=false",
+          "-c",
+          "core.untrackedCache=false",
+        ];
         const args =
           name === "git_diff"
             ? [
-                "--no-optional-locks",
-                "-c",
-                "core.fsmonitor=false",
-                "-c",
-                "core.untrackedCache=false",
+                ...common,
                 "-c",
                 "diff.external=",
                 "diff",
@@ -233,22 +327,43 @@ export function createDispatcher(config, runner, licenseProvider) {
                 "--patch",
                 "--",
               ]
-            : [
-                "--no-optional-locks",
-                "-c",
-                "core.fsmonitor=false",
-                "-c",
-                "core.untrackedCache=false",
-                "status",
-                "--porcelain=v1",
-                "--branch",
-                "--untracked-files=normal",
-              ];
+            : name === "git_log"
+              ? [
+                  ...common,
+                  "log",
+                  `-${a.limit}`,
+                  "--date=iso-strict",
+                  "--pretty=format:%H%x09%ad%x09%an%x09%s",
+                  "--no-decorate",
+                ]
+              : name === "git_show"
+                ? [
+                    ...common,
+                    "-c",
+                    "diff.external=",
+                    "show",
+                    "--no-ext-diff",
+                    "--no-textconv",
+                    "--date=iso-strict",
+                    "--format=fuller",
+                    "--patch",
+                    "--stat",
+                    a.commit,
+                    "--",
+                  ]
+                : [
+                    ...common,
+                    "status",
+                    "--porcelain=v1",
+                    "--branch",
+                    "--untracked-files=normal",
+                  ];
         const output = execFileSync("git", args, {
           cwd: p.files.root,
           encoding: "utf8",
           timeout: 5000,
-          maxBuffer: name === "git_diff" ? 131072 : 32768,
+          maxBuffer:
+            name === "git_diff" || name === "git_show" ? 131072 : 32768,
           env: {
             PATH: process.env.PATH,
             SystemRoot: process.env.SystemRoot,
@@ -260,19 +375,28 @@ export function createDispatcher(config, runner, licenseProvider) {
           },
         });
         const redacted = redact(output);
-        if (name === "git_diff") {
+        if (name === "git_diff" || name === "git_show") {
           const bytes = Buffer.from(redacted);
           const truncated = bytes.length > 65536;
-          return {
-            diff: truncated
-              ? bytes.subarray(0, 65536).toString("utf8")
-              : redacted,
-            truncated,
-          };
+          const text = truncated
+            ? bytes.subarray(0, 65536).toString("utf8")
+            : redacted;
+          return name === "git_diff"
+            ? { diff: text, truncated }
+            : { show: text, truncated };
         }
+        if (name === "git_log") return { log: redacted };
         return { status: redacted };
       } catch {
-        fail(name === "git_diff" ? "GIT_DIFF_FAILED" : "GIT_STATUS_FAILED");
+        fail(
+          name === "git_diff"
+            ? "GIT_DIFF_FAILED"
+            : name === "git_log"
+              ? "GIT_LOG_FAILED"
+              : name === "git_show"
+                ? "GIT_SHOW_FAILED"
+                : "GIT_STATUS_FAILED",
+        );
       }
     }
     if (name === "run_quality_gate") {

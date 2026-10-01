@@ -215,6 +215,137 @@ test("partial reads and git diff keep coding context bounded", async (t) => {
   assert.equal(typeof diff.truncated, "boolean");
 });
 
+test("batch reads return multiple bounded files in one MCP call", async (t) => {
+  const { client, root } = await setup(t);
+  fs.writeFileSync(path.join(root, "a.txt"), "a1\na2\na3\n");
+  fs.writeFileSync(path.join(root, "b.txt"), "b1\nb2\n");
+
+  const result = content(
+    await client.callTool({
+      name: "read_files_batch",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        files: [
+          { path: "a.txt", startLine: 2, maxLines: 2 },
+          { path: "b.txt" },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(result.count, 2);
+  assert.equal(result.files[0].content, "a2\na3");
+  assert.equal(result.files[1].content, "b1\nb2\n");
+  assert.match(result.files[0].sha256, /^[a-f0-9]{64}$/);
+  assert.match(result.files[1].sha256, /^[a-f0-9]{64}$/);
+});
+
+test("atomic multi-file write commits all changes or none", async (t) => {
+  const { client, root } = await setup(t);
+  fs.writeFileSync(path.join(root, "one.txt"), "one\n");
+  fs.writeFileSync(path.join(root, "two.txt"), "two\n");
+
+  const one = content(
+    await client.callTool({
+      name: "read_file",
+      arguments: { device: "d1", project: "p1", path: "one.txt" },
+    }),
+  );
+  const two = content(
+    await client.callTool({
+      name: "read_file",
+      arguments: { device: "d1", project: "p1", path: "two.txt" },
+    }),
+  );
+
+  const changed = await client.callTool({
+    name: "write_files_atomic",
+    arguments: {
+      device: "d1",
+      project: "p1",
+      changes: [
+        { path: "one.txt", content: "ONE\n", expectedHash: one.sha256 },
+        { path: "two.txt", content: "TWO\n", expectedHash: two.sha256 },
+        { path: "new.txt", content: "NEW\n", expectedHash: null },
+      ],
+    },
+  });
+  assert.equal(changed.isError, undefined);
+  assert.equal(fs.readFileSync(path.join(root, "one.txt"), "utf8"), "ONE\n");
+  assert.equal(fs.readFileSync(path.join(root, "two.txt"), "utf8"), "TWO\n");
+  assert.equal(fs.readFileSync(path.join(root, "new.txt"), "utf8"), "NEW\n");
+
+  const oneAfter = content(
+    await client.callTool({
+      name: "read_file",
+      arguments: { device: "d1", project: "p1", path: "one.txt" },
+    }),
+  );
+  fs.writeFileSync(path.join(root, "two.txt"), "externally changed\n");
+  const rejected = await client.callTool({
+    name: "write_files_atomic",
+    arguments: {
+      device: "d1",
+      project: "p1",
+      changes: [
+        {
+          path: "one.txt",
+          content: "must-not-change\n",
+          expectedHash: oneAfter.sha256,
+        },
+        { path: "two.txt", content: "also-no\n", expectedHash: two.sha256 },
+      ],
+    },
+  });
+  assert.equal(content(rejected).error, "CONTENT_CONFLICT");
+  assert.equal(fs.readFileSync(path.join(root, "one.txt"), "utf8"), "ONE\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "two.txt"), "utf8"),
+    "externally changed\n",
+  );
+});
+
+test("bounded git log and show expose recent history without shell helpers", async (t) => {
+  const { client, root } = await setup(t);
+  const { execFileSync } = await import("node:child_process");
+  execFileSync("git", ["init"], { cwd: root, stdio: "pipe" });
+  execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-m",
+      "initial history",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+
+  const log = content(
+    await client.callTool({
+      name: "git_log",
+      arguments: { device: "d1", project: "p1", limit: 5 },
+    }),
+  );
+  assert.match(log.log, /initial history/);
+  const commit = log.log.split("\t")[0];
+  assert.match(commit, /^[a-f0-9]{40}$/);
+
+  const shown = content(
+    await client.callTool({
+      name: "git_show",
+      arguments: { device: "d1", project: "p1", commit },
+    }),
+  );
+  assert.match(shown.show, /initial history/);
+  assert.match(shown.show, /hello\.txt/);
+  assert.equal(typeof shown.truncated, "boolean");
+});
+
 test("real read-preview-write-test workflow verifies results", async (t) => {
   const { client } = await setup(t);
   const args = { device: "d1", project: "p1", path: "hello.txt" };
