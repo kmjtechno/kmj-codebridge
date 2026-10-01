@@ -11,6 +11,11 @@
 <p align="center"><strong>Connect your systems. Build with AI.</strong></p>
 
 <p align="center">
+  <strong>Built by KMJ TECHNO</strong> · Founder / CTO: <strong>Narendra Singh Kushwah</strong><br>
+  AI infrastructure · MCP · secure developer tooling · remote engineering
+</p>
+
+<p align="center">
   A secure, vendor-neutral MCP bridge that lets AI assistants work with the <em>authorized projects</em> on your laptops, workstations and VPSs—without giving them an unrestricted shell or requiring an inbound device port.
 </p>
 
@@ -216,6 +221,12 @@ A star helps other developers discover the project. Sharing a working demo, inte
 Copyright 2026 KMJ TECHNO.
 
 KMJ CodeBridge source is licensed under the [Apache License 2.0](LICENSE). The Apache License does not grant permission to use KMJ TECHNO trade names, trademarks, service marks or product names except as permitted by applicable law and the license.
+
+## About KMJ TECHNO
+
+KMJ CodeBridge is developed by **KMJ TECHNO**, founded and led by **Narendra Singh Kushwah**. The company builds AI-native software, secure developer infrastructure, autonomous engineering systems, remote-access technologies, and enterprise digital products.
+
+Learn more at <https://kmjtechno.com>.
 
 ## Explore the KMJ open-source ecosystem
 
