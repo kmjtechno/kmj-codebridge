@@ -21,7 +21,7 @@ test("fresh installer uses secure enrollment and never requires manual agent tok
   assert.match(script, /CODEBRIDGE_ENROLLMENT_BASE/);
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
   assert.doesNotMatch(script, /github.*token/i);
-  assert.doesNotMatch(script, /actions[-_. ]?runner/i);
+  assert.doesNotMatch(script, /github\.com\/actions\/runner|config\.sh|runsvc\.sh/i);
   assert.match(
     script,
     /No inbound VPS port or GitHub Actions runner is required/,
