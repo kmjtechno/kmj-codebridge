@@ -230,6 +230,102 @@ export class ProjectFiles {
       before.content.slice(first + oldText.length);
     return this.write(relative, content, expectedHash);
   }
+  writeBatch(changes) {
+    if (!Array.isArray(changes) || changes.length < 1 || changes.length > 50)
+      fail("INVALID_BATCH");
+    const seen = new Set();
+    const staged = [];
+    try {
+      for (const change of changes) {
+        if (
+          !change ||
+          typeof change.path !== "string" ||
+          typeof change.content !== "string" ||
+          !Object.hasOwn(change, "expectedHash")
+        )
+          fail("INVALID_BATCH");
+        if (seen.has(change.path)) fail("DUPLICATE_PATH");
+        seen.add(change.path);
+        const preview = this.preview(
+          change.path,
+          change.content,
+          change.expectedHash,
+        );
+        const target = this.resolve(change.path, true);
+        const mode = fs.existsSync(target)
+          ? fs.statSync(target).mode & 0o777
+          : 0o600;
+        const tmp = path.join(
+          path.dirname(target),
+          `.codebridge-${randomUUID()}.batch`,
+        );
+        const fd = fs.openSync(tmp, "wx", mode);
+        try {
+          fs.writeFileSync(fd, change.content);
+          fs.fsyncSync(fd);
+        } finally {
+          fs.closeSync(fd);
+        }
+        staged.push({ change, preview, target, tmp });
+      }
+
+      for (const item of staged)
+        this.preview(
+          item.change.path,
+          item.change.content,
+          item.change.expectedHash,
+        );
+
+      const backups = [];
+      try {
+        for (const item of staged) {
+          let backup = null;
+          if (fs.existsSync(item.target)) {
+            backup = path.join(
+              path.dirname(item.target),
+              `.codebridge-${randomUUID()}.backup`,
+            );
+            fs.renameSync(item.target, backup);
+          }
+          backups.push({ target: item.target, backup });
+          fs.renameSync(item.tmp, item.target);
+        }
+      } catch (error) {
+        for (let i = backups.length - 1; i >= 0; i--) {
+          const { target, backup } = backups[i];
+          try {
+            if (fs.existsSync(target)) fs.unlinkSync(target);
+          } catch {}
+          if (backup) {
+            try {
+              fs.renameSync(backup, target);
+            } catch {}
+          }
+        }
+        throw error;
+      }
+
+      for (const { backup } of backups) {
+        if (!backup) continue;
+        try {
+          fs.unlinkSync(backup);
+        } catch {}
+      }
+
+      return {
+        changed: staged.map(({ preview }) => preview),
+        count: staged.length,
+      };
+    } finally {
+      for (const { tmp } of staged) {
+        try {
+          fs.unlinkSync(tmp);
+        } catch (error) {
+          if (error.code !== "ENOENT") throw error;
+        }
+      }
+    }
+  }
   search(query) {
     if (typeof query !== "string" || !query || query.length > 200)
       fail("INVALID_QUERY");
