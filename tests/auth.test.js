@@ -139,9 +139,36 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
     );
     assert.equal(metadata.status, 200);
     assert.equal((await metadata.json()).resource, config.resource);
+    const discovered = await fetch(gateway.url + "/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 0,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    assert.equal(discovered.status, 200);
+    const discoveryResult = await discovered.json();
+    assert.ok(discoveryResult.result.tools.length > 0);
+
     const denied = await fetch(gateway.url + "/mcp", {
       method: "POST",
-      headers: { authorization: "Bearer agent" },
+      headers: {
+        authorization: "Bearer agent",
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 99,
+        method: "tools/call",
+        params: { name: "list_devices", arguments: {} },
+      }),
     });
     assert.equal(denied.status, 401);
     assert.match(denied.headers.get("www-authenticate"), /resource_metadata=/);

@@ -53,7 +53,13 @@ test("hosted gateway starts and protects MCP over real HTTP", async () => {
     assert.equal(health.status, 200);
     const denied = await httpRequest(url + "/mcp", {
       method: "POST",
-      headers: { host: "bridge.example" },
+      headers: { host: "bridge.example", "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "list_devices", arguments: {} },
+      }),
     });
     assert.equal(denied.status, 401);
     assert.match(denied.headers.get("www-authenticate"), /resource_metadata/);
@@ -64,9 +70,10 @@ test("hosted gateway starts and protects MCP over real HTTP", async () => {
   }
 });
 
-function httpRequest(url, options) {
+function httpRequest(url, options = {}) {
   return new Promise((resolve, reject) => {
-    const request = http.request(url, options, (response) => {
+    const { body, ...requestOptions } = options;
+    const request = http.request(url, requestOptions, (response) => {
       response.resume();
       response.on("end", () =>
         resolve({
@@ -76,6 +83,6 @@ function httpRequest(url, options) {
       );
     });
     request.on("error", reject);
-    request.end();
+    request.end(body);
   });
 }

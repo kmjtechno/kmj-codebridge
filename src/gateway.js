@@ -309,30 +309,38 @@ export async function startGateway(rawConfig) {
         json(res, 404, { error: "NOT_FOUND" });
         return;
       }
+      if (req.method !== "POST") {
+        json(res, 405, { error: "METHOD_NOT_ALLOWED" });
+        return;
+      }
+      const data = await body(req);
+      const publicDiscovery = [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "ping",
+      ].includes(data?.method);
       const user = verifyOAuth
         ? await verifyOAuth(req.headers.authorization)
         : identify(req, config.users);
-      if (!user) {
+      if (!user && !publicDiscovery) {
         if (config.oauth)
           res.setHeader("WWW-Authenticate", oauthChallenge(config.oauth));
         json(res, 401, { error: "UNAUTHORIZED" });
         return;
       }
-      if (req.method !== "POST") {
-        json(res, 405, { error: "METHOD_NOT_ALLOWED" });
-        return;
+      if (user) {
+        const minute = Math.floor(Date.now() / 60000);
+        let quota = rate.get(user.id);
+        if (!quota || quota.minute !== minute) {
+          quota = { minute, count: 0 };
+          rate.set(user.id, quota);
+        }
+        if (++quota.count > 240) {
+          json(res, 429, { error: "RATE_LIMIT" });
+          return;
+        }
       }
-      const minute = Math.floor(Date.now() / 60000);
-      let quota = rate.get(user.id);
-      if (!quota || quota.minute !== minute) {
-        quota = { minute, count: 0 };
-        rate.set(user.id, quota);
-      }
-      if (++quota.count > 240) {
-        json(res, 429, { error: "RATE_LIMIT" });
-        return;
-      }
-      const data = await body(req);
       const mcp = new McpServer({ name: "kmj-codebridge", version: "0.1.0" });
       for (const [name, d] of Object.entries(definitions))
         mcp.registerTool(
@@ -352,6 +360,18 @@ export async function startGateway(rawConfig) {
           },
           async (args) => {
             try {
+              if (!user) {
+                const authenticate = config.oauth
+                  ? [oauthChallenge(config.oauth, `codebridge:${d.access}`)]
+                  : null;
+                return {
+                  isError: true,
+                  content: [{ type: "text", text: '{"error":"UNAUTHORIZED"}' }],
+                  ...(authenticate
+                    ? { _meta: { "mcp/www_authenticate": authenticate } }
+                    : {}),
+                };
+              }
               if (!user.permissions.includes(d.access))
                 return {
                   isError: true,
