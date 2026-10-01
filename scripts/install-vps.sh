@@ -148,13 +148,20 @@ have_config=0
 if [[ -f "$CONFIG" ]]; then
   if "$NODE" -e '
     const fs=require("node:fs");
+    const fs=require("node:fs");
     const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-    if(typeof c.token!=="string"||c.token.length<32||!Array.isArray(c.projects)||!c.projects.length) process.exit(1);
-  ' "$CONFIG"; then
+    const root=fs.realpathSync(process.argv[2]);
+    if(
+      typeof c.token!=="string"||
+      c.token.length<32||
+      !Array.isArray(c.projects)||
+      !c.projects.some(p=>p.id===process.argv[3]&&fs.realpathSync(p.root)===root)
+    ) process.exit(1);
+  ' "$CONFIG" "$PROJECT" "$PROJECT_ID"; then
     have_config=1
     echo "Existing device enrollment found; preserving credential and repairing/updating installation."
   else
-    echo "Existing configuration is invalid; refusing to overwrite it automatically." >&2
+    echo "Existing configuration is invalid or bound to a different project; refusing automatic overwrite." >&2
     exit 1
   fi
 fi
@@ -206,8 +213,13 @@ if [[ -d "$INSTALL_DIR" ]]; then
 fi
 mv "$NEW_DIR" "$INSTALL_DIR"
 
+rm -f "$ROLLBACK_SERVICE"
+if [[ -f "$SERVICE_FILE" ]]; then
+  cp -a "$SERVICE_FILE" "$ROLLBACK_SERVICE"
+fi
+
 write_service() {
-cat >/etc/systemd/system/$SERVICE <<EOF
+cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge Agent
 After=network-online.target
@@ -251,12 +263,18 @@ rollback() {
     chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
     chmod 0600 "$CONFIG"
   fi
+  if [[ -f "$ROLLBACK_SERVICE" ]]; then
+    cp -a "$ROLLBACK_SERVICE" "$SERVICE_FILE"
+  else
+    rm -f "$SERVICE_FILE"
+  fi
   systemctl daemon-reload
   systemctl start "$SERVICE" >/dev/null 2>&1 || true
 }
 
 systemctl daemon-reload
 systemctl enable "$SERVICE" >/dev/null
+START_EPOCH="$(date +%s)"
 if ! systemctl restart "$SERVICE"; then
   rollback
   exit 1
@@ -277,8 +295,23 @@ if ! curl -fsS --max-time 10 "$GATEWAY/.well-known/oauth-protected-resource" >/d
   exit 1
 fi
 
+connected=0
+for _ in {1..25}; do
+  if [[ -f "$STATE_DIR/connection.json" ]] && [[ "$(stat -c %Y "$STATE_DIR/connection.json")" -ge "$START_EPOCH" ]]; then
+    connected=1
+    break
+  fi
+  sleep 1
+done
+if (( connected == 0 )); then
+  echo "Agent did not complete an authenticated gateway request; rolling back." >&2
+  journalctl -u "$SERVICE" -n 30 --no-pager >&2 || true
+  rollback
+  exit 1
+fi
+
 rm -rf "$ROLLBACK_CODE"
-rm -f "$ROLLBACK_CONFIG"
+rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE"
 
 echo "KMJ CodeBridge is installed, enrolled and running."
 echo "Device: $DEVICE"
