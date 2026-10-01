@@ -4,7 +4,8 @@
   "version": "0.1.0",
   "description": "Controlled coding tools for authorized computers and VPSs through an authenticated MCP gateway. Developer preview.",
   "author": {
-    "name": "KMJ TECHNO"
+    "name": "KMJ TECHNO",
+    "url": "https://kmjtechno.com"
   },
   "homepage": "https://github.com/kmjtechno/kmj-codebridge",
   "repository": "https://github.com/kmjtechno/kmj-codebridge",
