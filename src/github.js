@@ -297,15 +297,10 @@ export function createGitHubBridge(config) {
       return raw(a.repository, `actions/jobs/${a.jobId}/logs`);
 
     if (name === "github_create_branch") {
-      const data = await request(
-        "POST",
-        a.repository,
-        "git/refs",
-        {
-          ref: `refs/heads/${a.branch}`,
-          sha: a.sha,
-        },
-      );
+      const data = await request("POST", a.repository, "git/refs", {
+        ref: `refs/heads/${a.branch}`,
+        sha: a.sha,
+      });
       return { ref: data.ref, sha: data.object?.sha };
     }
 
