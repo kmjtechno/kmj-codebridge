@@ -153,6 +153,7 @@ Claude is an outstanding integration gate.
 - [Deployment and operations](docs/DEPLOYMENT.md)
 - [Main Platform entitlement contract](docs/LICENSING.md)
 - [Current delivery status](docs/STATUS.md)
+- [Claude completion contract](CLAUDE.md)
 - [Contributing](CONTRIBUTING.md)
 - [Apache License 2.0](LICENSE)
 
