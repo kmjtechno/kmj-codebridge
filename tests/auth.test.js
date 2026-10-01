@@ -214,14 +214,16 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
 test("OAuth gateway derives zero-config agent introspection from trusted issuer", () => {
   const parsed = gatewaySchema.parse(gatewayConfig);
   assert.deepEqual(parsed.agentIntrospection, {
-    endpoint: "https://identity.example/api/codebridge/v1/device-credentials/introspect",
+    endpoint:
+      "https://identity.example/api/codebridge/v1/device-credentials/introspect",
     cacheSeconds: 60,
   });
 
   const explicit = gatewaySchema.parse({
     ...gatewayConfig,
     agentIntrospection: {
-      endpoint: "https://platform.example/api/codebridge/v1/device-credentials/introspect",
+      endpoint:
+        "https://platform.example/api/codebridge/v1/device-credentials/introspect",
       cacheSeconds: 30,
     },
   });
