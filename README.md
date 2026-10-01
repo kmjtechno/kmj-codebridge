@@ -234,6 +234,51 @@ A quality gate still executes real project code. Run untrusted code in a properl
 
 Read **[SECURITY.md](SECURITY.md)** before production use.
 
+## Troubleshooting
+
+Use the least-invasive check first. Avoid deleting configuration, regenerating credentials, or changing production permissions until you have identified the failing boundary.
+
+| Symptom | Check | Safe recovery |
+| --- | --- | --- |
+| `npm ci` fails | Confirm Node.js 24+ and npm are active with `node --version` and `npm --version` | Use the supported Node version, then rerun `npm ci --ignore-scripts`. Do not delete unrelated project files. |
+| `npm run check` fails | Run `npm run check` again and read the first reported formatter, validation, or policy failure | Fix the reported source/documentation issue rather than bypassing the check. |
+| Tests fail | Run `npm test` and isolate the first deterministic failure | Reproduce locally, fix the underlying behavior, and rerun the full relevant test set. |
+| Gateway does not start | Verify the configured gateway file path exists and is outside the repository | Correct the path or configuration. Do not move credentials into the repository for convenience. |
+| Agent cannot connect | Confirm the gateway is reachable from the device and the agent is using the intended configuration | Check network reachability, device authorization, and configuration values before rotating credentials. |
+| Device appears offline | Confirm the agent process is running and the device can make outbound connections | Restart only the CodeBridge agent process/service after checking logs; avoid broad system changes first. |
+| Project is not visible | Confirm the project root was explicitly added to the agent configuration | Add the intended project root rather than widening access to an entire drive or home directory. |
+| Read works but write fails | Confirm write-capable tools are enabled and the file precondition/hash still matches | Refresh the file state and retry the guarded edit. Do not disable preconditions to force an overwrite. |
+| Quality gate is rejected | Confirm the requested gate is present in the administrator-approved configuration | Add or correct the approved gate definition. Do not expose a generic shell as a shortcut. |
+| Client cannot discover tools | Verify the MCP endpoint/client configuration and use the client-specific setup guide | Recheck [docs/CLIENTS.md](docs/CLIENTS.md) and reconnect the client after correcting configuration. |
+| Authentication or entitlement fails | Confirm tenant/device identity, current authorization, and entitlement state | Re-enroll or renew through the supported account flow. Do not hard-code or bypass entitlement checks. |
+
+### Useful diagnostic commands
+
+Run these from the CodeBridge repository unless the relevant command documents another location:
+
+```bash
+node --version
+npm --version
+git status
+npm run check
+npm test
+npm run scan:secrets
+```
+
+For configuration-specific diagnosis, use the built-in CodeBridge diagnostic tooling where available, such as `connection_doctor`, rather than exposing extra shell access.
+
+### Safe recovery order
+
+1. capture the first reproducible error;
+2. verify runtime versions and configuration paths;
+3. confirm gateway, device, tenant, and project scope;
+4. retry the smallest affected operation;
+5. rerun the relevant quality gate;
+6. rotate credentials only when there is evidence they are invalid or compromised;
+7. if the problem persists, open a minimal reproducible issue without including secrets.
+
+Never paste private keys, tokens, enrollment secrets, production credentials, or full private configuration into a public GitHub issue.
+
 ## FAQ
 
 ### Do I need to expose SSH or another inbound port?
