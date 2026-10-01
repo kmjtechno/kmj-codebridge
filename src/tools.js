@@ -29,6 +29,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  list_directory: {
+    title: "List directory",
+    description:
+      "List up to 500 non-sensitive entries in one directory inside an authorized project.",
+    input: { ...scoped, path: z.string().max(1024).default("") },
+    access: "read",
+  },
   git_status: {
     title: "Git status",
     description: "Read Git working-tree status for an authorized project.",
@@ -61,6 +68,18 @@ export const definitions = {
     description:
       "Replace an authorized file only when its current hash matches; null hash creates a new file.",
     input: patch,
+    access: "write",
+  },
+  edit_file: {
+    title: "Edit file",
+    description:
+      "Replace one exact, unique text fragment in an authorized file using its current SHA-256 precondition. This reduces payload size for focused code edits.",
+    input: {
+      ...file,
+      oldText: z.string().min(1).max(65536),
+      newText: z.string().max(65536),
+      expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
+    },
     access: "write",
   },
   run_quality_gate: {
@@ -127,6 +146,7 @@ export function createDispatcher(config, runner, licenseProvider) {
         connection: "connected",
         version: "0.1.0",
       };
+    if (name === "list_directory") return p.files.list(a.path);
     if (name === "read_file") {
       const r = p.files.read(a.path);
       return {
@@ -152,6 +172,13 @@ export function createDispatcher(config, runner, licenseProvider) {
           fail("SENSITIVE_CONTENT_PROTECTED");
       }
       return p.files.write(a.path, a.content, a.expectedHash);
+    }
+    if (name === "edit_file") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      const before = p.files.read(a.path);
+      if (redact(before.content) !== before.content)
+        fail("SENSITIVE_CONTENT_PROTECTED");
+      return p.files.edit(a.path, a.oldText, a.newText, a.expectedHash);
     }
     if (name === "git_status") {
       const gitDir = path.join(p.files.root, ".git");
