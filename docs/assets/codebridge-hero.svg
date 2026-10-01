@@ -1,23 +1,97 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
-<title id="title">KMJ CodeBridge</title><desc id="desc">Secure AI coding bridge connecting AI clients to authorized computers and VPSs.</desc>
-<rect width="1600" height="720" rx="36" fill="#0b0b0d"/>
-<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff1f2a"/><stop offset="1" stop-color="#980008"/></linearGradient></defs>
-<circle cx="1280" cy="180" r="260" fill="#ed010b" opacity=".08"/><circle cx="210" cy="640" r="330" fill="#ed010b" opacity=".05"/>
-<text x="110" y="130" fill="#ed010b" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="30" font-weight="800" letter-spacing="4">KMJ TECHNO</text>
-<text x="110" y="230" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="86" font-weight="800">KMJ CodeBridge</text>
-<text x="110" y="300" fill="#c8c8ce" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="34">Connect your systems. Build with AI.</text>
-<text x="110" y="370" fill="#8f8f98" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25">One secure MCP bridge for authorized laptops, workstations and VPSs.</text>
-<g transform="translate(110 445)">
-<rect x="0" y="0" width="310" height="78" rx="18" fill="#16161a" stroke="#34343a"/><text x="32" y="49" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="700">AI Client</text>
-<path d="M330 39H470" stroke="#ed010b" stroke-width="5"/><path d="M455 27l18 12-18 12" fill="none" stroke="#ed010b" stroke-width="5"/>
-<rect x="490" y="0" width="360" height="78" rx="18" fill="url(#g)"/><text x="525" y="49" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="800">CodeBridge Gateway</text>
-<path d="M870 39H1010" stroke="#ed010b" stroke-width="5"/><path d="M995 27l18 12-18 12" fill="none" stroke="#ed010b" stroke-width="5"/>
-<rect x="1030" y="0" width="350" height="78" rx="18" fill="#16161a" stroke="#34343a"/><text x="1065" y="49" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="700">Your Device / VPS</text>
-</g>
-<g transform="translate(110 575)" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="700">
-<rect x="0" y="0" width="245" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="30" y="37" fill="#d8d8dd">Outbound-only</text>
-<rect x="270" y="0" width="250" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="301" y="37" fill="#d8d8dd">Project-scoped</text>
-<rect x="545" y="0" width="255" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="576" y="37" fill="#d8d8dd">Guarded writes</text>
-<rect x="825" y="0" width="285" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="856" y="37" fill="#d8d8dd">Verified quality gates</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">KMJ CodeBridge cinematic hero</title>
+<desc id="desc">Premium black and red visualization of AI clients connecting through a secure MCP gateway to authorized laptops, workstations and VPS servers.</desc>
+<defs>
+  <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#050506"/><stop offset=".55" stop-color="#0a0a0d"/><stop offset="1" stop-color="#170002"/></linearGradient>
+  <radialGradient id="flare"><stop stop-color="#ff1d2d" stop-opacity=".7"/><stop offset=".45" stop-color="#a80010" stop-opacity=".18"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#19191d"/><stop offset="1" stop-color="#0b0b0e"/></linearGradient>
+  <linearGradient id="gateway" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#25252a"/><stop offset=".5" stop-color="#0e0e11"/><stop offset="1" stop-color="#050506"/></linearGradient>
+  <filter id="redGlow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="8" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <filter id="softGlow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="18"/></filter>
+  <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse"><path d="M28 0H0V28" fill="none" stroke="#ed010b" stroke-opacity=".09" stroke-width="1"/></pattern>
+</defs>
+<rect width="1600" height="900" fill="url(#bg)"/>
+<ellipse cx="800" cy="470" rx="670" ry="360" fill="url(#flare)"/>
+<rect x="420" y="250" width="760" height="410" fill="url(#grid)" opacity=".7"/>
+<path d="M0 690 C280 570 470 760 745 650 C1000 550 1270 765 1600 620 L1600 900 L0 900 Z" fill="#09090b"/>
+<path d="M0 705 C260 620 440 775 720 690 C970 610 1270 790 1600 660" fill="none" stroke="#ed010b" stroke-opacity=".32" stroke-width="4" filter="url(#softGlow)"/>
+
+<g font-family="Inter,Segoe UI,Arial,sans-serif">
+  <text x="800" y="65" text-anchor="middle" fill="#fff" font-size="28" font-weight="700" letter-spacing="8">KMJ <tspan fill="#ed010b">TECHNO</tspan></text>
+  <text x="800" y="150" text-anchor="middle" fill="#fff" font-size="74" font-weight="900"><tspan fill="#ed010b">KMJ</tspan> CodeBridge</text>
+  <text x="800" y="205" text-anchor="middle" fill="#f2f2f4" font-size="34" font-weight="700">Connect your systems. <tspan fill="#ed010b">Build with AI.</tspan></text>
+  <text x="800" y="248" text-anchor="middle" fill="#b6b6bd" font-size="21" letter-spacing="7">A SECURE MCP BRIDGE FOR REAL-WORLD DEVELOPMENT</text>
+
+  <g transform="translate(60 315)">
+    <rect width="300" height="310" rx="22" fill="url(#panel)" stroke="#ed2330" stroke-width="1.5"/>
+    <text x="34" y="52" fill="#fff" font-size="28" font-weight="800">AI Clients</text>
+    <g fill="#fff" font-size="23">
+      <rect x="32" y="82" width="42" height="34" rx="6" fill="none" stroke="#fff" stroke-width="3"/><circle cx="45" cy="99" r="3"/><circle cx="56" cy="99" r="3"/><circle cx="67" cy="99" r="3"/><text x="96" y="107">AI Chat</text>
+      <path d="M35 154l15-15M50 169l-15-15M67 139l15 15M82 154l-15 15" stroke="#fff" stroke-width="4"/><text x="96" y="160">AI IDE</text>
+      <rect x="35" y="196" width="13" height="13" rx="2" fill="none" stroke="#fff" stroke-width="3"/><rect x="60" y="196" width="13" height="13" rx="2" fill="none" stroke="#fff" stroke-width="3"/><rect x="35" y="221" width="13" height="13" rx="2" fill="none" stroke="#fff" stroke-width="3"/><rect x="60" y="221" width="13" height="13" rx="2" fill="none" stroke="#fff" stroke-width="3"/><text x="96" y="223">Custom Tools</text>
+      <path d="M35 269l24-13 24 13-24 13zM35 284l24 13 24-13" fill="none" stroke="#fff" stroke-width="3"/><text x="96" y="288">Automations</text>
+    </g>
+  </g>
+
+  <g filter="url(#redGlow)" stroke="#ff2432" stroke-width="4" fill="none">
+    <path d="M360 385 C440 385 440 455 535 455"/>
+    <path d="M360 450 C450 450 450 475 535 475"/>
+    <path d="M360 515 C450 515 450 495 535 495"/>
+    <path d="M360 575 C440 575 440 515 535 515"/>
+  </g>
+  <rect x="422" y="438" width="104" height="64" rx="18" fill="#17171b" stroke="#ff2635" stroke-width="2"/>
+  <text x="474" y="478" text-anchor="middle" fill="#fff" font-size="26" font-weight="800">MCP</text>
+
+  <g transform="translate(575 345)">
+    <rect x="-28" y="-20" width="500" height="290" rx="34" fill="#ed010b" opacity=".24" filter="url(#softGlow)"/>
+    <path d="M8 0 H435 L465 30 V230 L435 260 H8 L-22 230 V30Z" fill="url(#gateway)" stroke="#6f6f78" stroke-width="5"/>
+    <path d="M18 12 H426 L451 37 V223 L426 248 H18 L-7 223 V37Z" fill="none" stroke="#ed010b" stroke-width="2"/>
+    <rect x="35" y="30" width="365" height="9" rx="4" fill="#ed010b" filter="url(#redGlow)"/>
+    <path d="M207 78l32-28 20 18-18 17 18 16-20 19-32-28-17 15 17 15-19 17-36-32 36-32z" fill="#ed010b"/>
+    <text x="222" y="165" text-anchor="middle" fill="#fff" font-size="35" font-weight="900"><tspan fill="#ed010b">KMJ</tspan> CodeBridge</text>
+    <text x="222" y="205" text-anchor="middle" fill="#d9d9de" font-size="17" letter-spacing="7">SINGLE SECURE GATEWAY</text>
+    <circle cx="198" cy="232" r="7" fill="#ff5460"/><circle cx="222" cy="232" r="7" fill="none" stroke="#c92a34"/><circle cx="246" cy="232" r="7" fill="none" stroke="#c92a34"/>
+  </g>
+
+  <g filter="url(#redGlow)" stroke="#ff2635" stroke-width="4" fill="none">
+    <path d="M1040 470 H1240 C1280 470 1270 382 1325 382"/>
+    <path d="M1040 490 H1325"/>
+    <path d="M1040 510 H1240 C1280 510 1270 600 1325 600"/>
+  </g>
+  <rect x="1050" y="418" width="170" height="55" rx="26" fill="#17171b" stroke="#ff2635" stroke-width="1.5"/>
+  <text x="1135" y="452" text-anchor="middle" fill="#fff" font-size="21">Outbound-only</text>
+
+  <g transform="translate(1325 330)">
+    <g>
+      <rect width="220" height="105" rx="18" fill="url(#panel)" stroke="#ed2330"/>
+      <rect x="22" y="29" width="45" height="30" rx="3" fill="none" stroke="#fff" stroke-width="3"/><path d="M17 70h55" stroke="#fff" stroke-width="3"/>
+      <text x="92" y="43" fill="#fff" font-size="21" font-weight="800">Your Laptop</text><text x="92" y="72" fill="#aaaab1" font-size="16">Authorized Access</text>
+    </g>
+    <g transform="translate(0 125)">
+      <rect width="220" height="105" rx="18" fill="url(#panel)" stroke="#ed2330"/>
+      <rect x="22" y="25" width="48" height="32" fill="none" stroke="#fff" stroke-width="3"/><path d="M46 57v14M31 72h30" stroke="#fff" stroke-width="3"/>
+      <text x="92" y="43" fill="#fff" font-size="21" font-weight="800">Your Workstation</text><text x="92" y="72" fill="#aaaab1" font-size="16">Authorized Access</text>
+    </g>
+    <g transform="translate(0 250)">
+      <rect width="220" height="105" rx="18" fill="url(#panel)" stroke="#ed2330"/>
+      <rect x="22" y="25" width="48" height="22" rx="3" fill="none" stroke="#fff" stroke-width="3"/><rect x="22" y="54" width="48" height="22" rx="3" fill="none" stroke="#fff" stroke-width="3"/>
+      <text x="92" y="43" fill="#fff" font-size="21" font-weight="800">Your VPS Server</text><text x="92" y="72" fill="#aaaab1" font-size="16">Authorized Access</text>
+    </g>
+  </g>
+
+  <g transform="translate(190 685)">
+    <g><path d="M25 25v-10a16 16 0 0132 0v10M19 25h44v46H19z" fill="none" stroke="#ed1b2a" stroke-width="5"/><text x="86" y="38" fill="#fff" font-size="25" font-weight="800">Project-scoped</text><text x="86" y="70" fill="#b3b3ba" font-size="18">Access only what you allow</text></g>
+    <line x1="375" y1="5" x2="375" y2="80" stroke="#6b1418"/>
+    <g transform="translate(420)"><path d="M18 15h48v48H18zM48 15v18h18M22 66l38-38" fill="none" stroke="#ed1b2a" stroke-width="5"/><text x="95" y="38" fill="#fff" font-size="25" font-weight="800">Guarded writes</text><text x="95" y="70" fill="#b3b3ba" font-size="18">Safe, controlled changes</text></g>
+    <line x1="820" y1="5" x2="820" y2="80" stroke="#6b1418"/>
+    <g transform="translate(865)"><path d="M40 8l30 14v24c0 20-12 34-30 42-18-8-30-22-30-42V22z" fill="none" stroke="#ed1b2a" stroke-width="5"/><path d="M26 46l10 10 19-23" fill="none" stroke="#ed1b2a" stroke-width="5"/><text x="95" y="38" fill="#fff" font-size="25" font-weight="800">Verified quality gates</text><text x="95" y="70" fill="#b3b3ba" font-size="18">Checks before execution</text></g>
+  </g>
+
+  <g transform="translate(55 795)">
+    <g><rect width="350" height="78" rx="17" fill="url(#panel)" stroke="#3b3b41"/><circle cx="55" cy="39" r="29" fill="#250307" stroke="#651018"/><text x="55" y="48" text-anchor="middle" fill="#ed1b2a" font-size="28">⌘</text><text x="105" y="33" fill="#fff" font-size="21" font-weight="800">Open Source Core</text><text x="105" y="59" fill="#b3b3ba" font-size="16">Build, extend, contribute</text></g>
+    <g transform="translate(380)"><rect width="350" height="78" rx="17" fill="url(#panel)" stroke="#3b3b41"/><circle cx="55" cy="39" r="29" fill="#250307" stroke="#651018"/><text x="55" y="48" text-anchor="middle" fill="#ed1b2a" font-size="28">✦</text><text x="105" y="33" fill="#fff" font-size="21" font-weight="800">30-Day Pro Trial</text><text x="105" y="59" fill="#b3b3ba" font-size="16">Start building with premium limits</text></g>
+    <g transform="translate(760)"><rect width="350" height="78" rx="17" fill="url(#panel)" stroke="#3b3b41"/><circle cx="55" cy="39" r="29" fill="#250307" stroke="#651018"/><text x="55" y="48" text-anchor="middle" fill="#ed1b2a" font-size="28">♛</text><text x="105" y="33" fill="#fff" font-size="21" font-weight="800">Premium Features</text><text x="105" y="59" fill="#b3b3ba" font-size="16">Higher limits, teams, audit controls</text></g>
+    <g transform="translate(1140)"><rect width="350" height="78" rx="17" fill="url(#panel)" stroke="#3b3b41"/><circle cx="55" cy="39" r="29" fill="#250307" stroke="#651018"/><text x="55" y="48" text-anchor="middle" fill="#ed1b2a" font-size="28">₹</text><text x="105" y="33" fill="#fff" font-size="21" font-weight="800">Ultra-Low-Cost Plans</text><text x="105" y="59" fill="#b3b3ba" font-size="16">Low friction for global developers</text></g>
+  </g>
 </g>
 </svg>

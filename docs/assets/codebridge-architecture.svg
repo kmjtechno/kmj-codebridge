@@ -1,32 +1,63 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="800" viewBox="0 0 1500 800" role="img" aria-labelledby="title desc">
-<title id="title">KMJ CodeBridge architecture</title><desc id="desc">AI clients connect to the CodeBridge MCP gateway, which routes scoped requests to outbound-polling authorized device agents.</desc>
-<rect width="1500" height="800" rx="32" fill="#0b0b0d"/>
-<text x="90" y="95" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="48" font-weight="800">How CodeBridge works</text>
-<text x="90" y="140" fill="#9b9ba3" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24">Controlled AI access without exposing an inbound device port.</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="760" viewBox="0 0 1600 760" role="img" aria-labelledby="title desc">
+<title id="title">KMJ CodeBridge secure architecture</title>
+<desc id="desc">Cinematic architecture diagram showing AI clients, the CodeBridge MCP gateway, outbound agents and authorized project boundaries.</desc>
+<defs>
+  <linearGradient id="bg2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#060607"/><stop offset="1" stop-color="#140003"/></linearGradient>
+  <linearGradient id="p2" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#1b1b1f"/><stop offset="1" stop-color="#09090b"/></linearGradient>
+  <radialGradient id="r2"><stop stop-color="#ed010b" stop-opacity=".4"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+  <filter id="g2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="7" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  <pattern id="grid2" width="30" height="30" patternUnits="userSpaceOnUse"><path d="M30 0H0V30" fill="none" stroke="#ed010b" stroke-opacity=".08"/></pattern>
+</defs>
+<rect width="1600" height="760" fill="url(#bg2)"/>
+<ellipse cx="800" cy="420" rx="610" ry="300" fill="url(#r2)"/>
+<rect x="420" y="170" width="760" height="470" fill="url(#grid2)"/>
 <g font-family="Inter,Segoe UI,Arial,sans-serif">
-<rect x="90" y="230" width="330" height="330" rx="26" fill="#151519" stroke="#303036"/>
-<text x="130" y="285" fill="#ed010b" font-size="23" font-weight="800">AI CLIENTS</text>
-<text x="130" y="345" fill="#fff" font-size="29" font-weight="700">ChatGPT</text><text x="130" y="395" fill="#fff" font-size="29" font-weight="700">Claude</text><text x="130" y="445" fill="#fff" font-size="29" font-weight="700">Other MCP clients</text>
-<text x="130" y="515" fill="#888891" font-size="20">OAuth / bearer authentication</text>
-<rect x="585" y="230" width="330" height="330" rx="26" fill="#9f0008" stroke="#ed010b" stroke-width="2"/>
-<text x="625" y="285" fill="#fff" font-size="23" font-weight="800">KMJ CODEBRIDGE</text>
-<text x="625" y="350" fill="#fff" font-size="30" font-weight="800">MCP Gateway</text>
-<text x="625" y="407" fill="#ffd7d9" font-size="21">Tenant + project authorization</text>
-<text x="625" y="447" fill="#ffd7d9" font-size="21">Bounded tool contract</text>
-<text x="625" y="487" fill="#ffd7d9" font-size="21">Durable job routing</text>
-<rect x="1080" y="230" width="330" height="330" rx="26" fill="#151519" stroke="#303036"/>
-<text x="1120" y="285" fill="#ed010b" font-size="23" font-weight="800">AUTHORIZED DEVICES</text>
-<text x="1120" y="345" fill="#fff" font-size="29" font-weight="700">Laptop / Workstation</text><text x="1120" y="395" fill="#fff" font-size="29" font-weight="700">VPS / Server</text>
-<text x="1120" y="470" fill="#888891" font-size="20">Agent polls outbound</text><text x="1120" y="505" fill="#888891" font-size="20">No inbound port required</text>
-<path d="M440 395H555" stroke="#ed010b" stroke-width="6"/><path d="M535 380l22 15-22 15" fill="none" stroke="#ed010b" stroke-width="6"/>
-<path d="M935 395H1050" stroke="#ed010b" stroke-width="6"/><path d="M1030 380l22 15-22 15" fill="none" stroke="#ed010b" stroke-width="6"/>
-<path d="M1050 455H935" stroke="#888891" stroke-width="4" stroke-dasharray="10 10"/><path d="M955 440l-22 15 22 15" fill="none" stroke="#888891" stroke-width="4"/>
-<text x="1090" y="615" fill="#9b9ba3" font-size="20">Outbound poll / results</text>
-<g transform="translate(90 650)" font-size="20" font-weight="700">
-<rect width="260" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="28" y="37" fill="#fff">Explicit project scope</text>
-<rect x="285" width="260" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="319" y="37" fill="#fff">Secret redaction</text>
-<rect x="570" width="260" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="602" y="37" fill="#fff">Atomic guarded edits</text>
-<rect x="855" width="300" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="885" y="37" fill="#fff">Admin quality gates</text>
+<text x="800" y="78" text-anchor="middle" fill="#fff" font-size="48" font-weight="900">Secure AI-to-Infrastructure Architecture</text>
+<text x="800" y="118" text-anchor="middle" fill="#aaaab1" font-size="20" letter-spacing="3">PROJECT-SCOPED ACCESS • OUTBOUND AGENTS • VERIFIED ACTIONS</text>
+
+<g transform="translate(75 210)">
+  <rect width="320" height="330" rx="24" fill="url(#p2)" stroke="#ed2330"/>
+  <text x="35" y="50" fill="#ed1b2a" font-size="22" font-weight="900">AI CLIENT LAYER</text>
+  <text x="35" y="102" fill="#fff" font-size="28" font-weight="800">ChatGPT / Claude</text>
+  <text x="35" y="144" fill="#fff" font-size="28" font-weight="800">AI IDE / MCP Client</text>
+  <rect x="35" y="188" width="250" height="58" rx="14" fill="#101014" stroke="#3b3b42"/><text x="160" y="224" text-anchor="middle" fill="#fff" font-size="19">OAuth / bearer auth</text>
+  <rect x="35" y="260" width="250" height="42" rx="13" fill="#210306" stroke="#7d1118"/><text x="160" y="287" text-anchor="middle" fill="#ff4a54" font-size="17" font-weight="700">Discovery before login</text>
+</g>
+
+<g filter="url(#g2)" stroke="#ff2635" stroke-width="4" fill="none"><path d="M395 375H565"/></g>
+<path d="M545 360l25 15-25 15" fill="none" stroke="#ff2635" stroke-width="4"/>
+
+<g transform="translate(565 185)">
+  <rect x="-25" y="-20" width="500" height="390" rx="35" fill="#ed010b" opacity=".18"/>
+  <path d="M8 0H435L462 27V320L435 347H8L-19 320V27Z" fill="url(#p2)" stroke="#777780" stroke-width="4"/>
+  <path d="M20 16H423L446 39V308L423 331H20L-3 308V39Z" fill="none" stroke="#ed010b" stroke-width="2"/>
+  <text x="222" y="70" text-anchor="middle" fill="#ed1b2a" font-size="21" font-weight="900">KMJ CODEBRIDGE</text>
+  <text x="222" y="112" text-anchor="middle" fill="#fff" font-size="33" font-weight="900">MCP Gateway</text>
+  <g fill="#fff" font-size="20">
+    <text x="58" y="170">✓ Tenant + user authorization</text>
+    <text x="58" y="210">✓ Project-scoped tool contract</text>
+    <text x="58" y="250">✓ Guarded writes + hashes</text>
+    <text x="58" y="290">✓ Durable job routing</text>
+  </g>
+</g>
+
+<g filter="url(#g2)" stroke="#ff2635" stroke-width="4" fill="none"><path d="M1025 375H1195"/></g>
+<path d="M1175 360l25 15-25 15" fill="none" stroke="#ff2635" stroke-width="4"/>
+
+<g transform="translate(1195 210)">
+  <rect width="330" height="330" rx="24" fill="url(#p2)" stroke="#ed2330"/>
+  <text x="35" y="50" fill="#ed1b2a" font-size="22" font-weight="900">AUTHORIZED DEVICE LAYER</text>
+  <text x="35" y="102" fill="#fff" font-size="27" font-weight="800">Laptop / Workstation</text>
+  <text x="35" y="144" fill="#fff" font-size="27" font-weight="800">VPS / Server</text>
+  <rect x="35" y="188" width="260" height="58" rx="14" fill="#101014" stroke="#3b3b42"/><text x="165" y="224" text-anchor="middle" fill="#fff" font-size="19">Agent polls outbound</text>
+  <rect x="35" y="260" width="260" height="42" rx="13" fill="#210306" stroke="#7d1118"/><text x="165" y="287" text-anchor="middle" fill="#ff4a54" font-size="17" font-weight="700">No inbound port required</text>
+</g>
+
+<g transform="translate(180 610)">
+  <rect width="260" height="72" rx="18" fill="url(#p2)" stroke="#3c3c43"/><text x="130" y="30" text-anchor="middle" fill="#fff" font-size="19" font-weight="800">Explicit project scope</text><text x="130" y="54" text-anchor="middle" fill="#aaaab1" font-size="15">Only approved roots</text>
+  <g transform="translate(310)"><rect width="260" height="72" rx="18" fill="url(#p2)" stroke="#3c3c43"/><text x="130" y="30" text-anchor="middle" fill="#fff" font-size="19" font-weight="800">Secret redaction</text><text x="130" y="54" text-anchor="middle" fill="#aaaab1" font-size="15">Bounded model-visible data</text></g>
+  <g transform="translate(620)"><rect width="260" height="72" rx="18" fill="url(#p2)" stroke="#3c3c43"/><text x="130" y="30" text-anchor="middle" fill="#fff" font-size="19" font-weight="800">Atomic guarded edits</text><text x="130" y="54" text-anchor="middle" fill="#aaaab1" font-size="15">Precondition-aware writes</text></g>
+  <g transform="translate(930)"><rect width="260" height="72" rx="18" fill="url(#p2)" stroke="#3c3c43"/><text x="130" y="30" text-anchor="middle" fill="#fff" font-size="19" font-weight="800">Verified quality gates</text><text x="130" y="54" text-anchor="middle" fill="#aaaab1" font-size="15">Admin-approved checks</text></g>
 </g>
 </g>
 </svg>
