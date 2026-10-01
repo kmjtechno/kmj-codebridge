@@ -148,7 +148,6 @@ have_config=0
 if [[ -f "$CONFIG" ]]; then
   if "$NODE" -e '
     const fs=require("node:fs");
-    const fs=require("node:fs");
     const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
     const root=fs.realpathSync(process.argv[2]);
     if(
