@@ -138,6 +138,30 @@ export class ProjectFiles {
       fs.closeSync(fd);
     }
   }
+  readRange(relative, startLine = 1, maxLines = 200) {
+    if (
+      !Number.isInteger(startLine) ||
+      startLine < 1 ||
+      !Number.isInteger(maxLines) ||
+      maxLines < 1 ||
+      maxLines > 500
+    )
+      fail("INVALID_RANGE");
+    const file = this.read(relative);
+    const lines = file.content.split("\n");
+    const start = Math.min(startLine - 1, lines.length);
+    const end = Math.min(start + maxLines, lines.length);
+    return {
+      path: relative,
+      content: lines.slice(start, end).join("\n"),
+      sha256: file.sha256,
+      bytes: file.bytes,
+      startLine,
+      endLine: end,
+      totalLines: lines.length,
+      hasMore: end < lines.length,
+    };
+  }
   preview(relative, content, expectedHash) {
     if (typeof content !== "string" || content.includes("\0"))
       fail("INVALID_CONTENT");
