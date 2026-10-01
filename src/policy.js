@@ -61,6 +61,57 @@ export class ProjectFiles {
     }
     return current;
   }
+  list(relative = "") {
+    if (typeof relative !== "string" || relative.length > 1024)
+      fail("INVALID_PATH");
+    let dir = this.root;
+    if (relative) {
+      if (path.isAbsolute(relative) || /[\\:\x00-\x1f]/.test(relative))
+        fail("INVALID_PATH");
+      const parts = relative.split("/");
+      if (
+        parts.some(
+          (p) =>
+            !p || p === "." || p === ".." || /[. ]$/.test(p) || denied.test(p),
+        )
+      )
+        fail("INVALID_PATH");
+      for (const part of parts) {
+        dir = path.join(dir, part);
+        let st;
+        try {
+          st = fs.lstatSync(dir);
+        } catch {
+          fail("FILE_NOT_FOUND");
+        }
+        if (st.isSymbolicLink() || !st.isDirectory()) fail("INVALID_PATH");
+      }
+    }
+    const entries = [];
+    let truncated = false;
+    for (const item of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (
+        denied.test(item.name) ||
+        skipped.has(item.name) ||
+        item.isSymbolicLink() ||
+        item.name.startsWith(".codebridge-")
+      )
+        continue;
+      if (entries.length >= 500) {
+        truncated = true;
+        break;
+      }
+      entries.push({
+        name: item.name,
+        type: item.isDirectory()
+          ? "directory"
+          : item.isFile()
+            ? "file"
+            : "other",
+      });
+    }
+    return { path: relative, entries, truncated };
+  }
   read(relative) {
     const target = this.resolve(relative);
     const fd = fs.openSync(
@@ -131,6 +182,29 @@ export class ProjectFiles {
         if (e.code !== "ENOENT") throw e;
       }
     }
+  }
+  edit(relative, oldText, newText, expectedHash) {
+    if (
+      typeof oldText !== "string" ||
+      !oldText ||
+      typeof newText !== "string" ||
+      oldText.includes("\0") ||
+      newText.includes("\0") ||
+      Buffer.byteLength(oldText) > 65536 ||
+      Buffer.byteLength(newText) > 65536
+    )
+      fail("INVALID_CONTENT");
+    const before = this.read(relative);
+    if (before.sha256 !== expectedHash) fail("CONTENT_CONFLICT");
+    const first = before.content.indexOf(oldText);
+    if (first < 0) fail("EDIT_TEXT_NOT_FOUND");
+    if (before.content.indexOf(oldText, first + oldText.length) >= 0)
+      fail("EDIT_TEXT_AMBIGUOUS");
+    const content =
+      before.content.slice(0, first) +
+      newText +
+      before.content.slice(first + oldText.length);
+    return this.write(relative, content, expectedHash);
   }
   search(query) {
     if (typeof query !== "string" || !query || query.length > 200)
