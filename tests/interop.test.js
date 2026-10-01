@@ -391,7 +391,7 @@ test("OAuth discovery and scopes work for standards-based remote clients", async
   );
   assert.match(
     header,
-    /scope="codebridge:read codebridge:write codebridge:execute"/,
+    /scope="mcp:use"/,
   );
   for (const suffix of ["", "/mcp"]) {
     const r = await fetch(
