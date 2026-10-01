@@ -117,8 +117,7 @@ export async function startGateway(rawConfig) {
       data.projects.length > 100 ||
       data.projects.some(
         (project) =>
-          typeof project !== "string" ||
-          !/^[A-Za-z0-9_-]{1,64}$/.test(project),
+          typeof project !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(project),
       )
     )
       return null;
