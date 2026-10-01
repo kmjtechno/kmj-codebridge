@@ -134,9 +134,7 @@ Success body:
     "id": "customer-vps-01",
     "tenant": "tenant-id"
   },
-  "projects": [
-    { "id": "project1" }
-  ],
+  "projects": [{ "id": "project1" }],
   "permissions": ["read", "write", "execute"],
   "credential_expires_at": "2026-11-01T00:00:00Z"
 }
