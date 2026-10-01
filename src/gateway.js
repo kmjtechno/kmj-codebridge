@@ -52,16 +52,105 @@ export async function startGateway(rawConfig) {
     ? createOAuthVerifier(config.oauth, config.users)
     : null;
   const agents = new Map(config.agents.map((a) => [a.id, a]));
+  const dynamicByToken = new Map();
   const pending = new Map(),
     waiting = new Map(),
     lastSeen = new Map(),
     rate = new Map();
+  const allowedProjects = (user, agent) =>
+    user.devices[agent.id] ?? (agent.dynamic ? agent.projects : undefined);
+
+  async function identifyAgent(req) {
+    const configured = identify(req, config.agents);
+    if (configured) return configured;
+    if (!config.agentIntrospection) return null;
+
+    const raw = req.headers.authorization;
+    if (
+      typeof raw !== "string" ||
+      !raw.startsWith("Bearer ") ||
+      raw.length > 4096
+    )
+      return null;
+    const tokenHash = createHash("sha256").update(raw.slice(7)).digest("hex");
+    const cached = dynamicByToken.get(tokenHash);
+    if (
+      cached &&
+      Date.now() - cached.verifiedAt <
+        config.agentIntrospection.cacheSeconds * 1000
+    )
+      return cached.agent;
+
+    let response;
+    try {
+      response = await fetch(config.agentIntrospection.endpoint, {
+        method: "POST",
+        headers: {
+          authorization: raw,
+          "content-type": "application/json",
+        },
+        body: "{}",
+        redirect: "error",
+        signal: AbortSignal.timeout(5000),
+      });
+    } catch {
+      return null;
+    }
+    if (!response.ok) {
+      dynamicByToken.delete(tokenHash);
+      return null;
+    }
+    let data;
+    try {
+      data = await readJsonLimited(response.body, 16384);
+    } catch {
+      return null;
+    }
+    if (
+      data?.active !== true ||
+      typeof data.device_id !== "string" ||
+      !/^[A-Za-z0-9_-]{1,64}$/.test(data.device_id) ||
+      typeof data.tenant_id !== "string" ||
+      !/^[A-Za-z0-9_-]{1,64}$/.test(data.tenant_id) ||
+      !Array.isArray(data.projects) ||
+      data.projects.length < 1 ||
+      data.projects.length > 100 ||
+      data.projects.some(
+        (project) =>
+          typeof project !== "string" ||
+          !/^[A-Za-z0-9_-]{1,64}$/.test(project),
+      )
+    )
+      return null;
+
+    const existing = agents.get(data.device_id);
+    if (
+      existing &&
+      (!existing.dynamic ||
+        existing.tenant !== data.tenant_id ||
+        existing.tokenHash !== tokenHash)
+    )
+      return null;
+
+    const agent = {
+      id: data.device_id,
+      tenant: data.tenant_id,
+      tokenHash,
+      projects: [...new Set(data.projects)],
+      dynamic: true,
+    };
+    agents.set(agent.id, agent);
+    dynamicByToken.set(tokenHash, { agent, verifiedAt: Date.now() });
+    return agent;
+  }
+
   function authorize(user, args, access) {
     const a = agents.get(args.device);
+    const projects = a ? allowedProjects(user, a) : undefined;
     if (
       !a ||
       a.tenant !== user.tenant ||
-      !user.devices[args.device]?.includes(args.project) ||
+      !projects?.includes(args.project) ||
       !user.permissions.includes(access)
     )
       fail("ACCESS_DENIED");
@@ -154,7 +243,7 @@ export async function startGateway(rawConfig) {
         return;
       }
       if (req.url?.startsWith("/agent/")) {
-        const a = identify(req, config.agents);
+        const a = await identifyAgent(req);
         if (!a) {
           json(res, 401, { error: "UNAUTHORIZED" });
           return;
@@ -273,15 +362,14 @@ export async function startGateway(rawConfig) {
                   ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
               if (name === "list_devices") {
-                const devices = config.agents
-                  .filter(
-                    (a) =>
-                      a.tenant === user.tenant &&
-                      Object.hasOwn(user.devices, a.id),
-                  )
+                const devices = [...agents.values()]
+                  .filter((a) => {
+                    const projects = allowedProjects(user, a);
+                    return a.tenant === user.tenant && projects?.length;
+                  })
                   .map((a) => ({
                     id: a.id,
-                    projects: user.devices[a.id],
+                    projects: allowedProjects(user, a),
                     online: Date.now() - (lastSeen.get(a.id) ?? 0) < 30000,
                   }));
                 return {
