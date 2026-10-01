@@ -28,6 +28,14 @@
   <img alt="Developer Preview" src="https://img.shields.io/badge/status-developer%20preview-ED010B">
 </p>
 
+<p align="center">
+  <a href="#why-codebridge"><strong>Why CodeBridge?</strong></a> ·
+  <a href="#architecture"><strong>Architecture</strong></a> ·
+  <a href="#quick-start"><strong>Quick start</strong></a> ·
+  <a href="#security-boundaries"><strong>Security</strong></a> ·
+  <a href="#contributing"><strong>Contributing</strong></a>
+</p>
+
 ---
 
 ## Why CodeBridge?
@@ -44,21 +52,54 @@ CodeBridge takes a narrower approach:
 - **Tenant + permission enforcement** — authorization is checked at the gateway and device layer.
 - **Open-source core** — Apache-2.0 source you can inspect, self-host and contribute to.
 
-## The workflow
+## Architecture
+
+CodeBridge separates the AI client, control plane, and device execution boundary instead of treating them as one unrestricted environment.
 
 ```text
-AI assistant
-    ↓ MCP
-CodeBridge gateway
-    ↓ authorized tool request
-Outbound-polling device agent
-    ↓
-inspect → edit → test → verify
-    ↓
-bounded result back to the AI conversation
+┌─────────────────────────────┐
+│ AI client                   │
+│ ChatGPT · Claude · MCP app  │
+└──────────────┬──────────────┘
+               │ MCP request
+               ▼
+┌─────────────────────────────┐
+│ CodeBridge gateway          │
+│ auth · policy · job state   │
+└──────────────┬──────────────┘
+               │ authorized work item
+               ▼
+┌─────────────────────────────┐
+│ Outbound device agent       │
+│ approved device + projects  │
+└──────────────┬──────────────┘
+               │
+               ▼
+      inspect → edit → test
+               │
+               ▼
+        bounded result
 ```
 
-The gateway cannot independently browse your machine. The device agent must be online, authorized for the tenant, and configured for the requested project.
+### Trust boundaries
+
+- **The AI client does not receive a generic shell.**
+- **The gateway cannot independently browse the device filesystem.**
+- **The device agent initiates outbound connectivity.**
+- **Project roots are explicitly configured by an administrator.**
+- **Writes and quality gates are constrained by policy and preconditions.**
+- **Results returned to the AI are bounded and may be redacted.**
+
+The device agent must be online, authorized for the tenant, and configured for the requested project before work can execute.
+
+## What CodeBridge is — and is not
+
+| CodeBridge is | CodeBridge is not |
+| --- | --- |
+| A scoped MCP bridge for authorized development projects | A general-purpose remote shell |
+| A policy-controlled path for inspect/edit/test workflows | A way to bypass OS, tenant, or project permissions |
+| A device-agent model designed for outbound connectivity | An inbound SSH replacement |
+| A framework for bounded, verifiable engineering actions | A promise that arbitrary code is safe to execute |
 
 ## What you can do
 
@@ -72,25 +113,43 @@ The gateway cannot independently browse your machine. The device agent must be o
 
 No generic “run any shell command” MCP tool is exposed.
 
-## Quick start for developers
+## Quick start
 
-Requires Node.js 24+ and npm.
+> **Use a disposable or non-production project first.** Start read-only, verify the boundary, then enable writes only where you explicitly intend to.
+
+### 1. Prerequisites
+
+- Node.js 24+
+- npm
+- Git
+
+### 2. Clone and verify
 
 ```bash
 git clone https://github.com/kmjtechno/kmj-codebridge.git
 cd kmj-codebridge
+
 npm ci --ignore-scripts
 npm run check
 npm test
 npm run scan:secrets
 ```
 
-Create private configuration **outside the repository**:
+### 3. Create private configuration outside the repository
 
 ```bash
 npm run init -- /absolute/private-codebridge-config /absolute/development-project
+```
+
+Do not place generated credentials or private configuration inside the Git repository.
+
+### 4. Start the gateway
+
+```bash
 npm run gateway -- /absolute/private-codebridge-config/gateway.json
 ```
+
+### 5. Start the device agent
 
 In another terminal:
 
@@ -98,7 +157,9 @@ In another terminal:
 npm run agent -- /absolute/private-codebridge-config/agent.json
 ```
 
-Start read-only. Enable writes only for projects you explicitly approve. Never commit generated credentials.
+### 6. Connect an MCP client
+
+Start with read-only tools such as project inspection, directory listing, code search, and Git status. Enable writes only after you have confirmed the intended project scope and device identity.
 
 See **[AI client setup](docs/CLIENTS.md)** for ChatGPT, Claude Code, Claude Desktop, Claude.ai and generic MCP clients.
 
@@ -145,9 +206,20 @@ Paid plans are designed around capabilities that create ongoing hosted value rat
 
 Paid-only features must be enforced by server-side policy and signed entitlements—not just hidden in a dashboard.
 
-## Security model
+## Security boundaries
 
 CodeBridge is intentionally not a remote shell product.
+
+| Boundary | Enforcement |
+| --- | --- |
+| Device reachability | Agent-initiated outbound connection |
+| Project access | Explicit administrator-approved project roots |
+| Read operations | Bounded project-scoped reads/search |
+| Write operations | Preconditions, exact-fragment checks, atomic replacement patterns |
+| Command execution | No generic shell tool; quality gates are administrator-configured |
+| Authorization | Tenant and permission checks at gateway and device layers |
+| Sensitive output | Recognized secrets can be redacted before results are returned |
+| Commercial access | Signed entitlement verification |
 
 - Agents poll outbound.
 - Gateway and agent both enforce authorization.
@@ -196,18 +268,37 @@ CodeBridge is under active development. The repository contains a working Stream
 
 Production readiness is tracked explicitly; unsupported features are not presented as shipped. See **[docs/STATUS.md](docs/STATUS.md)**.
 
-## Build with us
+## Contributing
 
-Good open-source projects grow through useful issues, reproducible bugs and real contributions.
+Good contributions make CodeBridge safer, more portable, or easier to verify.
 
-- Found a bug? Open a minimal reproduction.
-- Need a tool? Describe the safety boundary as well as the feature.
-- Running CodeBridge in a new environment? Share the compatibility result.
-- Want to contribute? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+Before opening a pull request:
+
+1. keep the change focused;
+2. describe the security boundary affected by the change;
+3. add or update deterministic tests where behavior changes;
+4. run `npm run check`, `npm test`, and `npm run scan:secrets`;
+5. do not include credentials, private infrastructure details, or production secrets;
+6. avoid weakening authorization, redaction, write preconditions, or quality-gate restrictions merely to make a test pass;
+7. include reproducible evidence for compatibility or environment-specific claims.
+
+Useful contributions include:
+
+- MCP client interoperability improvements;
+- device-agent compatibility fixes;
+- safer file-editing primitives;
+- better diagnostics and bounded error reporting;
+- security tests;
+- documentation and onboarding improvements;
+- reproducible platform compatibility results.
+
+Found a bug? Open a minimal reproduction. Need a new tool? Describe the required capability **and** the intended safety boundary.
+
+Start with **[CONTRIBUTING.md](CONTRIBUTING.md)** and **[SECURITY.md](SECURITY.md)**.
 
 ### If CodeBridge solves a real problem for you, ⭐ star the repository.
 
-A star helps other developers discover the project. Sharing a working demo, integration note or reproducible improvement helps even more.
+A star helps other developers discover the project. A reproducible issue, integration note, test case, or focused pull request helps even more.
 
 ---
 
