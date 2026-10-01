@@ -17,25 +17,25 @@ These prices intentionally exclude AI-model subscription/API fees charged by thi
 
 ## Feature matrix
 
-| Capability | Community | Pro | Team | Business |
-| --- | :---: | :---: | :---: | :---: |
-| Open-source gateway + agent | ✓ | ✓ | ✓ | ✓ |
-| Outbound-only device connection | ✓ | ✓ | ✓ | ✓ |
-| Read / inspect / Git status | ✓ | ✓ | ✓ | ✓ |
-| Guarded file edits | ✓ | ✓ | ✓ | ✓ |
-| Administrator-defined quality gates | ✓ | ✓ | ✓ | ✓ |
-| Devices | 1 | 3 | 10/user | Custom |
-| Projects | 1 | 10 | 50/user | Custom |
-| Concurrent jobs | 1 | 3 | 10/user | Custom |
-| Hosted account linking | — | ✓ | ✓ | ✓ |
-| Signed commercial entitlement | — | ✓ | ✓ | ✓ |
-| Extended job history | — | ✓ | ✓ | ✓ |
-| Shared team policies | — | — | ✓ | ✓ |
-| Team administration | — | — | ✓ | ✓ |
-| Audit export | — | — | ✓ | ✓ |
-| SSO / enterprise identity | — | — | Planned | ✓ |
-| Priority support | — | — | ✓ | ✓ |
-| SLA / procurement terms | — | — | — | Optional |
+| Capability                          | Community | Pro |  Team   | Business |
+| ----------------------------------- | :-------: | :-: | :-----: | :------: |
+| Open-source gateway + agent         |     ✓     |  ✓  |    ✓    |    ✓     |
+| Outbound-only device connection     |     ✓     |  ✓  |    ✓    |    ✓     |
+| Read / inspect / Git status         |     ✓     |  ✓  |    ✓    |    ✓     |
+| Guarded file edits                  |     ✓     |  ✓  |    ✓    |    ✓     |
+| Administrator-defined quality gates |     ✓     |  ✓  |    ✓    |    ✓     |
+| Devices                             |     1     |  3  | 10/user |  Custom  |
+| Projects                            |     1     | 10  | 50/user |  Custom  |
+| Concurrent jobs                     |     1     |  3  | 10/user |  Custom  |
+| Hosted account linking              |     —     |  ✓  |    ✓    |    ✓     |
+| Signed commercial entitlement       |     —     |  ✓  |    ✓    |    ✓     |
+| Extended job history                |     —     |  ✓  |    ✓    |    ✓     |
+| Shared team policies                |     —     |  —  |    ✓    |    ✓     |
+| Team administration                 |     —     |  —  |    ✓    |    ✓     |
+| Audit export                        |     —     |  —  |    ✓    |    ✓     |
+| SSO / enterprise identity           |     —     |  —  | Planned |    ✓     |
+| Priority support                    |     —     |  —  |    ✓    |    ✓     |
+| SLA / procurement terms             |     —     |  —  |    —    | Optional |
 
 “Planned” means it must not be represented as generally available until CI-backed implementation and production rollout are complete.
 
