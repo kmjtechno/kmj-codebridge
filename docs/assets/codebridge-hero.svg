@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="720" viewBox="0 0 1600 720" role="img" aria-labelledby="title desc">
+<title id="title">KMJ CodeBridge</title><desc id="desc">Secure AI coding bridge connecting AI clients to authorized computers and VPSs.</desc>
+<rect width="1600" height="720" rx="36" fill="#0b0b0d"/>
+<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#ff1f2a"/><stop offset="1" stop-color="#980008"/></linearGradient></defs>
+<circle cx="1280" cy="180" r="260" fill="#ed010b" opacity=".08"/><circle cx="210" cy="640" r="330" fill="#ed010b" opacity=".05"/>
+<text x="110" y="130" fill="#ed010b" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="30" font-weight="800" letter-spacing="4">KMJ TECHNO</text>
+<text x="110" y="230" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="86" font-weight="800">KMJ CodeBridge</text>
+<text x="110" y="300" fill="#c8c8ce" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="34">Connect your systems. Build with AI.</text>
+<text x="110" y="370" fill="#8f8f98" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25">One secure MCP bridge for authorized laptops, workstations and VPSs.</text>
+<g transform="translate(110 445)">
+<rect x="0" y="0" width="310" height="78" rx="18" fill="#16161a" stroke="#34343a"/><text x="32" y="49" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="700">AI Client</text>
+<path d="M330 39H470" stroke="#ed010b" stroke-width="5"/><path d="M455 27l18 12-18 12" fill="none" stroke="#ed010b" stroke-width="5"/>
+<rect x="490" y="0" width="360" height="78" rx="18" fill="url(#g)"/><text x="525" y="49" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="800">CodeBridge Gateway</text>
+<path d="M870 39H1010" stroke="#ed010b" stroke-width="5"/><path d="M995 27l18 12-18 12" fill="none" stroke="#ed010b" stroke-width="5"/>
+<rect x="1030" y="0" width="350" height="78" rx="18" fill="#16161a" stroke="#34343a"/><text x="1065" y="49" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="25" font-weight="700">Your Device / VPS</text>
+</g>
+<g transform="translate(110 575)" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="21" font-weight="700">
+<rect x="0" y="0" width="245" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="30" y="37" fill="#d8d8dd">Outbound-only</text>
+<rect x="270" y="0" width="250" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="301" y="37" fill="#d8d8dd">Project-scoped</text>
+<rect x="545" y="0" width="255" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="576" y="37" fill="#d8d8dd">Guarded writes</text>
+<rect x="825" y="0" width="285" height="58" rx="29" fill="#151519" stroke="#2f2f35"/><text x="856" y="37" fill="#d8d8dd">Verified quality gates</text>
+</g>
+</svg>

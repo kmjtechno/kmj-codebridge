@@ -1,42 +1,40 @@
 # KMJ CodeBridge plugin privacy notice
 
-Last updated: 30 September 2026
+Last updated: 1 October 2026
 
-This notice describes how the KMJ CodeBridge plugin for Claude and ChatGPT
-handles data. The [KMJ TECHNO Privacy Policy](https://kmjtechno.com/privacy)
-applies to KMJ TECHNO services generally.
+This notice explains the CodeBridge plugin data path. The privacy terms displayed by KMJ TECHNO at account creation or checkout govern any hosted KMJ service.
 
 ## What the plugin does
 
-The plugin contains instructions (a skill) and the address of a CodeBridge MCP
-server. It contains no executable code, analytics or tracking.
+The plugin provides instructions, branding and the address of a CodeBridge MCP gateway. It does not need to contain customer source code or long-lived device secrets.
 
-## Where data goes
+## Where project data goes
 
-- The plugin connects only to the CodeBridge gateway endpoint that you or your
-  administrator configure. In self-hosted deployments that gateway runs on
-  infrastructure you control.
-- Requests the AI assistant makes through the plugin (for example reading a
-  file, searching code, Git status or running a configured quality gate) and
-  your client token are sent to that gateway only.
-- Results returned by your gateway (file contents, search matches, Git status,
-  job logs) are shown to the AI assistant in your conversation and are then
-  handled under the privacy terms of the AI provider you use.
-- The plugin sends nothing to KMJ TECHNO or any other destination. KMJ TECHNO
-  does not receive your source code or files through the plugin.
+- In **self-hosted mode**, requests are sent to the CodeBridge gateway configured by the user or administrator.
+- In a **KMJ-hosted mode**, requests are sent to KMJ TECHNO’s configured CodeBridge gateway so that they can be routed to the customer’s authorized device agent.
+- Tool results requested by the AI client—such as file excerpts, search matches, Git state or quality-gate output—are returned to that AI client and may therefore be processed by the AI provider under that provider’s own terms.
+- CodeBridge is designed to return only data requested through its bounded tool contract and configured project scope.
 
 ## Credentials
 
-Your client token is entered when you enable the plugin and stored by the AI
-client in its secure credential store. It is never written into the plugin's
-files. CodeBridge redacts recognized secrets from file reads, search results and
-logs before returning them.
+Client and device credentials should be stored in the appropriate private credential/configuration stores, not committed to source repositories or pasted into conversations. CodeBridge hashes configured static credentials at the gateway where applicable and supports scoped authentication patterns described in the documentation.
 
-## Licensing data
+## Redaction and minimization
 
-If you use a commercial CodeBridge plan, account, entitlement and license
-records are processed by KMJ Main Platform under the KMJ TECHNO Privacy Policy.
+Recognized secrets are redacted from supported reads, searches and logs before tool results are returned. Redaction is a safety layer, not a guarantee that arbitrary sensitive data can never appear. Customers must keep secrets outside model-accessible project content wherever possible.
+
+## Commercial account data
+
+If you use a KMJ-hosted or paid plan, KMJ Main Platform may process account identity, organization, entitlement, device-registration, billing, support, fraud-prevention and service-operation records needed to provide the service.
+
+## Retention
+
+Retention for KMJ-hosted account, billing, support and service-operation data must follow the privacy policy presented by KMJ TECHNO. Self-hosted deployments are controlled by their own operator.
+
+## Your responsibilities
+
+Do not connect projects or data that you are not authorized to process. Review the privacy and data-use settings of the AI provider you connect to CodeBridge.
 
 ## Contact
 
-Privacy requests: see [kmjtechno.com/privacy](https://kmjtechno.com/privacy).
+Use the privacy contact route published by KMJ TECHNO for hosted-service privacy requests.

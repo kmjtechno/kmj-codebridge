@@ -1,180 +1,218 @@
-<p align="center"><img src="plugin/assets/logo.png" alt="KMJ TECHNO" width="220"></p>
+<p align="center">
+  <img src="plugin/assets/logo.png" alt="KMJ TECHNO" width="210">
+</p>
 
-# KMJ CodeBridge
+<p align="center">
+  <img src="docs/assets/codebridge-hero.svg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
+</p>
 
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+<h1 align="center">KMJ CodeBridge</h1>
 
-**Connect your systems. Build with AI.**
+<p align="center"><strong>Connect your systems. Build with AI.</strong></p>
 
-KMJ CodeBridge is a secure, vendor-neutral MCP coding bridge for controlled
-AI-assisted development across authorized computers and VPSs. ChatGPT, Claude.ai,
-Claude Desktop, Claude Code and other MCP clients use the same gateway, tools and
-security controls. Commercial licensing belongs to **KMJ Main Platform**.
+<p align="center">
+  A secure, vendor-neutral MCP bridge that lets AI assistants work with the <em>authorized projects</em> on your laptops, workstations and VPSs—without giving them an unrestricted shell or requiring an inbound device port.
+</p>
 
-## Status: executable developer preview, not production GA
+<p align="center">
+  <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-ED010B"></a>
+  <img alt="Node 24+" src="https://img.shields.io/badge/Node-24%2B-111111">
+  <img alt="MCP" src="https://img.shields.io/badge/protocol-MCP-111111">
+  <img alt="Developer Preview" src="https://img.shields.io/badge/status-developer%20preview-ED010B">
+</p>
 
-This repository includes a real Streamable HTTP MCP gateway using the official
-SDK, an outbound-polling device agent, scoped file operations, administrator-defined
-quality gates, durable job results and an Ed25519 entitlement verifier. The tests
-exercise a real MCP client, gateway and agent over loopback HTTP.
+---
 
-**Not yet delivered:** public hosted endpoint, live OAuth account linking, live Main
-Platform billing/renewal adapter, native Rust agent, signed OS installers, public
-plugin or connector approval (OpenAI or Anthropic), SSO, or a production security
-certification. A source upload is not a connected ChatGPT or Claude installation.
-See [status](docs/STATUS.md).
+## Why CodeBridge?
 
-## Supported AI clients
+AI coding gets powerful when it can inspect the real project, make a precise edit and prove the result with a real quality gate. It also gets dangerous when the only answer is “give the model a shell”.
 
-| Client         | How it connects                                          | Current state                                      |
-| -------------- | -------------------------------------------------------- | -------------------------------------------------- |
-| ChatGPT        | Plugin package + remote MCP                              | Package tested; live connection needs hosted OAuth |
-| Claude Code    | `claude plugin marketplace add kmjtechno/kmj-codebridge` | Plugin validated by `claude plugin validate` in CI |
-| Claude Desktop | Custom connector to a public HTTPS `/mcp` URL            | Documented; needs hosted endpoint and OAuth        |
-| Claude.ai      | Custom connector to a public HTTPS `/mcp` URL            | Documented; not available until hosting and OAuth  |
-| Other MCP      | Streamable HTTP with bearer or MCP OAuth                 | Covered by the vendor-neutral interop contract     |
+CodeBridge takes a narrower approach:
 
-All clients share one tool contract, one skill and one security model. Setup,
-prerequisites and limits for each client are in [AI client support](docs/CLIENTS.md).
+- **One bridge for multiple MCP clients** — ChatGPT, Claude and compatible clients can share the same tool contract.
+- **Outbound-only device agents** — your VPS does not need a public inbound CodeBridge port.
+- **Explicit project scope** — the agent works only inside administrator-approved project roots.
+- **Guarded writes** — hash/precondition checks reduce blind overwrite risk.
+- **Fixed quality gates** — run administrator-approved checks instead of exposing arbitrary shell execution.
+- **Tenant + permission enforcement** — authorization is checked at the gateway and device layer.
+- **Open-source core** — Apache-2.0 source you can inspect, self-host and contribute to.
 
-## One-command VPS install
+<p align="center">
+  <img src="docs/assets/codebridge-architecture.svg" alt="KMJ CodeBridge architecture" width="100%">
+</p>
 
-The Linux installer now implements the client side of secure zero-manual-token
-enrollment. From an authorized project directory, the target customer flow is:
+## The workflow
 
-```sh
-curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+```text
+AI assistant
+    ↓ MCP
+CodeBridge gateway
+    ↓ authorized tool request
+Outbound-polling device agent
+    ↓
+inspect → edit → test → verify
+    ↓
+bounded result back to the AI conversation
 ```
 
-It detects x64/arm64, verifies or installs Node.js 24 from official checksum data,
-stages the CodeBridge runtime, detects common fixed quality gates, requests a
-short-lived verifier-bound device enrollment, prints only an HTTPS approval URL and
-human pairing code, securely stores the approved independent device credential,
-installs a hardened boot-enabled systemd service, starts it, and verifies gateway
-metadata connectivity. The agent remains outbound-only: no inbound VPS port and no
-GitHub Actions self-hosted runner are required.
+The gateway cannot independently browse your machine. The device agent must be online, authorized for the tenant, and configured for the requested project.
 
-Re-running the installer preserves a valid existing device configuration and performs
-an update/repair. Runtime/config backups are retained until the replacement service
-and gateway checks pass; failure rolls back automatically.
+## What you can do
 
-**Production blocker:** KMJ Main Platform must implement the versioned enrollment,
-approval and redemption endpoints in [the enrollment contract](docs/ENROLLMENT.md).
-Until those live endpoints exist, a completely fresh production VPS will fail
-enrollment rather than fabricate a credential. Existing enrolled installations can
-still use the idempotent update/repair path.
+| Tool family | Examples                                                   | Safety boundary                                      |
+| ----------- | ---------------------------------------------------------- | ---------------------------------------------------- |
+| Discover    | `list_devices`, `inspect_project`, `connection_doctor`     | Tenant/project scoped                                |
+| Read        | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                        |
+| Edit        | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                |
+| Verify      | `run_quality_gate`                                         | Only administrator-configured executable + arguments |
+| Jobs        | `get_job_status`, `cancel_job`                             | Durable bounded job state                            |
 
-The installer auto-detects useful fixed gates when present: npm
-`test/check/lint/build`, Laravel tests, Composer tests, Cargo tests, Go tests and
-pytest. It does not expose arbitrary shell execution.
+No generic “run any shell command” MCP tool is exposed.
 
-## Quick start
+## Quick start for developers
 
-Requires Node.js 24 and npm. Use a disposable development project initially.
+Requires Node.js 24+ and npm.
 
-```sh
+```bash
+git clone https://github.com/kmjtechno/kmj-codebridge.git
+cd kmj-codebridge
 npm ci --ignore-scripts
 npm run check
 npm test
 npm run scan:secrets
+```
+
+Create private configuration **outside the repository**:
+
+```bash
 npm run init -- /absolute/private-codebridge-config /absolute/development-project
 npm run gateway -- /absolute/private-codebridge-config/gateway.json
 ```
 
-In a second terminal:
+In another terminal:
 
-```sh
+```bash
 npm run agent -- /absolute/private-codebridge-config/agent.json
 ```
 
-The configuration directory must be outside the project. Initial access is read-only.
-The initializer generates credentials, stores only hashes at the gateway and writes
-no credentials to terminal output. Never commit or paste the generated files in chat.
-On Windows, use absolute Windows paths and restrict configuration ACLs to the service
-account. Unix configuration mode must be `0600`.
+Start read-only. Enable writes only for projects you explicitly approve. Never commit generated credentials.
 
-A compatible MCP client can connect to `http://127.0.0.1:8787/mcp` using the bearer
-credential from `client-token.txt`, for example Claude Code (see
-[AI client support](docs/CLIENTS.md#claude-code)). That is a local developer
-connection, not a public ChatGPT or Claude endpoint. For remote connections, configure TLS and the approved hostname;
-plain HTTP agents are limited to loopback. See [deployment](docs/DEPLOYMENT.md).
+See **[AI client setup](docs/CLIENTS.md)** for ChatGPT, Claude Code, Claude Desktop, Claude.ai and generic MCP clients.
 
-To enable editing, set the chosen project's `writable` to `true` in the private agent
-configuration. Add explicitly approved commands under `gates`, for example:
+## One-command VPS enrollment
 
-```json
-{
-  "unit": { "command": "/usr/bin/node", "args": ["--test"], "timeoutMs": 30000 }
-}
+The target production flow is:
+
+```bash
+curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
 ```
 
-Use the actual absolute executable path on your machine. No shell is used. A gate
-runs real project code and is not a sandbox; run untrusted code in a separately
-isolated VM/container without host credentials.
+The installer is designed to detect architecture, stage the runtime, enroll the device, install a hardened systemd service and verify gateway connectivity without installing a GitHub self-hosted runner.
 
-## Tools
+**Current production gate:** fresh zero-touch enrollment depends on the matching KMJ Main Platform enrollment/approval APIs being live. Existing source and local developer mode remain usable. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
 
-| Tool                                         | Behavior                                                    |
-| -------------------------------------------- | ----------------------------------------------------------- |
-| `list_devices`                               | Devices and projects allowed for the authenticated tenant   |
-| `inspect_project`, `connection_doctor`       | Capabilities and connection information                     |
-| `git_status`                                 | Bounded Git status with fsmonitor disabled                  |
-| `list_directory`, `read_file`, `search_code` | Bounded project navigation, UTF-8 reads and literal search  |
-| `edit_file`                                  | Exact unique-fragment edit with SHA-256 conflict protection |
-| `preview_file`, `write_file`                 | Expected-hash guarded replacements; no blind overwrite      |
-| `run_quality_gate`                           | Fixed administrator-configured command and arguments        |
-| `get_job_status`, `cancel_job`               | Recorded state, output, exit code and process cancellation  |
+## Free forever + ultra-low-cost launch plans
 
-The gateway routes to devices that poll outbound; it cannot independently read their
-files. Authorization is enforced at both the gateway and the agent. Devices do not
-need an inbound port. File writes use bounded synchronous precondition checks and
-atomic replacement; this is not a kernel security boundary against a malicious
-local process racing the agent.
+The open-source Community tier stays useful. Hosted convenience and higher commercial limits are paid entitlements through **KMJ Main Platform**.
 
-## Licensing and packaging
+| Plan            |                                    Launch price | Best for                                  |
+| --------------- | ----------------------------------------------: | ----------------------------------------- |
+| **Community**   |                                        **Free** | OSS users, evaluation, one device/project |
+| **Pro Launch**  |           **₹149/mo India · US$1.99/mo global** | Individual developers                     |
+| **Team Launch** | **₹399/user/mo India · US$4.99/user/mo global** | Small engineering teams                   |
+| **Business**    |                                          Custom | Larger deployments, support, procurement  |
 
-The preview has an explicit Free mode limited to one configured project and one
-concurrent job. Signed mode verifies an administrator-installed entitlement bound
-to the tenant and device. It does not manufacture trials or call a pretend billing
-endpoint. See [licensing contract](docs/LICENSING.md).
+**Launch trial:** eligible new accounts get **30 days of Pro** with no automatic paid conversion unless they explicitly choose a paid subscription.
 
-The source plugin contains no fabricated MCP URL. Once a real approved HTTPS endpoint
-with compatible authentication is available:
+Third-party AI subscriptions/API usage are separate. Taxes and final checkout terms are controlled by KMJ Main Platform.
 
-```sh
-npm run package:plugin -- https://YOUR-ACTUAL-HOST/mcp   # ChatGPT / OpenAI package
-npm run package:claude -- https://YOUR-ACTUAL-HOST/mcp   # Claude Code plugin + marketplace
-```
+See the full **[plan and premium feature matrix](docs/PRICING.md)**.
 
-Both build from the same `plugin/` metadata and skill and write only to `dist/` (or
-an empty `--out` directory). They do not publish anything, add OAuth or check that
-the endpoint is reachable. `npm run package:claude -- URL --auth bearer-env` makes
-Claude Code read the bearer credential from `KMJ_CODEBRIDGE_TOKEN`; no credential is
-ever written into a package. The bearer-auth developer preview requires a client
-capable of supplying a header; production OAuth account linking for ChatGPT and
-Claude is an outstanding integration gate.
+## Premium capability categories
 
-## Documentation
+Paid plans are designed around capabilities that create ongoing hosted value rather than artificially crippling the open-source core:
 
-- [AI client support: ChatGPT, Claude Code, Claude Desktop, Claude.ai](docs/CLIENTS.md)
-- [Full YAML roadmap](docs/specs/KMJ-CodeBridge-Roadmap.yaml)
-- [Implementation plan](docs/superpowers/plans/2026-09-29-codebridge.md)
-- [Security boundaries](SECURITY.md)
-- [Deployment and operations](docs/DEPLOYMENT.md)
-- [Secure device enrollment contract](docs/ENROLLMENT.md)
-- [Main Platform entitlement contract](docs/LICENSING.md)
-- [Current delivery status](docs/STATUS.md)
-- [Contributing](CONTRIBUTING.md)
-- [Apache License 2.0](LICENSE)
+- hosted account linking and managed onboarding;
+- higher device, project and concurrency limits;
+- signed commercial entitlements and renewable access;
+- extended job history;
+- shared team policies and administration;
+- audit export and enterprise identity controls;
+- priority support, procurement and optional SLA terms.
 
-If this project is useful, star the repository and share a reproducible feature
-request. Please do not post credentials, source-code secrets or customer data in issues.
+Paid-only features must be enforced by server-side policy and signed entitlements—not just hidden in a dashboard.
+
+## Security model
+
+CodeBridge is intentionally not a remote shell product.
+
+- Agents poll outbound.
+- Gateway and agent both enforce authorization.
+- Projects are explicitly configured.
+- Reads/search/logs are bounded.
+- Recognized secrets are redacted before results are returned.
+- Writes use preconditions and atomic replacement patterns.
+- Quality gates are fixed by administrators.
+- Commercial entitlements are cryptographically verifiable.
+
+A quality gate still executes real project code. Run untrusted code in a properly isolated environment.
+
+Read **[SECURITY.md](SECURITY.md)** before production use.
+
+## Supported clients
+
+| Client            | Integration                          |
+| ----------------- | ------------------------------------ |
+| ChatGPT           | OpenAI plugin package + remote MCP   |
+| Claude Code       | Claude plugin / MCP                  |
+| Claude Desktop    | Custom MCP connector                 |
+| Claude.ai         | Custom MCP connector where supported |
+| Other MCP clients | Streamable HTTP MCP                  |
+
+Client capabilities and hosted availability can differ. See [docs/CLIENTS.md](docs/CLIENTS.md).
+
+## Open core, commercial service
+
+The source in this repository is licensed under **Apache License 2.0**. You may use, modify and distribute it subject to that license.
+
+KMJ TECHNO’s trademarks, hosted infrastructure, billing/account systems, commercial support and any service-side code not published under an open-source license are separate from the Apache-2.0 grant.
+
+See:
+
+- [Launch plans & premium features](docs/PRICING.md)
+- [Commercial Terms](docs/COMMERCIAL-TERMS.md)
+- [Licensing & entitlement contract](docs/LICENSING.md)
+- [Privacy notice](plugin/PRIVACY.md)
+- [Security](SECURITY.md)
+
+## Current status
+
+CodeBridge is under active development. The repository contains a working Streamable HTTP MCP gateway, outbound device agent, scoped file tools, guarded writes, configured quality gates, durable jobs, entitlement verification and real test coverage.
+
+Production readiness is tracked explicitly; unsupported features are not presented as shipped. See **[docs/STATUS.md](docs/STATUS.md)**.
+
+## Build with us
+
+Good open-source projects grow through useful issues, reproducible bugs and real contributions.
+
+- Found a bug? Open a minimal reproduction.
+- Need a tool? Describe the safety boundary as well as the feature.
+- Running CodeBridge in a new environment? Share the compatibility result.
+- Want to contribute? Start with [CONTRIBUTING.md](CONTRIBUTING.md).
+
+### If CodeBridge solves a real problem for you, ⭐ star the repository.
+
+A star helps other developers discover the project. Sharing a working demo, integration note or reproducible improvement helps even more.
+
+---
+
+<p align="center">
+  <strong>KMJ TECHNO</strong><br>
+  Innovate · Build · Scale
+</p>
 
 ## License
 
 Copyright 2026 KMJ TECHNO.
 
-KMJ CodeBridge is open-source software licensed under the [Apache License 2.0](LICENSE).
-The license permits use, modification and distribution subject to its terms. The
-Apache License does not grant permission to use KMJ TECHNO trade names, trademarks,
-service marks or product names except as allowed by the license.
+KMJ CodeBridge source is licensed under the [Apache License 2.0](LICENSE). The Apache License does not grant permission to use KMJ TECHNO trade names, trademarks, service marks or product names except as permitted by applicable law and the license.
