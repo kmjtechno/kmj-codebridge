@@ -101,9 +101,12 @@ export function prepareOutput(custom, name) {
 export const CLAUDE_MARKETPLACE = "kmj-techno";
 export const CLAUDE_KEYWORDS = [
   "mcp",
-  "coding",
+  "ai-coding",
   "remote-development",
+  "vps",
+  "project-scoped",
   "quality-gates",
+  "developer-tools",
 ];
 
 export function writeClaudePlugin(pluginDir, meta, server, userConfig) {

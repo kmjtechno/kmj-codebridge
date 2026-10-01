@@ -8,7 +8,7 @@
     {
       "name": "kmj-codebridge",
       "source": "./claude-plugin",
-      "description": "Controlled coding tools for authorized computers and VPSs through an authenticated MCP gateway. Developer preview."
+      "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge. Developer preview."
     }
   ]
 }

@@ -15,6 +15,8 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/kmjtechno/kmj-codebridge/actions/workflows/ci.yml"><img alt="CodeBridge CI" src="https://github.com/kmjtechno/kmj-codebridge/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/kmjtechno/kmj-codebridge/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/kmjtechno/kmj-codebridge?style=flat&color=ED010B"></a>
   <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-ED010B"></a>
   <img alt="Node 24+" src="https://img.shields.io/badge/Node-24%2B-111111">
   <img alt="MCP" src="https://img.shields.io/badge/protocol-MCP-111111">
@@ -180,6 +182,8 @@ KMJ TECHNO’s trademarks, hosted infrastructure, billing/account systems, comme
 See:
 
 - [Launch plans & premium features](docs/PRICING.md)
+- [Premium delivery roadmap](docs/PREMIUM-ROADMAP.md)
+- [Launch & community playbook](docs/LAUNCH.md)
 - [Commercial Terms](docs/COMMERCIAL-TERMS.md)
 - [Licensing & entitlement contract](docs/LICENSING.md)
 - [Privacy notice](plugin/PRIVACY.md)

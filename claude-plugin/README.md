@@ -45,7 +45,7 @@ plugin. The plugin does not start purchases or promote upgrades.
 
 ## License and policies
 
-The files in this plugin are provided under the MIT License (see `LICENSE`).
+The files in this plugin are provided under the Apache License 2.0 (see `LICENSE`).
 Use of CodeBridge is also subject to the plugin terms in `TERMS.md`, the
 privacy notice in `PRIVACY.md`, and the KMJ TECHNO
 [Terms & Conditions](https://kmjtechno.com/terms),

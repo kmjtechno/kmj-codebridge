@@ -1,0 +1,83 @@
+name: Bug report
+description: Report a reproducible CodeBridge problem
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve KMJ CodeBridge. Do not include credentials, private source code, customer data, access tokens, or secrets.
+  - type: input
+    id: version
+    attributes:
+      label: CodeBridge version / commit
+      description: Release tag or commit SHA.
+      placeholder: v0.x.x or abc1234
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: AI client
+      options:
+        - ChatGPT
+        - Claude Code
+        - Claude Desktop
+        - Claude.ai
+        - Other MCP client
+        - Not client-specific
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: Device OS
+      options:
+        - Linux
+        - Windows
+        - macOS
+        - Other
+        - Not device-specific
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: What should have happened?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      placeholder: What happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Minimal reproduction
+      description: Include the smallest safe set of steps. Redact secrets.
+      placeholder: |
+        1. Configure...
+        2. Connect...
+        3. Run...
+        4. Observe...
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Sanitized logs
+      description: Paste only redacted logs that do not contain credentials or private source.
+      render: shell
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Safety checks
+      options:
+        - label: I removed credentials, secrets, private source code and customer data.
+          required: true
+        - label: I checked existing issues for the same problem.
+          required: true

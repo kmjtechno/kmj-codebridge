@@ -1,0 +1,57 @@
+name: Feature request
+description: Propose a useful capability with its security boundary
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        CodeBridge intentionally avoids unrestricted remote-shell access. Strong proposals explain both the user value and the boundary that keeps the feature controlled.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: Describe the developer workflow or pain point.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed capability
+      description: What should CodeBridge add or change?
+    validations:
+      required: true
+  - type: textarea
+    id: boundary
+    attributes:
+      label: Security / authorization boundary
+      description: What must the AI not be able to do? How should scope, approval or limits work?
+    validations:
+      required: true
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Best fit
+      options:
+        - Community / open source
+        - Pro
+        - Team
+        - Business / enterprise
+        - Unsure
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      placeholder: |
+        - Given...
+        - When...
+        - Then...
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Contribution note
+      options:
+        - label: I understand that opening an issue does not guarantee a roadmap commitment.
+          required: true
