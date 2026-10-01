@@ -23,7 +23,10 @@ test("mcp-json and claude-json adapters keep one canonical endpoint", () => {
     const r = run("https://bridge.example/mcp", "--format", format);
     assert.equal(r.status, 0, r.stderr);
     const out = JSON.parse(r.stdout);
-    assert.equal(\n      out.mcpServers["kmj-codebridge"].url,\n      "https://bridge.example/mcp",\n    );
+    assert.equal(
+      out.mcpServers["kmj-codebridge"].url,
+      "https://bridge.example/mcp",
+    );
   }
 });
 
