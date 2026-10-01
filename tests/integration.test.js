@@ -72,7 +72,7 @@ async function setup(t) {
     await gw.close();
     fs.rmSync(dir, { recursive: true, force: true });
   });
-  return { client, gw, root };
+  return { client, gw, root, dir };
 }
 const content = (r) => JSON.parse(r.content[0].text);
 test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
@@ -85,6 +85,19 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   });
   assert.equal(content(r).content, "hello");
 });
+test("agent persists authenticated gateway connectivity heartbeat", async (t) => {
+  const { client, dir } = await setup(t);
+  await client.listTools();
+  const state = path.join(dir, "state", "connection.json");
+  for (let i = 0; i < 20 && !fs.existsSync(state); i++)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.ok(fs.existsSync(state));
+  const saved = JSON.parse(fs.readFileSync(state, "utf8"));
+  assert.ok(Number.isFinite(Date.parse(saved.connectedAt)));
+  if (process.platform !== "win32")
+    assert.equal(fs.statSync(state).mode & 0o077, 0);
+});
+
 test("directory listing and precise edit accelerate scoped coding", async (t) => {
   const { client, root } = await setup(t);
   fs.mkdirSync(path.join(root, "src"));
