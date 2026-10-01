@@ -83,6 +83,14 @@ async function bridge(t, extra = {}) {
     ],
     license: { mode: "free" },
   });
+  const connectionState = path.join(dir, "state", "connection.json");
+  for (let i = 0; i < 100 && !fs.existsSync(connectionState); i++)
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.ok(
+    fs.existsSync(connectionState),
+    "agent must complete authenticated gateway health probe before client contract tests",
+  );
+
   const clients = [];
   t.after(async () => {
     for (const c of clients) await c.close();
