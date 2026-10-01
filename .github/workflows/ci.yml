@@ -20,6 +20,11 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Diagnostic installer-test formatting
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          npx prettier --write tests/installer.test.js
+          git diff -- tests/installer.test.js
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
