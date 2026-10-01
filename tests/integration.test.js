@@ -180,7 +180,15 @@ test("partial reads and git diff keep coding context bounded", async (t) => {
   execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
   execFileSync(
     "git",
-    ["-c", "user.name=Test", "-c", "user.email=test@example.com", "commit", "-m", "init"],
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-m",
+      "init",
+    ],
     { cwd: root, stdio: "pipe" },
   );
   fs.writeFileSync(path.join(root, "hello.txt"), "hello changed\n");
