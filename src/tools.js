@@ -245,26 +245,28 @@ export function createDispatcher(config, runner, licenseProvider) {
                 "--untracked-files=normal",
               ];
         const output = execFileSync("git", args, {
-            cwd: p.files.root,
-            encoding: "utf8",
-            timeout: 5000,
-            maxBuffer: name === "git_diff" ? 131072 : 32768,
-            env: {
-              PATH: process.env.PATH,
-              SystemRoot: process.env.SystemRoot,
-              GIT_CONFIG_NOSYSTEM: "1",
-              GIT_CONFIG_GLOBAL:
-                process.platform === "win32" ? "NUL" : "/dev/null",
-              GIT_TERMINAL_PROMPT: "0",
-              GIT_OPTIONAL_LOCKS: "0",
-            },
-          });
+          cwd: p.files.root,
+          encoding: "utf8",
+          timeout: 5000,
+          maxBuffer: name === "git_diff" ? 131072 : 32768,
+          env: {
+            PATH: process.env.PATH,
+            SystemRoot: process.env.SystemRoot,
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL:
+              process.platform === "win32" ? "NUL" : "/dev/null",
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_OPTIONAL_LOCKS: "0",
+          },
+        });
         const redacted = redact(output);
         if (name === "git_diff") {
           const bytes = Buffer.from(redacted);
           const truncated = bytes.length > 65536;
           return {
-            diff: truncated ? bytes.subarray(0, 65536).toString("utf8") : redacted,
+            diff: truncated
+              ? bytes.subarray(0, 65536).toString("utf8")
+              : redacted,
             truncated,
           };
         }
