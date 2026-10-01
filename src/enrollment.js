@@ -81,7 +81,12 @@ export async function beginDeviceEnrollment(base, request, options = {}) {
   };
 }
 
-export async function pollDeviceEnrollment(base, handle, request, options = {}) {
+export async function pollDeviceEnrollment(
+  base,
+  handle,
+  request,
+  options = {},
+) {
   if (Date.now() >= handle.expires_at_ms) fail("ENROLLMENT_EXPIRED");
   const url = endpoint(base, "/api/codebridge/v1/device-enrollments/token");
   const response = await (options.fetch ?? fetch)(url, {
