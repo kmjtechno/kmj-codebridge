@@ -187,7 +187,7 @@ test("tool invocation returns structured results through the device agent", asyn
   assert.match(file.sha256, /^[a-f0-9]{64}$/);
 });
 
-test("authentication failures are rejected before MCP handling", async (t) => {
+test("MCP discovery is public while tool execution stays authenticated", async (t) => {
   const { gw } = await bridge(t);
   const init = JSON.stringify({
     jsonrpc: "2.0",
@@ -214,8 +214,24 @@ test("authentication failures are rejected before MCP handling", async (t) => {
       },
       body: init,
     });
-    assert.equal(r.status, 401);
+    assert.equal(r.status, 200);
   }
+  const denied = await fetch(gw.url + "/mcp", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      accept,
+    },
+    body: JSON.stringify({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: "list_devices", arguments: {} },
+    }),
+  });
+  assert.equal(denied.status, 401);
+  assert.match(denied.headers.get("www-authenticate"), /resource_metadata=/);
+
   const origin = await fetch(gw.url + "/mcp", {
     method: "POST",
     headers: {
