@@ -366,9 +366,7 @@ export async function startGateway(rawConfig) {
                   : null;
                 return {
                   isError: true,
-                  content: [
-                    { type: "text", text: '{"error":"UNAUTHORIZED"}' },
-                  ],
+                  content: [{ type: "text", text: '{"error":"UNAUTHORIZED"}' }],
                   ...(authenticate
                     ? { _meta: { "mcp/www_authenticate": authenticate } }
                     : {}),
