@@ -42,6 +42,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  git_diff: {
+    title: "Git diff",
+    description:
+      "Read a bounded redacted working-tree diff for tracked files in an authorized project without invoking external diff helpers.",
+    input: scoped,
+    access: "read",
+  },
   search_code: {
     title: "Search code",
     description:
@@ -54,6 +61,17 @@ export const definitions = {
     description:
       "Read a bounded UTF-8 project file and its SHA-256 precondition.",
     input: file,
+    access: "read",
+  },
+  read_file_range: {
+    title: "Read file range",
+    description:
+      "Read a bounded line range from an authorized UTF-8 file while returning the full-file SHA-256 precondition.",
+    input: {
+      ...file,
+      startLine: z.number().int().min(1).default(1),
+      maxLines: z.number().int().min(1).max(500).default(200),
+    },
     access: "read",
   },
   preview_file: {
@@ -155,6 +173,14 @@ export function createDispatcher(config, runner, licenseProvider) {
         redacted: redact(r.content) !== r.content,
       };
     }
+    if (name === "read_file_range") {
+      const r = p.files.readRange(a.path, a.startLine, a.maxLines);
+      return {
+        ...r,
+        content: redact(r.content),
+        redacted: redact(r.content) !== r.content,
+      };
+    }
     if (name === "search_code") {
       const r = p.files.search(a.query);
       return {
@@ -180,7 +206,7 @@ export function createDispatcher(config, runner, licenseProvider) {
         fail("SENSITIVE_CONTENT_PROTECTED");
       return p.files.edit(a.path, a.oldText, a.newText, a.expectedHash);
     }
-    if (name === "git_status") {
+    if (name === "git_status" || name === "git_diff") {
       const gitDir = path.join(p.files.root, ".git");
       let gitStat;
       try {
@@ -191,38 +217,62 @@ export function createDispatcher(config, runner, licenseProvider) {
       if (!gitStat.isDirectory() || gitStat.isSymbolicLink())
         fail("GIT_ROOT_OUTSIDE_PROJECT");
       try {
-        const output = execFileSync(
-          "git",
-          [
-            "--no-optional-locks",
-            "-c",
-            "core.fsmonitor=false",
-            "-c",
-            "core.untrackedCache=false",
-            "status",
-            "--porcelain=v1",
-            "--branch",
-            "--untracked-files=normal",
-          ],
-          {
-            cwd: p.files.root,
-            encoding: "utf8",
-            timeout: 5000,
-            maxBuffer: 32768,
-            env: {
-              PATH: process.env.PATH,
-              SystemRoot: process.env.SystemRoot,
-              GIT_CONFIG_NOSYSTEM: "1",
-              GIT_CONFIG_GLOBAL:
-                process.platform === "win32" ? "NUL" : "/dev/null",
-              GIT_TERMINAL_PROMPT: "0",
-              GIT_OPTIONAL_LOCKS: "0",
-            },
+        const args =
+          name === "git_diff"
+            ? [
+                "--no-optional-locks",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                "-c",
+                "diff.external=",
+                "diff",
+                "--no-ext-diff",
+                "--no-textconv",
+                "--patch",
+                "--",
+              ]
+            : [
+                "--no-optional-locks",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                "core.untrackedCache=false",
+                "status",
+                "--porcelain=v1",
+                "--branch",
+                "--untracked-files=normal",
+              ];
+        const output = execFileSync("git", args, {
+          cwd: p.files.root,
+          encoding: "utf8",
+          timeout: 5000,
+          maxBuffer: name === "git_diff" ? 131072 : 32768,
+          env: {
+            PATH: process.env.PATH,
+            SystemRoot: process.env.SystemRoot,
+            GIT_CONFIG_NOSYSTEM: "1",
+            GIT_CONFIG_GLOBAL:
+              process.platform === "win32" ? "NUL" : "/dev/null",
+            GIT_TERMINAL_PROMPT: "0",
+            GIT_OPTIONAL_LOCKS: "0",
           },
-        );
-        return { status: redact(output) };
+        });
+        const redacted = redact(output);
+        if (name === "git_diff") {
+          const bytes = Buffer.from(redacted);
+          const truncated = bytes.length > 65536;
+          return {
+            diff: truncated
+              ? bytes.subarray(0, 65536).toString("utf8")
+              : redacted,
+            truncated,
+          };
+        }
+        return { status: redacted };
       } catch {
-        fail("GIT_STATUS_FAILED");
+        fail(name === "git_diff" ? "GIT_DIFF_FAILED" : "GIT_STATUS_FAILED");
       }
     }
     if (name === "run_quality_gate") {

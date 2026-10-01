@@ -152,6 +152,56 @@ test("precise edit rejects stale hashes and ambiguous replacements", async (t) =
   assert.equal(content(stale).error, "CONTENT_CONFLICT");
 });
 
+test("partial reads and git diff keep coding context bounded", async (t) => {
+  const { client, root } = await setup(t);
+  fs.writeFileSync(
+    path.join(root, "lines.txt"),
+    Array.from({ length: 30 }, (_, i) => `line-${i + 1}`).join("\n"),
+  );
+  const range = content(
+    await client.callTool({
+      name: "read_file_range",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        path: "lines.txt",
+        startLine: 11,
+        maxLines: 5,
+      },
+    }),
+  );
+  assert.equal(range.content, "line-11\nline-12\nline-13\nline-14\nline-15");
+  assert.equal(range.startLine, 11);
+  assert.equal(range.endLine, 15);
+  assert.equal(range.hasMore, true);
+
+  const { execFileSync } = await import("node:child_process");
+  execFileSync("git", ["init"], { cwd: root, stdio: "pipe" });
+  execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-m",
+      "init",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+  fs.writeFileSync(path.join(root, "hello.txt"), "hello changed\n");
+  const diff = content(
+    await client.callTool({
+      name: "git_diff",
+      arguments: { device: "d1", project: "p1" },
+    }),
+  );
+  assert.match(diff.diff, /hello changed/);
+  assert.equal(typeof diff.truncated, "boolean");
+});
+
 test("real read-preview-write-test workflow verifies results", async (t) => {
   const { client } = await setup(t);
   const args = { device: "d1", project: "p1", path: "hello.txt" };
