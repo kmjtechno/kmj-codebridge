@@ -24,23 +24,43 @@ export const gatewaySchema = z
         resource: httpsUrl.refine(
           (value) => new URL(value).pathname === "/mcp",
         ),
-        jwks: z.object({
-          keys: z
-            .array(
-              z
-                .object({ kty: z.enum(["RSA", "EC", "OKP"]) })
-                .passthrough()
-                .refine(
-                  (key) =>
-                    !["d", "p", "q", "dp", "dq", "qi", "oth", "k"].some(
-                      (name) => name in key,
-                    ),
-                  "Public keys only",
-                ),
-            )
-            .min(1)
-            .max(20),
-        }),
+        jwks: z
+          .object({
+            keys: z
+              .array(
+                z
+                  .object({ kty: z.enum(["RSA", "EC", "OKP"]) })
+                  .passthrough()
+                  .refine(
+                    (key) =>
+                      !["d", "p", "q", "dp", "dq", "qi", "oth", "k"].some(
+                        (name) => name in key,
+                      ),
+                    "Public keys only",
+                  ),
+              )
+              .min(1)
+              .max(20),
+          })
+          .optional(),
+        jwksUri: httpsUrl.optional(),
+      })
+      .superRefine((oauth, ctx) => {
+        if (Boolean(oauth.jwks) === Boolean(oauth.jwksUri)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Configure exactly one of jwks or jwksUri",
+          });
+        }
+        if (
+          oauth.jwksUri &&
+          new URL(oauth.jwksUri).origin !== new URL(oauth.issuer).origin
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Remote JWKS must share the OAuth issuer origin",
+          });
+        }
       })
       .optional(),
     host: z.string().default("127.0.0.1"),
