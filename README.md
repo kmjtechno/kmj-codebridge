@@ -220,3 +220,15 @@ A star helps other developers discover the project. Sharing a working demo, inte
 Copyright 2026 KMJ TECHNO.
 
 KMJ CodeBridge source is licensed under the [Apache License 2.0](LICENSE). The Apache License does not grant permission to use KMJ TECHNO trade names, trademarks, service marks or product names except as permitted by applicable law and the license.
+
+
+## Explore the KMJ open-source ecosystem
+
+If you discovered this project through one KMJ tool, the rest of the stack may be useful too:
+
+- **[KMJ CodeBridge](https://github.com/kmjtechno/kmj-codebridge)** — secure AI-to-project connectivity for authorized development environments.
+- **[KMJ OmniDesk](https://github.com/kmjtechno/kmj-omnidesk)** — direct-first remote access engineered for speed, resilience, and measurable trust.
+- **[KMJ Desktop Commander](https://github.com/kmjtechno/kmj-desktop-commander)** — policy-controlled desktop and remote engineering operations.
+- **[KMJ Forge](https://github.com/kmjtechno/kmj-forge)** — evidence-driven software engineering workflows for humans and AI.
+
+**KMJ TECHNO · Innovate · Build · Scale** — https://kmjtechno.com
