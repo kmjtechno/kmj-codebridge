@@ -244,10 +244,7 @@ export function createDispatcher(config, runner, licenseProvider) {
                 "--branch",
                 "--untracked-files=normal",
               ];
-        const output = execFileSync(
-          "git",
-          args,
-          {
+        const output = execFileSync("git", args, {
             cwd: p.files.root,
             encoding: "utf8",
             timeout: 5000,
@@ -261,8 +258,7 @@ export function createDispatcher(config, runner, licenseProvider) {
               GIT_TERMINAL_PROMPT: "0",
               GIT_OPTIONAL_LOCKS: "0",
             },
-          },
-        );
+          });
         const redacted = redact(output);
         if (name === "git_diff") {
           const bytes = Buffer.from(redacted);
