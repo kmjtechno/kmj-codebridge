@@ -47,7 +47,7 @@ export const gatewaySchema = z
     port: z.number().int().min(0).max(65535).default(8787),
     deviceTimeoutMs: z.number().int().min(100).max(120000).default(15000),
     allowedHosts: z.array(z.string()).default([]),
-    allowedOrigins: z.array(z.string().url()).default([]),
+    allowedOrigins: z.array(z.string().url()).default([]),\n    openaiAppsChallenge: z\n      .string()\n      .regex(/^[A-Za-z0-9._~-]{1,512}$/)\n      .optional(),
     users: z
       .array(
         z.object({
