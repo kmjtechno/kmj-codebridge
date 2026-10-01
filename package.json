@@ -15,6 +15,7 @@
     "init": "node scripts/init.js",
     "package:plugin": "node scripts/package-plugin.js",
     "package:claude": "node scripts/package-claude.js",
+    "client:config": "node scripts/client-config.js",
     "build:claude-marketplace": "node scripts/build-claude-marketplace.js",
     "check:claude-marketplace": "node scripts/build-claude-marketplace.js --check",
     "format": "prettier --write src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md",
