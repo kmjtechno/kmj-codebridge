@@ -8,15 +8,19 @@
 
 <h1 align="center">KMJ CodeBridge</h1>
 
-<p align="center"><strong>Connect your systems. Build with AI.</strong></p>
+<p align="center"><strong>Secure AI-to-Development Infrastructure for Authorized Systems</strong></p>
 
 <p align="center">
-  <strong>Built by KMJ TECHNO</strong> · Founder / CTO: <strong>Narendra Singh Kushwah</strong><br>
-  AI infrastructure · MCP · secure developer tooling · remote engineering
+  Connect ChatGPT, Claude, and compatible MCP clients to approved projects across laptops, workstations, and VPS infrastructure—through scoped access, policy-controlled actions, and verifiable engineering workflows.
 </p>
 
 <p align="center">
-  A secure, vendor-neutral MCP bridge that lets AI assistants work with the <em>authorized projects</em> on your laptops, workstations and VPSs—without giving them an unrestricted shell or requiring an inbound device port.
+  <strong>Vendor-neutral MCP · Outbound device agents · Guarded writes · Controlled quality gates</strong>
+</p>
+
+<p align="center">
+  Built by <strong>KMJ TECHNO</strong><br>
+  Founded and led by <strong>Narendra Singh Kushwah · Founder & CTO</strong>
 </p>
 
 <p align="center">
