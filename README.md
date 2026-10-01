@@ -39,10 +39,6 @@ CodeBridge takes a narrower approach:
 - **Tenant + permission enforcement** — authorization is checked at the gateway and device layer.
 - **Open-source core** — Apache-2.0 source you can inspect, self-host and contribute to.
 
-<p align="center">
-  <img src="docs/assets/codebridge-architecture-cinematic-v2.svg" alt="KMJ CodeBridge architecture" width="100%">
-</p>
-
 ## The workflow
 
 ```text
