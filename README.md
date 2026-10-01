@@ -234,6 +234,44 @@ A quality gate still executes real project code. Run untrusted code in a properl
 
 Read **[SECURITY.md](SECURITY.md)** before production use.
 
+## FAQ
+
+### Do I need to expose SSH or another inbound port?
+
+No. The CodeBridge device agent is designed to initiate outbound connectivity. You still control which device and project roots are authorized.
+
+### Can CodeBridge work with a VPS as well as a local computer?
+
+Yes. The agent model is intended for authorized laptops, workstations, and VPS environments, subject to the configured project scope and platform support documented in this repository.
+
+### Does CodeBridge give the AI a full shell?
+
+No. CodeBridge intentionally does not expose a generic unrestricted shell tool. Execution is limited to defined tools and administrator-configured quality gates.
+
+### Can the AI edit files?
+
+Yes, when write-capable tools are enabled for an authorized project. Writes use preconditions and guarded replacement patterns to reduce blind or stale overwrites.
+
+### Can I start read-only?
+
+Yes, and that is the recommended first step. Verify device identity, project scope, and read-only tools before enabling writes.
+
+### Which AI clients can use CodeBridge?
+
+The repository includes integration paths for ChatGPT, Claude Code, Claude Desktop, Claude.ai where supported, and other compatible MCP clients. Client capabilities can differ, so use [docs/CLIENTS.md](docs/CLIENTS.md) as the current integration reference.
+
+### Does CodeBridge make untrusted code safe to run?
+
+No. A configured quality gate can execute real project code. Treat untrusted repositories and build scripts as untrusted code and use appropriate isolation.
+
+### Are secrets automatically safe?
+
+No security control is absolute. CodeBridge includes bounded output and recognized-secret redaction, but you should still keep credentials and private configuration outside repositories, avoid exposing unnecessary files, and never commit production secrets.
+
+### Is hosted production onboarding fully ready?
+
+Not yet. Local/source workflows are usable, while fresh zero-touch production enrollment still depends on the matching KMJ Main Platform enrollment and approval APIs. See [docs/STATUS.md](docs/STATUS.md) and [docs/ENROLLMENT.md](docs/ENROLLMENT.md).
+
 ## Supported clients
 
 | Client            | Integration                          |
