@@ -8,14 +8,18 @@
 
 <h1 align="center">KMJ CodeBridge</h1>
 
-<p align="center"><strong>Secure AI-to-Development Infrastructure for Authorized Systems</strong></p>
+<p align="center">
+  <strong>Secure AI-to-Development Infrastructure for Authorized Systems</strong>
+</p>
 
 <p align="center">
   Connect ChatGPT, Claude, and compatible MCP clients to approved projects across laptops, workstations, and VPS infrastructure—through scoped access, policy-controlled actions, and verifiable engineering workflows.
 </p>
 
 <p align="center">
-  <strong>Vendor-neutral MCP · Outbound device agents · Guarded writes · Controlled quality gates</strong>
+  <strong
+    >Vendor-neutral MCP · Outbound device agents · Guarded writes · Controlled quality gates</strong
+  >
 </p>
 
 <p align="center">
@@ -98,12 +102,12 @@ The device agent must be online, authorized for the tenant, and configured for t
 
 ## What CodeBridge is — and is not
 
-| CodeBridge is | CodeBridge is not |
-| --- | --- |
-| A scoped MCP bridge for authorized development projects | A general-purpose remote shell |
+| CodeBridge is                                            | CodeBridge is not                                  |
+| -------------------------------------------------------- | -------------------------------------------------- |
+| A scoped MCP bridge for authorized development projects  | A general-purpose remote shell                     |
 | A policy-controlled path for inspect/edit/test workflows | A way to bypass OS, tenant, or project permissions |
-| A device-agent model designed for outbound connectivity | An inbound SSH replacement |
-| A framework for bounded, verifiable engineering actions | A promise that arbitrary code is safe to execute |
+| A device-agent model designed for outbound connectivity  | An inbound SSH replacement                         |
+| A framework for bounded, verifiable engineering actions  | A promise that arbitrary code is safe to execute   |
 
 ## What you can do
 
@@ -214,16 +218,16 @@ Paid-only features must be enforced by server-side policy and signed entitlement
 
 CodeBridge is intentionally not a remote shell product.
 
-| Boundary | Enforcement |
-| --- | --- |
-| Device reachability | Agent-initiated outbound connection |
-| Project access | Explicit administrator-approved project roots |
-| Read operations | Bounded project-scoped reads/search |
-| Write operations | Preconditions, exact-fragment checks, atomic replacement patterns |
-| Command execution | No generic shell tool; quality gates are administrator-configured |
-| Authorization | Tenant and permission checks at gateway and device layers |
-| Sensitive output | Recognized secrets can be redacted before results are returned |
-| Commercial access | Signed entitlement verification |
+| Boundary            | Enforcement                                                       |
+| ------------------- | ----------------------------------------------------------------- |
+| Device reachability | Agent-initiated outbound connection                               |
+| Project access      | Explicit administrator-approved project roots                     |
+| Read operations     | Bounded project-scoped reads/search                               |
+| Write operations    | Preconditions, exact-fragment checks, atomic replacement patterns |
+| Command execution   | No generic shell tool; quality gates are administrator-configured |
+| Authorization       | Tenant and permission checks at gateway and device layers         |
+| Sensitive output    | Recognized secrets can be redacted before results are returned    |
+| Commercial access   | Signed entitlement verification                                   |
 
 - Agents poll outbound.
 - Gateway and agent both enforce authorization.
@@ -244,10 +248,10 @@ CodeBridge uses **JSON configuration as the primary interface**. Local/developer
 
 ### Environment variables
 
-| Variable | Required | Default | Safe example |
-| --- | --- | --- | --- |
-| `CODEBRIDGE_GATEWAY_CONFIG` | **Yes** for hosted `npm start` mode | None | Private JSON stored in the hosting provider's secret/config store |
-| `PORT` | No | `10000` | `10000` |
+| Variable                    | Required                            | Default | Safe example                                                      |
+| --------------------------- | ----------------------------------- | ------- | ----------------------------------------------------------------- |
+| `CODEBRIDGE_GATEWAY_CONFIG` | **Yes** for hosted `npm start` mode | None    | Private JSON stored in the hosting provider's secret/config store |
+| `PORT`                      | No                                  | `10000` | `10000`                                                           |
 
 `CODEBRIDGE_GATEWAY_CONFIG` contains the complete hosted gateway configuration and must be treated as sensitive. Hosted startup fails closed when it is missing or invalid. `PORT` controls the hosted HTTP listen port; the hosted entry point binds to `0.0.0.0`.
 
@@ -255,32 +259,32 @@ CodeBridge uses **JSON configuration as the primary interface**. Local/developer
 
 ### Gateway JSON
 
-| Setting | Required | Safe default / example | Notes |
-| --- | --- | --- | --- |
-| `host` | No | `127.0.0.1` | Safe local default. Hosted mode overrides this to `0.0.0.0`. |
-| `port` | No | `8787` | Local gateway default. |
-| `deviceTimeoutMs` | No | `15000` | Allowed range: 100–120000 ms. |
-| `allowedHosts` | No | `[]` locally | For public hosting, explicitly list the exact public hostname; do not use wildcards. |
-| `allowedOrigins` | No | `[]` | Add only approved browser origins when required. |
-| `users` | **Yes** | Generated by `npm run init` | Maps users to tenants, devices/projects, permissions, and auth identity. |
-| `agents` | **Yes** | Generated by `npm run init` | Each device gets its own tenant-bound token hash. |
-| `oauth` | Hosted production path | Real HTTPS issuer/resource | Configure exactly one of embedded public `jwks` or same-origin `jwksUri`. |
-| `agentIntrospection` | No | Derived from OAuth issuer when OAuth is enabled | Default cache: 60 seconds. |
+| Setting              | Required               | Safe default / example                          | Notes                                                                                |
+| -------------------- | ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `host`               | No                     | `127.0.0.1`                                     | Safe local default. Hosted mode overrides this to `0.0.0.0`.                         |
+| `port`               | No                     | `8787`                                          | Local gateway default.                                                               |
+| `deviceTimeoutMs`    | No                     | `15000`                                         | Allowed range: 100–120000 ms.                                                        |
+| `allowedHosts`       | No                     | `[]` locally                                    | For public hosting, explicitly list the exact public hostname; do not use wildcards. |
+| `allowedOrigins`     | No                     | `[]`                                            | Add only approved browser origins when required.                                     |
+| `users`              | **Yes**                | Generated by `npm run init`                     | Maps users to tenants, devices/projects, permissions, and auth identity.             |
+| `agents`             | **Yes**                | Generated by `npm run init`                     | Each device gets its own tenant-bound token hash.                                    |
+| `oauth`              | Hosted production path | Real HTTPS issuer/resource                      | Configure exactly one of embedded public `jwks` or same-origin `jwksUri`.            |
+| `agentIntrospection` | No                     | Derived from OAuth issuer when OAuth is enabled | Default cache: 60 seconds.                                                           |
 
 ### Agent JSON
 
-| Setting | Required | Safe default / example | Notes |
-| --- | --- | --- | --- |
-| `gateway` | **Yes** | `http://127.0.0.1:8787` for local development | Use HTTPS for non-loopback deployments. |
-| `token` | **Yes** | Generated random credential | Minimum 32 characters; keep private. |
-| `id` | **Yes** | `device1` | Device identifier. |
-| `tenant` | **Yes** | `kmj` in the generated local example | Must match the authorized tenant. |
-| `stateDir` | **Yes** | Private directory outside the project | Stores agent state/journal data. |
-| `pollMs` | No | `250` | Allowed range: 10–5000 ms. |
-| `projects[].root` | **Yes** | Absolute project path | Keep scope as narrow as practical. |
-| `projects[].writable` | No | **`false`** | Safe default: read-only. |
-| `projects[].gates` | No | `{}` | Add only administrator-approved commands and arguments. |
-| `license.mode` | **Yes** | `free` for local/community mode | Signed mode requires a token file and verification keys. |
+| Setting               | Required | Safe default / example                        | Notes                                                    |
+| --------------------- | -------- | --------------------------------------------- | -------------------------------------------------------- |
+| `gateway`             | **Yes**  | `http://127.0.0.1:8787` for local development | Use HTTPS for non-loopback deployments.                  |
+| `token`               | **Yes**  | Generated random credential                   | Minimum 32 characters; keep private.                     |
+| `id`                  | **Yes**  | `device1`                                     | Device identifier.                                       |
+| `tenant`              | **Yes**  | `kmj` in the generated local example          | Must match the authorized tenant.                        |
+| `stateDir`            | **Yes**  | Private directory outside the project         | Stores agent state/journal data.                         |
+| `pollMs`              | No       | `250`                                         | Allowed range: 10–5000 ms.                               |
+| `projects[].root`     | **Yes**  | Absolute project path                         | Keep scope as narrow as practical.                       |
+| `projects[].writable` | No       | **`false`**                                   | Safe default: read-only.                                 |
+| `projects[].gates`    | No       | `{}`                                          | Add only administrator-approved commands and arguments.  |
+| `license.mode`        | **Yes**  | `free` for local/community mode               | Signed mode requires a token file and verification keys. |
 
 ### Copy-paste configuration examples
 
@@ -402,19 +406,19 @@ For deployment-specific details, see **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)*
 
 Use the least-invasive check first. Avoid deleting configuration, regenerating credentials, or changing production permissions until you have identified the failing boundary.
 
-| Symptom | Check | Safe recovery |
-| --- | --- | --- |
-| `npm ci` fails | Confirm Node.js 24+ and npm are active with `node --version` and `npm --version` | Use the supported Node version, then rerun `npm ci --ignore-scripts`. Do not delete unrelated project files. |
-| `npm run check` fails | Run `npm run check` again and read the first reported formatter, validation, or policy failure | Fix the reported source/documentation issue rather than bypassing the check. |
-| Tests fail | Run `npm test` and isolate the first deterministic failure | Reproduce locally, fix the underlying behavior, and rerun the full relevant test set. |
-| Gateway does not start | Verify the configured gateway file path exists and is outside the repository | Correct the path or configuration. Do not move credentials into the repository for convenience. |
-| Agent cannot connect | Confirm the gateway is reachable from the device and the agent is using the intended configuration | Check network reachability, device authorization, and configuration values before rotating credentials. |
-| Device appears offline | Confirm the agent process is running and the device can make outbound connections | Restart only the CodeBridge agent process/service after checking logs; avoid broad system changes first. |
-| Project is not visible | Confirm the project root was explicitly added to the agent configuration | Add the intended project root rather than widening access to an entire drive or home directory. |
-| Read works but write fails | Confirm write-capable tools are enabled and the file precondition/hash still matches | Refresh the file state and retry the guarded edit. Do not disable preconditions to force an overwrite. |
-| Quality gate is rejected | Confirm the requested gate is present in the administrator-approved configuration | Add or correct the approved gate definition. Do not expose a generic shell as a shortcut. |
-| Client cannot discover tools | Verify the MCP endpoint/client configuration and use the client-specific setup guide | Recheck [docs/CLIENTS.md](docs/CLIENTS.md) and reconnect the client after correcting configuration. |
-| Authentication or entitlement fails | Confirm tenant/device identity, current authorization, and entitlement state | Re-enroll or renew through the supported account flow. Do not hard-code or bypass entitlement checks. |
+| Symptom                             | Check                                                                                              | Safe recovery                                                                                                |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `npm ci` fails                      | Confirm Node.js 24+ and npm are active with `node --version` and `npm --version`                   | Use the supported Node version, then rerun `npm ci --ignore-scripts`. Do not delete unrelated project files. |
+| `npm run check` fails               | Run `npm run check` again and read the first reported formatter, validation, or policy failure     | Fix the reported source/documentation issue rather than bypassing the check.                                 |
+| Tests fail                          | Run `npm test` and isolate the first deterministic failure                                         | Reproduce locally, fix the underlying behavior, and rerun the full relevant test set.                        |
+| Gateway does not start              | Verify the configured gateway file path exists and is outside the repository                       | Correct the path or configuration. Do not move credentials into the repository for convenience.              |
+| Agent cannot connect                | Confirm the gateway is reachable from the device and the agent is using the intended configuration | Check network reachability, device authorization, and configuration values before rotating credentials.      |
+| Device appears offline              | Confirm the agent process is running and the device can make outbound connections                  | Restart only the CodeBridge agent process/service after checking logs; avoid broad system changes first.     |
+| Project is not visible              | Confirm the project root was explicitly added to the agent configuration                           | Add the intended project root rather than widening access to an entire drive or home directory.              |
+| Read works but write fails          | Confirm write-capable tools are enabled and the file precondition/hash still matches               | Refresh the file state and retry the guarded edit. Do not disable preconditions to force an overwrite.       |
+| Quality gate is rejected            | Confirm the requested gate is present in the administrator-approved configuration                  | Add or correct the approved gate definition. Do not expose a generic shell as a shortcut.                    |
+| Client cannot discover tools        | Verify the MCP endpoint/client configuration and use the client-specific setup guide               | Recheck [docs/CLIENTS.md](docs/CLIENTS.md) and reconnect the client after correcting configuration.          |
+| Authentication or entitlement fails | Confirm tenant/device identity, current authorization, and entitlement state                       | Re-enroll or renew through the supported account flow. Do not hard-code or bypass entitlement checks.        |
 
 ### Useful diagnostic commands
 
