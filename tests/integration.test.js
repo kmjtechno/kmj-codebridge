@@ -392,7 +392,6 @@ test("signed entitlement file must remain outside project roots", async (t) => {
   }
 });
 
-
 test("dynamically enrolled agent introspects once then serves MCP tools from cache", async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-dynamic-agent-"));
   const root = path.join(dir, "project");
