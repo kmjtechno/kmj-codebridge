@@ -401,11 +401,7 @@ test("OAuth discovery and scopes work for standards-based remote clients", async
     assert.deepEqual(await r.json(), {
       resource: oauth.resource,
       authorization_servers: [oauth.issuer],
-      scopes_supported: [
-        "codebridge:read",
-        "codebridge:write",
-        "codebridge:execute",
-      ],
+      scopes_supported: ["mcp:use"],
     });
   }
   const wrongAudience = await fetch(gw.url + "/mcp", {
