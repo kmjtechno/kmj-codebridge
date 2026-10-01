@@ -389,10 +389,7 @@ test("OAuth discovery and scopes work for standards-based remote clients", async
     header,
     /^Bearer resource_metadata="https:\/\/bridge\.example\//,
   );
-  assert.match(
-    header,
-    /scope="mcp:use"/,
-  );
+  assert.match(header, /scope="mcp:use"/);
   for (const suffix of ["", "/mcp"]) {
     const r = await fetch(
       gw.url + "/.well-known/oauth-protected-resource" + suffix,
