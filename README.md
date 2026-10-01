@@ -278,6 +278,95 @@ CodeBridge uses **JSON configuration as the primary interface**. Local/developer
 | `projects[].gates` | No | `{}` | Add only administrator-approved commands and arguments. |
 | `license.mode` | **Yes** | `free` for local/community mode | Signed mode requires a token file and verification keys. |
 
+### Copy-paste configuration examples
+
+These examples are intentionally conservative: loopback/local where possible, read-only project access, and no real credentials committed to the repository.
+
+#### Safe local setup
+
+Create a private directory **outside** the project:
+
+```bash
+mkdir -p /tmp/kmj-codebridge-private
+chmod 700 /tmp/kmj-codebridge-private
+```
+
+Create `gateway.json`:
+
+```json
+{
+  "host": "127.0.0.1",
+  "port": 8787,
+  "users": [
+    {
+      "id": "owner",
+      "tenant": "kmj",
+      "tokenHash": "<SHA256_OF_PRIVATE_CLIENT_TOKEN>",
+      "devices": {
+        "device1": ["project1"]
+      },
+      "permissions": ["read"]
+    }
+  ],
+  "agents": [
+    {
+      "id": "device1",
+      "tenant": "kmj",
+      "tokenHash": "<SHA256_OF_PRIVATE_AGENT_TOKEN>"
+    }
+  ]
+}
+```
+
+Create `agent.json`:
+
+```json
+{
+  "gateway": "http://127.0.0.1:8787",
+  "token": "<PRIVATE_AGENT_TOKEN_MIN_32_CHARS>",
+  "id": "device1",
+  "tenant": "kmj",
+  "stateDir": "/tmp/kmj-codebridge-private/state",
+  "pollMs": 250,
+  "projects": [
+    {
+      "id": "project1",
+      "root": "/absolute/path/to/project",
+      "writable": false,
+      "gates": {}
+    }
+  ],
+  "license": {
+    "mode": "free"
+  }
+}
+```
+
+Start both processes:
+
+```bash
+npm run gateway -- /tmp/kmj-codebridge-private/gateway.json
+npm run agent -- /tmp/kmj-codebridge-private/agent.json
+```
+
+For a real local setup, prefer `npm run init -- /private/config-dir /absolute/project` because it generates independent random credentials and stores only token hashes in the gateway config.
+
+#### Safe hosted setup
+
+Store the complete gateway JSON in your hosting provider's **private secret/config store**, not in the repository.
+
+Example shell environment:
+
+```bash
+export PORT=10000
+export CODEBRIDGE_GATEWAY_CONFIG='{"oauth":{"issuer":"https://auth.example.com","resource":"https://codebridge.example.com/mcp","jwksUri":"https://auth.example.com/.well-known/jwks.json"},"allowedHosts":["codebridge.example.com"],"allowedOrigins":[],"users":[{"id":"owner","tenant":"kmj","subject":"user-123","devices":{"device1":["project1"]},"permissions":["read"]}],"agents":[{"id":"device1","tenant":"kmj","tokenHash":"<SHA256_OF_PRIVATE_AGENT_TOKEN>"}]}'
+npm start
+```
+
+Replace `auth.example.com`, `codebridge.example.com`, subjects, device/project IDs, and token hashes with your real approved values.
+
+> For production, prefer the hosting platform's secret manager over exporting sensitive JSON in an interactive shell. Keep `allowedHosts` exact, avoid wildcard origins, and do not enable write/execute permissions until they are required.
+
 ### Minimal local example
 
 `npm run init` creates private `gateway.json`, `agent.json`, and `client-token.txt` outside the project and starts projects read-only.
