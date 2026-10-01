@@ -101,4 +101,3 @@ serves that value as plain text at `/.well-known/openai-apps-challenge` on the
 configured allowed host. Remove or rotate the value when the portal requires a
 different challenge. Never invent a challenge token or commit a real portal token to
 the repository.
-\n
