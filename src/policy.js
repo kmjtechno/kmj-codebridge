@@ -72,11 +72,7 @@ export class ProjectFiles {
       if (
         parts.some(
           (p) =>
-            !p ||
-            p === "." ||
-            p === ".." ||
-            /[. ]$/.test(p) ||
-            denied.test(p),
+            !p || p === "." || p === ".." || /[. ]$/.test(p) || denied.test(p),
         )
       )
         fail("INVALID_PATH");
@@ -107,7 +103,11 @@ export class ProjectFiles {
       }
       entries.push({
         name: item.name,
-        type: item.isDirectory() ? "directory" : item.isFile() ? "file" : "other",
+        type: item.isDirectory()
+          ? "directory"
+          : item.isFile()
+            ? "file"
+            : "other",
       });
     }
     return { path: relative, entries, truncated };
