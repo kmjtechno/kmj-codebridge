@@ -134,7 +134,7 @@ export function createGitHubBridge(config) {
 
     const response = await fetch(url, {
       method,
-      redirect: "follow",
+      redirect: "error",
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${token}`,
@@ -171,7 +171,7 @@ export function createGitHubBridge(config) {
     );
     const response = await fetch(url, {
       method: "GET",
-      redirect: "error",
+      redirect: "follow",
       headers: {
         accept: "application/vnd.github+json",
         authorization: `Bearer ${token}`,
