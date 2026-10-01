@@ -18,10 +18,7 @@ Example:
 {
   "github": {
     "tokenEnv": "KMJ_CODEBRIDGE_GITHUB_TOKEN",
-    "repositories": [
-      "kmjtechno/kmj-codebridge",
-      "kmjtechno/kmj-main-platform"
-    ],
+    "repositories": ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-main-platform"],
     "cacheSeconds": 30
   }
 }
@@ -31,6 +28,7 @@ The gateway process must receive `KMJ_CODEBRIDGE_GITHUB_TOKEN` through a protect
 systemd EnvironmentFile, secret manager or equivalent server-side mechanism.
 
 Do not put the token in:
+
 - MCP client configuration,
 - project files,
 - install URLs,
@@ -40,6 +38,7 @@ Do not put the token in:
 ## Current tools
 
 Read scope:
+
 - `github_repository`
 - `github_pull_request`
 - `github_pull_request_files`
@@ -48,6 +47,7 @@ Read scope:
 - `github_actions_job_log`
 
 Write scope:
+
 - `github_create_branch`
 - `github_create_pull_request`
 
