@@ -20,11 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Diagnostic dynamic formatting
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          npx prettier --write src/gateway.js tests/integration.test.js
-          git diff -- src/gateway.js tests/integration.test.js
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
