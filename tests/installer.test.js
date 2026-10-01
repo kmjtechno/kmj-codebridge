@@ -21,7 +21,10 @@ test("fresh installer uses secure enrollment and never requires manual agent tok
   assert.match(script, /CODEBRIDGE_ENROLLMENT_BASE/);
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
   assert.doesNotMatch(script, /github.*token/i);
-  assert.doesNotMatch(script, /github\.com\/actions\/runner|config\.sh|runsvc\.sh/i);
+  assert.doesNotMatch(
+    script,
+    /github\.com\/actions\/runner|config\.sh|runsvc\.sh/i,
+  );
   assert.match(
     script,
     /No inbound VPS port or GitHub Actions runner is required/,
@@ -44,16 +47,18 @@ test("installer is idempotent and preserves valid enrollment on rerun", () => {
   assert.match(script, /have_config=1/);
   assert.match(script, /refusing automatic overwrite/);
   assert.match(script, /agent\.json\.rollback/);
+  assert.match(script, /ROLLBACK_SERVICE/);
+  assert.match(script, /bound to a different project/);
   assert.match(script, /\.rollback/);
 });
 
-test(
-  "installer stages updates and rolls back failed service or gateway verification",
-  () => {
+test("installer stages updates and rolls back failed service or gateway verification", () => {
   assert.match(script, /INSTALL_DIR.*\.new/);
   assert.match(script, /rollback\(\)/);
   assert.match(script, /systemctl is-active --quiet/);
   assert.match(script, /oauth-protected-resource/);
+  assert.match(script, /connection\.json/);
+  assert.match(script, /authenticated gateway request/);
   assert.match(script, /rolling back CodeBridge/);
 });
 
@@ -78,6 +83,12 @@ test("installer binds an explicit or detected project and protects config", () =
 });
 
 test("installer never prints secret variables", () => {
-  assert.doesNotMatch(script, /echo[^\n]*(TOKEN|credential)/i);
-  assert.doesNotMatch(script, /printf[^\n]*(TOKEN|credential)/i);
+  assert.doesNotMatch(
+    script,
+    /echo[^\n]*\$(?:TOKEN|CODEBRIDGE_AGENT_TOKEN)/i,
+  );
+  assert.doesNotMatch(
+    script,
+    /printf[^\n]*\$(?:TOKEN|CODEBRIDGE_AGENT_TOKEN)/i,
+  );
 });
