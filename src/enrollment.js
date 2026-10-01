@@ -67,11 +67,17 @@ export async function beginDeviceEnrollment(base, request, options = {}) {
   if (response.status !== 201) fail("ENROLLMENT_UNAVAILABLE");
   const data = beginSchema.parse(await readJsonLimited(response.body, 16384));
   const verification = new URL(data.verification_uri);
-  if (verification.protocol !== "https:" || verification.origin !== new URL(base).origin)
+  if (
+    verification.protocol !== "https:" ||
+    verification.origin !== new URL(base).origin
+  )
     fail("ENROLLMENT_VERIFICATION_URL");
   if (data.verification_uri_complete) {
     const complete = new URL(data.verification_uri_complete);
-    if (complete.protocol !== "https:" || complete.origin !== verification.origin)
+    if (
+      complete.protocol !== "https:" ||
+      complete.origin !== verification.origin
+    )
       fail("ENROLLMENT_VERIFICATION_URL");
   }
   return {
