@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="800" viewBox="0 0 1500 800" role="img" aria-labelledby="title desc">
+<title id="title">KMJ CodeBridge architecture</title><desc id="desc">AI clients connect to the CodeBridge MCP gateway, which routes scoped requests to outbound-polling authorized device agents.</desc>
+<rect width="1500" height="800" rx="32" fill="#0b0b0d"/>
+<text x="90" y="95" fill="#fff" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="48" font-weight="800">How CodeBridge works</text>
+<text x="90" y="140" fill="#9b9ba3" font-family="Inter,Segoe UI,Arial,sans-serif" font-size="24">Controlled AI access without exposing an inbound device port.</text>
+<g font-family="Inter,Segoe UI,Arial,sans-serif">
+<rect x="90" y="230" width="330" height="330" rx="26" fill="#151519" stroke="#303036"/>
+<text x="130" y="285" fill="#ed010b" font-size="23" font-weight="800">AI CLIENTS</text>
+<text x="130" y="345" fill="#fff" font-size="29" font-weight="700">ChatGPT</text><text x="130" y="395" fill="#fff" font-size="29" font-weight="700">Claude</text><text x="130" y="445" fill="#fff" font-size="29" font-weight="700">Other MCP clients</text>
+<text x="130" y="515" fill="#888891" font-size="20">OAuth / bearer authentication</text>
+<rect x="585" y="230" width="330" height="330" rx="26" fill="#9f0008" stroke="#ed010b" stroke-width="2"/>
+<text x="625" y="285" fill="#fff" font-size="23" font-weight="800">KMJ CODEBRIDGE</text>
+<text x="625" y="350" fill="#fff" font-size="30" font-weight="800">MCP Gateway</text>
+<text x="625" y="407" fill="#ffd7d9" font-size="21">Tenant + project authorization</text>
+<text x="625" y="447" fill="#ffd7d9" font-size="21">Bounded tool contract</text>
+<text x="625" y="487" fill="#ffd7d9" font-size="21">Durable job routing</text>
+<rect x="1080" y="230" width="330" height="330" rx="26" fill="#151519" stroke="#303036"/>
+<text x="1120" y="285" fill="#ed010b" font-size="23" font-weight="800">AUTHORIZED DEVICES</text>
+<text x="1120" y="345" fill="#fff" font-size="29" font-weight="700">Laptop / Workstation</text><text x="1120" y="395" fill="#fff" font-size="29" font-weight="700">VPS / Server</text>
+<text x="1120" y="470" fill="#888891" font-size="20">Agent polls outbound</text><text x="1120" y="505" fill="#888891" font-size="20">No inbound port required</text>
+<path d="M440 395H555" stroke="#ed010b" stroke-width="6"/><path d="M535 380l22 15-22 15" fill="none" stroke="#ed010b" stroke-width="6"/>
+<path d="M935 395H1050" stroke="#ed010b" stroke-width="6"/><path d="M1030 380l22 15-22 15" fill="none" stroke="#ed010b" stroke-width="6"/>
+<path d="M1050 455H935" stroke="#888891" stroke-width="4" stroke-dasharray="10 10"/><path d="M955 440l-22 15 22 15" fill="none" stroke="#888891" stroke-width="4"/>
+<text x="1090" y="615" fill="#9b9ba3" font-size="20">Outbound poll / results</text>
+<g transform="translate(90 650)" font-size="20" font-weight="700">
+<rect width="260" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="28" y="37" fill="#fff">Explicit project scope</text>
+<rect x="285" width="260" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="319" y="37" fill="#fff">Secret redaction</text>
+<rect x="570" width="260" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="602" y="37" fill="#fff">Atomic guarded edits</text>
+<rect x="855" width="300" height="58" rx="18" fill="#151519" stroke="#303036"/><text x="885" y="37" fill="#fff">Admin quality gates</text>
+</g>
+</g>
+</svg>
