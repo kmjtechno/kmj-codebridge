@@ -85,6 +85,73 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   });
   assert.equal(content(r).content, "hello");
 });
+test("directory listing and precise edit accelerate scoped coding", async (t) => {
+  const { client, root } = await setup(t);
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(path.join(root, "src", "app.js"), "const mode = \"slow\";\n");
+  fs.writeFileSync(path.join(root, ".env"), "SECRET=hidden\n");
+
+  const listed = content(
+    await client.callTool({
+      name: "list_directory",
+      arguments: { device: "d1", project: "p1", path: "" },
+    }),
+  );
+  assert.ok(listed.entries.some((entry) => entry.name === "src"));
+  assert.ok(!listed.entries.some((entry) => entry.name === ".env"));
+
+  const args = { device: "d1", project: "p1", path: "src/app.js" };
+  const before = content(
+    await client.callTool({ name: "read_file", arguments: args }),
+  );
+  const edited = await client.callTool({
+    name: "edit_file",
+    arguments: {
+      ...args,
+      oldText: "slow",
+      newText: "fast",
+      expectedHash: before.sha256,
+    },
+  });
+  assert.equal(edited.isError, undefined);
+  assert.equal(
+    content(await client.callTool({ name: "read_file", arguments: args }))
+      .content,
+    "const mode = \"fast\";\n",
+  );
+});
+
+test("precise edit rejects stale hashes and ambiguous replacements", async (t) => {
+  const { client, root } = await setup(t);
+  fs.writeFileSync(path.join(root, "repeat.txt"), "same same\n");
+  const args = { device: "d1", project: "p1", path: "repeat.txt" };
+  const before = content(
+    await client.callTool({ name: "read_file", arguments: args }),
+  );
+  const ambiguous = await client.callTool({
+    name: "edit_file",
+    arguments: {
+      ...args,
+      oldText: "same",
+      newText: "new",
+      expectedHash: before.sha256,
+    },
+  });
+  assert.equal(content(ambiguous).error, "EDIT_TEXT_AMBIGUOUS");
+
+  fs.writeFileSync(path.join(root, "repeat.txt"), "changed\n");
+  const stale = await client.callTool({
+    name: "edit_file",
+    arguments: {
+      ...args,
+      oldText: "changed",
+      newText: "new",
+      expectedHash: before.sha256,
+    },
+  });
+  assert.equal(content(stale).error, "CONTENT_CONFLICT");
+});
+
 test("real read-preview-write-test workflow verifies results", async (t) => {
   const { client } = await setup(t);
   const args = { device: "d1", project: "p1", path: "hello.txt" };
