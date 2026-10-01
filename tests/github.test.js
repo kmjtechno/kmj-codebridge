@@ -166,21 +166,31 @@ test("GitHub bridge creates branches and pull requests without returning the cre
 
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    calls.push({ url: String(url), method: options.method, body: options.body });
+    calls.push({
+      url: String(url),
+      method: options.method,
+      body: options.body,
+    });
     if (String(url).endsWith("/git/refs"))
-      return json({
-        ref: "refs/heads/feature",
-        object: { sha: "a".repeat(40) },
-      }, 201);
+      return json(
+        {
+          ref: "refs/heads/feature",
+          object: { sha: "a".repeat(40) },
+        },
+        201,
+      );
     if (String(url).endsWith("/pulls"))
-      return json({
-        number: 9,
-        title: "Feature",
-        state: "open",
-        head: { sha: "a".repeat(40) },
-        base: { sha: "b".repeat(40) },
-        html_url: "https://github.com/kmjtechno/kmj-codebridge/pull/9",
-      }, 201);
+      return json(
+        {
+          number: 9,
+          title: "Feature",
+          state: "open",
+          head: { sha: "a".repeat(40) },
+          base: { sha: "b".repeat(40) },
+          html_url: "https://github.com/kmjtechno/kmj-codebridge/pull/9",
+        },
+        201,
+      );
     throw new Error("unexpected fetch");
   });
 
