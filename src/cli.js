@@ -3,6 +3,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { startGateway } from "./gateway.js";
 import { startAgent } from "./agent.js";
+const version = JSON.parse(
+  fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
+).version;
 const [mode, file] = process.argv.slice(2);
 if (!["gateway", "agent"].includes(mode) || !file) {
   console.error(
@@ -31,9 +34,7 @@ try {
     }
   const service =
     mode === "gateway" ? await startGateway(config) : await startAgent(config);
-  console.log(
-    `KMJ CodeBridge ${mode} started. Developer preview; version 0.1.0.`,
-  );
+  console.log(`KMJ CodeBridge ${mode} started; version ${version}.`);
   let closing = false;
   for (const sig of ["SIGINT", "SIGTERM"])
     process.on(sig, async () => {
