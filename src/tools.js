@@ -6,6 +6,7 @@ import { identifier } from "./config.js";
 import { ProjectFiles } from "./policy.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
+import { VERSION } from "./version.js";
 const scoped = { device: identifier, project: identifier };
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
@@ -223,7 +224,7 @@ export function createDispatcher(config, runner, licenseProvider) {
         writable: p.writable,
         gates: Object.keys(p.gates),
         connection: "connected",
-        version: "0.1.0",
+        version: VERSION,
       };
     if (name === "list_directory") return p.files.list(a.path);
     if (name === "read_file") {
