@@ -77,6 +77,11 @@ async function setup(t) {
 const content = (r) => JSON.parse(r.content[0].text);
 test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   const { client } = await setup(t);
+  const server = client.getServerVersion();
+  assert.equal(server?.name, "kmj-codebridge");
+  assert.equal(server?.title, "KMJ CodeBridge");
+  assert.equal(server?.version, "0.1.5");
+  assert.equal(server?.websiteUrl, "https://kmjtechno.com");
   const list = await client.listTools();
   assert.ok(list.tools.some((x) => x.name === "read_file"));
   const r = await client.callTool({

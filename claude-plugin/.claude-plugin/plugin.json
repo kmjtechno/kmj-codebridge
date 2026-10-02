@@ -1,12 +1,12 @@
 {
   "name": "kmj-codebridge",
   "displayName": "KMJ CodeBridge",
-  "version": "0.1.0",
-  "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge. Developer preview.",
+  "version": "0.1.5",
+  "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
   "author": {
     "name": "KMJ TECHNO"
   },
-  "homepage": "https://github.com/kmjtechno/kmj-codebridge",
+  "homepage": "https://kmjtechno.com",
   "repository": "https://github.com/kmjtechno/kmj-codebridge",
   "license": "Apache-2.0",
   "keywords": [

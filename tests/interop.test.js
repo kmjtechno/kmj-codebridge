@@ -132,7 +132,9 @@ test("handshake and tools/list are identical for every client identity", async (
     const client = await connect(fullToken, name);
     const server = client.getServerVersion();
     assert.equal(server.name, "kmj-codebridge");
-    assert.equal(server.version, "0.1.0");
+    assert.equal(server.title, "KMJ CodeBridge");
+    assert.equal(server.version, "0.1.5");
+    assert.equal(server.websiteUrl, "https://kmjtechno.com");
     assert.ok(client.getServerCapabilities()?.tools);
     lists.push(JSON.stringify((await client.listTools()).tools));
   }

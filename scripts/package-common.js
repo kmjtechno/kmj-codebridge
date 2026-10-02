@@ -116,7 +116,7 @@ export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
     version: meta.version,
     description: meta.description,
     author: meta.author,
-    homepage: "https://github.com/kmjtechno/kmj-codebridge",
+    homepage: "https://kmjtechno.com",
     repository: "https://github.com/kmjtechno/kmj-codebridge",
     license: meta.license,
     keywords: CLAUDE_KEYWORDS,
@@ -138,7 +138,7 @@ export function writeClaudeMarketplace(marketplaceRoot, meta, source) {
     name: CLAUDE_MARKETPLACE,
     owner: meta.author,
     description:
-      "KMJ TECHNO plugins for Claude Code. Developer preview; requires your own configured CodeBridge gateway.",
+      "KMJ TECHNO plugins for secure, project-scoped AI development.",
     plugins: [{ name: meta.name, source, description: meta.description }],
   });
 }

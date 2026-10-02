@@ -1,23 +1,28 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kmj-codebridge",
-  "version": "0.1.0",
-  "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge. Developer preview.",
+  "version": "0.1.5",
+  "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
   "author": {
     "name": "KMJ TECHNO"
   },
-  "homepage": "https://github.com/kmjtechno/kmj-codebridge",
+  "homepage": "https://kmjtechno.com",
   "repository": "https://github.com/kmjtechno/kmj-codebridge",
   "license": "Apache-2.0",
   "extensions": {
     "com.openai": {
       "interface": {
         "displayName": "KMJ CodeBridge",
-        "shortDescription": "Project-scoped AI coding across your authorized devices",
-        "longDescription": "Connect AI-assisted development to approved projects on your laptops, workstations and VPSs through one authenticated MCP bridge. Inspect code, make guarded file changes, check Git state and run administrator-defined quality gates without exposing an unrestricted shell. Developer preview; hosted onboarding and commercial plans are delivered separately through KMJ TECHNO.",
+        "shortDescription": "Project-scoped AI coding",
+        "longDescription": "Connect AI-assisted development to approved projects on your laptops, workstations and VPSs through one authenticated MCP bridge. Inspect code, make guarded file changes, check Git state and run administrator-defined quality gates without exposing an unrestricted shell.",
         "developerName": "KMJ TECHNO",
-        "category": "Productivity",
-        "capabilities": ["Interactive"],
+        "category": "Developer Tools",
+        "capabilities": [
+          "Inspect authorized projects",
+          "Guarded file changes",
+          "Git status",
+          "Verified quality gates"
+        ],
         "defaultPrompt": [
           "Inspect my authorized project with KMJ CodeBridge.",
           "Show Git status and run my configured quality gates.",
@@ -28,8 +33,20 @@
         "brandColor": "#ED010B",
         "websiteURL": "https://kmjtechno.com",
         "privacyPolicyURL": "https://kmjtechno.com/privacy",
-        "termsOfServiceURL": "https://kmjtechno.com/terms"
+        "termsOfServiceURL": "https://kmjtechno.com/terms",
+        "supportURL": "https://kmjtechno.com",
+        "composerIconDark": "./assets/icon.png",
+        "logoDark": "./assets/logo.png"
       }
     }
-  }
+  },
+  "keywords": [
+    "mcp",
+    "ai-coding",
+    "remote-development",
+    "vps",
+    "project-scoped",
+    "quality-gates",
+    "developer-tools"
+  ]
 }

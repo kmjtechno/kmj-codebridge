@@ -366,7 +366,14 @@ export async function startGateway(rawConfig) {
           return;
         }
       }
-      const mcp = new McpServer({ name: "kmj-codebridge", version: "0.1.0" });
+      const mcp = new McpServer({
+        name: "kmj-codebridge",
+        title: "KMJ CodeBridge",
+        version: "0.1.5",
+        description:
+          "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
+        websiteUrl: "https://kmjtechno.com",
+      });
       for (const [name, d] of Object.entries(definitions))
         mcp.registerTool(
           name,
