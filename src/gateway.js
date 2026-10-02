@@ -1,4 +1,5 @@
 import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
+import { createUserIntrospector } from "./user-access.js";
 import {
   insufficientScopeMeta,
   toolSecurityMeta,
@@ -48,8 +49,11 @@ export async function startGateway(rawConfig) {
       [...config.users, ...config.agents].filter((a) => a.tokenHash).length
   )
     fail("DUPLICATE_IDENTITY");
+  const resolveOAuthUser = config.userIntrospection
+    ? createUserIntrospector(config.userIntrospection)
+    : null;
   const verifyOAuth = config.oauth
-    ? createOAuthVerifier(config.oauth, config.users)
+    ? createOAuthVerifier(config.oauth, config.users, resolveOAuthUser)
     : null;
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const dynamicByToken = new Map();
@@ -57,8 +61,17 @@ export async function startGateway(rawConfig) {
     waiting = new Map(),
     lastSeen = new Map(),
     rate = new Map();
-  const allowedProjects = (user, agent) =>
-    user.devices[agent.id] ?? (agent.dynamic ? agent.projects : undefined);
+  const membershipFor = (user, tenant) =>
+    user.memberships?.find((membership) => membership.tenant === tenant) ??
+    (user.tenant === tenant ? user : undefined);
+  const allowedProjects = (user, agent) => {
+    const membership = membershipFor(user, agent.tenant);
+    if (!membership) return undefined;
+    return membership.devices?.[agent.id] ??
+      (agent.dynamic ? agent.projects : undefined);
+  };
+  const allowedPermissions = (user, agent) =>
+    membershipFor(user, agent.tenant)?.permissions ?? [];
 
   async function identifyAgent(req) {
     const configured = identify(req, config.agents);
@@ -118,6 +131,12 @@ export async function startGateway(rawConfig) {
       data.projects.some(
         (project) =>
           typeof project !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(project),
+      ) ||
+      !Array.isArray(data.permissions) ||
+      data.permissions.length < 1 ||
+      data.permissions.some(
+        (permission) =>
+          !["read", "write", "execute"].includes(permission),
       )
     )
       return null;
@@ -136,6 +155,7 @@ export async function startGateway(rawConfig) {
       tenant: data.tenant_id,
       tokenHash,
       projects: [...new Set(data.projects)],
+      permissions: [...new Set(data.permissions)],
       dynamic: true,
     };
     agents.set(agent.id, agent);
@@ -146,11 +166,13 @@ export async function startGateway(rawConfig) {
   function authorize(user, args, access) {
     const a = agents.get(args.device);
     const projects = a ? allowedProjects(user, a) : undefined;
+    const permissions = a ? allowedPermissions(user, a) : [];
     if (
       !a ||
-      a.tenant !== user.tenant ||
+      !membershipFor(user, a.tenant) ||
       !projects?.includes(args.project) ||
-      !user.permissions.includes(access)
+      !permissions.includes(access) ||
+      (a.permissions && !a.permissions.includes(access))
     )
       fail("ACCESS_DENIED");
     return a;
@@ -186,7 +208,9 @@ export async function startGateway(rawConfig) {
         agent: a.id,
         tool: name,
         args,
-        permissions: user.permissions,
+        permissions: allowedPermissions(user, a).filter(
+          (permission) => !a.permissions || a.permissions.includes(permission),
+        ),
         delivered: false,
         resolve: (value) => {
           clearTimeout(timer);
@@ -384,7 +408,7 @@ export async function startGateway(rawConfig) {
                 const devices = [...agents.values()]
                   .filter((a) => {
                     const projects = allowedProjects(user, a);
-                    return a.tenant === user.tenant && projects?.length;
+                    return Boolean(membershipFor(user, a.tenant) && projects?.length);
                   })
                   .map((a) => ({
                     id: a.id,
