@@ -2,7 +2,7 @@ import { createLocalJWKSet, createRemoteJWKSet, jwtVerify } from "jose";
 export const scopes = ["read", "write", "execute"].map(
   (p) => `codebridge:${p}`,
 );
-export function createOAuthVerifier(config, users) {
+export function createOAuthVerifier(config, users, resolveUser) {
   const keys = config.jwksUri
     ? createRemoteJWKSet(new URL(config.jwksUri), {
         timeoutDuration: 3000,
@@ -26,15 +26,27 @@ export function createOAuthVerifier(config, users) {
         clockTolerance: 0,
       });
       if (payload.iat > Math.floor(Date.now() / 1000)) return null;
-      const user = users.find((u) => u.subject === payload.sub);
+      const user =
+        users.find((u) => u.subject === payload.sub) ??
+        (resolveUser ? await resolveUser(authorization, payload.sub) : null);
       if (!user || typeof payload.scope !== "string") return null;
       const granted = new Set(payload.scope.split(" "));
+      const filterPermissions = (permissions) =>
+        permissions.filter((permission) =>
+          granted.has(`codebridge:${permission}`),
+        );
+      const memberships = user.memberships?.map((membership) => ({
+        ...membership,
+        permissions: filterPermissions(membership.permissions),
+      }));
+      const permissions = memberships
+        ? [...new Set(memberships.flatMap((membership) => membership.permissions))]
+        : filterPermissions(user.permissions);
       return {
         ...user,
+        ...(memberships ? { memberships } : {}),
         grantedScopes: [...granted],
-        permissions: user.permissions.filter((p) =>
-          granted.has(`codebridge:${p}`),
-        ),
+        permissions,
       };
     } catch {
       return null;
