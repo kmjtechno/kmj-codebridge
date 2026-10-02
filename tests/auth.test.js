@@ -42,20 +42,24 @@ test("OAuth permissions intersect scopes and server ACL", async () => {
 
 test("OAuth verifier can resolve licensed customer memberships dynamically", async () => {
   let calls = 0;
-  const dynamic = createOAuthVerifier(config, [], async (authorization, subject) => {
-    calls++;
-    assert.match(authorization, /^Bearer /);
-    assert.equal(subject, "subject-1");
-    return {
-      id: "dynamic-user",
-      subject,
-      memberships: [
-        { tenant: "tenant-a", permissions: ["read", "write", "execute"] },
-      ],
-      permissions: ["read", "write", "execute"],
-      dynamic: true,
-    };
-  });
+  const dynamic = createOAuthVerifier(
+    config,
+    [],
+    async (authorization, subject) => {
+      calls++;
+      assert.match(authorization, /^Bearer /);
+      assert.equal(subject, "subject-1");
+      return {
+        id: "dynamic-user",
+        subject,
+        memberships: [
+          { tenant: "tenant-a", permissions: ["read", "write", "execute"] },
+        ],
+        permissions: ["read", "write", "execute"],
+        dynamic: true,
+      };
+    },
+  );
   const user = await dynamic("Bearer " + (await token()));
   assert.equal(calls, 1);
   assert.deepEqual(user.permissions, ["read", "execute"]);
