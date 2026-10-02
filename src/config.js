@@ -101,7 +101,11 @@ export const gatewaySchema = z
         message: "At least one user is required without OAuth",
       });
     }
-    if (!config.oauth && !config.agentIntrospection && config.agents.length === 0) {
+    if (
+      !config.oauth &&
+      !config.agentIntrospection &&
+      config.agents.length === 0
+    ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         message: "At least one agent or agent introspection endpoint is required",
@@ -125,7 +129,11 @@ export const gatewaySchema = z
     }
   })
   .transform((config) => {
-    if (!config.userIntrospection && config.oauth && config.users.length === 0) {
+    if (
+      !config.userIntrospection &&
+      config.oauth &&
+      config.users.length === 0
+    ) {
       config.userIntrospection = {
         endpoint: new URL(
           "/api/codebridge/v1/user-access/introspect",
