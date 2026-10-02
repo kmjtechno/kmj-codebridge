@@ -544,6 +544,7 @@ test("dynamically enrolled agent introspects once then serves MCP tools from cac
         device_id: "dyn1",
         tenant_id: "t1",
         projects: ["p1"],
+        permissions: ["read", "write", "execute"],
       });
     }
     return originalFetch(url, options);
