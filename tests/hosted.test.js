@@ -51,12 +51,32 @@ test("hosted gateway starts and protects MCP over real HTTP", async () => {
       headers: { host: "bridge.example" },
     });
     assert.equal(health.status, 200);
-    const denied = await httpRequest(url + "/mcp", {
+    const deniedDiscovery = await httpRequest(url + "/mcp", {
       method: "POST",
       headers: { host: "bridge.example", "content-type": "application/json" },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "oauth-probe", version: "1.0.0" },
+        },
+      }),
+    });
+    assert.equal(deniedDiscovery.status, 401);
+    assert.match(
+      deniedDiscovery.headers.get("www-authenticate"),
+      /resource_metadata/,
+    );
+
+    const denied = await httpRequest(url + "/mcp", {
+      method: "POST",
+      headers: { host: "bridge.example", "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
         method: "tools/call",
         params: { name: "list_devices", arguments: {} },
       }),
