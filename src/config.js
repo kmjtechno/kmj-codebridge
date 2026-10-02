@@ -110,7 +110,8 @@ export const gatewaySchema = z
     ) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: "At least one agent or agent introspection endpoint is required",
+        message:
+          "At least one agent or agent introspection endpoint is required",
       });
     }
     const names = new Set();
