@@ -3,12 +3,12 @@
   "owner": {
     "name": "KMJ TECHNO"
   },
-  "description": "KMJ TECHNO plugins for Claude Code. Developer preview; requires your own configured CodeBridge gateway.",
+  "description": "KMJ TECHNO plugins for secure, project-scoped AI development.",
   "plugins": [
     {
       "name": "kmj-codebridge",
       "source": "./claude-plugin",
-      "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge. Developer preview."
+      "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge."
     }
   ]
 }
