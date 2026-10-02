@@ -5,7 +5,7 @@ import { createUserIntrospector } from "../src/user-access.js";
 test(
   "licensed user introspection validates and caches memberships",
   async (t) => {
-      const originalFetch = globalThis.fetch;
+    const originalFetch = globalThis.fetch;
     let calls = 0;
     t.mock.method(globalThis, "fetch", async (url, options) => {
       if (
@@ -41,8 +41,8 @@ test(
       "write",
       "execute",
     ]);
-      assert.equal(second.id, first.id);
-      assert.equal(calls, 1);
+    assert.equal(second.id, first.id);
+    assert.equal(calls, 1);
   },
 );
 
