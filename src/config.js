@@ -92,7 +92,9 @@ export const gatewaySchema = z
         }),
       )
       .default([]),
-    agents: z.array(z.object({ id, tenant: id, tokenHash: digest })).default([]),
+    agents: z
+      .array(z.object({ id, tenant: id, tokenHash: digest }))
+      .default([]),
   })
   .superRefine((config, ctx) => {
     if (!config.oauth && config.users.length === 0) {
