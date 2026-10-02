@@ -69,6 +69,12 @@ export const gatewaySchema = z
         cacheSeconds: z.number().int().min(5).max(300).default(60),
       })
       .optional(),
+    userIntrospection: z
+      .object({
+        endpoint: httpsUrl,
+        cacheSeconds: z.number().int().min(5).max(300).default(30),
+      })
+      .optional(),
     host: z.string().default("127.0.0.1"),
     port: z.number().int().min(0).max(65535).default(8787),
     deviceTimeoutMs: z.number().int().min(100).max(120000).default(15000),
@@ -85,10 +91,29 @@ export const gatewaySchema = z
           permissions: z.array(permission),
         }),
       )
-      .min(1),
-    agents: z.array(z.object({ id, tenant: id, tokenHash: digest })).min(1),
+      .default([]),
+    agents: z
+      .array(z.object({ id, tenant: id, tokenHash: digest }))
+      .default([]),
   })
   .superRefine((config, ctx) => {
+    if (!config.oauth && config.users.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "At least one user is required without OAuth",
+      });
+    }
+    if (
+      !config.oauth &&
+      !config.agentIntrospection &&
+      config.agents.length === 0
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          "At least one agent or agent introspection endpoint is required",
+      });
+    }
     const names = new Set();
     const subjects = new Set();
     for (const user of config.users) {
@@ -107,6 +132,19 @@ export const gatewaySchema = z
     }
   })
   .transform((config) => {
+    if (
+      !config.userIntrospection &&
+      config.oauth &&
+      config.users.length === 0
+    ) {
+      config.userIntrospection = {
+        endpoint: new URL(
+          "/api/codebridge/v1/user-access/introspect",
+          config.oauth.issuer,
+        ).href,
+        cacheSeconds: 30,
+      };
+    }
     if (!config.agentIntrospection && config.oauth) {
       config.agentIntrospection = {
         endpoint: new URL(
