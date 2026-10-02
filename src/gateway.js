@@ -12,6 +12,7 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { gatewaySchema } from "./config.js";
 import { definitions } from "./tools.js";
 import { fail, publicError } from "./errors.js";
+import { VERSION } from "./version.js";
 function identify(req, records) {
   const raw = req.headers.authorization;
   if (
@@ -263,7 +264,7 @@ export async function startGateway(rawConfig) {
         return;
       }
       if (req.url === "/healthz" && req.method === "GET") {
-        json(res, 200, { status: "ok", version: "0.1.0" });
+        json(res, 200, { status: "ok", version: VERSION });
         return;
       }
       if (req.url?.startsWith("/agent/")) {
@@ -339,12 +340,14 @@ export async function startGateway(rawConfig) {
         return;
       }
       const data = await body(req);
-      const publicDiscovery = [
-        "initialize",
-        "notifications/initialized",
-        "tools/list",
-        "ping",
-      ].includes(data?.method);
+      const publicDiscovery =
+        !config.oauth &&
+        [
+          "initialize",
+          "notifications/initialized",
+          "tools/list",
+          "ping",
+        ].includes(data?.method);
       const user = verifyOAuth
         ? await verifyOAuth(req.headers.authorization)
         : identify(req, config.users);

@@ -1,6 +1,6 @@
 # Delivery status
 
-Version 0.1.0 is a developer preview. The full nine-phase roadmap is not complete.
+Version 0.1.6 is a developer preview. The full nine-phase roadmap is not complete.
 
 | Area         | Implemented here                                                        | Still required                                                             |
 | ------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
