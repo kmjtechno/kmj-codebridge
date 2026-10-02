@@ -84,7 +84,9 @@ export function createUserIntrospector(config) {
       id: `oauth-${tokenHash.slice(0, 24)}`,
       subject,
       memberships,
-      permissions: [...new Set(memberships.flatMap((item) => item.permissions))],
+      permissions: [
+        ...new Set(memberships.flatMap((item) => item.permissions)),
+      ],
       dynamic: true,
     };
     cache.set(tokenHash, { user, verifiedAt: Date.now() });
