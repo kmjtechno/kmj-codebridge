@@ -40,7 +40,11 @@ export function createOAuthVerifier(config, users, resolveUser) {
         permissions: filterPermissions(membership.permissions),
       }));
       const permissions = memberships
-        ? [...new Set(memberships.flatMap((membership) => membership.permissions))]
+        ? [
+            ...new Set(
+              memberships.flatMap((membership) => membership.permissions),
+            ),
+          ]
         : filterPermissions(user.permissions);
       return {
         ...user,
