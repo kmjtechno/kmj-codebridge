@@ -339,12 +339,14 @@ export async function startGateway(rawConfig) {
         return;
       }
       const data = await body(req);
-      const publicDiscovery = [
-        "initialize",
-        "notifications/initialized",
-        "tools/list",
-        "ping",
-      ].includes(data?.method);
+      const publicDiscovery =
+        !config.oauth &&
+        [
+          "initialize",
+          "notifications/initialized",
+          "tools/list",
+          "ping",
+        ].includes(data?.method);
       const user = verifyOAuth
         ? await verifyOAuth(req.headers.authorization)
         : identify(req, config.users);
