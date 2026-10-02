@@ -67,8 +67,10 @@ export async function startGateway(rawConfig) {
   const allowedProjects = (user, agent) => {
     const membership = membershipFor(user, agent.tenant);
     if (!membership) return undefined;
-    return membership.devices?.[agent.id] ??
-      (agent.dynamic ? agent.projects : undefined);
+    return (
+      membership.devices?.[agent.id] ??
+      (agent.dynamic ? agent.projects : undefined)
+    );
   };
   const allowedPermissions = (user, agent) =>
     membershipFor(user, agent.tenant)?.permissions ?? [];
@@ -135,8 +137,7 @@ export async function startGateway(rawConfig) {
       !Array.isArray(data.permissions) ||
       data.permissions.length < 1 ||
       data.permissions.some(
-        (permission) =>
-          !["read", "write", "execute"].includes(permission),
+        (permission) => !["read", "write", "execute"].includes(permission),
       )
     )
       return null;
@@ -408,7 +409,9 @@ export async function startGateway(rawConfig) {
                 const devices = [...agents.values()]
                   .filter((a) => {
                     const projects = allowedProjects(user, a);
-                    return Boolean(membershipFor(user, a.tenant) && projects?.length);
+                    return Boolean(
+                      membershipFor(user, a.tenant) && projects?.length,
+                    );
                   })
                   .map((a) => ({
                     id: a.id,
