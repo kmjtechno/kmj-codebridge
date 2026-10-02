@@ -180,9 +180,11 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
         params: {},
       }),
     });
-    assert.equal(discovered.status, 200);
-    const discoveryResult = await discovered.json();
-    assert.ok(discoveryResult.result.tools.length > 0);
+    assert.equal(discovered.status, 401);
+    assert.match(
+      discovered.headers.get("www-authenticate"),
+      /resource_metadata=/,
+    );
 
     const denied = await fetch(gateway.url + "/mcp", {
       method: "POST",
