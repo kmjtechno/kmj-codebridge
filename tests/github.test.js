@@ -221,6 +221,43 @@ test("GitHub bridge creates branches and pull requests without returning the cre
   assert.equal(calls.filter((c) => c.method === "POST").length, 2);
 });
 
+test("GitHub bridge supports credential-free reads only for explicitly public mode", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ url: String(url), options });
+    return json({
+      full_name: "kmjtechno/kmj-codebridge",
+      default_branch: "main",
+      private: false,
+      archived: false,
+      visibility: "public",
+      updated_at: "2026-10-03T00:00:00Z",
+    });
+  });
+
+  const dispatch = createGitHubBridge({
+    apiBase: "https://api.github.com/",
+    publicReadOnly: true,
+    repositories: ["kmjtechno/kmj-codebridge"],
+    cacheSeconds: 30,
+  });
+
+  const repo = await dispatch("github_repository", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(repo.private, false);
+  assert.equal(calls[0].options.headers.authorization, undefined);
+
+  await assert.rejects(
+    dispatch("github_create_branch", {
+      repository: "kmjtechno/kmj-codebridge",
+      branch: "no-write",
+      sha: "a".repeat(40),
+    }),
+    /GITHUB_WRITE_DISABLED/,
+  );
+});
+
 test("GitHub bridge fails closed when configured credential is missing", () => {
   delete process.env.CODEBRIDGE_MISSING_GITHUB_TOKEN;
   assert.throws(
