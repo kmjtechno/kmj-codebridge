@@ -135,10 +135,10 @@ test("installer migrates existing config without exposing or redirecting the sup
   assert.match(script, /c\.supervisorSocket=expected/);
   assert.match(script, /chmod 0600 "\$CONFIG"/);
   assert.match(script, /chown "\$SERVICE_USER:\$SERVICE_GROUP" "\$CONFIG"/);
-  assert.doesNotMatch(
-    script,
-    /supervisorSocket:\s*process\.env\.[A-Z_]*PATH(?!.*SUPERVISOR_SOCKET_PATH)/,
-  );
+  const supervisorEnvRefs = [
+    ...script.matchAll(/supervisorSocket:\s*process\.env\.([A-Z_]+)/g),
+  ].map((match) => match[1]);
+  assert.deepEqual([...new Set(supervisorEnvRefs)], ["SUPERVISOR_SOCKET_PATH"]);
 });
 
 test("installer rollback restores or removes supervisor units consistently", () => {
