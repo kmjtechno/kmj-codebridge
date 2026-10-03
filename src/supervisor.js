@@ -183,10 +183,13 @@ export async function startSupervisor({
     const finish = () => {
       active = Math.max(0, active - 1);
       if (fd !== null && active === 0 && !closing) {
-        idleTimer = setTimeout(() => {
-          closing = true;
-          server.close();
-        }, Math.max(1000, idleMs));
+        idleTimer = setTimeout(
+          () => {
+            closing = true;
+            server.close();
+          },
+          Math.max(1000, idleMs),
+        );
         idleTimer.unref?.();
       }
     };
@@ -204,9 +207,12 @@ export async function startSupervisor({
       try {
         const request = JSON.parse(raw);
         const { response, afterSend } = await handler(request);
-        socket.end(JSON.stringify({ ok: true, result: response }) + "\n", () => {
-          if (afterSend) setTimeout(afterSend, 750).unref?.();
-        });
+        socket.end(
+          JSON.stringify({ ok: true, result: response }) + "\n",
+          () => {
+            if (afterSend) setTimeout(afterSend, 750).unref?.();
+          },
+        );
       } catch (error) {
         socket.end(
           JSON.stringify({ ok: false, error: publicError(error).error }) + "\n",
