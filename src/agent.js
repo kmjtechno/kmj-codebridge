@@ -10,6 +10,7 @@ import { supervisorRequest } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
+import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
 export async function startAgent(rawConfig) {
   const c = agentSchema.parse(rawConfig);
   const url = new URL(c.gateway);
@@ -59,15 +60,7 @@ export async function startAgent(rawConfig) {
     )
       fail("STATE_INSIDE_PROJECT");
   }
-  const lock = path.join(state, "agent.lock");
-  let fd;
-  try {
-    fd = fs.openSync(lock, "wx", 0o600);
-  } catch {
-    fail("AGENT_ALREADY_RUNNING_OR_STALE_LOCK");
-  }
-  fs.writeFileSync(fd, String(process.pid));
-  fs.closeSync(fd);
+  const agentLock = acquireAgentLock(state);
   let runner;
   let autopilot;
   try {
@@ -75,7 +68,7 @@ export async function startAgent(rawConfig) {
     autopilot = new AutopilotJournal(path.join(state, "autopilot"));
   } catch (e) {
     if (runner) await runner.close();
-    fs.unlinkSync(lock);
+    releaseAgentLock(agentLock);
     throw e;
   }
   const licenseState = path.join(state, "license-state.json");
@@ -248,7 +241,7 @@ export async function startAgent(rawConfig) {
       controller.abort();
       await loop;
       await runner.close();
-      fs.unlinkSync(lock);
+      releaseAgentLock(agentLock);
     },
   };
 }
