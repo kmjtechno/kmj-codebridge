@@ -252,6 +252,19 @@ export async function startGateway(rawConfig) {
         json(res, 403, { error: "ORIGIN_DENIED" });
         return;
       }
+      if (
+        config.openaiAppsChallenge &&
+        req.url === "/.well-known/openai-apps-challenge" &&
+        req.method === "GET"
+      ) {
+        res.writeHead(200, {
+          "content-type": "text/plain; charset=utf-8",
+          "cache-control": "no-store",
+          "x-content-type-options": "nosniff",
+        });
+        res.end(config.openaiAppsChallenge);
+        return;
+      }
       // RFC 9728: the path-suffixed location is canonical for the /mcp
       // resource; the root location is kept for existing clients.
       if (
