@@ -3,37 +3,54 @@ import fs from "node:fs";
 import path from "node:path";
 import { startGateway } from "./gateway.js";
 import { startAgent } from "./agent.js";
+import { startSupervisor } from "./supervisor.js";
 const version = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
 const [mode, file] = process.argv.slice(2);
-if (!["gateway", "agent"].includes(mode) || !file) {
+if (
+  !["gateway", "agent", "supervisor"].includes(mode) ||
+  (mode === "supervisor" ? Boolean(file) : !file)
+) {
   console.error(
-    "Usage: node src/cli.js gateway|agent /absolute/path/config.json",
+    "Usage: node src/cli.js gateway|agent /absolute/path/config.json | supervisor",
   );
   process.exit(2);
 }
 try {
-  const absolute = path.resolve(file);
-  const stat = fs.statSync(absolute);
-  if (process.platform !== "win32" && stat.mode & 0o077)
-    throw Error("Configuration must have mode 0600.");
-  const config = JSON.parse(fs.readFileSync(absolute, "utf8"));
-  if (mode === "agent")
-    for (const p of config.projects ?? []) {
-      const relative = path.relative(
-        fs.realpathSync(p.root),
-        fs.realpathSync(absolute),
-      );
-      if (
-        !relative.startsWith(".." + path.sep) &&
-        relative !== ".." &&
-        !path.isAbsolute(relative)
-      )
-        throw Error("Agent configuration must be outside authorized projects.");
-    }
-  const service =
-    mode === "gateway" ? await startGateway(config) : await startAgent(config);
+  let service;
+  if (mode === "supervisor") {
+    const listenPid = Number(process.env.LISTEN_PID ?? 0);
+    const listenFds = Number(process.env.LISTEN_FDS ?? 0);
+    if (listenPid !== process.pid || listenFds !== 1)
+      throw Error("Supervisor requires one systemd-activated socket.");
+    service = await startSupervisor({ fd: 3 });
+  } else {
+    const absolute = path.resolve(file);
+    const stat = fs.statSync(absolute);
+    if (process.platform !== "win32" && stat.mode & 0o077)
+      throw Error("Configuration must have mode 0600.");
+    const config = JSON.parse(fs.readFileSync(absolute, "utf8"));
+    if (mode === "agent")
+      for (const p of config.projects ?? []) {
+        const relative = path.relative(
+          fs.realpathSync(p.root),
+          fs.realpathSync(absolute),
+        );
+        if (
+          !relative.startsWith(".." + path.sep) &&
+          relative !== ".." &&
+          !path.isAbsolute(relative)
+        )
+          throw Error(
+            "Agent configuration must be outside authorized projects.",
+          );
+      }
+    service =
+      mode === "gateway"
+        ? await startGateway(config)
+        : await startAgent(config);
+  }
   console.log(`KMJ CodeBridge ${mode} started; version ${version}.`);
   let closing = false;
   for (const sig of ["SIGINT", "SIGTERM"])
