@@ -5,20 +5,35 @@ file records verified capability, not a percentage-complete claim.
 
 ## Verified now
 
-| Area | Verified state |
-| --- | --- |
-| MCP core | Official SDK Streamable HTTP gateway, bounded tool contract, tenant/device/project authorization, guarded writes, jobs, and interop tests |
-| Public endpoint | `https://kmjtechno.com/mcp` is the production MCP resource used by current client setup |
-| OAuth | Protected-resource discovery and KMJ account authorization work in a real Claude Code OAuth session and a Claude web custom connector |
-| ChatGPT | The connected KMJ CodeBridge tool surface is callable from the current ChatGPT integration; device availability remains independent |
-| Claude Code | Real OAuth login completed against the hosted endpoint; repository package validation remains enforced in CI |
-| Claude web | Custom connector added by URL, authenticated, and exposed the CodeBridge tool permissions |
-| Claude Desktop | Normal-account custom connector uses the same hosted endpoint. Third-party inference Gateway profiles must add the MCP server under Inference configuration → Connectors; this path still needs a recorded end-to-end tool call |
-| Devices | Outbound agent, dynamic device introspection, verifier-bound pairing client, hardened systemd service, and restricted socket-activated Supervisor are implemented |
-| Crash recovery | Agent state lock now recovers automatically only when staleness is provable; exact-head Linux/Windows/client/distribution CI passed before merge |
-| Main Platform | Source contains CodeBridge OAuth/OIDC, device pairing/redeem, user/device introspection, entitlement/renewal services, account UI, and regression tests |
-| Updates | Signed immutable release verification, atomic activation/rollback foundation, and anti-rollback sequence checks are implemented |
-| Distribution | OpenAI package, hosted Claude plugin, endpoint-specific Claude package generator, credential scan, and package contract gates |
+- **MCP core:** official SDK Streamable HTTP gateway, bounded tool contract,
+  tenant/device/project authorization, guarded writes, jobs, and interop tests.
+- **Public endpoint:** `https://kmjtechno.com/mcp` is the production MCP
+  resource used by current client setup.
+- **OAuth:** protected-resource discovery and KMJ account authorization work in
+  a real Claude Code OAuth session and a Claude web custom connector.
+- **ChatGPT:** the connected KMJ CodeBridge tool surface is callable from the
+  current ChatGPT integration; device availability remains independent.
+- **Claude Code:** real OAuth login completed against the hosted endpoint;
+  repository package validation remains enforced in CI.
+- **Claude web:** custom connector added by URL, authenticated, and exposed the
+  CodeBridge tool permissions.
+- **Claude Desktop:** normal-account mode uses the hosted endpoint. A
+  third-party inference Gateway profile must add CodeBridge under Inference
+  configuration → Connectors; that path still needs a recorded real tool call.
+- **Devices:** outbound agent, dynamic device introspection, verifier-bound
+  pairing client, hardened systemd service, and restricted socket-activated
+  Supervisor are implemented.
+- **Crash recovery:** the agent state lock now recovers automatically only when
+  staleness is provable; exact-head Linux, Windows, client, and distribution CI
+  passed before merge.
+- **Main Platform:** source contains CodeBridge OAuth/OIDC, device pairing and
+  redemption, user/device introspection, entitlement/renewal services, account
+  UI, and regression tests.
+- **Updates:** signed immutable release verification, atomic
+  activation/rollback foundation, and anti-rollback sequence checks are
+  implemented.
+- **Distribution:** OpenAI package, hosted Claude plugin, endpoint-specific
+  Claude package generator, credential scan, and package contract gates.
 
 ## Still requiring production evidence or external approval
 
