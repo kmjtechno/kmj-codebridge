@@ -1,6 +1,6 @@
 import net from "node:net";
 import path from "node:path";
-import { fail } from "./errors.js";
+import { CodeBridgeError, fail } from "./errors.js";
 
 export const SUPERVISOR_SOCKET = "/run/kmj-codebridge/supervisor.sock";
 const MAX_RESPONSE_BYTES = 65536;
@@ -25,7 +25,7 @@ export async function supervisorRequest(
       if (settled) return;
       settled = true;
       socket.destroy();
-      reject(Object.assign(Error("SUPERVISOR_TIMEOUT"), { code: "SUPERVISOR_TIMEOUT" }));
+      reject(new CodeBridgeError("SUPERVISOR_TIMEOUT"));
     }, Math.max(100, Math.min(timeoutMs, 10000)));
 
     const done = (fn, value) => {
@@ -42,9 +42,7 @@ export async function supervisorRequest(
     socket.on("data", (chunk) => {
       received = Buffer.concat([received, chunk]);
       if (received.length > MAX_RESPONSE_BYTES) {
-        done(reject, Object.assign(Error("SUPERVISOR_RESPONSE_TOO_LARGE"), {
-          code: "SUPERVISOR_RESPONSE_TOO_LARGE",
-        }));
+        done(reject, new CodeBridgeError("SUPERVISOR_RESPONSE_TOO_LARGE"));
         return;
       }
       const newline = received.indexOf(10);
@@ -57,25 +55,21 @@ export async function supervisorRequest(
             /^SUPERVISOR_[A-Z_]+$/.test(body.error)
               ? body.error
               : "SUPERVISOR_REQUEST_FAILED";
-          done(reject, Object.assign(Error(code), { code }));
+          done(reject, new CodeBridgeError(code));
           return;
         }
         done(resolve, body.result);
       } catch {
         done(
           reject,
-          Object.assign(Error("SUPERVISOR_INVALID_RESPONSE"), {
-            code: "SUPERVISOR_INVALID_RESPONSE",
-          }),
+          new CodeBridgeError("SUPERVISOR_INVALID_RESPONSE"),
         );
       }
     });
     socket.on("error", () => {
       done(
         reject,
-        Object.assign(Error("SUPERVISOR_UNAVAILABLE"), {
-          code: "SUPERVISOR_UNAVAILABLE",
-        }),
+        new CodeBridgeError("SUPERVISOR_UNAVAILABLE"),
       );
     });
   });
