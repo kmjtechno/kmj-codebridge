@@ -19,22 +19,32 @@ function fingerprint(value) {
 }
 
 export class AutopilotJournal {
-  constructor(dir, { maxTasks = 500 } = {}) {
+  constructor(dir, { maxTasks = 500, maxAttempts = 10 } = {}) {
     this.dir = dir;
     this.maxTasks = maxTasks;
+    this.maxAttempts = maxAttempts;
     this.file = path.join(dir, "state.json");
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.state = this.load();
 
     let recovered = false;
+    const exhausted = [];
     for (const task of this.state.tasks) {
       if (task.state !== "running") continue;
-      task.state = "queued";
       task.recoveries = (task.recoveries ?? 0) + 1;
       task.updatedAt = new Date().toISOString();
-      task.lastReason = "agent_restart";
+      if (task.attempts >= this.maxAttempts) {
+        task.state = "failed";
+        task.result = `gave up after ${task.attempts} attempts`;
+        task.lastReason = "max_attempts_exceeded";
+        exhausted.push(task);
+      } else {
+        task.state = "queued";
+        task.lastReason = "agent_restart";
+      }
       recovered = true;
     }
+    for (const task of exhausted) this.failDependents(task, "failed");
     if (recovered) this.persist();
   }
 
@@ -140,16 +150,15 @@ export class AutopilotJournal {
       if (existing.fingerprint !== fp) fail("AUTOPILOT_IDEMPOTENCY_CONFLICT");
       return this.public(existing);
     }
-    this.pruneTerminalForSpace();
-    if (this.state.tasks.length >= this.maxTasks)
-      fail("AUTOPILOT_JOURNAL_FULL");
-
     for (const dependency of normalized.dependsOn) {
       const found = this.state.tasks.find(
         (task) => task.id === dependency && task.project === project,
       );
       if (!found) fail("AUTOPILOT_DEPENDENCY_NOT_FOUND");
     }
+    this.pruneTerminalForSpace();
+    if (this.state.tasks.length >= this.maxTasks)
+      fail("AUTOPILOT_JOURNAL_FULL");
 
     const now = new Date().toISOString();
     const task = {
@@ -241,8 +250,33 @@ export class AutopilotJournal {
     task.state = state;
     task.result = cleanText(result, 8192);
     task.updatedAt = new Date().toISOString();
+    if (state !== "succeeded") this.failDependents(task, state);
     this.persist();
     return this.public(task);
+  }
+
+  failDependents(failedTask, state) {
+    const now = new Date().toISOString();
+    const queue = [failedTask.id];
+    const seen = new Set(queue);
+    while (queue.length) {
+      const id = queue.shift();
+      for (const candidate of this.state.tasks) {
+        if (
+          candidate.project !== failedTask.project ||
+          seen.has(candidate.id) ||
+          TERMINAL.has(candidate.state) ||
+          !candidate.dependsOn.includes(id)
+        )
+          continue;
+        seen.add(candidate.id);
+        candidate.state = "failed";
+        candidate.result = `dependency ${id} ended as ${state}`;
+        candidate.lastReason = "dependency_failed";
+        candidate.updatedAt = now;
+        queue.push(candidate.id);
+      }
+    }
   }
 
   status(project, limit = 50) {
