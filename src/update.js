@@ -1,4 +1,8 @@
-import { createHash, createPublicKey, verify as verifySignature } from "node:crypto";
+import {
+  createHash,
+  createPublicKey,
+  verify as verifySignature,
+} from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
 import { fail } from "./errors.js";
@@ -22,9 +26,7 @@ export const releaseManifestSchema = z
     schema: z.literal(1),
     product: z.literal("KMJ CodeBridge"),
     channel: z.enum(["stable", "beta"]),
-    version: z
-      .string()
-      .regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/),
+    version: z.string().regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/),
     revision: z.string().regex(/^[a-f0-9]{40}$/),
     archive: httpsArchive,
     sha256: z.string().regex(/^[a-f0-9]{64}$/),
@@ -57,9 +59,7 @@ export function verifyReleaseManifest(rawManifest, rawSignature, trustedKeys) {
   const bytes = manifestBytes(rawManifest);
   let manifest;
   try {
-    manifest = releaseManifestSchema.parse(
-      JSON.parse(bytes.toString("utf8")),
-    );
+    manifest = releaseManifestSchema.parse(JSON.parse(bytes.toString("utf8")));
   } catch {
     fail("UPDATE_MANIFEST_INVALID");
   }
