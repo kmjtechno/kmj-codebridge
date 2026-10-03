@@ -18,6 +18,16 @@ NODE_DIR="${CODEBRIDGE_NODE_DIR:-/opt/kmj-codebridge-node}"
 NODE_VERSION="${CODEBRIDGE_NODE_VERSION:-24.21.0}"
 CONFIG="$CONFIG_DIR/agent.json"
 SERVICE="kmj-codebridge-agent.service"
+SERVICE_FILE="/etc/systemd/system/$SERVICE"
+ROLLBACK_SERVICE="${SERVICE_FILE}.rollback-codebridge"
+SUPERVISOR_SERVICE="kmj-codebridge-supervisor.service"
+SUPERVISOR_SOCKET_UNIT="kmj-codebridge-supervisor.socket"
+SUPERVISOR_SERVICE_FILE="/etc/systemd/system/$SUPERVISOR_SERVICE"
+SUPERVISOR_SOCKET_FILE="/etc/systemd/system/$SUPERVISOR_SOCKET_UNIT"
+SUPERVISOR_SOCKET_PATH="/run/kmj-codebridge/supervisor.sock"
+ROLLBACK_SUPERVISOR_SERVICE="${SUPERVISOR_SERVICE_FILE}.rollback-codebridge"
+ROLLBACK_SUPERVISOR_SOCKET="${SUPERVISOR_SOCKET_FILE}.rollback-codebridge"
+SUPERVISOR_SOCKET_WAS_ENABLED=0
 ROLLBACK_CODE="${INSTALL_DIR}.rollback"
 ROLLBACK_CONFIG="$CONFIG_DIR/agent.json.rollback"
 ENROLLMENT_RESULT="/run/kmj-codebridge-enrollment-$$.json"
@@ -86,6 +96,9 @@ PROJECT="$(readlink -f "$PROJECT")"
 [[ -n "$SERVICE_USER" ]] || SERVICE_USER="$(stat -c '%U' "$PROJECT")"
 id "$SERVICE_USER" >/dev/null 2>&1 || { echo "Service user does not exist." >&2; exit 2; }
 SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
+if systemctl is-enabled --quiet "$SUPERVISOR_SOCKET_UNIT" 2>/dev/null; then
+  SUPERVISOR_SOCKET_WAS_ENABLED=1
+fi
 
 install_dependencies() {
   local missing=0
@@ -139,6 +152,8 @@ git -C "$NEW_DIR" checkout -q "$REF"
   PATH="$(dirname "$NODE"):$PATH" "$NPM" ci --omit=dev --ignore-scripts
   "$NODE" --check src/agent.js
   "$NODE" --check src/autopilot.js
+  "$NODE" --check src/supervisor.js
+  "$NODE" --check src/supervisor-client.js
   "$NODE" --check src/enrollment.js
   "$NODE" --check scripts/enroll-device.js
 )
@@ -172,7 +187,7 @@ if (( have_config == 0 )); then
 
   [[ -f "$ENROLLMENT_RESULT" ]] || { echo "Enrollment did not return a credential." >&2; exit 1; }
 
-  PROJECT="$PROJECT" PROJECT_ID="$PROJECT_ID" GATEWAY="$GATEWAY" STATE_DIR="$STATE_DIR"   ENROLLMENT_RESULT="$ENROLLMENT_RESULT" "$NODE" <<'NODE'
+  PROJECT="$PROJECT" PROJECT_ID="$PROJECT_ID" GATEWAY="$GATEWAY" STATE_DIR="$STATE_DIR" SUPERVISOR_SOCKET_PATH="$SUPERVISOR_SOCKET_PATH" ENROLLMENT_RESULT="$ENROLLMENT_RESULT" "$NODE" <<'NODE'
 const fs=require("node:fs"),path=require("node:path"),{execFileSync}=require("node:child_process");
 const result=JSON.parse(fs.readFileSync(process.env.ENROLLMENT_RESULT,"utf8"));
 if(!result.agent||typeof result.agent.token!=="string"||result.agent.token.length<32) throw Error("invalid enrollment result");
@@ -192,6 +207,7 @@ const c={
   id:result.agent.id,
   tenant:result.agent.tenant,
   stateDir:process.env.STATE_DIR,
+  supervisorSocket:process.env.SUPERVISOR_SOCKET_PATH,
   pollMs:100,
   projects:[{id:process.env.PROJECT_ID,root,writable:result.permissions.includes("write"),gates}],
   license:{mode:"free"}
@@ -207,23 +223,46 @@ fi
 if [[ -f "$CONFIG" ]]; then
   cp -a "$CONFIG" "$ROLLBACK_CONFIG"
 fi
+
+CONFIG="$CONFIG" SUPERVISOR_SOCKET_PATH="$SUPERVISOR_SOCKET_PATH" "$NODE" <<'NODE'
+const fs=require("node:fs");
+const file=process.env.CONFIG,expected=process.env.SUPERVISOR_SOCKET_PATH;
+const c=JSON.parse(fs.readFileSync(file,"utf8"));
+if(c.supervisorSocket&&c.supervisorSocket!==expected) throw Error("unexpected supervisor socket");
+if(c.supervisorSocket!==expected){
+  c.supervisorSocket=expected;
+  const tmp=file+".supervisor-"+process.pid;
+  const fd=fs.openSync(tmp,"wx",0o600);
+  try{fs.writeFileSync(fd,JSON.stringify(c,null,2)+"\n");fs.fsyncSync(fd)}finally{fs.closeSync(fd)}
+  fs.renameSync(tmp,file);
+}
+NODE
+chmod 0600 "$CONFIG"
+chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
+
 rm -rf "$ROLLBACK_CODE"
 if [[ -d "$INSTALL_DIR" ]]; then
   mv "$INSTALL_DIR" "$ROLLBACK_CODE"
 fi
 mv "$NEW_DIR" "$INSTALL_DIR"
 
-rm -f "$ROLLBACK_SERVICE"
+rm -f "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"
 if [[ -f "$SERVICE_FILE" ]]; then
   cp -a "$SERVICE_FILE" "$ROLLBACK_SERVICE"
+fi
+if [[ -f "$SUPERVISOR_SERVICE_FILE" ]]; then
+  cp -a "$SUPERVISOR_SERVICE_FILE" "$ROLLBACK_SUPERVISOR_SERVICE"
+fi
+if [[ -f "$SUPERVISOR_SOCKET_FILE" ]]; then
+  cp -a "$SUPERVISOR_SOCKET_FILE" "$ROLLBACK_SUPERVISOR_SOCKET"
 fi
 
 write_service() {
 cat >"$SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge Agent
-After=network-online.target
-Wants=network-online.target
+After=network-online.target $SUPERVISOR_SOCKET_UNIT
+Wants=network-online.target $SUPERVISOR_SOCKET_UNIT
 
 [Service]
 Type=simple
@@ -249,11 +288,59 @@ UMask=0077
 WantedBy=multi-user.target
 EOF
 }
+
+write_supervisor_units() {
+cat >"$SUPERVISOR_SOCKET_FILE" <<EOF
+[Unit]
+Description=KMJ CodeBridge Supervisor Socket
+
+[Socket]
+ListenStream=$SUPERVISOR_SOCKET_PATH
+SocketUser=$SERVICE_USER
+SocketGroup=$SERVICE_GROUP
+SocketMode=0600
+DirectoryMode=0711
+RemoveOnStop=true
+Service=$SUPERVISOR_SERVICE
+
+[Install]
+WantedBy=sockets.target
+EOF
+
+cat >"$SUPERVISOR_SERVICE_FILE" <<EOF
+[Unit]
+Description=KMJ CodeBridge Restricted Supervisor
+Requires=$SUPERVISOR_SOCKET_UNIT
+After=$SUPERVISOR_SOCKET_UNIT
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=$NODE $INSTALL_DIR/src/cli.js supervisor
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
+EOF
+}
+
 write_service
+write_supervisor_units
 
 rollback() {
   echo "Update/start verification failed; rolling back CodeBridge." >&2
   systemctl stop "$SERVICE" >/dev/null 2>&1 || true
+  systemctl stop "$SUPERVISOR_SERVICE" >/dev/null 2>&1 || true
+  systemctl stop "$SUPERVISOR_SOCKET_UNIT" >/dev/null 2>&1 || true
   if [[ -d "$ROLLBACK_CODE" ]]; then
     rm -rf "$INSTALL_DIR"
     mv "$ROLLBACK_CODE" "$INSTALL_DIR"
@@ -268,11 +355,32 @@ rollback() {
   else
     rm -f "$SERVICE_FILE"
   fi
+  if [[ -f "$ROLLBACK_SUPERVISOR_SERVICE" ]]; then
+    cp -a "$ROLLBACK_SUPERVISOR_SERVICE" "$SUPERVISOR_SERVICE_FILE"
+  else
+    rm -f "$SUPERVISOR_SERVICE_FILE"
+  fi
+  if [[ -f "$ROLLBACK_SUPERVISOR_SOCKET" ]]; then
+    cp -a "$ROLLBACK_SUPERVISOR_SOCKET" "$SUPERVISOR_SOCKET_FILE"
+  else
+    rm -f "$SUPERVISOR_SOCKET_FILE"
+  fi
   systemctl daemon-reload
+  if (( SUPERVISOR_SOCKET_WAS_ENABLED == 1 )); then
+    systemctl enable --now "$SUPERVISOR_SOCKET_UNIT" >/dev/null 2>&1 || true
+  else
+    systemctl disable --now "$SUPERVISOR_SOCKET_UNIT" >/dev/null 2>&1 || true
+  fi
   systemctl start "$SERVICE" >/dev/null 2>&1 || true
 }
 
 systemctl daemon-reload
+systemctl enable "$SUPERVISOR_SOCKET_UNIT" >/dev/null
+systemctl stop "$SUPERVISOR_SERVICE" >/dev/null 2>&1 || true
+if ! systemctl restart "$SUPERVISOR_SOCKET_UNIT"; then
+  rollback
+  exit 1
+fi
 systemctl enable "$SERVICE" >/dev/null
 START_EPOCH="$(date +%s)"
 if ! systemctl restart "$SERVICE"; then
@@ -310,11 +418,31 @@ if (( connected == 0 )); then
   exit 1
 fi
 
+if ! "$NODE" --input-type=module - "$INSTALL_DIR" <<'NODE'
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+const root=process.argv[2];
+const mod=await import(pathToFileURL(path.join(root,"src/supervisor-client.js")).href);
+const status=await mod.supervisorRequest(
+  mod.SUPERVISOR_SOCKET,
+  {op:"status",service:"agent"},
+  {timeoutMs:5000},
+);
+if(!status||status.activeState!=="active") process.exit(1);
+NODE
+then
+  echo "Supervisor socket/status verification failed; rolling back." >&2
+  journalctl -u "$SUPERVISOR_SERVICE" -n 30 --no-pager >&2 || true
+  rollback
+  exit 1
+fi
+
 rm -rf "$ROLLBACK_CODE"
-rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE"
+rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"
 
 echo "KMJ CodeBridge is installed, enrolled and running."
 echo "Device: $DEVICE"
 echo "Project: $PROJECT"
 echo "Service: systemctl status $SERVICE --no-pager"
+echo "Supervisor: socket-activated at $SUPERVISOR_SOCKET_PATH and idle when unused."
 echo "No inbound VPS port or GitHub Actions runner is required."

@@ -31,14 +31,26 @@ A caller cannot redirect the agent to another local socket. The server protocol 
 
 The server supports systemd socket activation through inherited file descriptor 3. When socket-activated it can exit after an idle window; systemd keeps the listening socket and starts it again on demand, so the Supervisor consumes no long-running CPU while unused.
 
+## One-click installer integration
+
+The VPS installer now provisions the Supervisor as a systemd socket-activated service:
+
+- `kmj-codebridge-supervisor.socket` owns the fixed Unix socket.
+- The socket file is `0600` and owned by the CodeBridge agent service user/group.
+- The parent socket directory is created with traversal-only permissions for non-owners.
+- `kmj-codebridge-supervisor.service` runs as root only when the socket is used and exits after the Supervisor idle window.
+- The Supervisor service is hardened with `NoNewPrivileges`, strict filesystem protection, kernel/control-group protection, `RestrictSUIDSGID`, `LockPersonality` and `AF_UNIX`-only address families.
+- Existing agent configuration is migrated only to the one canonical Supervisor socket path. Any unexpected pre-existing Supervisor path causes the installer to fail closed.
+- Agent and Supervisor unit files are backed up and restored together if installation or live verification fails.
+- Installation completes only after the agent reconnects to the gateway and a local Supervisor status request confirms the agent service is active.
+
 ## Remaining slices
 
-This foundation intentionally does not yet implement update or rollback. Those operations require the signed immutable-release design and must not be added as generic command execution.
+The Supervisor still intentionally does not implement software update or rollback RPCs. Those operations require the signed immutable-release design and must not be added as generic command execution.
 
 Next steps:
 
-1. install and harden the Supervisor systemd socket/service from the one-click installer;
-2. validate live status/log/config/restart behavior on the VPS;
-3. add signed release verification and immutable staging;
-4. expose allowlisted `update_check`, `update`, `rollback` and `release_history`;
-5. use these operations for autonomous recovery without Desktop Commander.
+1. validate live status/log/config/restart behavior on the VPS;
+2. add signed release verification and immutable staging;
+3. expose allowlisted `update_check`, `update`, `rollback` and `release_history`;
+4. use these operations for autonomous recovery without Desktop Commander.
