@@ -8,6 +8,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { startGateway } from "../src/gateway.js";
 import { startAgent } from "../src/agent.js";
+import { VERSION } from "../src/version.js";
 const digest = (s) => createHash("sha256").update(s).digest("hex");
 const userToken = "u".repeat(48),
   agentToken = "a".repeat(48),
@@ -80,7 +81,7 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   const server = client.getServerVersion();
   assert.equal(server?.name, "kmj-codebridge");
   assert.equal(server?.title, "KMJ CodeBridge");
-  assert.equal(server?.version, "0.1.7");
+  assert.equal(server?.version, VERSION);
   assert.equal(server?.websiteUrl, "https://kmjtechno.com");
   const list = await client.listTools();
   assert.ok(list.tools.some((x) => x.name === "read_file"));

@@ -9,6 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import { startGateway } from "../src/gateway.js";
 import { startAgent } from "../src/agent.js";
+import { VERSION } from "../src/version.js";
 import { definitions } from "../src/tools.js";
 
 // Vendor-neutral MCP interoperability contract. ChatGPT, Claude.ai, Claude
@@ -133,7 +134,7 @@ test("handshake and tools/list are identical for every client identity", async (
     const server = client.getServerVersion();
     assert.equal(server.name, "kmj-codebridge");
     assert.equal(server.title, "KMJ CodeBridge");
-    assert.equal(server.version, "0.1.7");
+    assert.equal(server.version, VERSION);
     assert.equal(server.websiteUrl, "https://kmjtechno.com");
     assert.ok(client.getServerCapabilities()?.tools);
     lists.push(JSON.stringify((await client.listTools()).tools));
