@@ -63,4 +63,4 @@ Rollback atomically switches `current` back to `previous` and retains the former
 
 Release transitions are persisted in a bounded, atomically written history journal under the CodeBridge state directory. Ordinary files or links escaping the managed releases directory fail closed instead of being overwritten.
 
-This layer still does not download or extract archives and does not restart services by itself. The Supervisor integration must supply only already signature/hash-verified content and must perform post-switch health verification before considering an update successful.
+This layer still does not download or extract archives and does not restart services by itself. Activation therefore remains side-effect-free with respect to service control until the restricted Supervisor integration is present. The Supervisor integration must supply only already signature/hash-verified content and must perform post-switch health verification before considering an update successful.
