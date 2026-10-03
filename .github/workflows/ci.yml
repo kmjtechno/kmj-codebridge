@@ -20,6 +20,12 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Print exact update Prettier diff
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          npx prettier --write src/update.js tests/update.test.js
+          git diff -- src/update.js tests/update.test.js
+          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
