@@ -7,6 +7,42 @@ import { ProjectFiles } from "./policy.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
+
+const BEARER_BINDING = /Bearer\s+([A-Za-z0-9._~+\/-]+)/gi;
+const KEY_VALUE_BINDING =
+  /(password|secret|token|api[_-]?key)\s*[=:]\s*([^\s,;]+)/gi;
+const PRIVATE_KEY_BINDING =
+  /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g;
+
+export function sensitiveBindings(text) {
+  const bindings = [];
+  for (const match of text.matchAll(BEARER_BINDING))
+    bindings.push(["bearer", match[1]]);
+  for (const match of text.matchAll(KEY_VALUE_BINDING))
+    bindings.push([
+      "kv",
+      match[1].toLowerCase().replace(/[-_]/g, ""),
+      match[2],
+    ]);
+  for (const match of text.matchAll(PRIVATE_KEY_BINDING))
+    bindings.push(["private-key", match[0]]);
+  return bindings;
+}
+
+export function preservesSensitiveBindings(before, after) {
+  const remaining = new Map();
+  for (const binding of sensitiveBindings(after)) {
+    const key = JSON.stringify(binding);
+    remaining.set(key, (remaining.get(key) ?? 0) + 1);
+  }
+  for (const binding of sensitiveBindings(before)) {
+    const key = JSON.stringify(binding);
+    const count = remaining.get(key) ?? 0;
+    if (count < 1) return false;
+    remaining.set(key, count - 1);
+  }
+  return true;
+}
 const scoped = { device: identifier, project: identifier };
 const supervisorService = z.enum(["agent", "gateway"]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
@@ -433,7 +469,7 @@ export function createDispatcher(
       if (!p.writable) fail("READ_ONLY_PROJECT");
       if (a.expectedHash !== null) {
         const before = p.files.read(a.path);
-        if (redact(before.content) !== before.content)
+        if (!preservesSensitiveBindings(before.content, a.content))
           fail("SENSITIVE_CONTENT_PROTECTED");
       }
       return p.files.write(a.path, a.content, a.expectedHash);
@@ -441,7 +477,16 @@ export function createDispatcher(
     if (name === "edit_file") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
       const before = p.files.read(a.path);
-      if (redact(before.content) !== before.content)
+      if (before.sha256 !== a.expectedHash) fail("CONTENT_CONFLICT");
+      const first = before.content.indexOf(a.oldText);
+      if (first < 0) fail("EDIT_TEXT_NOT_FOUND");
+      if (before.content.indexOf(a.oldText, first + a.oldText.length) >= 0)
+        fail("EDIT_TEXT_AMBIGUOUS");
+      const after =
+        before.content.slice(0, first) +
+        a.newText +
+        before.content.slice(first + a.oldText.length);
+      if (!preservesSensitiveBindings(before.content, after))
         fail("SENSITIVE_CONTENT_PROTECTED");
       return p.files.edit(a.path, a.oldText, a.newText, a.expectedHash);
     }
@@ -450,7 +495,7 @@ export function createDispatcher(
       for (const change of a.changes) {
         if (change.expectedHash === null) continue;
         const before = p.files.read(change.path);
-        if (redact(before.content) !== before.content)
+        if (!preservesSensitiveBindings(before.content, change.content))
           fail("SENSITIVE_CONTENT_PROTECTED");
       }
       return p.files.writeBatch(a.changes);
