@@ -1,13 +1,81 @@
-# OAuth resource server integration
+# OAuth resource-server integration
 
-The gateway now optionally validates OAuth JWT access tokens. This is resource-server support, not an authorization server or a verified live ChatGPT or Claude installation. The existing development bearer mode remains available only when `oauth` is absent. When `oauth` is present, static user bearer tokens cannot authenticate.
+KMJ CodeBridge can validate OAuth JWT access tokens at the MCP gateway. KMJ Main
+Platform provides the matching authorization/account-linking service for the hosted
+KMJ deployment; self-hosted operators may use another compatible issuer.
 
-Configure `oauth.issuer` as the exact HTTPS issuer, `oauth.resource` as the canonical public HTTPS `/mcp` URL, and `oauth.jwks.keys` as administrator-installed public JWKs. Supported signing algorithms are EdDSA, RS256 and ES256. Private and symmetric keys are rejected. Keys are pinned locally: update configuration and restart to rotate/revoke keys; there is no automatic network discovery or remote JWKS fetch.
+## Gateway configuration
 
-Each configured user needs a unique `subject` matching the issuer's JWT `sub`. Tenant, devices, projects and permissions come exclusively from the administrator configuration. Token scopes `codebridge:read`, `codebridge:write`, and `codebridge:execute` narrow those permissions. JWT signature, issuer, audience, expiry, issued-at presence and not-before are checked. Use short-lived access tokens: there is no token introspection or per-token revocation endpoint.
+Set:
 
-The gateway publishes RFC 9728 metadata at `GET /.well-known/oauth-protected-resource` and the path-suffixed `GET /.well-known/oauth-protected-resource/mcp`, and issues a `WWW-Authenticate` challenge for unauthenticated MCP requests. Tool metadata carries OAuth scopes for the OpenAI Apps SDK (see `src/client-extensions.js`); missing permissions return an MCP authentication challenge. Other clients ignore these `_meta` keys; authorization is identical for every client. The existing agent credential flow is separate and unchanged.
+- `oauth.issuer` to the exact HTTPS authorization-server issuer;
+- `oauth.resource` to the canonical public MCP resource URL, ending in `/mcp`;
+- exactly one of `oauth.jwks` (pinned public JWKs) or `oauth.jwksUri`.
 
-Before live account linking, configure an actual authorization server with PKCE S256 and supported client registration, the exact ChatGPT callback, the Claude callback `https://claude.ai/api/mcp/auth_callback` plus port-agnostic loopback redirects for Claude Code (see [AI client support](CLIENTS.md#claudeai-and-claude-desktop)), resource/audience handling, consent and appropriate scope issuance. Terminate HTTPS at the gateway's trusted reverse proxy and configure allowed hosts. Main Platform's sandbox licensing envelope is not an OAuth access token and cannot be used here.
+When `jwksUri` is used it must share the issuer origin. Supported JWT signing
+algorithms are EdDSA, RS256, and ES256. Private/symmetric signing material is rejected
+from gateway configuration.
 
-Tests cover a real HTTP gateway, signed access tokens, scope restriction, malformed/forged tokens, unknown subjects, wrong audiences and configuration rejection. Production issuer interoperability and live ChatGPT or Claude linking remain unverified.
+Access tokens are checked for signature, issuer, audience, `sub`, `exp`, `iat`,
+and timing validity. The hosted permission scopes are:
+
+- `codebridge:read`
+- `codebridge:write`
+- `codebridge:execute`
+
+The gateway never treats a Main Platform billing/license envelope as an OAuth access
+token.
+
+## User and device authorization
+
+OAuth identity is only the first boundary. The gateway maps the authenticated subject
+to tenant/device/project permissions. It may use administrator-configured users or the
+Main Platform user-introspection endpoint. Device agents authenticate independently and
+may likewise be resolved through the device-credential introspection endpoint.
+
+A model-supplied tenant/device/project value never grants access by itself.
+
+## Discovery
+
+The gateway publishes RFC 9728 protected-resource metadata at:
+
+```text
+/.well-known/oauth-protected-resource
+/.well-known/oauth-protected-resource/mcp
+```
+
+Unauthenticated MCP requests receive a `WWW-Authenticate` challenge carrying
+`resource_metadata` and the required scopes. OpenAI-specific MCP metadata is an
+extension only; authorization is not client-specific.
+
+The hosted resource used by current client setup is:
+
+```text
+https://kmjtechno.com/mcp
+```
+
+## Authorization-server requirements
+
+A compatible issuer must provide the discovery and authorization capabilities required
+by the client, including PKCE S256 and supported client registration. KMJ Main Platform
+source includes the CodeBridge OAuth/OIDC server, dynamic client registration, account
+linking, userinfo, and signed access/ID token paths used by the hosted deployment.
+
+Observed live evidence on 3 October 2026 includes a successful Claude Code OAuth login
+and a successful Claude web custom-connector authorization against the hosted MCP
+resource. This proves those client/account-linking paths, not every deployment mode or
+future directory review.
+
+Claude Desktop third-party-inference Gateway profiles configure remote MCP servers in
+their managed connector settings; record a successful `Sign in & test` and real tool
+call before treating that specific deployment path as verified.
+
+## Tests and operations
+
+Repository tests cover signed-token verification, scope restriction, malformed/forged
+tokens, wrong audiences, subject mapping, protected-resource discovery, local/remote
+JWKS configuration, and hosted startup constraints. Main Platform has separate OAuth
+and OIDC regression coverage.
+
+Keep access tokens short-lived, rotate issuer keys through the issuer/JWKS contract,
+and verify production issuer/resource/allowed-host settings before every rollout.
