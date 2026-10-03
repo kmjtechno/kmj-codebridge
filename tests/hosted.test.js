@@ -63,7 +63,11 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
   process.env.CODEBRIDGE_GITHUB_REPOSITORIES = "kmjtechno/kmj-codebridge";
   globalThis.fetch = async (input) => {
     const url = String(input);
-    if (!url.startsWith("https://github-proxy.example/repos/kmjtechno/kmj-codebridge/"))
+    if (
+      !url.startsWith(
+        "https://github-proxy.example/repos/kmjtechno/kmj-codebridge/",
+      )
+    )
       throw new Error("unexpected GitHub probe URL");
     return new Response(
       JSON.stringify({
