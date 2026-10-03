@@ -90,10 +90,12 @@ test("installer never prints secret variables", () => {
   );
 });
 
-
 test("installer defines agent and supervisor unit rollback paths before use", () => {
   assert.match(script, /SERVICE_FILE="\/etc\/systemd\/system\/\$SERVICE"/);
-  assert.match(script, /ROLLBACK_SERVICE="\$\{SERVICE_FILE\}\.rollback-codebridge"/);
+  assert.match(
+    script,
+    /ROLLBACK_SERVICE="\$\{SERVICE_FILE\}\.rollback-codebridge"/,
+  );
   assert.match(
     script,
     /SUPERVISOR_SERVICE_FILE="\/etc\/systemd\/system\/\$SUPERVISOR_SERVICE"/,
@@ -133,7 +135,10 @@ test("installer migrates existing config without exposing or redirecting the sup
   assert.match(script, /c\.supervisorSocket=expected/);
   assert.match(script, /chmod 0600 "\$CONFIG"/);
   assert.match(script, /chown "\$SERVICE_USER:\$SERVICE_GROUP" "\$CONFIG"/);
-  assert.doesNotMatch(script, /supervisorSocket:\s*process\.env\.[A-Z_]*PATH(?!.*SUPERVISOR_SOCKET_PATH)/);
+  assert.doesNotMatch(
+    script,
+    /supervisorSocket:\s*process\.env\.[A-Z_]*PATH(?!.*SUPERVISOR_SOCKET_PATH)/,
+  );
 });
 
 test("installer rollback restores or removes supervisor units consistently", () => {
