@@ -20,18 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Temporary GitHub-readiness formatter capture
-        run: npx prettier --write src/gateway.js tests/hosted.test.js
-      - name: Emit formatted GitHub-readiness payload
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          for file in src/gateway.js tests/hosted.test.js; do
-            echo "KMJ_FORMATTED_READINESS_BEGIN:$file"
-            base64 -w0 "$file"
-            echo
-            echo "KMJ_FORMATTED_READINESS_END:$file"
-          done
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
