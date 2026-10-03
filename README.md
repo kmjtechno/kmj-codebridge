@@ -28,6 +28,10 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/KMJ-TECHNO"><strong>Official KMJ TECHNO GitHub Organization</strong></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/kmjtechno/kmj-codebridge/actions/workflows/ci.yml"><img alt="CodeBridge CI" src="https://github.com/kmjtechno/kmj-codebridge/actions/workflows/ci.yml/badge.svg"></a>
   <a href="https://github.com/kmjtechno/kmj-codebridge/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/kmjtechno/kmj-codebridge?style=flat&color=ED010B"></a>
   <a href="LICENSE"><img alt="Apache-2.0" src="https://img.shields.io/badge/license-Apache--2.0-ED010B"></a>
