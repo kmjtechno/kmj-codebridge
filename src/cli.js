@@ -47,7 +47,9 @@ try {
           );
       }
     service =
-      mode === "gateway" ? await startGateway(config) : await startAgent(config);
+      mode === "gateway"
+        ? await startGateway(config)
+        : await startAgent(config);
   }
   console.log(`KMJ CodeBridge ${mode} started; version ${version}.`);
   let closing = false;
