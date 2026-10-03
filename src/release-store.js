@@ -122,6 +122,7 @@ export class ReleaseStore {
       schema: 1,
       version: manifest.version,
       revision: manifest.revision,
+      sequence: manifest.sequence,
       sha256: manifest.sha256,
     };
     fs.writeFileSync(
