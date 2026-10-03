@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
+import { supervisorRequest } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
@@ -106,7 +107,18 @@ export async function startAgent(rawConfig) {
     fs.renameSync(tmp, licenseState);
     return p;
   };
-  const dispatch = createDispatcher(c, runner, licenseProvider, autopilot);
+  const supervisor = c.supervisorSocket
+    ? {
+        request: (request) => supervisorRequest(c.supervisorSocket, request),
+      }
+    : null;
+  const dispatch = createDispatcher(
+    c,
+    runner,
+    licenseProvider,
+    autopilot,
+    supervisor,
+  );
   const controller = new AbortController();
   let stopped = false;
   const connectionState = path.join(state, "connection.json");
