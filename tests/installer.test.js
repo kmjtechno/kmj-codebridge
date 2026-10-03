@@ -89,3 +89,58 @@ test("installer never prints secret variables", () => {
     /printf[^\n]*\$(?:TOKEN|CODEBRIDGE_AGENT_TOKEN)/i,
   );
 });
+
+
+test("installer defines agent and supervisor unit rollback paths before use", () => {
+  assert.match(script, /SERVICE_FILE="\/etc\/systemd\/system\/\$SERVICE"/);
+  assert.match(script, /ROLLBACK_SERVICE="\$\{SERVICE_FILE\}\.rollback-codebridge"/);
+  assert.match(
+    script,
+    /SUPERVISOR_SERVICE_FILE="\/etc\/systemd\/system\/\$SUPERVISOR_SERVICE"/,
+  );
+  assert.match(
+    script,
+    /SUPERVISOR_SOCKET_FILE="\/etc\/systemd\/system\/\$SUPERVISOR_SOCKET_UNIT"/,
+  );
+  assert.match(script, /ROLLBACK_SUPERVISOR_SERVICE=/);
+  assert.match(script, /ROLLBACK_SUPERVISOR_SOCKET=/);
+});
+
+test("installer provisions a restricted socket-activated supervisor", () => {
+  assert.match(
+    script,
+    /SUPERVISOR_SOCKET_PATH="\/run\/kmj-codebridge\/supervisor\.sock"/,
+  );
+  assert.match(script, /supervisorSocket:process\.env\.SUPERVISOR_SOCKET_PATH/);
+  assert.match(script, /ListenStream=\$SUPERVISOR_SOCKET_PATH/);
+  assert.match(script, /SocketUser=\$SERVICE_USER/);
+  assert.match(script, /SocketGroup=\$SERVICE_GROUP/);
+  assert.match(script, /SocketMode=0600/);
+  assert.match(script, /DirectoryMode=0711/);
+  assert.match(
+    script,
+    /ExecStart=\$NODE \$INSTALL_DIR\/src\/cli\.js supervisor/,
+  );
+  assert.match(script, /RestrictAddressFamilies=AF_UNIX/);
+  assert.match(script, /systemctl enable "\$SUPERVISOR_SOCKET_UNIT"/);
+  assert.match(script, /systemctl restart "\$SUPERVISOR_SOCKET_UNIT"/);
+  assert.match(script, /supervisorRequest/);
+  assert.match(script, /\{op:"status",service:"agent"\}/);
+});
+
+test("installer migrates existing config without exposing or redirecting the supervisor", () => {
+  assert.match(script, /unexpected supervisor socket/);
+  assert.match(script, /c\.supervisorSocket=expected/);
+  assert.match(script, /chmod 0600 "\$CONFIG"/);
+  assert.match(script, /chown "\$SERVICE_USER:\$SERVICE_GROUP" "\$CONFIG"/);
+  assert.doesNotMatch(script, /supervisorSocket:\s*process\.env\.[A-Z_]*PATH(?!.*SUPERVISOR_SOCKET_PATH)/);
+});
+
+test("installer rollback restores or removes supervisor units consistently", () => {
+  assert.match(script, /systemctl stop "\$SUPERVISOR_SERVICE"/);
+  assert.match(script, /systemctl stop "\$SUPERVISOR_SOCKET_UNIT"/);
+  assert.match(script, /ROLLBACK_SUPERVISOR_SERVICE/);
+  assert.match(script, /ROLLBACK_SUPERVISOR_SOCKET/);
+  assert.match(script, /SUPERVISOR_SOCKET_WAS_ENABLED/);
+  assert.match(script, /systemctl disable --now "\$SUPERVISOR_SOCKET_UNIT"/);
+});
