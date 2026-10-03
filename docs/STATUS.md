@@ -39,8 +39,9 @@ file records verified capability, not a percentage-complete claim.
 
 - Fresh-device one-command enrollment must be re-run against the live Main Platform
   service after the current agent/runtime update is deployed.
-- The currently registered production device is offline; the merged crash-safe lock
-  fix must be deployed to that VPS before an end-to-end device tool call can pass.
+- A currently authorized device is online but reports runtime version 0.1.6. The
+  0.1.9 runtime must be deployed to that device before the new crash-recovery,
+  hosted-review, and current tool-surface behavior can be validated end to end.
 - The VPS provider/hypervisor has produced abrupt external power events; guest logs did
   not show a normal Linux shutdown. Provider-side stability remains an infrastructure
   dependency rather than a CodeBridge software gate.
