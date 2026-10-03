@@ -217,7 +217,8 @@ export const definitions = {
   },
   autopilot_resume: {
     title: "Resume autopilot task",
-    description: "Return a waiting autonomous task to the dependency-ready queue.",
+    description:
+      "Return a waiting autonomous task to the dependency-ready queue.",
     input: { ...scoped, task: identifier },
     access: "write",
   },
@@ -287,9 +288,7 @@ export function createDispatcher(
     const p = projects.get(a.project);
     if (!p) fail("PROJECT_NOT_FOUND");
     // Safe status and cancellation remain usable after paid lease expiry.
-    if (
-      !["get_job_status", "cancel_job", "autopilot_status"].includes(name)
-    ) {
+    if (!["get_job_status", "cancel_job", "autopilot_status"].includes(name)) {
       const entitlement = licenseProvider();
       if (!entitlement.features.includes(definition.access))
         fail("FEATURE_UNAVAILABLE");
