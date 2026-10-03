@@ -51,6 +51,61 @@ test("hosted config rejects partial GitHub environment settings", () => {
   );
 });
 
+test("hosted health proves the configured GitHub bridge can reach an allowed repository", async (t) => {
+  const previous = {
+    apiBase: process.env.CODEBRIDGE_GITHUB_API_BASE,
+    token: process.env.CODEBRIDGE_GITHUB_PROXY_TOKEN,
+    repositories: process.env.CODEBRIDGE_GITHUB_REPOSITORIES,
+    fetch: globalThis.fetch,
+  };
+  process.env.CODEBRIDGE_GITHUB_API_BASE = "https://github-proxy.example/";
+  process.env.CODEBRIDGE_GITHUB_PROXY_TOKEN = "x".repeat(48);
+  process.env.CODEBRIDGE_GITHUB_REPOSITORIES = "kmjtechno/kmj-codebridge";
+  globalThis.fetch = async (input) => {
+    const url = String(input);
+    if (!url.startsWith("https://github-proxy.example/repos/kmjtechno/kmj-codebridge/"))
+      throw new Error("unexpected GitHub probe URL");
+    return new Response(
+      JSON.stringify({
+        full_name: "kmjtechno/kmj-codebridge",
+        default_branch: "main",
+        private: true,
+        archived: false,
+        visibility: "private",
+        updated_at: "2026-10-03T00:00:00Z",
+      }),
+      { status: 200, headers: { "content-type": "application/json" } },
+    );
+  };
+  t.after(() => {
+    for (const [name, value] of [
+      ["CODEBRIDGE_GITHUB_API_BASE", previous.apiBase],
+      ["CODEBRIDGE_GITHUB_PROXY_TOKEN", previous.token],
+      ["CODEBRIDGE_GITHUB_REPOSITORIES", previous.repositories],
+    ]) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+    globalThis.fetch = previous.fetch;
+  });
+
+  const gateway = await startHostedGateway(JSON.stringify(config), "0");
+  const url = gateway.url.replace("0.0.0.0", "127.0.0.1");
+  try {
+    const health = await httpRequest(url + "/healthz", {
+      headers: { host: "bridge.example" },
+    });
+    assert.equal(health.status, 200);
+    assert.deepEqual(JSON.parse(health.body), {
+      status: "ok",
+      version: VERSION,
+      capabilities: { github: true, githubReady: true },
+    });
+  } finally {
+    await gateway.close();
+  }
+});
+
 test("hosted mode requires OAuth and matching public hostname", () => {
   for (const value of [
     { ...config, oauth: undefined },
@@ -83,7 +138,7 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
     assert.deepEqual(JSON.parse(health.body), {
       status: "ok",
       version: VERSION,
-      capabilities: { github: false },
+      capabilities: { github: false, githubReady: false },
     });
     const challenge = await httpRequest(
       url + "/.well-known/openai-apps-challenge",
