@@ -8,6 +8,7 @@ import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 const scoped = { device: identifier, project: identifier };
+const supervisorService = z.enum(["agent", "gateway"]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
   ...file,
@@ -234,6 +235,45 @@ export const definitions = {
     },
     access: "write",
   },
+  supervisor_status: {
+    title: "Supervisor service status",
+    description:
+      "Read bounded status for an allowlisted local CodeBridge service.",
+    input: { ...scoped, service: supervisorService },
+    access: "read",
+  },
+  supervisor_logs: {
+    title: "Supervisor service logs",
+    description:
+      "Read up to 200 redacted journal lines for an allowlisted local CodeBridge service.",
+    input: {
+      ...scoped,
+      service: supervisorService,
+      lines: z.number().int().min(1).max(200).default(80),
+    },
+    access: "read",
+  },
+  supervisor_config_validate: {
+    title: "Validate CodeBridge config",
+    description:
+      "Validate one fixed CodeBridge configuration file without returning its contents.",
+    input: { ...scoped, service: supervisorService },
+    access: "read",
+  },
+  supervisor_disk_space: {
+    title: "Supervisor disk space",
+    description:
+      "Read bounded disk-space information for the fixed CodeBridge state filesystem.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_restart: {
+    title: "Restart CodeBridge service",
+    description:
+      "Schedule restart of one allowlisted local CodeBridge service. No arbitrary service names are accepted.",
+    input: { ...scoped, service: supervisorService },
+    access: "execute",
+  },
   run_quality_gate: {
     title: "Run quality gate",
     description:
@@ -272,6 +312,7 @@ export function createDispatcher(
   runner,
   licenseProvider,
   autopilot = null,
+  supervisor = null,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -367,6 +408,25 @@ export function createDispatcher(
         state: a.state,
         result: a.result,
       });
+    if (name.startsWith("supervisor_") && !supervisor)
+      fail("SUPERVISOR_UNAVAILABLE");
+    if (name === "supervisor_status")
+      return await supervisor.request({ op: "status", service: a.service });
+    if (name === "supervisor_logs")
+      return await supervisor.request({
+        op: "logs",
+        service: a.service,
+        lines: a.lines,
+      });
+    if (name === "supervisor_config_validate")
+      return await supervisor.request({
+        op: "config_validate",
+        service: a.service,
+      });
+    if (name === "supervisor_disk_space")
+      return await supervisor.request({ op: "disk_space" });
+    if (name === "supervisor_restart")
+      return await supervisor.request({ op: "restart", service: a.service });
     if (name === "preview_file")
       return p.files.preview(a.path, a.content, a.expectedHash);
     if (name === "write_file") {
