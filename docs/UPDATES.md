@@ -50,6 +50,8 @@ Until that activation slice is merged and live-tested, CodeBridge must not claim
 
 ## Atomic activation state
 
+The current atomic symlink activation adapter is intentionally Linux/POSIX-only. Windows activation fails closed rather than falling back to a non-atomic delete-and-replace sequence; a future Windows implementation must provide equivalent crash-safe switching semantics before it can be enabled.
+
 The immutable activation layer keeps release payloads under a dedicated `releases` directory and manages only two owned symlinks:
 
 - `current` — the active release
