@@ -110,9 +110,15 @@ function bounded(value, max = 65536) {
 
 export function createGitHubBridge(config) {
   if (!config) return null;
-  const token = process.env[config.tokenEnv];
-  if (typeof token !== "string" || token.length < 20)
+  const publicReadOnly = config.publicReadOnly === true;
+  const token = config.tokenEnv ? process.env[config.tokenEnv] : undefined;
+  if (!publicReadOnly && (typeof token !== "string" || token.length < 20))
     fail("GITHUB_CREDENTIAL_MISSING");
+  if (
+    publicReadOnly &&
+    new URL(config.apiBase).href !== "https://api.github.com/"
+  )
+    fail("GITHUB_ENDPOINT_INVALID");
 
   const allowed = new Set(config.repositories);
   const cache = new Map();
@@ -135,16 +141,19 @@ export function createGitHubBridge(config) {
     );
     if (url.origin !== base.origin) fail("GITHUB_ENDPOINT_INVALID");
 
+    if (publicReadOnly && method !== "GET") fail("GITHUB_WRITE_DISABLED");
+    const headers = {
+      accept: "application/vnd.github+json",
+      "content-type": "application/json",
+      "user-agent": `KMJ-CodeBridge/${VERSION}`,
+      "x-github-api-version": "2022-11-28",
+    };
+    if (token) headers.authorization = `Bearer ${token}`;
+
     const response = await fetch(url, {
       method,
       redirect: "error",
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "content-type": "application/json",
-        "user-agent": `KMJ-CodeBridge/${VERSION}`,
-        "x-github-api-version": "2022-11-28",
-      },
+      headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: AbortSignal.timeout(10000),
     });
@@ -172,15 +181,16 @@ export function createGitHubBridge(config) {
       `repos/${safePath(repository)}/${suffix.replace(/^\//, "")}`,
       base,
     );
+    const headers = {
+      accept: "application/vnd.github+json",
+      "user-agent": `KMJ-CodeBridge/${VERSION}`,
+      "x-github-api-version": "2022-11-28",
+    };
+    if (token) headers.authorization = `Bearer ${token}`;
     const response = await fetch(url, {
       method: "GET",
       redirect: "follow",
-      headers: {
-        accept: "application/vnd.github+json",
-        authorization: `Bearer ${token}`,
-        "user-agent": `KMJ-CodeBridge/${VERSION}`,
-        "x-github-api-version": "2022-11-28",
-      },
+      headers,
       signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) fail("GITHUB_REQUEST_FAILED");
