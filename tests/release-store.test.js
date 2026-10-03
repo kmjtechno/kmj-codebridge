@@ -81,26 +81,26 @@ test(
   "activation is atomic, idempotent and preserves previous known-good",
   { skip: process.platform === "win32" },
   (t) => {
-  const { store } = setup(t);
-  const first = stageRuntime(store, manifest("0.2.0", "c"));
-  const second = stageRuntime(store, manifest("0.3.0", "d"));
+    const { store } = setup(t);
+    const first = stageRuntime(store, manifest("0.2.0", "c"));
+    const second = stageRuntime(store, manifest("0.3.0", "d"));
 
-  assert.deepEqual(store.activate(first.name), {
-    changed: true,
-    current: first.name,
-    previous: null,
-  });
-  assert.deepEqual(store.activate(second.name), {
-    changed: true,
-    current: second.name,
-    previous: first.name,
-  });
-  assert.deepEqual(store.activate(second.name), {
-    changed: false,
-    current: second.name,
-    previous: first.name,
-  });
-  assert.equal(store.status().current, second.name);
+    assert.deepEqual(store.activate(first.name), {
+      changed: true,
+      current: first.name,
+      previous: null,
+    });
+    assert.deepEqual(store.activate(second.name), {
+      changed: true,
+      current: second.name,
+      previous: first.name,
+    });
+    assert.deepEqual(store.activate(second.name), {
+      changed: false,
+      current: second.name,
+      previous: first.name,
+    });
+    assert.equal(store.status().current, second.name);
     assert.equal(store.status().previous, first.name);
   },
 );
@@ -109,19 +109,19 @@ test(
   "rollback swaps current and previous release and records bounded history",
   { skip: process.platform === "win32" },
   (t) => {
-  const { store } = setup(t);
-  const first = stageRuntime(store, manifest("0.2.0", "e"));
-  const second = stageRuntime(store, manifest("0.3.0", "f"));
-  store.activate(first.name);
-  store.activate(second.name);
+    const { store } = setup(t);
+    const first = stageRuntime(store, manifest("0.2.0", "e"));
+    const second = stageRuntime(store, manifest("0.3.0", "f"));
+    store.activate(first.name);
+    store.activate(second.name);
 
-  assert.deepEqual(store.rollback(), {
-    current: first.name,
-    previous: second.name,
-  });
-  const status = store.status();
-  assert.equal(status.current, first.name);
-  assert.equal(status.previous, second.name);
+    assert.deepEqual(store.rollback(), {
+      current: first.name,
+      previous: second.name,
+    });
+    const status = store.status();
+    assert.equal(status.current, first.name);
+    assert.equal(status.previous, second.name);
     assert.equal(status.history.at(-1).action, "rollback");
   },
 );
