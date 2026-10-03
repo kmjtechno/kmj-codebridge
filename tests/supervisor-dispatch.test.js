@@ -8,7 +8,9 @@ import { JobRunner } from "../src/jobs.js";
 import { createDispatcher } from "../src/tools.js";
 
 function setup(t) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-supervisor-dispatch-"));
+  const base = fs.mkdtempSync(
+    path.join(os.tmpdir(), "cb-supervisor-dispatch-"),
+  );
   const root = path.join(base, "project");
   const state = path.join(base, "state");
   fs.mkdirSync(root);
@@ -49,11 +51,7 @@ const scope = { device: "d1", project: "p1" };
 
 test("supervisor status and logs use read permission", async (t) => {
   const { dispatch, calls } = setup(t);
-  await dispatch(
-    "supervisor_status",
-    { ...scope, service: "agent" },
-    ["read"],
-  );
+  await dispatch("supervisor_status", { ...scope, service: "agent" }, ["read"]);
   await dispatch(
     "supervisor_logs",
     { ...scope, service: "gateway", lines: 25 },
@@ -68,18 +66,15 @@ test("supervisor status and logs use read permission", async (t) => {
 test("supervisor restart requires execute permission", async (t) => {
   const { dispatch, calls } = setup(t);
   await assert.rejects(
-    dispatch(
-      "supervisor_restart",
-      { ...scope, service: "agent" },
-      ["read", "write"],
-    ),
+    dispatch("supervisor_restart", { ...scope, service: "agent" }, [
+      "read",
+      "write",
+    ]),
     /ACCESS_DENIED/,
   );
-  await dispatch(
-    "supervisor_restart",
-    { ...scope, service: "agent" },
-    ["execute"],
-  );
+  await dispatch("supervisor_restart", { ...scope, service: "agent" }, [
+    "execute",
+  ]);
   assert.deepEqual(calls, [{ op: "restart", service: "agent" }]);
 });
 
@@ -105,11 +100,7 @@ test("supervisor operations fail closed when local supervisor is absent", async 
     }),
   );
   await assert.rejects(
-    noSupervisor(
-      "supervisor_status",
-      { ...scope, service: "agent" },
-      ["read"],
-    ),
+    noSupervisor("supervisor_status", { ...scope, service: "agent" }, ["read"]),
     /SUPERVISOR_UNAVAILABLE/,
   );
   assert.equal(typeof dispatch, "function");
