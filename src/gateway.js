@@ -65,8 +65,7 @@ export async function startGateway(rawConfig) {
   const probeGitHub = async () => {
     if (!githubDispatch) return false;
     const now = Date.now();
-    if (now - githubReadiness.checkedAt < 30000)
-      return githubReadiness.ready;
+    if (now - githubReadiness.checkedAt < 30000) return githubReadiness.ready;
     githubReadiness = { checkedAt: now, ready: false };
     try {
       await githubDispatch("github_repository", {
