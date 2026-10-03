@@ -72,7 +72,9 @@ verifies the API described in [ENROLLMENT.md](ENROLLMENT.md).
 - Restart gateway: in-memory pending requests are lost; do not blindly replay writes.
 - Lost tool response: reread file state; quality-gate retries must use the same requestKey.
 - Agent restart: old running journal entries become interrupted; never assume old
-  subprocesses are gone after a hard crash. Operator checks precede removing a stale lock.
+  subprocesses are gone after a hard crash. The agent automatically replaces its own
+  state lock only when staleness is provable (different Linux boot ID or dead PID); a
+  live or malformed lock still fails closed.
 - Graceful cancellation: process groups are terminated on Linux; taskkill tree termination
   is used on Windows. Validate Windows behavior in CI before claiming support.
 - Journal full: new jobs stop. Export/archive under a documented idempotency retention
