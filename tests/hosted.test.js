@@ -52,6 +52,11 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
       headers: { host: "bridge.example" },
     });
     assert.equal(health.status, 200);
+    assert.deepEqual(JSON.parse(health.body), {
+      status: "ok",
+      version: "0.2.0",
+      capabilities: { github: false },
+    });
     const challenge = await httpRequest(
       url + "/.well-known/openai-apps-challenge",
       { headers: { host: "bridge.example" } },

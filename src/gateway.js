@@ -282,7 +282,11 @@ export async function startGateway(rawConfig) {
         return;
       }
       if (req.url === "/healthz" && req.method === "GET") {
-        json(res, 200, { status: "ok", version: VERSION });
+        json(res, 200, {
+          status: "ok",
+          version: VERSION,
+          capabilities: { github: Boolean(githubDispatch) },
+        });
         return;
       }
       if (req.url?.startsWith("/agent/")) {
