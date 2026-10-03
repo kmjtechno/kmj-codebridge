@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { randomUUID } from "node:crypto";
 import { fail } from "./errors.js";
 
@@ -53,8 +54,18 @@ function processExists(pid) {
   }
 }
 
-function staleLockIsProven(record, bootId) {
+function lockPredatesCurrentBoot(lockPath) {
+  try {
+    const bootTimeMs = Date.now() - os.uptime() * 1000;
+    return fs.statSync(lockPath).mtimeMs < bootTimeMs - 5000;
+  } catch {
+    return false;
+  }
+}
+
+function staleLockIsProven(record, bootId, lockPath) {
   if (!record) return false;
+  if (lockPredatesCurrentBoot(lockPath)) return true;
   if (record.bootId && bootId && record.bootId !== bootId) return true;
   return !processExists(record.pid);
 }
@@ -78,6 +89,9 @@ export function acquireAgentLock(stateDir) {
         try {
           fs.closeSync(fd);
         } catch {}
+        try {
+          fs.unlinkSync(lockPath);
+        } catch {}
       }
       if (error?.code !== "EEXIST") throw error;
 
@@ -87,7 +101,7 @@ export function acquireAgentLock(stateDir) {
       } catch {
         fail("AGENT_ALREADY_RUNNING_OR_STALE_LOCK");
       }
-      if (!staleLockIsProven(existing, bootId))
+      if (!staleLockIsProven(existing, bootId, lockPath))
         fail("AGENT_ALREADY_RUNNING_OR_STALE_LOCK");
 
       try {
