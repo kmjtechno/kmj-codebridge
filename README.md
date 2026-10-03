@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/ec13429127d33ea0b2d47da978d17110a070324d/docs/assets/codebridge-cinematic-hero-final.jpg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
+  <img src="docs/assets/codebridge-cinematic-hero-final.jpg" alt="KMJ CodeBridge — Connect your systems. Build with AI." width="100%">
 </p>
 
 <h1 align="center">KMJ CodeBridge</h1>
