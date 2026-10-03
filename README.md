@@ -176,12 +176,12 @@ See **[AI client setup](docs/CLIENTS.md)** for ChatGPT, Claude Code, Claude Desk
 The target production flow is:
 
 ```bash
-curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+curl -fsSL https://kmjtechno.com/install | sudo bash
 ```
 
 The installer is designed to detect architecture, stage the runtime, enroll the device, install a hardened systemd service and verify gateway connectivity without installing a GitHub self-hosted runner.
 
-**Current production gate:** fresh zero-touch enrollment depends on the matching KMJ Main Platform enrollment/approval APIs being live. Existing source and local developer mode remain usable. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
+**Current production gate:** Main Platform source now includes the matching enrollment, OAuth, and introspection APIs. Release readiness requires the official-domain bootstrap plus a recorded fresh-device pairing against the deployed service. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
 
 ## Free forever + ultra-low-cost launch plans
 
