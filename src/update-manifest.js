@@ -52,10 +52,16 @@ function isUnsafeLiteralHost(hostname) {
   if (
     host === "localhost" ||
     host === "::1" ||
+    host === "::" ||
     host.endsWith(".localhost") ||
     host.endsWith(".local")
   )
     return true;
+
+  // Literal IPv6 release hosts are intentionally rejected at the manifest
+  // layer. A future downloader must also validate every resolved address to
+  // prevent DNS rebinding/private-network fetches.
+  if (host.includes(":")) return true;
 
   const ipv4 = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!ipv4) return false;
