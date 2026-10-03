@@ -152,3 +152,141 @@ test("bounded retention prunes only unreferenced terminal history", (t) => {
   assert.equal(status.tasks.length, 2);
   assert.ok(status.tasks.every((task) => task.id !== old.id));
 });
+
+test("rejected enqueue never prunes or mutates existing tasks", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-autopilot-reject-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const journal = new AutopilotJournal(root, { maxTasks: 2 });
+  for (const key of ["k1", "k2"]) {
+    const task = journal.enqueue({ project: "p1", key, objective: "done" });
+    journal.claim("p1");
+    journal.complete(task.id, "p1", { state: "succeeded", result: "ok" });
+  }
+  const before = journal.state.tasks.length;
+  assert.throws(
+    () =>
+      journal.enqueue({
+        project: "p1",
+        key: "bad",
+        objective: "missing dependency",
+        dependsOn: ["does-not-exist"],
+      }),
+    /AUTOPILOT_DEPENDENCY_NOT_FOUND/,
+  );
+  assert.equal(journal.state.tasks.length, before);
+});
+
+test("failed dependency cascades so the journal never deadlocks", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-autopilot-fail-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const journal = new AutopilotJournal(root, { maxTasks: 2 });
+  const parent = journal.enqueue({
+    project: "p1",
+    key: "parent",
+    objective: "fails",
+  });
+  const child = journal.enqueue({
+    project: "p1",
+    key: "child",
+    objective: "depends on parent",
+    dependsOn: [parent.id],
+  });
+  journal.claim("p1");
+  journal.complete(parent.id, "p1", { state: "failed", result: "boom" });
+  assert.equal(journal.get(child.id, "p1").state, "failed");
+  assert.equal(journal.get(child.id, "p1").lastReason, "dependency_failed");
+  for (let i = 0; i < 4; i++) {
+    const filler = journal.enqueue({
+      project: "p1",
+      key: `filler${i}`,
+      objective: "terminal filler",
+    });
+    journal.claim("p1");
+    journal.complete(filler.id, "p1", { state: "succeeded", result: "ok" });
+  }
+  assert.ok(journal.state.tasks.length <= 2);
+});
+
+test("dependency failure cascades transitively", (t) => {
+  const { journal } = fixture(t);
+  const first = journal.enqueue({
+    project: "p1",
+    key: "first",
+    objective: "root",
+  });
+  const second = journal.enqueue({
+    project: "p1",
+    key: "second",
+    objective: "middle",
+    dependsOn: [first.id],
+  });
+  const third = journal.enqueue({
+    project: "p1",
+    key: "third",
+    objective: "leaf",
+    dependsOn: [second.id],
+  });
+  journal.claim("p1");
+  journal.complete(first.id, "p1", { state: "failed", result: "boom" });
+  assert.equal(journal.get(second.id, "p1").state, "failed");
+  assert.equal(journal.get(third.id, "p1").state, "failed");
+});
+
+test("successful dependency does not cascade failure", (t) => {
+  const { journal } = fixture(t);
+  const parent = journal.enqueue({
+    project: "p1",
+    key: "parent",
+    objective: "succeeds",
+  });
+  const child = journal.enqueue({
+    project: "p1",
+    key: "child",
+    objective: "waits for parent",
+    dependsOn: [parent.id],
+  });
+  journal.claim("p1");
+  journal.complete(parent.id, "p1", { state: "succeeded", result: "ok" });
+  assert.equal(journal.get(child.id, "p1").state, "queued");
+  assert.equal(journal.claim("p1").id, child.id);
+});
+
+test("restart retries are bounded so a poison task cannot loop forever", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-autopilot-poison-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let journal = new AutopilotJournal(root, { maxAttempts: 3 });
+  const task = journal.enqueue({
+    project: "p1",
+    key: "poison",
+    objective: "always crashes",
+  });
+  for (let i = 0; i < 3; i++) {
+    journal.claim("p1");
+    journal = new AutopilotJournal(root, { maxAttempts: 3 });
+  }
+  const exhausted = journal.get(task.id, "p1");
+  assert.equal(exhausted.state, "failed");
+  assert.equal(exhausted.lastReason, "max_attempts_exceeded");
+  assert.match(exhausted.result, /3 attempts/);
+});
+
+test("exhausted task cascades failure to its dependents", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-autopilot-exhaust-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  let journal = new AutopilotJournal(root, { maxAttempts: 1 });
+  const parent = journal.enqueue({
+    project: "p1",
+    key: "parent",
+    objective: "poison",
+  });
+  const child = journal.enqueue({
+    project: "p1",
+    key: "child",
+    objective: "depends on poison",
+    dependsOn: [parent.id],
+  });
+  journal.claim("p1");
+  journal = new AutopilotJournal(root, { maxAttempts: 1 });
+  assert.equal(journal.get(parent.id, "p1").state, "failed");
+  assert.equal(journal.get(child.id, "p1").state, "failed");
+});
