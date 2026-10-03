@@ -77,7 +77,10 @@ test("rejects malformed staged runtime and staging paths outside release root", 
   );
 });
 
-test("activation is atomic, idempotent and preserves previous known-good", (t) => {
+test(
+  "activation is atomic, idempotent and preserves previous known-good",
+  { skip: process.platform === "win32" },
+  (t) => {
   const { store } = setup(t);
   const first = stageRuntime(store, manifest("0.2.0", "c"));
   const second = stageRuntime(store, manifest("0.3.0", "d"));
@@ -98,10 +101,14 @@ test("activation is atomic, idempotent and preserves previous known-good", (t) =
     previous: first.name,
   });
   assert.equal(store.status().current, second.name);
-  assert.equal(store.status().previous, first.name);
-});
+    assert.equal(store.status().previous, first.name);
+  },
+);
 
-test("rollback swaps current and previous release and records bounded history", (t) => {
+test(
+  "rollback swaps current and previous release and records bounded history",
+  { skip: process.platform === "win32" },
+  (t) => {
   const { store } = setup(t);
   const first = stageRuntime(store, manifest("0.2.0", "e"));
   const second = stageRuntime(store, manifest("0.3.0", "f"));
@@ -115,7 +122,18 @@ test("rollback swaps current and previous release and records bounded history", 
   const status = store.status();
   assert.equal(status.current, first.name);
   assert.equal(status.previous, second.name);
-  assert.equal(status.history.at(-1).action, "rollback");
+    assert.equal(status.history.at(-1).action, "rollback");
+  },
+);
+
+test("Windows activation fails closed rather than using a non-atomic replacement", (t) => {
+  if (process.platform !== "win32") t.skip("Windows-specific contract");
+  const { store } = setup(t);
+  const first = stageRuntime(store, manifest("0.2.0", "9"));
+  assert.throws(
+    () => store.activate(first.name),
+    /UPDATE_ACTIVATION_UNSUPPORTED/,
+  );
 });
 
 test("managed links fail closed when replaced by an ordinary file", (t) => {
