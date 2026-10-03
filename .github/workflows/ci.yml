@@ -20,16 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Temporary formatter capture
-        run: npx prettier --write tests/hosted.test.js
-      - name: Emit formatted hosted test
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          echo 'KMJ_FORMATTED_HOSTED_TEST_BEGIN'
-          base64 -w0 tests/hosted.test.js
-          echo
-          echo 'KMJ_FORMATTED_HOSTED_TEST_END'
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
