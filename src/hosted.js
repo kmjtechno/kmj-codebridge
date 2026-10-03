@@ -1,7 +1,28 @@
 import { gatewaySchema } from "./config.js";
 import { startGateway } from "./gateway.js";
 import { fail } from "./errors.js";
-export function hostedConfig(text, port = "10000") {
+function hostedGitHubConfig(env) {
+  const apiBase = env.CODEBRIDGE_GITHUB_API_BASE;
+  const token = env.CODEBRIDGE_GITHUB_PROXY_TOKEN;
+  const repositoriesText = env.CODEBRIDGE_GITHUB_REPOSITORIES;
+  const configured = [apiBase, token, repositoriesText].filter(Boolean).length;
+  if (configured === 0) return undefined;
+  if (configured !== 3 || typeof token !== "string" || token.length < 32)
+    fail("HOSTED_CONFIG_INVALID");
+  const repositories = repositoriesText
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (repositories.length === 0) fail("HOSTED_CONFIG_INVALID");
+  return {
+    apiBase,
+    tokenEnv: "CODEBRIDGE_GITHUB_PROXY_TOKEN",
+    repositories,
+    cacheSeconds: 30,
+  };
+}
+
+export function hostedConfig(text, port = "10000", env = process.env) {
   try {
     if (
       typeof text !== "string" ||
@@ -10,8 +31,11 @@ export function hostedConfig(text, port = "10000") {
       !/^\d{1,5}$/.test(port)
     )
       fail("HOSTED_CONFIG_INVALID");
+    const parsed = JSON.parse(text);
+    const github = parsed.github ?? hostedGitHubConfig(env);
     const config = gatewaySchema.parse({
-      ...JSON.parse(text),
+      ...parsed,
+      ...(github ? { github } : {}),
       host: "0.0.0.0",
       port: Number(port),
     });
