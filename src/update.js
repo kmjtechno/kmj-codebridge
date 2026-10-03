@@ -7,6 +7,36 @@ import path from "node:path";
 import { z } from "zod";
 import { fail } from "./errors.js";
 
+function isUnsafeLiteralHost(hostname) {
+  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (
+    host === "localhost" ||
+    host === "::" ||
+    host === "::1" ||
+    host.endsWith(".localhost") ||
+    host.endsWith(".local")
+  )
+    return true;
+  if (host.includes(":")) return true;
+
+  const match = host.match(
+    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
+  );
+  if (!match) return false;
+  const octets = match.slice(1).map(Number);
+  if (octets.some((octet) => octet > 255)) return true;
+  const [a, b] = octets;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    a >= 224
+  );
+}
+
 const httpsArchive = z
   .string()
   .url()
@@ -17,15 +47,18 @@ const httpsArchive = z
       !url.username &&
       !url.password &&
       !url.hash &&
+      !isUnsafeLiteralHost(url.hostname) &&
+      url.pathname.endsWith(".tar.gz") &&
       !/["\\\s]/.test(value)
     );
-  }, "Requires HTTPS");
+  }, "Requires a public HTTPS tar.gz URL");
 
 export const releaseManifestSchema = z
   .object({
     schema: z.literal(1),
     product: z.literal("KMJ CodeBridge"),
     channel: z.enum(["stable", "beta"]),
+    sequence: z.number().int().min(0).max(Number.MAX_SAFE_INTEGER),
     version: z.string().regex(/^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?$/),
     revision: z.string().regex(/^[a-f0-9]{40}$/),
     archive: httpsArchive,
@@ -55,7 +88,12 @@ function signatureBytes(input) {
   }
 }
 
-export function verifyReleaseManifest(rawManifest, rawSignature, trustedKeys) {
+export function verifyReleaseManifest(
+  rawManifest,
+  rawSignature,
+  trustedKeys,
+  { minimumSequence = -1 } = {},
+) {
   const bytes = manifestBytes(rawManifest);
   let manifest;
   try {
@@ -63,6 +101,13 @@ export function verifyReleaseManifest(rawManifest, rawSignature, trustedKeys) {
   } catch {
     fail("UPDATE_MANIFEST_INVALID");
   }
+
+  if (
+    !Number.isSafeInteger(minimumSequence) ||
+    minimumSequence < -1 ||
+    manifest.sequence <= minimumSequence
+  )
+    fail("UPDATE_ROLLBACK_REJECTED");
 
   const encodedKey = trustedKeys?.[manifest.keyId];
   if (typeof encodedKey !== "string" || encodedKey.length < 32)
