@@ -5,6 +5,7 @@ import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
+import { AutopilotJournal } from "./autopilot.js";
 import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
@@ -67,9 +68,12 @@ export async function startAgent(rawConfig) {
   fs.writeFileSync(fd, String(process.pid));
   fs.closeSync(fd);
   let runner;
+  let autopilot;
   try {
     runner = new JobRunner(path.join(state, "jobs"));
+    autopilot = new AutopilotJournal(path.join(state, "autopilot"));
   } catch (e) {
+    if (runner) await runner.close();
     fs.unlinkSync(lock);
     throw e;
   }
@@ -102,7 +106,7 @@ export async function startAgent(rawConfig) {
     fs.renameSync(tmp, licenseState);
     return p;
   };
-  const dispatch = createDispatcher(c, runner, licenseProvider);
+  const dispatch = createDispatcher(c, runner, licenseProvider, autopilot);
   const controller = new AbortController();
   let stopped = false;
   const connectionState = path.join(state, "connection.json");
