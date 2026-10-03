@@ -17,14 +17,19 @@ Future MCP client┘        ▼
 
 ## Current hosted-client state
 
-| Client | Recommended path | Verified state |
-| --- | --- | --- |
-| ChatGPT | KMJ CodeBridge plugin / MCP connection | CodeBridge tools are callable from the current ChatGPT integration; a target device must still be online |
-| Claude Code | Direct remote MCP or hosted plugin | Real OAuth login completed against `https://kmjtechno.com/mcp`; package validation is also enforced in CI |
-| Claude web | Custom connector | Real custom connector OAuth completed and CodeBridge tool permissions were discovered |
-| Claude Desktop, normal account mode | Custom connector / hosted plugin | Uses the same hosted OAuth MCP resource; account connector sync depends on the Claude deployment/account |
-| Claude Desktop, third-party inference Gateway mode | Inference configuration → Connectors → Managed MCP server | Configure the MCP server separately from account plugins; one final recorded tool invocation remains a live release check |
-| Generic MCP client | Streamable HTTP + OAuth or supported bearer mode | Vendor-neutral interoperability contract is CI-tested |
+- **ChatGPT:** CodeBridge tools are callable from the current integration; the
+  selected target device must still be online.
+- **Claude Code:** a real OAuth login completed against
+  `https://kmjtechno.com/mcp`; package validation is also enforced in CI.
+- **Claude web:** a real custom-connector OAuth flow completed and CodeBridge tool
+  permissions were discovered.
+- **Claude Desktop, normal account mode:** uses the same hosted OAuth MCP
+  resource; account connector sync depends on the Claude deployment/account.
+- **Claude Desktop, third-party inference Gateway mode:** configure CodeBridge
+  separately under Inference configuration → Connectors → Managed MCP servers.
+  One recorded end-to-end tool invocation remains a live release check.
+- **Generic MCP clients:** Streamable HTTP interoperability is covered by the
+  vendor-neutral CI contract.
 
 External directory approval is separate from technical connectivity.
 
