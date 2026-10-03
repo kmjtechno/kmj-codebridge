@@ -74,9 +74,36 @@ export function createUserIntrospector(config) {
         )
       )
         return null;
+      let devices;
+      if (membership.devices !== undefined) {
+        const grants = membership.devices;
+        if (
+          grants === null ||
+          typeof grants !== "object" ||
+          Array.isArray(grants) ||
+          Object.keys(grants).length > 100 ||
+          Object.entries(grants).some(
+            ([device, projects]) =>
+              !id.test(device) ||
+              !Array.isArray(projects) ||
+              projects.length > 100 ||
+              projects.some(
+                (project) => typeof project !== "string" || !id.test(project),
+              ),
+          )
+        )
+          return null;
+        devices = Object.fromEntries(
+          Object.entries(grants).map(([device, projects]) => [
+            device,
+            [...new Set(projects)],
+          ]),
+        );
+      }
       memberships.push({
         tenant: membership.tenant_id,
         permissions: [...new Set(membership.permissions)],
+        ...(devices === undefined ? {} : { devices }),
       });
     }
 
