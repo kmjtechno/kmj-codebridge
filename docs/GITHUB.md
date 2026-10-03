@@ -70,7 +70,6 @@ tokens automatically without changing the MCP tools or client configuration. Thi
 keeps CodeBridge as one product and avoids placing GitHub credentials in every AI
 IDE/CLI.
 
-
 ## Credential-free public fallback
 
 For a public repository, hosted deployments may intentionally enable a
