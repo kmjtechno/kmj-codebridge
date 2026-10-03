@@ -19,9 +19,7 @@ function isUnsafeLiteralHost(hostname) {
     return true;
   if (host.includes(":")) return true;
 
-  const match = host.match(
-    /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,
-  );
+  const match = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
   if (!match) return false;
   const octets = match.slice(1).map(Number);
   if (octets.some((octet) => octet > 255)) return true;
