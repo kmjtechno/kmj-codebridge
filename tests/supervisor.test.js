@@ -3,10 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  createSupervisorHandler,
-  startSupervisor,
-} from "../src/supervisor.js";
+import { createSupervisorHandler, startSupervisor } from "../src/supervisor.js";
 import {
   SUPERVISOR_SOCKET,
   supervisorRequest,
