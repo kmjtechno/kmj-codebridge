@@ -99,10 +99,7 @@ test("release target is deterministic and contained under the release root", () 
   assert.equal(releaseDirectoryName(f.manifest), `0.2.0-${"a".repeat(12)}`);
   assert.equal(
     safeReleasePath("/opt/kmj-codebridge/releases", f.manifest),
-    path.resolve(
-      "/opt/kmj-codebridge/releases",
-      `0.2.0-${"a".repeat(12)}`,
-    ),
+    path.resolve("/opt/kmj-codebridge/releases", `0.2.0-${"a".repeat(12)}`),
   );
 });
 
