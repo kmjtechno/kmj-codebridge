@@ -61,6 +61,22 @@ export async function startGateway(rawConfig) {
   const allDefinitions = githubDispatch
     ? { ...definitions, ...githubDefinitions }
     : definitions;
+  let githubReadiness = { checkedAt: 0, ready: false };
+  const probeGitHub = async () => {
+    if (!githubDispatch) return false;
+    const now = Date.now();
+    if (now - githubReadiness.checkedAt < 30000) return githubReadiness.ready;
+    githubReadiness = { checkedAt: now, ready: false };
+    try {
+      await githubDispatch("github_repository", {
+        repository: config.github.repositories[0],
+      });
+      githubReadiness.ready = true;
+    } catch {
+      githubReadiness.ready = false;
+    }
+    return githubReadiness.ready;
+  };
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const dynamicByToken = new Map();
   const pending = new Map(),
@@ -282,10 +298,14 @@ export async function startGateway(rawConfig) {
         return;
       }
       if (req.url === "/healthz" && req.method === "GET") {
+        const githubReady = await probeGitHub();
         json(res, 200, {
           status: "ok",
           version: VERSION,
-          capabilities: { github: Boolean(githubDispatch) },
+          capabilities: {
+            github: Boolean(githubDispatch),
+            githubReady,
+          },
         });
         return;
       }
