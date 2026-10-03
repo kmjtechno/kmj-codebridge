@@ -1,9 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
-import {
-  buildSignedReleaseManifest,
-} from "../scripts/sign-runtime-manifest.js";
+import { buildSignedReleaseManifest } from "../scripts/sign-runtime-manifest.js";
 import { verifyReleaseManifest } from "../src/update.js";
 
 function runtimeManifest() {
