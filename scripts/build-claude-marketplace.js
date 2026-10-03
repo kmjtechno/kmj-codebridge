@@ -79,7 +79,7 @@ silently create a subscription or place credentials in source control.
 The plugin files are Apache-2.0 licensed. Hosted-service use is also subject to
 \`TERMS.md\`, \`PRIVACY.md\`, and the policies published by KMJ TECHNO.
 KMJ CodeBridge is not affiliated with or endorsed by Anthropic or OpenAI.
-`
+`;
 
 export function buildInto(base) {
   const meta = readCanonical();
