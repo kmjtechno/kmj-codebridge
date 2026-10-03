@@ -20,6 +20,12 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Print exact release-store test Prettier diff
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          npx prettier --write tests/release-store.test.js
+          git diff -- tests/release-store.test.js
+          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
