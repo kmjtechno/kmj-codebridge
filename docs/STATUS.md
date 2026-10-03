@@ -1,6 +1,6 @@
 # Delivery status
 
-Version 0.2.0 is a developer preview moving through production integration. This
+Version 0.2.1 is a developer preview moving through production integration. This
 file records verified capability, not a percentage-complete claim.
 
 ## Verified now
@@ -36,14 +36,16 @@ file records verified capability, not a percentage-complete claim.
   Claude package generator, credential scan, and package contract gates.
 - **GitHub:** optional server-side bridge for allowlisted repositories, pull requests,
   Actions runs/jobs/redacted logs, branch creation, and pull-request creation without
-  exposing the GitHub credential to AI clients or device agents.
+  exposing the GitHub credential to AI clients or device agents. The hosted gateway
+  can enable this bridge from protected deployment settings, and the live hosted smoke
+  now verifies the GitHub capability is enabled.
 
 ## Still requiring production evidence or external approval
 
 - Fresh-device one-command enrollment must be re-run against the live Main Platform
   service after the current agent/runtime update is deployed.
 - A currently authorized device is online but reports runtime version 0.1.6. The
-  0.2.0 runtime must be deployed to that device before the new crash-recovery,
+  0.2.1 runtime must be deployed to that device before the new crash-recovery,
   hosted-review, and current tool-surface behavior can be validated end to end.
 - The VPS provider/hypervisor has produced abrupt external power events; guest logs did
   not show a normal Linux shutdown. Provider-side stability remains an infrastructure

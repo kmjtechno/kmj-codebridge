@@ -2,6 +2,7 @@ import http from "node:http";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { hostedConfig, startHostedGateway } from "../src/hosted.js";
+import { VERSION } from "../src/version.js";
 import { generateKeyPairSync } from "node:crypto";
 const { publicKey } = generateKeyPairSync("ed25519");
 const config = {
@@ -81,7 +82,7 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
     assert.equal(health.status, 200);
     assert.deepEqual(JSON.parse(health.body), {
       status: "ok",
-      version: "0.2.0",
+      version: VERSION,
       capabilities: { github: false },
     });
     const challenge = await httpRequest(
