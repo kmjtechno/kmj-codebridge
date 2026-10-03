@@ -35,7 +35,9 @@ function setup(t) {
 const scope = { device: "d1", project: "p1" };
 const permissions = ["read", "write", "execute"];
 
-test("autopilot tools persist, claim, checkpoint and continue independent work", async (t) => {
+test(
+  "autopilot tools persist, claim, checkpoint and continue independent work",
+  async (t) => {
   const dispatch = setup(t);
   const blocked = await dispatch(
     "autopilot_enqueue",
@@ -79,8 +81,9 @@ test("autopilot tools persist, claim, checkpoint and continue independent work",
   );
 
   const next = await dispatch("autopilot_claim", scope, permissions);
-  assert.equal(next.key, "independent");
-});
+    assert.equal(next.key, "independent");
+  },
+);
 
 test("autopilot status is read-only and bounded", async (t) => {
   const dispatch = setup(t);
