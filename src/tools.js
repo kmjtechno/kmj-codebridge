@@ -266,7 +266,12 @@ export const definitions = {
     access: "read",
   },
 };
-export function createDispatcher(config, runner, licenseProvider, autopilot = null) {
+export function createDispatcher(
+  config,
+  runner,
+  licenseProvider,
+  autopilot = null,
+) {
   const projects = new Map(
     config.projects.map((p) => [
       p.id,
@@ -282,7 +287,9 @@ export function createDispatcher(config, runner, licenseProvider, autopilot = nu
     const p = projects.get(a.project);
     if (!p) fail("PROJECT_NOT_FOUND");
     // Safe status and cancellation remain usable after paid lease expiry.
-    if (!["get_job_status", "cancel_job", "autopilot_status"].includes(name)) {
+    if (
+      !["get_job_status", "cancel_job", "autopilot_status"].includes(name)
+    ) {
       const entitlement = licenseProvider();
       if (!entitlement.features.includes(definition.access))
         fail("FEATURE_UNAVAILABLE");
