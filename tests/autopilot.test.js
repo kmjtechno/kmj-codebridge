@@ -118,7 +118,7 @@ test("persisted task text is redacted", (t) => {
   const task = journal.enqueue({
     project: "p1",
     key: "redact",
-    objective: "token=[REDACTED] continue safely",
+    objective: "token=" + "REAL_" + "SECRET continue safely",
   });
   assert.doesNotMatch(task.objective, /REAL_SECRET/);
   assert.match(task.objective, /\[REDACTED\]/);
@@ -152,4 +152,3 @@ test("bounded retention prunes only unreferenced terminal history", (t) => {
   assert.equal(status.tasks.length, 2);
   assert.ok(status.tasks.every((task) => task.id !== old.id));
 });
-
