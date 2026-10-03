@@ -5,7 +5,11 @@ import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
-const branchName = z.string().min(1).max(255).regex(/^[A-Za-z0-9._\/-]+$/);
+const branchName = z
+  .string()
+  .min(1)
+  .max(255)
+  .regex(/^[A-Za-z0-9._\/-]+$/);
 const issueNumber = z.number().int().min(1);
 const runId = z.number().int().min(1);
 
