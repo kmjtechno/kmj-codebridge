@@ -96,9 +96,7 @@ export class AutopilotJournal {
         .flatMap((task) => task.dependsOn),
     );
     const removable = this.state.tasks
-      .filter(
-        (task) => TERMINAL.has(task.state) && !protectedIds.has(task.id),
-      )
+      .filter((task) => TERMINAL.has(task.state) && !protectedIds.has(task.id))
       .sort(
         (a, b) =>
           a.updatedAt.localeCompare(b.updatedAt) ||
@@ -143,7 +141,8 @@ export class AutopilotJournal {
       return this.public(existing);
     }
     this.pruneTerminalForSpace();
-    if (this.state.tasks.length >= this.maxTasks) fail("AUTOPILOT_JOURNAL_FULL");
+    if (this.state.tasks.length >= this.maxTasks)
+      fail("AUTOPILOT_JOURNAL_FULL");
 
     for (const dependency of normalized.dependsOn) {
       const found = this.state.tasks.find(
