@@ -69,3 +69,22 @@ A future Main Platform GitHub App/OAuth connection can mint and rotate installat
 tokens automatically without changing the MCP tools or client configuration. This
 keeps CodeBridge as one product and avoids placing GitHub credentials in every AI
 IDE/CLI.
+
+
+## Credential-free public fallback
+
+For a public repository, hosted deployments may intentionally enable a
+credential-free read-only mode. This mode is restricted to the canonical
+`https://api.github.com/` origin, requires an explicit repository allowlist,
+does not send an Authorization header, and does not expose branch or pull-request
+creation tools.
+
+Hosted environment:
+
+```text
+CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY=true
+CODEBRIDGE_GITHUB_REPOSITORIES=kmjtechno/kmj-codebridge
+```
+
+Use the private broker/token mode when private repositories or GitHub writes are
+required. Public read-only fallback never grants access to private repositories.
