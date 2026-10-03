@@ -40,6 +40,7 @@ function linkState(link, releases) {
 }
 
 function atomicSymlink(link, releases, name) {
+  if (process.platform === "win32") fail("UPDATE_ACTIVATION_UNSUPPORTED");
   safeReleaseName(name);
   const target = path.join(releases, name);
   const stat = fs.lstatSync(target);
