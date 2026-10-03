@@ -162,6 +162,78 @@ export const definitions = {
     },
     access: "write",
   },
+  autopilot_status: {
+    title: "Autopilot status",
+    description:
+      "Read persistent autonomous-work state, including the next dependency-ready task.",
+    input: {
+      ...scoped,
+      limit: z.number().int().min(1).max(100).default(50),
+    },
+    access: "read",
+  },
+  autopilot_enqueue: {
+    title: "Enqueue autopilot task",
+    description:
+      "Persist a bounded project-scoped autonomous task with dependency and idempotency metadata.",
+    input: {
+      ...scoped,
+      key: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
+      objective: z.string().min(1).max(8192),
+      priority: z.number().int().min(-100).max(100).default(0),
+      dependsOn: z.array(identifier).max(20).default([]),
+    },
+    access: "write",
+  },
+  autopilot_claim: {
+    title: "Claim next autopilot task",
+    description:
+      "Claim the highest-priority dependency-ready task without blocking on unrelated waiting work.",
+    input: scoped,
+    access: "write",
+  },
+  autopilot_checkpoint: {
+    title: "Checkpoint autopilot task",
+    description:
+      "Persist bounded resumable progress for a running autonomous task.",
+    input: {
+      ...scoped,
+      task: identifier,
+      summary: z.string().max(8192),
+      next: z.string().max(8192),
+    },
+    access: "write",
+  },
+  autopilot_wait: {
+    title: "Pause autopilot task",
+    description:
+      "Move one running task to waiting while allowing independent queued work to continue.",
+    input: {
+      ...scoped,
+      task: identifier,
+      reason: z.string().min(1).max(4096),
+    },
+    access: "write",
+  },
+  autopilot_resume: {
+    title: "Resume autopilot task",
+    description:
+      "Return a waiting autonomous task to the dependency-ready queue.",
+    input: { ...scoped, task: identifier },
+    access: "write",
+  },
+  autopilot_complete: {
+    title: "Complete autopilot task",
+    description:
+      "Record a terminal autonomous-task result without executing arbitrary commands.",
+    input: {
+      ...scoped,
+      task: identifier,
+      state: z.enum(["succeeded", "failed", "cancelled"]),
+      result: z.string().max(8192),
+    },
+    access: "write",
+  },
   run_quality_gate: {
     title: "Run quality gate",
     description:
@@ -195,7 +267,12 @@ export const definitions = {
     access: "read",
   },
 };
-export function createDispatcher(config, runner, licenseProvider) {
+export function createDispatcher(
+  config,
+  runner,
+  licenseProvider,
+  autopilot = null,
+) {
   const projects = new Map(
     config.projects.map((p) => [
       p.id,
@@ -211,7 +288,7 @@ export function createDispatcher(config, runner, licenseProvider) {
     const p = projects.get(a.project);
     if (!p) fail("PROJECT_NOT_FOUND");
     // Safe status and cancellation remain usable after paid lease expiry.
-    if (!["get_job_status", "cancel_job"].includes(name)) {
+    if (!["get_job_status", "cancel_job", "autopilot_status"].includes(name)) {
       const entitlement = licenseProvider();
       if (!entitlement.features.includes(definition.access))
         fail("FEATURE_UNAVAILABLE");
@@ -265,6 +342,31 @@ export function createDispatcher(config, runner, licenseProvider) {
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
     }
+    if (name.startsWith("autopilot_") && !autopilot)
+      fail("AUTOPILOT_UNAVAILABLE");
+    if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
+    if (name === "autopilot_enqueue")
+      return autopilot.enqueue({
+        project: p.id,
+        key: a.key,
+        objective: a.objective,
+        priority: a.priority,
+        dependsOn: a.dependsOn,
+      });
+    if (name === "autopilot_claim") return autopilot.claim(p.id);
+    if (name === "autopilot_checkpoint")
+      return autopilot.checkpoint(a.task, p.id, {
+        summary: a.summary,
+        next: a.next,
+      });
+    if (name === "autopilot_wait")
+      return autopilot.wait(a.task, p.id, a.reason);
+    if (name === "autopilot_resume") return autopilot.resume(a.task, p.id);
+    if (name === "autopilot_complete")
+      return autopilot.complete(a.task, p.id, {
+        state: a.state,
+        result: a.result,
+      });
     if (name === "preview_file")
       return p.files.preview(a.path, a.content, a.expectedHash);
     if (name === "write_file") {

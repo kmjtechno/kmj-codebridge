@@ -138,6 +138,7 @@ git -C "$NEW_DIR" checkout -q "$REF"
   cd "$NEW_DIR"
   PATH="$(dirname "$NODE"):$PATH" "$NPM" ci --omit=dev --ignore-scripts
   "$NODE" --check src/agent.js
+  "$NODE" --check src/autopilot.js
   "$NODE" --check src/enrollment.js
   "$NODE" --check scripts/enroll-device.js
 )
