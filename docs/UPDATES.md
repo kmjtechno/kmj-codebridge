@@ -11,6 +11,7 @@ Required manifest fields:
 - schema = 1
 - product = KMJ CodeBridge
 - channel = stable or beta
+- monotonically increasing release sequence
 - semantic version
 - exact 40-character Git revision
 - HTTPS archive URL
@@ -66,3 +67,22 @@ Rollback atomically switches `current` back to `previous` and retains the former
 Release transitions are persisted in a bounded, atomically written history journal under the CodeBridge state directory. Ordinary files or links escaping the managed releases directory fail closed instead of being overwritten.
 
 This layer still does not download or extract archives and does not restart services by itself. Activation therefore remains side-effect-free with respect to service control until the restricted Supervisor integration is present. The Supervisor integration must supply only already signature/hash-verified content and must perform post-switch health verification before considering an update successful.
+
+## Anti-rollback and release signing
+
+Normal remote updates require a signed `sequence` strictly greater than the highest sequence already accepted by the updater. A previously valid older release therefore cannot be replayed through the update channel. Explicit rollback remains a separate local operation that can activate only the locally recorded previous-known-good release.
+
+Release archive URLs must use HTTPS and may not target literal localhost, private/link-local IPv4, literal IPv6, `.localhost` or `.local` hosts. A future downloader must additionally validate resolved addresses on every connection so DNS rebinding cannot bypass this manifest-layer check.
+
+The build host can create the exact signed manifest expected by the runtime verifier without exposing the private key to customer devices:
+
+```sh
+CODEBRIDGE_RELEASE_KEY_FILE=/secure/kmj-codebridge-release-ed25519.pem \
+CODEBRIDGE_RELEASE_KID=release-2026 \
+npm run sign:runtime -- \
+  dist/runtime/manifest.json \
+  https://releases.kmjtechno.com/codebridge/<archive>.tar.gz \
+  42
+```
+
+The signer refuses a private key stored inside the checked-out repository. The runtime receives only the signed manifest, detached base64url signature and configured trusted public keys.

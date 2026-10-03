@@ -21,6 +21,7 @@ function manifest(version, revisionChar) {
     schema: 1,
     product: "KMJ CodeBridge",
     channel: "stable",
+    sequence: Number(version.split(".")[1] ?? 0),
     version,
     revision: revisionChar.repeat(40),
     archive: `https://downloads.kmjtechno.com/codebridge/${version}.tar.gz`,
@@ -59,6 +60,7 @@ test("finalizes a validated staged runtime into an immutable release identity", 
     fs.readFileSync(path.join(finalized.target, ".codebridge-release.json")),
   );
   assert.equal(marker.revision, m.revision);
+  assert.equal(marker.sequence, m.sequence);
   assert.equal(marker.sha256, m.sha256);
 });
 
