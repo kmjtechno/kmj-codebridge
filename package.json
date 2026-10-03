@@ -23,7 +23,8 @@
     "package:runtime": "node scripts/package-runtime.js",
     "test:interop": "node --test --test-concurrency=1 tests/interop.test.js",
     "test:clients": "node --test --test-concurrency=1 tests/client-packages.test.js",
-    "scan:secrets": "node scripts/scan-secrets.js"
+    "scan:secrets": "node scripts/scan-secrets.js",
+    "sign:runtime": "node scripts/sign-runtime-manifest.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
