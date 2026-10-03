@@ -41,6 +41,19 @@ test("hosted config can enable the GitHub bridge from private environment settin
   });
 });
 
+test("hosted config supports explicit public read-only GitHub mode without a credential", () => {
+  const parsed = hostedConfig(JSON.stringify(config), "10000", {
+    CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+    CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+  });
+  assert.deepEqual(parsed.github, {
+    apiBase: "https://api.github.com/",
+    publicReadOnly: true,
+    repositories: ["kmjtechno/kmj-codebridge"],
+    cacheSeconds: 30,
+  });
+});
+
 test("hosted config rejects partial GitHub environment settings", () => {
   assert.throws(
     () =>

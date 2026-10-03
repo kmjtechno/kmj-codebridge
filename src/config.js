@@ -78,12 +78,34 @@ export const gatewaySchema = z
     github: z
       .object({
         apiBase: httpsUrl.default("https://api.github.com/"),
-        tokenEnv: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+        tokenEnv: z
+          .string()
+          .regex(/^[A-Z][A-Z0-9_]{2,63}$/)
+          .optional(),
+        publicReadOnly: z.boolean().optional(),
         repositories: z
           .array(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/))
           .min(1)
           .max(100),
         cacheSeconds: z.number().int().min(5).max(300).default(30),
+      })
+      .superRefine((github, ctx) => {
+        if (!github.publicReadOnly && !github.tokenEnv) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message:
+              "GitHub tokenEnv is required unless publicReadOnly is enabled",
+          });
+        }
+        if (
+          github.publicReadOnly &&
+          new URL(github.apiBase).href !== "https://api.github.com/"
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: "Public read-only GitHub mode must use api.github.com",
+          });
+        }
       })
       .optional(),
     host: z.string().default("127.0.0.1"),

@@ -37,8 +37,9 @@ file records verified capability, not a percentage-complete claim.
 - **GitHub:** optional server-side bridge for allowlisted repositories, pull requests,
   Actions runs/jobs/redacted logs, branch creation, and pull-request creation without
   exposing the GitHub credential to AI clients or device agents. The hosted gateway
-  can enable this bridge from protected deployment settings, and the live hosted smoke
-  now verifies the GitHub capability is enabled.
+  supports both a protected credential broker for private/write access and an explicit
+  credential-free read-only mode for allowlisted public repositories. Hosted smoke
+  verifies that the configured GitHub path can actually reach an allowed repository.
 
 ## Still requiring production evidence or external approval
 

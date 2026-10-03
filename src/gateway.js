@@ -58,8 +58,15 @@ export async function startGateway(rawConfig) {
     ? createOAuthVerifier(config.oauth, config.users, resolveOAuthUser)
     : null;
   const githubDispatch = createGitHubBridge(config.github);
+  const enabledGitHubDefinitions = config.github?.publicReadOnly
+    ? Object.fromEntries(
+        Object.entries(githubDefinitions).filter(
+          ([, definition]) => definition.access === "read",
+        ),
+      )
+    : githubDefinitions;
   const allDefinitions = githubDispatch
-    ? { ...definitions, ...githubDefinitions }
+    ? { ...definitions, ...enabledGitHubDefinitions }
     : definitions;
   let githubReadiness = { checkedAt: 0, ready: false };
   const probeGitHub = async () => {

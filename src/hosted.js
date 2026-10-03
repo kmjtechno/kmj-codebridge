@@ -5,6 +5,26 @@ function hostedGitHubConfig(env) {
   const apiBase = env.CODEBRIDGE_GITHUB_API_BASE;
   const token = env.CODEBRIDGE_GITHUB_PROXY_TOKEN;
   const repositoriesText = env.CODEBRIDGE_GITHUB_REPOSITORIES;
+  const publicReadOnly =
+    env.CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY?.toLowerCase() === "true";
+
+  if (publicReadOnly) {
+    if (!repositoriesText) fail("HOSTED_CONFIG_INVALID");
+    if (apiBase && new URL(apiBase).href !== "https://api.github.com/")
+      fail("HOSTED_CONFIG_INVALID");
+    const repositories = repositoriesText
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean);
+    if (repositories.length === 0) fail("HOSTED_CONFIG_INVALID");
+    return {
+      apiBase: "https://api.github.com/",
+      publicReadOnly: true,
+      repositories,
+      cacheSeconds: 30,
+    };
+  }
+
   const configured = [apiBase, token, repositoriesText].filter(Boolean).length;
   if (configured === 0) return undefined;
   if (configured !== 3 || typeof token !== "string" || token.length < 32)
