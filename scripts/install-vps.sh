@@ -53,7 +53,7 @@ while (($#)); do
 KMJ CodeBridge secure VPS installer
 
 Run from the project directory:
-  curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+  curl -fsSL https://kmjtechno.com/install | sudo bash
 
 Optional:
   --project /absolute/project

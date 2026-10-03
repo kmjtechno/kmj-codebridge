@@ -1,10 +1,7 @@
-// Builds the committed, self-hosted Claude Code marketplace at the repository
-// root so users can run:
-//   claude plugin marketplace add kmjtechno/kmj-codebridge
-//   claude plugin install kmj-codebridge@kmj-techno
-// No endpoint or credential is committed: Claude Code prompts each user for
-// their own gateway URL and client token (stored in secure storage) at install
-// time through the plugin's userConfig.
+// Builds the committed KMJ-hosted Claude plugin marketplace at the repository
+// root. The public plugin uses the production OAuth MCP endpoint and contains no
+// credential. Self-hosted operators can still generate an endpoint-specific
+// package with scripts/package-claude.js.
 //
 //   node scripts/build-claude-marketplace.js          regenerate files
 //   node scripts/build-claude-marketplace.js --check  fail if files drifted
@@ -20,94 +17,73 @@ import {
 
 const PLUGIN_DIR = "claude-plugin";
 
-export const selfHostedServer = {
+export const hostedServer = {
   type: "http",
-  url: "${user_config.endpoint}",
-  headers: { Authorization: "Bearer ${user_config.token}" },
-};
-
-export const selfHostedUserConfig = {
-  endpoint: {
-    type: "string",
-    title: "CodeBridge MCP endpoint",
-    description:
-      "Your CodeBridge gateway URL ending in /mcp, for example https://bridge.example.com/mcp or http://127.0.0.1:8787/mcp for a local gateway.",
-    required: true,
-  },
-  token: {
-    type: "string",
-    title: "CodeBridge client token",
-    description:
-      "The client credential from your private CodeBridge configuration (client-token.txt). Stored in your system's secure credential store.",
-    sensitive: true,
-    required: true,
-  },
+  url: "https://kmjtechno.com/mcp",
 };
 
 export const pluginReadme = `# KMJ CodeBridge for Claude
 
 ![KMJ TECHNO](assets/logo.png)
 
-KMJ CodeBridge lets Claude inspect authorized projects, read and update approved
-files, and run administrator-configured quality gates on computers and VPSs that
-you control. It is a developer preview.
+KMJ CodeBridge connects Claude to projects on computers and VPSs you explicitly
+authorize. The public plugin uses KMJ TECHNO's OAuth-protected MCP endpoint at
+\`https://kmjtechno.com/mcp\`; it contains no API key, bearer token, or device
+credential.
 
 ## What this plugin contains
 
-- One skill, \`codebridge\`, with the safety rules Claude follows when it uses the
-  CodeBridge tools: inspect before editing, preserve your changes, use content
-  hashes for every write, never expose secrets, and run only configured gates.
-- One remote MCP server entry named \`codebridge\`. The plugin contains no
-  executable code, hooks, scripts or bundled packages.
+- One \`codebridge\` skill with the shared safety rules used across supported
+  AI clients.
+- One remote Streamable HTTP MCP server named \`codebridge\`.
+- Branding, license, privacy, and terms files.
 
-## What you need
+## Connect
 
-This plugin does not include a hosted service. You run your own CodeBridge
-gateway and device agent from https://github.com/kmjtechno/kmj-codebridge and
-enter two values when you enable the plugin:
+Enable the plugin and choose **Connect**. Claude discovers the OAuth
+authorization server from the MCP protected-resource metadata and opens the KMJ
+account-linking flow. Only devices/projects authorized for that account are
+exposed.
 
-- **CodeBridge MCP endpoint**: your gateway URL ending in \`/mcp\`.
-- **CodeBridge client token**: the client credential from your private
-  CodeBridge configuration. Claude stores it in your system's secure credential
-  store, not in settings files.
+Claude Desktop installations using a third-party inference **Gateway** profile
+manage remote MCP servers in **Inference configuration → Connectors**. In that
+mode add \`https://kmjtechno.com/mcp\` as a Streamable HTTP server and use
+OAuth auto-registration; the account-level plugin Connect control may be
+unavailable in that deployment profile.
 
-Claude Code can reach a local gateway such as \`http://127.0.0.1:8787/mcp\`.
-Claude on the web, desktop and mobile connect from Anthropic's cloud and need a
-publicly reachable HTTPS gateway.
+## Self-hosted deployments
+
+The repository remains self-hostable. Operators who run their own gateway should
+generate an endpoint-specific Claude package instead of editing this public
+plugin:
+
+\`npm run package:claude -- https://YOUR-HOST/mcp\`
+
+For static bearer developer deployments use the documented \`bearer-env\`
+mode; never embed a credential in a plugin archive.
 
 ## Data flow
 
-The plugin sends MCP requests, and your client token as a bearer credential,
-only to the endpoint you configure. Your gateway forwards authorized requests to
-your own device agent, which enforces project scope, secret-path redaction,
-hash-checked writes and fixed quality-gate commands. The plugin sends nothing to
-any other destination. File contents, search results, Git status and job logs
-that Claude requests return from your gateway into the Claude conversation.
+Claude sends MCP tool calls to the configured CodeBridge gateway. CodeBridge
+routes authorized work to the outbound device agent, which enforces project
+scope, guarded writes, secret redaction, and administrator-defined quality
+gates. Tool results return to the Claude conversation.
 
 ## Commercial terms
 
-Plans and licensing for CodeBridge are managed by KMJ Main Platform, not by this
-plugin. The plugin does not start purchases or promote upgrades.
+Plans and licensing are controlled by KMJ Main Platform. The plugin does not
+silently create a subscription or place credentials in source control.
 
 ## License and policies
 
-The files in this plugin are provided under the Apache License 2.0 (see \`LICENSE\`).
-Use of CodeBridge is also subject to the plugin terms in \`TERMS.md\`, the
-privacy notice in \`PRIVACY.md\`, and the KMJ TECHNO
-[Terms & Conditions](https://kmjtechno.com/terms),
-[Privacy Policy](https://kmjtechno.com/privacy) and
-[Acceptable Use Policy](https://kmjtechno.com/acceptable-use).
+The plugin files are Apache-2.0 licensed. Hosted-service use is also subject to
+\`TERMS.md\`, \`PRIVACY.md\`, and the policies published by KMJ TECHNO.
 KMJ CodeBridge is not affiliated with or endorsed by Anthropic or OpenAI.
 `;
 
 export function buildInto(base) {
   const meta = readCanonical();
-  writeClaudePlugin(
-    path.join(base, PLUGIN_DIR),
-    meta,
-    selfHostedServer,
-    selfHostedUserConfig,
-  );
+  writeClaudePlugin(path.join(base, PLUGIN_DIR), meta, hostedServer);
   fs.writeFileSync(path.join(base, PLUGIN_DIR, "README.md"), pluginReadme);
   writeClaudeMarketplace(base, meta, `./${PLUGIN_DIR}`);
 }
@@ -169,7 +145,7 @@ if (process.argv[1]?.endsWith("build-claude-marketplace.js")) {
       });
       buildInto(root);
       console.log(
-        "Wrote .claude-plugin/marketplace.json and claude-plugin/. No endpoint or credential is included.",
+        "Wrote .claude-plugin/marketplace.json and claude-plugin/ for the KMJ-hosted OAuth endpoint. No credential is included.",
       );
     }
   } catch (e) {

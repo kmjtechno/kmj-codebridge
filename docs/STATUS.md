@@ -1,67 +1,62 @@
 # Delivery status
 
-Version 0.1.7 is a developer preview. The full nine-phase roadmap is not complete.
+Version 0.1.7 is a developer preview moving through production integration. This
+file records verified capability, not a percentage-complete claim.
 
-| Area         | Implemented here                                                        | Still required                                                             |
-| ------------ | ----------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| MCP          | Real official-SDK Streamable HTTP server and client integration tests   | Actual ChatGPT and Claude connections against hosted endpoint              |
-| AI clients   | One tool contract/skill; OpenAI and Claude Code packages; interop tests | Hosted OAuth for Claude.ai/Desktop and ChatGPT; live client sessions       |
-| Devices      | Outbound agent transport and multi-device authorization mapping         | Enrollment UI, device-key identity, signed installers                      |
-| Coding       | Scoped reads/search, hash-checked writes, Git status, fixed gates       | Worktree orchestration, full language adapters                             |
-| Jobs         | Local terminal results, idempotent starts, cancellation, timeouts       | Durable gateway queue, robust hard-crash orphan reconciliation             |
-| Licensing    | Signed entitlement verifier and local replay/time checks                | Live Main Platform activation/renewal, billing, global limits/revocation   |
-| Platform     | Node.js source, Linux and Windows CI                                    | macOS verification and native Rust agent                                   |
-| Security     | Scope/auth/path checks and regression tests                             | OS isolation, live OAuth linking, penetration testing, production approval |
-| Distribution | One plugin source; OpenAI and Claude Code packagers; credential scan    | Hosted endpoint, authenticated install test, public review                 |
-| Revenue      | Proposed plans and rollout roadmap                                      | Live approved checkout, real customers and payments                        |
+## Verified now
 
-No generated local credentials are published. No production system is modified. No
-cloud deployment or payment is claimed. Test counts and CI links are reported only
-after actual runs; see the implementation ledger for observations.
+- **MCP core:** official SDK Streamable HTTP gateway, bounded tool contract,
+  tenant/device/project authorization, guarded writes, jobs, and interop tests.
+- **Public endpoint:** `https://kmjtechno.com/mcp` is the production MCP
+  resource used by current client setup.
+- **OAuth:** protected-resource discovery and KMJ account authorization work in
+  a real Claude Code OAuth session and a Claude web custom connector.
+- **ChatGPT:** the connected KMJ CodeBridge tool surface is callable from the
+  current ChatGPT integration; device availability remains independent.
+- **Claude Code:** real OAuth login completed against the hosted endpoint;
+  repository package validation remains enforced in CI.
+- **Claude web:** custom connector added by URL, authenticated, and exposed the
+  CodeBridge tool permissions.
+- **Claude Desktop:** normal-account mode uses the hosted endpoint. A
+  third-party inference Gateway profile must add CodeBridge under Inference
+  configuration → Connectors; that path still needs a recorded real tool call.
+- **Devices:** outbound agent, dynamic device introspection, verifier-bound
+  pairing client, hardened systemd service, and restricted socket-activated
+  Supervisor are implemented.
+- **Crash recovery:** the agent state lock now recovers automatically only when
+  staleness is provable; exact-head Linux, Windows, client, and distribution CI
+  passed before merge.
+- **Main Platform:** source contains CodeBridge OAuth/OIDC, device pairing and
+  redemption, user/device introspection, entitlement/renewal services, account
+  UI, and regression tests.
+- **Updates:** signed immutable release verification, atomic
+  activation/rollback foundation, and anti-rollback sequence checks are
+  implemented.
+- **Distribution:** OpenAI package, hosted Claude plugin, endpoint-specific
+  Claude package generator, credential scan, and package contract gates.
 
-## OAuth resource-server slice
+## Still requiring production evidence or external approval
 
-Implemented optional JWT validation with pinned public JWKS, protected-resource metadata, scope challenges and administrator-controlled subject mapping. See [OAuth configuration](OAUTH.md). No live issuer, payment connection, lease renewal service or ChatGPT installation is claimed.
+- Fresh-device one-command enrollment must be re-run against the live Main Platform
+  service after the current agent/runtime update is deployed.
+- The currently registered production device is offline; the merged crash-safe lock
+  fix must be deployed to that VPS before an end-to-end device tool call can pass.
+- The VPS provider/hypervisor has produced abrupt external power events; guest logs did
+  not show a normal Linux shutdown. Provider-side stability remains an infrastructure
+  dependency rather than a CodeBridge software gate.
+- Claude Desktop third-party-inference Gateway mode needs one recorded OAuth
+  `Sign in & test` plus a real CodeBridge tool invocation.
+- Public Anthropic/OpenAI directory review is an external approval step. Repository
+  packaging does not imply directory approval.
+- Paid checkout, cancellation/refund, entitlement renewal/revocation, and real-customer
+  lifecycle evidence must be verified before generally available paid-service claims.
+- macOS/native Rust expansion, stronger untrusted-code isolation, shared durable gateway
+  routing for multi-replica scale, formal penetration testing, and enterprise features
+  remain later roadmap work.
 
-## Multi-client MCP slice (ChatGPT + Claude)
+## Release discipline
 
-CodeBridge is now packaged as a vendor-neutral MCP bridge. ChatGPT and Claude
-clients share one gateway, tool contract, skill and security model; see
-[AI client support](CLIENTS.md). Added: tool titles, RFC 9728 path-suffixed
-protected-resource metadata, a configurable device timeout, isolated OpenAI `_meta`
-extensions, a Claude Code plugin/marketplace packager, a repository and package
-credential scan, and vendor-neutral MCP interoperability contract tests with
-dedicated CI jobs.
-
-Verified in the development workspace: the generated Claude Code marketplace and
-plugins pass `claude plugin validate --strict` (Claude Code 2.1.285) and install
-into an isolated Claude Code configuration with one skill and one MCP server.
-In CI (Node 24, real MCP SDK) the vendor-neutral interoperability contract passes
-11/11 and the full Linux and Windows suites pass; the `clients` job also runs the
-official Claude Code plugin validator as an enforced gate. Not verified: any live
-Claude.ai, Claude Desktop, Claude Code or ChatGPT session against a hosted gateway,
-and any authorization server. Claude.ai and Claude Desktop remain unavailable until a public HTTPS
-endpoint and OAuth authorization server exist.
-
-## Claude Code marketplace
-
-The repository is a Claude Code plugin marketplace. `claude plugin marketplace add
-kmjtechno/kmj-codebridge` installs the `kmj-codebridge` plugin, which asks each
-user for their own gateway URL and a sensitive client token; no endpoint or
-credential is committed. Verified locally: marketplace add, install and
-configuration in an isolated Claude Code 2.1.285 profile. Not done: listing in
-Anthropic's plugin directory, which requires the owner to choose a license and
-submit for review.
-
-## Milestone accounting
-
-No full M0–M8 phase has all its acceptance gates verified yet: **0/9 fully accepted
-phases**. This is a release-gate count, not a claim that no code has been written.
-M0–M4 have partial engineering work; M5–M8 remain future work. A defensible overall
-percentage needs weighted, agreed deliverables; test counts are not a completion
-percentage. The current product is an executable developer preview.
-
-The optional signed renewal client now has transport and agent cache lifecycle tests.
-Live Main Platform contract interoperability and deployed account linking are still
-blocked on real service configuration, credentials and endpoints. No permanent cloud
-hosting has been provisioned by this development workspace.
+A change is considered merged only after its exact head passes the required CI gates.
+A client, deployment, billing flow, or external approval is considered complete only
+after a real end-to-end observation; source code or mocks alone are not reported as
+production proof.

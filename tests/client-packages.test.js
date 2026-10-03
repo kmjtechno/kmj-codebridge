@@ -270,7 +270,7 @@ test("committed Claude marketplace matches canonical sources", () => {
   assert.equal(result.status, 0, result.stderr);
 });
 
-test("committed Claude plugin asks each user for endpoint and token", () => {
+test("committed Claude plugin uses the hosted OAuth endpoint without credentials", () => {
   const marketplace = readJson(
     path.join(cwd, ".claude-plugin/marketplace.json"),
   );
@@ -286,17 +286,12 @@ test("committed Claude plugin asks each user for endpoint and token", () => {
     path.join(cwd, "claude-plugin/.claude-plugin/plugin.json"),
   );
   assert.equal(manifest.version, canonical.version);
-  assert.equal(manifest.userConfig.endpoint.required, true);
-  assert.equal(manifest.userConfig.endpoint.sensitive, undefined);
-  assert.equal(manifest.userConfig.token.required, true);
-  assert.equal(manifest.userConfig.token.sensitive, true);
-  // No committed endpoint or credential: only install-time placeholders.
+  assert.equal(manifest.userConfig, undefined);
   assert.deepEqual(readJson(path.join(cwd, "claude-plugin/.mcp.json")), {
     mcpServers: {
       codebridge: {
         type: "http",
-        url: "${user_config.endpoint}",
-        headers: { Authorization: "Bearer ${user_config.token}" },
+        url: "https://kmjtechno.com/mcp",
       },
     },
   });
@@ -312,7 +307,8 @@ test("committed Claude plugin asks each user for endpoint and token", () => {
     .readFileSync(path.join(cwd, "claude-plugin/README.md"), "utf8")
     .replace(/```[\s\S]*?```/g, "");
   assert.ok(readme.split(/\s+/).filter(Boolean).length >= 40);
-  assert.match(readme, /sends nothing to\s+any other destination/);
+  assert.match(readme, /https:\/\/kmjtechno\.com\/mcp/);
+  assert.match(readme, /OAuth auto-registration/);
   assertCredentialFree(path.join(cwd, "claude-plugin"));
   assertCredentialFree(path.join(cwd, ".claude-plugin"));
 });

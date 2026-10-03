@@ -33,20 +33,26 @@ per device. A user record maps each device ID to its authorized project IDs and 
 permissions. The agent independently maps project IDs to absolute canonical roots.
 Device IDs never imply authorization. Keep credentials out of URLs, code and chat.
 
-The repository now implements the CodeBridge client side of verifier-bound,
-short-lived device pairing. Main Platform browser approval, atomic one-time redemption,
-credential rotation and global revocation remain server-side release gates. See
-[secure device enrollment](ENROLLMENT.md). Static provisioned accounts remain useful
+The repository implements the CodeBridge client side of verifier-bound, short-lived
+device pairing. Main Platform source implements browser approval, atomic one-time
+redemption, user/device introspection, and the related persistence model. Credential
+rotation/global revocation and a fresh production pairing remain release evidence
+gates. See [secure device enrollment](ENROLLMENT.md). Static provisioned accounts remain useful
 for deterministic development tests but are not the final customer onboarding flow.
 
 ## Linux install, update and rollback
 
-Target customer flow, once the Main Platform enrollment API is live:
+Target customer flow:
 
 ```sh
 cd /absolute/project
-curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+curl -fsSL https://kmjtechno.com/install | sudo bash
 ```
+
+The official-domain bootstrap should pin an immutable CodeBridge commit/release before
+executing the full installer. Re-running the command is the supported repair/update
+entry point; the installer preserves a valid device configuration and rolls back a
+replacement runtime if startup/connectivity verification fails.
 
 The installer does not accept or require a permanent token in the URL or command.
 On first install it requests a short-lived S256 verifier-bound enrollment, displays
@@ -64,8 +70,9 @@ project marker (.git, package.json, composer.json, pyproject.toml, Cargo.toml or
 go.mod); otherwise --project is required. No inbound agent port or GitHub Actions
 runner is installed.
 
-A live first-install enrollment is **not** claimed until Main Platform implements and
-verifies the API described in [ENROLLMENT.md](ENROLLMENT.md).
+Main Platform source now contains the API described in
+[ENROLLMENT.md](ENROLLMENT.md). General production readiness still requires a recorded
+fresh first-install pairing against the deployed service.
 
 ## Recovery
 
@@ -104,14 +111,16 @@ check Host header matches an explicitly allowed hostname. Do not add wildcard ho
 Use one instance initially: pending request routing is in memory, so multiple gateway
 replicas require a shared routing layer that this preview does not implement.
 
-Required before deployment: confirmed hosting workspace, approved public resource URL,
-real OAuth issuer/public keys, administrator-mapped subjects and separately provisioned
-agent credentials. Production signing keys are never needed by this gateway.
+Hosted OAuth infrastructure is now used by the public
+`https://kmjtechno.com/mcp` client path. Each deployment must still verify the exact
+issuer/resource/JWKS configuration, allowed host, account mapping, and agent
+introspection settings before rollout. Production signing keys are never needed by the
+gateway.
 
-This entry point is tested over HTTP behind the expected TLS termination boundary.
-A hosting deployment, TLS endpoint or successful live account link is not implied by
-passing source tests. Provider-specific cold starts, quotas and availability must be
-validated for the selected plan before promising always-on connectivity.
+The hosted entry point remains tested behind a TLS-termination boundary, while real
+Claude OAuth sessions have additionally exercised the public MCP resource. Provider
+availability, proxy/WAF behavior, and capacity must still be monitored before making
+an uptime or scale claim.
 
 ## Verified runtime downloads
 

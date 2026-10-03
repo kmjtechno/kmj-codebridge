@@ -1,8 +1,10 @@
 # Secure device enrollment contract
 
-KMJ CodeBridge supports a zero-manual-token installer flow, but the account authority
-must implement this contract before a completely fresh VPS can enroll against the
-production service. KMJ Main Platform remains the account/licensing authority.
+KMJ CodeBridge supports a zero-manual-token installer flow. KMJ Main Platform remains
+the account/licensing authority and its current source implements the create, browser
+approval, redemption, device-introspection, and user-introspection sides of this
+contract. A production install is complete only after those routes are enabled and a
+fresh device has successfully paired against the live service.
 
 The installer never places a bearer token, API key or permanent credential in the
 installation URL or command. It creates a local verifier, sends only its S256
@@ -14,7 +16,7 @@ and redeems the approved enrollment with the original verifier.
 From an authorized project directory:
 
 ```sh
-curl -fsSL https://OFFICIAL-CODEBRIDGE-DOMAIN/install | sudo bash
+curl -fsSL https://kmjtechno.com/install | sudo bash
 ```
 
 The installer:
@@ -157,8 +159,8 @@ operations equivalent to:
 
 Rotation returns a new independent device credential and invalidates the previous
 credential after a bounded overlap window. Revocation stops future gateway agent
-authentication. These server endpoints are **not implemented by this repository** and
-must not be claimed until Main Platform ships and verifies them.
+authentication. These lifecycle operations remain release gates unless the deployed
+Main Platform version exposes and verifies them end-to-end.
 
 ## Installer persistence and update policy
 
@@ -172,12 +174,14 @@ must not be claimed until Main Platform ships and verifies them.
 - No credential is printed to stdout/stderr.
 - No GitHub credential or self-hosted runner is required.
 
-## Current external blocker
+## Current production gate
 
-CodeBridge implements the client side of this versioned contract. A truly fresh
-production VPS cannot complete zero-token enrollment until KMJ Main Platform (or its
-authorized CodeBridge account service) implements the create, approval and redemption
-endpoints above and provisions the resulting device identity into the gateway.
+The CodeBridge repository implements the enrollment client and hardened installer.
+KMJ Main Platform source implements the matching create, approval, redemption, user
+introspection, and device-credential introspection routes. The remaining release proof
+is operational: the public installer bootstrap, production feature flags, Main Platform
+deployment, gateway configuration, and one fresh-device pairing must all be observed
+together.
 
-The installer must fail clearly rather than manufacture a fake local enrollment when
-those endpoints are unavailable.
+The installer fails clearly rather than manufacturing a fake local enrollment when a
+required server route, approval, or credential exchange is unavailable.
