@@ -35,9 +35,7 @@ function setup(t) {
 const scope = { device: "d1", project: "p1" };
 const permissions = ["read", "write", "execute"];
 
-test(
-  "autopilot tools persist, claim, checkpoint and continue independent work",
-  async (t) => {
+test("autopilot tools persist, claim, checkpoint and continue independent work", async (t) => {
   const dispatch = setup(t);
   const blocked = await dispatch(
     "autopilot_enqueue",
@@ -81,9 +79,8 @@ test(
   );
 
   const next = await dispatch("autopilot_claim", scope, permissions);
-    assert.equal(next.key, "independent");
-  },
-);
+  assert.equal(next.key, "independent");
+});
 
 test("autopilot status is read-only and bounded", async (t) => {
   const dispatch = setup(t);
@@ -98,11 +95,9 @@ test("autopilot status is read-only and bounded", async (t) => {
     },
     permissions,
   );
-  const status = await dispatch(
-    "autopilot_status",
-    { ...scope, limit: 10 },
-    ["read"],
-  );
+  const status = await dispatch("autopilot_status", { ...scope, limit: 10 }, [
+    "read",
+  ]);
   assert.equal(status.counts.queued, 1);
   assert.equal(status.tasks.length, 1);
   assert.equal(status.next.key, "status");
