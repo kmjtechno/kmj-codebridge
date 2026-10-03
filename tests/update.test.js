@@ -36,7 +36,10 @@ function fixture(overrides = {}) {
 
 test("verifies exact signed manifest bytes with an Ed25519 key", () => {
   const f = fixture();
-  assert.deepEqual(verifyReleaseManifest(f.bytes, f.signature, f.keys), f.manifest);
+  assert.deepEqual(
+    verifyReleaseManifest(f.bytes, f.signature, f.keys),
+    f.manifest,
+  );
 });
 
 test("rejects tampered manifest bytes and unknown signing keys", () => {
@@ -82,20 +85,17 @@ test("requires exact archive size and SHA-256", () => {
   );
   assert.throws(
     () =>
-      verifyReleaseArchive(
-        Buffer.from("different archive"),
-        { ...f.manifest, bytes: Buffer.byteLength("different archive") },
-      ),
+      verifyReleaseArchive(Buffer.from("different archive"), {
+        ...f.manifest,
+        bytes: Buffer.byteLength("different archive"),
+      }),
     /UPDATE_ARCHIVE_HASH_MISMATCH/,
   );
 });
 
 test("release target is deterministic and contained under the release root", () => {
   const f = fixture();
-  assert.equal(
-    releaseDirectoryName(f.manifest),
-    `0.2.0-${"a".repeat(12)}`,
-  );
+  assert.equal(releaseDirectoryName(f.manifest), `0.2.0-${"a".repeat(12)}`);
   assert.equal(
     safeReleasePath("/opt/kmj-codebridge/releases", f.manifest),
     `/opt/kmj-codebridge/releases/0.2.0-${"a".repeat(12)}`,
