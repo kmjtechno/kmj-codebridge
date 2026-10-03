@@ -162,9 +162,7 @@ export const agentSchema = z.object({
   id,
   tenant: id,
   stateDir: z.string(),
-  supervisorSocket: z
-    .literal("/run/kmj-codebridge/supervisor.sock")
-    .optional(),
+  supervisorSocket: z.literal("/run/kmj-codebridge/supervisor.sock").optional(),
   pollMs: z.number().min(10).max(5000).default(250),
   projects: z
     .array(
