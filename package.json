@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "check": "prettier --write src/autopilot.js src/tools.js tests/autopilot-dispatch.test.js tests/autopilot.test.js && git diff -- src/autopilot.js src/tools.js tests/autopilot-dispatch.test.js tests/autopilot.test.js && node -e \"process.exit(1)\"",
+    "check": "prettier --check src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md && node scripts/check.js",
     "gateway": "node src/cli.js gateway",
     "agent": "node src/cli.js agent",
     "init": "node scripts/init.js",
