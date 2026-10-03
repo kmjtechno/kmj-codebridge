@@ -266,9 +266,9 @@ export class AutopilotJournal {
     return {
       counts,
       next: next ? this.public(next) : null,
-      tasks: tasks.slice(0, Math.max(1, Math.min(limit, 100))).map((task) =>
-        this.public(task),
-      ),
+      tasks: tasks
+        .slice(0, Math.max(1, Math.min(limit, 100)))
+        .map((task) => this.public(task)),
     };
   }
 }
