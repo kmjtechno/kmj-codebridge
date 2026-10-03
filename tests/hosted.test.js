@@ -23,6 +23,36 @@ const config = {
   ],
   agents: [{ id: "d1", tenant: "t1", tokenHash: "a".repeat(64) }],
 };
+test("hosted config can enable the GitHub bridge from private environment settings", () => {
+  const parsed = hostedConfig(JSON.stringify(config), "10000", {
+    CODEBRIDGE_GITHUB_API_BASE:
+      "https://kmj-autonomous-dev-controller.onrender.com/codebridge/github/",
+    CODEBRIDGE_GITHUB_PROXY_TOKEN: "x".repeat(48),
+    CODEBRIDGE_GITHUB_REPOSITORIES:
+      "kmjtechno/kmj-codebridge,kmjtechno/kmj-main-platform",
+  });
+  assert.deepEqual(parsed.github, {
+    apiBase:
+      "https://kmj-autonomous-dev-controller.onrender.com/codebridge/github/",
+    tokenEnv: "CODEBRIDGE_GITHUB_PROXY_TOKEN",
+    repositories: [
+      "kmjtechno/kmj-codebridge",
+      "kmjtechno/kmj-main-platform",
+    ],
+    cacheSeconds: 30,
+  });
+});
+
+test("hosted config rejects partial GitHub environment settings", () => {
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        CODEBRIDGE_GITHUB_API_BASE: "https://proxy.example/",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+});
+
 test("hosted mode requires OAuth and matching public hostname", () => {
   for (const value of [
     { ...config, oauth: undefined },
