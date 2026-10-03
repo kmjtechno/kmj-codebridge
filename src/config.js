@@ -93,7 +93,8 @@ export const gatewaySchema = z
         if (!github.publicReadOnly && !github.tokenEnv) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
-            message: "GitHub tokenEnv is required unless publicReadOnly is enabled",
+            message:
+              "GitHub tokenEnv is required unless publicReadOnly is enabled",
           });
         }
         if (
