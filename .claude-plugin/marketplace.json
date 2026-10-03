@@ -1,7 +1,8 @@
 {
   "name": "kmj-techno",
   "owner": {
-    "name": "KMJ TECHNO"
+    "name": "KMJ TECHNO",
+    "url": "https://kmjtechno.com"
   },
   "description": "KMJ TECHNO plugins for secure, project-scoped AI development.",
   "plugins": [
