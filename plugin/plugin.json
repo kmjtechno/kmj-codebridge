@@ -26,8 +26,7 @@
           "Verified quality gates"
         ],
         "defaultPrompt": [
-          "Inspect my authorized project with KMJ CodeBridge.",
-          "Show Git status and run my configured quality gates.",
+          "Inspect my authorized project, show Git status, and run the configured quality gates with KMJ CodeBridge.",
           "Check the latest GitHub pull request and Actions status for my allowed repository.",
           "Check my CodeBridge connection and latest job results."
         ],
