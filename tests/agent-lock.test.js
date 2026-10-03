@@ -35,6 +35,21 @@ test("agent lock replaces a proven-stale legacy PID lock", (t) => {
   assert.equal(fs.existsSync(lockPath), false);
 });
 
+
+test("legacy lock from before this boot recovers even when PID is reused", (t) => {
+  const dir = tempState(t);
+  const lockPath = path.join(dir, "agent.lock");
+  fs.writeFileSync(lockPath, String(process.pid), { mode: 0o600 });
+  const old = new Date("2000-01-01T00:00:00Z");
+  fs.utimesSync(lockPath, old, old);
+
+  const lock = acquireAgentLock(dir);
+  const stored = JSON.parse(fs.readFileSync(lockPath, "utf8"));
+  assert.equal(stored.pid, process.pid);
+  assert.equal(stored.owner, lock.owner);
+  releaseAgentLock(lock);
+});
+
 test("agent lock refuses to replace a lock owned by a live process", (t) => {
   const dir = tempState(t);
   fs.writeFileSync(path.join(dir, "agent.lock"), String(process.pid), {
