@@ -17,6 +17,7 @@ function fixture(overrides = {}) {
     schema: 1,
     product: "KMJ CodeBridge",
     channel: "stable",
+    sequence: 42,
     version: "0.2.0",
     revision: "a".repeat(40),
     archive: "https://downloads.kmjtechno.com/codebridge/0.2.0.tar.gz",
@@ -41,6 +42,24 @@ test("verifies exact signed manifest bytes with an Ed25519 key", () => {
     verifyReleaseManifest(f.bytes, f.signature, f.keys),
     f.manifest,
   );
+});
+
+test("enforces a monotonically increasing signed release sequence", () => {
+  const f = fixture();
+  assert.deepEqual(
+    verifyReleaseManifest(f.bytes, f.signature, f.keys, {
+      minimumSequence: 41,
+    }),
+    f.manifest,
+  );
+  for (const minimumSequence of [42, 43])
+    assert.throws(
+      () =>
+        verifyReleaseManifest(f.bytes, f.signature, f.keys, {
+          minimumSequence,
+        }),
+      /UPDATE_ROLLBACK_REJECTED/,
+    );
 });
 
 test("rejects tampered manifest bytes and unknown signing keys", () => {
@@ -123,10 +142,17 @@ test("archive layout rejects absolute and traversal entries", () => {
     );
 });
 
-test("manifest rejects insecure archive URLs and unexpected fields", () => {
+test("manifest rejects unsafe archive URLs and unexpected fields", () => {
   for (const overrides of [
     { archive: "http://downloads.example/release.tar.gz" },
     { archive: "https://user:pass@downloads.example/release.tar.gz" },
+    { archive: "https://localhost/release.tar.gz" },
+    { archive: "https://127.0.0.1/release.tar.gz" },
+    { archive: "https://10.1.2.3/release.tar.gz" },
+    { archive: "https://192.168.1.2/release.tar.gz" },
+    { archive: "https://[::1]/release.tar.gz" },
+    { archive: "https://host.local/release.tar.gz" },
+    { archive: "https://downloads.example/release.zip" },
     { extra: "not-allowed" },
   ]) {
     const f = fixture(overrides);
