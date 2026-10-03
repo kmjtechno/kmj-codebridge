@@ -63,8 +63,7 @@ export function acquireAgentLock(stateDir) {
   const lockPath = path.join(stateDir, "agent.lock");
   const bootId = readBootId();
   const owner = randomUUID();
-  const payload =
-    JSON.stringify({ pid: process.pid, bootId, owner }) + "\n";
+  const payload = JSON.stringify({ pid: process.pid, bootId, owner }) + "\n";
 
   for (let attempt = 0; attempt < 2; attempt++) {
     let fd;
