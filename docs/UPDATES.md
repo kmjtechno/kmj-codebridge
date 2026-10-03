@@ -68,7 +68,6 @@ Release transitions are persisted in a bounded, atomically written history journ
 
 This layer still does not download or extract archives and does not restart services by itself. Activation therefore remains side-effect-free with respect to service control until the restricted Supervisor integration is present. The Supervisor integration must supply only already signature/hash-verified content and must perform post-switch health verification before considering an update successful.
 
-
 ## Anti-rollback and release signing
 
 Normal remote updates require a signed `sequence` strictly greater than the highest sequence already accepted by the updater. A previously valid older release therefore cannot be replayed through the update channel. Explicit rollback remains a separate local operation that can activate only the locally recorded previous-known-good release.
