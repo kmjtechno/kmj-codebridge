@@ -110,6 +110,8 @@ test("manifest rejects unsafe archive destinations and unknown fields", () => {
     "http://releases.kmjtechno.com/file.tar.gz",
     "https://localhost/file.tar.gz",
     "https://127.0.0.1/file.tar.gz",
+    "https://[::1]/file.tar.gz",
+    "https://[fd00::1]/file.tar.gz",
     "https://10.1.2.3/file.tar.gz",
     "https://192.168.1.2/file.tar.gz",
     "https://172.16.1.2/file.tar.gz",
