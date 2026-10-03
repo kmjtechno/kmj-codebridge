@@ -20,16 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Temporary hosted-smoke formatter capture
-        run: npx prettier --write .github/workflows/hosted-smoke.yml
-      - name: Emit hosted-smoke formatter payload
-        if: matrix.os == 'ubuntu-latest'
-        shell: bash
-        run: |
-          echo 'KMJ_FORMATTED_HOSTED_SMOKE_BEGIN'
-          base64 -w0 .github/workflows/hosted-smoke.yml
-          echo
-          echo 'KMJ_FORMATTED_HOSTED_SMOKE_END'
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
