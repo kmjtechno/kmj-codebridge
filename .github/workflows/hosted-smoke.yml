@@ -48,10 +48,14 @@ jobs:
           if (payload.capabilities?.github !== true) {
             throw new Error('hosted GitHub capability is not enabled');
           }
+          if (payload.capabilities?.githubReady !== true) {
+            throw new Error('hosted GitHub bridge cannot reach its allowlisted repository');
+          }
           console.log(JSON.stringify({
             status: payload.status,
             version: payload.version,
             github: payload.capabilities.github,
+            githubReady: payload.capabilities.githubReady,
           }));
           NODE
               then
