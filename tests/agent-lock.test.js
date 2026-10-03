@@ -35,7 +35,6 @@ test("agent lock replaces a proven-stale legacy PID lock", (t) => {
   assert.equal(fs.existsSync(lockPath), false);
 });
 
-
 test("legacy lock from before this boot recovers even when PID is reused", (t) => {
   const dir = tempState(t);
   const lockPath = path.join(dir, "agent.lock");
