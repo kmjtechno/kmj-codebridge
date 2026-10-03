@@ -14,7 +14,17 @@ function tempState(t) {
 test("agent lock replaces a proven-stale legacy PID lock", (t) => {
   const dir = tempState(t);
   const lockPath = path.join(dir, "agent.lock");
-  fs.writeFileSync(lockPath, "2147483647", { mode: 0o600 });
+  const stalePid = 42424242;
+  const originalKill = process.kill.bind(process);
+  t.mock.method(process, "kill", (pid, signal) => {
+    if (pid === stalePid) {
+      const error = new Error("missing process");
+      error.code = "ESRCH";
+      throw error;
+    }
+    return originalKill(pid, signal);
+  });
+  fs.writeFileSync(lockPath, String(stalePid), { mode: 0o600 });
 
   const lock = acquireAgentLock(dir);
   const stored = JSON.parse(fs.readFileSync(lockPath, "utf8"));
