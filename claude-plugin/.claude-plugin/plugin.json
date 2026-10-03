@@ -1,7 +1,7 @@
 {
   "name": "kmj-codebridge",
   "displayName": "KMJ CodeBridge",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
   "author": {
     "name": "KMJ TECHNO",

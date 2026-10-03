@@ -11,6 +11,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { gatewaySchema } from "./config.js";
 import { definitions } from "./tools.js";
+import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { fail, publicError } from "./errors.js";
 import { VERSION } from "./version.js";
 function identify(req, records) {
@@ -56,6 +57,10 @@ export async function startGateway(rawConfig) {
   const verifyOAuth = config.oauth
     ? createOAuthVerifier(config.oauth, config.users, resolveOAuthUser)
     : null;
+  const githubDispatch = createGitHubBridge(config.github);
+  const allDefinitions = githubDispatch
+    ? { ...definitions, ...githubDefinitions }
+    : definitions;
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const dynamicByToken = new Map();
   const pending = new Map(),
@@ -390,7 +395,7 @@ export async function startGateway(rawConfig) {
           "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
         websiteUrl: "https://kmjtechno.com",
       });
-      for (const [name, d] of Object.entries(definitions))
+      for (const [name, d] of Object.entries(allDefinitions))
         mcp.registerTool(
           name,
           {
@@ -403,7 +408,8 @@ export async function startGateway(rawConfig) {
               readOnlyHint: d.access === "read",
               destructiveHint: d.access !== "read",
               idempotentHint: d.access === "read",
-              openWorldHint: name === "run_quality_gate",
+              openWorldHint:
+                name === "run_quality_gate" || name.startsWith("github_"),
             },
           },
           async (args) => {
@@ -445,6 +451,12 @@ export async function startGateway(rawConfig) {
                   content: [
                     { type: "text", text: JSON.stringify({ devices }) },
                   ],
+                };
+              }
+              if (githubDispatch && name.startsWith("github_")) {
+                const result = await githubDispatch(name, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
               return await forward(user, name, args);
