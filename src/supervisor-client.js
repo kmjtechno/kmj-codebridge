@@ -21,12 +21,15 @@ export async function supervisorRequest(
     const socket = net.createConnection({ path: socketPath });
     let settled = false;
     let received = Buffer.alloc(0);
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      socket.destroy();
-      reject(new CodeBridgeError("SUPERVISOR_TIMEOUT"));
-    }, Math.max(100, Math.min(timeoutMs, 10000)));
+    const timer = setTimeout(
+      () => {
+        if (settled) return;
+        settled = true;
+        socket.destroy();
+        reject(new CodeBridgeError("SUPERVISOR_TIMEOUT"));
+      },
+      Math.max(100, Math.min(timeoutMs, 10000)),
+    );
 
     const done = (fn, value) => {
       if (settled) return;
@@ -60,17 +63,11 @@ export async function supervisorRequest(
         }
         done(resolve, body.result);
       } catch {
-        done(
-          reject,
-          new CodeBridgeError("SUPERVISOR_INVALID_RESPONSE"),
-        );
+        done(reject, new CodeBridgeError("SUPERVISOR_INVALID_RESPONSE"));
       }
     });
     socket.on("error", () => {
-      done(
-        reject,
-        new CodeBridgeError("SUPERVISOR_UNAVAILABLE"),
-      );
+      done(reject, new CodeBridgeError("SUPERVISOR_UNAVAILABLE"));
     });
   });
 }
