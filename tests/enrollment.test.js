@@ -45,6 +45,7 @@ test("enrollment uses S256 verifier binding and accepts approved device", async 
     fetch: async (url, options) => {
       calls.push({ url: String(url), body: JSON.parse(options.body) });
       return Response.json({
+        gateway: "https://gateway.example",
         agent: {
           token: "a".repeat(64),
           id: "device1",
@@ -56,8 +57,37 @@ test("enrollment uses S256 verifier binding and accepts approved device", async 
     },
   });
   assert.equal(approved.state, "approved");
+  assert.equal(approved.gateway, "https://gateway.example");
   assert.equal(calls[1].body.code_verifier, proof.verifier);
   assert.equal(calls[1].body.device_code, "d".repeat(48));
+});
+
+test("enrollment rejects a non-origin or insecure agent gateway", async () => {
+  const handle = {
+    device_code: "d".repeat(48),
+    verifier: "v".repeat(43),
+    expires_at_ms: Date.now() + 60000,
+  };
+  for (const gateway of [
+    "http://gateway.example",
+    "https://gateway.example/agent",
+    "https://user:pass@gateway.example",
+  ])
+    await assert.rejects(
+      pollDeviceEnrollment(base, handle, request, {
+        fetch: async () =>
+          Response.json({
+            gateway,
+            agent: {
+              token: "a".repeat(64),
+              id: "device1",
+              tenant: "tenant1",
+            },
+            projects: [{ id: "project1" }],
+            permissions: ["read", "write", "execute"],
+          }),
+      }),
+    );
 });
 
 test("enrollment pending and slowdown are non-success states", async () => {
