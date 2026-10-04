@@ -1,6 +1,8 @@
 # KMJ CodeBridge plugin terms of use
 
-Last updated: 1 October 2026
+Last updated: 4 October 2026
+
+Canonical hosted terms: https://kmjtechno.com/products/kmj-codebridge/terms
 
 1. **Agreement.** Use of the KMJ CodeBridge hosted plugin/service is subject to the applicable KMJ TECHNO commercial terms, privacy notice, acceptable-use rules and checkout terms. Repository source remains governed by its open-source license.
 2. **Open-source license.** The CodeBridge source and plugin files published in this repository are provided under the **Apache License 2.0** in `LICENSE`. Paid plans do not remove rights already granted by Apache-2.0.
