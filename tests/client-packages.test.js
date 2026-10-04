@@ -393,3 +393,151 @@ test(
     }
   },
 );
+
+
+test("universal client config generator emits credential-free major-client formats", () => {
+  const cases = new Map([
+    ["mcp-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { type: "http", url: endpoint },
+        },
+      })],
+    ["claude-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { type: "http", url: endpoint },
+        },
+      })],
+    ["vscode-json", (value) =>
+      assert.deepEqual(value, {
+        servers: {
+          "kmj-codebridge": { type: "http", url: endpoint },
+        },
+      })],
+    ["cursor-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { url: endpoint },
+        },
+      })],
+    ["windsurf-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { serverUrl: endpoint },
+        },
+      })],
+    ["gemini-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { httpUrl: endpoint },
+        },
+      })],
+    ["copilot-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { type: "http", url: endpoint, tools: ["*"] },
+        },
+      })],
+    ["jetbrains-json", (value) =>
+      assert.deepEqual(value, {
+        mcpServers: {
+          "kmj-codebridge": { url: endpoint },
+        },
+      })],
+  ]);
+
+  for (const [format, verify] of cases) {
+    const result = run("scripts/client-config.js", [
+      endpoint,
+      "--format",
+      format,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    verify(JSON.parse(result.stdout));
+    assert.doesNotMatch(result.stdout, /Bearer\\s+[A-Za-z0-9]/);
+  }
+
+  const generic = run("scripts/client-config.js", [endpoint]);
+  assert.equal(generic.status, 0, generic.stderr);
+  const genericValue = JSON.parse(generic.stdout);
+  assert.equal(genericValue.transport, "streamable-http");
+  assert.equal(genericValue.authentication, "oauth");
+  assert.equal(genericValue.url, endpoint);
+
+  const commands = new Map([
+    [
+      "claude-cli",
+      "claude mcp add --transport http --scope user kmj-codebridge 'https://codebridge.example.invalid/mcp'",
+    ],
+    [
+      "gemini-cli",
+      "gemini mcp add --transport http kmj-codebridge 'https://codebridge.example.invalid/mcp'",
+    ],
+    [
+      "copilot-cli",
+      "copilot mcp add --transport http --tools '*' kmj-codebridge 'https://codebridge.example.invalid/mcp'",
+    ],
+  ]);
+  for (const [format, expected] of commands) {
+    const result = run("scripts/client-config.js", [
+      endpoint,
+      "--format",
+      format,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), expected);
+  }
+
+  const codexToml = run("scripts/client-config.js", [
+    endpoint,
+    "--format",
+    "codex-toml",
+  ]);
+  assert.equal(codexToml.status, 0, codexToml.stderr);
+  assert.match(codexToml.stdout, /\\[mcp_servers\."kmj-codebridge"\\]/);
+  assert.match(codexToml.stdout, /url = "https:\\/\\/codebridge\\.example\\.invalid\\/mcp"/);
+  assert.match(codexToml.stdout, /auth = "oauth"/);
+  assert.match(codexToml.stdout, /default_tools_approval_mode = "writes"/);
+
+  const codexCli = run("scripts/client-config.js", [
+    endpoint,
+    "--format",
+    "codex-cli",
+  ]);
+  assert.equal(codexCli.status, 0, codexCli.stderr);
+  assert.equal(
+    codexCli.stdout.trim(),
+    [
+      "codex mcp add kmj-codebridge --url 'https://codebridge.example.invalid/mcp'",
+      "codex mcp login kmj-codebridge",
+    ].join("\n"),
+  );
+
+  for (const format of [
+    "generic",
+    "mcp-json",
+    "claude-json",
+    "claude-cli",
+    "vscode-json",
+    "cursor-json",
+    "windsurf-json",
+    "gemini-json",
+    "gemini-cli",
+    "copilot-json",
+    "copilot-cli",
+    "jetbrains-json",
+    "codex-toml",
+    "codex-cli",
+  ]) {
+    assert.notEqual(
+      run("scripts/client-config.js", [
+        "https://user:secret@example.test/mcp",
+        "--format",
+        format,
+      ]).status,
+      0,
+      format,
+    );
+  }
+});
