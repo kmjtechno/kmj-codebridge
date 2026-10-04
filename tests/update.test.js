@@ -1,11 +1,20 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
+import { Readable } from "node:stream";
+import { execFileSync } from "node:child_process";
 import {
+  downloadVerifiedReleaseArchive,
+  extractVerifiedRuntimeArchive,
+  isPublicReleaseAddress,
   releaseDirectoryName,
+  resolvePublicReleaseAddress,
   safeReleasePath,
   validateArchiveEntries,
+  validateRuntimeArchiveEntries,
   verifyReleaseArchive,
   verifyReleaseManifest,
 } from "../src/update.js";
@@ -162,3 +171,146 @@ test("manifest rejects unsafe archive URLs and unexpected fields", () => {
     );
   }
 });
+
+test("release downloader accepts only public IPv4 DNS answers", async () => {
+  assert.equal(isPublicReleaseAddress("1.1.1.1"), true);
+  for (const address of [
+    "127.0.0.1",
+    "10.0.0.1",
+    "100.64.0.1",
+    "169.254.1.2",
+    "172.16.0.1",
+    "192.168.1.1",
+    "192.0.2.1",
+    "198.51.100.1",
+    "203.0.113.1",
+    "224.0.0.1",
+    "::1",
+    "2001:db8::1",
+  ])
+    assert.equal(isPublicReleaseAddress(address), false, address);
+
+  await assert.rejects(
+    () =>
+      resolvePublicReleaseAddress("downloads.example", async () => [
+        { address: "1.1.1.1", family: 4 },
+        { address: "10.0.0.1", family: 4 },
+      ]),
+    /UPDATE_DOWNLOAD_ADDRESS_REJECTED/,
+  );
+  assert.deepEqual(
+    await resolvePublicReleaseAddress("downloads.example", async () => [
+      { address: "1.1.1.1", family: 4 },
+      { address: "8.8.8.8", family: 4 },
+    ]),
+    { address: "1.1.1.1", family: 4 },
+  );
+});
+
+test("release downloader pins verified bytes and rejects redirects", async (t) => {
+  const f = fixture();
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-update-download-"));
+  t.after(() => fs.rmSync(workDir, { recursive: true, force: true }));
+  const request = async () => {
+    const response = Readable.from([f.archive]);
+    response.statusCode = 200;
+    response.headers = { "content-length": String(f.archive.length) };
+    return response;
+  };
+  const result = await downloadVerifiedReleaseArchive(f.manifest, workDir, {
+    resolveAddress: async () => ({ address: "1.1.1.1", family: 4 }),
+    request,
+  });
+  assert.equal(fs.readFileSync(result.path).toString(), f.archive.toString());
+  assert.equal(result.bytes, f.archive.length);
+  assert.equal(result.sha256, f.manifest.sha256);
+
+  await assert.rejects(
+    () =>
+      downloadVerifiedReleaseArchive(f.manifest, workDir, {
+        resolveAddress: async () => ({ address: "1.1.1.1", family: 4 }),
+        request: async () => {
+          const response = Readable.from([]);
+          response.statusCode = 302;
+          response.headers = {
+            location: "https://example.com/elsewhere.tar.gz",
+          };
+          return response;
+        },
+      }),
+    /UPDATE_DOWNLOAD_REDIRECT/,
+  );
+});
+
+test("runtime archive requires one exact release root", () => {
+  const f = fixture();
+  const root = `kmj-codebridge-${releaseDirectoryName(f.manifest)}`;
+  assert.equal(
+    validateRuntimeArchiveEntries(
+      [`${root}/`, `${root}/package.json`, `${root}/src/cli.js`],
+      f.manifest,
+    ),
+    root,
+  );
+  for (const entries of [
+    ["other/package.json", "other/src/cli.js"],
+    [`${root}/package.json`, "other/src/cli.js"],
+    [`${root}/../outside`],
+  ])
+    assert.throws(
+      () => validateRuntimeArchiveEntries(entries, f.manifest),
+      /UPDATE_ARCHIVE_LAYOUT_INVALID/,
+    );
+});
+
+test(
+  "safe runtime extraction strips only the verified release root and rejects symlinks",
+  { skip: process.platform === "win32" && "POSIX updater contract" },
+  (t) => {
+    const f = fixture();
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "cb-update-extract-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    const rootName = `kmj-codebridge-${releaseDirectoryName(f.manifest)}`;
+    const source = path.join(temp, rootName);
+    fs.mkdirSync(path.join(source, "src"), { recursive: true });
+    fs.writeFileSync(
+      path.join(source, "package.json"),
+      JSON.stringify({
+        name: "@kmjtechno/codebridge",
+        version: f.manifest.version,
+      }),
+    );
+    fs.writeFileSync(path.join(source, "src/cli.js"), "export {};\n");
+    const archive = path.join(temp, "runtime.tar.gz");
+    execFileSync("tar", ["-czf", archive, "-C", temp, rootName]);
+    const staging = path.join(temp, "staging");
+    fs.mkdirSync(staging);
+    const extracted = extractVerifiedRuntimeArchive(
+      archive,
+      staging,
+      f.manifest,
+    );
+    assert.equal(extracted.root, rootName);
+    assert.ok(fs.existsSync(path.join(staging, "package.json")));
+    assert.ok(fs.existsSync(path.join(staging, "src/cli.js")));
+
+    const unsafeRoot = path.join(temp, "unsafe", rootName);
+    fs.mkdirSync(unsafeRoot, { recursive: true });
+    fs.symlinkSync("/etc/passwd", path.join(unsafeRoot, "link"));
+    const unsafeArchive = path.join(temp, "unsafe.tar.gz");
+    execFileSync("tar", [
+      "-czf",
+      unsafeArchive,
+      "-C",
+      path.join(temp, "unsafe"),
+      rootName,
+    ]);
+    const unsafeStaging = path.join(temp, "unsafe-staging");
+    fs.mkdirSync(unsafeStaging);
+    assert.throws(
+      () =>
+        extractVerifiedRuntimeArchive(unsafeArchive, unsafeStaging, f.manifest),
+      /UPDATE_ARCHIVE_LAYOUT_INVALID/,
+    );
+  },
+);

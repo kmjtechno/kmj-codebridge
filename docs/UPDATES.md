@@ -23,15 +23,20 @@ Required manifest fields:
 
 The signing key id selects one explicitly trusted Ed25519 public key. Unknown keys, non-Ed25519 keys, malformed signatures, modified manifest bytes, archive size changes and archive hash changes all fail closed.
 
-## Archive safety
+## Archive download and extraction safety
 
-Before extraction, the updater must list archive members and reject:
+The updater now includes a fail-closed archive downloader and extractor foundation. It resolves the signed archive hostname before connecting, accepts only public IPv4 answers for this initial implementation, pins the HTTPS connection to the validated address, refuses redirects and compressed HTTP content, and requires the exact signed byte count and SHA-256 before the archive is accepted. Mixed public/private DNS answers fail closed; IPv6 is intentionally unsupported until equivalent address-classification coverage is implemented.
 
-- absolute paths
-- parent-directory traversal
+Before extraction, the updater lists archive members and rejects:
+
+- absolute paths or parent-directory traversal
 - Windows-style backslash paths
 - NUL-containing or unreasonably large names
-- unbounded archive entry counts
+- duplicate or unbounded archive entries
+- symlinks, hardlinks and other non-regular/non-directory archive members
+- archives that do not contain exactly one expected `kmj-codebridge-<version>-<revision>` root with `package.json` and `src/cli.js`
+
+Extraction uses the system `tar` executable without a shell, strips only the verified release root, disables archive owner/permission restoration, requires an empty real staging directory, and re-walks the extracted tree to reject symlinks and hardlinked files before it can be handed to `ReleaseStore.finalize()`.
 
 The signed archive is still treated as structured input; signature verification does not replace safe extraction.
 
@@ -45,9 +50,9 @@ The final target is constrained to the configured releases root. Remote callers 
 
 ## Activation and rollback
 
-The next slice will stage a verified archive into a new immutable release directory, validate the runtime before activation, atomically move the `current` link, retain the previous known-good release, restart through the restricted Supervisor and automatically restore the previous release if health verification fails.
+Verified download, safe extraction, immutable staging/finalization, atomic `current`/`previous` activation and local rollback primitives are now implemented as separate fail-closed layers. The remaining production slice must compose them with configured manifest/signature retrieval, preflight dependency/runtime validation, restricted Supervisor restart, post-switch authenticated connectivity/health verification and automatic restoration of the previous release on failure.
 
-Until that activation slice is merged and live-tested, CodeBridge must not claim production self-update or automatic rollback.
+Until that end-to-end orchestration is merged and live-tested, CodeBridge must not claim production self-update or automatic rollback.
 
 ## Atomic activation state
 
@@ -66,13 +71,13 @@ Rollback atomically switches `current` back to `previous` and retains the former
 
 Release transitions are persisted in a bounded, atomically written history journal under the CodeBridge state directory. Ordinary files or links escaping the managed releases directory fail closed instead of being overwritten.
 
-This layer still does not download or extract archives and does not restart services by itself. Activation therefore remains side-effect-free with respect to service control until the restricted Supervisor integration is present. The Supervisor integration must supply only already signature/hash-verified content and must perform post-switch health verification before considering an update successful.
+The update layer can now download and safely extract a signed runtime archive foundation, but it still does not restart services by itself. Production orchestration must pass only signature/hash-verified, safely extracted content into immutable finalization/activation and must perform preflight plus post-switch service/connectivity health verification before considering an update successful.
 
 ## Anti-rollback and release signing
 
 Normal remote updates require a signed `sequence` strictly greater than the highest sequence already accepted by the updater. A previously valid older release therefore cannot be replayed through the update channel. Explicit rollback remains a separate local operation that can activate only the locally recorded previous-known-good release.
 
-Release archive URLs must use HTTPS and may not target literal localhost, private/link-local IPv4, literal IPv6, `.localhost` or `.local` hosts. A future downloader must additionally validate resolved addresses on every connection so DNS rebinding cannot bypass this manifest-layer check.
+Release archive URLs must use HTTPS and may not target literal localhost, private/link-local IPv4, literal IPv6, `.localhost` or `.local` hosts. The downloader additionally resolves the hostname itself, rejects non-public or mixed public/private IPv4 answers, and pins the HTTPS request to the accepted public IPv4 address so a second resolver lookup cannot redirect the connection into a private range. Redirects are refused rather than followed.
 
 The build host can create the exact signed manifest expected by the runtime verifier without exposing the private key to customer devices:
 
