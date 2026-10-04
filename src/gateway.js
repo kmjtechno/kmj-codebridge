@@ -558,9 +558,31 @@ export async function startGateway(rawConfig) {
                 const devices = [...devicesById.values()].sort((a, b) =>
                   a.id.localeCompare(b.id),
                 );
+                const account = {
+                  tenants: memberships
+                    .map((membership) => membership.tenant)
+                    .filter(Boolean)
+                    .sort(),
+                  explicitDeviceGrants: Object.fromEntries(
+                    memberships
+                      .filter((membership) => membership.devices)
+                      .flatMap((membership) =>
+                        Object.entries(membership.devices).map(
+                          ([device, projects]) => [
+                            device,
+                            [...projects].sort(),
+                          ],
+                        ),
+                      )
+                      .sort(([a], [b]) => a.localeCompare(b)),
+                  ),
+                };
                 return {
                   content: [
-                    { type: "text", text: JSON.stringify({ devices }) },
+                    {
+                      type: "text",
+                      text: JSON.stringify({ devices, account }),
+                    },
                   ],
                 };
               }
