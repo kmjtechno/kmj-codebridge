@@ -501,8 +501,7 @@ export async function startGateway(rawConfig) {
                     id: agent.id,
                     tenant: agent.tenant,
                     projects: [...(agent.projects ?? [])].sort(),
-                    online:
-                      Date.now() - (lastSeen.get(agent.id) ?? 0) < 30000,
+                    online: Date.now() - (lastSeen.get(agent.id) ?? 0) < 30000,
                     dynamic: Boolean(agent.dynamic),
                   }))
                   .sort((a, b) => a.id.localeCompare(b.id));
