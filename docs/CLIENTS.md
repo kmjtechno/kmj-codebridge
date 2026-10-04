@@ -5,14 +5,15 @@ clients use the same gateway, tool definitions, authentication, authorization,
 licensing, policy, and audit boundaries.
 
 ```text
-ChatGPT ─────────┐
-Claude.ai ───────┤
-Claude Desktop ──┼──► https://kmjtechno.com/mcp
-Claude Code ─────┤        │ OAuth · policy · licensing
-Future MCP client┘        ▼
-                   outbound device agent
-                          ▼
-                   authorized project
+ChatGPT / Codex ─────────┐
+Claude.ai / Claude Code ──┤
+VS Code / Copilot ────────┤
+Cursor / Cursor CLI ──────┼──► https://kmjtechno.com/mcp
+Windsurf / JetBrains ─────┤        │ OAuth · policy · licensing
+Gemini CLI ────────────────┤        ▼
+Other MCP clients ─────────┘   outbound device agent
+                                  ▼
+                           authorized project
 ```
 
 ## Current hosted-client state
@@ -28,8 +29,27 @@ Future MCP client┘        ▼
 - **Claude Desktop, third-party inference Gateway mode:** configure CodeBridge
   separately under Inference configuration → Connectors → Managed MCP servers.
   One recorded end-to-end tool invocation remains a live release check.
+- **Codex CLI / IDE extension:** remote Streamable HTTP and OAuth are supported
+  by the client; CodeBridge emits both CLI and `config.toml` setup templates.
+- **VS Code / GitHub Copilot:** CodeBridge emits both VS Code `.vscode/mcp.json`
+  and portable/Copilot MCP configuration formats.
+- **Cursor IDE / Cursor CLI:** both use Cursor's `mcp.json` configuration; a
+  credential-free remote-OAuth template is generated.
+- **Windsurf:** CodeBridge emits Windsurf's required `serverUrl` remote-server
+  shape instead of silently reusing another client's incompatible `url` key.
+- **Gemini CLI:** CodeBridge emits the `httpUrl` Streamable HTTP form and relies
+  on OAuth discovery. KMJ OAuth already supplies PKCE S256, dynamic client
+  registration, RFC 9207 authorization-response `iss`, and RFC 9728 protected
+  resource metadata.
+- **JetBrains AI Assistant:** CodeBridge emits the documented remote HTTP
+  `mcpServers.<name>.url` configuration.
 - **Generic MCP clients:** Streamable HTTP interoperability is covered by the
   vendor-neutral CI contract.
+
+Client-specific live UI behavior still depends on the client vendor and account
+deployment. A generated configuration means the repository has an exact
+client-format contract; it is not a claim that every vendor UI has been
+independently smoke-tested on every release.
 
 External directory approval is separate from technical connectivity.
 
@@ -200,15 +220,60 @@ The package contains the MCP resource URL and no user credential. Directory
 review/approval remains an external publishing step and must not be confused
 with a working private/developer connection.
 
-## Generic clients
+## Universal IDE and CLI configuration generator
 
-Generate credential-free templates with:
+All generated hosted-client configs are credential-free. OAuth happens in the
+client; never paste a long-lived bearer token into a repository config.
 
 ```sh
+# Generic / portable
 npm run client:config -- https://kmjtechno.com/mcp
 npm run client:config -- https://kmjtechno.com/mcp --format mcp-json
+
+# Claude
 npm run client:config -- https://kmjtechno.com/mcp --format claude-json
+npm run client:config -- https://kmjtechno.com/mcp --format claude-cli
+
+# VS Code / GitHub Copilot
+npm run client:config -- https://kmjtechno.com/mcp --format vscode-json
+npm run client:config -- https://kmjtechno.com/mcp --format copilot-json
+npm run client:config -- https://kmjtechno.com/mcp --format copilot-cli
+
+# Cursor IDE + Cursor CLI
+npm run client:config -- https://kmjtechno.com/mcp --format cursor-json
+
+# Windsurf
+npm run client:config -- https://kmjtechno.com/mcp --format windsurf-json
+
+# Gemini CLI
+npm run client:config -- https://kmjtechno.com/mcp --format gemini-json
+npm run client:config -- https://kmjtechno.com/mcp --format gemini-cli
+
+# JetBrains AI Assistant
+npm run client:config -- https://kmjtechno.com/mcp --format jetbrains-json
+
+# OpenAI Codex CLI + IDE extension
+npm run client:config -- https://kmjtechno.com/mcp --format codex-toml
+npm run client:config -- https://kmjtechno.com/mcp --format codex-cli
 ```
+
+### Configuration locations
+
+| Client                 | Recommended configuration                                                   |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Claude Code            | `claude mcp add --transport http --scope user ...` or the KMJ Claude plugin |
+| VS Code                | workspace `.vscode/mcp.json` or portable workspace `.mcp.json`              |
+| GitHub Copilot CLI     | `~/.copilot/mcp-config.json` or `copilot mcp add`                           |
+| Cursor IDE / CLI       | `.cursor/mcp.json` or `~/.cursor/mcp.json`                                  |
+| Windsurf               | `~/.codeium/windsurf/mcp_config.json`                                       |
+| Gemini CLI             | `~/.gemini/settings.json` or `gemini mcp add`                               |
+| JetBrains AI Assistant | Settings → Tools → AI Assistant → Model Context Protocol                    |
+| Codex CLI / IDE        | `~/.codex/config.toml`, project `.codex/config.toml`, or `codex mcp add`    |
+
+For OAuth-capable clients, complete the browser login after adding the server.
+Examples include `/mcp` in Claude/Gemini/Copilot where supported,
+`cursor-agent mcp login kmj-codebridge` in Cursor CLI, and
+`codex mcp login kmj-codebridge` in Codex.
 
 A new client that supports Streamable HTTP and the configured OAuth flow should
 not require a second filesystem, policy, licensing, or device implementation.

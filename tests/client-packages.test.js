@@ -270,8 +270,19 @@ test("branding, license and policies are present in every client package", () =>
   assert.equal(i.logo, "./assets/logo.png");
   assert.equal(i.composerIcon, "./assets/icon.png");
   assert.match(i.brandColor, /^#[0-9A-F]{6}$/);
-  assert.equal(i.privacyPolicyURL, "https://kmjtechno.com/privacy");
-  assert.equal(i.termsOfServiceURL, "https://kmjtechno.com/terms");
+  assert.equal(i.websiteURL, "https://kmjtechno.com/products/kmj-codebridge");
+  assert.equal(
+    i.privacyPolicyURL,
+    "https://kmjtechno.com/products/kmj-codebridge/privacy",
+  );
+  assert.equal(
+    i.termsOfServiceURL,
+    "https://kmjtechno.com/products/kmj-codebridge/terms",
+  );
+  assert.equal(
+    i.supportURL,
+    "https://kmjtechno.com/products/kmj-codebridge/support",
+  );
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   for (const dir of ["plugin", "claude-plugin"]) {
     const assets = path.join(cwd, dir, "assets");
@@ -393,3 +404,182 @@ test(
     }
   },
 );
+
+test("universal client config generator", () => {
+  const cases = new Map([
+    [
+      "mcp-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { type: "http", url: endpoint },
+          },
+        }),
+    ],
+    [
+      "claude-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { type: "http", url: endpoint },
+          },
+        }),
+    ],
+    [
+      "vscode-json",
+      (value) =>
+        assert.deepEqual(value, {
+          servers: {
+            "kmj-codebridge": { type: "http", url: endpoint },
+          },
+        }),
+    ],
+    [
+      "cursor-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { url: endpoint },
+          },
+        }),
+    ],
+    [
+      "windsurf-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { serverUrl: endpoint },
+          },
+        }),
+    ],
+    [
+      "gemini-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { httpUrl: endpoint },
+          },
+        }),
+    ],
+    [
+      "copilot-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": {
+              type: "http",
+              url: endpoint,
+              tools: ["*"],
+            },
+          },
+        }),
+    ],
+    [
+      "jetbrains-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { url: endpoint },
+          },
+        }),
+    ],
+  ]);
+
+  for (const [format, verify] of cases) {
+    const result = run("scripts/client-config.js", [
+      endpoint,
+      "--format",
+      format,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    verify(JSON.parse(result.stdout));
+    assert.doesNotMatch(result.stdout, /Bearer\s+[A-Za-z0-9]/);
+  }
+
+  const generic = run("scripts/client-config.js", [endpoint]);
+  assert.equal(generic.status, 0, generic.stderr);
+  const genericValue = JSON.parse(generic.stdout);
+  assert.equal(genericValue.transport, "streamable-http");
+  assert.equal(genericValue.authentication, "oauth");
+  assert.equal(genericValue.url, endpoint);
+
+  const commands = new Map([
+    [
+      "claude-cli",
+      "claude mcp add --transport http --scope user kmj-codebridge 'https://codebridge.example.invalid/mcp'",
+    ],
+    [
+      "gemini-cli",
+      "gemini mcp add --transport http kmj-codebridge 'https://codebridge.example.invalid/mcp'",
+    ],
+    [
+      "copilot-cli",
+      "copilot mcp add --transport http --tools '*' kmj-codebridge 'https://codebridge.example.invalid/mcp'",
+    ],
+  ]);
+  for (const [format, expected] of commands) {
+    const result = run("scripts/client-config.js", [
+      endpoint,
+      "--format",
+      format,
+    ]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout.trim(), expected);
+  }
+
+  const codexToml = run("scripts/client-config.js", [
+    endpoint,
+    "--format",
+    "codex-toml",
+  ]);
+  assert.equal(codexToml.status, 0, codexToml.stderr);
+  assert.ok(codexToml.stdout.includes('[mcp_servers."kmj-codebridge"]'));
+  assert.ok(
+    codexToml.stdout.includes('url = "https://codebridge.example.invalid/mcp"'),
+  );
+  assert.ok(codexToml.stdout.includes('auth = "oauth"'));
+  assert.ok(
+    codexToml.stdout.includes('default_tools_approval_mode = "writes"'),
+  );
+
+  const codexCli = run("scripts/client-config.js", [
+    endpoint,
+    "--format",
+    "codex-cli",
+  ]);
+  assert.equal(codexCli.status, 0, codexCli.stderr);
+  assert.equal(
+    codexCli.stdout.trim(),
+    [
+      "codex mcp add kmj-codebridge --url 'https://codebridge.example.invalid/mcp'",
+      "codex mcp login kmj-codebridge",
+    ].join("\n"),
+  );
+
+  for (const format of [
+    "generic",
+    "mcp-json",
+    "claude-json",
+    "claude-cli",
+    "vscode-json",
+    "cursor-json",
+    "windsurf-json",
+    "gemini-json",
+    "gemini-cli",
+    "copilot-json",
+    "copilot-cli",
+    "jetbrains-json",
+    "codex-toml",
+    "codex-cli",
+  ]) {
+    assert.notEqual(
+      run("scripts/client-config.js", [
+        "https://user:secret@example.test/mcp",
+        "--format",
+        format,
+      ]).status,
+      0,
+      format,
+    );
+  }
+});
