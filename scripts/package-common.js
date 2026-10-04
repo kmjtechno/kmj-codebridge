@@ -61,6 +61,7 @@ export function readCanonical() {
     version: manifest.version,
     description: manifest.description,
     author: manifest.author,
+    homepage: manifest.homepage,
     license: manifest.license,
     pluginDir: path.join(root, "plugin"),
     displayName:
@@ -116,7 +117,7 @@ export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
     version: meta.version,
     description: meta.description,
     author: meta.author,
-    homepage: "https://kmjtechno.com",
+    homepage: meta.homepage,
     repository: "https://github.com/kmjtechno/kmj-codebridge",
     license: meta.license,
     keywords: CLAUDE_KEYWORDS,
