@@ -224,6 +224,10 @@ NODE
   rm -f "$ENROLLMENT_RESULT"
 fi
 
+if [[ -f "$CONFIG" ]]; then
+  cp -a "$CONFIG" "$ROLLBACK_CONFIG"
+fi
+
 if (( have_config == 1 )); then
   CONFIG="$CONFIG" GATEWAY="$GATEWAY" "$NODE" <<'NODE'
 const fs=require("node:fs");
@@ -236,10 +240,6 @@ if(c.gateway!==process.env.GATEWAY){
   fs.renameSync(tmp,file);
 }
 NODE
-fi
-
-if [[ -f "$CONFIG" ]]; then
-  cp -a "$CONFIG" "$ROLLBACK_CONFIG"
 fi
 
 CONFIG="$CONFIG" SUPERVISOR_SOCKET_PATH="$SUPERVISOR_SOCKET_PATH" "$NODE" <<'NODE'
