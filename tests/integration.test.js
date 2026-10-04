@@ -104,6 +104,31 @@ test("agent persists authenticated gateway connectivity heartbeat", async (t) =>
     assert.equal(fs.statSync(state).mode & 0o077, 0);
 });
 
+test("healthy agent does not rewrite connection state without a reconnect", async (t) => {
+  const { client, dir } = await setup(t);
+  const state = path.join(dir, "state", "connection.json");
+  for (let i = 0; i < 20 && !fs.existsSync(state); i++)
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  assert.ok(fs.existsSync(state));
+  const before = fs.readFileSync(state, "utf8");
+  const realNow = Date.now;
+  Date.now = () => realNow() + 31000;
+  try {
+    const result = await client.callTool({
+      name: "read_file",
+      arguments: { device: "d1", project: "p1", path: "hello.txt" },
+    });
+    assert.equal(content(result).content, "hello");
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(
+    fs.readFileSync(state, "utf8"),
+    before,
+    "healthy traffic must not rewrite connection.json",
+  );
+});
+
 test("agent immediately re-polls after a successful dispatch", async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-fast-repoll-"));
   const root = path.join(dir, "project");

@@ -1,10 +1,11 @@
 # Performance & low-load architecture — agent/gateway poll path
 
-Status: P3/P4 are now implemented after a real VPS baseline. The separate 24×7
-Autopilot persistence foundation is wired into `src/agent.js`; the agent no
-longer sleeps after a successful dispatch, and the gateway empty-poll wait is
-controlled by the bounded `pollWaitMs` setting. See `AUTOPILOT.md` for the
-implemented persistent queue/checkpoint layer.
+Status: P3/P4 are merged after a real VPS baseline and post-merge benchmark.
+The separate 24×7 Autopilot persistence foundation is wired into `src/agent.js`;
+the agent no longer sleeps after a successful dispatch, the gateway empty-poll
+wait is controlled by the bounded `pollWaitMs` setting, and P5 now uses
+transition-only connection-state persistence in the validated working tree.
+See `AUTOPILOT.md` for the implemented persistent queue/checkpoint layer.
 
 ## 1. What is actually there today (read-only inspection, not assumption)
 
@@ -58,10 +59,10 @@ License renewal (`renew()`) is also already deadline-driven
 (`if (Date.now() < nextRenewal) return;`) — it does not do work on every
 loop tick today. No redesign needed there; noted so it is not redone.
 
-`markConnected()` already debounces `connection.json` writes to at most
-once per 30s of wall time, but it is still **time-debounced, not
-transition-debounced** — it writes on a timer-ish cadence driven by poll
-traffic, not only on an actual disconnected→connected transition.
+`markConnected()` now persists `connection.json` only on a real
+**disconnected→connected transition**. Healthy poll/result traffic does not
+rewrite the file. A failed gateway cycle marks the in-memory state disconnected,
+so the next successful health/poll cycle records the reconnect exactly once.
 
 ## 2. Ruling: keep HTTP long-poll, do not introduce a new persistent-socket protocol
 
@@ -88,9 +89,18 @@ of the two options in the brief. Given finding (1), it is rejected for now:
    `pollWaitMs` gateway config field. The default is 45 seconds. This is a
    pure idle-chatter reduction — it cannot add latency to real work,
    because wake is driven by `waiting.get(id)()`, not by the timeout.
-3. `connection.json` transition-only persistence remains a later slice;
-   the measured baseline already showed agent disk writes around 8 KB/min,
-   so further persistence changes should still be measured before/after.
+3. `connection.json` persistence is now transition-only in P5: healthy
+   traffic leaves the file untouched, failures mark the in-memory connection
+   state disconnected, and the next successful cycle records one reconnect.
+   The regression test first proved the old 30-second time-debounce rewrote
+   the file during healthy traffic, then passed after the transition fix.
+
+Measured P3/P4 post-merge result over 120 seconds: combined idle CPU fell from
+0.700% to 0.583% (about 16.7%), combined RSS from 181.8 MB to 171.5 MB (about
+5.7%), and agent disk writes from about 8 KB/min to 4,094 B/min (about 50%).
+Gateway disk writes remained 0 B/min and `/healthz` stayed effectively flat at
+68.164 ms versus about 67.8 ms baseline. These process/health measurements do
+not represent a full authenticated client→MCP→agent round trip.
 
 These changes are limited to `src/agent.js`, `src/gateway.js` and
 `src/config.js` plus tests/docs. They do not touch `src/jobs.js` or the
