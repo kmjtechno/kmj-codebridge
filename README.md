@@ -117,8 +117,8 @@ The device agent must be online, authorized for the tenant, and configured for t
 
 | Tool family                                          | Examples                                                   | Safety boundary                                      |
 | ---------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
-| Discover                                             | `list_devices`, `project_snapshot`, `connection_doctor`     | Tenant/project scoped                                |
-| Read                                                 | `read_file`, `read_files_batch`, `search_code`, `git_status` | Bounded output + project root                        |
+| Discover                                             | `list_devices`, `inspect_project`, `connection_doctor`     | Tenant/project scoped                                |
+| Read                                                 | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                        |
 | Edit                                                 | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                |
 | Verify                                               | `run_quality_gate`                                         | Only administrator-configured executable + arguments |
 | Jobs                                                 | `get_job_status`, `cancel_job`                             | Durable bounded job state                            |
