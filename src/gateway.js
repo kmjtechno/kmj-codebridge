@@ -495,7 +495,9 @@ export async function startGateway(rawConfig) {
                   : [user];
                 for (const membership of memberships) {
                   if (!membership?.devices) continue;
-                  for (const [device, projects] of Object.entries(membership.devices)) {
+                  for (const [device, projects] of Object.entries(
+                    membership.devices,
+                  )) {
                     if (!projects?.length || devicesById.has(device)) continue;
                     devicesById.set(device, {
                       id: device,
