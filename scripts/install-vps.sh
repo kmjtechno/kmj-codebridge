@@ -30,8 +30,13 @@ ROLLBACK_SUPERVISOR_SOCKET="${SUPERVISOR_SOCKET_FILE}.rollback-codebridge"
 SUPERVISOR_SOCKET_WAS_ENABLED=0
 ROLLBACK_CODE="${INSTALL_DIR}.rollback"
 ROLLBACK_CONFIG="$CONFIG_DIR/agent.json.rollback"
-ENROLLMENT_RESULT="/run/kmj-codebridge-enrollment-$$.json"
+ENROLLMENT_RESULT="/run/kmj-codebridge-enrollment-$.json"
 NEW_DIR="${INSTALL_DIR}.new"
+AUTO_UPDATE_MODE="${CODEBRIDGE_AUTO_UPDATE_MODE:-development}"
+AUTO_UPDATE_SERVICE="kmj-codebridge-auto-update.service"
+AUTO_UPDATE_TIMER="kmj-codebridge-auto-update.timer"
+AUTO_UPDATE_SERVICE_FILE="/etc/systemd/system/$AUTO_UPDATE_SERVICE"
+AUTO_UPDATE_TIMER_FILE="/etc/systemd/system/$AUTO_UPDATE_TIMER"
 
 cleanup() {
   rm -f "$ENROLLMENT_RESULT"
@@ -459,9 +464,49 @@ fi
 rm -rf "$ROLLBACK_CODE"
 rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"
 
+cat >"$AUTO_UPDATE_SERVICE_FILE" <<EOF
+[Unit]
+Description=KMJ CodeBridge guarded development auto-update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=CODEBRIDGE_AUTO_UPDATE_MODE=$AUTO_UPDATE_MODE
+Environment=CODEBRIDGE_INSTALL_DIR=$INSTALL_DIR
+Environment=CODEBRIDGE_CONFIG=$CONFIG
+ExecStart=/bin/bash $INSTALL_DIR/scripts/auto-update-development.sh
+Nice=10
+IOSchedulingClass=idle
+EOF
+
+cat >"$AUTO_UPDATE_TIMER_FILE" <<'EOF'
+[Unit]
+Description=Check for KMJ CodeBridge development updates
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=10min
+Persistent=true
+Unit=kmj-codebridge-auto-update.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+if [[ "$AUTO_UPDATE_MODE" == "development" ]]; then
+  systemctl enable --now "$AUTO_UPDATE_TIMER" >/dev/null
+else
+  systemctl disable --now "$AUTO_UPDATE_TIMER" >/dev/null 2>&1 || true
+fi
+
 echo "KMJ CodeBridge is installed, enrolled and running."
 echo "Device: $DEVICE"
 echo "Project: $PROJECT"
 echo "Service: systemctl status $SERVICE --no-pager"
 echo "Supervisor: socket-activated at $SUPERVISOR_SOCKET_PATH and idle when unused."
+echo "Auto-update mode: $AUTO_UPDATE_MODE"
+echo "Auto-update timer: $AUTO_UPDATE_TIMER"
 echo "No inbound VPS port or GitHub Actions runner is required."
