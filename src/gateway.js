@@ -477,6 +477,49 @@ export async function startGateway(rawConfig) {
                   ],
                   ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
+              if (name === "account_diagnostics") {
+                const memberships = (
+                  user.memberships?.length ? user.memberships : [user]
+                ).map((membership) => ({
+                  tenant: membership.tenant,
+                  permissions: [...(membership.permissions ?? [])].sort(),
+                  devices:
+                    membership.devices === undefined
+                      ? null
+                      : Object.fromEntries(
+                          Object.entries(membership.devices)
+                            .sort(([a], [b]) => a.localeCompare(b))
+                            .map(([device, projects]) => [
+                              device,
+                              [...projects].sort(),
+                            ]),
+                        ),
+                }));
+                const visibleAgents = [...agents.values()]
+                  .filter((agent) => membershipFor(user, agent.tenant))
+                  .map((agent) => ({
+                    id: agent.id,
+                    tenant: agent.tenant,
+                    projects: [...(agent.projects ?? [])].sort(),
+                    online:
+                      Date.now() - (lastSeen.get(agent.id) ?? 0) < 30000,
+                    dynamic: Boolean(agent.dynamic),
+                  }))
+                  .sort((a, b) => a.id.localeCompare(b.id));
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: JSON.stringify({
+                        subject: user.subject ?? null,
+                        dynamic: Boolean(user.dynamic),
+                        memberships,
+                        visibleAgents,
+                      }),
+                    },
+                  ],
+                };
+              }
               if (name === "list_devices") {
                 const devicesById = new Map();
                 for (const agent of agents.values()) {
