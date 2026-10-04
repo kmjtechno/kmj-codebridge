@@ -270,8 +270,19 @@ test("branding, license and policies are present in every client package", () =>
   assert.equal(i.logo, "./assets/logo.png");
   assert.equal(i.composerIcon, "./assets/icon.png");
   assert.match(i.brandColor, /^#[0-9A-F]{6}$/);
-  assert.equal(i.privacyPolicyURL, "https://kmjtechno.com/privacy");
-  assert.equal(i.termsOfServiceURL, "https://kmjtechno.com/terms");
+  assert.equal(i.websiteURL, "https://kmjtechno.com/products/kmj-codebridge");
+  assert.equal(
+    i.privacyPolicyURL,
+    "https://kmjtechno.com/products/kmj-codebridge/privacy",
+  );
+  assert.equal(
+    i.termsOfServiceURL,
+    "https://kmjtechno.com/products/kmj-codebridge/terms",
+  );
+  assert.equal(
+    i.supportURL,
+    "https://kmjtechno.com/products/kmj-codebridge/support",
+  );
   const png = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   for (const dir of ["plugin", "claude-plugin"]) {
     const assets = path.join(cwd, dir, "assets");
