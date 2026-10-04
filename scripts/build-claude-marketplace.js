@@ -49,7 +49,10 @@ Claude Desktop installations using a third-party inference **Gateway** profile
 manage remote MCP servers in **Inference configuration → Connectors**. In that
 mode add \`https://kmjtechno.com/mcp\` as a Streamable HTTP server and use
 OAuth auto-registration; the account-level plugin Connect control may be
-unavailable in that deployment profile.
+unavailable in that deployment profile. If a previously working connector gets
+stuck on \`invalid_client\`, edit or re-add it, choose **Use your own OAuth
+client**, set Client ID to \`kmj_codebridge_claude\`, and leave the client secret
+blank. The fixed client remains PKCE-only and is bound to Claude's hosted callback.
 
 ## Self-hosted deployments
 

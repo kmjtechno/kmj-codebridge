@@ -138,6 +138,13 @@ OAuth: Auto-register (dynamic client registration)
 Then choose **Sign in & test**, complete KMJ authorization, save, and apply the
 deployment changes. Do not paste a device credential into this configuration.
 
+If Claude returns `invalid_client` after this connector had previously registered
+successfully, edit or re-add the custom connector and choose **Use your own OAuth
+client**. Set Client ID to `kmj_codebridge_claude` and leave the client secret
+blank. This is a public PKCE client bound server-side to Claude's hosted OAuth
+callback; it does not grant project access by itself. Dynamic registration remains
+supported for clients that recover stale registrations correctly.
+
 Claude Desktop's legacy local `claude_desktop_config.json` is not the path for
 this hosted Streamable HTTP service.
 
