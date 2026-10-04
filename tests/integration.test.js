@@ -91,6 +91,29 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   });
   assert.equal(content(r).content, "hello");
 });
+test("account diagnostics expose safe membership and same-tenant agent visibility", async (t) => {
+  const { client } = await setup(t);
+  const result = content(
+    await client.callTool({ name: "account_diagnostics", arguments: {} }),
+  );
+
+  assert.equal(result.dynamic, false);
+  assert.equal(result.subject, null);
+  assert.deepEqual(result.memberships, [
+    {
+      tenant: "t1",
+      permissions: ["execute", "read", "write"],
+      devices: { d1: ["p1"] },
+    },
+  ]);
+  assert.equal(result.visibleAgents.length, 1);
+  assert.equal(result.visibleAgents[0].id, "d1");
+  assert.equal(result.visibleAgents[0].tenant, "t1");
+  assert.deepEqual(result.visibleAgents[0].projects, []);
+  assert.equal(result.visibleAgents[0].online, true);
+  assert.equal(result.visibleAgents[0].dynamic, false);
+});
+
 test("agent persists authenticated gateway connectivity heartbeat", async (t) => {
   const { client, dir } = await setup(t);
   await client.listTools();

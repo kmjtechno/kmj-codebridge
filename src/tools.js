@@ -84,6 +84,13 @@ export const definitions = {
     input: {},
     access: "read",
   },
+  account_diagnostics: {
+    title: "Account diagnostics",
+    description:
+      "Read safe CodeBridge account membership, device-grant, and same-tenant agent visibility diagnostics without returning credentials.",
+    input: {},
+    access: "read",
+  },
   inspect_project: {
     title: "Inspect project",
     description: "Inspect an authorized project and configured quality gates.",
