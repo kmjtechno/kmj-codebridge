@@ -478,18 +478,39 @@ export async function startGateway(rawConfig) {
                   ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
               if (name === "list_devices") {
-                const devices = [...agents.values()]
-                  .filter((a) => {
-                    const projects = allowedProjects(user, a);
-                    return Boolean(
-                      membershipFor(user, a.tenant) && projects?.length,
-                    );
-                  })
-                  .map((a) => ({
-                    id: a.id,
-                    projects: allowedProjects(user, a),
-                    online: Date.now() - (lastSeen.get(a.id) ?? 0) < 30000,
-                  }));
+                const devicesById = new Map();
+                for (const agent of agents.values()) {
+                  const projects = allowedProjects(user, agent);
+                  if (!membershipFor(user, agent.tenant) || !projects?.length)
+                    continue;
+                  devicesById.set(agent.id, {
+                    id: agent.id,
+                    projects,
+                    online:
+                      Date.now() - (lastSeen.get(agent.id) ?? 0) < 30000,
+                  });
+                }
+
+                const memberships = user.memberships?.length
+                  ? user.memberships
+                  : [user];
+                for (const membership of memberships) {
+                  if (!membership?.devices) continue;
+                  for (const [device, projects] of Object.entries(
+                    membership.devices,
+                  )) {
+                    if (!projects?.length || devicesById.has(device)) continue;
+                    devicesById.set(device, {
+                      id: device,
+                      projects,
+                      online: false,
+                    });
+                  }
+                }
+
+                const devices = [...devicesById.values()].sort((a, b) =>
+                  a.id.localeCompare(b.id),
+                );
                 return {
                   content: [
                     { type: "text", text: JSON.stringify({ devices }) },
