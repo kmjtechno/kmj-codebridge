@@ -115,11 +115,11 @@ export async function startAgent(rawConfig) {
   const controller = new AbortController();
   let stopped = false;
   const connectionState = path.join(state, "connection.json");
-  let lastConnectionWrite = 0;
+  let connected = false;
   const markConnected = () => {
+    if (connected) return;
+    connected = true;
     const now = Date.now();
-    if (now - lastConnectionWrite < 30000) return;
-    lastConnectionWrite = now;
     const tmp = connectionState + ".tmp";
     fs.writeFileSync(
       tmp,
@@ -222,6 +222,7 @@ export async function startAgent(rawConfig) {
         }
       } catch {
         if (stopped) break;
+        connected = false;
         needsHealthProbe = true;
         failures = Math.min(failures + 1, 6);
         try {
