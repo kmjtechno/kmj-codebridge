@@ -18,6 +18,10 @@ test("VPS installer is shell-valid on Linux", (t) => {
 
 test("fresh installer uses secure enrollment and never requires manual agent token", () => {
   assert.match(script, /scripts\/enroll-device\.js/);
+  assert.match(
+    script,
+    /CODEBRIDGE_GATEWAY:-https:\/\/kmj-codebridge-gateway\.onrender\.com/,
+  );
   assert.match(script, /CODEBRIDGE_ENROLLMENT_BASE/);
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
   assert.doesNotMatch(script, /github.*token/i);
@@ -56,7 +60,8 @@ test("installer stages updates and rolls back failed service or gateway verifica
   assert.match(script, /INSTALL_DIR.*\.new/);
   assert.match(script, /rollback\(\)/);
   assert.match(script, /systemctl is-active --quiet/);
-  assert.match(script, /oauth-protected-resource/);
+  assert.match(script, /EFFECTIVE_GATEWAY/);
+  assert.match(script, /\/healthz/);
   assert.match(script, /connection\.json/);
   assert.match(script, /authenticated gateway request/);
   assert.match(script, /rolling back CodeBridge/);
@@ -128,6 +133,13 @@ test("installer provisions a restricted socket-activated supervisor", () => {
   assert.match(script, /systemctl restart "\$SUPERVISOR_SOCKET_UNIT"/);
   assert.match(script, /supervisorRequest/);
   assert.match(script, /\{op:"status",service:"agent"\}/);
+});
+
+test("installer uses the enrollment-returned gateway for a fresh device and repairs an existing gateway", () => {
+  assert.match(script, /typeof result\.gateway === "string"/);
+  assert.doesNotMatch(script, /gateway:process\.env\.GATEWAY/);
+  assert.match(script, /have_config == 1/);
+  assert.match(script, /c\.gateway!==process\.env\.GATEWAY/);
 });
 
 test("installer migrates existing config without exposing or redirecting the supervisor", () => {
