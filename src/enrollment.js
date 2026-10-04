@@ -5,17 +5,23 @@ import { fail } from "./errors.js";
 
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const permission = z.enum(["read", "write", "execute"]);
-const gatewayOrigin = z.string().url().refine((value) => {
-  const url = new URL(value);
-  return (
-    url.protocol === "https:" &&
-    !url.username &&
-    !url.password &&
-    !url.search &&
-    !url.hash &&
-    (url.pathname === "/" || url.pathname === "")
+const gatewayOrigin = z
+  .string()
+  .url()
+  .refine(
+    (value) => {
+      const url = new URL(value);
+      return (
+        url.protocol === "https:" &&
+        !url.username &&
+        !url.password &&
+        !url.search &&
+        !url.hash &&
+        (url.pathname === "/" || url.pathname === "")
+      );
+    },
+    "Gateway must be a canonical HTTPS origin",
   );
-}, "Gateway must be a canonical HTTPS origin");
 const beginSchema = z.object({
   device_code: z.string().min(32).max(4096),
   user_code: z.string().min(4).max(32),
