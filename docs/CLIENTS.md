@@ -93,10 +93,10 @@ Operators may generate an endpoint-specific OAuth package:
 npm run package:claude -- https://YOUR-HOST/mcp
 ```
 
-For a developer-only gateway that intentionally uses a static bearer credential:
+For a developer-only gateway that intentionally uses a static bearer [REDACTED]:
 
 ```sh
-export KMJ_CODEBRIDGE_TOKEN="$(cat /absolute/private-codebridge-config/client-token.txt)"
+export KMJ_CODEBRIDGE_TOKEN=[REDACTED] /absolute/private-codebridge-config/client-token.txt)"
 npm run package:claude -- https://YOUR-HOST/mcp --auth bearer-env
 ```
 
@@ -223,7 +223,7 @@ with a working private/developer connection.
 ## Universal IDE and CLI configuration generator
 
 All generated hosted-client configs are credential-free. OAuth happens in the
-client; never paste a long-lived bearer token into a repository config.
+client; never paste a long-lived bearer [REDACTED] into a repository config.
 
 ```sh
 # Generic / portable
@@ -259,16 +259,16 @@ npm run client:config -- https://kmjtechno.com/mcp --format codex-cli
 
 ### Configuration locations
 
-| Client                  | Recommended configuration                                                    |
-| ----------------------- | ---------------------------------------------------------------------------- |
-| Claude Code             | `claude mcp add --transport http --scope user ...` or the KMJ Claude plugin |
-| VS Code                 | workspace `.vscode/mcp.json` or portable workspace `.mcp.json`            |
-| GitHub Copilot CLI      | `~/.copilot/mcp-config.json` or `copilot mcp add`                          |
-| Cursor IDE / CLI        | `.cursor/mcp.json` or `~/.cursor/mcp.json`                                 |
-| Windsurf                | `~/.codeium/windsurf/mcp_config.json`                                       |
-| Gemini CLI              | `~/.gemini/settings.json` or `gemini mcp add`                              |
-| JetBrains AI Assistant  | Settings → Tools → AI Assistant → Model Context Protocol                      |
-| Codex CLI / IDE         | `~/.codex/config.toml`, project `.codex/config.toml`, or `codex mcp add`  |
+| Client                 | Recommended configuration                                                   |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Claude Code            | `claude mcp add --transport http --scope user ...` or the KMJ Claude plugin |
+| VS Code                | workspace `.vscode/mcp.json` or portable workspace `.mcp.json`              |
+| GitHub Copilot CLI     | `~/.copilot/mcp-config.json` or `copilot mcp add`                           |
+| Cursor IDE / CLI       | `.cursor/mcp.json` or `~/.cursor/mcp.json`                                  |
+| Windsurf               | `~/.codeium/windsurf/mcp_config.json`                                       |
+| Gemini CLI             | `~/.gemini/settings.json` or `gemini mcp add`                               |
+| JetBrains AI Assistant | Settings → Tools → AI Assistant → Model Context Protocol                    |
+| Codex CLI / IDE        | `~/.codex/config.toml`, project `.codex/config.toml`, or `codex mcp add`    |
 
 For OAuth-capable clients, complete the browser login after adding the server.
 Examples include `/mcp` in Claude/Gemini/Copilot where supported,
