@@ -27,6 +27,14 @@ unattended stable updates must use the Ed25519-signed manifest, immutable
 release store, health-checked activation and rollback path. Following a mutable
 Git branch is not a stable-channel trust model.
 
+Rootless development installs can use `scripts/auto-update-user.sh`. It
+applies the same canonical-origin, clean-runtime, fast-forward and active-job
+guards, then validates the candidate with the repository's check/test suite,
+atomically swaps the user runtime, requires a fresh authenticated gateway
+heartbeat, and restores the previous runtime automatically if reconnect fails.
+The user enrollment credential and project configuration live outside the
+runtime directory and are therefore preserved across the swap.
+
 KMJ CodeBridge software update is being built as a restricted Supervisor operation, not as arbitrary remote command execution.
 
 ## Signed release contract
