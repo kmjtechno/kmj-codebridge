@@ -26,8 +26,8 @@ The installer:
 3. Creates a verifier-bound, short-lived enrollment request.
 4. Prints an HTTPS approval URL and short human code only.
 5. Waits for explicit approval in KMJ Main Platform / CodeBridge.
-6. Exchanges the approved one-time enrollment for an independent device credential.
-7. Writes the device credential only into mode-0600 agent configuration.
+6. Exchanges the approved one-time enrollment for an independent device credential and the authoritative agent gateway origin.
+7. Writes the device credential and agent gateway only into mode-0600 agent configuration.
 8. Installs a hardened systemd service, enables boot start and starts the agent.
 9. Verifies local service state and HTTPS gateway metadata connectivity.
 10. On update failure, restores the previous runtime/configuration.
@@ -131,6 +131,7 @@ Success body:
 
 ```json
 {
+  "gateway": "https://kmj-codebridge-gateway.onrender.com",
   "agent": {
     "token": "<independent random device bearer credential>",
     "id": "customer-vps-01",
@@ -147,7 +148,12 @@ marked consumed. Any later redemption MUST fail. The server MUST validate the
 S256 verifier, approved tenant, device id, approved project and approved permissions.
 
 The returned agent token MUST be independently generated; it MUST NOT be derived from
-the human code or device code.
+the human code or device code. The optional `gateway` field is the canonical HTTPS
+origin used by outbound agent traffic (`/agent/health`, `/agent/poll`,
+`/agent/result`). It is distinct from the Main Platform enrollment/account origin and
+must not point at the public `/mcp` proxy unless that origin actually serves the agent
+routes. Older servers that omit `gateway` remain compatible with the installer's
+configured production fallback.
 
 ## Rotation and revocation contract
 
@@ -165,7 +171,7 @@ Main Platform version exposes and verifies them end-to-end.
 ## Installer persistence and update policy
 
 - Fresh configuration is created mode 0600.
-- Existing valid configuration is preserved on rerun.
+- Existing valid credentials and project bindings are preserved on rerun; the configured agent gateway may be repaired to the requested production gateway without re-pairing.
 - Invalid existing configuration is never silently overwritten.
 - Runtime updates are staged in a new directory.
 - The previous runtime and config are retained until the new service and gateway
