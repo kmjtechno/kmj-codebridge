@@ -429,6 +429,14 @@ export async function startGateway(rawConfig) {
         description:
           "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
         websiteUrl: "https://kmjtechno.com",
+        // Standard MCP `Implementation.icons` (spec 2025-11-25 / SEP-973).
+        // Omitted entirely unless the operator configures a real, publicly
+        // reachable HTTPS icon URL via `iconUrl` — never a fabricated or
+        // guessed path. See docs/CLIENTS.md "Connector and plugin icon
+        // behavior" for which clients currently honor this.
+        ...(config.iconUrl
+          ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
+          : {}),
       });
       for (const [name, d] of Object.entries(allDefinitions))
         mcp.registerTool(

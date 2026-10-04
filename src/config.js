@@ -16,6 +16,19 @@ const httpsUrl = z
       !/["\\\s]/.test(value)
     );
   }, "Requires a canonical HTTPS URL");
+const LOOPBACK_HOSTS = new Set(["localhost", "127.0.0.1", "::1", "[::1]"]);
+// Operator-supplied, publicly reachable icon URL for the standard MCP
+// `Implementation.icons` field (spec 2025-11-25 / SEP-973). Optional and
+// never defaulted or guessed: the gateway advertises no icon at all unless
+// a real public HTTPS URL is configured here. See docs/CLIENTS.md
+// "Connector and plugin icon behavior" for why this exists and what it
+// does and does not fix.
+const iconUrl = httpsUrl
+  .refine(
+    (value) => !LOOPBACK_HOSTS.has(new URL(value).hostname),
+    "iconUrl must be a public HTTPS URL, not a loopback/local address",
+  )
+  .optional();
 export const gatewaySchema = z
   .object({
     oauth: z
@@ -117,6 +130,7 @@ export const gatewaySchema = z
       .string()
       .regex(/^[A-Za-z0-9._~-]{1,512}$/)
       .optional(),
+    iconUrl,
     users: z
       .array(
         z.object({

@@ -139,6 +139,55 @@ Main Platform source also contains user/device introspection and verifier-bound
 device enrollment. Production configuration flags and live infrastructure still
 determine whether a specific account/device is currently usable.
 
+## Connector and plugin icon behavior (current Claude limitation)
+
+KMJ CodeBridge ships exactly one locked icon (`assets/icon.png`, alongside
+`assets/logo.png`) from `plugin/assets/`, copied byte-for-byte into every
+generated client package by `scripts/package-common.js`. What each Claude
+surface actually _displays_ for that asset is governed by Anthropic's own
+client code, not by anything this repository can override, so this section
+records current, confirmed behavior rather than assuming a fix is possible.
+
+**Claude Code plugins.** `claude-plugin/.claude-plugin/plugin.json` sets
+`icon: "./assets/icon.png"`. Per the
+[plugin manifest reference](https://code.claude.com/docs/en/plugins-reference#directory-listing-fields),
+this field is read only for the plugin's listing in Anthropic's own plugin
+directory, if and when it is submitted there — "Claude Code doesn't read
+it" at load time. There is currently no supported way to make Claude
+Code's own `/plugin` panel or plugin list show a custom icon; it falls
+back to a letter monogram or generic icon regardless of what a plugin
+ships.
+
+**Claude.ai / Claude Desktop custom connectors.** These do not reliably
+read MCP `serverInfo`/`Implementation.icons` from the `initialize`
+handshake — a confirmed, open gap with no ETA as of this writing
+([anthropics/claude-ai-mcp#152](https://github.com/anthropics/claude-ai-mcp/issues/152),
+[anthropics/claude-code#95558](https://github.com/anthropics/claude-code/issues/95558)).
+Instead, Claude.ai can fall back to a favicon lookup against the **root
+domain (eTLD+1) of the connector's URL** through Google's favicon service,
+ignoring `/favicon.ico`, `serverInfo.icons` and OAuth `logo_uri` alike.
+
+**What this means for a "wrong icon" report.** This repository commits no
+hosted gateway domain — every doc here uses `YOUR-ACTUAL-HOST` because
+operators self-host. So the icon Claude.ai shows for a custom-connector
+add is strongly influenced by whatever favicon is served at the root
+domain the operator points Claude at, which this repository cannot
+control. If a gateway is reverse-proxied under the same root domain as
+another site (for example the KMJ Main Platform), and that site's own
+favicon is still a generic/default one, Claude.ai's lookup can surface
+that icon — not anything CodeBridge configures. The Main Platform's own
+favicon is out of scope for this phase of work and will be addressed
+separately.
+
+**Standards-compliant forward path.** The gateway can still advertise a
+spec-compliant `Implementation.icons` entry (MCP spec 2025-11-25 /
+SEP-973) in its `initialize` response, for every MCP client that already
+honors it (several do; Claude's support is unreliable today). Set the
+gateway's optional `iconUrl` config field to a real, publicly reachable
+HTTPS icon URL to enable this — the gateway never fabricates or guesses a
+URL, so the field is simply omitted from `serverInfo` when `iconUrl` is
+unset.
+
 ## ChatGPT
 
 The OpenAI package is generated from the same canonical plugin source:

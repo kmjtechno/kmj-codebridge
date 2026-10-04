@@ -613,3 +613,65 @@ test("dynamically enrolled agent introspects once then serves MCP tools from cac
   assert.equal(read.content, "dynamic");
   assert.equal(introspections, 1);
 });
+
+test("MCP server advertises a configured icon URL and omits it when unset", async (t) => {
+  const { client: defaultClient } = await setup(t);
+  const defaultServer = defaultClient.getServerVersion();
+  assert.equal(defaultServer?.icons, undefined);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));
+  const root = path.join(dir, "project");
+  fs.mkdirSync(root);
+  const gw = await startGateway({
+    host: "127.0.0.1",
+    port: 0,
+    iconUrl: "https://kmjtechno.com/assets/kmj-codebridge-icon.png",
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: digest(userToken),
+        devices: { d1: ["p1"] },
+        permissions: ["read"],
+      },
+    ],
+    agents: [{ id: "d1", tenant: "t1", tokenHash: digest(agentToken) }],
+  });
+  const client = new Client({ name: "icon-test", version: "1.0" });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL("/mcp", gw.url), {
+      requestInit: { headers: { Authorization: `Bearer ${userToken}` } },
+    }),
+  );
+  t.after(async () => {
+    await client.close();
+    await gw.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const server = client.getServerVersion();
+  assert.deepEqual(server?.icons, [
+    {
+      src: "https://kmjtechno.com/assets/kmj-codebridge-icon.png",
+      mimeType: "image/png",
+    },
+  ]);
+});
+
+test("gateway configuration rejects a local/loopback icon URL", async () => {
+  const { gatewaySchema } = await import("../src/config.js");
+  assert.throws(() =>
+    gatewaySchema.parse({
+      users: [
+        {
+          id: "u1",
+          tenant: "t1",
+          tokenHash: digest(userToken),
+          devices: {},
+          permissions: ["read"],
+        },
+      ],
+      agents: [{ id: "d1", tenant: "t1", tokenHash: digest(agentToken) }],
+      iconUrl: "https://127.0.0.1/icon.png",
+    }),
+  );
+});

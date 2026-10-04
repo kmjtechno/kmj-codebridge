@@ -128,6 +128,7 @@ test("Claude Code package follows the plugin and marketplace layout", (t) => {
     "kmj-codebridge/LICENSE",
     "kmj-codebridge/PRIVACY.md",
     "kmj-codebridge/TERMS.md",
+    "kmj-codebridge/assets/icon.png",
     "kmj-codebridge/assets/logo.png",
     "kmj-codebridge/skills/codebridge/SKILL.md",
   ]);
@@ -151,6 +152,7 @@ test("Claude Code package follows the plugin and marketplace layout", (t) => {
   assert.equal(manifest.description, canonical.description);
   assert.deepEqual(manifest.author, canonical.author);
   assert.equal(manifest.displayName, "KMJ CodeBridge");
+  assert.equal(manifest.icon, "./assets/icon.png");
   // No OpenAI-only metadata leaks into the Claude manifest.
   assert.equal(manifest.extensions, undefined);
   assert.deepEqual(readJson(path.join(out, "kmj-codebridge/.mcp.json")), {
@@ -164,6 +166,40 @@ test("Claude Code package follows the plugin and marketplace layout", (t) => {
     canonicalSkill,
   );
   assertCredentialFree(out);
+});
+
+test("generated Claude package ships the canonical icon byte-for-byte and carries no stale default-icon reference", (t) => {
+  const out = path.join(tempDir(t, "cb-claude-icon-"), "out");
+  const result = run("scripts/package-claude.js", [endpoint, "--out", out]);
+  assert.equal(result.status, 0, result.stderr);
+  const claudeIcon = fs.readFileSync(
+    path.join(out, "kmj-codebridge/assets/icon.png"),
+  );
+  const canonicalIcon = fs.readFileSync(
+    path.join(cwd, "plugin/assets/icon.png"),
+  );
+  assert.ok(
+    claudeIcon.equals(canonicalIcon),
+    "icon.png must match the canonical asset byte-for-byte, never regenerated or re-encoded",
+  );
+  const manifest = readJson(
+    path.join(out, "kmj-codebridge/.claude-plugin/plugin.json"),
+  );
+  // Same basename as the OpenAI package's composerIcon — no
+  // manifest-says-one-file-but-ships-another drift.
+  assert.equal(
+    path.basename(manifest.icon),
+    path.basename(canonical.extensions["com.openai"].interface.composerIcon),
+  );
+  for (const name of files(out)) {
+    if (name.endsWith(".png")) continue;
+    const text = fs.readFileSync(path.join(out, name), "utf8");
+    assert.doesNotMatch(
+      text,
+      /laravel/i,
+      `${name} must not reference a default/placeholder icon`,
+    );
+  }
 });
 
 test("Claude bearer-env mode references an environment variable, never a token", (t) => {
