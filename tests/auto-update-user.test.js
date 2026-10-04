@@ -29,8 +29,8 @@ test("rootless updater is canonical, fast-forward only and preserves config", ()
 });
 
 test("rootless updater verifies before swap and rolls back failed reconnect", () => {
-  assert.match(script, /npm" --prefix "\$NEW" run check/);
-  assert.match(script, /npm" --prefix "\$NEW" test/);
+  assert.match(script, /"\$NPM" --prefix "\$NEW" run check/);
+  assert.match(script, /"\$NPM" --prefix "\$NEW" test/);
   assert.match(script, /ROOTLESS_UPDATE_DEFERRED_ACTIVE_JOB/);
   assert.match(script, /ROOTLESS_UPDATE_PID_MISMATCH/);
   assert.match(script, /ROOTLESS_UPDATE_ROLLED_BACK/);
