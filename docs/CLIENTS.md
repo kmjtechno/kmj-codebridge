@@ -93,10 +93,10 @@ Operators may generate an endpoint-specific OAuth package:
 npm run package:claude -- https://YOUR-HOST/mcp
 ```
 
-For a developer-only gateway that intentionally uses a static bearer [REDACTED]:
+For a developer-only gateway that intentionally uses a static bearer credential:
 
 ```sh
-export KMJ_CODEBRIDGE_TOKEN=[REDACTED] /absolute/private-codebridge-config/client-token.txt)"
+export KMJ_CODEBRIDGE_TOKEN="$(cat /absolute/private-codebridge-config/client-token.txt)"
 npm run package:claude -- https://YOUR-HOST/mcp --auth bearer-env
 ```
 
@@ -223,7 +223,7 @@ with a working private/developer connection.
 ## Universal IDE and CLI configuration generator
 
 All generated hosted-client configs are credential-free. OAuth happens in the
-client; never paste a long-lived bearer [REDACTED] into a repository config.
+client; never paste a long-lived bearer token into a repository config.
 
 ```sh
 # Generic / portable
