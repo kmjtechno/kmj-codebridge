@@ -405,57 +405,84 @@ test(
   },
 );
 
-
 test("universal client config generator emits credential-free major-client formats", () => {
   const cases = new Map([
-    ["mcp-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { type: "http", url: endpoint },
-        },
-      })],
-    ["claude-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { type: "http", url: endpoint },
-        },
-      })],
-    ["vscode-json", (value) =>
-      assert.deepEqual(value, {
-        servers: {
-          "kmj-codebridge": { type: "http", url: endpoint },
-        },
-      })],
-    ["cursor-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { url: endpoint },
-        },
-      })],
-    ["windsurf-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { serverUrl: endpoint },
-        },
-      })],
-    ["gemini-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { httpUrl: endpoint },
-        },
-      })],
-    ["copilot-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { type: "http", url: endpoint, tools: ["*"] },
-        },
-      })],
-    ["jetbrains-json", (value) =>
-      assert.deepEqual(value, {
-        mcpServers: {
-          "kmj-codebridge": { url: endpoint },
-        },
-      })],
+    [
+      "mcp-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { type: "http", url: endpoint },
+          },
+        }),
+    ],
+    [
+      "claude-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { type: "http", url: endpoint },
+          },
+        }),
+    ],
+    [
+      "vscode-json",
+      (value) =>
+        assert.deepEqual(value, {
+          servers: {
+            "kmj-codebridge": { type: "http", url: endpoint },
+          },
+        }),
+    ],
+    [
+      "cursor-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { url: endpoint },
+          },
+        }),
+    ],
+    [
+      "windsurf-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { serverUrl: endpoint },
+          },
+        }),
+    ],
+    [
+      "gemini-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { httpUrl: endpoint },
+          },
+        }),
+    ],
+    [
+      "copilot-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": {
+              type: "http",
+              url: endpoint,
+              tools: ["*"],
+            },
+          },
+        }),
+    ],
+    [
+      "jetbrains-json",
+      (value) =>
+        assert.deepEqual(value, {
+          mcpServers: {
+            "kmj-codebridge": { url: endpoint },
+          },
+        }),
+    ],
   ]);
 
   for (const [format, verify] of cases) {
@@ -466,7 +493,7 @@ test("universal client config generator emits credential-free major-client forma
     ]);
     assert.equal(result.status, 0, result.stderr);
     verify(JSON.parse(result.stdout));
-    assert.doesNotMatch(result.stdout, /Bearer\\s+[A-Za-z0-9]/);
+    assert.doesNotMatch(result.stdout, /Bearer\s+[A-Za-z0-9]/);
   }
 
   const generic = run("scripts/client-config.js", [endpoint]);
@@ -506,10 +533,16 @@ test("universal client config generator emits credential-free major-client forma
     "codex-toml",
   ]);
   assert.equal(codexToml.status, 0, codexToml.stderr);
-  assert.match(codexToml.stdout, /\\[mcp_servers\."kmj-codebridge"\\]/);
-  assert.match(codexToml.stdout, /url = "https:\\/\\/codebridge\\.example\\.invalid\\/mcp"/);
-  assert.match(codexToml.stdout, /auth = "oauth"/);
-  assert.match(codexToml.stdout, /default_tools_approval_mode = "writes"/);
+  assert.ok(codexToml.stdout.includes('[mcp_servers."kmj-codebridge"]'));
+  assert.ok(
+    codexToml.stdout.includes(
+      'url = "https://codebridge.example.invalid/mcp"',
+    ),
+  );
+  assert.ok(codexToml.stdout.includes('auth = "oauth"'));
+  assert.ok(
+    codexToml.stdout.includes('default_tools_approval_mode = "writes"'),
+  );
 
   const codexCli = run("scripts/client-config.js", [
     endpoint,
