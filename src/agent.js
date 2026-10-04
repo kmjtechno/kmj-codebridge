@@ -224,8 +224,6 @@ export async function startAgent(rawConfig) {
         if (stopped) break;
         needsHealthProbe = true;
         failures = Math.min(failures + 1, 6);
-      }
-      if (!stopped)
         try {
           await delay(Math.min(10000, c.pollMs * 2 ** failures), undefined, {
             signal: controller.signal,
@@ -233,6 +231,7 @@ export async function startAgent(rawConfig) {
         } catch {
           break;
         }
+      }
     }
   })();
   return {

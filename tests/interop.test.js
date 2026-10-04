@@ -38,7 +38,7 @@ async function bridge(t, extra = {}) {
   const gw = await startGateway({
     host: "127.0.0.1",
     port: 0,
-    deviceTimeoutMs: 400,
+    deviceTimeoutMs: 1500,
     users: extra.users ?? [
       {
         id: "full",

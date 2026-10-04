@@ -104,6 +104,104 @@ test("agent persists authenticated gateway connectivity heartbeat", async (t) =>
     assert.equal(fs.statSync(state).mode & 0o077, 0);
 });
 
+test("agent immediately re-polls after a successful dispatch", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-fast-repoll-"));
+  const root = path.join(dir, "project");
+  fs.mkdirSync(root);
+  fs.writeFileSync(path.join(root, "hello.txt"), "fast");
+  const gw = await startGateway({
+    host: "127.0.0.1",
+    port: 0,
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: digest(userToken),
+        devices: { d1: ["p1"] },
+        permissions: ["read"],
+      },
+    ],
+    agents: [{ id: "d1", tenant: "t1", tokenHash: digest(agentToken) }],
+  });
+  const agent = await startAgent({
+    gateway: gw.url,
+    token: agentToken,
+    id: "d1",
+    tenant: "t1",
+    stateDir: path.join(dir, "state"),
+    pollMs: 500,
+    projects: [{ id: "p1", root, writable: true, gates: {} }],
+    license: { mode: "free" },
+  });
+  const client = new Client({ name: "fast-repoll-test", version: "1.0" });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL("/mcp", gw.url), {
+      requestInit: { headers: { Authorization: `Bearer ${userToken}` } },
+    }),
+  );
+  t.after(async () => {
+    await client.close();
+    await agent.close();
+    await gw.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  const args = {
+    device: "d1",
+    project: "p1",
+    path: "hello.txt",
+  };
+  assert.equal(
+    content(await client.callTool({ name: "read_file", arguments: args }))
+      .content,
+    "fast",
+  );
+  const started = Date.now();
+  assert.equal(
+    content(await client.callTool({ name: "read_file", arguments: args }))
+      .content,
+    "fast",
+  );
+  assert.ok(
+    Date.now() - started < 250,
+    "successful dispatch should not sleep for pollMs before polling again",
+  );
+});
+
+test("gateway empty agent poll timeout is configurable", async (t) => {
+  const gw = await startGateway({
+    host: "127.0.0.1",
+    port: 0,
+    pollWaitMs: 50,
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: digest(userToken),
+        devices: {},
+        permissions: ["read"],
+      },
+    ],
+    agents: [{ id: "d1", tenant: "t1", tokenHash: digest(agentToken) }],
+  });
+  t.after(async () => gw.close());
+
+  const started = Date.now();
+  const response = await fetch(gw.url + "/agent/poll", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${agentToken}`,
+      "content-type": "application/json",
+    },
+    body: "{}",
+    signal: AbortSignal.timeout(500),
+  });
+  const elapsed = Date.now() - started;
+  assert.equal(response.status, 200);
+  assert.ok(elapsed >= 35, `empty poll returned too quickly: ${elapsed}ms`);
+  assert.ok(elapsed < 300, `empty poll ignored pollWaitMs: ${elapsed}ms`);
+});
+
 test("directory listing and precise edit accelerate scoped coding", async (t) => {
   const { client, root } = await setup(t);
   fs.mkdirSync(path.join(root, "src"));

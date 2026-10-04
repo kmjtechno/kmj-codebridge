@@ -1,10 +1,10 @@
 # Performance & low-load architecture — agent/gateway poll path
 
-Status: the performance-tuning slices in this document are still design-only.
-The separate 24×7 Autopilot persistence foundation is now wired into
-`src/agent.js`, but the agent poll-delay logic and gateway long-poll timing
-described below remain unchanged pending the real before/after benchmark.
-See `AUTOPILOT.md` for the implemented persistent queue/checkpoint layer.
+Status: P3/P4 are now implemented after a real VPS baseline. The separate 24×7
+Autopilot persistence foundation is wired into `src/agent.js`; the agent no
+longer sleeps after a successful dispatch, and the gateway empty-poll wait is
+controlled by the bounded `pollWaitMs` setting. See `AUTOPILOT.md` for the
+implemented persistent queue/checkpoint layer.
 
 ## 1. What is actually there today (read-only inspection, not assumption)
 
@@ -19,38 +19,40 @@ pair was re-read end to end. The finding changes the scope of this work:
   in the request path.
 - `/agent/poll` either returns already-queued work immediately, or opens one
   `Promise` that resolves on whichever happens first: `wake()` (instant, the
-  moment `forward()` enqueues work for that agent) or a 10-second
-  `setTimeout` (clean empty return, no work).
+  moment `forward()` enqueues work for that agent) or the configured
+  `pollWaitMs` timeout (clean empty return, no work).
 - So wake latency for real work is already ~0ms, not bounded by any poll
-  interval. The 10s figure only controls how often an _idle_ agent has to
+  interval. `pollWaitMs` only controls how often an _idle_ agent has to
   re-open a connection.
 
-**The bug is entirely on the agent side, and it is smaller than it looked:**
+**The original bug was entirely on the agent side, and it was smaller than it looked:**
 
 ```js
-// src/agent.js, current loop (unmodified, read-only)
+// previous src/agent.js loop shape
 ...
 if (!stopped)
-  try {
-    await delay(Math.min(10000, c.pollMs * 2 ** failures), undefined, {
-      signal: controller.signal,
-    });
-  } catch { break; }
+  await delay(Math.min(10000, c.pollMs * 2 ** failures), undefined, {
+    signal: controller.signal,
+  });
 ```
 
-This delay fires **unconditionally** after every iteration — success,
+That delay fired **unconditionally** after every iteration — success,
 empty long-poll return, or failure alike. On the success path
-`failures` is reset to `0`, so the delay collapses to
+`failures` reset to `0`, so the delay collapsed to
 `Math.min(10000, pollMs) = pollMs` (default 250ms, per `src/config.js`).
-Net effect:
+Net effect before the fix:
 
 - Idle cost: negligible — one extra `pollMs` (≤250ms default) tacked onto
-  a ~10s cycle, not a busy loop.
-- Active cost: **every single tool dispatch pays an extra `pollMs` of dead
-  time** before the agent re-enters `/agent/poll` for the next job. In a
-  multi-tool-call agentic session this is a real, measurable tax on
-  "maximum safe burst speed" (Phase 8 of the brief), even though it is not
-  the idle-load problem it first looked like.
+  a long-poll cycle, not a busy loop.
+- Active cost: every single tool dispatch paid an extra `pollMs` of dead
+  time before the agent re-entered `/agent/poll` for the next job. In a
+  multi-tool-call agentic session this was a real, measurable tax on
+  "maximum safe burst speed" (Phase 8 of the brief), even though it was
+  not the idle-load problem it first looked like.
+
+Current behavior: delay/backoff now runs only after a failed poll/dispatch
+cycle. Clean success and clean empty long-poll returns immediately re-enter
+`/agent/poll`.
 
 License renewal (`renew()`) is also already deadline-driven
 (`if (Date.now() < nextRenewal) return;`) — it does not do work on every
@@ -76,30 +78,23 @@ of the two options in the brief. Given finding (1), it is rejected for now:
   than a socket-based design would allow. This is recoverable later and is
   a strictly smaller risk than shipping a new transport unverified.
 
-**Smallest safe slice (to implement once authorized, not yet applied):**
+**Implemented safe slice:**
 
-1. In the agent loop, only delay-and-backoff after an actual request
+1. In the agent loop, delay-and-backoff now run only after an actual request
    failure (the `catch` branch). After a clean iteration — work dispatched
-   _or_ a clean empty long-poll return — loop straight back into
-   `/agent/poll` with no added delay. This removes the per-tool-call
-   `pollMs` tax entirely; the gateway's 10s timeout is already the only
-   idle throttle needed.
-2. Raise the gateway long-poll timeout (currently the literal `10000` at
-   `src/gateway.js:~303`) toward the 45–60s the brief asks for. This is a
+   _or_ a clean empty long-poll return — the agent loops straight back into
+   `/agent/poll` with no added `pollMs` delay.
+2. The gateway long-poll timeout is controlled by the bounded
+   `pollWaitMs` gateway config field. The default is 45 seconds. This is a
    pure idle-chatter reduction — it cannot add latency to real work,
    because wake is driven by `waiting.get(id)()`, not by the timeout.
-   Needs a config knob (new `pollWaitMs` field in `gatewaySchema`,
-   bounded, defaulted conservatively) rather than a hardcoded change, to
-   stay consistent with how `deviceTimeoutMs`/`pollMs` are already
-   exposed in `src/config.js`.
-3. Once (1)+(2) land, re-measure `connection.json` write frequency before
-   deciding whether transition-only persistence (vs. time-debounced) is
-   still worth the extra state-tracking complexity. Likely still worth
-   doing, but only backed by a measurement, not a guess.
+3. `connection.json` transition-only persistence remains a later slice;
+   the measured baseline already showed agent disk writes around 8 KB/min,
+   so further persistence changes should still be measured before/after.
 
-Both (1) and (2) are single, independently testable changes to
-`src/agent.js` / `src/gateway.js` + `src/config.js`. Neither touches
-`src/jobs.js` or the sensitive-binding protection in `src/tools.js`.
+These changes are limited to `src/agent.js`, `src/gateway.js` and
+`src/config.js` plus tests/docs. They do not touch `src/jobs.js` or the
+sensitive-binding protection in `src/tools.js`.
 
 ## 3. Phase 6 — reducing AI round trips
 
