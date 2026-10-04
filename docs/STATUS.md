@@ -1,6 +1,6 @@
 # Delivery status
 
-Version 0.2.2 is a developer preview moving through production integration. This
+Version 0.2.3 is a developer preview moving through production integration. This
 file records verified capability, not a percentage-complete claim.
 
 ## Verified now
