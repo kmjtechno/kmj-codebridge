@@ -129,7 +129,10 @@ test(
 );
 
 test("Windows activation fails closed rather than using a non-atomic replacement", (t) => {
-  if (process.platform !== "win32") t.skip("Windows-specific contract");
+  if (process.platform !== "win32") {
+    t.skip("Windows-specific contract");
+    return;
+  }
   const { store } = setup(t);
   const first = stageRuntime(store, manifest("0.2.0", "9"));
   assert.throws(
