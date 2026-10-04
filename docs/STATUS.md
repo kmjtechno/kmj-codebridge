@@ -1,6 +1,6 @@
 # Delivery status
 
-Version 0.2.1 is a developer preview moving through production integration. This
+Version 0.2.2 is a developer preview moving through production integration. This
 file records verified capability, not a percentage-complete claim.
 
 ## Verified now
@@ -26,6 +26,11 @@ file records verified capability, not a percentage-complete claim.
 - **Crash recovery:** the agent state lock now recovers automatically only when
   staleness is provable; exact-head Linux, Windows, client, and distribution CI
   passed before merge.
+- **Low-load poll path:** successful work re-polls immediately, idle long-poll wait is
+  bounded/configurable, and connection-state persistence is transition-only. A
+  post-P5 120-second VPS sample measured agent CPU 0.291%, gateway CPU 0.350%,
+  combined RSS 173.4 MB, and /healthz 65.007 ms. These are process/liveness
+  measurements, not a full authenticated MCP round-trip benchmark.
 - **Main Platform:** source contains CodeBridge OAuth/OIDC, device pairing and
   redemption, user/device introspection, entitlement/renewal services, account
   UI, and regression tests.
@@ -45,9 +50,6 @@ file records verified capability, not a percentage-complete claim.
 
 - Fresh-device one-command enrollment must be re-run against the live Main Platform
   service after the current agent/runtime update is deployed.
-- A currently authorized device is online but reports runtime version 0.1.6. The
-  0.2.1 runtime must be deployed to that device before the new crash-recovery,
-  hosted-review, and current tool-surface behavior can be validated end to end.
 - The VPS provider/hypervisor has produced abrupt external power events; guest logs did
   not show a normal Linux shutdown. Provider-side stability remains an infrastructure
   dependency rather than a CodeBridge software gate.

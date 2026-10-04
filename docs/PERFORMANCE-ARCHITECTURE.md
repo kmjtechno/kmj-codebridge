@@ -1,11 +1,11 @@
 # Performance & low-load architecture — agent/gateway poll path
 
-Status: P3/P4 are merged after a real VPS baseline and post-merge benchmark.
+Status: P3/P4/P5 are merged after real VPS before/after benchmarks.
 The separate 24×7 Autopilot persistence foundation is wired into `src/agent.js`;
 the agent no longer sleeps after a successful dispatch, the gateway empty-poll
-wait is controlled by the bounded `pollWaitMs` setting, and P5 now uses
-transition-only connection-state persistence in the validated working tree.
-See `AUTOPILOT.md` for the implemented persistent queue/checkpoint layer.
+wait is controlled by the bounded `pollWaitMs` setting, and connection-state
+persistence is transition-only. See `AUTOPILOT.md` for the implemented persistent
+queue/checkpoint layer.
 
 ## 1. What is actually there today (read-only inspection, not assumption)
 
@@ -97,10 +97,14 @@ of the two options in the brief. Given finding (1), it is rejected for now:
 
 Measured P3/P4 post-merge result over 120 seconds: combined idle CPU fell from
 0.700% to 0.583% (about 16.7%), combined RSS from 181.8 MB to 171.5 MB (about
-5.7%), and agent disk writes from about 8 KB/min to 4,094 B/min (about 50%).
-Gateway disk writes remained 0 B/min and `/healthz` stayed effectively flat at
-68.164 ms versus about 67.8 ms baseline. These process/health measurements do
-not represent a full authenticated client→MCP→agent round trip.
+5.7%), and process-wide agent disk writes from about 8 KB/min to 4,094 B/min
+(about 50%). The final post-P5 sample measured agent CPU 0.291%, gateway CPU
+0.350%, combined CPU 0.641%, combined RSS 173.4 MB, process-wide agent disk
+writes 4,093 B/min, gateway disk writes 0 B/min, and `/healthz` 65.007 ms.
+The dedicated P5 regression proves healthy traffic does not rewrite
+`connection.json`; `/proc/<pid>/io` is a whole-process counter and therefore is
+not a file-specific proof of connection-state writes. These process/health
+measurements do not represent a full authenticated client→MCP→agent round trip.
 
 These changes are limited to `src/agent.js`, `src/gateway.js` and
 `src/config.js` plus tests/docs. They do not touch `src/jobs.js` or the
@@ -129,35 +133,37 @@ Deliberately excludes file contents/diffs/full file lists — those stay on
 `read_files_batch`/`git_diff`/`list_directory` so the snapshot response
 stays small and cheap to call often.
 
-## 4. Phase 7 — CodeBridge Supervisor (spec only, no code yet)
+## 4. Phase 7 — CodeBridge Supervisor (implemented foundation)
 
-Allowlisted RPCs only, exactly as specified in the brief
-(`codebridge_status`, `service_status`, `service_restart`,
-`service_reload`, `update_check`, `update`, `rollback`,
-`release_history`, `agent_logs`, `gateway_logs`, `config_validate`,
-`config_reload`, `disk_space`, `bounded_resource_status`,
-`network_diagnostics`). No arbitrary command, executable, service name,
-path, env dump or credential access, ever.
+The restricted Linux Supervisor is implemented and installer-integrated. It
+uses the fixed `/run/kmj-codebridge/supervisor.sock` Unix socket, systemd socket
+activation, fixed service/config mappings, bounded/redacted logs, config
+validation, fixed-filesystem disk-space reporting, and allowlisted service
+restart. The MCP dispatcher exposes only the matching typed Supervisor tools;
+there is still no arbitrary command, service name, path, environment dump or
+credential-return API.
 
-- Linux: Unix domain socket, `0700`-owner-only directory /
-  `0600` socket, systemd unit, socket-activated where practical so the
-  supervisor itself costs nothing while idle.
-- Windows: equivalent local named-pipe/service IPC with the same
-  allowlist.
-- This is new, security-sensitive surface area — it should get its own
-  threat-modeled spec and test plan before any implementation, not be
-  folded into the long-poll/latency patch.
+The remaining Supervisor work is deliberately narrower: signed software
+update/rollback orchestration, any additional bounded resource/network
+diagnostics justified by production evidence, and a Windows equivalent with
+the same fail-closed allowlist semantics.
 
-## 5. Phase 8 — self-update / rollback (spec only, no code yet)
+## 5. Phase 8 — self-update / rollback (verification and activation foundation implemented)
 
-Flow as specified: signed manifest → SHA-256 → Ed25519 signature →
-immutable staged release → preflight → atomic `current` symlink swap →
-restart → health check → automatic rollback on failure, previous
-known-good release retained. No GitHub runner or token required at
-runtime; no mutable production git checkout.
+Signed release-manifest verification, Ed25519 key selection, archive size/hash
+verification, archive-entry safety checks, anti-rollback sequence validation,
+immutable release naming/staging, atomic POSIX `current`/`previous` activation,
+and bounded release-history/rollback storage are implemented with deterministic
+tests.
 
-This depends on the Supervisor (§4) existing first, since `update`/
-`rollback`/`service_restart` are supervisor RPCs. Sequenced after it.
+CodeBridge does **not** yet claim unattended production self-update. The missing
+production orchestration is the security-sensitive part: fetch a configured
+signed manifest/archive without DNS-rebinding or redirect ambiguity, safely
+extract only validated entries, run preflight, activate the immutable release,
+restart through the restricted Supervisor, verify health/connectivity, and
+automatically restore the previous release on failure. Until that exact flow is
+merged and live-tested, installer rerun remains the supported runtime
+repair/update mechanism.
 
 ## 6. Benchmark harness semantics (`scripts/benchmark.js`)
 

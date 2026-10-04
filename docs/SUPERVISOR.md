@@ -44,13 +44,16 @@ The VPS installer now provisions the Supervisor as a systemd socket-activated se
 - Agent and Supervisor unit files are backed up and restored together if installation or live verification fails.
 - Installation completes only after the agent reconnects to the gateway and a local Supervisor status request confirms the agent service is active.
 
-## Remaining slices
+## Current boundary and remaining slices
 
-The Supervisor still intentionally does not implement software update or rollback RPCs. Those operations require the signed immutable-release design and must not be added as generic command execution.
+The Supervisor foundation is implemented and installer-integrated. Signed release verification, immutable staging/activation and local rollback primitives are also implemented separately in the update/release-store modules.
 
-Next steps:
+Software update and rollback are **not yet exposed as Supervisor RPCs** because the remaining orchestration must stay fail-closed rather than becoming a generic command path. Before those operations are enabled, CodeBridge still needs:
 
-1. validate live status/log/config/restart behavior on the VPS;
-2. add signed release verification and immutable staging;
-3. expose allowlisted `update_check`, `update`, `rollback` and `release_history`;
-4. use these operations for autonomous recovery without Desktop Commander.
+1. live production evidence for status/log/config/restart on the supported installer path;
+2. a configured signed-manifest/archive fetch path with redirect and DNS-rebinding defenses;
+3. safe extraction into the immutable staging area plus preflight validation;
+4. allowlisted `update_check`, `update`, `rollback` and `release_history` RPCs wired only to those fixed primitives;
+5. post-activation service/connectivity health verification with automatic previous-release restoration on failure.
+
+Until that sequence is merged and live-tested, installer rerun is the supported repair/update path and the Supervisor must not accept caller-selected commands, paths, URLs or service names.
