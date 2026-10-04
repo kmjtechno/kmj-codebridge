@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kmj-codebridge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
   "author": {
     "name": "KMJ TECHNO",
@@ -94,7 +94,7 @@
         "commerce_description": "KMJ CodeBridge does not sell products or process payments inside the plugin. Commercial plans and entitlements are handled by KMJ Main Platform outside the tool surface."
       },
       "publication": {
-        "release_notes": "KMJ CodeBridge 0.2.1 enables the hosted GitHub bridge from protected deployment settings, adds live capability health and scheduled production smoke verification, and keeps GitHub credentials isolated behind an allowlisted server-side broker."
+        "release_notes": "KMJ CodeBridge 0.2.2 improves 24x7 reliability and low-load behavior with immediate success-path re-polling, configurable long-poll waits, transition-only connection-state persistence, and hardened Autopilot/Supervisor foundations while preserving the allowlisted security boundary."
       }
     }
   },

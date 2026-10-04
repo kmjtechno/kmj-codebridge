@@ -1,13 +1,13 @@
 # KMJ CodeBridge — full product, engineering and commercial roadmap
-# Roadmap only: no implementation, deployment, revenue or benchmark is claimed.
+# Roadmap plus evidence-gated implementation tracking. Source/CI/live evidence is recorded; future milestones are not implied complete.
 roadmap:
   schema_version: '1.0'
-  document_version: '1.1.0'
-  updated_on: '2026-09-30'
+  document_version: '1.2.0'
+  updated_on: '2026-10-04'
   created_on: '2026-09-29'
-  timezone: Asia/Bangkok
+  timezone: Asia/Kolkata
   language: English
-  status: proposed_implementation_roadmap
+  status: active_implementation_roadmap
   product:
     name: KMJ CodeBridge
     name_status: confirmed_by_user
@@ -314,7 +314,17 @@ security_and_privacy:
   audit: Append-only security events with integrity checks and restricted access.
   controls_for_customers: [device_revoke, disconnect, data_export, deletion_request, visible_permissions]
 performance:
-  status: Unmeasured engineering targets for prototype validation.
+  status: partially_measured
+  latest_vps_sample_2026_10_04:
+    window_seconds: 120
+    agent_cpu_percent_avg: 0.291
+    agent_rss_mb: 91.8
+    gateway_cpu_percent_avg: 0.350
+    gateway_rss_mb: 81.6
+    combined_cpu_percent_avg: 0.641
+    combined_rss_mb: 173.4
+    healthz_ms: 65.007
+    caveat: Process and liveness measurements only; not a full authenticated MCP round trip. The original 50 MB agent RSS target is not met in this sample and the 30-minute budget run is still pending.
   reference_environment: Record OS, CPU, RAM, repository size, network RTT and test versions for every run.
   initial_budgets:
     idle_agent_RSS_MB_max: 50
@@ -342,7 +352,7 @@ roadmap_phases:
     name: Baseline, scope and contracts
     priority: P0
     depends_on: []
-    status: not_started
+    status: in_progress
     deliverables:
       - Inventory authorized Commander code and actual MCP capabilities.
       - Verify KMJ Main Platform licensing integration and product boundaries.
@@ -356,7 +366,7 @@ roadmap_phases:
     name: Reliable connection and read-only vertical slice
     priority: P0
     depends_on: [M0]
-    status: not_started
+    status: completed
     deliverables:
       - Linux agent, authenticated gateway and single plugin package.
       - Device pairing, project allowlists, inspect, search and Git status.
@@ -385,7 +395,7 @@ roadmap_phases:
     name: Safe coding and durable verification
     priority: P0
     depends_on: [M1]
-    status: not_started
+    status: in_progress
     deliverables:
       - Preview and apply patches with conflict detection.
       - Worktree isolation, quality gate execution and durable job journal.
@@ -399,7 +409,7 @@ roadmap_phases:
     name: Main Platform licensing and trial
     priority: P0
     depends_on: [M0, M2]
-    status: not_started
+    status: in_progress
     deliverables:
       - Product registration and signed entitlement issue, renew and revoke flows.
       - Trial activation, device limits and Free downgrade.
@@ -413,7 +423,7 @@ roadmap_phases:
     name: Windows support and pilot readiness
     priority: P0
     depends_on: [M2, M3]
-    status: not_started
+    status: in_progress
     deliverables:
       - Signed Windows service installer and Linux install/uninstall flow.
       - Cross-platform path handling, process cancellation and resource controls.
@@ -526,11 +536,11 @@ execution_and_governance:
     commercial_owner: KMJ TECHNO
   reporting: Report verified commits, gate results, blockers and next deliverable; avoid invented completion percentages.
   current_delivery:
-    completed: [product_name_confirmed, YAML_roadmap_authored, multi_client_requirement_recorded]
-    not_claimed: [code_implemented, servers_connected, tests_passed, license_integrated, plugin_published, revenue_generated]
-  decisions_before_implementation:
-    - Review this roadmap and convert M0-M2 into a repository-specific implementation plan.
-    - Identify the authorized repository and non-production test machines.
-    - Confirm Main Platform contract compatibility and safe integration environment.
-    - Finalize pricing, trial duration and limits after cost and pilot feedback.
-    - Verify name clearance and current publication policies before public branding.
+    completed: [product_name_confirmed, roadmap_authored, M1_read_only_vertical_slice, hosted_OAuth_core, ChatGPT_tool_surface, Claude_Code_OAuth, Claude_web_connector, guarded_file_tools, durable_quality_gates, autopilot_persistence, Linux_supervisor_foundation, signed_update_verification_and_atomic_activation_foundation, GitHub_allowlisted_bridge]
+    in_progress: [M0_scope_and_release_contracts, MC1_multi_client_completion, M2_safe_coding_and_resilience, M3_live_licensing_lifecycle, M4_pilot_readiness, production_self_update_orchestration]
+    not_claimed: [Anthropic_directory_approval, OpenAI_directory_approval, paid_pilot_complete, production_self_update, high_availability_gateway, formal_penetration_test, enterprise_release, revenue_generated]
+  remaining_owner_decisions:
+    - Finalize pricing, trial duration and limits after measured cost and pilot feedback.
+    - Complete trademark/name clearance and current public-directory policy review before broad launch claims.
+    - Assign an independent security reviewer before external paid pilot.
+    - Approve production release-signing key custody and updater endpoint operations before enabling unattended self-update.

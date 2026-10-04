@@ -7,6 +7,18 @@ for (const dir of ["src", "scripts", "tests"])
       stdio: "pipe",
     });
 const pkg = JSON.parse(fs.readFileSync("package.json"));
+const lock = JSON.parse(fs.readFileSync("package-lock.json"));
 const plugin = JSON.parse(fs.readFileSync("plugin/plugin.json"));
-if (pkg.version !== plugin.version) throw Error("Version mismatch");
+const claude = JSON.parse(
+  fs.readFileSync("claude-plugin/.claude-plugin/plugin.json"),
+);
+const versions = [
+  pkg.version,
+  lock.version,
+  lock.packages?.[""]?.version,
+  plugin.version,
+  claude.version,
+];
+if (versions.some((version) => version !== pkg.version))
+  throw Error("Version mismatch");
 console.log("JavaScript syntax and package/plugin versions verified.");

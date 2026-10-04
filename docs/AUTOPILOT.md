@@ -53,15 +53,15 @@ A queued task is claimable only when every declared dependency has succeeded. Wa
 
 The journal has no background timer. On agent start, any task left in `running` is changed to `queued`, `recoveries` is incremented, `lastReason` becomes `agent_restart`, and the checkpoint remains intact. A future worker can therefore resume from the exact recorded next action instead of restarting the project from scratch.
 
-## Next production slices
+## Current production state and remaining slices
 
-The persistent queue is the foundation, not the complete autonomous worker. Remaining dependency-ready work is:
+The persistent queue/checkpoint layer has passed the full repository test/security/client gates and is live in the current agent. The restricted Linux Supervisor foundation is implemented and installer-integrated, and the signed-manifest/immutable-release verification and activation primitives are implemented. The low-load poll path has also been measured on the VPS after P3/P4/P5.
 
-1. validate this slice with the full CodeBridge test/security/client suite;
-2. restart the agent so the new tools become live;
-3. add the restricted Supervisor for allowlisted service status/restart/config/log/update/rollback operations;
-4. add signed immutable self-update with automatic rollback;
-5. connect an approved AI worker/scheduler to claim and checkpoint tasks continuously without weakening the CodeBridge security boundary;
-6. measure idle CPU, disk writes and network reconnect rate before enabling default 24×7 mode.
+What remains before CodeBridge can truthfully claim unattended 24×7 AI execution is narrower and explicit:
 
-No component should claim true unattended AI execution merely because the persistent queue exists. The worker/provider still has to be explicitly configured and verified.
+1. connect an approved AI worker/scheduler that claims, checkpoints, waits/resumes and completes Autopilot tasks under bounded time/action/cost policy;
+2. finish the signed-download/extraction + Supervisor health-check + automatic rollback orchestration before claiming unattended self-update;
+3. run longer reconnect/soak and failure-injection evidence on supported production environments;
+4. keep human/owner approval for production-destructive, billing, external-publication and other policy-gated actions.
+
+The queue itself never implies background model reasoning. Without an explicitly configured worker/provider, CodeBridge persists and coordinates tasks but does not manufacture autonomous AI execution.
