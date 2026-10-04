@@ -259,16 +259,16 @@ npm run client:config -- https://kmjtechno.com/mcp --format codex-cli
 
 ### Configuration locations
 
-| Client | Recommended configuration |
-| --- | --- |
-| Claude Code | `claude mcp add --transport http --scope user ...` or the KMJ Claude plugin |
-| VS Code | workspace `.vscode/mcp.json` or portable workspace `.mcp.json` |
-| GitHub Copilot CLI | `~/.copilot/mcp-config.json` or `copilot mcp add` |
-| Cursor IDE / CLI | `.cursor/mcp.json` or `~/.cursor/mcp.json` |
-| Windsurf | `~/.codeium/windsurf/mcp_config.json` |
-| Gemini CLI | `~/.gemini/settings.json` or `gemini mcp add` |
-| JetBrains AI Assistant | Settings → Tools → AI Assistant → Model Context Protocol |
-| Codex CLI / IDE | `~/.codex/config.toml`, project `.codex/config.toml`, or `codex mcp add` |
+| Client                  | Recommended configuration                                                    |
+| ----------------------- | ---------------------------------------------------------------------------- |
+| Claude Code             | `claude mcp add --transport http --scope user ...` or the KMJ Claude plugin |
+| VS Code                 | workspace `.vscode/mcp.json` or portable workspace `.mcp.json`            |
+| GitHub Copilot CLI      | `~/.copilot/mcp-config.json` or `copilot mcp add`                          |
+| Cursor IDE / CLI        | `.cursor/mcp.json` or `~/.cursor/mcp.json`                                 |
+| Windsurf                | `~/.codeium/windsurf/mcp_config.json`                                       |
+| Gemini CLI              | `~/.gemini/settings.json` or `gemini mcp add`                              |
+| JetBrains AI Assistant  | Settings → Tools → AI Assistant → Model Context Protocol                      |
+| Codex CLI / IDE         | `~/.codex/config.toml`, project `.codex/config.toml`, or `codex mcp add`  |
 
 For OAuth-capable clients, complete the browser login after adding the server.
 Examples include `/mcp` in Claude/Gemini/Copilot where supported,
