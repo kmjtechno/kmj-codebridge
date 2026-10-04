@@ -1,6 +1,8 @@
 # KMJ CodeBridge plugin privacy notice
 
-Last updated: 1 October 2026
+Last updated: 4 October 2026
+
+Canonical hosted privacy policy: https://kmjtechno.com/products/kmj-codebridge/privacy
 
 This notice explains the CodeBridge plugin data path. The privacy terms displayed by KMJ TECHNO at account creation or checkout govern any hosted KMJ service.
 
