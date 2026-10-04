@@ -233,7 +233,7 @@ test("client packagers reject unsafe endpoints, options and output locations", (
       [],
       ["http://example.test/mcp"],
       ["https://user:pass@example.test/mcp"],
-      ["https://example.test/mcp?token=x"],
+      ["https://example.test/mcp?token=[REDACTED],
       ["https://example.test/other"],
       [endpoint, "--unknown"],
       [endpoint, endpoint],
@@ -535,9 +535,7 @@ test("universal client config generator", () => {
   assert.equal(codexToml.status, 0, codexToml.stderr);
   assert.ok(codexToml.stdout.includes('[mcp_servers."kmj-codebridge"]'));
   assert.ok(
-    codexToml.stdout.includes(
-      'url = "https://codebridge.example.invalid/mcp"',
-    ),
+    codexToml.stdout.includes('url = "https://codebridge.example.invalid/mcp"'),
   );
   assert.ok(codexToml.stdout.includes('auth = "oauth"'));
   assert.ok(
