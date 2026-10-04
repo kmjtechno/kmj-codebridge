@@ -227,6 +227,47 @@ test("gateway empty agent poll timeout is configurable", async (t) => {
   assert.ok(elapsed < 300, `empty poll ignored pollWaitMs: ${elapsed}ms`);
 });
 
+test("project snapshot combines capabilities, directory map and git status", async (t) => {
+  const { client, root } = await setup(t);
+  const { execFileSync } = await import("node:child_process");
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(path.join(root, "src", "app.js"), "export const ready = true;\n");
+  fs.writeFileSync(path.join(root, ".env"), "SECRET=hidden\n");
+  execFileSync("git", ["init"], { cwd: root, stdio: "pipe" });
+  execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-m",
+      "snapshot baseline",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+  fs.writeFileSync(path.join(root, "hello.txt"), "changed\n");
+
+  const snapshot = content(
+    await client.callTool({
+      name: "project_snapshot",
+      arguments: { device: "d1", project: "p1", maxEntries: 20 },
+    }),
+  );
+
+  assert.equal(snapshot.device, "d1");
+  assert.equal(snapshot.project, "p1");
+  assert.equal(snapshot.writable, true);
+  assert.deepEqual(snapshot.gates, ["unit"]);
+  assert.equal(snapshot.git.available, true);
+  assert.match(snapshot.git.status, /hello\.txt/);
+  assert.ok(snapshot.entries.some((entry) => entry.name === "src"));
+  assert.ok(!snapshot.entries.some((entry) => entry.name === ".env"));
+  assert.equal(typeof snapshot.entriesTruncated, "boolean");
+});
+
 test("directory listing and precise edit accelerate scoped coding", async (t) => {
   const { client, root } = await setup(t);
   fs.mkdirSync(path.join(root, "src"));
