@@ -7,7 +7,7 @@
     "name": "KMJ TECHNO",
     "url": "https://kmjtechno.com"
   },
-  "homepage": "https://kmjtechno.com",
+  "homepage": "https://kmjtechno.com/products/kmj-codebridge",
   "repository": "https://github.com/kmjtechno/kmj-codebridge",
   "license": "Apache-2.0",
   "extensions": {
@@ -33,10 +33,10 @@
         "logo": "./assets/logo.png",
         "composerIcon": "./assets/icon.png",
         "brandColor": "#ED010B",
-        "websiteURL": "https://kmjtechno.com",
-        "privacyPolicyURL": "https://kmjtechno.com/privacy",
-        "termsOfServiceURL": "https://kmjtechno.com/terms",
-        "supportURL": "https://kmjtechno.com",
+        "websiteURL": "https://kmjtechno.com/products/kmj-codebridge",
+        "privacyPolicyURL": "https://kmjtechno.com/products/kmj-codebridge/privacy",
+        "termsOfServiceURL": "https://kmjtechno.com/products/kmj-codebridge/terms",
+        "supportURL": "https://kmjtechno.com/products/kmj-codebridge/support",
         "composerIconDark": "./assets/icon.png",
         "logoDark": "./assets/logo.png"
       },
