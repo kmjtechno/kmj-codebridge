@@ -114,6 +114,19 @@ test("account diagnostics expose safe membership and same-tenant agent visibilit
   assert.equal(result.visibleAgents[0].dynamic, false);
 });
 
+test("device listing includes safe account context for visibility diagnostics", async (t) => {
+  const { client } = await setup(t);
+  const result = content(
+    await client.callTool({ name: "list_devices", arguments: {} }),
+  );
+
+  assert.deepEqual(result.account, {
+    tenants: ["t1"],
+    explicitDeviceGrants: { d1: ["p1"] },
+  });
+  assert.ok(result.devices.some((device) => device.id === "d1"));
+});
+
 test("agent persists authenticated gateway connectivity heartbeat", async (t) => {
   const { client, dir } = await setup(t);
   await client.listTools();
