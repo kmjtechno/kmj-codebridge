@@ -8,6 +8,19 @@ import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 
+// Structured sensitive-binding comparison for write protection.
+//
+// Checking only whether a secret's raw characters still appear somewhere in
+// the new content is not enough: the bytes can be relocated into a comment
+// or an unrelated string literal (destroying the binding while the
+// characters themselves survive), or one of several identical occurrences
+// can be dropped while another remains, and a simple substring check would
+// not catch either case. Each sensitive occurrence is instead normalized
+// into a (kind, key, value) binding, and before/after file contents are
+// compared as MULTISETS: every binding must survive with the same identity
+// and the same occurrence count. These patterns mirror redact()'s in
+// jobs.js exactly (same text, same flags) so a value only ever counts as
+// "sensitive" here when redact() would also mask it there.
 const BEARER_BINDING = /Bearer\s+([A-Za-z0-9._~+\/-]+)/gi;
 const KEY_VALUE_BINDING =
   /(password|secret|token|api[_-]?key)\s*[=:]\s*([^\s,;]+)/gi;
@@ -29,6 +42,16 @@ export function sensitiveBindings(text) {
   return bindings;
 }
 
+// True only when every sensitive binding present in `before` still occurs
+// in `after` at least as many times — a strict multiset subset check. This
+// rejects relocating a bound value into a comment or an unrelated string
+// (the binding disappears even though the raw bytes remain somewhere),
+// moving a value from one label to another (same value, different key, so
+// a different binding identity), silently dropping one of several
+// duplicate occurrences (the per-binding count), and any partial or
+// truncated change to the value itself. It never blocks an edit elsewhere
+// in the file, and harmless whitespace around a binding's separator never
+// changes that binding's identity.
 export function preservesSensitiveBindings(before, after) {
   const remaining = new Map();
   for (const binding of sensitiveBindings(after)) {

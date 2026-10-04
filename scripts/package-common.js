@@ -120,6 +120,13 @@ export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
     repository: "https://github.com/kmjtechno/kmj-codebridge",
     license: meta.license,
     keywords: CLAUDE_KEYWORDS,
+    // Read only for the plugin's listing in Anthropic's own directory, if
+    // and when it is submitted there — Claude Code does not read this at
+    // load time (see docs/CLIENTS.md "Connector and plugin icon
+    // behavior"). Kept as the same locked asset and the same basename as
+    // the OpenAI package's composerIcon so no client package drifts onto
+    // a different file.
+    icon: "./assets/icon.png",
     ...(userConfig ? { userConfig } : {}),
   });
   writeJson(path.join(pluginDir, ".mcp.json"), {
@@ -128,8 +135,17 @@ export function writeClaudePlugin(pluginDir, meta, server, userConfig) {
   fs.cpSync(meta.skillsDir, path.join(pluginDir, "skills"), {
     recursive: true,
   });
-  // Shared license, legal notices and brand logo from the canonical plugin.
-  for (const file of ["LICENSE", "PRIVACY.md", "TERMS.md", "assets/logo.png"])
+  // Shared license, legal notices and brand assets from the canonical
+  // plugin. Both logo.png (README/marketplace listing) and icon.png (the
+  // `icon` field above, matching the OpenAI package) ship in every
+  // generated Claude package — previously only logo.png was copied.
+  for (const file of [
+    "LICENSE",
+    "PRIVACY.md",
+    "TERMS.md",
+    "assets/logo.png",
+    "assets/icon.png",
+  ])
     fs.cpSync(path.join(meta.pluginDir, file), path.join(pluginDir, file));
 }
 
