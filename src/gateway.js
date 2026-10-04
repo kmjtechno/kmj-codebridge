@@ -358,7 +358,7 @@ export async function startGateway(rawConfig) {
               resolve();
             };
             waiting.set(a.id, finish);
-            timer = setTimeout(finish, 10000);
+            timer = setTimeout(finish, config.pollWaitMs);
             res.once("close", finish);
           });
           return;

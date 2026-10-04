@@ -131,3 +131,13 @@
 - Added `tests/autopilot.test.js` and `tests/autopilot-dispatch.test.js` covering dependency-ready selection, independent progress around waiting work, restart recovery/checkpoint preservation, idempotency, redaction, bounded retention, and dispatcher-level tool behavior.
 - Added `docs/AUTOPILOT.md` and extended the VPS installer syntax gate to check `src/autopilot.js`.
 - Not yet claimed green: this slice still requires the real repository formatter/test/security/client suite before services are restarted onto it. The existing P2 performance baseline is still required before changing the separate poll-delay/long-poll timing behavior.
+
+## Measured poll-path performance slice (2026-10-04)
+
+- Real VPS baseline captured through the configured `benchmark_full` gate after PR #63 was merged and the VPS was synced to `main` at `78b9622`. The run targeted live agent PID and gateway PID plus `/healthz`.
+- Baseline idle process results over 120 seconds: agent CPU avg 0.375%, gateway CPU avg 0.325%, combined CPU avg 0.7%, combined RSS 181.8 MB, agent disk writes about 8 KB/min, gateway disk writes 0 B/min.
+- Baseline gateway probe: `/healthz` measured about 67.8 ms. Dispatcher-local p50s remained sub-millisecond for most read/inspect operations; `git_status` p50 was about 5.4 ms; `edit_file` p50 about 63.2 ms.
+- Applied P3/P4 as a TDD slice: first added failing tests proving the agent slept for `pollMs` after a successful dispatch and that the gateway ignored a configured empty-poll timeout; then changed `src/agent.js` so backoff delay runs only on request failure, and added bounded gateway `pollWaitMs` config in `src/config.js` consumed by `src/gateway.js`.
+- Added integration coverage: `agent immediately re-polls after a successful dispatch` and `gateway empty agent poll timeout is configurable`. Both failed before the fix and passed after the fix.
+- Adjusted the interop helper `deviceTimeoutMs` from 400 ms to 1500 ms because the old bound was race-sensitive for the same-requestKey contract once the poll-path timing changed; the explicit offline-device test still asserts completion within 5000 ms.
+- Full test gate after the patch passed on the VPS (175 tests, 0 failed, 1 Windows-only skipped contract). Formatter, secret scan, client and marketplace gates are still required before PR/merge.
