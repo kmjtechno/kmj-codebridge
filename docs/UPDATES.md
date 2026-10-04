@@ -1,5 +1,32 @@
 # Signed immutable updates
 
+## Development-channel unattended updates
+
+The current pre-1.0 development installer now provisions a separate systemd
+timer for unattended **development-channel** refreshes. This is intentionally
+not the final stable release mechanism.
+
+The development updater:
+
+- checks at most about once per hour with randomized jitter;
+- accepts updates only from the canonical
+  `https://github.com/kmjtechno/kmj-codebridge.git` `main` branch;
+- requires the installed runtime's Git origin to match that canonical URL;
+- refuses a dirty runtime;
+- accepts only a fast-forward commit from the currently installed revision;
+- defers while a configured quality-gate job is running or queued;
+- invokes the existing installer with the exact fetched revision, preserving
+  the enrolled device credential and project binding;
+- inherits the installer's staged replacement, service verification and
+  rollback behavior.
+
+This development path exists so the DEVELOPMENT app can move quickly without
+requiring routine manual reinstall commands. It does **not** weaken or replace
+the signed stable updater described below. Before stable/public release,
+unattended stable updates must use the Ed25519-signed manifest, immutable
+release store, health-checked activation and rollback path. Following a mutable
+Git branch is not a stable-channel trust model.
+
 KMJ CodeBridge software update is being built as a restricted Supervisor operation, not as arbitrary remote command execution.
 
 ## Signed release contract
