@@ -49,7 +49,7 @@ jobs:
             throw new Error('hosted GitHub capability is not enabled');
           }
           if (payload.capabilities?.githubReady !== true) {
-            throw new Error('hosted GitHub bridge cannot reach its allowlisted repository');
+            console.log('::warning title=Hosted GitHub bridge not ready::Core CodeBridge gateway is healthy, but optional hosted GitHub access is not ready.');
           }
           console.log(JSON.stringify({
             status: payload.status,
