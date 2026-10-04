@@ -60,6 +60,7 @@ try {
     fs.writeFileSync(
       fd,
       JSON.stringify({
+        gateway: approved.gateway ?? null,
         agent: approved.agent,
         projects: approved.projects,
         permissions: approved.permissions,
