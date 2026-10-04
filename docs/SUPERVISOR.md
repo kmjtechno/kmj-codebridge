@@ -48,12 +48,12 @@ The VPS installer now provisions the Supervisor as a systemd socket-activated se
 
 The Supervisor foundation is implemented and installer-integrated. Signed release verification, immutable staging/activation and local rollback primitives are also implemented separately in the update/release-store modules.
 
-Software update and rollback are **not yet exposed as Supervisor RPCs** because the remaining orchestration must stay fail-closed rather than becoming a generic command path. Signed archive download now pins a validated public IPv4 DNS answer, refuses redirects, enforces exact size/hash, and safely extracts only regular files/directories beneath the expected release root. Before update operations are enabled, CodeBridge still needs:
+Software update and rollback are **not yet exposed as Supervisor RPCs** because the privileged boundary must stay fail-closed rather than becoming a generic command path. Signed archive download/extraction and a dependency-injected health-checked activation/rollback orchestration core are now implemented and tested. Before update operations are enabled on production devices, CodeBridge still needs:
 
 1. live production evidence for status/log/config/restart on the supported installer path;
 2. configured signed-manifest/signature retrieval and release-signing key custody;
-3. preflight dependency/runtime validation after safe extraction and before activation;
-4. allowlisted `update_check`, `update`, `rollback` and `release_history` RPCs wired only to the fixed updater/ReleaseStore primitives;
-5. post-activation service/connectivity health verification with automatic previous-release restoration on failure.
+3. a concrete preflight implementation for the supported runtime environment;
+4. allowlisted `update_check`, `update`, `rollback` and `release_history` RPCs wired only to the fixed updater/ReleaseStore/orchestrator primitives;
+5. fixed Supervisor restart plus authenticated agent/gateway health probes on the live immutable runtime layout, including a fault-injection rollback drill.
 
 Until that sequence is merged and live-tested, installer rerun is the supported repair/update path and the Supervisor must not accept caller-selected commands, paths, URLs or service names.
