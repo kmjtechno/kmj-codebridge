@@ -50,9 +50,9 @@ The final target is constrained to the configured releases root. Remote callers 
 
 ## Activation and rollback
 
-Verified download, safe extraction, immutable staging/finalization, atomic `current`/`previous` activation and local rollback primitives are now implemented as separate fail-closed layers. The remaining production slice must compose them with configured manifest/signature retrieval, preflight dependency/runtime validation, restricted Supervisor restart, post-switch authenticated connectivity/health verification and automatic restoration of the previous release on failure.
+Verified download, safe extraction, immutable staging/finalization, atomic `current`/`previous` activation and local rollback primitives are implemented as separate fail-closed layers. A dedicated orchestration core now composes manifest verification, download/extraction, a mandatory-success preflight hook before immutable finalization, activation, bounded restart/health checks and automatic rollback/restart of the previous known-good release when the new release fails health verification. Rollback-operation, rollback-restart and rollback-health failures return distinct fail-closed errors.
 
-Until that end-to-end orchestration is merged and live-tested, CodeBridge must not claim production self-update or automatic rollback.
+Production self-update is still not claimed: the orchestration core is dependency-injected and must still be wired to configured manifest/signature retrieval, trusted release-key custody, the restricted Supervisor restart surface and a real authenticated agent/gateway health probe on the live immutable runtime layout.
 
 ## Atomic activation state
 
@@ -71,7 +71,7 @@ Rollback atomically switches `current` back to `previous` and retains the former
 
 Release transitions are persisted in a bounded, atomically written history journal under the CodeBridge state directory. Ordinary files or links escaping the managed releases directory fail closed instead of being overwritten.
 
-The update layer can now download and safely extract a signed runtime archive foundation, but it still does not restart services by itself. Production orchestration must pass only signature/hash-verified, safely extracted content into immutable finalization/activation and must perform preflight plus post-switch service/connectivity health verification before considering an update successful.
+The update layer can download and safely extract a signed runtime archive and the orchestration core can drive preflight, activation, restart/health callbacks and rollback recovery. The restart and health callbacks are intentionally not bound to arbitrary commands or URLs. Production wiring must connect them only to the fixed Supervisor/service and authenticated connectivity checks before an unattended update can be enabled.
 
 ## Anti-rollback and release signing
 
