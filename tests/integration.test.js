@@ -525,6 +525,39 @@ test("unauthenticated requests fail before MCP handling", async (t) => {
   });
   assert.equal(r.status, 401);
 });
+test("account-authorized devices remain discoverable while offline", async (t) => {
+  const gw = await startGateway({
+    host: "127.0.0.1",
+    port: 0,
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: digest(userToken),
+        devices: { paired: ["project1"] },
+        permissions: ["read"],
+      },
+    ],
+    agents: [{ id: "seed", tenant: "t1", tokenHash: digest(agentToken) }],
+  });
+  const client = new Client({ name: "offline-discovery", version: "1.0" });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL("/mcp", gw.url), {
+      requestInit: { headers: { Authorization: `Bearer ${userToken}` } },
+    }),
+  );
+  t.after(async () => {
+    await client.close();
+    await gw.close();
+  });
+
+  assert.deepEqual(
+    content(await client.callTool({ name: "list_devices", arguments: {} }))
+      .devices,
+    [{ id: "paired", projects: ["project1"], online: false }],
+  );
+});
+
 test("cross-tenant device listing is empty and calls are denied", async (t) => {
   const { gw } = await setup(t);
   const client = new Client({ name: "other", version: "1.0" });
