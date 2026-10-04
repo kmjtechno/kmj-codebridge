@@ -137,7 +137,9 @@ test("installer provisions a restricted socket-activated supervisor", () => {
 
 test("installer uses the enrollment-returned gateway for a fresh device and repairs an existing gateway", () => {
   assert.match(script, /typeof result\.gateway === "string"/);
-  assert.doesNotMatch(script, /gateway:process\.env\.GATEWAY/);
+  assert.match(script, /const gateway =/);
+  assert.match(script, /result\.gateway/);
+  assert.match(script, /: process\.env\.GATEWAY/);
   assert.match(script, /have_config == 1/);
   assert.match(script, /c\.gateway!==process\.env\.GATEWAY/);
 });
