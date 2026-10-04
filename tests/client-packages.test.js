@@ -405,7 +405,7 @@ test(
   },
 );
 
-test("universal client config generator emits credential-free major-client formats", () => {
+test("universal client config generator", () => {
   const cases = new Map([
     [
       "mcp-json",
