@@ -233,7 +233,7 @@ test("client packagers reject unsafe endpoints, options and output locations", (
       [],
       ["http://example.test/mcp"],
       ["https://user:pass@example.test/mcp"],
-      ["https://example.test/mcp?token=[REDACTED],
+      ["https://example.test/mcp?token=x"],
       ["https://example.test/other"],
       [endpoint, "--unknown"],
       [endpoint, endpoint],
