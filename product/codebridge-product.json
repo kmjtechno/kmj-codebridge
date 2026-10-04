@@ -1,0 +1,88 @@
+{
+  "schema": 1,
+  "product": {
+    "name": "KMJ CodeBridge",
+    "slug": "kmj-codebridge",
+    "package": "@kmjtechno/codebridge",
+    "license": "Apache-2.0",
+    "website": "https://kmjtechno.com",
+    "repository": "https://github.com/kmjtechno/kmj-codebridge"
+  },
+  "versions": {
+    "stable": "0.2.3",
+    "preview": null
+  },
+  "endpoints": {
+    "mcp": "https://kmjtechno.com/mcp",
+    "enrollment": "https://kmjtechno.com",
+    "agentGateway": "https://kmj-codebridge-gateway.onrender.com"
+  },
+  "launch": {
+    "trialDays": 30,
+    "trialCardRequired": false,
+    "trialAutoConvert": false,
+    "foundingPriceMonths": 12
+  },
+  "plans": [
+    {
+      "id": "community",
+      "name": "Community",
+      "prices": {
+        "INR": 0,
+        "USD": 0
+      },
+      "limits": {
+        "devices": 1,
+        "projects": 1,
+        "concurrentJobs": 1
+      }
+    },
+    {
+      "id": "pro",
+      "name": "Pro Launch",
+      "prices": {
+        "INR": 149,
+        "USD": 1.99
+      },
+      "limits": {
+        "devices": 3,
+        "projects": 10,
+        "concurrentJobs": 3
+      }
+    },
+    {
+      "id": "team",
+      "name": "Team Launch",
+      "prices": {
+        "INR": 399,
+        "USD": 4.99
+      },
+      "limits": {
+        "devicesPerUser": 10,
+        "projectsPerUser": 50,
+        "concurrentJobsPerUser": 10
+      }
+    },
+    {
+      "id": "business",
+      "name": "Business",
+      "customPricing": true
+    }
+  ],
+  "supportedClients": [
+    "chatgpt",
+    "claude",
+    "claude-code",
+    "vscode-github-copilot",
+    "cursor",
+    "windsurf",
+    "gemini-cli",
+    "jetbrains",
+    "codex",
+    "generic-streamable-http-mcp"
+  ],
+  "updateChannels": [
+    "stable",
+    "preview"
+  ]
+}
