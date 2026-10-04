@@ -90,6 +90,16 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  project_snapshot: {
+    title: "Project snapshot",
+    description:
+      "Read project capabilities, a bounded top-level directory map, and Git working-tree status in one round trip.",
+    input: {
+      ...scoped,
+      maxEntries: z.number().int().min(1).max(100).default(50),
+    },
+    access: "read",
+  },
   list_directory: {
     title: "List directory",
     description:
@@ -403,6 +413,59 @@ export function createDispatcher(
         connection: "connected",
         version: VERSION,
       };
+    if (name === "project_snapshot") {
+      const listing = p.files.list("");
+      const gitDir = path.join(p.files.root, ".git");
+      let git = { available: false, status: null };
+      try {
+        const stat = fs.lstatSync(gitDir);
+        if (stat.isDirectory() && !stat.isSymbolicLink()) {
+          const output = execFileSync(
+            "git",
+            [
+              "--no-optional-locks",
+              "-c",
+              "core.fsmonitor=false",
+              "-c",
+              "core.untrackedCache=false",
+              "status",
+              "--porcelain=v1",
+              "--branch",
+              "--untracked-files=normal",
+            ],
+            {
+              cwd: p.files.root,
+              encoding: "utf8",
+              timeout: 5000,
+              maxBuffer: 32768,
+              env: {
+                PATH: process.env.PATH,
+                SystemRoot: process.env.SystemRoot,
+                GIT_CONFIG_NOSYSTEM: "1",
+                GIT_CONFIG_GLOBAL:
+                  process.platform === "win32" ? "NUL" : "/dev/null",
+                GIT_TERMINAL_PROMPT: "0",
+                GIT_OPTIONAL_LOCKS: "0",
+              },
+            },
+          );
+          git = { available: true, status: redact(output) };
+        }
+      } catch {
+        git = { available: false, status: null };
+      }
+      return {
+        device: config.id,
+        project: p.id,
+        writable: p.writable,
+        gates: Object.keys(p.gates),
+        connection: "connected",
+        version: VERSION,
+        entries: listing.entries.slice(0, a.maxEntries),
+        entriesTruncated: listing.entries.length > a.maxEntries,
+        git,
+      };
+    }
     if (name === "list_directory") return p.files.list(a.path);
     if (name === "read_file") {
       const r = p.files.read(a.path);
