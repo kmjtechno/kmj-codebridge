@@ -1,11 +1,16 @@
+import fs from "node:fs";
+import https from "node:https";
+import { lookup as dnsLookup } from "node:dns/promises";
+import { execFileSync } from "node:child_process";
 import {
   createHash,
   createPublicKey,
+  randomUUID,
   verify as verifySignature,
 } from "node:crypto";
 import path from "node:path";
 import { z } from "zod";
-import { fail } from "./errors.js";
+import { CodeBridgeError, fail } from "./errors.js";
 
 function isUnsafeLiteralHost(hostname) {
   const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
@@ -166,4 +171,320 @@ export function validateArchiveEntries(entries) {
       fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
   }
   return true;
+}
+
+export function isPublicReleaseAddress(address) {
+  if (typeof address !== "string") return false;
+  const match = address.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (!match) return false;
+  const octets = match.slice(1).map(Number);
+  if (octets.some((octet) => octet > 255)) return false;
+  const [a, b, c] = octets;
+  return !(
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 192 && b === 0 && (c === 0 || c === 2)) ||
+    (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) ||
+    (a === 203 && b === 0 && c === 113) ||
+    a >= 224
+  );
+}
+
+export async function resolvePublicReleaseAddress(
+  hostname,
+  lookup = dnsLookup,
+) {
+  let answers;
+  try {
+    answers = await lookup(hostname, { all: true, verbatim: true });
+  } catch {
+    fail("UPDATE_DOWNLOAD_DNS_FAILED");
+  }
+  if (!Array.isArray(answers) || answers.length < 1)
+    fail("UPDATE_DOWNLOAD_DNS_FAILED");
+  const ipv4 = answers.filter((answer) => Number(answer?.family) === 4);
+  if (
+    ipv4.length < 1 ||
+    ipv4.some((answer) => !isPublicReleaseAddress(answer.address))
+  )
+    fail("UPDATE_DOWNLOAD_ADDRESS_REJECTED");
+  return { address: ipv4[0].address, family: 4 };
+}
+
+function openPinnedHttpsResponse(
+  url,
+  { address, family, timeoutMs = 15000 } = {},
+) {
+  return new Promise((resolve, reject) => {
+    const request = https.get(
+      url,
+      {
+        headers: {
+          accept: "application/gzip, application/octet-stream",
+          "accept-encoding": "identity",
+          "user-agent": "KMJ-CodeBridge-Updater/1",
+        },
+        lookup: (_hostname, _options, callback) =>
+          callback(null, address, family),
+      },
+      resolve,
+    );
+    request.setTimeout(Math.max(1000, Math.min(timeoutMs, 60000)), () => {
+      request.destroy(new Error("timeout"));
+    });
+    request.once("error", () =>
+      reject(new CodeBridgeError("UPDATE_DOWNLOAD_FAILED")),
+    );
+  });
+}
+
+function safeWorkDirectory(workDir) {
+  if (typeof workDir !== "string" || !path.isAbsolute(workDir))
+    fail("UPDATE_WORK_DIR_INVALID");
+  const resolved = path.resolve(workDir);
+  let stat;
+  try {
+    stat = fs.lstatSync(resolved);
+  } catch {
+    fail("UPDATE_WORK_DIR_INVALID");
+  }
+  if (!stat.isDirectory() || stat.isSymbolicLink())
+    fail("UPDATE_WORK_DIR_INVALID");
+  return resolved;
+}
+
+export async function downloadVerifiedReleaseArchive(
+  manifest,
+  workDir,
+  {
+    resolveAddress = resolvePublicReleaseAddress,
+    request = openPinnedHttpsResponse,
+  } = {},
+) {
+  releaseManifestSchema.parse(manifest);
+  const root = safeWorkDirectory(workDir);
+  const url = new URL(manifest.archive);
+  const pinned = await resolveAddress(url.hostname);
+  if (!pinned || pinned.family !== 4 || !isPublicReleaseAddress(pinned.address))
+    fail("UPDATE_DOWNLOAD_ADDRESS_REJECTED");
+
+  const response = await request(url, {
+    address: pinned.address,
+    family: pinned.family,
+    timeoutMs: 15000,
+  });
+  const status = Number(response?.statusCode ?? 0);
+  if (status >= 300 && status < 400) {
+    response.resume?.();
+    fail("UPDATE_DOWNLOAD_REDIRECT");
+  }
+  if (status !== 200) {
+    response.resume?.();
+    fail("UPDATE_DOWNLOAD_FAILED");
+  }
+
+  const encoding = String(
+    response.headers?.["content-encoding"] ?? "",
+  ).toLowerCase();
+  if (encoding && encoding !== "identity") {
+    response.resume?.();
+    fail("UPDATE_DOWNLOAD_ENCODING_REJECTED");
+  }
+  const lengthHeader = response.headers?.["content-length"];
+  if (lengthHeader !== undefined) {
+    const declared = Number(lengthHeader);
+    if (!Number.isSafeInteger(declared) || declared !== manifest.bytes) {
+      response.resume?.();
+      fail("UPDATE_ARCHIVE_SIZE_MISMATCH");
+    }
+  }
+  if (!response || typeof response[Symbol.asyncIterator] !== "function")
+    fail("UPDATE_DOWNLOAD_FAILED");
+
+  const target = path.join(
+    root,
+    `.download-${releaseDirectoryName(manifest)}-${randomUUID()}.tar.gz`,
+  );
+  let fd = null;
+  try {
+    fd = fs.openSync(target, "wx", 0o600);
+    const hash = createHash("sha256");
+    let bytes = 0;
+    for await (const chunk of response) {
+      const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      bytes += data.length;
+      if (bytes > manifest.bytes) fail("UPDATE_ARCHIVE_SIZE_MISMATCH");
+      fs.writeSync(fd, data);
+      hash.update(data);
+    }
+    if (bytes !== manifest.bytes) fail("UPDATE_ARCHIVE_SIZE_MISMATCH");
+    const sha256 = hash.digest("hex");
+    if (sha256 !== manifest.sha256) fail("UPDATE_ARCHIVE_HASH_MISMATCH");
+    fs.fsyncSync(fd);
+    fs.closeSync(fd);
+    fd = null;
+    return { path: target, bytes, sha256 };
+  } catch (error) {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {}
+    }
+    try {
+      fs.unlinkSync(target);
+    } catch {}
+    if (error instanceof CodeBridgeError) throw error;
+    fail("UPDATE_DOWNLOAD_FAILED");
+  }
+}
+
+export function validateRuntimeArchiveEntries(entries, manifest) {
+  releaseManifestSchema.parse(manifest);
+  validateArchiveEntries(entries);
+  if (new Set(entries).size !== entries.length)
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+  const root = `kmj-codebridge-${releaseDirectoryName(manifest)}`;
+  if (
+    entries.some(
+      (entry) => entry !== `${root}/` && !entry.startsWith(`${root}/`),
+    ) ||
+    !entries.includes(`${root}/package.json`) ||
+    !entries.includes(`${root}/src/cli.js`)
+  )
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+  return root;
+}
+
+function defaultTarRun(args) {
+  return execFileSync("tar", args, {
+    encoding: "utf8",
+    timeout: 15000,
+    maxBuffer: 4 * 1024 * 1024,
+    windowsHide: true,
+    env: {
+      PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+      LANG: "C.UTF-8",
+    },
+  });
+}
+
+function archiveListing(archivePath, run) {
+  let namesText;
+  let verboseText;
+  try {
+    namesText = run(["--list", "--gzip", "--file", archivePath]);
+    verboseText = run([
+      "--list",
+      "--verbose",
+      "--numeric-owner",
+      "--gzip",
+      "--file",
+      archivePath,
+    ]);
+  } catch {
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+  }
+  const entries = String(namesText)
+    .split("\n")
+    .filter((line) => line.length > 0);
+  const metadata = String(verboseText)
+    .split("\n")
+    .filter((line) => line.length > 0);
+  if (entries.length !== metadata.length) fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+  if (metadata.some((line) => !["-", "d"].includes(line[0])))
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+  validateArchiveEntries(entries);
+  return entries;
+}
+
+function validateExtractedTree(root) {
+  const stack = [root];
+  while (stack.length) {
+    const current = stack.pop();
+    for (const name of fs.readdirSync(current)) {
+      const target = path.join(current, name);
+      const stat = fs.lstatSync(target);
+      if (stat.isSymbolicLink()) fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+      if (stat.isDirectory()) stack.push(target);
+      else if (!stat.isFile() || stat.nlink !== 1)
+        fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+    }
+  }
+}
+
+export function extractVerifiedRuntimeArchive(
+  archivePath,
+  stagingDir,
+  manifest,
+  { run = defaultTarRun } = {},
+) {
+  if (process.platform === "win32") fail("UPDATE_ACTIVATION_UNSUPPORTED");
+  releaseManifestSchema.parse(manifest);
+  if (
+    typeof archivePath !== "string" ||
+    typeof stagingDir !== "string" ||
+    !path.isAbsolute(archivePath) ||
+    !path.isAbsolute(stagingDir)
+  )
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+
+  let archiveStat;
+  let stagingStat;
+  try {
+    archiveStat = fs.lstatSync(archivePath);
+    stagingStat = fs.lstatSync(stagingDir);
+  } catch {
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+  }
+  if (
+    !archiveStat.isFile() ||
+    archiveStat.isSymbolicLink() ||
+    !stagingStat.isDirectory() ||
+    stagingStat.isSymbolicLink() ||
+    fs.readdirSync(stagingDir).length !== 0
+  )
+    fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
+
+  const entries = archiveListing(archivePath, run);
+  const root = validateRuntimeArchiveEntries(entries, manifest);
+  try {
+    run([
+      "--extract",
+      "--gzip",
+      "--file",
+      archivePath,
+      "--directory",
+      stagingDir,
+      "--strip-components=1",
+      "--no-same-owner",
+      "--no-same-permissions",
+      "--delay-directory-restore",
+    ]);
+    validateExtractedTree(stagingDir);
+    const pkg = path.join(stagingDir, "package.json");
+    const cli = path.join(stagingDir, "src", "cli.js");
+    if (
+      !fs.existsSync(pkg) ||
+      !fs.lstatSync(pkg).isFile() ||
+      !fs.existsSync(cli) ||
+      !fs.lstatSync(cli).isFile()
+    )
+      fail("UPDATE_STAGED_RUNTIME_INVALID");
+    return { root, entries: entries.length };
+  } catch (error) {
+    try {
+      for (const name of fs.readdirSync(stagingDir))
+        fs.rmSync(path.join(stagingDir, name), {
+          recursive: true,
+          force: true,
+        });
+    } catch {}
+    if (error instanceof CodeBridgeError) throw error;
+    fail("UPDATE_ARCHIVE_EXTRACT_FAILED");
+  }
 }
