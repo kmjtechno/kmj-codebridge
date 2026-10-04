@@ -4,7 +4,7 @@ umask 077
 
 [[ $EUID -eq 0 ]] || { echo "Run with sudo/root." >&2; exit 1; }
 
-GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmjtechno.com}"
+GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
 ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
 PROJECT="${CODEBRIDGE_PROJECT:-}"
 PROJECT_ID="${CODEBRIDGE_PROJECT_ID:-project1}"
@@ -201,8 +201,12 @@ if(fs.existsSync(path.join(root,"composer.json"))&&composer)add("composer_test",
 if(fs.existsSync(path.join(root,"Cargo.toml"))&&cargo)add("cargo_test",cargo,["test","--locked"]);
 if(fs.existsSync(path.join(root,"go.mod"))&&go)add("go_test",go,["test","./..."]);
 if(python&&(fs.existsSync(path.join(root,"pyproject.toml"))||fs.existsSync(path.join(root,"pytest.ini"))))add("python_test",python,["-m","pytest"]);
+const gateway =
+  typeof result.gateway === "string" && result.gateway
+    ? result.gateway
+    : process.env.GATEWAY;
 const c={
-  gateway:process.env.GATEWAY,
+  gateway,
   token:result.agent.token,
   id:result.agent.id,
   tenant:result.agent.tenant,
@@ -218,6 +222,20 @@ try{fs.writeFileSync(fd,JSON.stringify(c,null,2)+"\n");fs.fsyncSync(fd)}finally{
 NODE
   chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
   rm -f "$ENROLLMENT_RESULT"
+fi
+
+if (( have_config == 1 )); then
+  CONFIG="$CONFIG" GATEWAY="$GATEWAY" "$NODE" <<'NODE'
+const fs=require("node:fs");
+const file=process.env.CONFIG;
+const c=JSON.parse(fs.readFileSync(file,"utf8"));
+if(c.gateway!==process.env.GATEWAY){
+  const tmp=file+".gateway-"+process.pid;
+  const fd=fs.openSync(tmp,"wx",0o600);
+  try{fs.writeFileSync(fd,JSON.stringify({...c,gateway:process.env.GATEWAY},null,2)+"\n");fs.fsyncSync(fd)}finally{fs.closeSync(fd)}
+  fs.renameSync(tmp,file);
+}
+NODE
 fi
 
 if [[ -f "$CONFIG" ]]; then
@@ -397,8 +415,9 @@ fi
 chmod 0600 "$CONFIG"
 chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
 
-if ! curl -fsS --max-time 10 "$GATEWAY/.well-known/oauth-protected-resource" >/dev/null; then
-  echo "Agent service is active, but gateway metadata connectivity check failed." >&2
+EFFECTIVE_GATEWAY="$("$NODE" -e 'const fs=require("node:fs");const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));process.stdout.write(c.gateway)' "$CONFIG")"
+if ! curl -fsS --max-time 10 "$EFFECTIVE_GATEWAY/healthz" >/dev/null; then
+  echo "Agent service is active, but gateway health connectivity check failed." >&2
   rollback
   exit 1
 fi
