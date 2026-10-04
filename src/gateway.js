@@ -498,7 +498,13 @@ export async function startGateway(rawConfig) {
                   for (const [device, projects] of Object.entries(
                     membership.devices,
                   )) {
-                    if (!projects?.length || devicesById.has(device)) continue;
+                    const knownAgent = agents.get(device);
+                    if (
+                      !projects?.length ||
+                      devicesById.has(device) ||
+                      (knownAgent && knownAgent.tenant !== membership.tenant)
+                    )
+                      continue;
                     devicesById.set(device, {
                       id: device,
                       projects,
