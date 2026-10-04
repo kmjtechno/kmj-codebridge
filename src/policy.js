@@ -379,17 +379,35 @@ export class ProjectFiles {
       "tsconfig.json",
     ]);
     const symbolPatterns = [
-      ["function", /(?:^|\s)(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/],
-      ["function", /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/],
-      ["class", /(?:^|\s)(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)/],
-      ["type", /(?:^|\s)(?:export\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/],
+      [
+        "function",
+        /(?:^|\s)(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/,
+      ],
+      [
+        "function",
+        /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/,
+      ],
+      [
+        "class",
+        /(?:^|\s)(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)/,
+      ],
+      [
+        "type",
+        /(?:^|\s)(?:export\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/,
+      ],
       ["function", /^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(/],
       ["class", /^\s*class\s+([A-Za-z_]\w*)\b/],
       ["function", /\bfunction\s+([A-Za-z_]\w*)\s*\(/],
       ["function", /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*\(/],
       ["type", /^\s*type\s+([A-Za-z_]\w*)\s+(?:struct|interface)\b/],
-      ["function", /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*\(/],
-      ["type", /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_]\w*)\b/],
+      [
+        "function",
+        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*\(/,
+      ],
+      [
+        "type",
+        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_]\w*)\b/,
+      ],
     ];
 
     const q = query.trim().toLowerCase();
@@ -486,7 +504,9 @@ export class ProjectFiles {
     candidates.sort(
       (a, b) => b.score - a.score || a.path.localeCompare(b.path),
     );
-    const selected = candidates.slice(0, maxFiles).map(({ score, ...file }) => file);
+    const selected = candidates
+      .slice(0, maxFiles)
+      .map(({ score, ...file }) => file);
     return {
       query,
       files: selected,
