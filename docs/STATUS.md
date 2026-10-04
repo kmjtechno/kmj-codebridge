@@ -36,9 +36,10 @@ file records verified capability, not a percentage-complete claim.
   UI, and regression tests.
 - **Updates:** signed immutable release verification, DNS-pinned/no-redirect
   archive download, exact size/hash enforcement, safe runtime extraction,
-  atomic activation/rollback foundation, and anti-rollback sequence checks are
-  implemented. Supervisor-driven health-checked update orchestration remains a
-  separate production gate.
+  atomic activation/rollback, anti-rollback sequence checks, and a tested
+  preflight + bounded health-check + automatic rollback orchestration core are
+  implemented. Production Supervisor/RPC wiring and live rollback evidence
+  remain separate gates.
 - **Distribution:** OpenAI package, hosted Claude plugin, endpoint-specific
   Claude package generator, credential scan, and package contract gates.
 - **GitHub:** optional server-side bridge for allowlisted repositories, pull requests,
