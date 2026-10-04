@@ -496,15 +496,21 @@ Not yet. Local/source workflows are usable, while fresh zero-touch production en
 
 ## Supported clients
 
-| Client            | Integration                          |
-| ----------------- | ------------------------------------ |
-| ChatGPT           | OpenAI plugin package + remote MCP   |
-| Claude Code       | Claude plugin / MCP                  |
-| Claude Desktop    | Custom MCP connector                 |
-| Claude.ai         | Custom MCP connector where supported |
-| Other MCP clients | Streamable HTTP MCP                  |
+| Client | Integration |
+| --- | --- |
+| ChatGPT | OpenAI plugin + remote MCP |
+| Codex CLI / IDE | Streamable HTTP MCP + OAuth |
+| Claude Code | Claude plugin / remote MCP |
+| Claude Desktop / Claude.ai | Custom remote MCP connector |
+| VS Code | Native MCP / portable MCP config |
+| GitHub Copilot CLI | Remote MCP + OAuth |
+| Cursor IDE / Cursor CLI | Remote MCP + OAuth |
+| Windsurf | Remote MCP using Windsurf `serverUrl` config |
+| Gemini CLI | Streamable HTTP MCP + OAuth discovery |
+| JetBrains AI Assistant | Remote Streamable HTTP MCP |
+| Other compatible clients | Vendor-neutral Streamable HTTP MCP |
 
-Client capabilities and hosted availability can differ. See [docs/CLIENTS.md](docs/CLIENTS.md).
+Generate exact credential-free client configs with `npm run client:config -- https://kmjtechno.com/mcp --format <format>`. Client capabilities and hosted availability can differ. See [docs/CLIENTS.md](docs/CLIENTS.md).
 
 ## Open core, commercial service
 
