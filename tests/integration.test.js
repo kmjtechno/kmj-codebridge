@@ -231,7 +231,10 @@ test("project snapshot combines capabilities, directory map and git status", asy
   const { client, root } = await setup(t);
   const { execFileSync } = await import("node:child_process");
   fs.mkdirSync(path.join(root, "src"));
-  fs.writeFileSync(path.join(root, "src", "app.js"), "export const ready = true;\n");
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export const ready = true;\n",
+  );
   fs.writeFileSync(path.join(root, ".env"), "SECRET=hidden\n");
   execFileSync("git", ["init"], { cwd: root, stdio: "pipe" });
   execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
