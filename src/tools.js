@@ -81,6 +81,7 @@ const fastReadTool = z.enum([
   "supervisor_status",
   "supervisor_config_validate",
   "supervisor_disk_space",
+  "supervisor_project_status",
 ]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
@@ -462,6 +463,13 @@ export const definitions = {
     title: "Supervisor disk space",
     description:
       "Read bounded disk-space information for the fixed CodeBridge state filesystem.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_project_status: {
+    title: "Managed project status",
+    description:
+      "Read bounded local checkout state for the already-authorized project. The supervisor derives the managed filesystem root; no path or repository can be supplied.",
     input: scoped,
     access: "read",
   },
@@ -953,6 +961,11 @@ export function createDispatcher(
       });
     if (name === "supervisor_disk_space")
       return await supervisor.request({ op: "disk_space" });
+    if (name === "supervisor_project_status")
+      return await supervisor.request({
+        op: "project_status",
+        projectId: a.project,
+      });
     if (name === "supervisor_update_status")
       return await supervisor.request({ op: "update_status" });
     if (name === "supervisor_update_now")
