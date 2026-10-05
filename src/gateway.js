@@ -721,7 +721,7 @@ export async function startGateway(rawConfig) {
                     if (
                       !projects?.length ||
                       devicesById.has(device) ||
-                      (knownAgent && knownAgent.tenant !== membership.tenant)
+                      knownAgent
                     )
                       continue;
                     devicesById.set(device, {
