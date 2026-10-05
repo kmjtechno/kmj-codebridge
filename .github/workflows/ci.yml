@@ -20,20 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Temporary exact stable-updater formatter
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          files=(src/agent.js src/stable-updater.js tests/installer.test.js tests/stable-updater.test.js)
-          npx prettier "${files[@]}" --write
-          for file in "${files[@]}"; do
-            key="${file//\//__}"
-            echo "KMJ_FORMAT_BEGIN:${key}"
-            base64 -w0 "$file"
-            echo
-            echo "KMJ_FORMAT_END:${key}"
-          done
-          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
