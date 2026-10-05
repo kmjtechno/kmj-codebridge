@@ -49,24 +49,43 @@ export function validateEndpoint(raw) {
 }
 
 export function readCanonical() {
-  const manifest = JSON.parse(
+  const plugin = JSON.parse(
     fs.readFileSync(path.join(root, "plugin/plugin.json"), "utf8"),
+  );
+  const product = JSON.parse(
+    fs.readFileSync(path.join(root, "product/codebridge-product.json"), "utf8"),
   );
   const pkg = JSON.parse(
     fs.readFileSync(path.join(root, "package.json"), "utf8"),
   );
-  if (pkg.version !== manifest.version) throw Error("Version mismatch");
+  if (
+    pkg.version !== plugin.version ||
+    pkg.version !== product.versions?.stable
+  )
+    throw Error("Version mismatch");
+  if (
+    plugin.homepage !== product.product?.homepage ||
+    plugin.repository !== product.product?.repository ||
+    plugin.license !== product.product?.license
+  )
+    throw Error("Product metadata mismatch");
   return {
-    name: manifest.name,
-    version: manifest.version,
-    description: manifest.description,
-    author: manifest.author,
-    homepage: manifest.homepage,
-    license: manifest.license,
+    name: plugin.name,
+    version: plugin.version,
+    description: plugin.description,
+    author: plugin.author,
+    homepage: product.product.homepage,
+    repository: product.product.repository,
+    privacy: product.product.privacy,
+    terms: product.product.terms,
+    support: product.product.support,
+    license: product.product.license,
+    mcpEndpoint: product.endpoints.mcp,
+    enrollmentOrigin: product.endpoints.enrollment,
+    agentGateway: product.endpoints.agentGateway,
     pluginDir: path.join(root, "plugin"),
     displayName:
-      manifest.extensions?.["com.openai"]?.interface?.displayName ??
-      manifest.name,
+      plugin.extensions?.["com.openai"]?.interface?.displayName ?? plugin.name,
     skillsDir: path.join(root, "plugin/skills"),
   };
 }
