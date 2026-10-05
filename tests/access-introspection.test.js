@@ -175,7 +175,6 @@ test("explicit OAuth grants deny an unlisted dynamic agent", async (t) => {
   assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
 });
 
-
 test("structured agent grants enforce per-project permissions", async (t) => {
   const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
     {
