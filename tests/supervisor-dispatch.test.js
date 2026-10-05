@@ -63,6 +63,12 @@ test("supervisor status and logs use read permission", async (t) => {
   ]);
 });
 
+test("device resource status uses the local supervisor", async (t) => {
+  const { dispatch, calls } = setup(t);
+  await dispatch("supervisor_device_status", scope, ["read"]);
+  assert.deepEqual(calls, [{ op: "device_status" }]);
+});
+
 test("managed project status uses the already-authorized project scope", async (t) => {
   const { dispatch, calls } = setup(t);
   await dispatch("supervisor_project_status", scope, ["read"]);
