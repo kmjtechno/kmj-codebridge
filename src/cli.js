@@ -31,6 +31,14 @@ try {
     const stat = fs.statSync(absolute);
     if (process.platform !== "win32" && stat.mode & 0o077)
       throw Error("Configuration must have mode 0600.");
+    if (
+      mode === "stable-update" &&
+      process.platform !== "win32" &&
+      (stat.uid !== 0 || process.getuid?.() !== 0)
+    )
+      throw Error(
+        "Stable update configuration must be root-owned and updater must run as root.",
+      );
     const config = JSON.parse(fs.readFileSync(absolute, "utf8"));
     if (mode === "agent")
       for (const p of config.projects ?? []) {
