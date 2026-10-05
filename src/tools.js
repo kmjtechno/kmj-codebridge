@@ -235,6 +235,8 @@ const fastReadTool = z.enum([
   "supervisor_project_status",
   "supervisor_device_status",
   "project_environment",
+  "audit_status",
+  "audit_tail",
 ]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
@@ -277,6 +279,23 @@ export const definitions = {
     description:
       "Read deterministic risk classes and approval metadata for CodeBridge tools and configured project command profiles without exposing raw commands.",
     input: scoped,
+    access: "read",
+  },
+  audit_status: {
+    title: "Audit ledger status",
+    description:
+      "Verify and read bounded integrity status for the authorized project's tamper-evident audit ledger.",
+    input: scoped,
+    access: "read",
+  },
+  audit_tail: {
+    title: "Audit ledger tail",
+    description:
+      "Verify and read up to 100 recent secret-free audit evidence records for the authorized project.",
+    input: {
+      ...scoped,
+      limit: z.number().int().min(1).max(100).default(20),
+    },
     access: "read",
   },
   project_snapshot: {
@@ -726,6 +745,7 @@ export function createDispatcher(
   licenseProvider,
   autopilot = null,
   supervisor = null,
+  audit = null,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -733,7 +753,7 @@ export function createDispatcher(
       { ...p, files: new ProjectFiles(p.root) },
     ]),
   );
-  return async function dispatch(name, input, permissions) {
+  const dispatchCore = async function dispatchCore(name, input, permissions) {
     const definition = definitions[name];
     if (!definition || name === "list_devices") fail("UNKNOWN_TOOL");
     const a = z.object(definition.input).strict().parse(input);
@@ -742,7 +762,15 @@ export function createDispatcher(
     const p = projects.get(a.project);
     if (!p) fail("PROJECT_NOT_FOUND");
     // Safe status and cancellation remain usable after paid lease expiry.
-    if (!["get_job_status", "cancel_job", "autopilot_status"].includes(name)) {
+    if (
+      ![
+        "get_job_status",
+        "cancel_job",
+        "autopilot_status",
+        "audit_status",
+        "audit_tail",
+      ].includes(name)
+    ) {
       const entitlement = licenseProvider();
       if (!entitlement.features.includes(definition.access))
         fail("FEATURE_UNAVAILABLE");
@@ -802,6 +830,14 @@ export function createDispatcher(
           })
           .sort((a, b) => a.id.localeCompare(b.id)),
       };
+    if (name === "audit_status") {
+      if (!audit) fail("AUDIT_UNAVAILABLE");
+      return audit.status(p.id);
+    }
+    if (name === "audit_tail") {
+      if (!audit) fail("AUDIT_UNAVAILABLE");
+      return audit.tail(p.id, a.limit);
+    }
     if (name === "project_snapshot") {
       const listing = p.files.list("");
       const gitDir = path.join(p.files.root, ".git");
@@ -1373,5 +1409,69 @@ export function createDispatcher(
     if (name === "get_job_status") return runner.get(a.job, p.id);
     if (name === "cancel_job") return runner.cancel(a.job, p.id);
     fail("UNKNOWN_TOOL");
+  };
+
+  return async function dispatch(name, input, permissions) {
+    const definition = definitions[name];
+    if (
+      !audit ||
+      !definition ||
+      definition.access === "read" ||
+      name === "list_devices"
+    )
+      return dispatchCore(name, input, permissions);
+
+    let a;
+    try {
+      a = z.object(definition.input).strict().parse(input);
+    } catch {
+      return dispatchCore(name, input, permissions);
+    }
+    if (a.device !== config.id || !permissions.includes(definition.access))
+      return dispatchCore(name, input, permissions);
+    const p = projects.get(a.project);
+    if (!p) return dispatchCore(name, input, permissions);
+
+    const risk =
+      name === "run_project_command"
+        ? commandRisk((p.commands ?? {})[a.command]?.category)
+        : toolRisk(name, definition);
+    const attempt = audit.append(p.id, {
+      device: config.id,
+      tool: name,
+      access: definition.access,
+      risk,
+      phase: "attempt",
+      outcome: "pending",
+    });
+
+    let result;
+    try {
+      result = await dispatchCore(name, input, permissions);
+    } catch (error) {
+      audit.append(p.id, {
+        device: config.id,
+        tool: name,
+        access: definition.access,
+        risk,
+        phase: "result",
+        outcome: "failed",
+        correlationId: attempt.id,
+        error:
+          typeof error?.code === "string" ? error.code : "INTERNAL_ERROR",
+      });
+      throw error;
+    }
+
+    audit.append(p.id, {
+      device: config.id,
+      tool: name,
+      access: definition.access,
+      risk,
+      phase: "result",
+      outcome: "succeeded",
+      correlationId: attempt.id,
+    });
+    return result;
   };
 }
