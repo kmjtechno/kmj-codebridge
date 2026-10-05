@@ -1457,8 +1457,7 @@ export function createDispatcher(
         phase: "result",
         outcome: "failed",
         correlationId: attempt.id,
-        error:
-          typeof error?.code === "string" ? error.code : "INTERNAL_ERROR",
+        error: typeof error?.code === "string" ? error.code : "INTERNAL_ERROR",
       });
       throw error;
     }
