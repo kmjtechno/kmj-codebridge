@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import net from "node:net";
+import os from "node:os";
 import { spawn, execFileSync } from "node:child_process";
 import { agentSchema, gatewaySchema } from "./config.js";
 import { fail, publicError } from "./errors.js";
@@ -20,6 +21,46 @@ const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
 const PROJECT_ROOT = "/srv/kmj-codebridge-projects";
 const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+function defaultDeviceStatus() {
+  const cpus = os.cpus();
+  const [one, five, fifteen] = os.loadavg();
+  return {
+    platform: process.platform,
+    arch: process.arch,
+    hostname: os.hostname(),
+    cpuCount: cpus.length,
+    totalMemoryBytes: os.totalmem(),
+    freeMemoryBytes: os.freemem(),
+    loadAverage: { one, five, fifteen },
+    uptimeSeconds: Math.floor(os.uptime()),
+    processUptimeSeconds: Math.floor(process.uptime()),
+    nodeVersion: process.version,
+  };
+}
+
+function boundedDeviceStatus(raw) {
+  const boundedString = (value, max) =>
+    typeof value === "string" ? value.slice(0, max) : "unknown";
+  const boundedNumber = (value, max = Number.MAX_SAFE_INTEGER) =>
+    Number.isFinite(value) && value >= 0 ? Math.min(value, max) : 0;
+  return {
+    platform: boundedString(raw?.platform, 32),
+    arch: boundedString(raw?.arch, 32),
+    hostname: boundedString(raw?.hostname, 253),
+    cpuCount: Math.floor(boundedNumber(raw?.cpuCount, 4096)),
+    totalMemoryBytes: Math.floor(boundedNumber(raw?.totalMemoryBytes)),
+    freeMemoryBytes: Math.floor(boundedNumber(raw?.freeMemoryBytes)),
+    loadAverage: {
+      one: boundedNumber(raw?.loadAverage?.one, 1000000),
+      five: boundedNumber(raw?.loadAverage?.five, 1000000),
+      fifteen: boundedNumber(raw?.loadAverage?.fifteen, 1000000),
+    },
+    uptimeSeconds: Math.floor(boundedNumber(raw?.uptimeSeconds)),
+    processUptimeSeconds: Math.floor(boundedNumber(raw?.processUptimeSeconds)),
+    nodeVersion: boundedString(raw?.nodeVersion, 64),
+  };
+}
 
 function exactKeys(value, allowed) {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -135,6 +176,7 @@ export function createSupervisorHandler({
   statfs = (target) => fs.statfsSync(target),
   exists = (target) => fs.existsSync(target),
   stat = (target) => fs.statSync(target),
+  deviceStatus = defaultDeviceStatus,
 } = {}) {
   return async function handle(request) {
     exactKeys(request, ["op", "service", "lines", "projectId"]);
@@ -199,6 +241,11 @@ export function createSupervisorHandler({
         response: { service: request.service, accepted: true },
         afterSend: () => restart(unit),
       };
+    }
+
+    if (request.op === "device_status") {
+      exactKeys(request, ["op"]);
+      return { response: boundedDeviceStatus(deviceStatus()) };
     }
 
     if (request.op === "project_status") {
