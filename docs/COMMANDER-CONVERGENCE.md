@@ -14,27 +14,27 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 
 ## Capability convergence matrix
 
-| Desktop Commander capability | CodeBridge target | Status |
-|---|---|---|
-| Remote probe / host diagnostics | Supervisor-backed bounded device resource status | Implementing |
-| Project inspect / stack discovery | Structured project environment detection | Implementing |
-| Persistent operation jobs | Existing CodeBridge JobRunner + bounded logs/cancel | Native |
-| AI-safe structured operations | Existing gates + command profiles + supervisor requests | Native |
-| Deny-by-default execution boundary | Existing MCP authorization + project roots + supervisor allowlists | Native |
-| Replay/idempotency protection | Existing request keys / job fingerprints / grant validation | Native; expand where needed |
-| Persistent task queue | Existing AutopilotJournal + missions/DAG | Native |
-| Reconnect/crash recovery | Agent lock, persistent journals, service supervisor | Native; harden further |
-| Risk classes | READ / TEST / EDIT / GIT_WRITE / SERVICE / DEPLOY / PRIVILEGED / DESTRUCTIVE policy metadata | Next |
-| Approval gate | Main Platform approval records for privileged/destructive actions | Next |
-| Hash-chained audit evidence | Append-only per-device/project evidence ledger | Next |
-| Resource-aware scheduler | CPU/RAM/disk/load-aware concurrency and backpressure | Planned |
-| Smart test selection | Stack-aware targeted verification before full release gates | Planned |
-| Checkpoint / rollback | Project snapshots and rollback evidence before risky mutations | Planned |
-| Controlled privileged broker | Narrow supervisor operations with explicit policy + approval | Planned |
-| Desktop notifications / mobile approvals | Main Platform + optional native companion UX | Planned |
-| Native Tauri desktop shell | Optional CodeBridge operator client, not a second backend | Planned |
-| SSH saved profiles | Replaced by CodeBridge device enrollment; secrets stay outside browser/MCP | Replaced |
-| Raw remote shell | Not adopted | Rejected |
+| Desktop Commander capability             | CodeBridge target                                                                            | Status                      |
+| ---------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
+| Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Implementing                |
+| Project inspect / stack discovery        | Structured project environment detection                                                     | Implementing                |
+| Persistent operation jobs                | Existing CodeBridge JobRunner + bounded logs/cancel                                          | Native                      |
+| AI-safe structured operations            | Existing gates + command profiles + supervisor requests                                      | Native                      |
+| Deny-by-default execution boundary       | Existing MCP authorization + project roots + supervisor allowlists                           | Native                      |
+| Replay/idempotency protection            | Existing request keys / job fingerprints / grant validation                                  | Native; expand where needed |
+| Persistent task queue                    | Existing AutopilotJournal + missions/DAG                                                     | Native                      |
+| Reconnect/crash recovery                 | Agent lock, persistent journals, service supervisor                                          | Native; harden further      |
+| Risk classes                             | READ / TEST / EDIT / GIT_WRITE / SERVICE / DEPLOY / PRIVILEGED / DESTRUCTIVE policy metadata | Next                        |
+| Approval gate                            | Main Platform approval records for privileged/destructive actions                            | Next                        |
+| Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Next                        |
+| Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Planned                     |
+| Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Planned                     |
+| Checkpoint / rollback                    | Project snapshots and rollback evidence before risky mutations                               | Planned                     |
+| Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
+| Desktop notifications / mobile approvals | Main Platform + optional native companion UX                                                 | Planned                     |
+| Native Tauri desktop shell               | Optional CodeBridge operator client, not a second backend                                    | Planned                     |
+| SSH saved profiles                       | Replaced by CodeBridge device enrollment; secrets stay outside browser/MCP                   | Replaced                    |
+| Raw remote shell                         | Not adopted                                                                                  | Rejected                    |
 
 ## Commander Diagnostics slice
 
@@ -61,18 +61,21 @@ These tools are read-only and inherit the same device/project authorization as e
 ## Next implementation order
 
 P0:
+
 - device resource/capability snapshot;
 - project stack/environment auto-detection;
 - expose both through read-only MCP;
 - retain cross-platform CI and credential scan gates.
 
 P1:
+
 - formal risk-class metadata and policy decision tool;
 - append-only hash-chained audit/evidence ledger;
 - resource-aware job concurrency and disk-pressure guard;
 - heartbeat/watchdog/reconnect status surfaced to Main Platform.
 
 P2:
+
 - checkpoint/rollback primitives;
 - controlled privileged broker with Main Platform approvals;
 - mobile approval workflow;
