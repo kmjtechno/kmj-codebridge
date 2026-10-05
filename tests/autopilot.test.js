@@ -49,11 +49,14 @@ test("mission contract persists a dependency-aware DAG and resumes after restart
 
   const reloaded = new AutopilotJournal(root);
   const resumed = reloaded.missionStatus(mission.id, "p1");
-  assert.equal(resumed.tasks.find((task) => task.key === "inspect").state, "succeeded");
   assert.equal(
-    resumed.tasks.filter((task) => ["tests", "docs"].includes(task.key)).every(
-      (task) => task.state === "queued",
-    ),
+    resumed.tasks.find((task) => task.key === "inspect").state,
+    "succeeded",
+  );
+  assert.equal(
+    resumed.tasks
+      .filter((task) => ["tests", "docs"].includes(task.key))
+      .every((task) => task.state === "queued"),
     true,
   );
   assert.equal(reloaded.status("p1").counts.queued, 2);
