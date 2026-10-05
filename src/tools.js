@@ -179,6 +179,274 @@ function detectProjectEnvironment(files) {
   };
 }
 
+const SOURCE_EXTENSIONS = new Set([
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cs",
+  ".css",
+  ".go",
+  ".h",
+  ".hpp",
+  ".html",
+  ".java",
+  ".js",
+  ".jsx",
+  ".kt",
+  ".kts",
+  ".php",
+  ".py",
+  ".rb",
+  ".rs",
+  ".scss",
+  ".swift",
+  ".ts",
+  ".tsx",
+  ".vue",
+  ".svelte",
+]);
+const DOC_EXTENSIONS = new Set([".md", ".mdx", ".rst", ".adoc"]);
+const CONFIG_BASENAMES = new Set([
+  "package.json",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+  "bun.lock",
+  "bun.lockb",
+  "composer.json",
+  "composer.lock",
+  "cargo.toml",
+  "cargo.lock",
+  "pyproject.toml",
+  "requirements.txt",
+  "pipfile",
+  "pipfile.lock",
+  "go.mod",
+  "go.sum",
+  "pom.xml",
+  "build.gradle",
+  "build.gradle.kts",
+  "gemfile",
+  "gemfile.lock",
+  "dockerfile",
+  "compose.yaml",
+  "compose.yml",
+  "docker-compose.yaml",
+  "docker-compose.yml",
+]);
+
+function classifyChangedPath(relative) {
+  const normalized = String(relative).replaceAll("\\", "/").toLowerCase();
+  const base = normalized.slice(normalized.lastIndexOf("/") + 1);
+  const ext = path.posix.extname(base);
+  if (
+    normalized.startsWith(".github/") ||
+    normalized.startsWith(".gitlab/") ||
+    normalized.includes("/.github/")
+  )
+    return "ci";
+  if (
+    CONFIG_BASENAMES.has(base) ||
+    normalized.startsWith("config/") ||
+    normalized.includes("/config/") ||
+    normalized.startsWith("migrations/") ||
+    normalized.includes("/migrations/")
+  )
+    return "config";
+  if (
+    normalized.startsWith("docs/") ||
+    normalized.includes("/docs/") ||
+    DOC_EXTENSIONS.has(ext)
+  )
+    return "docs";
+  if (
+    normalized.startsWith("test/") ||
+    normalized.startsWith("tests/") ||
+    normalized.includes("/test/") ||
+    normalized.includes("/tests/") ||
+    normalized.includes("/__tests__/") ||
+    /(?:^|\.)((test|spec))\.[^.]+$/.test(base)
+  )
+    return "tests";
+  if (SOURCE_EXTENSIONS.has(ext)) return "source";
+  if (
+    [".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(ext)
+  )
+    return "assets";
+  return "other";
+}
+
+function gateRole(id) {
+  const name = String(id).toLowerCase();
+  if (/security|audit|scan|sast|dependency/.test(name)) return "security";
+  if (/integration|e2e|end.?to.?end|smoke|accept/.test(name))
+    return "integration";
+  if (/unit/.test(name)) return "unit";
+  if (/test|spec|pytest/.test(name)) return "test";
+  if (/type|tsc|static|phpstan|psalm|mypy|clippy/.test(name)) return "type";
+  if (/lint|format|style|checkstyle/.test(name)) return "lint";
+  if (/build|compile|package|bundle/.test(name)) return "build";
+  if (/docs|markdown|spell/.test(name)) return "docs";
+  if (/check|verify|validate/.test(name)) return "check";
+  return "other";
+}
+
+export function selectVerificationPlan({
+  changedPaths = [],
+  gates = [],
+  gitAvailable = true,
+  truncated = false,
+  environment = {},
+} = {}) {
+  const allGates = [...new Set(gates)].sort();
+  const counts = {
+    source: 0,
+    tests: 0,
+    docs: 0,
+    config: 0,
+    ci: 0,
+    assets: 0,
+    other: 0,
+  };
+  for (const relative of changedPaths) counts[classifyChangedPath(relative)] += 1;
+
+  const changeCount = Object.values(counts).reduce((sum, value) => sum + value, 0);
+  const roles = new Map(allGates.map((gate) => [gate, gateRole(gate)]));
+  const byRoles = (...wanted) =>
+    allGates.filter((gate) => wanted.includes(roles.get(gate)));
+  const unique = (items) => [...new Set(items)];
+
+  let mode = "none";
+  let recommendedGates = [];
+  const reasonCodes = [];
+  let requireFullBeforeRelease = false;
+
+  if (!allGates.length) {
+    mode = "unavailable";
+    reasonCodes.push("NO_CONFIGURED_GATES");
+  } else if (!gitAvailable || truncated) {
+    mode = "full";
+    recommendedGates = allGates;
+    reasonCodes.push(!gitAvailable ? "CHANGE_SCOPE_UNKNOWN" : "CHANGE_SCOPE_TRUNCATED");
+  } else if (changeCount === 0) {
+    reasonCodes.push("NO_WORKTREE_CHANGES");
+  } else if (counts.config > 0 || counts.ci > 0 || counts.other > 0) {
+    mode = "full";
+    recommendedGates = allGates;
+    if (counts.config > 0) reasonCodes.push("CONFIG_OR_DEPENDENCY_CHANGE");
+    if (counts.ci > 0) reasonCodes.push("CI_CHANGE");
+    if (counts.other > 0) reasonCodes.push("UNCLASSIFIED_CHANGE");
+  } else {
+    mode = "targeted";
+    requireFullBeforeRelease = true;
+    if (counts.source > 0) {
+      reasonCodes.push("SOURCE_CHANGE");
+      recommendedGates.push(
+        ...byRoles("lint", "type", "unit", "test", "check"),
+      );
+    }
+    if (counts.tests > 0) {
+      reasonCodes.push("TEST_CHANGE");
+      recommendedGates.push(...byRoles("unit", "test", "integration", "check"));
+    }
+    if (counts.docs > 0) {
+      reasonCodes.push("DOCS_CHANGE");
+      recommendedGates.push(...byRoles("docs", "lint", "check"));
+    }
+    if (counts.assets > 0) {
+      reasonCodes.push("ASSET_CHANGE");
+      recommendedGates.push(...byRoles("build", "test", "check"));
+    }
+    recommendedGates = unique(recommendedGates);
+    if (!recommendedGates.length) {
+      recommendedGates = allGates;
+      mode = "full";
+      requireFullBeforeRelease = false;
+      reasonCodes.push("NO_TARGETED_GATE_MATCH");
+    }
+  }
+
+  return {
+    mode,
+    changeCount,
+    changeClasses: counts,
+    recommendedGates,
+    fullGates: allGates,
+    requireFullBeforeRelease,
+    reasonCodes,
+    stacks: [...(environment.stacks ?? [])],
+    frameworks: [...(environment.frameworks ?? [])],
+  };
+}
+
+function collectChangedPaths(root) {
+  const gitDir = path.join(root, ".git");
+  try {
+    const stat = fs.lstatSync(gitDir);
+    if (!stat.isDirectory() || stat.isSymbolicLink())
+      return { gitAvailable: false, paths: [], truncated: false };
+    const output = execFileSync(
+      "git",
+      [
+        "--no-optional-locks",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        "status",
+        "--porcelain=v1",
+        "-z",
+        "--untracked-files=all",
+      ],
+      {
+        cwd: root,
+        encoding: "utf8",
+        timeout: 5000,
+        maxBuffer: 65536,
+        env: {
+          PATH: process.env.PATH,
+          SystemRoot: process.env.SystemRoot,
+          GIT_CONFIG_NOSYSTEM: "1",
+          GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_OPTIONAL_LOCKS: "0",
+        },
+      },
+    );
+    const records = output.split("\0");
+    const paths = [];
+    const seen = new Set();
+    let truncated = false;
+    for (let i = 0; i < records.length; i++) {
+      const record = records[i];
+      if (!record || record.length < 4) continue;
+      const status = record.slice(0, 2);
+      let relative = record.slice(3).replaceAll("\\", "/");
+      if (!relative || seen.has(relative)) continue;
+      seen.add(relative);
+      paths.push(relative);
+      if (paths.length >= 500) {
+        truncated = true;
+        break;
+      }
+      if (/[RC]/.test(status) && i + 1 < records.length) {
+        const previous = records[++i]?.replaceAll("\\", "/");
+        if (previous && !seen.has(previous)) {
+          seen.add(previous);
+          paths.push(previous);
+          if (paths.length >= 500) {
+            truncated = true;
+            break;
+          }
+        }
+      }
+    }
+    return { gitAvailable: true, paths, truncated };
+  } catch {
+    return { gitAvailable: false, paths: [], truncated: false };
+  }
+}
+
 const RISK_CLASSES = [
   "READ",
   "TEST",
@@ -238,6 +506,7 @@ const fastReadTool = z.enum([
   "audit_status",
   "audit_tail",
   "execution_capacity",
+  "verification_plan",
 ]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
@@ -303,6 +572,13 @@ export const definitions = {
     title: "Execution capacity",
     description:
       "Read bounded resource-aware job capacity for the authorized project, including memory, disk, CPU load, active jobs, and effective concurrency.",
+    input: scoped,
+    access: "read",
+  },
+  verification_plan: {
+    title: "Smart verification plan",
+    description:
+      "Select deterministic targeted or full configured quality gates from bounded Git change classes and detected project stacks without executing repository code.",
     input: scoped,
     access: "read",
   },
@@ -852,6 +1128,23 @@ export function createDispatcher(
         project: p.id,
         ...runner.capacity(p.files.root),
       };
+    if (name === "verification_plan") {
+      const changes = collectChangedPaths(p.files.root);
+      const environment = detectProjectEnvironment(p.files);
+      return {
+        device: config.id,
+        project: p.id,
+        gitAvailable: changes.gitAvailable,
+        changesTruncated: changes.truncated,
+        ...selectVerificationPlan({
+          changedPaths: changes.paths,
+          gates: Object.keys(p.gates),
+          gitAvailable: changes.gitAvailable,
+          truncated: changes.truncated,
+          environment,
+        }),
+      };
+    }
     if (name === "project_snapshot") {
       const listing = p.files.list("");
       const gitDir = path.join(p.files.root, ".git");
