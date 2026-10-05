@@ -80,6 +80,45 @@ test("restart is acknowledged before a hardcoded unit is scheduled", async () =>
   assert.deepEqual(restarted, ["kmj-codebridge-agent.service"]);
 });
 
+test("project status derives only the managed project root", async () => {
+  const seen = [];
+  const handle = createSupervisorHandler({
+    exists: (target) => {
+      seen.push(target);
+      return target === "/srv/kmj-codebridge-projects/project_1";
+    },
+    stat: (target) => {
+      seen.push(target);
+      return { isDirectory: () => true };
+    },
+  });
+  const result = await handle({ op: "project_status", projectId: "project_1" });
+  assert.deepEqual(result.response, {
+    projectId: "project_1",
+    present: true,
+    directory: true,
+    gitCheckout: false,
+  });
+  assert.deepEqual(seen, [
+    "/srv/kmj-codebridge-projects/project_1",
+    "/srv/kmj-codebridge-projects/project_1",
+    "/srv/kmj-codebridge-projects/project_1/.git",
+  ]);
+});
+
+test("project status rejects traversal and arbitrary path inputs", async () => {
+  const handle = createSupervisorHandler();
+  for (const request of [
+    { op: "project_status", projectId: "../root" },
+    { op: "project_status", projectId: "project/other" },
+    { op: "project_status", projectId: "" },
+    { op: "project_status", projectId: "x".repeat(65) },
+    { op: "project_status", projectId: "project1", path: "/tmp/project1" },
+  ]) {
+    await assert.rejects(handle(request), /INVALID_SUPERVISOR_REQUEST/);
+  }
+});
+
 test("disk-space operation accepts no caller path", async () => {
   const handle = createSupervisorHandler({
     statfs: () => ({ bsize: 4096, blocks: 100, bavail: 25 }),
