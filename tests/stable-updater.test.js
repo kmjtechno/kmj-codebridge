@@ -45,6 +45,7 @@ function signedFixture(overrides = {}) {
 }
 
 function config(root, trustedKeys, overrides = {}) {
+  fs.mkdirSync(path.join(root, "agent-state"), { recursive: true });
   return {
     schema: 1,
     channel: "stable",
@@ -52,7 +53,8 @@ function config(root, trustedKeys, overrides = {}) {
     signatureUrl: "https://updates.example/codebridge/manifest.sig",
     trustedKeys,
     installRoot: path.join(root, "install"),
-    stateDir: path.join(root, "state"),
+    stateDir: path.join(root, "update-state"),
+    agentStateDir: path.join(root, "agent-state"),
     workDir: path.join(root, "work"),
     supervisorSocket: "/run/kmj-codebridge/supervisor.sock",
     health: { attempts: 3, delayMs: 100 },
@@ -177,7 +179,7 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
     }) => {
       await restart();
       fs.writeFileSync(
-        path.join(cfg.stateDir, "connection.json"),
+        path.join(cfg.agentStateDir, "connection.json"),
         JSON.stringify({
           connectedAt: new Date(2000).toISOString(),
           version: signed.manifest.version,
@@ -294,6 +296,29 @@ test("stable updater rejects channel mismatch and replay", async (t) => {
       createStore: () => store,
     }),
     /UPDATE_ROLLBACK_REJECTED/,
+  );
+});
+
+test("stable updater rejects updater state that shares the agent state directory", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-isolation-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const shared = path.join(root, "shared-state");
+  fs.mkdirSync(shared, { recursive: true });
+
+  await assert.rejects(
+    runStableUpdate(
+      config(root, signed.trustedKeys, {
+        stateDir: shared,
+        agentStateDir: shared,
+      }),
+      {
+        fetchBytes: async () => {
+          throw new Error("must fail before network fetch");
+        },
+      },
+    ),
+    /custom|Updater state must be isolated from agent state/,
   );
 });
 
