@@ -32,6 +32,45 @@ function identify(req, records) {
     ) ?? null
   );
 }
+const ONLINE_WINDOW_MS = 30000;
+const STALE_WINDOW_MS = 120000;
+
+export function connectionHealth(lastSeenAt, health, now = Date.now()) {
+  const seen =
+    Number.isFinite(lastSeenAt) && lastSeenAt > 0 ? lastSeenAt : null;
+  const ageMs = seen === null ? null : Math.max(0, now - seen);
+  const state =
+    ageMs === null
+      ? "never_seen"
+      : ageMs < ONLINE_WINDOW_MS
+        ? "online"
+        : ageMs < STALE_WINDOW_MS
+          ? "stale"
+          : "offline";
+  const sessionCount =
+    Number.isInteger(health?.sessionCount) && health.sessionCount >= 0
+      ? health.sessionCount
+      : 0;
+  const sessionStartedAt =
+    Number.isFinite(health?.sessionStartedAt) && health.sessionStartedAt > 0
+      ? new Date(health.sessionStartedAt).toISOString()
+      : null;
+  const lastHealthAt =
+    Number.isFinite(health?.lastHealthAt) && health.lastHealthAt > 0
+      ? new Date(health.lastHealthAt).toISOString()
+      : null;
+
+  return {
+    online: state === "online",
+    connectionState: state,
+    lastSeenAt: seen === null ? null : new Date(seen).toISOString(),
+    lastSeenAgeMs: ageMs,
+    gatewaySessionCount: sessionCount,
+    sessionStartedAt,
+    lastHealthAt,
+  };
+}
+
 function json(res, status, data) {
   if (!res.writableEnded) {
     res.writeHead(status, {
@@ -92,6 +131,7 @@ export async function startGateway(rawConfig) {
   const pending = new Map(),
     waiting = new Map(),
     lastSeen = new Map(),
+    agentHealth = new Map(),
     rate = new Map();
   const membershipFor = (user, tenant) =>
     user.memberships?.find((membership) => membership.tenant === tenant) ??
@@ -507,6 +547,13 @@ export async function startGateway(rawConfig) {
         const data = await body(req);
         lastSeen.set(a.id, Date.now());
         if (req.url === "/agent/health") {
+          const now = lastSeen.get(a.id) ?? Date.now();
+          const previous = agentHealth.get(a.id);
+          agentHealth.set(a.id, {
+            sessionCount: (previous?.sessionCount ?? 0) + 1,
+            sessionStartedAt: now,
+            lastHealthAt: now,
+          });
           json(res, 200, { ok: true });
           return;
         }
@@ -678,7 +725,10 @@ export async function startGateway(rawConfig) {
                     id: agent.id,
                     tenant: agent.tenant,
                     projects: [...(agent.projects ?? [])].sort(),
-                    online: Date.now() - (lastSeen.get(agent.id) ?? 0) < 30000,
+                    ...connectionHealth(
+                      lastSeen.get(agent.id),
+                      agentHealth.get(agent.id),
+                    ),
                     dynamic: Boolean(agent.dynamic),
                   }))
                   .sort((a, b) => a.id.localeCompare(b.id));
@@ -705,7 +755,10 @@ export async function startGateway(rawConfig) {
                   devicesById.set(agent.id, {
                     id: agent.id,
                     projects,
-                    online: Date.now() - (lastSeen.get(agent.id) ?? 0) < 30000,
+                    ...connectionHealth(
+                      lastSeen.get(agent.id),
+                      agentHealth.get(agent.id),
+                    ),
                   });
                 }
 
@@ -727,7 +780,7 @@ export async function startGateway(rawConfig) {
                     devicesById.set(device, {
                       id: device,
                       projects,
-                      online: false,
+                      ...connectionHealth(null, null),
                     });
                   }
                 }
