@@ -68,6 +68,18 @@ export function preservesSensitiveBindings(before, after) {
 }
 const scoped = { device: identifier, project: identifier };
 const supervisorService = z.enum(["agent", "gateway"]);
+const fastReadTool = z.enum([
+  "inspect_project",
+  "connection_doctor",
+  "git_status",
+  "git_log",
+  "list_directory",
+  "search_code",
+  "autopilot_status",
+  "supervisor_status",
+  "supervisor_config_validate",
+  "supervisor_disk_space",
+]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
   ...file,
@@ -114,6 +126,25 @@ export const definitions = {
     input: {
       ...scoped,
       autopilotLimit: z.number().int().min(1).max(20).default(10),
+    },
+    access: "read",
+  },
+  fast_read_batch: {
+    title: "Fast read batch",
+    description:
+      "Run up to eight allowlisted read-only project checks through one MCP call. Each inner tool keeps its own authorization and strict input validation, and failures are isolated per result.",
+    input: {
+      ...scoped,
+      calls: z
+        .array(
+          z.object({
+            key: identifier,
+            tool: fastReadTool,
+            args: z.record(z.unknown()).default({}),
+          }),
+        )
+        .min(1)
+        .max(8),
     },
     access: "read",
   },

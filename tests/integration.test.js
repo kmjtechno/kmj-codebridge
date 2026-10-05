@@ -115,6 +115,44 @@ test("fast context composes legacy read tools behind one MCP call", async (t) =>
   assert.equal(result.parts.autopilot.ok, true);
   assert.equal(result.parts.autopilot.value.counts.queued, 0);
 });
+
+test("fast read batch isolates read-only results behind one MCP call", async (t) => {
+  const { client } = await setup(t);
+  const list = await client.listTools();
+  assert.ok(list.tools.some((x) => x.name === "fast_read_batch"));
+
+  const result = content(
+    await client.callTool({
+      name: "fast_read_batch",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        calls: [
+          { key: "project", tool: "inspect_project", args: {} },
+          { key: "git", tool: "git_status", args: {} },
+          {
+            key: "autopilot",
+            tool: "autopilot_status",
+            args: { limit: 5 },
+          },
+        ],
+      },
+    }),
+  );
+
+  assert.equal(result.device, "d1");
+  assert.equal(result.project, "p1");
+  assert.equal(result.results.length, 3);
+  assert.equal(result.results[0].key, "project");
+  assert.equal(result.results[0].ok, true);
+  assert.equal(result.results[0].value.version, VERSION);
+  assert.equal(result.results[1].key, "git");
+  assert.equal(result.results[1].ok, false);
+  assert.equal(result.results[1].error, "GIT_ROOT_OUTSIDE_PROJECT");
+  assert.equal(result.results[2].key, "autopilot");
+  assert.equal(result.results[2].ok, true);
+  assert.equal(result.results[2].value.counts.queued, 0);
+});
 test("account diagnostics expose safe membership and same-tenant agent visibility", async (t) => {
   const { client } = await setup(t);
   const result = content(
