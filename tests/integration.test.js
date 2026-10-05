@@ -58,6 +58,30 @@ async function setup(t) {
             timeoutMs: 2000,
           },
         },
+        commands: {
+          inspect_node: {
+            category: "inspect",
+            description: "Read the configured Node runtime version.",
+            command: process.execPath,
+            variants: {
+              version: { args: ["--version"], timeoutMs: 2000 },
+            },
+          },
+          build_echo: {
+            category: "build",
+            description: "Run a bounded build fixture.",
+            command: process.execPath,
+            variants: {
+              default: {
+                args: [
+                  "-e",
+                  'console.log("BUILD_OK"); console.log("token=supersecret")',
+                ],
+                timeoutMs: 2000,
+              },
+            },
+          },
+        },
       },
     ],
     license: { mode: "free" },
@@ -153,6 +177,90 @@ test("fast read batch isolates read-only results behind one MCP call", async (t)
   assert.equal(result.results[2].ok, true);
   assert.equal(result.results[2].value.counts.queued, 0);
 });
+test("structured project commands expose profiles without raw argv and run exact variants", async (t) => {
+  const { client } = await setup(t);
+
+  const listed = content(
+    await client.callTool({
+      name: "list_project_commands",
+      arguments: { device: "d1", project: "p1" },
+    }),
+  );
+  assert.deepEqual(listed.commands, [
+    {
+      id: "inspect_node",
+      category: "inspect",
+      description: "Read the configured Node runtime version.",
+      variants: ["version"],
+    },
+    {
+      id: "build_echo",
+      category: "build",
+      description: "Run a bounded build fixture.",
+      variants: ["default"],
+    },
+  ]);
+  assert.ok(!JSON.stringify(listed).includes(process.execPath));
+  assert.ok(!JSON.stringify(listed).includes("supersecret"));
+
+  const started = content(
+    await client.callTool({
+      name: "run_project_command",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        command: "build_echo",
+        variant: "default",
+        requestKey: "build-echo-1",
+      },
+    }),
+  );
+  assert.equal(started.state, "running");
+  assert.equal(started.gate, "command:build_echo:default:build");
+
+  let done = started;
+  for (let i = 0; i < 40 && done.state === "running"; i++) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    done = content(
+      await client.callTool({
+        name: "get_job_status",
+        arguments: { device: "d1", project: "p1", job: started.id },
+      }),
+    );
+  }
+  assert.equal(done.state, "succeeded");
+  assert.match(done.output, /BUILD_OK/);
+  assert.ok(!done.output.includes("supersecret"));
+  assert.match(done.output, /token=\[REDACTED\]/);
+
+  const replay = content(
+    await client.callTool({
+      name: "run_project_command",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        command: "build_echo",
+        variant: "default",
+        requestKey: "build-echo-1",
+      },
+    }),
+  );
+  assert.equal(replay.id, started.id);
+
+  const denied = await client.callTool({
+    name: "run_project_command",
+    arguments: {
+      device: "d1",
+      project: "p1",
+      command: "build_echo",
+      variant: "not_allowed",
+      requestKey: "build-echo-denied",
+    },
+  });
+  assert.equal(denied.isError, true);
+  assert.equal(content(denied).error, "COMMAND_NOT_ALLOWED");
+});
+
 test("account diagnostics expose safe membership and same-tenant agent visibility", async (t) => {
   const { client } = await setup(t);
   const result = content(
