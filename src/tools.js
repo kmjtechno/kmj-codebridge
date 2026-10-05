@@ -305,6 +305,62 @@ export const definitions = {
     },
     access: "write",
   },
+  mission_compile: {
+    title: "Compile mission",
+    description:
+      "Persist a structured engineering mission and materialize its dependency-aware task DAG into resumable autopilot work.",
+    input: {
+      ...scoped,
+      key: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
+      objective: z.string().min(1).max(8192),
+      acceptanceCriteria: z.array(z.string().min(1).max(1024)).max(30),
+      requirements: z.object({
+        security: z.array(z.string().max(512)).max(20).default([]),
+        reliability: z.array(z.string().max(512)).max(20).default([]),
+        performance: z.array(z.string().max(512)).max(20).default([]),
+        documentation: z.array(z.string().max(512)).max(20).default([]),
+      }),
+      tasks: z
+        .array(
+          z.object({
+            key: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+            objective: z.string().min(1).max(8192),
+            priority: z.number().int().min(-100).max(100).default(0),
+            dependsOn: z
+              .array(z.string().regex(/^[A-Za-z0-9._-]{1,64}$/))
+              .max(20)
+              .default([]),
+          }),
+        )
+        .min(1)
+        .max(50),
+      ownerGates: z.array(z.string().min(1).max(1024)).max(20).default([]),
+      definitionOfDone: z.string().min(1).max(4096),
+      aiBudget: z
+        .enum(["economical", "balanced", "maximum_assurance"])
+        .default("balanced"),
+    },
+    access: "write",
+  },
+  mission_status: {
+    title: "Mission status",
+    description:
+      "Read one persisted mission, task DAG state, acceptance criteria and mapped evidence.",
+    input: { ...scoped, mission: identifier },
+    access: "read",
+  },
+  mission_evidence: {
+    title: "Record mission evidence",
+    description:
+      "Attach bounded redacted evidence to one acceptance criterion in a persisted mission.",
+    input: {
+      ...scoped,
+      mission: identifier,
+      criterionIndex: z.number().int().min(0).max(29),
+      evidence: z.string().min(1).max(4096),
+    },
+    access: "write",
+  },
   autopilot_status: {
     title: "Autopilot status",
     description:
@@ -832,6 +888,29 @@ export function createDispatcher(
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
     }
+    if (name.startsWith("mission_") && !autopilot)
+      fail("AUTOPILOT_UNAVAILABLE");
+    if (name === "mission_compile")
+      return autopilot.compileMission({
+        project: p.id,
+        key: a.key,
+        objective: a.objective,
+        acceptanceCriteria: a.acceptanceCriteria,
+        requirements: a.requirements,
+        tasks: a.tasks,
+        ownerGates: a.ownerGates,
+        definitionOfDone: a.definitionOfDone,
+        aiBudget: a.aiBudget,
+      });
+    if (name === "mission_status")
+      return autopilot.missionStatus(a.mission, p.id);
+    if (name === "mission_evidence")
+      return autopilot.missionEvidence(
+        a.mission,
+        p.id,
+        a.criterionIndex,
+        a.evidence,
+      );
     if (name.startsWith("autopilot_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
     if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
