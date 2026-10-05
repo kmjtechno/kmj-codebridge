@@ -9,6 +9,9 @@ import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { gatewaySchema } from "./config.js";
 import { definitions } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
@@ -732,6 +735,34 @@ export async function startGateway(rawConfig) {
             }
           },
         );
+      if (config.oauth)
+        mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
+          tools: Object.entries(allDefinitions).map(([name, d]) => {
+            const input = normalizeObjectSchema(d.input);
+            const security = toolSecurityMeta(config.oauth, d.access);
+            return {
+              name,
+              title: d.title,
+              description: d.description,
+              inputSchema: input
+                ? toJsonSchemaCompat(input, {
+                    strictUnions: true,
+                    pipeStrategy: "input",
+                  })
+                : { type: "object", properties: {} },
+              annotations: {
+                title: d.title,
+                readOnlyHint: d.access === "read",
+                destructiveHint: d.access !== "read",
+                idempotentHint: d.access === "read",
+                openWorldHint:
+                  name === "run_quality_gate" || name.startsWith("github_"),
+              },
+              ...security,
+            };
+          }),
+        }));
+
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
