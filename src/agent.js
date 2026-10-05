@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
+import { AuditLedger } from "./audit.js";
 import { supervisorRequest } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
@@ -64,9 +65,11 @@ export async function startAgent(rawConfig) {
   const agentLock = acquireAgentLock(state);
   let runner;
   let autopilot;
+  let audit;
   try {
     runner = new JobRunner(path.join(state, "jobs"));
     autopilot = new AutopilotJournal(path.join(state, "autopilot"));
+    audit = new AuditLedger(path.join(state, "audit"));
   } catch (e) {
     if (runner) await runner.close();
     releaseAgentLock(agentLock);
@@ -112,6 +115,7 @@ export async function startAgent(rawConfig) {
     licenseProvider,
     autopilot,
     supervisor,
+    audit,
   );
   const controller = new AbortController();
   let stopped = false;
