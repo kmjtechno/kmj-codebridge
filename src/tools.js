@@ -516,7 +516,7 @@ export function createDispatcher(
         project: p.id,
         writable: p.writable,
         gates: Object.keys(p.gates),
-        commands: Object.entries(p.commands).map(([id, profile]) => ({
+        commands: Object.entries(p.commands ?? {}).map(([id, profile]) => ({
           id,
           category: profile.category,
           description: profile.description,
@@ -1026,7 +1026,7 @@ export function createDispatcher(
     }
     if (name === "list_project_commands")
       return {
-        commands: Object.entries(p.commands).map(([id, profile]) => ({
+        commands: Object.entries(p.commands ?? {}).map(([id, profile]) => ({
           id,
           category: profile.category,
           description: profile.description,
@@ -1034,7 +1034,7 @@ export function createDispatcher(
         })),
       };
     if (name === "run_project_command") {
-      const profile = p.commands[a.command];
+      const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
       if (profile.category !== "inspect" && !p.writable)
