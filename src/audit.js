@@ -97,6 +97,7 @@ export class AuditLedger {
       fail("AUDIT_LEDGER_INVALID");
 
     const raw = fs.readFileSync(file, "utf8");
+    if (raw !== "" && !raw.endsWith("\n")) fail("AUDIT_LEDGER_INVALID");
     const lines = raw === "" ? [] : raw.split("\n").filter(Boolean);
     let previousHash = ZERO_HASH;
     let sequence = 0;
