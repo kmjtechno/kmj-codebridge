@@ -37,13 +37,15 @@ file records verified capability, not a percentage-complete claim.
   redemption, user/device introspection, entitlement/renewal services, account
   UI, and regression tests.
 - **Updates:** signed immutable release verification, DNS-pinned/no-redirect
-  archive download, exact size/hash enforcement, safe runtime extraction,
-  atomic activation/rollback, anti-rollback sequence checks, and a tested
-  preflight + bounded health-check + automatic rollback orchestration core are
-  implemented. The development updater now also has restricted Supervisor
-  status/trigger controls that can inspect or start only the hardcoded guarded
-  auto-update timer/service. Signed stable manifest/key wiring and live rollback
-  evidence remain separate production gates.
+  metadata and archive download, exact size/hash enforcement, safe runtime
+  extraction, atomic activation/rollback, root-isolated anti-rollback state,
+  production dependency preflight, fixed Supervisor restart, signed-runtime
+  identity health checks, and mutually exclusive development/stable systemd
+  timers are implemented. Stable/beta mode requires explicit root-owned public
+  trust anchors and a root-owned updater config; the agent switches through the
+  immutable signed `current` runtime with bootstrap fallback. Publishing a real
+  signed stable release and observing live activation plus rollback remain
+  separate production-evidence gates.
 - **Distribution:** OpenAI package, hosted Claude plugin, endpoint-specific
   Claude package generator, credential scan, and package contract gates.
 - **GitHub:** optional server-side bridge for allowlisted repositories, pull requests,
@@ -57,6 +59,9 @@ file records verified capability, not a percentage-complete claim.
 
 - Fresh-device one-command enrollment must be re-run against the live Main Platform
   service after the current agent/runtime update is deployed.
+- A real stable/beta release manifest, detached signature, trusted public key,
+  immutable archive and release sequence must be published and exercised on a
+  live enrolled device, including observed failed-health rollback evidence.
 - The VPS provider/hypervisor has produced abrupt external power events; guest logs did
   not show a normal Linux shutdown. Provider-side stability remains an infrastructure
   dependency rather than a CodeBridge software gate.
