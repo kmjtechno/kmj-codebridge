@@ -80,6 +80,72 @@ test("restart is acknowledged before a hardcoded unit is scheduled", async () =>
   assert.deepEqual(restarted, ["kmj-codebridge-agent.service"]);
 });
 
+test("device status returns a bounded resource snapshot", async () => {
+  const handle = createSupervisorHandler({
+    deviceStatus: () => ({
+      platform: "linux",
+      arch: "x64",
+      hostname: "codebridge-host",
+      cpuCount: 16,
+      totalMemoryBytes: 64 * 1024 ** 3,
+      freeMemoryBytes: 40 * 1024 ** 3,
+      loadAverage: { one: 1.25, five: 0.75, fifteen: 0.5 },
+      uptimeSeconds: 12345,
+      processUptimeSeconds: 90,
+      nodeVersion: "v24.21.0",
+    }),
+  });
+  const result = await handle({ op: "device_status" });
+  assert.deepEqual(result.response, {
+    platform: "linux",
+    arch: "x64",
+    hostname: "codebridge-host",
+    cpuCount: 16,
+    totalMemoryBytes: 64 * 1024 ** 3,
+    freeMemoryBytes: 40 * 1024 ** 3,
+    loadAverage: { one: 1.25, five: 0.75, fifteen: 0.5 },
+    uptimeSeconds: 12345,
+    processUptimeSeconds: 90,
+    nodeVersion: "v24.21.0",
+  });
+  await assert.rejects(
+    handle({ op: "device_status", command: "whoami" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+});
+
+test("device status sanitizes invalid provider values", async () => {
+  const handle = createSupervisorHandler({
+    deviceStatus: () => ({
+      platform: "x".repeat(100),
+      arch: null,
+      hostname: "h".repeat(500),
+      cpuCount: -5,
+      totalMemoryBytes: Number.POSITIVE_INFINITY,
+      freeMemoryBytes: -1,
+      loadAverage: { one: -1, five: 2, fifteen: Number.NaN },
+      uptimeSeconds: -1,
+      processUptimeSeconds: 3.9,
+      nodeVersion: 123,
+    }),
+  });
+  const result = await handle({ op: "device_status" });
+  assert.equal(result.response.platform.length, 32);
+  assert.equal(result.response.arch, "unknown");
+  assert.equal(result.response.hostname.length, 253);
+  assert.equal(result.response.cpuCount, 0);
+  assert.equal(result.response.totalMemoryBytes, 0);
+  assert.equal(result.response.freeMemoryBytes, 0);
+  assert.deepEqual(result.response.loadAverage, {
+    one: 0,
+    five: 2,
+    fifteen: 0,
+  });
+  assert.equal(result.response.uptimeSeconds, 0);
+  assert.equal(result.response.processUptimeSeconds, 3);
+  assert.equal(result.response.nodeVersion, "unknown");
+});
+
 test("project status derives only the managed project root", async () => {
   const seen = [];
   const handle = createSupervisorHandler({
