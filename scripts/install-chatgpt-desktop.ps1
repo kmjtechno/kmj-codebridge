@@ -7,6 +7,33 @@ $repo = 'kmjtechno/kmj-codebridge'
 $pluginName = 'kmj-codebridge'
 $codex = Get-Command codex -ErrorAction SilentlyContinue
 
+function Refresh-ProcessPath {
+    $machinePath = [Environment]::GetEnvironmentVariable('Path', 'Machine')
+    $userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+    $env:Path = @($machinePath, $userPath) -join ';'
+}
+
+if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+    Write-Host 'Node.js LTS is required by the local CodeBridge bridge and is not installed.' -ForegroundColor Yellow
+    $winget = Get-Command winget -ErrorAction SilentlyContinue
+    if (-not $winget) {
+        throw 'Node.js LTS is required, and Windows Package Manager (winget) is unavailable. Install Node.js LTS, then run this setup again.'
+    }
+
+    Write-Host 'Installing Node.js LTS with Windows Package Manager...'
+    & winget install --id OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements --silent --disable-interactivity
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Windows Package Manager could not install Node.js LTS.'
+    }
+
+    Refresh-ProcessPath
+    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
+        throw 'Node.js LTS installation completed, but node is not yet available in PATH. Sign out and back in to Windows, then run this setup again.'
+    }
+}
+
+Write-Host ('Node.js: ' + (& node --version))
+
 if ($codex) {
     $existing = & codex plugin marketplace list 2>&1 | Out-String
     if ($LASTEXITCODE -ne 0) {
@@ -28,10 +55,6 @@ if ($codex) {
     }
 } else {
     Write-Host 'Codex CLI was not found; using the ChatGPT Desktop personal-marketplace fallback.'
-
-    if (-not (Get-Command node -ErrorAction SilentlyContinue)) {
-        throw 'Node.js is required by the KMJ CodeBridge Desktop bridge and was not found in PATH.'
-    }
 
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('kmj-codebridge-' + [guid]::NewGuid().ToString('N'))
     $zipPath = Join-Path $tempRoot 'kmj-codebridge.zip'
