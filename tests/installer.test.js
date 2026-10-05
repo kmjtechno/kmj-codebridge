@@ -163,3 +163,79 @@ test("installer rollback restores or removes supervisor units consistently", () 
   assert.match(script, /SUPERVISOR_SOCKET_WAS_ENABLED/);
   assert.match(script, /systemctl disable --now "\$SUPERVISOR_SOCKET_UNIT"/);
 });
+
+
+test("installer wires signed stable updates with isolated root-owned trust state", () => {
+  assert.match(
+    script,
+    /CODEBRIDGE_AUTO_UPDATE_MODE must be development, stable, beta or off/,
+  );
+  assert.match(
+    script,
+    /STABLE_CONFIG_DIR="\$\{CODEBRIDGE_STABLE_CONFIG_DIR:-\/etc\/kmj-codebridge-update\}"/,
+  );
+  assert.match(
+    script,
+    /STABLE_UPDATE_STATE_DIR="\$\{CODEBRIDGE_STABLE_UPDATE_STATE_DIR:-\/var\/lib\/kmj-codebridge-update\}"/,
+  );
+  assert.match(
+    script,
+    /STABLE_INSTALL_ROOT="\$\{CODEBRIDGE_STABLE_INSTALL_ROOT:-\/opt\/kmj-codebridge-stable\}"/,
+  );
+  assert.match(script, /Stable release trust keys must be root-owned/);
+  assert.match(
+    script,
+    /Stable release trust keys must not be group\/world writable/,
+  );
+  assert.match(script, /agentStateDir: process\.env\.AGENT_STATE_DIR/);
+  assert.match(script, /stateDir: process\.env\.STABLE_UPDATE_STATE_DIR/);
+  assert.doesNotMatch(
+    script,
+    /stateDir:process\.env\.AGENT_STATE_DIR/,
+  );
+});
+
+test("agent service prefers the immutable signed current runtime with bootstrap fallback", () => {
+  assert.match(
+    script,
+    /if \[ -L "\$STABLE_INSTALL_ROOT\/current" \] && \[ -f "\$STABLE_INSTALL_ROOT\/current\/src\/cli\.js" \]/,
+  );
+  assert.match(script, /runtime="\$INSTALL_DIR"/);
+  assert.match(script, /runtime="\$STABLE_INSTALL_ROOT\/current"/);
+  assert.match(
+    script,
+    /exec "\$NODE" "\\\$runtime\/src\/cli\.js" agent "\$CONFIG"/,
+  );
+});
+
+test("installer provisions mutually exclusive development and signed stable timers", () => {
+  assert.match(script, /kmj-codebridge-stable-update\.service/);
+  assert.match(script, /kmj-codebridge-stable-update\.timer/);
+  assert.match(
+    script,
+    /stable-update "\$STABLE_UPDATE_CONFIG"/,
+  );
+  assert.match(script, /ConditionPathExists=\$STABLE_UPDATE_CONFIG/);
+  assert.match(
+    script,
+    /ReadWritePaths=\$STABLE_INSTALL_ROOT \$STABLE_UPDATE_STATE_DIR \$STABLE_WORK_DIR/,
+  );
+  assert.match(script, /RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6/);
+  assert.match(
+    script,
+    /stable\|beta\)[\s\S]*disable --now "\$AUTO_UPDATE_TIMER"[\s\S]*enable --now "\$STABLE_UPDATE_TIMER"/,
+  );
+  assert.match(
+    script,
+    /development\)[\s\S]*disable --now "\$STABLE_UPDATE_TIMER"[\s\S]*enable --now "\$AUTO_UPDATE_TIMER"/,
+  );
+});
+
+test("installer rollback includes signed stable updater units and config", () => {
+  assert.match(script, /ROLLBACK_STABLE_UPDATE_SERVICE/);
+  assert.match(script, /ROLLBACK_STABLE_UPDATE_TIMER/);
+  assert.match(script, /ROLLBACK_STABLE_UPDATE_CONFIG/);
+  assert.match(script, /STABLE_TIMER_WAS_ENABLED/);
+  assert.match(script, /systemctl stop "\$STABLE_UPDATE_SERVICE"/);
+  assert.match(script, /systemctl stop "\$STABLE_UPDATE_TIMER"/);
+});
