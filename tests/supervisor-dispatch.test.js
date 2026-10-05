@@ -78,6 +78,17 @@ test("supervisor restart requires execute permission", async (t) => {
   assert.deepEqual(calls, [{ op: "restart", service: "agent" }]);
 });
 
+test("auto-update supervisor tools preserve read versus execute permissions", async (t) => {
+  const { dispatch, calls } = setup(t);
+  await dispatch("supervisor_update_status", scope, ["read"]);
+  await assert.rejects(
+    dispatch("supervisor_update_now", scope, ["read", "write"]),
+    /ACCESS_DENIED/,
+  );
+  await dispatch("supervisor_update_now", scope, ["execute"]);
+  assert.deepEqual(calls, [{ op: "update_status" }, { op: "update_now" }]);
+});
+
 test("supervisor operations fail closed when local supervisor is absent", async (t) => {
   const { dispatch } = setup(t);
   const noSupervisor = createDispatcher(
