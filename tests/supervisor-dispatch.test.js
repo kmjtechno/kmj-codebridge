@@ -70,7 +70,7 @@ test("managed project status uses the already-authorized project scope", async (
   await assert.rejects(
     dispatch(
       "supervisor_project_status",
-      { device: "d1", project: "../other" },
+      { device: "d1", project: "p2" },
       ["read"],
     ),
     /PROJECT_NOT_FOUND/,
