@@ -138,4 +138,6 @@ const generatedProblems = generatedDrift();
 if (generatedProblems.length)
   fail("generated metadata drift: " + generatedProblems.join(", "));
 
-console.log("Canonical CodeBridge product manifest and generated metadata verified.");
+console.log(
+  "Canonical CodeBridge product manifest and generated metadata verified.",
+);
