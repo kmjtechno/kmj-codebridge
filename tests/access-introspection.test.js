@@ -204,7 +204,7 @@ test("structured agent grants enforce per-project permissions", async (t) => {
       project: "project1",
       path: "hello.txt",
       content: "blocked",
-      expectedSha256: "0".repeat(64),
+      expectedHash: "0".repeat(64),
     },
   });
   assert.match(denied.content[0].text, /ACCESS_DENIED/);
