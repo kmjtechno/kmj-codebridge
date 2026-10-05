@@ -8,6 +8,7 @@ import {
   sign,
 } from "node:crypto";
 import {
+  defaultStableUpdatePreflight,
   freshAuthenticatedConnection,
   readAcceptedUpdateState,
   runStableUpdate,
@@ -85,6 +86,51 @@ function writeMarker(store, manifest) {
   return name;
 }
 
+test("stable preflight installs locked production dependencies before syntax checks", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-preflight-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(root, "src"), { recursive: true });
+  fs.writeFileSync(path.join(root, "package.json"), "{}\n");
+  fs.writeFileSync(path.join(root, "package-lock.json"), "{}\n");
+  for (const relative of [
+    "cli.js",
+    "agent.js",
+    "supervisor.js",
+    "supervisor-client.js",
+  ])
+    fs.writeFileSync(path.join(root, "src", relative), "export {};\n");
+
+  const calls = [];
+  const npmPath = path.join(root, "bin", "npm");
+  const result = defaultStableUpdatePreflight(
+    { stagingDir: root },
+    {
+      npmPath,
+      run: (command, args, options) => {
+        calls.push({ command, args, options });
+        if (command === npmPath)
+          fs.mkdirSync(path.join(root, "node_modules"));
+        return "";
+      },
+    },
+  );
+
+  assert.equal(result, true);
+  assert.equal(calls[0].command, npmPath);
+  assert.deepEqual(calls[0].args, [
+    "ci",
+    "--omit=dev",
+    "--ignore-scripts",
+    "--no-audit",
+    "--no-fund",
+  ]);
+  assert.equal(calls[0].options.cwd, root);
+  assert.equal(calls.slice(1).length, 4);
+  assert.ok(
+    calls.slice(1).every((call) => call.command === process.execPath),
+  );
+});
+
 test("stable updater uses fixed Supervisor restart and fresh authenticated reconnect", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-update-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -155,6 +201,7 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
       restarts.push([socket, request]);
       return { service: "agent", accepted: true };
     },
+    preflight: async () => true,
     now: () => (nowCall++ === 0 ? 1000 : 3000),
     sleep: async () => {},
   });
