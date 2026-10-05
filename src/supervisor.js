@@ -203,7 +203,10 @@ export function createSupervisorHandler({
 
     if (request.op === "project_status") {
       exactKeys(request, ["op", "projectId"]);
-      if (typeof request.projectId !== "string" || !PROJECT_ID.test(request.projectId))
+      if (
+        typeof request.projectId !== "string" ||
+        !PROJECT_ID.test(request.projectId)
+      )
         fail("INVALID_SUPERVISOR_REQUEST");
       const root = `${PROJECT_ROOT}/${request.projectId}`;
       const present = exists(root);
