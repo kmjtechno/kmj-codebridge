@@ -3,10 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  generateKeyPairSync,
-  sign,
-} from "node:crypto";
+import { generateKeyPairSync, sign } from "node:crypto";
 import {
   defaultStableUpdatePreflight,
   freshAuthenticatedConnection,
@@ -110,8 +107,7 @@ test("stable preflight installs locked production dependencies before syntax che
       npmPath,
       run: (command, args, options) => {
         calls.push({ command, args, options });
-        if (command === npmPath)
-          fs.mkdirSync(path.join(root, "node_modules"));
+        if (command === npmPath) fs.mkdirSync(path.join(root, "node_modules"));
         return "";
       },
     },
@@ -128,11 +124,12 @@ test("stable preflight installs locked production dependencies before syntax che
   ]);
   assert.equal(calls[0].options.cwd, root);
   assert.equal(calls[0].options.env.HOME, root);
-  assert.equal(calls[0].options.env.npm_config_cache, path.join(root, ".npm-cache"));
-  assert.equal(calls.slice(1).length, 4);
-  assert.ok(
-    calls.slice(1).every((call) => call.command === process.execPath),
+  assert.equal(
+    calls[0].options.env.npm_config_cache,
+    path.join(root, ".npm-cache"),
   );
+  assert.equal(calls.slice(1).length, 4);
+  assert.ok(calls.slice(1).every((call) => call.command === process.execPath));
 });
 
 test("stable updater uses fixed Supervisor restart and fresh authenticated reconnect", async (t) => {
@@ -162,23 +159,19 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
         "supervisor.js",
         "supervisor-client.js",
       ])
-        fs.writeFileSync(
-          path.join(staging, "src", relative),
-          "export {};\n",
-        );
+        fs.writeFileSync(path.join(staging, "src", relative), "export {};\n");
       assert.equal(await preflight({ stagingDir: staging }), true);
       return {
         release: {
           name: releaseDirectoryName(signed.manifest),
-          target: path.join(store.releases, releaseDirectoryName(signed.manifest)),
+          target: path.join(
+            store.releases,
+            releaseDirectoryName(signed.manifest),
+          ),
         },
       };
     },
-    activate: async ({
-      releaseName,
-      restart,
-      healthCheck,
-    }) => {
+    activate: async ({ releaseName, restart, healthCheck }) => {
       await restart();
       fs.writeFileSync(
         path.join(cfg.agentStateDir, "connection.json"),
@@ -210,10 +203,7 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
     sleep: async () => {},
   });
 
-  assert.deepEqual(fetches, [
-    cfg.manifestUrl,
-    cfg.signatureUrl,
-  ]);
+  assert.deepEqual(fetches, [cfg.manifestUrl, cfg.signatureUrl]);
   assert.deepEqual(restarts, [
     [
       "/run/kmj-codebridge/supervisor.sock",
@@ -230,7 +220,11 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
   assert.equal(accepted.version, "0.2.3");
   assert.equal(accepted.revision, signed.manifest.revision);
   if (process.platform !== "win32")
-    assert.equal(fs.statSync(path.join(cfg.stateDir, "stable-update-state.json")).mode & 0o777, 0o600);
+    assert.equal(
+      fs.statSync(path.join(cfg.stateDir, "stable-update-state.json")).mode &
+        0o777,
+      0o600,
+    );
 });
 
 test("stable updater is idempotent for the exact already-current signed release", async (t) => {
@@ -277,7 +271,9 @@ test("stable updater rejects channel mismatch and replay", async (t) => {
   await assert.rejects(
     runStableUpdate(config(root, signed.trustedKeys, { channel: "beta" }), {
       fetchBytes: async (url) =>
-        Buffer.from(url.endsWith(".sig") ? signed.signature : signed.rawManifest),
+        Buffer.from(
+          url.endsWith(".sig") ? signed.signature : signed.rawManifest,
+        ),
       createStore: () => store,
     }),
     /UPDATE_CHANNEL_MISMATCH/,
@@ -294,7 +290,9 @@ test("stable updater rejects channel mismatch and replay", async (t) => {
   await assert.rejects(
     runStableUpdate(config(root, signed.trustedKeys), {
       fetchBytes: async (url) =>
-        Buffer.from(url.endsWith(".sig") ? signed.signature : signed.rawManifest),
+        Buffer.from(
+          url.endsWith(".sig") ? signed.signature : signed.rawManifest,
+        ),
       createStore: () => store,
     }),
     /UPDATE_ROLLBACK_REJECTED/,
@@ -368,10 +366,7 @@ test("fresh authenticated connection requires time and expected signed runtime i
   );
   assert.equal(freshAuthenticatedConnection(root, 1000), true);
   assert.equal(freshAuthenticatedConnection(root, 1001), false);
-  assert.equal(
-    freshAuthenticatedConnection(root, 1000, signed.manifest),
-    true,
-  );
+  assert.equal(freshAuthenticatedConnection(root, 1000, signed.manifest), true);
   assert.equal(
     freshAuthenticatedConnection(root, 1000, {
       ...signed.manifest,
