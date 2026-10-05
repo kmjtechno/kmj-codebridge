@@ -496,18 +496,18 @@ export async function startGateway(rawConfig) {
         return;
       }
       const data = await body(req);
-      const publicDiscovery =
-        !config.oauth &&
-        [
-          "initialize",
-          "notifications/initialized",
-          "tools/list",
-          "ping",
-        ].includes(data?.method);
+      const publicDiscovery = [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "ping",
+      ].includes(data?.method);
+      const oauthToolChallenge =
+        Boolean(config.oauth) && data?.method === "tools/call";
       const user = verifyOAuth
         ? await verifyOAuth(req.headers.authorization)
         : identify(req, config.users);
-      if (!user && !publicDiscovery) {
+      if (!user && !publicDiscovery && !oauthToolChallenge) {
         if (config.oauth)
           res.setHeader("WWW-Authenticate", oauthChallenge(config.oauth));
         json(res, 401, { error: "UNAUTHORIZED" });
@@ -562,7 +562,13 @@ export async function startGateway(rawConfig) {
             try {
               if (!user) {
                 const authenticate = config.oauth
-                  ? [oauthChallenge(config.oauth, `codebridge:${d.access}`)]
+                  ? [
+                      oauthChallenge(
+                        config.oauth,
+                        `codebridge:${d.access}`,
+                      ) +
+                        ', error="invalid_token", error_description="Sign in to KMJ CodeBridge to continue"',
+                    ]
                   : null;
                 return {
                   isError: true,
