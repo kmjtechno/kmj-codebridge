@@ -36,7 +36,7 @@ test("write and execute dispatches create secret-free audit attempt/result pairs
     audit,
   );
 
-  const secretContent = "hello\ntoken=supersecret\n";
+  const secretContent = "hello-supersecret";
   await dispatch(
     "write_file",
     {
