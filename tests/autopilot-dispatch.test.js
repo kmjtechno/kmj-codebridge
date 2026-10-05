@@ -18,7 +18,7 @@ function setup(t) {
   const config = {
     id: "d1",
     stateDir: state,
-    projects: [{ id: "p1", root, writable: true, gates: {} }],
+    projects: [{ id: "p1", root, writable: true, gates: {}, commands: {} }],
   };
   const licenseProvider = () => ({
     features: ["read", "write", "execute"],
@@ -101,4 +101,67 @@ test("autopilot status is read-only and bounded", async (t) => {
   assert.equal(status.counts.queued, 1);
   assert.equal(status.tasks.length, 1);
   assert.equal(status.next.key, "status");
+});
+
+test("mission tools compile persisted DAG and map evidence", async (t) => {
+  const dispatch = setup(t);
+  const mission = await dispatch(
+    "mission_compile",
+    {
+      ...scope,
+      key: "mission",
+      objective: "Ship a verified change.",
+      acceptanceCriteria: ["Verification passes."],
+      requirements: {
+        security: [],
+        reliability: ["Resume after restart."],
+        performance: [],
+        documentation: [],
+      },
+      tasks: [
+        {
+          key: "verify",
+          objective: "Run verification.",
+          priority: 5,
+          dependsOn: [],
+        },
+      ],
+      ownerGates: ["Production deploy requires approval."],
+      definitionOfDone: "Verification evidence recorded.",
+      aiBudget: "balanced",
+    },
+    permissions,
+  );
+  assert.equal(mission.state, "active");
+  assert.equal(mission.tasks[0].key, "verify");
+
+  const claimed = await dispatch("autopilot_claim", scope, permissions);
+  await dispatch(
+    "autopilot_complete",
+    {
+      ...scope,
+      task: claimed.id,
+      state: "succeeded",
+      result: "verification green",
+    },
+    permissions,
+  );
+  const pending = await dispatch(
+    "mission_status",
+    { ...scope, mission: mission.id },
+    ["read"],
+  );
+  assert.equal(pending.state, "evidence_pending");
+
+  const complete = await dispatch(
+    "mission_evidence",
+    {
+      ...scope,
+      mission: mission.id,
+      criterionIndex: 0,
+      evidence: "Exact-head CI passed.",
+    },
+    permissions,
+  );
+  assert.equal(complete.state, "succeeded");
 });
