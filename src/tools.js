@@ -430,6 +430,25 @@ export const definitions = {
     input: { ...scoped, service: supervisorService },
     access: "execute",
   },
+  list_project_commands: {
+    title: "List project commands",
+    description:
+      "List administrator-approved structured command profiles and named variants without exposing raw executables or arguments.",
+    input: scoped,
+    access: "read",
+  },
+  run_project_command: {
+    title: "Run project command",
+    description:
+      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted.",
+    input: {
+      ...scoped,
+      command: identifier,
+      variant: identifier,
+      requestKey: z.string().min(1).max(128),
+    },
+    access: "execute",
+  },
   run_quality_gate: {
     title: "Run quality gate",
     description:
@@ -497,6 +516,12 @@ export function createDispatcher(
         project: p.id,
         writable: p.writable,
         gates: Object.keys(p.gates),
+        commands: Object.entries(p.commands).map(([id, profile]) => ({
+          id,
+          category: profile.category,
+          description: profile.description,
+          variants: Object.keys(profile.variants),
+        })),
         connection: "connected",
         version: VERSION,
       };
@@ -998,6 +1023,31 @@ export function createDispatcher(
                 : "GIT_STATUS_FAILED",
         );
       }
+    }
+    if (name === "list_project_commands")
+      return {
+        commands: Object.entries(p.commands).map(([id, profile]) => ({
+          id,
+          category: profile.category,
+          description: profile.description,
+          variants: Object.keys(profile.variants),
+        })),
+      };
+    if (name === "run_project_command") {
+      const profile = p.commands[a.command];
+      const variant = profile?.variants?.[a.variant];
+      if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
+      if (profile.category !== "inspect" && !p.writable)
+        fail("READ_ONLY_PROJECT");
+      return runner.run({
+        project: p.id,
+        gate: `command:${a.command}:${a.variant}:${profile.category}`,
+        key: a.requestKey,
+        cwd: p.files.root,
+        command: profile.command,
+        args: variant.args,
+        timeoutMs: variant.timeoutMs,
+      });
     }
     if (name === "run_quality_gate") {
       const gate = p.gates[a.gate];
