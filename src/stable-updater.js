@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { fail } from "./errors.js";
 import { ReleaseStore } from "./release-store.js";
@@ -118,9 +119,7 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     acceptedAt: new Date(now).toISOString(),
   });
   const file = acceptedStateFile(stateDir);
-  const temp = `${file}.tmp-${process.pid}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
+  const temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
   const fd = fs.openSync(temp, "wx", 0o600);
   try {
     fs.writeFileSync(fd, JSON.stringify(state) + "\n");
