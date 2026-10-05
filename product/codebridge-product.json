@@ -1,16 +1,26 @@
 {
-  "schema": 1,
+  "schema": 2,
   "product": {
     "name": "KMJ CodeBridge",
     "slug": "kmj-codebridge",
     "package": "@kmjtechno/codebridge",
     "license": "Apache-2.0",
     "website": "https://kmjtechno.com",
-    "repository": "https://github.com/kmjtechno/kmj-codebridge"
+    "homepage": "https://kmjtechno.com/products/kmj-codebridge",
+    "repository": "https://github.com/kmjtechno/kmj-codebridge",
+    "privacy": "https://kmjtechno.com/products/kmj-codebridge/privacy",
+    "terms": "https://kmjtechno.com/products/kmj-codebridge/terms",
+    "support": "https://kmjtechno.com/products/kmj-codebridge/support",
+    "assets": {
+      "logo": "plugin/assets/logo.png",
+      "icon": "plugin/assets/icon.png"
+    }
   },
   "versions": {
     "stable": "0.2.3",
-    "preview": null
+    "preview": null,
+    "minimumAgent": "0.2.3",
+    "minimumClientPackage": "0.2.3"
   },
   "endpoints": {
     "mcp": "https://kmjtechno.com/mcp",
@@ -27,19 +37,36 @@
     {
       "id": "community",
       "name": "Community",
-      "prices": { "INR": 0, "USD": 0 },
-      "limits": { "devices": 1, "projects": 1, "concurrentJobs": 1 }
+      "prices": {
+        "INR": 0,
+        "USD": 0
+      },
+      "limits": {
+        "devices": 1,
+        "projects": 1,
+        "concurrentJobs": 1
+      }
     },
     {
       "id": "pro",
       "name": "Pro Launch",
-      "prices": { "INR": 149, "USD": 1.99 },
-      "limits": { "devices": 3, "projects": 10, "concurrentJobs": 3 }
+      "prices": {
+        "INR": 149,
+        "USD": 1.99
+      },
+      "limits": {
+        "devices": 3,
+        "projects": 10,
+        "concurrentJobs": 3
+      }
     },
     {
       "id": "team",
       "name": "Team Launch",
-      "prices": { "INR": 399, "USD": 4.99 },
+      "prices": {
+        "INR": 399,
+        "USD": 4.99
+      },
       "limits": {
         "devicesPerUser": 10,
         "projectsPerUser": 50,
@@ -64,5 +91,28 @@
     "codex",
     "generic-streamable-http-mcp"
   ],
-  "updateChannels": ["stable", "preview"]
+  "updateChannels": ["stable", "preview"],
+  "features": {
+    "repoMap": "available",
+    "desktopMarketplace": "preview",
+    "signedStableUpdates": "implemented_needs_live_evidence",
+    "accountWideDeviceDiscovery": "implemented_needs_live_evidence",
+    "publicDirectoryPublication": "external_review_required"
+  },
+  "marketplaces": {
+    "openai": {
+      "packageId": "kmj-codebridge",
+      "status": "prepared"
+    },
+    "claude": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "prepared"
+    },
+    "chatgptDesktop": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "repository_marketplace_available"
+    }
+  }
 }

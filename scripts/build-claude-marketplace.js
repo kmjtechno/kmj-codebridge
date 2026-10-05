@@ -19,7 +19,7 @@ const PLUGIN_DIR = "claude-plugin";
 
 export const hostedServer = {
   type: "http",
-  url: "https://kmjtechno.com/mcp",
+  url: readCanonical().mcpEndpoint,
 };
 
 export const pluginReadme = `# KMJ CodeBridge for Claude

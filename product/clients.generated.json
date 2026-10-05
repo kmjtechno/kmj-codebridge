@@ -1,0 +1,50 @@
+{
+  "schema": 1,
+  "product": "KMJ CodeBridge",
+  "slug": "kmj-codebridge",
+  "stableVersion": "0.2.3",
+  "minimumAgentVersion": "0.2.3",
+  "minimumClientPackageVersion": "0.2.3",
+  "endpoints": {
+    "mcp": "https://kmjtechno.com/mcp",
+    "enrollment": "https://kmjtechno.com",
+    "agentGateway": "https://kmj-codebridge-gateway.onrender.com"
+  },
+  "legal": {
+    "privacy": "https://kmjtechno.com/products/kmj-codebridge/privacy",
+    "terms": "https://kmjtechno.com/products/kmj-codebridge/terms",
+    "support": "https://kmjtechno.com/products/kmj-codebridge/support"
+  },
+  "assets": {
+    "logo": "plugin/assets/logo.png",
+    "icon": "plugin/assets/icon.png"
+  },
+  "supportedClients": [
+    "chatgpt",
+    "claude",
+    "claude-code",
+    "vscode-github-copilot",
+    "cursor",
+    "windsurf",
+    "gemini-cli",
+    "jetbrains",
+    "codex",
+    "generic-streamable-http-mcp"
+  ],
+  "marketplaces": {
+    "openai": {
+      "packageId": "kmj-codebridge",
+      "status": "prepared"
+    },
+    "claude": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "prepared"
+    },
+    "chatgptDesktop": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "repository_marketplace_available"
+    }
+  }
+}

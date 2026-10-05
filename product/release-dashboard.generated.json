@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "product": "kmj-codebridge",
+  "stableVersion": "0.2.3",
+  "previewVersion": null,
+  "updateChannels": [
+    "stable",
+    "preview"
+  ],
+  "features": {
+    "repoMap": "available",
+    "desktopMarketplace": "preview",
+    "signedStableUpdates": "implemented_needs_live_evidence",
+    "accountWideDeviceDiscovery": "implemented_needs_live_evidence",
+    "publicDirectoryPublication": "external_review_required"
+  },
+  "marketplaces": {
+    "openai": {
+      "packageId": "kmj-codebridge",
+      "status": "prepared"
+    },
+    "claude": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "prepared"
+    },
+    "chatgptDesktop": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "repository_marketplace_available"
+    }
+  }
+}
