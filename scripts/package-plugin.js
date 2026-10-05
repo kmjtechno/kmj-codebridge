@@ -19,6 +19,9 @@ try {
   const base = prepareOutput(options.out, "kmj-codebridge");
   const out = path.join(base, "kmj-codebridge");
   fs.cpSync(path.join(root, "plugin"), out, { recursive: true });
+  // The public/submission package uses the hosted remote MCP endpoint.
+  // Desktop-only local bridge code stays in the repository marketplace package.
+  fs.rmSync(path.join(out, "desktop"), { recursive: true, force: true });
   writeJson(path.join(out, "mcp.json"), {
     $schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
     mcpServers: { codebridge: { type: "streamable-http", url: url.href } },
