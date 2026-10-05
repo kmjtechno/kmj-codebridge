@@ -58,10 +58,7 @@ test("double-click Windows launcher verifies pinned setup", () => {
   const expected = script.match(/KMJ_SETUP_SHA256=([0-9a-f]{64})/)?.[1];
 
   assert.equal(ref, "9b27cfa3fb38c7cb08e1fda0da8cec384e625b06");
-  assert.equal(
-    expected,
-    createHash("sha256").update(installer).digest("hex"),
-  );
+  assert.equal(expected, createHash("sha256").update(installer).digest("hex"));
   assert.match(
     script,
     /raw\.githubusercontent\.com\/kmjtechno\/kmj-codebridge\/%KMJ_SETUP_REF%\/scripts\/install-chatgpt-desktop\.ps1/,
