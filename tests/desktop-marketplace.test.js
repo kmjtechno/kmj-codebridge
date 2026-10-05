@@ -53,12 +53,18 @@ test("Windows Desktop installer only configures the public KMJ marketplace", () 
   assert.match(script, /codex plugin marketplace add \$repo --ref main/);
   assert.match(script, /kmjtechno\/kmj-codebridge/);
   assert.match(script, /codex plugin marketplace upgrade \$marketplace/);
-  assert.match(script, /Codex CLI was not found; using the ChatGPT Desktop personal-marketplace fallback/);
+  assert.match(
+    script,
+    /Codex CLI was not found; using the ChatGPT Desktop personal-marketplace fallback/,
+  );
   assert.match(script, /\.codex\\plugins\\kmj-codebridge/);
   assert.match(script, /\.agents\\plugins\\marketplace\.json/);
   assert.match(script, /\.\/\.codex\/plugins\/kmj-codebridge/);
   assert.match(script, /INSTALLED_BY_DEFAULT/);
-  assert.match(script, /Invoke-WebRequest[^\n]+kmjtechno\/kmj-codebridge\/archive\/refs\/heads\/main\.zip/);
+  assert.match(
+    script,
+    /Invoke-WebRequest[^\n]+kmjtechno\/kmj-codebridge\/archive\/refs\/heads\/main\.zip/,
+  );
   assert.doesNotMatch(script, /Bearer\s+[A-Za-z0-9._-]{16,}/);
   assert.doesNotMatch(script, /client_secret/i);
 });
