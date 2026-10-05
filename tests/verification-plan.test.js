@@ -4,10 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
-import {
-  createDispatcher,
-  selectVerificationPlan,
-} from "../src/tools.js";
+import { createDispatcher, selectVerificationPlan } from "../src/tools.js";
 
 test("smart verification selects targeted gates for source changes", () => {
   const plan = selectVerificationPlan({
@@ -17,12 +14,7 @@ test("smart verification selects targeted gates for source changes", () => {
   });
 
   assert.equal(plan.mode, "targeted");
-  assert.deepEqual(plan.recommendedGates, [
-    "lint",
-    "typecheck",
-    "unit",
-    "e2e",
-  ]);
+  assert.deepEqual(plan.recommendedGates, ["lint", "typecheck", "unit", "e2e"]);
   assert.deepEqual(plan.fullGates, [
     "build",
     "e2e",
@@ -80,7 +72,10 @@ test("verification plan reads bounded Git change classes without exposing paths"
   const root = path.join(base, "project");
   fs.mkdirSync(root);
   fs.mkdirSync(path.join(root, "src"));
-  fs.writeFileSync(path.join(root, "src", "app.js"), "export const value = 1;\n");
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export const value = 1;\n",
+  );
   fs.writeFileSync(
     path.join(root, "package.json"),
     JSON.stringify({ dependencies: { react: "19.0.0" } }),
@@ -100,7 +95,10 @@ test("verification plan reads bounded Git change classes without exposing paths"
     ],
     { cwd: root, stdio: "pipe" },
   );
-  fs.writeFileSync(path.join(root, "src", "app.js"), "export const value = 2;\n");
+  fs.writeFileSync(
+    path.join(root, "src", "app.js"),
+    "export const value = 2;\n",
+  );
 
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
 
