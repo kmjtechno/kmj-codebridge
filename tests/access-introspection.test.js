@@ -71,7 +71,7 @@ async function gatewayGrants(
         active: true,
         user_id: "user-7",
         memberships: [
-          { tenant_id: "tenant-a", permissions: ["read"], devices },
+          { tenant_id: "tenant-a", permissions: scopes, devices },
         ],
       });
     }
