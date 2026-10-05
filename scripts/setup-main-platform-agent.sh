@@ -26,7 +26,7 @@ is_main_platform_repo() {
   local root="$1" origin
   [[ -n "$root" && -d "$root/.git" && -f "$root/apps/platform/composer.json" ]] || return 1
   grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$root/apps/platform/composer.json" || return 1
-  origin="$(git -C "$root" remote get-url origin 2>/dev/null || true)"
+  origin="$(git -c safe.directory="$root" -C "$root" remote get-url origin 2>/dev/null || true)"
   [[ "$origin" == "git@github.com:kmjtechno/kmj-main-platform.git" || "$origin" == "https://github.com/kmjtechno/kmj-main-platform.git" || "$origin" == "ssh://git@github.com/kmjtechno/kmj-main-platform.git" ]]
 }
 
