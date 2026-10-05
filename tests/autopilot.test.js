@@ -1,3 +1,150 @@
+test("mission contract persists a dependency-aware DAG and resumes after restart", (t) => {
+  const { root, journal } = fixture(t);
+  const mission = journal.compileMission({
+    project: "p1",
+    key: "auth-hardening",
+    objective: "Make authentication production-ready.",
+    acceptanceCriteria: [
+      "Authentication tests pass.",
+      "Security review evidence is recorded.",
+    ],
+    requirements: {
+      security: ["No plaintext credentials."],
+      reliability: ["Restart-safe state."],
+      performance: [],
+      documentation: ["Document behavior changes."],
+    },
+    tasks: [
+      {
+        key: "inspect",
+        objective: "Inspect current authentication architecture.",
+        priority: 20,
+        dependsOn: [],
+      },
+      {
+        key: "tests",
+        objective: "Add targeted authentication tests.",
+        priority: 10,
+        dependsOn: ["inspect"],
+      },
+      {
+        key: "docs",
+        objective: "Update authentication documentation.",
+        priority: 5,
+        dependsOn: ["inspect"],
+      },
+    ],
+    ownerGates: ["Production deployment requires approval."],
+    definitionOfDone:
+      "All acceptance criteria map to evidence and every mission task succeeds.",
+    aiBudget: "balanced",
+  });
+
+  assert.equal(mission.state, "active");
+  assert.equal(mission.tasks.length, 3);
+  assert.equal(mission.tasks[0].key, "inspect");
+  const first = journal.claim("p1");
+  assert.equal(first.objective, "Inspect current authentication architecture.");
+  journal.complete(first.id, "p1", { state: "succeeded", result: "inspected" });
+
+  const reloaded = new AutopilotJournal(root);
+  const resumed = reloaded.missionStatus(mission.id, "p1");
+  assert.equal(resumed.tasks.find((task) => task.key === "inspect").state, "succeeded");
+  assert.equal(
+    resumed.tasks.filter((task) => ["tests", "docs"].includes(task.key)).every(
+      (task) => task.state === "queued",
+    ),
+    true,
+  );
+  assert.equal(reloaded.status("p1").counts.queued, 2);
+});
+
+test("mission compilation is idempotent, redacted and rejects dependency cycles", (t) => {
+  const { journal } = fixture(t);
+  const input = {
+    project: "p1",
+    key: "secure-mission",
+    objective: "token=REAL_SECRET harden auth",
+    acceptanceCriteria: ["No leaked credentials."],
+    requirements: {
+      security: ["password=REAL_SECRET never persists"],
+      reliability: [],
+      performance: [],
+      documentation: [],
+    },
+    tasks: [
+      {
+        key: "one",
+        objective: "first task",
+        priority: 0,
+        dependsOn: [],
+      },
+    ],
+    ownerGates: [],
+    definitionOfDone: "Evidence complete.",
+    aiBudget: "economical",
+  };
+  const first = journal.compileMission(input);
+  const second = journal.compileMission(input);
+  assert.equal(second.id, first.id);
+  assert.ok(!JSON.stringify(first).includes("REAL_SECRET"));
+
+  assert.throws(
+    () =>
+      journal.compileMission({
+        ...input,
+        key: "cycle",
+        objective: "cycle",
+        tasks: [
+          { key: "a", objective: "a", priority: 0, dependsOn: ["b"] },
+          { key: "b", objective: "b", priority: 0, dependsOn: ["a"] },
+        ],
+      }),
+    /MISSION_DEPENDENCY_CYCLE/,
+  );
+});
+
+test("mission succeeds only after task success and acceptance evidence", (t) => {
+  const { journal } = fixture(t);
+  const mission = journal.compileMission({
+    project: "p1",
+    key: "evidence",
+    objective: "finish with evidence",
+    acceptanceCriteria: ["Gate is green."],
+    requirements: {
+      security: [],
+      reliability: [],
+      performance: [],
+      documentation: [],
+    },
+    tasks: [
+      {
+        key: "gate",
+        objective: "run gate",
+        priority: 0,
+        dependsOn: [],
+      },
+    ],
+    ownerGates: [],
+    definitionOfDone: "Green gate has evidence.",
+    aiBudget: "maximum_assurance",
+  });
+  const task = journal.claim("p1");
+  journal.complete(task.id, "p1", { state: "succeeded", result: "green" });
+  assert.equal(
+    journal.missionStatus(mission.id, "p1").state,
+    "evidence_pending",
+  );
+  const complete = journal.missionEvidence(
+    mission.id,
+    "p1",
+    0,
+    "CI run 123 succeeded.",
+  );
+  assert.equal(complete.state, "succeeded");
+  assert.equal(complete.evidenceComplete, true);
+});
+
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
