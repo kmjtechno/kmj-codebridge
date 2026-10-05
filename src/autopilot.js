@@ -317,8 +317,7 @@ export class AutopilotJournal {
     definitionOfDone,
     aiBudget = "balanced",
   }) {
-    if (!PROJECT.test(project) || !KEY.test(key))
-      fail("INVALID_MISSION");
+    if (!PROJECT.test(project) || !KEY.test(key)) fail("INVALID_MISSION");
     if (
       !AI_BUDGETS.has(aiBudget) ||
       !Array.isArray(acceptanceCriteria) ||
@@ -355,7 +354,9 @@ export class AutopilotJournal {
         !MISSION_TASK_KEY.test(task.key ?? "") ||
         !Array.isArray(task.dependsOn) ||
         task.dependsOn.length > 20 ||
-        task.dependsOn.some((dependency) => !MISSION_TASK_KEY.test(dependency)) ||
+        task.dependsOn.some(
+          (dependency) => !MISSION_TASK_KEY.test(dependency),
+        ) ||
         !Number.isInteger(task.priority ?? 0) ||
         (task.priority ?? 0) < -100 ||
         (task.priority ?? 0) > 100
@@ -439,10 +440,7 @@ export class AutopilotJournal {
       topological ??
       (() => {
         const remaining = new Map(
-          mission.taskSpecs.map((task) => [
-            task.key,
-            new Set(task.dependsOn),
-          ]),
+          mission.taskSpecs.map((task) => [task.key, new Set(task.dependsOn)]),
         );
         const result = [];
         while (remaining.size) {
