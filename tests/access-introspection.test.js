@@ -70,9 +70,7 @@ async function gatewayGrants(
       return Response.json({
         active: true,
         user_id: "user-7",
-        memberships: [
-          { tenant_id: "tenant-a", permissions: scopes, devices },
-        ],
+        memberships: [{ tenant_id: "tenant-a", permissions: scopes, devices }],
       });
     }
     if (String(url) === "https://platform.example/agent") {
