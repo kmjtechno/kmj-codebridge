@@ -99,10 +99,13 @@ export async function startGateway(rawConfig) {
   const allowedProjects = (user, agent) => {
     const membership = membershipFor(user, agent.tenant);
     if (!membership) return undefined;
-    if (user.dynamic && membership.devices !== undefined)
-      return Object.hasOwn(membership.devices, agent.id)
-        ? membership.devices[agent.id]
-        : undefined;
+    if (user.dynamic && membership.devices !== undefined) {
+      if (!Object.hasOwn(membership.devices, agent.id)) return undefined;
+      const granted = membership.devices[agent.id];
+      return agent.dynamic
+        ? granted.filter((project) => agent.projects?.includes(project))
+        : granted;
+    }
     return (
       membership.devices?.[agent.id] ??
       (agent.dynamic ? agent.projects : undefined)
