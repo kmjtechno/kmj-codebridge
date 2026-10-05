@@ -71,7 +71,15 @@ test("project environment detects bounded stacks without executing project code"
     project: "p1",
     stacks: ["docker", "dotnet", "go", "java", "node", "php", "python", "rust"],
     frameworks: ["laravel", "react", "tauri", "vite"],
-    packageManagers: ["cargo", "composer", "docker", "go", "gradle", "pip", "pnpm"],
+    packageManagers: [
+      "cargo",
+      "composer",
+      "docker",
+      "go",
+      "gradle",
+      "pip",
+      "pnpm",
+    ],
     manifests: [
       "Cargo.toml",
       "Dockerfile",
