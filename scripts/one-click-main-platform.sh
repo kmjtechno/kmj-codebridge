@@ -39,7 +39,7 @@ install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" "$STATE" "$KEY_DIR"
 repo_ok() {
   [[ -d "$TARGET/.git" && -f "$TARGET/apps/platform/composer.json" ]] || return 1
   grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$TARGET/apps/platform/composer.json" || return 1
-  origin="$(git -C "$TARGET" remote get-url origin 2>/dev/null || true)"
+  origin="$(git -c safe.directory="$TARGET" -C "$TARGET" remote get-url origin 2>/dev/null || true)"
   [[ "$origin" == "git@github.com:kmjtechno/kmj-main-platform.git" || "$origin" == "https://github.com/kmjtechno/kmj-main-platform.git" || "$origin" == "ssh://git@github.com/kmjtechno/kmj-main-platform.git" ]]
 }
 
@@ -47,7 +47,7 @@ if ! repo_ok; then
   if [[ -d "$TARGET/.git" && -f "$TARGET/apps/platform/composer.json" ]] && \
      grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$TARGET/apps/platform/composer.json"; then
     echo 'Repairing existing Main Platform checkout metadata.'
-    git -C "$TARGET" remote set-url origin "git@github.com:$REPO.git"
+    git -c safe.directory="$TARGET" -C "$TARGET" remote set-url origin "git@github.com:$REPO.git"
   fi
 fi
 
@@ -123,7 +123,7 @@ echo 'Main Platform Git checkout ready.'
 echo "project_root=$TARGET"
 echo
 
-curl -fsSL https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/3db981b9d1ffe71e9a618f82ef56b2964473c605/scripts/setup-main-platform-agent.sh \
+curl -fsSL https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/6c1fd924b4af563fe231f9cd71785fc28b2d6a0a/scripts/setup-main-platform-agent.sh \
 | env -u CODEBRIDGE_SOURCE_ROOT \
     CODEBRIDGE_SOURCE_ROOT="$TARGET" \
     CODEBRIDGE_SERVICE_USER="$SERVICE_USER" \
