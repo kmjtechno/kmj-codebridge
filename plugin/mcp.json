@@ -4,9 +4,7 @@
     "codebridge": {
       "type": "stdio",
       "command": "node",
-      "args": [
-        "${PLUGIN_ROOT}/desktop/bridge.mjs"
-      ],
+      "args": ["${PLUGIN_ROOT}/desktop/bridge.mjs"],
       "cwd": "${PLUGIN_ROOT}"
     }
   }
