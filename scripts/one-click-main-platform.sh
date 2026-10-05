@@ -40,7 +40,7 @@ repo_ok() {
   [[ -d "$TARGET/.git" && -f "$TARGET/apps/platform/composer.json" ]] || return 1
   grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$TARGET/apps/platform/composer.json" || return 1
   origin="$(git -C "$TARGET" remote get-url origin 2>/dev/null || true)"
-  [[ "$origin" == *"github.com/kmjtechno/kmj-main-platform.git" || "$origin" == *"github.com/kmjtechno/kmj-main-platform" ]]
+  [[ "$origin" == "git@github.com:kmjtechno/kmj-main-platform.git" || "$origin" == "https://github.com/kmjtechno/kmj-main-platform.git" || "$origin" == "ssh://git@github.com/kmjtechno/kmj-main-platform.git" ]]
 }
 
 if ! repo_ok; then
