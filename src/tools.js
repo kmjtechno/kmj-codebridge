@@ -659,11 +659,7 @@ export function createDispatcher(
         }
       }
 
-      const map = p.files.repoMap(
-        a.query,
-        budget.mapFiles,
-        budget.symbols,
-      );
+      const map = p.files.repoMap(a.query, budget.mapFiles, budget.symbols);
       const mapByPath = new Map(map.files.map((file) => [file.path, file]));
       const candidates = [];
       const seen = new Set();
