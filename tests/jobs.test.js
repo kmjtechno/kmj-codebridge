@@ -147,7 +147,6 @@ test(
   },
 );
 
-
 test("capacity blocks execution under critical memory or disk pressure", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-jobs-pressure-"));
   const runner = new JobRunner(root, {
