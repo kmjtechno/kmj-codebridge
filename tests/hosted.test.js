@@ -168,7 +168,11 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
 
     const deniedDiscovery = await httpRequest(url + "/mcp", {
       method: "POST",
-      headers: { host: "bridge.example", "content-type": "application/json" },
+      headers: {
+        host: "bridge.example",
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 1,
@@ -180,15 +184,15 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
         },
       }),
     });
-    assert.equal(deniedDiscovery.status, 401);
-    assert.match(
-      deniedDiscovery.headers.get("www-authenticate"),
-      /resource_metadata/,
-    );
+    assert.equal(deniedDiscovery.status, 200);
 
     const denied = await httpRequest(url + "/mcp", {
       method: "POST",
-      headers: { host: "bridge.example", "content-type": "application/json" },
+      headers: {
+        host: "bridge.example",
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
       body: JSON.stringify({
         jsonrpc: "2.0",
         id: 2,
@@ -196,8 +200,13 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
         params: { name: "list_devices", arguments: {} },
       }),
     });
-    assert.equal(denied.status, 401);
-    assert.match(denied.headers.get("www-authenticate"), /resource_metadata/);
+    assert.equal(denied.status, 200);
+    const deniedResult = JSON.parse(denied.body);
+    assert.equal(deniedResult.result.isError, true);
+    assert.match(
+      deniedResult.result._meta["mcp/www_authenticate"][0],
+      /resource_metadata/,
+    );
     const badHost = await fetch(url + "/healthz");
     assert.equal(badHost.status, 403);
   } finally {

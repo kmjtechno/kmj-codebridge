@@ -27,7 +27,8 @@ export function insufficientScopeMeta(oauth, user, access) {
   return {
     _meta: {
       "mcp/www_authenticate": [
-        oauthChallenge(oauth, scope) + ', error="insufficient_scope"',
+        oauthChallenge(oauth, scope) +
+          ', error="insufficient_scope", error_description="Authorize the requested CodeBridge scope to continue"',
       ],
     },
   };

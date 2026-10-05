@@ -9,6 +9,9 @@ import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
+import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
+import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { gatewaySchema } from "./config.js";
 import { definitions } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
@@ -496,18 +499,18 @@ export async function startGateway(rawConfig) {
         return;
       }
       const data = await body(req);
-      const publicDiscovery =
-        !config.oauth &&
-        [
-          "initialize",
-          "notifications/initialized",
-          "tools/list",
-          "ping",
-        ].includes(data?.method);
+      const publicDiscovery = [
+        "initialize",
+        "notifications/initialized",
+        "tools/list",
+        "ping",
+      ].includes(data?.method);
+      const oauthToolChallenge =
+        Boolean(config.oauth) && data?.method === "tools/call";
       const user = verifyOAuth
         ? await verifyOAuth(req.headers.authorization)
         : identify(req, config.users);
-      if (!user && !publicDiscovery) {
+      if (!user && !publicDiscovery && !oauthToolChallenge) {
         if (config.oauth)
           res.setHeader("WWW-Authenticate", oauthChallenge(config.oauth));
         json(res, 401, { error: "UNAUTHORIZED" });
@@ -562,7 +565,10 @@ export async function startGateway(rawConfig) {
             try {
               if (!user) {
                 const authenticate = config.oauth
-                  ? [oauthChallenge(config.oauth, `codebridge:${d.access}`)]
+                  ? [
+                      oauthChallenge(config.oauth, `codebridge:${d.access}`) +
+                        ', error="invalid_token", error_description="Sign in to KMJ CodeBridge to continue"',
+                    ]
                   : null;
                 return {
                   isError: true,
@@ -729,6 +735,34 @@ export async function startGateway(rawConfig) {
             }
           },
         );
+      if (config.oauth)
+        mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
+          tools: Object.entries(allDefinitions).map(([name, d]) => {
+            const input = normalizeObjectSchema(d.input);
+            const security = toolSecurityMeta(config.oauth, d.access);
+            return {
+              name,
+              title: d.title,
+              description: d.description,
+              inputSchema: input
+                ? toJsonSchemaCompat(input, {
+                    strictUnions: true,
+                    pipeStrategy: "input",
+                  })
+                : { type: "object", properties: {} },
+              annotations: {
+                title: d.title,
+                readOnlyHint: d.access === "read",
+                destructiveHint: d.access !== "read",
+                idempotentHint: d.access === "read",
+                openWorldHint:
+                  name === "run_quality_gate" || name.startsWith("github_"),
+              },
+              ...security,
+            };
+          }),
+        }));
+
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
         enableJsonResponse: true,
