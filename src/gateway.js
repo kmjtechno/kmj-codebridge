@@ -110,6 +110,12 @@ export async function startGateway(rawConfig) {
   };
   const allowedPermissions = (user, agent) =>
     membershipFor(user, agent.tenant)?.permissions ?? [];
+  const agentProjectPermissions = (agent, project) => {
+    const grant = agent.projectGrants?.find((item) => item.id === project);
+    return grant?.status === "paused"
+      ? []
+      : grant?.permissions ?? agent.permissions ?? [];
+  };
 
   async function identifyAgent(req) {
     const configured = identify(req, config.agents);
@@ -166,10 +172,42 @@ export async function startGateway(rawConfig) {
       !Array.isArray(data.projects) ||
       data.projects.length < 1 ||
       data.projects.length > 100 ||
-      data.projects.some(
-        (project) =>
-          typeof project !== "string" || !/^[A-Za-z0-9_-]{1,64}$/.test(project),
-      ) ||
+      data.projects.some((project) => {
+        if (typeof project === "string")
+          return !/^[A-Za-z0-9_-]{1,64}$/.test(project);
+        if (!project || typeof project !== "object" || Array.isArray(project))
+          return true;
+        const keys = Object.keys(project);
+        if (
+          keys.some(
+            (key) =>
+              !["id", "permissions", "gate_preset", "status"].includes(key),
+          ) ||
+          typeof project.id !== "string" ||
+          !/^[A-Za-z0-9_-]{1,64}$/.test(project.id)
+        )
+          return true;
+        if (
+          project.permissions !== undefined &&
+          (!Array.isArray(project.permissions) ||
+            project.permissions.length < 1 ||
+            project.permissions.some(
+              (permission) =>
+                !["read", "write", "execute"].includes(permission),
+            ))
+        )
+          return true;
+        if (
+          project.gate_preset !== undefined &&
+          (typeof project.gate_preset !== "string" ||
+            !/^[A-Za-z0-9_-]{1,64}$/.test(project.gate_preset))
+        )
+          return true;
+        return (
+          project.status !== undefined &&
+          !["active", "paused"].includes(project.status)
+        );
+      }) ||
       !Array.isArray(data.permissions) ||
       data.permissions.length < 1 ||
       data.permissions.some(
@@ -187,11 +225,36 @@ export async function startGateway(rawConfig) {
     )
       return null;
 
+    const normalizedProjectGrants = data.projects.map((project) =>
+      typeof project === "string"
+        ? {
+            id: project,
+            permissions: [...new Set(data.permissions)],
+            gatePreset: null,
+            status: "active",
+          }
+        : {
+            id: project.id,
+            permissions: [
+              ...new Set(project.permissions ?? data.permissions),
+            ],
+            gatePreset: project.gate_preset ?? null,
+            status: project.status ?? "active",
+          },
+    );
+    if (
+      new Set(normalizedProjectGrants.map((project) => project.id)).size !==
+      normalizedProjectGrants.length
+    )
+      return null;
     const agent = {
       id: data.device_id,
       tenant: data.tenant_id,
       tokenHash,
-      projects: [...new Set(data.projects)],
+      projects: normalizedProjectGrants
+        .filter((project) => project.status === "active")
+        .map((project) => project.id),
+      projectGrants: normalizedProjectGrants,
       permissions: [...new Set(data.permissions)],
       dynamic: true,
     };
@@ -209,7 +272,8 @@ export async function startGateway(rawConfig) {
       !membershipFor(user, a.tenant) ||
       !projects?.includes(args.project) ||
       !permissions.includes(access) ||
-      (a.permissions && !a.permissions.includes(access))
+      (a.permissions && !a.permissions.includes(access)) ||
+      !agentProjectPermissions(a, args.project).includes(access)
     )
       fail("ACCESS_DENIED");
     return a;
@@ -246,7 +310,9 @@ export async function startGateway(rawConfig) {
         tool: name,
         args,
         permissions: allowedPermissions(user, a).filter(
-          (permission) => !a.permissions || a.permissions.includes(permission),
+          (permission) =>
+            (!a.permissions || a.permissions.includes(permission)) &&
+            agentProjectPermissions(a, args.project).includes(permission),
         ),
         delivered: false,
         resolve: (value) => {
