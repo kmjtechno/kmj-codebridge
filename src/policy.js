@@ -326,6 +326,198 @@ export class ProjectFiles {
       }
     }
   }
+  repoMap(query = "", maxFiles = 80, maxSymbolsPerFile = 12) {
+    if (
+      typeof query !== "string" ||
+      query.length > 120 ||
+      !Number.isInteger(maxFiles) ||
+      maxFiles < 1 ||
+      maxFiles > 200 ||
+      !Number.isInteger(maxSymbolsPerFile) ||
+      maxSymbolsPerFile < 1 ||
+      maxSymbolsPerFile > 50
+    )
+      fail("INVALID_REPO_MAP");
+
+    const languages = new Map([
+      [".js", "javascript"],
+      [".jsx", "javascript"],
+      [".mjs", "javascript"],
+      [".cjs", "javascript"],
+      [".ts", "typescript"],
+      [".tsx", "typescript"],
+      [".py", "python"],
+      [".php", "php"],
+      [".go", "go"],
+      [".rs", "rust"],
+      [".java", "java"],
+      [".kt", "kotlin"],
+      [".kts", "kotlin"],
+      [".cs", "csharp"],
+      [".c", "c"],
+      [".h", "c"],
+      [".cc", "cpp"],
+      [".cpp", "cpp"],
+      [".cxx", "cpp"],
+      [".hpp", "cpp"],
+      [".hh", "cpp"],
+      [".rb", "ruby"],
+      [".swift", "swift"],
+    ]);
+    const manifests = new Set([
+      "package.json",
+      "composer.json",
+      "pyproject.toml",
+      "Cargo.toml",
+      "go.mod",
+      "pom.xml",
+      "build.gradle",
+      "build.gradle.kts",
+      "Dockerfile",
+      "Makefile",
+      "README.md",
+      "tsconfig.json",
+    ]);
+    const symbolPatterns = [
+      [
+        "function",
+        /(?:^|\s)(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/,
+      ],
+      [
+        "function",
+        /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/,
+      ],
+      [
+        "class",
+        /(?:^|\s)(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)/,
+      ],
+      [
+        "type",
+        /(?:^|\s)(?:export\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/,
+      ],
+      ["function", /^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(/],
+      ["class", /^\s*class\s+([A-Za-z_]\w*)\b/],
+      ["function", /\bfunction\s+([A-Za-z_]\w*)\s*\(/],
+      ["function", /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*\(/],
+      ["type", /^\s*type\s+([A-Za-z_]\w*)\s+(?:struct|interface)\b/],
+      [
+        "function",
+        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*\(/,
+      ],
+      [
+        "type",
+        /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_]\w*)\b/,
+      ],
+    ];
+
+    const q = query.trim().toLowerCase();
+    const candidates = [];
+    let visited = 0;
+    let scannedBytes = 0;
+    let truncated = false;
+
+    const walk = (dir, depth) => {
+      if (depth > 12 || truncated) {
+        truncated = true;
+        return;
+      }
+      let entries;
+      try {
+        entries = fs.readdirSync(path.join(this.root, dir), {
+          withFileTypes: true,
+        });
+      } catch {
+        return;
+      }
+      for (const item of entries) {
+        if (++visited > 4000 || scannedBytes >= 16 * 1024 * 1024) {
+          truncated = true;
+          return;
+        }
+        if (
+          denied.test(item.name) ||
+          skipped.has(item.name) ||
+          item.isSymbolicLink() ||
+          item.name.startsWith(".codebridge-")
+        )
+          continue;
+        const rel = dir ? `${dir}/${item.name}` : item.name;
+        if (item.isDirectory()) {
+          walk(rel, depth + 1);
+          if (truncated) return;
+          continue;
+        }
+        if (!item.isFile()) continue;
+
+        const ext = path.extname(item.name).toLowerCase();
+        const language = languages.get(ext) ?? null;
+        const manifest = manifests.has(item.name);
+        if (!language && !manifest) continue;
+
+        let file;
+        try {
+          file = this.read(rel);
+        } catch {
+          continue;
+        }
+        scannedBytes += file.bytes;
+
+        const symbols = [];
+        const seen = new Set();
+        for (const [index, line] of file.content.split("\n").entries()) {
+          for (const [kind, pattern] of symbolPatterns) {
+            const match = line.match(pattern);
+            const name = match?.[1];
+            if (!name || seen.has(name)) continue;
+            seen.add(name);
+            symbols.push({ kind, name, line: index + 1 });
+            if (symbols.length >= maxSymbolsPerFile) break;
+          }
+          if (symbols.length >= maxSymbolsPerFile) break;
+        }
+
+        let score = manifest ? 40 : 10;
+        const lowerPath = rel.toLowerCase();
+        if (q) {
+          if (lowerPath.includes(q)) score += 120;
+          if (symbols.some((symbol) => symbol.name.toLowerCase().includes(q)))
+            score += 90;
+          if (file.content.toLowerCase().includes(q)) score += 25;
+        }
+        if (/^(src|app|lib|packages|apps)\//.test(rel)) score += 10;
+        candidates.push({
+          path: rel,
+          bytes: file.bytes,
+          language: language ?? "manifest",
+          manifest,
+          symbols,
+          score,
+        });
+        if (candidates.length >= 1000) {
+          truncated = true;
+          return;
+        }
+      }
+    };
+    walk("", 0);
+
+    candidates.sort(
+      (a, b) => b.score - a.score || a.path.localeCompare(b.path),
+    );
+    const selected = candidates
+      .slice(0, maxFiles)
+      .map(({ score, ...file }) => file);
+    return {
+      query,
+      files: selected,
+      count: selected.length,
+      candidateFiles: candidates.length,
+      visitedEntries: visited,
+      scannedBytes,
+      truncated: truncated || candidates.length > selected.length,
+    };
+  }
+
   search(query) {
     if (typeof query !== "string" || !query || query.length > 200)
       fail("INVALID_QUERY");
