@@ -13,6 +13,8 @@ const CONFIGS = {
   agent: "/etc/kmj-codebridge/agent.json",
   gateway: "/etc/kmj-codebridge/gateway.json",
 };
+const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
+const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const SYSTEMCTL = "/usr/bin/systemctl";
 const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
@@ -31,18 +33,56 @@ function serviceUnit(service) {
   return unit;
 }
 
-function parseStatus(text) {
+function parseProperties(text) {
   const fields = {};
   for (const line of String(text).trim().split("\n")) {
     const index = line.indexOf("=");
     if (index > 0) fields[line.slice(0, index)] = line.slice(index + 1);
   }
+  return fields;
+}
+
+function parseStatus(text) {
+  const fields = parseProperties(text);
   return {
     activeState: fields.ActiveState ?? "unknown",
     subState: fields.SubState ?? "unknown",
     mainPid: Number(fields.MainPID ?? 0),
     restarts: Number(fields.NRestarts ?? 0),
   };
+}
+
+function fixedUnitStatus(run, unit, properties) {
+  try {
+    const fields = parseProperties(
+      run(SYSTEMCTL, [
+        "show",
+        unit,
+        "--property=LoadState",
+        ...properties.map((name) => `--property=${name}`),
+        "--no-pager",
+      ]),
+    );
+    return {
+      installed: fields.LoadState !== "not-found",
+      ...Object.fromEntries(
+        properties.map((name) => [
+          name[0].toLowerCase() + name.slice(1),
+          fields[name] ?? "unknown",
+        ]),
+      ),
+    };
+  } catch {
+    return {
+      installed: false,
+      ...Object.fromEntries(
+        properties.map((name) => [
+          name[0].toLowerCase() + name.slice(1),
+          "unknown",
+        ]),
+      ),
+    };
+  }
 }
 
 function defaultRun(command, args, options = {}) {
@@ -57,6 +97,19 @@ function defaultRun(command, args, options = {}) {
     },
     ...options,
   });
+}
+
+function defaultStart(unit) {
+  const child = spawn(SYSTEMCTL, ["start", unit], {
+    detached: true,
+    stdio: "ignore",
+    windowsHide: true,
+    env: {
+      PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+      LANG: "C.UTF-8",
+    },
+  });
+  child.unref();
 }
 
 function defaultRestart(unit) {
@@ -74,6 +127,7 @@ function defaultRestart(unit) {
 
 export function createSupervisorHandler({
   run = defaultRun,
+  start = defaultStart,
   restart = defaultRestart,
   readFile = (file) => fs.readFileSync(file, "utf8"),
   statfs = (target) => fs.statfsSync(target),
@@ -156,6 +210,38 @@ export function createSupervisorHandler({
           totalBytes: Number(stats.blocks) * blockSize,
           freeBytes: Number(stats.bavail) * blockSize,
         },
+      };
+    }
+
+    if (request.op === "update_status") {
+      exactKeys(request, ["op"]);
+      const timer = fixedUnitStatus(run, UPDATE_TIMER, [
+        "ActiveState",
+        "SubState",
+        "UnitFileState",
+      ]);
+      const service = fixedUnitStatus(run, UPDATE_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "Result",
+        "ExecMainStatus",
+      ]);
+      return {
+        response: {
+          available: timer.installed && service.installed,
+          timer,
+          service,
+        },
+      };
+    }
+
+    if (request.op === "update_now") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, UPDATE_SERVICE, ["ActiveState"]);
+      if (!service.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
+      return {
+        response: { accepted: true },
+        afterSend: () => start(UPDATE_SERVICE),
       };
     }
 
