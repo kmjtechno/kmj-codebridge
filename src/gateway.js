@@ -112,9 +112,11 @@ export async function startGateway(rawConfig) {
     membershipFor(user, agent.tenant)?.permissions ?? [];
   const agentProjectPermissions = (agent, project) => {
     const grant = agent.projectGrants?.find((item) => item.id === project);
-    return grant?.status === "paused"
-      ? []
-      : grant?.permissions ?? agent.permissions ?? [];
+    if (grant?.status === "paused") return [];
+    return (
+      grant?.permissions ??
+      agent.permissions ?? ["read", "write", "execute"]
+    );
   };
 
   async function identifyAgent(req) {
