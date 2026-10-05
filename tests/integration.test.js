@@ -345,6 +345,15 @@ test("account diagnostics expose safe membership and same-tenant agent visibilit
   assert.equal(result.visibleAgents[0].tenant, "t1");
   assert.deepEqual(result.visibleAgents[0].projects, []);
   assert.equal(result.visibleAgents[0].online, true);
+  assert.equal(result.visibleAgents[0].connectionState, "online");
+  assert.ok(Number.isFinite(Date.parse(result.visibleAgents[0].lastSeenAt)));
+  assert.ok(result.visibleAgents[0].lastSeenAgeMs >= 0);
+  assert.ok(result.visibleAgents[0].lastSeenAgeMs < 30000);
+  assert.equal(result.visibleAgents[0].gatewaySessionCount, 1);
+  assert.ok(
+    Number.isFinite(Date.parse(result.visibleAgents[0].sessionStartedAt)),
+  );
+  assert.ok(Number.isFinite(Date.parse(result.visibleAgents[0].lastHealthAt)));
   assert.equal(result.visibleAgents[0].dynamic, false);
 });
 
@@ -359,6 +368,10 @@ test("device listing includes safe account context for visibility diagnostics", 
     explicitDeviceGrants: { d1: ["p1"] },
   });
   assert.ok(result.devices.some((device) => device.id === "d1"));
+  assert.deepEqual(
+    result.devices.find((device) => device.id === "d1"),
+    { id: "d1", projects: ["p1"], online: true },
+  );
 });
 
 test("agent persists authenticated gateway connectivity heartbeat", async (t) => {
