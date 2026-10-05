@@ -63,6 +63,18 @@ test("supervisor status and logs use read permission", async (t) => {
   ]);
 });
 
+test("managed project status uses the already-authorized project scope", async (t) => {
+  const { dispatch, calls } = setup(t);
+  await dispatch("supervisor_project_status", scope, ["read"]);
+  assert.deepEqual(calls, [{ op: "project_status", projectId: "p1" }]);
+  const unauthorizedScope = { device: "d1", project: "p2" };
+  await assert.rejects(
+    dispatch("supervisor_project_status", unauthorizedScope, ["read"]),
+    /PROJECT_NOT_FOUND/,
+  );
+  assert.deepEqual(calls, [{ op: "project_status", projectId: "p1" }]);
+});
+
 test("supervisor restart requires execute permission", async (t) => {
   const { dispatch, calls } = setup(t);
   await assert.rejects(
