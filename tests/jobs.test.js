@@ -211,11 +211,10 @@ test("capacity throttles high load to one active job", async (t) => {
   assert.equal(capacity.constrained, true);
   assert.equal(capacity.effectiveMaxConcurrent, 1);
 
-  const first = runner.run(opts(root, "pressure-one", "setTimeout(()=>{},1000)"));
-  assert.throws(
-    () => runner.run(opts(root, "pressure-two", "")),
-    /JOB_BUSY/,
+  const first = runner.run(
+    opts(root, "pressure-one", "setTimeout(()=>{},1000)"),
   );
+  assert.throws(() => runner.run(opts(root, "pressure-two", "")), /JOB_BUSY/);
   runner.cancel(first.id, "p1");
   await finished(runner, first.id);
 });
