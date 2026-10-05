@@ -164,7 +164,6 @@ test("installer rollback restores or removes supervisor units consistently", () 
   assert.match(script, /systemctl disable --now "\$SUPERVISOR_SOCKET_UNIT"/);
 });
 
-
 test("installer wires signed stable updates with isolated root-owned trust state", () => {
   assert.match(
     script,
@@ -189,10 +188,7 @@ test("installer wires signed stable updates with isolated root-owned trust state
   );
   assert.match(script, /agentStateDir: process\.env\.AGENT_STATE_DIR/);
   assert.match(script, /stateDir: process\.env\.STABLE_UPDATE_STATE_DIR/);
-  assert.doesNotMatch(
-    script,
-    /stateDir:process\.env\.AGENT_STATE_DIR/,
-  );
+  assert.doesNotMatch(script, /stateDir:process\.env\.AGENT_STATE_DIR/);
 });
 
 test("agent service prefers the immutable signed current runtime with bootstrap fallback", () => {
@@ -211,10 +207,7 @@ test("agent service prefers the immutable signed current runtime with bootstrap 
 test("installer provisions mutually exclusive development and signed stable timers", () => {
   assert.match(script, /kmj-codebridge-stable-update\.service/);
   assert.match(script, /kmj-codebridge-stable-update\.timer/);
-  assert.match(
-    script,
-    /stable-update "\$STABLE_UPDATE_CONFIG"/,
-  );
+  assert.match(script, /stable-update "\$STABLE_UPDATE_CONFIG"/);
   assert.match(script, /ConditionPathExists=\$STABLE_UPDATE_CONFIG/);
   assert.match(
     script,
