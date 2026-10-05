@@ -89,7 +89,9 @@ export class JobRunner {
     const totalMemoryBytes = Math.floor(
       boundedNonNegative(raw?.totalMemoryBytes),
     );
-    const freeMemoryBytes = Math.floor(boundedNonNegative(raw?.freeMemoryBytes));
+    const freeMemoryBytes = Math.floor(
+      boundedNonNegative(raw?.freeMemoryBytes),
+    );
     const freeDiskBytes = Math.floor(boundedNonNegative(raw?.freeDiskBytes));
     const loadPerCpu = loadOne / cpuCount;
     const memoryFreeRatio =
