@@ -93,7 +93,9 @@ test("disk-space operation accepts no caller path", async () => {
   );
 });
 
-test("auto-update status inspects only hardcoded service and timer units", async () => {
+test(
+  "auto-update status inspects only hardcoded service and timer units",
+  async () => {
   const calls = [];
   const handle = createSupervisorHandler({
     run: (command, args) => {
@@ -127,13 +129,16 @@ test("auto-update status inspects only hardcoded service and timer units", async
       "kmj-codebridge-auto-update.service",
     ],
   );
-  await assert.rejects(
-    handle({ op: "update_status", branch: "main" }),
-    /INVALID_SUPERVISOR_REQUEST/,
-  );
-});
+    await assert.rejects(
+      handle({ op: "update_status", branch: "main" }),
+      /INVALID_SUPERVISOR_REQUEST/,
+    );
+  },
+);
 
-test("auto-update trigger acknowledges before starting only the hardcoded unit", async () => {
+test(
+  "auto-update trigger acknowledges before starting only the hardcoded unit",
+  async () => {
   const started = [];
   const handle = createSupervisorHandler({
     run: () => "LoadState=loaded\nActiveState=inactive\n",
@@ -144,21 +149,25 @@ test("auto-update trigger acknowledges before starting only the hardcoded unit",
   assert.deepEqual(started, []);
   result.afterSend();
   assert.deepEqual(started, ["kmj-codebridge-auto-update.service"]);
-  await assert.rejects(
-    handle({ op: "update_now", unit: "ssh.service" }),
-    /INVALID_SUPERVISOR_REQUEST/,
-  );
-});
+    await assert.rejects(
+      handle({ op: "update_now", unit: "ssh.service" }),
+      /INVALID_SUPERVISOR_REQUEST/,
+    );
+  },
+);
 
-test("auto-update trigger fails closed when the fixed unit is not installed", async () => {
+test(
+  "auto-update trigger fails closed when the fixed unit is not installed",
+  async () => {
   const handle = createSupervisorHandler({
     run: () => "LoadState=not-found\nActiveState=inactive\n",
   });
-  await assert.rejects(
-    handle({ op: "update_now" }),
-    /SUPERVISOR_UPDATE_UNAVAILABLE/,
-  );
-});
+    await assert.rejects(
+      handle({ op: "update_now" }),
+      /SUPERVISOR_UPDATE_UNAVAILABLE/,
+    );
+  },
+);
 
 test(
   "unix socket server and client exchange one bounded request",
