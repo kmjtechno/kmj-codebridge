@@ -146,3 +146,100 @@ test(
     );
   },
 );
+
+
+test("capacity blocks execution under critical memory or disk pressure", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-jobs-pressure-"));
+  const runner = new JobRunner(root, {
+    maxConcurrent: 4,
+    resourceProbe: () => ({
+      cpuCount: 8,
+      loadOne: 1,
+      totalMemoryBytes: 8 * 1024 ** 3,
+      freeMemoryBytes: 64 * 1024 ** 2,
+      freeDiskBytes: 10 * 1024 ** 3,
+    }),
+  });
+  t.after(async () => {
+    await runner.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const capacity = runner.capacity(root);
+  assert.equal(capacity.blocked, true);
+  assert.equal(capacity.blockReason, "LOW_MEMORY");
+  assert.equal(capacity.effectiveMaxConcurrent, 0);
+  assert.throws(
+    () => runner.run(opts(root, "blocked-memory", "")),
+    /RESOURCE_PRESSURE/,
+  );
+
+  runner.resourceProbe = () => ({
+    cpuCount: 8,
+    loadOne: 1,
+    totalMemoryBytes: 8 * 1024 ** 3,
+    freeMemoryBytes: 4 * 1024 ** 3,
+    freeDiskBytes: 128 * 1024 ** 2,
+  });
+  const diskCapacity = runner.capacity(root);
+  assert.equal(diskCapacity.blockReason, "LOW_DISK");
+  assert.throws(
+    () => runner.run(opts(root, "blocked-disk", "")),
+    /RESOURCE_PRESSURE/,
+  );
+});
+
+test("capacity throttles high load to one active job", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-jobs-throttle-"));
+  const runner = new JobRunner(root, {
+    maxConcurrent: 4,
+    resourceProbe: () => ({
+      cpuCount: 4,
+      loadOne: 8,
+      totalMemoryBytes: 8 * 1024 ** 3,
+      freeMemoryBytes: 4 * 1024 ** 3,
+      freeDiskBytes: 10 * 1024 ** 3,
+    }),
+  });
+  t.after(async () => {
+    await runner.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const capacity = runner.capacity(root);
+  assert.equal(capacity.blocked, false);
+  assert.equal(capacity.constrained, true);
+  assert.equal(capacity.effectiveMaxConcurrent, 1);
+
+  const first = runner.run(opts(root, "pressure-one", "setTimeout(()=>{},1000)"));
+  assert.throws(
+    () => runner.run(opts(root, "pressure-two", "")),
+    /JOB_BUSY/,
+  );
+  runner.cancel(first.id, "p1");
+  await finished(runner, first.id);
+});
+
+test("capacity preserves configured concurrency when resources are healthy", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-jobs-healthy-"));
+  const runner = new JobRunner(root, {
+    maxConcurrent: 4,
+    resourceProbe: () => ({
+      cpuCount: 8,
+      loadOne: 2,
+      totalMemoryBytes: 16 * 1024 ** 3,
+      freeMemoryBytes: 12 * 1024 ** 3,
+      freeDiskBytes: 50 * 1024 ** 3,
+    }),
+  });
+  t.after(async () => {
+    await runner.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+
+  const capacity = runner.capacity(root);
+  assert.equal(capacity.blocked, false);
+  assert.equal(capacity.constrained, false);
+  assert.equal(capacity.configuredMaxConcurrent, 4);
+  assert.equal(capacity.effectiveMaxConcurrent, 4);
+});
