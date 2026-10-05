@@ -1,0 +1,60 @@
+{
+  "schema": 1,
+  "source": "product/codebridge-product.json",
+  "product": "kmj-codebridge",
+  "version": "0.2.3",
+  "runtimeAuthority": "KMJ Main Platform",
+  "note": "Generated import contract only. Server-side entitlement enforcement remains authoritative.",
+  "launch": {
+    "trialDays": 30,
+    "trialCardRequired": false,
+    "trialAutoConvert": false,
+    "foundingPriceMonths": 12
+  },
+  "plans": [
+    {
+      "id": "community",
+      "name": "Community",
+      "prices": {
+        "INR": 0,
+        "USD": 0
+      },
+      "limits": {
+        "devices": 1,
+        "projects": 1,
+        "concurrentJobs": 1
+      }
+    },
+    {
+      "id": "pro",
+      "name": "Pro Launch",
+      "prices": {
+        "INR": 149,
+        "USD": 1.99
+      },
+      "limits": {
+        "devices": 3,
+        "projects": 10,
+        "concurrentJobs": 3
+      }
+    },
+    {
+      "id": "team",
+      "name": "Team Launch",
+      "prices": {
+        "INR": 399,
+        "USD": 4.99
+      },
+      "limits": {
+        "devicesPerUser": 10,
+        "projectsPerUser": 50,
+        "concurrentJobsPerUser": 10
+      }
+    },
+    {
+      "id": "business",
+      "name": "Business",
+      "customPricing": true
+    }
+  ]
+}
