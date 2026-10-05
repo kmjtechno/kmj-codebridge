@@ -155,6 +155,18 @@ export const definitions = {
     input: { ...scoped, path: z.string().max(1024).default("") },
     access: "read",
   },
+  repo_map: {
+    title: "Repository map",
+    description:
+      "Build a bounded deterministic map of important project files and symbols without using an AI model.",
+    input: {
+      ...scoped,
+      query: z.string().max(120).default(""),
+      maxFiles: z.number().int().min(1).max(200).default(80),
+      maxSymbolsPerFile: z.number().int().min(1).max(50).default(12),
+    },
+    access: "read",
+  },
   git_status: {
     title: "Git status",
     description: "Read Git working-tree status for an authorized project.",
@@ -529,6 +541,8 @@ export function createDispatcher(
       };
     }
     if (name === "list_directory") return p.files.list(a.path);
+    if (name === "repo_map")
+      return p.files.repoMap(a.query, a.maxFiles, a.maxSymbolsPerFile);
     if (name === "read_file") {
       const r = p.files.read(a.path);
       return {
