@@ -127,6 +127,8 @@ test("stable preflight installs locked production dependencies before syntax che
     "--no-fund",
   ]);
   assert.equal(calls[0].options.cwd, root);
+  assert.equal(calls[0].options.env.HOME, root);
+  assert.equal(calls[0].options.env.npm_config_cache, path.join(root, ".npm-cache"));
   assert.equal(calls.slice(1).length, 4);
   assert.ok(
     calls.slice(1).every((call) => call.command === process.execPath),
