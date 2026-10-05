@@ -10,9 +10,13 @@ import { oauthChallenge } from "./auth.js";
 
 export function toolSecurityMeta(oauth, access) {
   if (!oauth) return {};
+  const securitySchemes = [
+    { type: "oauth2", scopes: [`codebridge:${access}`] },
+  ];
   return {
+    securitySchemes,
     _meta: {
-      securitySchemes: [{ type: "oauth2", scopes: [`codebridge:${access}`] }],
+      securitySchemes,
     },
   };
 }
