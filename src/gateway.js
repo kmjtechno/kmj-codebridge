@@ -563,10 +563,7 @@ export async function startGateway(rawConfig) {
               if (!user) {
                 const authenticate = config.oauth
                   ? [
-                      oauthChallenge(
-                        config.oauth,
-                        `codebridge:${d.access}`,
-                      ) +
+                      oauthChallenge(config.oauth, `codebridge:${d.access}`) +
                         ', error="invalid_token", error_description="Sign in to KMJ CodeBridge to continue"',
                     ]
                   : null;
