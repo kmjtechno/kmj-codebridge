@@ -231,6 +231,40 @@ export const agentSchema = z.object({
             }),
           )
           .default({}),
+        commands: z
+          .record(
+            z.object({
+              category: z.enum(["inspect", "build", "write", "network"]),
+              description: z.string().max(160).default(""),
+              command: z
+                .string()
+                .min(1)
+                .max(260)
+                .refine((value) => !/[\x00-\x1f]/.test(value)),
+              variants: z
+                .record(
+                  z.object({
+                    args: z
+                      .array(
+                        z
+                          .string()
+                          .max(512)
+                          .refine((value) => !/[\x00-\x1f]/.test(value)),
+                      )
+                      .max(32)
+                      .default([]),
+                    timeoutMs: z
+                      .number()
+                      .int()
+                      .min(10)
+                      .max(300000)
+                      .default(30000),
+                  }),
+                )
+                .refine((variants) => Object.keys(variants).length > 0),
+            }),
+          )
+          .default({}),
       }),
     )
     .min(1),
