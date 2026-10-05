@@ -7,6 +7,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { execFileSync } from "node:child_process";
 import {
+  downloadPinnedHttpsBytes,
   downloadVerifiedReleaseArchive,
   extractVerifiedRuntimeArchive,
   isPublicReleaseAddress,
@@ -239,6 +240,57 @@ test("release downloader pins verified bytes and rejects redirects", async (t) =
         },
       }),
     /UPDATE_DOWNLOAD_REDIRECT/,
+  );
+});
+
+test("release metadata fetch is DNS-pinned, bounded and rejects redirects", async () => {
+  const resolveAddress = async () => ({ address: "1.1.1.1", family: 4 });
+  const body = await downloadPinnedHttpsBytes(
+    "https://downloads.example/manifest.json",
+    {
+      resolveAddress,
+      request: async (_url, options) => {
+        assert.equal(options.address, "1.1.1.1");
+        assert.equal(options.family, 4);
+        assert.match(options.accept, /application\/json/);
+        const response = Readable.from([Buffer.from("manifest")]);
+        response.statusCode = 200;
+        response.headers = {};
+        return response;
+      },
+    },
+  );
+  assert.equal(body.toString(), "manifest");
+
+  await assert.rejects(
+    () =>
+      downloadPinnedHttpsBytes("https://downloads.example/manifest.json", {
+        resolveAddress,
+        request: async () => {
+          const response = Readable.from([]);
+          response.statusCode = 302;
+          response.headers = {
+            location: "https://other.example/manifest.json",
+          };
+          return response;
+        },
+      }),
+    /UPDATE_DOWNLOAD_REDIRECT/,
+  );
+
+  await assert.rejects(
+    () =>
+      downloadPinnedHttpsBytes("https://downloads.example/manifest.json", {
+        maxBytes: 4,
+        resolveAddress,
+        request: async () => {
+          const response = Readable.from([Buffer.from("12345")]);
+          response.statusCode = 200;
+          response.headers = {};
+          return response;
+        },
+      }),
+    /UPDATE_METADATA_TOO_LARGE/,
   );
 });
 
