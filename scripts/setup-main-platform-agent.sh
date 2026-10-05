@@ -6,7 +6,7 @@ umask 077
 
 PROJECT_ID="${CODEBRIDGE_PROJECT_ID:-kmj-main-platform}"
 INSTANCE="${CODEBRIDGE_INSTANCE:-kmj-main-platform}"
-SOURCE_ROOT="${CODEBRIDGE_SOURCE_ROOT:-/home/kmjstage/repos/kmj-main-platform}"
+SOURCE_ROOT="${CODEBRIDGE_SOURCE_ROOT:-}"
 PROJECT_ROOT="${CODEBRIDGE_PROJECT_ROOT:-/srv/kmj-codebridge-projects/kmj-main-platform}"
 RUNTIME="${CODEBRIDGE_RUNTIME:-/opt/kmj-codebridge-agent}"
 ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
@@ -22,19 +22,40 @@ NODE="${CODEBRIDGE_NODE:-}"
 cleanup() { rm -f "$ENROLLMENT_RESULT"; }
 trap cleanup EXIT
 
-SOURCE_ROOT="$(readlink -f "$SOURCE_ROOT")"
-[[ -d "$SOURCE_ROOT/.git" ]] || { echo "Source checkout missing: $SOURCE_ROOT" >&2; exit 2; }
-[[ -f "$SOURCE_ROOT/apps/platform/composer.json" ]] || { echo 'Main Platform identity file missing.' >&2; exit 2; }
-grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$SOURCE_ROOT/apps/platform/composer.json" || {
-  echo 'Refusing: source is not kmjtechno/kmj-main-platform.' >&2; exit 2;
+is_main_platform_repo() {
+  local root="$1" origin
+  [[ -n "$root" && -d "$root/.git" && -f "$root/apps/platform/composer.json" ]] || return 1
+  grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$root/apps/platform/composer.json" || return 1
+  origin="$(git -C "$root" remote get-url origin 2>/dev/null || true)"
+  [[ "$origin" == *"github.com/kmjtechno/kmj-main-platform.git" || "$origin" == *"github.com/kmjtechno/kmj-main-platform" ]]
 }
 
-if [[ -z "${CODEBRIDGE_SERVICE_USER:-}" ]]; then
-  if id kmjrunner >/dev/null 2>&1; then SERVICE_USER=kmjrunner; else SERVICE_USER="$(stat -c '%U' "$SOURCE_ROOT")"; fi
+if [[ -n "$SOURCE_ROOT" ]]; then
+  SOURCE_ROOT="$(readlink -f "$SOURCE_ROOT")"
+  is_main_platform_repo "$SOURCE_ROOT" || {
+    echo "Configured CODEBRIDGE_SOURCE_ROOT is not the Main Platform Git checkout: $SOURCE_ROOT" >&2
+    exit 2
+  }
 else
-  SERVICE_USER="$CODEBRIDGE_SERVICE_USER"
+  for candidate in     /home/kmjstage/repos/kmj-main-platform     /home/kmjprod/repos/kmj-main-platform     /srv/kmj-main-platform     /opt/kmj-main-platform
+  do
+    resolved="$(readlink -f "$candidate" 2>/dev/null || true)"
+    if is_main_platform_repo "$resolved"; then
+      SOURCE_ROOT="$resolved"
+      break
+    fi
+  done
+
+  if [[ -z "$SOURCE_ROOT" ]]; then
+    while IFS= read -r gitdir; do
+      candidate="${gitdir%/.git}"
+      if is_main_platform_repo "$candidate"; then
+        SOURCE_ROOT="$(readlink -f "$candidate")"
+        break
+      fi
+    done < <(find /home /srv /opt -maxdepth 7 -type d -name .git -print 2>/dev/null)
+  fi
 fi
-id "$SERVICE_USER" >/dev/null 2>&1 || { echo "Service user not found: $SERVICE_USER" >&2; exit 2; }
 
 [[ -d "$RUNTIME" && -f "$RUNTIME/src/cli.js" && -f "$RUNTIME/scripts/enroll-device.js" ]] || {
   echo "CodeBridge runtime not found at $RUNTIME" >&2; exit 2;
@@ -46,14 +67,56 @@ fi
 
 install -d -m 0755 /srv/kmj-codebridge-projects
 if [[ -e "$PROJECT_ROOT" ]]; then
-  [[ -d "$PROJECT_ROOT/.git" ]] || { echo "Unsafe existing project root: $PROJECT_ROOT" >&2; exit 2; }
-  grep -Fq '"name": "kmjtechno/kmj-main-platform"' "$PROJECT_ROOT/apps/platform/composer.json" || {
-    echo 'Existing project root has wrong identity.' >&2; exit 2;
-  }
+  is_main_platform_repo "$PROJECT_ROOT" || { echo "Unsafe existing project root: $PROJECT_ROOT" >&2; exit 2; }
 else
-  git clone --quiet --no-hardlinks "$SOURCE_ROOT" "$PROJECT_ROOT"
+  if [[ -n "$SOURCE_ROOT" ]]; then
+    echo "Using Main Platform Git checkout: $SOURCE_ROOT"
+    git clone --quiet --no-hardlinks "$SOURCE_ROOT" "$PROJECT_ROOT"
+  else
+    echo 'No reusable Main Platform Git checkout found; trying existing GitHub deploy identities.'
+    cloned=0
+    for clone_user in kmjprod kmjstage root; do
+      if [[ "$clone_user" != root ]] && ! id "$clone_user" >/dev/null 2>&1; then
+        continue
+      fi
+      tmp="/tmp/kmj-main-platform-clone-$"
+      rm -rf "$tmp"
+      if [[ "$clone_user" == root ]]; then
+        if GIT_TERMINAL_PROMPT=0 GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'           git clone --quiet git@github.com:kmjtechno/kmj-main-platform.git "$tmp" 2>/dev/null; then
+          cloned=1
+        fi
+      else
+        if sudo -u "$clone_user" -H env GIT_TERMINAL_PROMPT=0           GIT_SSH_COMMAND='ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new'           git clone --quiet git@github.com:kmjtechno/kmj-main-platform.git "$tmp" 2>/dev/null; then
+          cloned=1
+        fi
+      fi
+      if (( cloned == 1 )); then
+        mv "$tmp" "$PROJECT_ROOT"
+        SOURCE_ROOT="$PROJECT_ROOT"
+        break
+      fi
+      rm -rf "$tmp"
+    done
+    if (( cloned == 0 )); then
+      echo 'Unable to clone private kmjtechno/kmj-main-platform with existing VPS GitHub identities.' >&2
+      echo 'Authorize the existing kmjprod/kmjstage deploy key for this repository, then rerun.' >&2
+      exit 2
+    fi
+  fi
 fi
+
+is_main_platform_repo "$PROJECT_ROOT" || { echo 'Cloned project identity verification failed.' >&2; exit 2; }
 git -C "$PROJECT_ROOT" remote set-url origin https://github.com/kmjtechno/kmj-main-platform.git || true
+
+if [[ -z "${CODEBRIDGE_SERVICE_USER:-}" ]]; then
+  if id kmjrunner >/dev/null 2>&1; then SERVICE_USER=kmjrunner;
+  elif id kmjprod >/dev/null 2>&1; then SERVICE_USER=kmjprod;
+  elif id kmjstage >/dev/null 2>&1; then SERVICE_USER=kmjstage;
+  else SERVICE_USER=root; fi
+else
+  SERVICE_USER="$CODEBRIDGE_SERVICE_USER"
+fi
+id "$SERVICE_USER" >/dev/null 2>&1 || { echo "Service user not found: $SERVICE_USER" >&2; exit 2; }
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_ROOT"
 
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" "$STATE_DIR" "$CONFIG_DIR"
