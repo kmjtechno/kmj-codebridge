@@ -28,7 +28,9 @@ Other MCP clients ─────────┘   outbound device agent
   resource; account connector sync depends on the Claude deployment/account.
 - **Claude Desktop, third-party inference Gateway mode:** configure CodeBridge
   separately under Inference configuration → Connectors → Managed MCP servers.
-  One recorded end-to-end tool invocation remains a live release check.
+  This path is now verified end-to-end: OAuth completed with a public PKCE
+  client using an RFC 8252 loopback callback, then Claude inspected the
+  authorized writable project through CodeBridge.
 - **Codex CLI / IDE extension:** remote Streamable HTTP and OAuth are supported
   by the client; CodeBridge emits both CLI and `config.toml` setup templates.
 - **VS Code / GitHub Copilot:** CodeBridge emits both VS Code `.vscode/mcp.json`
@@ -139,11 +141,14 @@ Then choose **Sign in & test**, complete KMJ authorization, save, and apply the
 deployment changes. Do not paste a device credential into this configuration.
 
 If Claude returns `invalid_client` after this connector had previously registered
-successfully, edit or re-add the custom connector and choose **Use your own OAuth
-client**. Set Client ID to `kmj_codebridge_claude` and leave the client secret
-blank. This is a public PKCE client bound server-side to Claude's hosted OAuth
-callback; it does not grant project access by itself. Dynamic registration remains
-supported for clients that recover stale registrations correctly.
+successfully, do not keep retrying the stale registration. Re-add the connector
+and use a freshly registered public OAuth client. Claude Desktop managed MCP can
+return to an RFC 8252 loopback URL such as
+`http://127.0.0.1:<ephemeral-port>/callback`; CodeBridge accepts the changing
+loopback port only when the registered loopback redirect otherwise matches.
+Leave the client secret blank for this public PKCE client. Dynamic registration
+remains the preferred path when the client correctly refreshes stale
+registrations.
 
 Claude Desktop's legacy local `claude_desktop_config.json` is not the path for
 this hosted Streamable HTTP service.
