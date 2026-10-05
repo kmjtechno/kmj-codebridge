@@ -55,6 +55,8 @@ async function gatewayGrants(
   devices,
   dynamic = false,
   agentProjects = ["project1"],
+  scopes = ["read"],
+  expectedHeartbeatStatus = 200,
 ) {
   const { generateKeyPair, exportJWK, SignJWT } = await import("jose");
   const { createHash } = await import("node:crypto");
@@ -111,7 +113,9 @@ async function gatewayGrants(
           },
         ],
   });
-  const jwt = await new SignJWT({ scope: "codebridge:read" })
+  const jwt = await new SignJWT({
+    scope: scopes.map((scope) => `codebridge:${scope}`).join(" "),
+  })
     .setProtectedHeader({ alg: "EdDSA", kid: "grants" })
     .setSubject("user-7")
     .setIssuer("https://platform.example")
@@ -150,7 +154,9 @@ async function gatewayGrants(
     },
     body: "{}",
   });
-  assert.equal(heartbeat.status, 200);
+  assert.equal(heartbeat.status, expectedHeartbeatStatus);
+  if (heartbeat.status !== 200)
+    return { client, heartbeatStatus: heartbeat.status, devices: null };
   const result = await client.callTool({
     name: "list_devices",
     arguments: {},
@@ -176,14 +182,20 @@ test("explicit OAuth grants deny an unlisted dynamic agent", async (t) => {
 });
 
 test("structured agent grants enforce per-project permissions", async (t) => {
-  const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
-    {
-      id: "project1",
-      permissions: ["read"],
-      gate_preset: "node-safe",
-      status: "active",
-    },
-  ]);
+  const result = await gatewayGrants(
+    t,
+    { device1: ["project1"] },
+    true,
+    [
+      {
+        id: "project1",
+        permissions: ["read"],
+        gate_preset: "node-safe",
+        status: "active",
+      },
+    ],
+    ["read", "write", "execute"],
+  );
   assert.deepEqual(result.devices, [
     { id: "device1", projects: ["project1"], online: true },
   ]);
@@ -217,9 +229,13 @@ test("paused structured agent grants are not exposed or authorized", async (t) =
 });
 
 test("structured agent grants reject duplicate project ids", async (t) => {
-  const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
-    { id: "project1" },
-    { id: "project1" },
-  ]);
-  assert.deepEqual(result.devices, []);
+  const result = await gatewayGrants(
+    t,
+    { device1: ["project1"] },
+    true,
+    [{ id: "project1" }, { id: "project1" }],
+    ["read"],
+    401,
+  );
+  assert.equal(result.heartbeatStatus, 401);
 });
