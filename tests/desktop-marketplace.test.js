@@ -46,7 +46,9 @@ test("Desktop plugin uses the bundled stdio OAuth bridge", () => {
   assert.equal(syntax.status, 0, syntax.stderr);
 });
 
-test("double-click Windows launcher pins and verifies the public setup script", () => {
+test(
+  "double-click Windows launcher pins and verifies the public setup script",
+  () => {
   const script = fs.readFileSync(
     path.join(root, "scripts/install-chatgpt-desktop.cmd"),
     "utf8",
@@ -70,8 +72,9 @@ test("double-click Windows launcher pins and verifies the public setup script", 
   assert.match(script, /ExecutionPolicy Bypass/);
   assert.match(script, /KMJ-CodeBridge-ChatGPT-Desktop\.ps1/);
   assert.doesNotMatch(script, /Bearer\s+[A-Za-z0-9._-]{16,}/);
-  assert.doesNotMatch(script, /client_secret/i);
-});
+    assert.doesNotMatch(script, /client_secret/i);
+  },
+);
 
 test("Windows Desktop installer only configures the public KMJ marketplace", () => {
   const script = fs.readFileSync(
