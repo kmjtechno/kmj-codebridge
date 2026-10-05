@@ -92,24 +92,21 @@ test("audit ledger stores only bounded event metadata supplied by the dispatcher
 
   assert.equal(entry.error, "GATE_FAILED");
   assert.equal(JSON.stringify(entry).includes("supersecret"), false);
-  assert.deepEqual(
-    Object.keys(entry),
-    [
-      "schema",
-      "sequence",
-      "id",
-      "timestamp",
-      "device",
-      "project",
-      "tool",
-      "access",
-      "risk",
-      "phase",
-      "outcome",
-      "correlationId",
-      "error",
-      "previousHash",
-      "hash",
-    ],
-  );
+  assert.deepEqual(Object.keys(entry), [
+    "schema",
+    "sequence",
+    "id",
+    "timestamp",
+    "device",
+    "project",
+    "tool",
+    "access",
+    "risk",
+    "phase",
+    "outcome",
+    "correlationId",
+    "error",
+    "previousHash",
+    "hash",
+  ]);
 });
