@@ -177,19 +177,14 @@ test("explicit OAuth grants deny an unlisted dynamic agent", async (t) => {
 
 
 test("structured agent grants enforce per-project permissions", async (t) => {
-  const result = await gatewayGrants(
-    t,
-    { device1: ["project1"] },
-    true,
-    [
-      {
-        id: "project1",
-        permissions: ["read"],
-        gate_preset: "node-safe",
-        status: "active",
-      },
-    ],
-  );
+  const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
+    {
+      id: "project1",
+      permissions: ["read"],
+      gate_preset: "node-safe",
+      status: "active",
+    },
+  ]);
   assert.deepEqual(result.devices, [
     { id: "device1", projects: ["project1"], online: true },
   ]);
@@ -206,34 +201,26 @@ test("structured agent grants enforce per-project permissions", async (t) => {
   assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
 });
 
-test(
-  "paused structured agent grants are not exposed or authorized",
-  async (t) => {
-    const result = await gatewayGrants(
-      t,
-      { device1: ["project1"] },
-      true,
-      [{ id: "project1", status: "paused" }],
-    );
-    assert.deepEqual(result.devices, []);
-    const denied = await result.client.callTool({
-      name: "read_file",
-      arguments: {
-        device: "device1",
-        project: "project1",
-        path: "hello.txt",
-      },
-    });
-    assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
-  },
-);
+test("paused structured agent grants are not exposed or authorized", async (t) => {
+  const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
+    { id: "project1", status: "paused" },
+  ]);
+  assert.deepEqual(result.devices, []);
+  const denied = await result.client.callTool({
+    name: "read_file",
+    arguments: {
+      device: "device1",
+      project: "project1",
+      path: "hello.txt",
+    },
+  });
+  assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
+});
 
 test("structured agent grants reject duplicate project ids", async (t) => {
-  const result = await gatewayGrants(
-    t,
-    { device1: ["project1"] },
-    true,
-    [{ id: "project1" }, { id: "project1" }],
-  );
+  const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
+    { id: "project1" },
+    { id: "project1" },
+  ]);
   assert.deepEqual(result.devices, []);
 });
