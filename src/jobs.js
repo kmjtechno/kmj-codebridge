@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import os from "node:os";
 import { fail } from "./errors.js";
 import { hash } from "./policy.js";
 export function redact(text) {
@@ -16,10 +17,36 @@ export function redact(text) {
       "[REDACTED PRIVATE KEY]",
     );
 }
+const MIN_FREE_MEMORY_BYTES = 128 * 1024 * 1024;
+const MIN_FREE_DISK_BYTES = 512 * 1024 * 1024;
+const CONSTRAINED_MEMORY_RATIO = 0.1;
+const CONSTRAINED_LOAD_PER_CPU = 1.5;
+
+function defaultResourceProbe(cwd) {
+  const stats = fs.statfsSync(cwd);
+  const blockSize = Number(stats.bsize);
+  const [loadOne] = os.loadavg();
+  return {
+    cpuCount: Math.max(1, os.cpus().length),
+    loadOne,
+    totalMemoryBytes: os.totalmem(),
+    freeMemoryBytes: os.freemem(),
+    freeDiskBytes: Number(stats.bavail) * blockSize,
+  };
+}
+
+function boundedNonNegative(value, fallback = 0) {
+  return Number.isFinite(value) && value >= 0 ? value : fallback;
+}
+
 export class JobRunner {
-  constructor(dir, { maxConcurrent = 1 } = {}) {
+  constructor(
+    dir,
+    { maxConcurrent = 1, resourceProbe = defaultResourceProbe } = {},
+  ) {
     this.dir = dir;
     this.maxConcurrent = maxConcurrent;
+    this.resourceProbe = resourceProbe;
     this.jobs = new Map();
     this.active = new Map();
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -47,6 +74,69 @@ export class JobRunner {
     }
     fs.renameSync(tmp, target);
   }
+  capacity(cwd = this.dir) {
+    let raw;
+    try {
+      raw = this.resourceProbe(cwd);
+    } catch {
+      fail("RESOURCE_PROBE_FAILED");
+    }
+    const cpuCount = Math.max(
+      1,
+      Math.floor(boundedNonNegative(raw?.cpuCount, 1)),
+    );
+    const loadOne = boundedNonNegative(raw?.loadOne);
+    const totalMemoryBytes = Math.floor(
+      boundedNonNegative(raw?.totalMemoryBytes),
+    );
+    const freeMemoryBytes = Math.floor(boundedNonNegative(raw?.freeMemoryBytes));
+    const freeDiskBytes = Math.floor(boundedNonNegative(raw?.freeDiskBytes));
+    const loadPerCpu = loadOne / cpuCount;
+    const memoryFreeRatio =
+      totalMemoryBytes > 0 ? freeMemoryBytes / totalMemoryBytes : 0;
+
+    let blockReason = null;
+    if (freeDiskBytes < MIN_FREE_DISK_BYTES) blockReason = "LOW_DISK";
+    else if (freeMemoryBytes < MIN_FREE_MEMORY_BYTES)
+      blockReason = "LOW_MEMORY";
+
+    const constrained =
+      blockReason === null &&
+      (memoryFreeRatio < CONSTRAINED_MEMORY_RATIO ||
+        loadPerCpu >= CONSTRAINED_LOAD_PER_CPU);
+    const configuredMaxConcurrent = Math.max(
+      1,
+      Math.floor(boundedNonNegative(this.maxConcurrent, 1)),
+    );
+    const effectiveMaxConcurrent = blockReason
+      ? 0
+      : constrained
+        ? 1
+        : configuredMaxConcurrent;
+
+    return {
+      blocked: blockReason !== null,
+      blockReason,
+      constrained,
+      configuredMaxConcurrent,
+      effectiveMaxConcurrent,
+      activeJobs: this.active.size,
+      cpuCount,
+      loadOne,
+      loadPerCpu,
+      totalMemoryBytes,
+      freeMemoryBytes,
+      memoryFreeRatio,
+      freeDiskBytes,
+      thresholds: {
+        minFreeMemoryBytes: MIN_FREE_MEMORY_BYTES,
+        minFreeDiskBytes: MIN_FREE_DISK_BYTES,
+        constrainedMemoryFreeRatio: CONSTRAINED_MEMORY_RATIO,
+        constrainedLoadPerCpu: CONSTRAINED_LOAD_PER_CPU,
+      },
+    };
+  }
+
   run({ project, gate, key, cwd, command, args = [], timeoutMs = 30000 }) {
     if (typeof key !== "string" || key.length < 1 || key.length > 128)
       fail("INVALID_IDEMPOTENCY_KEY");
@@ -60,7 +150,9 @@ export class JobRunner {
       if (existing.fingerprint !== fingerprint) fail("IDEMPOTENCY_CONFLICT");
       return this.public(existing);
     }
-    if (this.active.size >= this.maxConcurrent) fail("JOB_BUSY");
+    const capacity = this.capacity(cwd);
+    if (capacity.blocked) fail("RESOURCE_PRESSURE");
+    if (this.active.size >= capacity.effectiveMaxConcurrent) fail("JOB_BUSY");
     if (this.jobs.size >= 1000) fail("JOURNAL_FULL");
     const j = {
       id: randomUUID(),
