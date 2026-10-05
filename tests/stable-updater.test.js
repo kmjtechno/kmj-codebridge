@@ -134,6 +134,13 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
         path.join(cfg.stateDir, "connection.json"),
         JSON.stringify({
           connectedAt: new Date(2000).toISOString(),
+          version: signed.manifest.version,
+          release: {
+            sequence: signed.manifest.sequence,
+            version: signed.manifest.version,
+            revision: signed.manifest.revision,
+            sha256: signed.manifest.sha256,
+          },
         }) + "\n",
       );
       assert.equal(await healthCheck(), true);
@@ -268,13 +275,34 @@ test("stable updater fails closed on malformed accepted state before network fet
   assert.equal(fetched, false);
 });
 
-test("fresh authenticated connection requires a timestamp at or after activation", (t) => {
+test("fresh authenticated connection requires time and expected signed runtime identity", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-health-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
   fs.writeFileSync(
     path.join(root, "connection.json"),
-    JSON.stringify({ connectedAt: new Date(1000).toISOString() }) + "\n",
+    JSON.stringify({
+      connectedAt: new Date(1000).toISOString(),
+      version: signed.manifest.version,
+      release: {
+        sequence: signed.manifest.sequence,
+        version: signed.manifest.version,
+        revision: signed.manifest.revision,
+        sha256: signed.manifest.sha256,
+      },
+    }) + "\n",
   );
   assert.equal(freshAuthenticatedConnection(root, 1000), true);
   assert.equal(freshAuthenticatedConnection(root, 1001), false);
+  assert.equal(
+    freshAuthenticatedConnection(root, 1000, signed.manifest),
+    true,
+  );
+  assert.equal(
+    freshAuthenticatedConnection(root, 1000, {
+      ...signed.manifest,
+      revision: "d".repeat(40),
+    }),
+    false,
+  );
 });
