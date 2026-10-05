@@ -23,11 +23,11 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Deny-by-default execution boundary       | Existing MCP authorization + project roots + supervisor allowlists                           | Native                      |
 | Replay/idempotency protection            | Existing request keys / job fingerprints / grant validation                                  | Native; expand where needed |
 | Persistent task queue                    | Existing AutopilotJournal + missions/DAG                                                     | Native                      |
-| Reconnect/crash recovery                 | Agent lock, persistent journals, service supervisor                                          | Native; harden further      |
+| Reconnect/crash recovery                 | Agent lock, persistent journals, service supervisor, gateway heartbeat/reconnect telemetry    | Native                      |
 | Risk classes                             | READ / TEST / EDIT / GIT_WRITE / SERVICE / DEPLOY / PRIVILEGED / DESTRUCTIVE policy metadata | Native                      |
 | Approval gate                            | Main Platform approval records for privileged/destructive actions                            | Next                        |
 | Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
-| Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Implementing                |
+| Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Native                      |
 | Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Planned                     |
 | Checkpoint / rollback                    | Project snapshots and rollback evidence before risky mutations                               | Planned                     |
 | Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
@@ -71,8 +71,8 @@ P1:
 
 - formal risk-class metadata and policy decision tool;
 - append-only hash-chained audit/evidence ledger;
-- resource-aware job concurrency and disk-pressure guard (current slice);
-- heartbeat/watchdog/reconnect status surfaced to Main Platform.
+- resource-aware job concurrency and disk-pressure guard;
+- heartbeat/watchdog/reconnect status surfaced to Main Platform (current slice).
 
 P2:
 
