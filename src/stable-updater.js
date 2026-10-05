@@ -14,10 +14,7 @@ import {
   activateReleaseWithHealthCheck,
   prepareVerifiedRelease,
 } from "./update-orchestrator.js";
-import {
-  SUPERVISOR_SOCKET,
-  supervisorRequest,
-} from "./supervisor-client.js";
+import { SUPERVISOR_SOCKET, supervisorRequest } from "./supervisor-client.js";
 
 const version = z
   .string()
@@ -70,8 +67,7 @@ export const stableUpdateConfigSchema = z
   .strict()
   .superRefine((config, ctx) => {
     if (
-      new URL(config.manifestUrl).origin !==
-      new URL(config.signatureUrl).origin
+      new URL(config.manifestUrl).origin !== new URL(config.signatureUrl).origin
     )
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
@@ -254,13 +250,7 @@ export function defaultStableUpdatePreflight(
   try {
     run(
       npmPath,
-      [
-        "ci",
-        "--omit=dev",
-        "--ignore-scripts",
-        "--no-audit",
-        "--no-fund",
-      ],
+      ["ci", "--omit=dev", "--ignore-scripts", "--no-audit", "--no-fund"],
       {
         cwd: stagingDir,
         encoding: "utf8",
@@ -365,12 +355,9 @@ export async function runStableUpdate(
     fail("UPDATE_SIGNATURE_INVALID");
   }
 
-  const manifest = verifyManifest(
-    rawManifest,
-    signature,
-    config.trustedKeys,
-    { minimumSequence: -1 },
-  );
+  const manifest = verifyManifest(rawManifest, signature, config.trustedKeys, {
+    minimumSequence: -1,
+  });
   if (manifest.channel !== config.channel) fail("UPDATE_CHANNEL_MISMATCH");
 
   if (manifest.sequence < minimumSequence) fail("UPDATE_ROLLBACK_REJECTED");
@@ -406,11 +393,7 @@ export async function runStableUpdate(
     releaseName: release.name,
     restart: () => fixedAgentRestart(config.supervisorSocket, restartRequest),
     healthCheck: async () =>
-      freshAuthenticatedConnection(
-        agentStateDir,
-        activationStart,
-        manifest,
-      ),
+      freshAuthenticatedConnection(agentStateDir, activationStart, manifest),
     attempts: config.health.attempts,
     delayMs: config.health.delayMs,
     sleep,
