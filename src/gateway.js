@@ -314,6 +314,56 @@ export async function startGateway(rawConfig) {
       parts: Object.fromEntries(settled),
     };
   }
+
+  const fastReadTools = new Set([
+    "inspect_project",
+    "connection_doctor",
+    "git_status",
+    "git_log",
+    "list_directory",
+    "search_code",
+    "autopilot_status",
+    "supervisor_status",
+    "supervisor_config_validate",
+    "supervisor_disk_space",
+  ]);
+
+  async function fastReadBatch(user, args) {
+    authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
+    const results = await Promise.all(
+      args.calls.map(async (call) => {
+        if (!fastReadTools.has(call.tool))
+          return {
+            key: call.key,
+            tool: call.tool,
+            ok: false,
+            error: "FAST_READ_TOOL_NOT_ALLOWED",
+          };
+        const input = { ...call.args, ...scope };
+        try {
+          return {
+            key: call.key,
+            tool: call.tool,
+            ...decodeForwardedResult(await forward(user, call.tool, input)),
+          };
+        } catch (error) {
+          return {
+            key: call.key,
+            tool: call.tool,
+            ok: false,
+            error: publicError(error).error,
+          };
+        }
+      }),
+    );
+    return {
+      generatedAt: new Date().toISOString(),
+      device: args.device,
+      project: args.project,
+      results,
+    };
+  }
   const server = http.createServer(async (req, res) => {
     try {
       const allowedHosts = config.allowedHosts.length
@@ -641,6 +691,12 @@ export async function startGateway(rawConfig) {
               }
               if (name === "fast_context") {
                 const result = await fastContext(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                };
+              }
+              if (name === "fast_read_batch") {
+                const result = await fastReadBatch(user, args);
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                 };
