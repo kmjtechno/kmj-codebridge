@@ -21,4 +21,9 @@ const versions = [
 ];
 if (versions.some((version) => version !== pkg.version))
   throw Error("Version mismatch");
-console.log("JavaScript syntax and package/plugin versions verified.");
+execFileSync(process.execPath, ["scripts/check-product-manifest.js"], {
+  stdio: "pipe",
+});
+console.log(
+  "JavaScript syntax, package/plugin versions and product manifest verified.",
+);
