@@ -16,18 +16,18 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 
 | Desktop Commander capability             | CodeBridge target                                                                            | Status                      |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
-| Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Implementing                |
-| Project inspect / stack discovery        | Structured project environment detection                                                     | Implementing                |
+| Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Native                      |
+| Project inspect / stack discovery        | Structured project environment detection                                                     | Native                      |
 | Persistent operation jobs                | Existing CodeBridge JobRunner + bounded logs/cancel                                          | Native                      |
 | AI-safe structured operations            | Existing gates + command profiles + supervisor requests                                      | Native                      |
 | Deny-by-default execution boundary       | Existing MCP authorization + project roots + supervisor allowlists                           | Native                      |
 | Replay/idempotency protection            | Existing request keys / job fingerprints / grant validation                                  | Native; expand where needed |
 | Persistent task queue                    | Existing AutopilotJournal + missions/DAG                                                     | Native                      |
 | Reconnect/crash recovery                 | Agent lock, persistent journals, service supervisor                                          | Native; harden further      |
-| Risk classes                             | READ / TEST / EDIT / GIT_WRITE / SERVICE / DEPLOY / PRIVILEGED / DESTRUCTIVE policy metadata | Next                        |
+| Risk classes                             | READ / TEST / EDIT / GIT_WRITE / SERVICE / DEPLOY / PRIVILEGED / DESTRUCTIVE policy metadata | Native                      |
 | Approval gate                            | Main Platform approval records for privileged/destructive actions                            | Next                        |
-| Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Next                        |
-| Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Planned                     |
+| Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
+| Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Implementing                |
 | Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Planned                     |
 | Checkpoint / rollback                    | Project snapshots and rollback evidence before risky mutations                               | Planned                     |
 | Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
@@ -71,7 +71,7 @@ P1:
 
 - formal risk-class metadata and policy decision tool;
 - append-only hash-chained audit/evidence ledger;
-- resource-aware job concurrency and disk-pressure guard;
+- resource-aware job concurrency and disk-pressure guard (current slice);
 - heartbeat/watchdog/reconnect status surfaced to Main Platform.
 
 P2:

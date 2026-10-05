@@ -237,6 +237,7 @@ const fastReadTool = z.enum([
   "project_environment",
   "audit_status",
   "audit_tail",
+  "execution_capacity",
 ]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
@@ -296,6 +297,13 @@ export const definitions = {
       ...scoped,
       limit: z.number().int().min(1).max(100).default(20),
     },
+    access: "read",
+  },
+  execution_capacity: {
+    title: "Execution capacity",
+    description:
+      "Read bounded resource-aware job capacity for the authorized project, including memory, disk, CPU load, active jobs, and effective concurrency.",
+    input: scoped,
     access: "read",
   },
   project_snapshot: {
@@ -838,6 +846,12 @@ export function createDispatcher(
       if (!audit) fail("AUDIT_UNAVAILABLE");
       return audit.tail(p.id, a.limit);
     }
+    if (name === "execution_capacity")
+      return {
+        device: config.id,
+        project: p.id,
+        ...runner.capacity(p.files.root),
+      };
     if (name === "project_snapshot") {
       const listing = p.files.list("");
       const gitDir = path.join(p.files.root, ".git");
