@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { generatedDrift } from "./generate-product-artifacts.js";
 
 function fail(message) {
   throw new Error("PRODUCT_MANIFEST_INVALID: " + message);
@@ -28,14 +29,22 @@ const manifest = JSON.parse(
 );
 const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
 
-if (manifest.schema !== 1) fail("unsupported schema");
+if (manifest.schema !== 2) fail("unsupported schema");
 if (manifest.product?.name !== "KMJ CodeBridge") fail("product name mismatch");
 if (manifest.product?.slug !== "kmj-codebridge") fail("product slug mismatch");
 if (manifest.product?.package !== pkg.name) fail("package name mismatch");
 if (manifest.versions?.stable !== pkg.version) fail("stable version mismatch");
+if (manifest.versions?.minimumAgent !== pkg.version)
+  fail("minimum agent version mismatch");
+if (manifest.versions?.minimumClientPackage !== pkg.version)
+  fail("minimum client package version mismatch");
 
 httpsUrl(manifest.product.website, { path: "/" });
 httpsUrl(manifest.product.repository);
+httpsUrl(manifest.product.homepage);
+httpsUrl(manifest.product.privacy);
+httpsUrl(manifest.product.terms);
+httpsUrl(manifest.product.support);
 httpsUrl(manifest.endpoints?.mcp, { path: "/mcp" });
 httpsUrl(manifest.endpoints?.enrollment, { path: "/" });
 httpsUrl(manifest.endpoints?.agentGateway, { path: "/" });
@@ -83,11 +92,26 @@ if (
   fail("business custom pricing missing");
 
 if (
+  !manifest.product?.assets?.logo ||
+  !manifest.product?.assets?.icon ||
+  !fs.existsSync(manifest.product.assets.logo) ||
+  !fs.existsSync(manifest.product.assets.icon)
+)
+  fail("missing product assets");
+
+if (
   !Array.isArray(manifest.supportedClients) ||
   manifest.supportedClients.length < 5 ||
   new Set(manifest.supportedClients).size !== manifest.supportedClients.length
 )
   fail("invalid supported client list");
+
+if (
+  !manifest.features ||
+  !manifest.marketplaces ||
+  !manifest.updateChannels?.includes("stable")
+)
+  fail("missing release metadata");
 
 const serialized = JSON.stringify(manifest).toLowerCase();
 for (const forbidden of [
@@ -110,4 +134,8 @@ for (const [label, text] of [
     if (!text.includes(required)) fail(label + " missing " + required);
 }
 
-console.log("Canonical CodeBridge product manifest verified.");
+const generatedProblems = generatedDrift();
+if (generatedProblems.length)
+  fail("generated metadata drift: " + generatedProblems.join(", "));
+
+console.log("Canonical CodeBridge product manifest and generated metadata verified.");
