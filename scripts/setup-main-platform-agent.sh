@@ -106,7 +106,6 @@ else
 fi
 
 is_main_platform_repo "$PROJECT_ROOT" || { echo 'Cloned project identity verification failed.' >&2; exit 2; }
-git -C "$PROJECT_ROOT" remote set-url origin https://github.com/kmjtechno/kmj-main-platform.git || true
 
 if [[ -z "${CODEBRIDGE_SERVICE_USER:-}" ]]; then
   if id kmjrunner >/dev/null 2>&1; then SERVICE_USER=kmjrunner;
