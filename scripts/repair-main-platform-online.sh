@@ -30,6 +30,7 @@ if [[ -z "$SERVICE_USER" ]]; then
   fi
 fi
 id "$SERVICE_USER" >/dev/null 2>&1 || { echo "ERROR service_user_missing=$SERVICE_USER" >&2; exit 2; }
+SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
 
 echo 'KMJ CodeBridge — Main Platform auto-repair + verification'
 echo "service_user=$SERVICE_USER"
@@ -46,7 +47,7 @@ if [[ ! -d "$RUNTIME" || ! -f "$RUNTIME/src/cli.js" ]]; then
 else
   echo 'runtime_isolation=existing'
 fi
-chown -R "$SERVICE_USER:$SERVICE_USER" "$RUNTIME"
+chown -R "$SERVICE_USER:$SERVICE_GROUP" "$RUNTIME"
 chmod 0755 /opt
 find "$RUNTIME" -type d -exec chmod u+rwx,go-rwx {} +
 find "$RUNTIME" -type f -exec chmod u+rw,go-rwx {} +
@@ -63,9 +64,9 @@ if [[ ! -f "$CONFIG" ]]; then
     exit 2
   fi
 fi
-chown "$SERVICE_USER:$SERVICE_USER" "$CONFIG"
+chown "$SERVICE_USER:$SERVICE_GROUP" "$CONFIG"
 chmod 0600 "$CONFIG"
-chown -R "$SERVICE_USER:$SERVICE_USER" "$STATE" "$PROJECT"
+chown -R "$SERVICE_USER:$SERVICE_GROUP" "$STATE" "$PROJECT"
 
 CONFIG="$CONFIG" GATEWAY="$GATEWAY" "$NODE" --input-type=module <<'NODE'
 import fs from 'node:fs';
@@ -126,7 +127,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=$SERVICE_USER
-Group=$SERVICE_USER
+Group=$SERVICE_GROUP
 WorkingDirectory=$RUNTIME
 ExecStart=$NODE $RUNTIME/src/cli.js agent $CONFIG
 Restart=always
@@ -195,6 +196,7 @@ console.log('introspected_projects='+data.projects.join(','));
 console.log('introspected_permissions='+(data.permissions??[]).join(','));
 NODE
 
+echo 'visibility_cache_wait=35s'
 sleep 35
 
 echo 'MAIN_PLATFORM_AGENT_GATEWAY_VERIFIED'
