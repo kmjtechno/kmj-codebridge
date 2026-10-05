@@ -191,12 +191,16 @@ test("structured project commands expose profiles without raw argv and run exact
       id: "inspect_node",
       category: "inspect",
       description: "Read the configured Node runtime version.",
+      risk: "READ",
+      approvalRequired: false,
       variants: ["version"],
     },
     {
       id: "build_echo",
       category: "build",
       description: "Run a bounded build fixture.",
+      risk: "TEST",
+      approvalRequired: false,
       variants: ["default"],
     },
   ]);
@@ -259,6 +263,66 @@ test("structured project commands expose profiles without raw argv and run exact
   });
   assert.equal(denied.isError, true);
   assert.equal(content(denied).error, "COMMAND_NOT_ALLOWED");
+});
+
+test("policy catalog exposes deterministic risk metadata without raw commands", async (t) => {
+  const { client } = await setup(t);
+  const result = content(
+    await client.callTool({
+      name: "policy_catalog",
+      arguments: { device: "d1", project: "p1" },
+    }),
+  );
+
+  assert.deepEqual(result.riskClasses, [
+    "READ",
+    "TEST",
+    "EDIT",
+    "GIT_WRITE",
+    "SERVICE",
+    "DEPLOY",
+    "PRIVILEGED",
+    "DESTRUCTIVE",
+  ]);
+  assert.deepEqual(result.approvalRequiredFor, [
+    "DEPLOY",
+    "PRIVILEGED",
+    "DESTRUCTIVE",
+  ]);
+  assert.deepEqual(result.commands, [
+    {
+      id: "build_echo",
+      category: "build",
+      risk: "TEST",
+      approvalRequired: false,
+      variants: ["default"],
+    },
+    {
+      id: "inspect_node",
+      category: "inspect",
+      risk: "READ",
+      approvalRequired: false,
+      variants: ["version"],
+    },
+  ]);
+  assert.ok(
+    result.tools.some(
+      (tool) =>
+        tool.tool === "supervisor_restart" &&
+        tool.risk === "SERVICE" &&
+        tool.approvalRequired === false,
+    ),
+  );
+  assert.ok(
+    result.tools.some(
+      (tool) =>
+        tool.tool === "write_file" &&
+        tool.risk === "EDIT" &&
+        tool.approvalRequired === false,
+    ),
+  );
+  assert.ok(!JSON.stringify(result).includes(process.execPath));
+  assert.ok(!JSON.stringify(result).includes("supersecret"));
 });
 
 test("account diagnostics expose safe membership and same-tenant agent visibility", async (t) => {
