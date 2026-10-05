@@ -285,15 +285,15 @@ export async function startGateway(rawConfig) {
 
   async function fastContext(user, args) {
     authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
     const calls = [
-      ["project", "inspect_project", args],
-      ["git", "git_status", args],
+      ["project", "inspect_project", scope],
+      ["git", "git_status", scope],
       [
         "autopilot",
         "autopilot_status",
         {
-          device: args.device,
-          project: args.project,
+          ...scope,
           limit: args.autopilotLimit,
         },
       ],
