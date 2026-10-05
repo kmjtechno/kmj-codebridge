@@ -18,6 +18,8 @@ const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const SYSTEMCTL = "/usr/bin/systemctl";
 const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
+const PROJECT_ROOT = "/srv/kmj-codebridge-projects";
+const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 function exactKeys(value, allowed) {
   if (!value || typeof value !== "object" || Array.isArray(value))
@@ -131,9 +133,11 @@ export function createSupervisorHandler({
   restart = defaultRestart,
   readFile = (file) => fs.readFileSync(file, "utf8"),
   statfs = (target) => fs.statfsSync(target),
+  exists = (target) => fs.existsSync(target),
+  stat = (target) => fs.statSync(target),
 } = {}) {
   return async function handle(request) {
-    exactKeys(request, ["op", "service", "lines"]);
+    exactKeys(request, ["op", "service", "lines", "projectId"]);
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
 
     if (request.op === "status") {
@@ -194,6 +198,33 @@ export function createSupervisorHandler({
       return {
         response: { service: request.service, accepted: true },
         afterSend: () => restart(unit),
+      };
+    }
+
+    if (request.op === "project_status") {
+      exactKeys(request, ["op", "projectId"]);
+      if (typeof request.projectId !== "string" || !PROJECT_ID.test(request.projectId))
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const root = `${PROJECT_ROOT}/${request.projectId}`;
+      const present = exists(root);
+      let directory = false;
+      let gitCheckout = false;
+      if (present) {
+        try {
+          directory = stat(root).isDirectory();
+          gitCheckout = directory && exists(`${root}/.git`);
+        } catch {
+          directory = false;
+          gitCheckout = false;
+        }
+      }
+      return {
+        response: {
+          projectId: request.projectId,
+          present,
+          directory,
+          gitCheckout,
+        },
       };
     }
 
