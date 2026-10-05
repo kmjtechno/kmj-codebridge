@@ -1,0 +1,20 @@
+{
+  "name": "kmj-techno",
+  "interface": {
+    "displayName": "KMJ TECHNO"
+  },
+  "plugins": [
+    {
+      "name": "kmj-codebridge",
+      "source": {
+        "source": "local",
+        "path": "./plugin"
+      },
+      "policy": {
+        "installation": "INSTALLED_BY_DEFAULT",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Developer Tools"
+    }
+  ]
+}
