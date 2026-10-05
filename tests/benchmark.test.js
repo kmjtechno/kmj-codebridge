@@ -11,11 +11,7 @@ test("benchmark PID matcher ignores the benchmark process itself", (t) => {
   const marker = "KMJ_BENCHMARK_SELF_MATCH_SENTINEL";
   const result = spawnSync(
     process.execPath,
-    [
-      "scripts/benchmark.js",
-      "--idle-seconds=0",
-      `--agent-match=${marker}`,
-    ],
+    ["scripts/benchmark.js", "--idle-seconds=0", `--agent-match=${marker}`],
     {
       encoding: "utf8",
       timeout: 30000,
