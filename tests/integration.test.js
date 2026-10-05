@@ -367,12 +367,11 @@ test("device listing includes safe account context for visibility diagnostics", 
     tenants: ["t1"],
     explicitDeviceGrants: { d1: ["p1"] },
   });
-  const device = result.devices.find((item) => item.id === "d1");
-  assert.ok(device);
-  assert.equal(device.online, true);
-  assert.equal(device.connectionState, "online");
-  assert.equal(device.gatewaySessionCount, 1);
-  assert.ok(Number.isFinite(Date.parse(device.lastSeenAt)));
+  assert.ok(result.devices.some((device) => device.id === "d1"));
+  assert.deepEqual(
+    result.devices.find((device) => device.id === "d1"),
+    { id: "d1", projects: ["p1"], online: true },
+  );
 });
 
 test("agent persists authenticated gateway connectivity heartbeat", async (t) => {
