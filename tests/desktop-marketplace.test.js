@@ -1,0 +1,58 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+
+const root = path.resolve(import.meta.dirname, "..");
+const readJson = (name) =>
+  JSON.parse(fs.readFileSync(path.join(root, name), "utf8"));
+
+test("KMJ Desktop marketplace installs CodeBridge by default", () => {
+  const marketplace = readJson(".agents/plugins/marketplace.json");
+  assert.equal(marketplace.name, "kmj-techno");
+  assert.equal(marketplace.interface.displayName, "KMJ TECHNO");
+  assert.deepEqual(marketplace.plugins, [
+    {
+      name: "kmj-codebridge",
+      source: { source: "local", path: "./plugin" },
+      policy: {
+        installation: "INSTALLED_BY_DEFAULT",
+        authentication: "ON_INSTALL",
+      },
+      category: "Developer Tools",
+    },
+  ]);
+});
+
+test("Desktop plugin uses the bundled stdio OAuth bridge", () => {
+  const manifest = readJson("plugin/plugin.json");
+  const mcp = readJson("plugin/mcp.json");
+  assert.equal(manifest.name, "kmj-codebridge");
+  assert.equal(manifest.version, "0.3.2");
+  assert.deepEqual(mcp.mcpServers.codebridge, {
+    type: "stdio",
+    command: "node",
+    args: ["${PLUGIN_ROOT}/desktop/bridge.mjs"],
+    cwd: "${PLUGIN_ROOT}",
+  });
+
+  const bridge = path.join(root, "plugin/desktop/bridge.mjs");
+  const syntax = spawnSync(process.execPath, ["--check", bridge], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  assert.equal(syntax.status, 0, syntax.stderr);
+});
+
+test("Windows Desktop installer only configures the public KMJ marketplace", () => {
+  const script = fs.readFileSync(
+    path.join(root, "scripts/install-chatgpt-desktop.ps1"),
+    "utf8",
+  );
+  assert.match(script, /codex plugin marketplace add \$repo --ref main/);
+  assert.match(script, /kmjtechno\/kmj-codebridge/);
+  assert.match(script, /codex plugin marketplace upgrade \$marketplace/);
+  assert.doesNotMatch(script, /Bearer\s+[A-Za-z0-9._-]{16,}/);
+  assert.doesNotMatch(script, /client_secret/i);
+});
