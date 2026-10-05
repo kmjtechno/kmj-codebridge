@@ -40,8 +40,10 @@ file records verified capability, not a percentage-complete claim.
   archive download, exact size/hash enforcement, safe runtime extraction,
   atomic activation/rollback, anti-rollback sequence checks, and a tested
   preflight + bounded health-check + automatic rollback orchestration core are
-  implemented. Production Supervisor/RPC wiring and live rollback evidence
-  remain separate gates.
+  implemented. The development updater now also has restricted Supervisor
+  status/trigger controls that can inspect or start only the hardcoded guarded
+  auto-update timer/service. Signed stable manifest/key wiring and live rollback
+  evidence remain separate production gates.
 - **Distribution:** OpenAI package, hosted Claude plugin, endpoint-specific
   Claude package generator, credential scan, and package contract gates.
 - **GitHub:** optional server-side bridge for allowlisted repositories, pull requests,

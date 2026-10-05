@@ -35,7 +35,7 @@ heartbeat, and restores the previous runtime automatically if reconnect fails.
 The user enrollment credential and project configuration live outside the
 runtime directory and are therefore preserved across the swap.
 
-KMJ CodeBridge software update is being built as a restricted Supervisor operation, not as arbitrary remote command execution.
+KMJ CodeBridge software update is exposed through restricted Supervisor controls, not arbitrary remote command execution. The development channel provides read-only `supervisor_update_status` and execute-gated `supervisor_update_now` tools. They can inspect or start only the hardcoded `kmj-codebridge-auto-update.timer` / `kmj-codebridge-auto-update.service`; callers cannot supply a repository, branch, unit, command or filesystem path. The underlying updater still enforces canonical-origin, clean-runtime, fast-forward and active-job guards. These controls do not turn the mutable development channel into the final signed stable updater.
 
 ## Signed release contract
 
