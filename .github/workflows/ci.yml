@@ -20,13 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Temporary Prettier diagnostic
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          npx prettier tests/supervisor.test.js --write
-          git diff -- tests/supervisor.test.js
-          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
