@@ -10,7 +10,8 @@ OLD_CONFIG='/etc/kmj-codebridge/agents/kmj-main-platform.json'
 CONFIG_DIR='/etc/kmj-codebridge-main-platform'
 CONFIG="$CONFIG_DIR/agent.json"
 STATE='/var/lib/kmj-codebridge-kmj-main-platform'
-RUNTIME='/opt/kmj-codebridge-agent'
+SOURCE_RUNTIME='/opt/kmj-codebridge-agent'
+RUNTIME='/opt/kmj-codebridge-main-platform-agent'
 NODE='/opt/kmj-codebridge-node/bin/node'
 GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
 
@@ -32,6 +33,24 @@ id "$SERVICE_USER" >/dev/null 2>&1 || { echo "ERROR service_user_missing=$SERVIC
 
 echo 'KMJ CodeBridge — Main Platform auto-repair + verification'
 echo "service_user=$SERVICE_USER"
+
+[[ -d "$SOURCE_RUNTIME" && -f "$SOURCE_RUNTIME/src/cli.js" ]] || {
+  echo 'ERROR source_codebridge_runtime_missing' >&2
+  exit 2
+}
+
+if [[ ! -d "$RUNTIME" || ! -f "$RUNTIME/src/cli.js" ]]; then
+  rm -rf "$RUNTIME"
+  cp -a "$SOURCE_RUNTIME" "$RUNTIME"
+  echo 'runtime_isolation=created'
+else
+  echo 'runtime_isolation=existing'
+fi
+chown -R "$SERVICE_USER:$SERVICE_USER" "$RUNTIME"
+chmod 0755 /opt
+find "$RUNTIME" -type d -exec chmod u+rwx,go-rwx {} +
+find "$RUNTIME" -type f -exec chmod u+rw,go-rwx {} +
+chmod u+x "$RUNTIME/src/cli.js" 2>/dev/null || true
 
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" "$CONFIG_DIR" "$STATE"
 
