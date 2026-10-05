@@ -6,7 +6,7 @@ umask 077
 
 PROJECT_ID="${CODEBRIDGE_PROJECT_ID:-kmj-main-platform}"
 INSTANCE="${CODEBRIDGE_INSTANCE:-kmj-main-platform}"
-SOURCE_ROOT="${CODEBRIDGE_SOURCE_ROOT:-/home/kmjprod/current}"
+SOURCE_ROOT="${CODEBRIDGE_SOURCE_ROOT:-/home/kmjstage/repos/kmj-main-platform}"
 PROJECT_ROOT="${CODEBRIDGE_PROJECT_ROOT:-/srv/kmj-codebridge-projects/kmj-main-platform}"
 RUNTIME="${CODEBRIDGE_RUNTIME:-/opt/kmj-codebridge-agent}"
 ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
