@@ -191,12 +191,14 @@ const RISK_CLASSES = [
 ];
 
 function commandRisk(category) {
-  return {
-    inspect: "READ",
-    build: "TEST",
-    write: "EDIT",
-    network: "SERVICE",
-  }[category] ?? "PRIVILEGED";
+  return (
+    {
+      inspect: "READ",
+      build: "TEST",
+      write: "EDIT",
+      network: "SERVICE",
+    }[category] ?? "PRIVILEGED"
+  );
 }
 
 function toolRisk(name, definition) {
