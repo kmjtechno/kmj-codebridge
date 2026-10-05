@@ -4,21 +4,22 @@ import path from "node:path";
 import { startGateway } from "./gateway.js";
 import { startAgent } from "./agent.js";
 import { startSupervisor } from "./supervisor.js";
+import { runStableUpdate } from "./stable-updater.js";
 const version = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
 const [mode, file] = process.argv.slice(2);
 if (
-  !["gateway", "agent", "supervisor"].includes(mode) ||
+  !["gateway", "agent", "supervisor", "stable-update"].includes(mode) ||
   (mode === "supervisor" ? Boolean(file) : !file)
 ) {
   console.error(
-    "Usage: node src/cli.js gateway|agent /absolute/path/config.json | supervisor",
+    "Usage: node src/cli.js gateway|agent|stable-update /absolute/path/config.json | supervisor",
   );
   process.exit(2);
 }
 try {
-  let service;
+  let service = null;
   if (mode === "supervisor") {
     const listenPid = Number(process.env.LISTEN_PID ?? 0);
     const listenFds = Number(process.env.LISTEN_FDS ?? 0);
@@ -30,6 +31,14 @@ try {
     const stat = fs.statSync(absolute);
     if (process.platform !== "win32" && stat.mode & 0o077)
       throw Error("Configuration must have mode 0600.");
+    if (
+      mode === "stable-update" &&
+      process.platform !== "win32" &&
+      (stat.uid !== 0 || process.getuid?.() !== 0)
+    )
+      throw Error(
+        "Stable update configuration must be root-owned and updater must run as root.",
+      );
     const config = JSON.parse(fs.readFileSync(absolute, "utf8"));
     if (mode === "agent")
       for (const p of config.projects ?? []) {
@@ -46,20 +55,31 @@ try {
             "Agent configuration must be outside authorized projects.",
           );
       }
-    service =
-      mode === "gateway"
-        ? await startGateway(config)
-        : await startAgent(config);
+
+    if (mode === "stable-update") {
+      const result = await runStableUpdate(config);
+      console.log(
+        `KMJ CodeBridge stable update complete; version ${result.version}, sequence ${result.sequence}, updated=${result.updated}.`,
+      );
+    } else {
+      service =
+        mode === "gateway"
+          ? await startGateway(config)
+          : await startAgent(config);
+    }
   }
-  console.log(`KMJ CodeBridge ${mode} started; version ${version}.`);
-  let closing = false;
-  for (const sig of ["SIGINT", "SIGTERM"])
-    process.on(sig, async () => {
-      if (closing) return;
-      closing = true;
-      await service.close();
-      process.exit(0);
-    });
+
+  if (service) {
+    console.log(`KMJ CodeBridge ${mode} started; version ${version}.`);
+    let closing = false;
+    for (const sig of ["SIGINT", "SIGTERM"])
+      process.on(sig, async () => {
+        if (closing) return;
+        closing = true;
+        await service.close();
+        process.exit(0);
+      });
+  }
 } catch {
   console.error(
     "Startup failed. Check configuration, file permissions, project roots and state lock. No secrets were logged.",

@@ -218,14 +218,19 @@ export async function resolvePublicReleaseAddress(
 
 function openPinnedHttpsResponse(
   url,
-  { address, family, timeoutMs = 15000 } = {},
+  {
+    address,
+    family,
+    timeoutMs = 15000,
+    accept = "application/gzip, application/octet-stream",
+  } = {},
 ) {
   return new Promise((resolve, reject) => {
     const request = https.get(
       url,
       {
         headers: {
-          accept: "application/gzip, application/octet-stream",
+          accept,
           "accept-encoding": "identity",
           "user-agent": "KMJ-CodeBridge-Updater/1",
         },
@@ -241,6 +246,81 @@ function openPinnedHttpsResponse(
       reject(new CodeBridgeError("UPDATE_DOWNLOAD_FAILED")),
     );
   });
+}
+
+export async function downloadPinnedHttpsBytes(
+  value,
+  {
+    maxBytes = 65536,
+    resolveAddress = resolvePublicReleaseAddress,
+    request = openPinnedHttpsResponse,
+  } = {},
+) {
+  if (
+    typeof value !== "string" ||
+    !Number.isInteger(maxBytes) ||
+    maxBytes < 1 ||
+    maxBytes > 1024 * 1024
+  )
+    fail("UPDATE_METADATA_INVALID");
+
+  let url;
+  try {
+    url = new URL(value);
+  } catch {
+    fail("UPDATE_METADATA_URL_INVALID");
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.username ||
+    url.password ||
+    url.hash ||
+    isUnsafeLiteralHost(url.hostname) ||
+    /["\\\s]/.test(value)
+  )
+    fail("UPDATE_METADATA_URL_INVALID");
+
+  const pinned = await resolveAddress(url.hostname);
+  if (!pinned || pinned.family !== 4 || !isPublicReleaseAddress(pinned.address))
+    fail("UPDATE_DOWNLOAD_ADDRESS_REJECTED");
+
+  const response = await request(url, {
+    address: pinned.address,
+    family: pinned.family,
+    timeoutMs: 15000,
+    accept: "application/json, text/plain, application/octet-stream",
+  });
+  const status = Number(response?.statusCode ?? 0);
+  if (status >= 300 && status < 400) {
+    response.resume?.();
+    fail("UPDATE_DOWNLOAD_REDIRECT");
+  }
+  if (status !== 200) {
+    response.resume?.();
+    fail("UPDATE_METADATA_DOWNLOAD_FAILED");
+  }
+
+  const encoding = String(
+    response.headers?.["content-encoding"] ?? "",
+  ).toLowerCase();
+  if (encoding && encoding !== "identity") {
+    response.resume?.();
+    fail("UPDATE_DOWNLOAD_ENCODING_REJECTED");
+  }
+
+  if (!response || typeof response[Symbol.asyncIterator] !== "function")
+    fail("UPDATE_METADATA_DOWNLOAD_FAILED");
+
+  const chunks = [];
+  let bytes = 0;
+  for await (const chunk of response) {
+    const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += data.length;
+    if (bytes > maxBytes) fail("UPDATE_METADATA_TOO_LARGE");
+    chunks.push(data);
+  }
+  if (bytes < 1) fail("UPDATE_METADATA_INVALID");
+  return Buffer.concat(chunks, bytes);
 }
 
 function safeWorkDirectory(workDir) {

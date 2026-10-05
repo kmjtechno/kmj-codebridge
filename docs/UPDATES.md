@@ -87,7 +87,9 @@ The final target is constrained to the configured releases root. Remote callers 
 
 Verified download, safe extraction, immutable staging/finalization, atomic `current`/`previous` activation and local rollback primitives are implemented as separate fail-closed layers. A dedicated orchestration core now composes manifest verification, download/extraction, a mandatory-success preflight hook before immutable finalization, activation, bounded restart/health checks and automatic rollback/restart of the previous known-good release when the new release fails health verification. Rollback-operation, rollback-restart and rollback-health failures return distinct fail-closed errors.
 
-Production self-update is still not claimed: the orchestration core is dependency-injected and must still be wired to configured manifest/signature retrieval, trusted release-key custody, the restricted Supervisor restart surface and a real authenticated agent/gateway health probe on the live immutable runtime layout.
+The production wiring is now implemented in source: stable/beta metadata is fetched through the DNS-pinned bounded downloader, the updater consumes a root-owned configuration containing only trusted public keys, anti-rollback state is isolated from the service-user agent state, activation restarts only the fixed agent through the restricted Supervisor socket, and health requires a fresh authenticated connection carrying the expected signed runtime identity. The VPS installer provisions a mutually exclusive signed-update systemd service/timer and makes the agent prefer the immutable signed `current` runtime while retaining the development runtime as bootstrap fallback.
+
+Live production self-update is **not** claimed until KMJ publishes an actual signed release manifest/signature/archive and trusted public key, enables the stable or beta channel on an enrolled device, and captures successful activation plus failed-health rollback evidence.
 
 ## Atomic activation state
 
@@ -106,7 +108,7 @@ Rollback atomically switches `current` back to `previous` and retains the former
 
 Release transitions are persisted in a bounded, atomically written history journal under the CodeBridge state directory. Ordinary files or links escaping the managed releases directory fail closed instead of being overwritten.
 
-The update layer can download and safely extract a signed runtime archive and the orchestration core can drive preflight, activation, restart/health callbacks and rollback recovery. The restart and health callbacks are intentionally not bound to arbitrary commands or URLs. Production wiring must connect them only to the fixed Supervisor/service and authenticated connectivity checks before an unattended update can be enabled.
+The update layer can download and safely extract a signed runtime archive and the orchestration core drives preflight, activation, fixed Supervisor restart, authenticated signed-runtime health checks and rollback recovery. The installer keeps the mutable development timer and signed stable/beta timer mutually exclusive. Stable/beta enablement fails closed unless manifest/signature URLs and a root-owned non-writable public-key file are supplied.
 
 ## Anti-rollback and release signing
 

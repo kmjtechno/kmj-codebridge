@@ -37,6 +37,22 @@ AUTO_UPDATE_SERVICE="kmj-codebridge-auto-update.service"
 AUTO_UPDATE_TIMER="kmj-codebridge-auto-update.timer"
 AUTO_UPDATE_SERVICE_FILE="/etc/systemd/system/$AUTO_UPDATE_SERVICE"
 AUTO_UPDATE_TIMER_FILE="/etc/systemd/system/$AUTO_UPDATE_TIMER"
+STABLE_CONFIG_DIR="${CODEBRIDGE_STABLE_CONFIG_DIR:-/etc/kmj-codebridge-update}"
+STABLE_UPDATE_CONFIG="$STABLE_CONFIG_DIR/stable-update.json"
+STABLE_INSTALL_ROOT="${CODEBRIDGE_STABLE_INSTALL_ROOT:-/opt/kmj-codebridge-stable}"
+STABLE_UPDATE_STATE_DIR="${CODEBRIDGE_STABLE_UPDATE_STATE_DIR:-/var/lib/kmj-codebridge-update}"
+STABLE_WORK_DIR="${CODEBRIDGE_STABLE_WORK_DIR:-/var/lib/kmj-codebridge-update-work}"
+STABLE_MANIFEST_URL="${CODEBRIDGE_STABLE_MANIFEST_URL:-}"
+STABLE_SIGNATURE_URL="${CODEBRIDGE_STABLE_SIGNATURE_URL:-}"
+STABLE_TRUSTED_KEYS_FILE="${CODEBRIDGE_STABLE_TRUSTED_KEYS_FILE:-}"
+STABLE_UPDATE_SERVICE="kmj-codebridge-stable-update.service"
+STABLE_UPDATE_TIMER="kmj-codebridge-stable-update.timer"
+STABLE_UPDATE_SERVICE_FILE="/etc/systemd/system/$STABLE_UPDATE_SERVICE"
+STABLE_UPDATE_TIMER_FILE="/etc/systemd/system/$STABLE_UPDATE_TIMER"
+ROLLBACK_STABLE_UPDATE_SERVICE="${STABLE_UPDATE_SERVICE_FILE}.rollback-codebridge"
+ROLLBACK_STABLE_UPDATE_TIMER="${STABLE_UPDATE_TIMER_FILE}.rollback-codebridge"
+ROLLBACK_STABLE_UPDATE_CONFIG="${STABLE_UPDATE_CONFIG}.rollback-codebridge"
+STABLE_TIMER_WAS_ENABLED=0
 
 cleanup() {
   rm -f "$ENROLLMENT_RESULT"
@@ -83,6 +99,37 @@ canonical_https_origin "$ENROLLMENT_BASE" || { echo "Enrollment base must be a c
 GATEWAY="${GATEWAY%/}"
 ENROLLMENT_BASE="${ENROLLMENT_BASE%/}"
 
+case "$AUTO_UPDATE_MODE" in
+  development|stable|beta|off) ;;
+  *) echo "CODEBRIDGE_AUTO_UPDATE_MODE must be development, stable, beta or off." >&2; exit 2 ;;
+esac
+
+safe_absolute_path() {
+  [[ "$1" =~ ^/[A-Za-z0-9._/-]+$ ]] && [[ "$1" != *"/../"* ]] && [[ "$1" != */.. ]]
+}
+
+for stable_path in "$STABLE_CONFIG_DIR" "$STABLE_INSTALL_ROOT" "$STABLE_UPDATE_STATE_DIR" "$STABLE_WORK_DIR"; do
+  safe_absolute_path "$stable_path" || { echo "Stable update paths must be safe absolute paths." >&2; exit 2; }
+done
+
+if [[ "$AUTO_UPDATE_MODE" == "stable" || "$AUTO_UPDATE_MODE" == "beta" ]]; then
+  [[ "$STABLE_MANIFEST_URL" =~ ^https://[^[:space:]#]+$ ]] || { echo "Stable manifest URL must use HTTPS." >&2; exit 2; }
+  [[ "$STABLE_SIGNATURE_URL" =~ ^https://[^[:space:]#]+$ ]] || { echo "Stable signature URL must use HTTPS." >&2; exit 2; }
+  [[ -n "$STABLE_TRUSTED_KEYS_FILE" && -f "$STABLE_TRUSTED_KEYS_FILE" && ! -L "$STABLE_TRUSTED_KEYS_FILE" ]] || {
+    echo "Stable mode requires a regular CODEBRIDGE_STABLE_TRUSTED_KEYS_FILE." >&2
+    exit 2
+  }
+  [[ "$(stat -c '%u' "$STABLE_TRUSTED_KEYS_FILE")" == "0" ]] || {
+    echo "Stable release trust keys must be root-owned." >&2
+    exit 2
+  }
+  trust_mode="$(stat -c '%a' "$STABLE_TRUSTED_KEYS_FILE")"
+  (( (8#$trust_mode & 8#022) == 0 )) || {
+    echo "Stable release trust keys must not be group/world writable." >&2
+    exit 2
+  }
+fi
+
 if [[ -z "$PROJECT" ]]; then
   candidate="$(pwd -P)"
   if [[ "$candidate" == "/" || ! -d "$candidate" ]]; then
@@ -103,6 +150,9 @@ id "$SERVICE_USER" >/dev/null 2>&1 || { echo "Service user does not exist." >&2;
 SERVICE_GROUP="$(id -gn "$SERVICE_USER")"
 if systemctl is-enabled --quiet "$SUPERVISOR_SOCKET_UNIT" 2>/dev/null; then
   SUPERVISOR_SOCKET_WAS_ENABLED=1
+fi
+if systemctl is-enabled --quiet "$STABLE_UPDATE_TIMER" 2>/dev/null; then
+  STABLE_TIMER_WAS_ENABLED=1
 fi
 
 install_dependencies() {
@@ -164,6 +214,8 @@ git -C "$NEW_DIR" checkout -q "$REF"
 )
 
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$CONFIG_DIR" "$STATE_DIR"
+install -d -m 0700 -o root -g root "$STABLE_CONFIG_DIR" "$STABLE_UPDATE_STATE_DIR" "$STABLE_WORK_DIR"
+install -d -m 0755 -o root -g root "$STABLE_INSTALL_ROOT"
 
 have_config=0
 if [[ -f "$CONFIG" ]]; then
@@ -269,7 +321,7 @@ if [[ -d "$INSTALL_DIR" ]]; then
 fi
 mv "$NEW_DIR" "$INSTALL_DIR"
 
-rm -f "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"
+rm -f "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_UPDATE_CONFIG"
 if [[ -f "$SERVICE_FILE" ]]; then
   cp -a "$SERVICE_FILE" "$ROLLBACK_SERVICE"
 fi
@@ -279,6 +331,63 @@ fi
 if [[ -f "$SUPERVISOR_SOCKET_FILE" ]]; then
   cp -a "$SUPERVISOR_SOCKET_FILE" "$ROLLBACK_SUPERVISOR_SOCKET"
 fi
+if [[ -f "$STABLE_UPDATE_SERVICE_FILE" ]]; then
+  cp -a "$STABLE_UPDATE_SERVICE_FILE" "$ROLLBACK_STABLE_UPDATE_SERVICE"
+fi
+if [[ -f "$STABLE_UPDATE_TIMER_FILE" ]]; then
+  cp -a "$STABLE_UPDATE_TIMER_FILE" "$ROLLBACK_STABLE_UPDATE_TIMER"
+fi
+if [[ -f "$STABLE_UPDATE_CONFIG" ]]; then
+  cp -a "$STABLE_UPDATE_CONFIG" "$ROLLBACK_STABLE_UPDATE_CONFIG"
+fi
+
+write_stable_update_config() {
+  if [[ "$AUTO_UPDATE_MODE" != "stable" && "$AUTO_UPDATE_MODE" != "beta" ]]; then
+    rm -f "$STABLE_UPDATE_CONFIG"
+    return
+  fi
+
+  STABLE_CHANNEL="$AUTO_UPDATE_MODE"   STABLE_MANIFEST_URL="$STABLE_MANIFEST_URL"   STABLE_SIGNATURE_URL="$STABLE_SIGNATURE_URL"   STABLE_TRUSTED_KEYS_FILE="$STABLE_TRUSTED_KEYS_FILE"   STABLE_INSTALL_ROOT="$STABLE_INSTALL_ROOT"   STABLE_UPDATE_STATE_DIR="$STABLE_UPDATE_STATE_DIR"   AGENT_STATE_DIR="$STATE_DIR"   STABLE_WORK_DIR="$STABLE_WORK_DIR"   STABLE_UPDATE_CONFIG="$STABLE_UPDATE_CONFIG"   SUPERVISOR_SOCKET_PATH="$SUPERVISOR_SOCKET_PATH"   "$NODE" --input-type=module - "$INSTALL_DIR" <<'NODE'
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+
+const root = process.argv[2];
+const { stableUpdateConfigSchema } = await import(
+  pathToFileURL(path.join(root, "src/stable-updater.js")).href
+);
+const trustedKeys = JSON.parse(
+  fs.readFileSync(process.env.STABLE_TRUSTED_KEYS_FILE, "utf8"),
+);
+const config = stableUpdateConfigSchema.parse({
+  schema: 1,
+  channel: process.env.STABLE_CHANNEL,
+  manifestUrl: process.env.STABLE_MANIFEST_URL,
+  signatureUrl: process.env.STABLE_SIGNATURE_URL,
+  trustedKeys,
+  installRoot: process.env.STABLE_INSTALL_ROOT,
+  stateDir: process.env.STABLE_UPDATE_STATE_DIR,
+  agentStateDir: process.env.AGENT_STATE_DIR,
+  workDir: process.env.STABLE_WORK_DIR,
+  supervisorSocket: process.env.SUPERVISOR_SOCKET_PATH,
+  health: { attempts: 10, delayMs: 1000 },
+});
+const target = process.env.STABLE_UPDATE_CONFIG;
+const temp = target + ".tmp-" + process.pid;
+const fd = fs.openSync(temp, "wx", 0o600);
+try {
+  fs.writeFileSync(fd, JSON.stringify(config, null, 2) + "\n");
+  fs.fsyncSync(fd);
+} finally {
+  fs.closeSync(fd);
+}
+fs.renameSync(temp, target);
+NODE
+  chown root:root "$STABLE_UPDATE_CONFIG"
+  chmod 0600 "$STABLE_UPDATE_CONFIG"
+}
+
+write_stable_update_config
 
 write_service() {
 cat >"$SERVICE_FILE" <<EOF
@@ -292,7 +401,7 @@ Type=simple
 User=$SERVICE_USER
 Group=$SERVICE_GROUP
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$NODE $INSTALL_DIR/src/cli.js agent $CONFIG
+ExecStart=/bin/bash -c 'runtime="$INSTALL_DIR"; if [ -L "$STABLE_INSTALL_ROOT/current" ] && [ -f "$STABLE_INSTALL_ROOT/current/src/cli.js" ]; then runtime="$STABLE_INSTALL_ROOT/current"; fi; exec "$NODE" "\$runtime/src/cli.js" agent "$CONFIG"'
 Restart=always
 RestartSec=2
 NoNewPrivileges=true
@@ -356,14 +465,63 @@ UMask=0077
 EOF
 }
 
+write_stable_update_units() {
+cat >"$STABLE_UPDATE_SERVICE_FILE" <<EOF
+[Unit]
+Description=KMJ CodeBridge signed stable updater
+After=network-online.target $SUPERVISOR_SOCKET_UNIT
+Wants=network-online.target $SUPERVISOR_SOCKET_UNIT
+ConditionPathExists=$STABLE_UPDATE_CONFIG
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/bin/bash -c 'runtime="$INSTALL_DIR"; if [ -L "$STABLE_INSTALL_ROOT/current" ] && [ -f "$STABLE_INSTALL_ROOT/current/src/cli.js" ]; then runtime="$STABLE_INSTALL_ROOT/current"; fi; exec "$NODE" "\$runtime/src/cli.js" stable-update "$STABLE_UPDATE_CONFIG"'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR $STABLE_WORK_DIR
+UMask=0077
+Nice=10
+IOSchedulingClass=idle
+EOF
+
+cat >"$STABLE_UPDATE_TIMER_FILE" <<EOF
+[Unit]
+Description=Check for signed KMJ CodeBridge stable updates
+
+[Timer]
+OnBootSec=15min
+OnUnitActiveSec=1h
+RandomizedDelaySec=15min
+Persistent=true
+Unit=$STABLE_UPDATE_SERVICE
+
+[Install]
+WantedBy=timers.target
+EOF
+}
+
 write_service
 write_supervisor_units
+write_stable_update_units
 
 rollback() {
   echo "Update/start verification failed; rolling back CodeBridge." >&2
   systemctl stop "$SERVICE" >/dev/null 2>&1 || true
   systemctl stop "$SUPERVISOR_SERVICE" >/dev/null 2>&1 || true
   systemctl stop "$SUPERVISOR_SOCKET_UNIT" >/dev/null 2>&1 || true
+  systemctl stop "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
+  systemctl stop "$STABLE_UPDATE_SERVICE" >/dev/null 2>&1 || true
   if [[ -d "$ROLLBACK_CODE" ]]; then
     rm -rf "$INSTALL_DIR"
     mv "$ROLLBACK_CODE" "$INSTALL_DIR"
@@ -388,11 +546,31 @@ rollback() {
   else
     rm -f "$SUPERVISOR_SOCKET_FILE"
   fi
+  if [[ -f "$ROLLBACK_STABLE_UPDATE_SERVICE" ]]; then
+    cp -a "$ROLLBACK_STABLE_UPDATE_SERVICE" "$STABLE_UPDATE_SERVICE_FILE"
+  else
+    rm -f "$STABLE_UPDATE_SERVICE_FILE"
+  fi
+  if [[ -f "$ROLLBACK_STABLE_UPDATE_TIMER" ]]; then
+    cp -a "$ROLLBACK_STABLE_UPDATE_TIMER" "$STABLE_UPDATE_TIMER_FILE"
+  else
+    rm -f "$STABLE_UPDATE_TIMER_FILE"
+  fi
+  if [[ -f "$ROLLBACK_STABLE_UPDATE_CONFIG" ]]; then
+    cp -a "$ROLLBACK_STABLE_UPDATE_CONFIG" "$STABLE_UPDATE_CONFIG"
+  else
+    rm -f "$STABLE_UPDATE_CONFIG"
+  fi
   systemctl daemon-reload
   if (( SUPERVISOR_SOCKET_WAS_ENABLED == 1 )); then
     systemctl enable --now "$SUPERVISOR_SOCKET_UNIT" >/dev/null 2>&1 || true
   else
     systemctl disable --now "$SUPERVISOR_SOCKET_UNIT" >/dev/null 2>&1 || true
+  fi
+  if (( STABLE_TIMER_WAS_ENABLED == 1 )); then
+    systemctl enable --now "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
+  else
+    systemctl disable --now "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
   fi
   systemctl start "$SERVICE" >/dev/null 2>&1 || true
 }
@@ -462,7 +640,7 @@ then
 fi
 
 rm -rf "$ROLLBACK_CODE"
-rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"
+rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_UPDATE_CONFIG"
 
 cat >"$AUTO_UPDATE_SERVICE_FILE" <<EOF
 [Unit]
@@ -496,11 +674,20 @@ WantedBy=timers.target
 EOF
 
 systemctl daemon-reload
-if [[ "$AUTO_UPDATE_MODE" == "development" ]]; then
-  systemctl enable --now "$AUTO_UPDATE_TIMER" >/dev/null
-else
-  systemctl disable --now "$AUTO_UPDATE_TIMER" >/dev/null 2>&1 || true
-fi
+case "$AUTO_UPDATE_MODE" in
+  development)
+    systemctl disable --now "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
+    systemctl enable --now "$AUTO_UPDATE_TIMER" >/dev/null
+    ;;
+  stable|beta)
+    systemctl disable --now "$AUTO_UPDATE_TIMER" >/dev/null 2>&1 || true
+    systemctl enable --now "$STABLE_UPDATE_TIMER" >/dev/null
+    ;;
+  off)
+    systemctl disable --now "$AUTO_UPDATE_TIMER" >/dev/null 2>&1 || true
+    systemctl disable --now "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
+    ;;
+esac
 
 echo "KMJ CodeBridge is installed, enrolled and running."
 echo "Device: $DEVICE"
@@ -508,5 +695,6 @@ echo "Project: $PROJECT"
 echo "Service: systemctl status $SERVICE --no-pager"
 echo "Supervisor: socket-activated at $SUPERVISOR_SOCKET_PATH and idle when unused."
 echo "Auto-update mode: $AUTO_UPDATE_MODE"
-echo "Auto-update timer: $AUTO_UPDATE_TIMER"
+echo "Development auto-update timer: $AUTO_UPDATE_TIMER"
+echo "Signed stable update timer: $STABLE_UPDATE_TIMER"
 echo "No inbound VPS port or GitHub Actions runner is required."

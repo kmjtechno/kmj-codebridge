@@ -11,6 +11,7 @@ import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
 import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
+import { VERSION } from "./version.js";
 export async function startAgent(rawConfig) {
   const c = agentSchema.parse(rawConfig);
   const url = new URL(c.gateway);
@@ -115,6 +116,34 @@ export async function startAgent(rawConfig) {
   const controller = new AbortController();
   let stopped = false;
   const connectionState = path.join(state, "connection.json");
+  const runtimeIdentity = () => {
+    const identity = { version: VERSION, release: null };
+    try {
+      const marker = JSON.parse(
+        fs.readFileSync(
+          new URL("../.codebridge-release.json", import.meta.url),
+          "utf8",
+        ),
+      );
+      if (
+        marker?.schema === 1 &&
+        marker.version === VERSION &&
+        Number.isSafeInteger(marker.sequence) &&
+        marker.sequence >= 0 &&
+        typeof marker.revision === "string" &&
+        /^[a-f0-9]{40}$/.test(marker.revision) &&
+        typeof marker.sha256 === "string" &&
+        /^[a-f0-9]{64}$/.test(marker.sha256)
+      )
+        identity.release = {
+          sequence: marker.sequence,
+          version: marker.version,
+          revision: marker.revision,
+          sha256: marker.sha256,
+        };
+    } catch {}
+    return identity;
+  };
   let connected = false;
   const markConnected = () => {
     if (connected) return;
@@ -123,7 +152,10 @@ export async function startAgent(rawConfig) {
     const tmp = connectionState + ".tmp";
     fs.writeFileSync(
       tmp,
-      JSON.stringify({ connectedAt: new Date(now).toISOString() }),
+      JSON.stringify({
+        connectedAt: new Date(now).toISOString(),
+        ...runtimeIdentity(),
+      }),
       { mode: 0o600 },
     );
     fs.renameSync(tmp, connectionState);
