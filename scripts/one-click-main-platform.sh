@@ -96,7 +96,7 @@ echo 'Main Platform Git checkout ready.'
 echo "project_root=$TARGET"
 echo
 
-curl -fsSL https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/main/scripts/setup-main-platform-agent.sh \
+curl -fsSL https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/3db981b9d1ffe71e9a618f82ef56b2964473c605/scripts/setup-main-platform-agent.sh \
 | env -u CODEBRIDGE_SOURCE_ROOT \
     CODEBRIDGE_SOURCE_ROOT="$TARGET" \
     CODEBRIDGE_SERVICE_USER="$SERVICE_USER" \
