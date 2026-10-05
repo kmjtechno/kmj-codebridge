@@ -20,18 +20,6 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Temporary product metadata formatter
-        if: runner.os == 'Linux'
-        shell: bash
-        run: |
-          npx prettier scripts/check-product-manifest.js scripts/generate-product-artifacts.js product/codebridge-product.json --write
-          for file in scripts/check-product-manifest.js scripts/generate-product-artifacts.js product/codebridge-product.json; do
-            echo "KMJ_FORMAT_BEGIN:$file"
-            base64 -w0 "$file"
-            echo
-            echo "KMJ_FORMAT_END:$file"
-          done
-          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
