@@ -20,6 +20,13 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Temporary Desktop marketplace formatting diagnostic
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          npx prettier plugin/desktop/bridge.mjs plugin/mcp.json tests/desktop-marketplace.test.js .agents/plugins/marketplace.json scripts/install-chatgpt-desktop.ps1 --write
+          git diff -- plugin/desktop/bridge.mjs plugin/mcp.json tests/desktop-marketplace.test.js .agents/plugins/marketplace.json scripts/install-chatgpt-desktop.ps1
+          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
