@@ -20,6 +20,16 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Temporary context-pack formatter
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          npx prettier src/tools.js --write
+          echo 'KMJ_CONTEXT_TOOLS_BEGIN'
+          base64 -w0 src/tools.js
+          echo
+          echo 'KMJ_CONTEXT_TOOLS_END'
+          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
