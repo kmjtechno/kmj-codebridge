@@ -107,6 +107,16 @@ export const definitions = {
     },
     access: "read",
   },
+  fast_context: {
+    title: "Fast project context",
+    description:
+      "Read project metadata, Git status, and bounded autopilot state through one MCP call. The gateway composes existing read-only agent tools so older agents can benefit without a runtime upgrade.",
+    input: {
+      ...scoped,
+      autopilotLimit: z.number().int().min(1).max(20).default(10),
+    },
+    access: "read",
+  },
   list_directory: {
     title: "List directory",
     description:
