@@ -57,6 +57,7 @@ export const stableUpdateConfigSchema = z
       ),
     installRoot: absolutePath,
     stateDir: absolutePath,
+    agentStateDir: absolutePath,
     workDir: absolutePath,
     supervisorSocket: z.literal(SUPERVISOR_SOCKET).default(SUPERVISOR_SOCKET),
     health: z
@@ -76,6 +77,11 @@ export const stableUpdateConfigSchema = z
         code: z.ZodIssueCode.custom,
         message: "Manifest and signature must share one origin",
       });
+    if (path.resolve(config.stateDir) === path.resolve(config.agentStateDir))
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Updater state must be isolated from agent state",
+      });
   });
 
 const acceptedStateSchema = z
@@ -94,6 +100,17 @@ function secureDirectory(target) {
   if (!stat.isDirectory() || stat.isSymbolicLink())
     fail("UPDATE_STATE_ROOT_INVALID");
   return path.resolve(target);
+}
+
+function existingDirectory(target, code) {
+  try {
+    const stat = fs.lstatSync(target);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) fail(code);
+    return path.resolve(target);
+  } catch (error) {
+    if (error?.code === code) throw error;
+    fail(code);
+  }
 }
 
 function acceptedStateFile(stateDir) {
@@ -321,6 +338,10 @@ export async function runStableUpdate(
   const config = stableUpdateConfigSchema.parse(rawConfig);
   secureDirectory(config.stateDir);
   secureDirectory(config.workDir);
+  const agentStateDir = existingDirectory(
+    config.agentStateDir,
+    "UPDATE_AGENT_STATE_INVALID",
+  );
 
   const store = createStore(config);
   const accepted = readAcceptedUpdateState(config.stateDir);
@@ -385,7 +406,7 @@ export async function runStableUpdate(
     restart: () => fixedAgentRestart(config.supervisorSocket, restartRequest),
     healthCheck: async () =>
       freshAuthenticatedConnection(
-        config.stateDir,
+        agentStateDir,
         activationStart,
         manifest,
       ),
