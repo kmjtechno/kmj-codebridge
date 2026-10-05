@@ -18,8 +18,10 @@ file records verified capability, not a percentage-complete claim.
 - **Claude web:** custom connector added by URL, authenticated, and exposed the
   CodeBridge tool permissions.
 - **Claude Desktop:** normal-account mode uses the hosted endpoint. A
-  third-party inference Gateway profile must add CodeBridge under Inference
-  configuration → Connectors; that path still needs a recorded real tool call.
+  third-party inference Gateway profile was verified end-to-end through
+  Inference configuration → Connectors: OAuth completed with a public PKCE
+  client using an RFC 8252 loopback callback, and Claude then inspected the
+  authorized writable CodeBridge project through the live connector.
 - **Devices:** outbound agent, dynamic device introspection, verifier-bound
   pairing client, hardened systemd service, and restricted socket-activated
   Supervisor are implemented.
@@ -56,8 +58,6 @@ file records verified capability, not a percentage-complete claim.
 - The VPS provider/hypervisor has produced abrupt external power events; guest logs did
   not show a normal Linux shutdown. Provider-side stability remains an infrastructure
   dependency rather than a CodeBridge software gate.
-- Claude Desktop third-party-inference Gateway mode needs one recorded OAuth
-  `Sign in & test` plus a real CodeBridge tool invocation.
 - Public Anthropic/OpenAI directory review is an external approval step. Repository
   packaging does not imply directory approval.
 - Paid checkout, cancellation/refund, entitlement renewal/revocation, and real-customer
