@@ -180,16 +180,19 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
         params: {},
       }),
     });
-    assert.equal(discovered.status, 401);
-    assert.match(
-      discovered.headers.get("www-authenticate"),
-      /resource_metadata=/,
+    assert.equal(discovered.status, 200);
+    const discovery = await discovered.json();
+    const listed = discovery.result.tools.find(
+      (tool) => tool.name === "list_devices",
     );
+    assert.deepEqual(listed.securitySchemes, [
+      { type: "oauth2", scopes: ["codebridge:read"] },
+    ]);
+    assert.deepEqual(listed._meta.securitySchemes, listed.securitySchemes);
 
     const denied = await fetch(gateway.url + "/mcp", {
       method: "POST",
       headers: {
-        authorization: "Bearer agent",
         "content-type": "application/json",
         accept: "application/json, text/event-stream",
       },
@@ -200,8 +203,21 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
         params: { name: "list_devices", arguments: {} },
       }),
     });
-    assert.equal(denied.status, 401);
-    assert.match(denied.headers.get("www-authenticate"), /resource_metadata=/);
+    assert.equal(denied.status, 200);
+    const deniedResult = await denied.json();
+    assert.equal(deniedResult.result.isError, true);
+    assert.match(
+      deniedResult.result._meta["mcp/www_authenticate"][0],
+      /resource_metadata=/,
+    );
+    assert.match(
+      deniedResult.result._meta["mcp/www_authenticate"][0],
+      /error="invalid_token"/,
+    );
+    assert.match(
+      deniedResult.result._meta["mcp/www_authenticate"][0],
+      /error_description=/,
+    );
     const allowed = await fetch(gateway.url + "/mcp", {
       method: "POST",
       headers: {
@@ -238,6 +254,10 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
     assert.match(
       error.result._meta["mcp/www_authenticate"][0],
       /insufficient_scope/,
+    );
+    assert.match(
+      error.result._meta["mcp/www_authenticate"][0],
+      /error_description=/,
     );
     const acl = await fetch(gateway.url + "/mcp", {
       method: "POST",
