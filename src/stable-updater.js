@@ -211,8 +211,19 @@ export function freshAuthenticatedConnection(
   );
 }
 
-export function defaultStableUpdatePreflight({ stagingDir }) {
+export function defaultStableUpdatePreflight(
+  { stagingDir },
+  {
+    run = execFileSync,
+    npmPath = path.join(
+      path.dirname(process.execPath),
+      process.platform === "win32" ? "npm.cmd" : "npm",
+    ),
+  } = {},
+) {
   for (const relative of [
+    "package.json",
+    "package-lock.json",
     "src/cli.js",
     "src/agent.js",
     "src/supervisor.js",
@@ -221,17 +232,61 @@ export function defaultStableUpdatePreflight({ stagingDir }) {
     const file = path.join(stagingDir, relative);
     if (!fs.existsSync(file) || !fs.lstatSync(file).isFile())
       fail("UPDATE_PREFLIGHT_FAILED");
-    try {
-      execFileSync(process.execPath, ["--check", file], {
+  }
+
+  try {
+    run(
+      npmPath,
+      [
+        "ci",
+        "--omit=dev",
+        "--ignore-scripts",
+        "--no-audit",
+        "--no-fund",
+      ],
+      {
+        cwd: stagingDir,
+        encoding: "utf8",
+        timeout: 120000,
+        maxBuffer: 4 * 1024 * 1024,
+        windowsHide: true,
+        env: {
+          PATH: [
+            path.dirname(process.execPath),
+            "/usr/local/bin",
+            "/usr/bin",
+            "/bin",
+          ].join(path.delimiter),
+          HOME: process.env.HOME ?? stagingDir,
+          LANG: "C.UTF-8",
+        },
+      },
+    );
+
+    for (const relative of [
+      "src/cli.js",
+      "src/agent.js",
+      "src/supervisor.js",
+      "src/supervisor-client.js",
+    ])
+      run(process.execPath, ["--check", path.join(stagingDir, relative)], {
+        cwd: stagingDir,
         encoding: "utf8",
         timeout: 10000,
         maxBuffer: 1024 * 1024,
         windowsHide: true,
       });
-    } catch {
-      fail("UPDATE_PREFLIGHT_FAILED");
-    }
+  } catch {
+    fail("UPDATE_PREFLIGHT_FAILED");
   }
+
+  const modules = path.join(stagingDir, "node_modules");
+  if (
+    !fs.existsSync(modules) ||
+    !fs.lstatSync(modules).isDirectory() ||
+    fs.lstatSync(modules).isSymbolicLink()
+  )
+    fail("UPDATE_PREFLIGHT_FAILED");
   return true;
 }
 
