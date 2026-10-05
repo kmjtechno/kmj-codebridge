@@ -44,7 +44,7 @@ export function sensitiveBindings(text) {
 }
 
 // True only when every sensitive binding present in `before` still occurs
-// in `after` at least as many times — a strict multiset subset check. This
+// in `after` at least as many times â a strict multiset subset check. This
 // rejects relocating a bound value into a comment or an unrelated string
 // (the binding disappears even though the raw bytes remain somewhere),
 // moving a value from one label to another (same value, different key, so
@@ -659,11 +659,7 @@ export function createDispatcher(
         }
       }
 
-      const map = p.files.repoMap(
-        a.query,
-        budget.mapFiles,
-        budget.symbols,
-      );
+      const map = p.files.repoMap(a.query, budget.mapFiles, budget.symbols);
       const mapByPath = new Map(map.files.map((file) => [file.path, file]));
       const candidates = [];
       const seen = new Set();
