@@ -104,12 +104,14 @@ function findPidsByMatch(matchSubstring) {
   const pids = [];
   for (const entry of fs.readdirSync("/proc")) {
     if (!/^\d+$/.test(entry)) continue;
+    const pid = Number(entry);
+    if (pid === process.pid) continue;
     try {
       const cmdline = fs
         .readFileSync(`/proc/${entry}/cmdline`, "utf8")
         .replace(/\0/g, " ")
         .trim();
-      if (cmdline.includes(matchSubstring)) pids.push(Number(entry));
+      if (cmdline.includes(matchSubstring)) pids.push(pid);
     } catch {
       // process exited between readdir and read; skip
     }
