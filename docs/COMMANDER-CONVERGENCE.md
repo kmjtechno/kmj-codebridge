@@ -23,7 +23,7 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Deny-by-default execution boundary       | Existing MCP authorization + project roots + supervisor allowlists                           | Native                      |
 | Replay/idempotency protection            | Existing request keys / job fingerprints / grant validation                                  | Native; expand where needed |
 | Persistent task queue                    | Existing AutopilotJournal + missions/DAG                                                     | Native                      |
-| Reconnect/crash recovery                 | Agent lock, persistent journals, service supervisor, gateway heartbeat/reconnect telemetry    | Native                      |
+| Reconnect/crash recovery                 | Agent lock, persistent journals, service supervisor, gateway heartbeat/reconnect telemetry   | Native                      |
 | Risk classes                             | READ / TEST / EDIT / GIT_WRITE / SERVICE / DEPLOY / PRIVILEGED / DESTRUCTIVE policy metadata | Native                      |
 | Approval gate                            | Main Platform approval records for privileged/destructive actions                            | Next                        |
 | Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
