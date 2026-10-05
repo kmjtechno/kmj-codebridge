@@ -110,7 +110,8 @@ function detectProjectEnvironment(files) {
   if (names.has("pnpm-lock.yaml")) packageManagers.add("pnpm");
   if (names.has("package-lock.json")) packageManagers.add("npm");
   if (names.has("yarn.lock")) packageManagers.add("yarn");
-  if (names.has("bun.lock") || names.has("bun.lockb")) packageManagers.add("bun");
+  if (names.has("bun.lock") || names.has("bun.lockb"))
+    packageManagers.add("bun");
 
   if (names.has("artisan")) frameworks.add("laravel");
   if (names.has("manage.py")) frameworks.add("django");
