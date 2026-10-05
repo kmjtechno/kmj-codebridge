@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
 import { ProjectFiles } from "./policy.js";
 import { fail } from "./errors.js";
@@ -68,6 +69,7 @@ export function preservesSensitiveBindings(before, after) {
 }
 const scoped = { device: identifier, project: identifier };
 const supervisorService = z.enum(["agent", "gateway"]);
+const contextBudget = z.enum(["small", "medium", "deep"]);
 const fastReadTool = z.enum([
   "inspect_project",
   "connection_doctor",
@@ -164,6 +166,17 @@ export const definitions = {
       query: z.string().max(120).default(""),
       maxFiles: z.number().int().min(1).max(200).default(80),
       maxSymbolsPerFile: z.number().int().min(1).max(50).default(12),
+    },
+    access: "read",
+  },
+  context_pack: {
+    title: "Context pack",
+    description:
+      "Build a deterministic delta-first coding context pack from Git changes, repository relevance and bounded file excerpts.",
+    input: {
+      ...scoped,
+      query: z.string().max(120).default(""),
+      budget: contextBudget.default("medium"),
     },
     access: "read",
   },
@@ -543,6 +556,221 @@ export function createDispatcher(
     if (name === "list_directory") return p.files.list(a.path);
     if (name === "repo_map")
       return p.files.repoMap(a.query, a.maxFiles, a.maxSymbolsPerFile);
+    if (name === "context_pack") {
+      const budgets = {
+        small: {
+          maxBytes: 12288,
+          maxFiles: 4,
+          maxLines: 80,
+          mapFiles: 20,
+          symbols: 8,
+        },
+        medium: {
+          maxBytes: 32768,
+          maxFiles: 8,
+          maxLines: 160,
+          mapFiles: 40,
+          symbols: 12,
+        },
+        deep: {
+          maxBytes: 65536,
+          maxFiles: 16,
+          maxLines: 240,
+          mapFiles: 80,
+          symbols: 20,
+        },
+      };
+      const budget = budgets[a.budget];
+      const gitDir = path.join(p.files.root, ".git");
+      let head = null;
+      let statusRaw = "";
+      let gitAvailable = false;
+      try {
+        const stat = fs.lstatSync(gitDir);
+        if (stat.isDirectory() && !stat.isSymbolicLink()) {
+          const gitOptions = {
+            cwd: p.files.root,
+            encoding: "utf8",
+            timeout: 5000,
+            maxBuffer: 65536,
+            env: {
+              PATH: process.env.PATH,
+              SystemRoot: process.env.SystemRoot,
+              GIT_CONFIG_NOSYSTEM: "1",
+              GIT_CONFIG_GLOBAL:
+                process.platform === "win32" ? "NUL" : "/dev/null",
+              GIT_TERMINAL_PROMPT: "0",
+              GIT_OPTIONAL_LOCKS: "0",
+            },
+          };
+          head = execFileSync(
+            "git",
+            [
+              "--no-optional-locks",
+              "-c",
+              "core.fsmonitor=false",
+              "-c",
+              "core.untrackedCache=false",
+              "rev-parse",
+              "--verify",
+              "HEAD",
+            ],
+            gitOptions,
+          ).trim();
+          statusRaw = execFileSync(
+            "git",
+            [
+              "--no-optional-locks",
+              "-c",
+              "core.fsmonitor=false",
+              "-c",
+              "core.untrackedCache=false",
+              "status",
+              "--porcelain=v1",
+              "--untracked-files=normal",
+            ],
+            gitOptions,
+          );
+          gitAvailable = true;
+        }
+      } catch {
+        gitAvailable = false;
+        head = null;
+        statusRaw = "";
+      }
+
+      const changedFiles = [];
+      const changedSet = new Set();
+      if (gitAvailable) {
+        for (const line of statusRaw.split("\n")) {
+          if (line.length < 4) continue;
+          let relative = line.slice(3).trim();
+          const rename = relative.lastIndexOf(" -> ");
+          if (rename >= 0) relative = relative.slice(rename + 4);
+          relative = relative.replaceAll("\\", "/");
+          if (!relative || changedSet.has(relative)) continue;
+          try {
+            p.files.read(relative);
+          } catch {
+            continue;
+          }
+          changedSet.add(relative);
+          changedFiles.push(relative);
+        }
+      }
+
+      const map = p.files.repoMap(
+        a.query,
+        budget.mapFiles,
+        budget.symbols,
+      );
+      const mapByPath = new Map(map.files.map((file) => [file.path, file]));
+      const candidates = [];
+      const seen = new Set();
+      for (const relative of changedFiles) {
+        candidates.push(relative);
+        seen.add(relative);
+      }
+      for (const file of map.files) {
+        if (seen.has(file.path)) continue;
+        candidates.push(file.path);
+        seen.add(file.path);
+      }
+
+      const excerpts = [];
+      let bytes = 0;
+      const query = a.query.trim().toLowerCase();
+      for (const relative of candidates) {
+        if (excerpts.length >= budget.maxFiles || bytes >= budget.maxBytes)
+          break;
+        const mapEntry = mapByPath.get(relative);
+        const matchingSymbol =
+          query && mapEntry
+            ? mapEntry.symbols.find((symbol) =>
+                symbol.name.toLowerCase().includes(query),
+              )
+            : null;
+        const startLine = Math.max(
+          1,
+          matchingSymbol
+            ? matchingSymbol.line - Math.floor(budget.maxLines / 4)
+            : 1,
+        );
+
+        let file;
+        try {
+          file = p.files.readRange(relative, startLine, budget.maxLines);
+        } catch {
+          continue;
+        }
+        let text = redact(file.content);
+        const remaining = budget.maxBytes - bytes;
+        let excerptTruncated = false;
+        if (Buffer.byteLength(text, "utf8") > remaining) {
+          const buffer = Buffer.from(text, "utf8");
+          text = buffer.subarray(0, remaining).toString("utf8");
+          while (Buffer.byteLength(text, "utf8") > remaining)
+            text = text.slice(0, -1);
+          excerptTruncated = true;
+        }
+        const excerptBytes = Buffer.byteLength(text, "utf8");
+        if (!excerptBytes) continue;
+        bytes += excerptBytes;
+        excerpts.push({
+          path: relative,
+          sha256: file.sha256,
+          startLine: file.startLine,
+          endLine: file.endLine,
+          hasMore: file.hasMore || excerptTruncated,
+          changed: changedSet.has(relative),
+          symbols: mapEntry?.symbols ?? [],
+          content: text,
+          redacted: text !== file.content,
+          bytes: excerptBytes,
+        });
+      }
+
+      const statusHash = createHash("sha256").update(statusRaw).digest("hex");
+      const contextKey = createHash("sha256")
+        .update(
+          JSON.stringify({
+            head,
+            statusHash,
+            query: a.query,
+            budget: a.budget,
+            files: excerpts.map((file) => ({
+              path: file.path,
+              sha256: file.sha256,
+              startLine: file.startLine,
+              endLine: file.endLine,
+            })),
+          }),
+        )
+        .digest("hex");
+
+      return {
+        query: a.query,
+        budget: a.budget,
+        budgetBytes: budget.maxBytes,
+        bytes,
+        contextKey,
+        cacheable: true,
+        git: {
+          available: gitAvailable,
+          head,
+          dirty: changedFiles.length > 0,
+          statusHash,
+        },
+        changedFiles,
+        files: excerpts,
+        count: excerpts.length,
+        map: {
+          candidateFiles: map.candidateFiles,
+          scannedBytes: map.scannedBytes,
+          truncated: map.truncated,
+        },
+      };
+    }
     if (name === "read_file") {
       const r = p.files.read(a.path);
       return {
