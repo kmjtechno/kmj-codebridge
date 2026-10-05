@@ -113,10 +113,7 @@ export async function startGateway(rawConfig) {
   const agentProjectPermissions = (agent, project) => {
     const grant = agent.projectGrants?.find((item) => item.id === project);
     if (grant?.status === "paused") return [];
-    return (
-      grant?.permissions ??
-      agent.permissions ?? ["read", "write", "execute"]
-    );
+    return grant?.permissions ?? agent.permissions ?? ["read", "write", "execute"];
   };
 
   async function identifyAgent(req) {
@@ -177,7 +174,11 @@ export async function startGateway(rawConfig) {
       data.projects.some((project) => {
         if (typeof project === "string")
           return !/^[A-Za-z0-9_-]{1,64}$/.test(project);
-        if (!project || typeof project !== "object" || Array.isArray(project))
+        if (
+          !project ||
+          typeof project !== "object" ||
+          Array.isArray(project)
+        )
           return true;
         const keys = Object.keys(project);
         if (
