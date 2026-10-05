@@ -65,10 +65,7 @@ function validEntry(entry, project, expectedSequence, previousHash) {
 export class AuditLedger {
   constructor(
     dir,
-    {
-      now = () => new Date().toISOString(),
-      id = () => randomUUID(),
-    } = {},
+    { now = () => new Date().toISOString(), id = () => randomUUID() } = {},
   ) {
     this.dir = dir;
     this.now = now;
