@@ -93,6 +93,73 @@ test("disk-space operation accepts no caller path", async () => {
   );
 });
 
+test("auto-update status inspects only hardcoded service and timer units", async () => {
+  const calls = [];
+  const handle = createSupervisorHandler({
+    run: (command, args) => {
+      calls.push([command, args]);
+      if (args[1] === "kmj-codebridge-auto-update.timer")
+        return "LoadState=loaded\nActiveState=active\nSubState=waiting\nUnitFileState=enabled\n";
+      return "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response, {
+    available: true,
+    timer: {
+      installed: true,
+      activeState: "active",
+      subState: "waiting",
+      unitFileState: "enabled",
+    },
+    service: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+    },
+  });
+  assert.deepEqual(
+    calls.map((entry) => entry[1][1]),
+    [
+      "kmj-codebridge-auto-update.timer",
+      "kmj-codebridge-auto-update.service",
+    ],
+  );
+  await assert.rejects(
+    handle({ op: "update_status", branch: "main" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+});
+
+test("auto-update trigger acknowledges before starting only the hardcoded unit", async () => {
+  const started = [];
+  const handle = createSupervisorHandler({
+    run: () => "LoadState=loaded\nActiveState=inactive\n",
+    start: (unit) => started.push(unit),
+  });
+  const result = await handle({ op: "update_now" });
+  assert.deepEqual(result.response, { accepted: true });
+  assert.deepEqual(started, []);
+  result.afterSend();
+  assert.deepEqual(started, ["kmj-codebridge-auto-update.service"]);
+  await assert.rejects(
+    handle({ op: "update_now", unit: "ssh.service" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+});
+
+test("auto-update trigger fails closed when the fixed unit is not installed", async () => {
+  const handle = createSupervisorHandler({
+    run: () => "LoadState=not-found\nActiveState=inactive\n",
+  });
+  await assert.rejects(
+    handle({ op: "update_now" }),
+    /SUPERVISOR_UPDATE_UNAVAILABLE/,
+  );
+});
+
 test(
   "unix socket server and client exchange one bounded request",
   { skip: process.platform === "win32" },
