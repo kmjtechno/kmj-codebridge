@@ -1,11 +1,11 @@
 // Client-facing protocol extensions, kept outside core authorization.
 //
 // Every MCP client receives the same tools, schemas, annotations and errors.
-// The OpenAI Apps SDK additionally reads `_meta.securitySchemes` on tools and
-// `_meta["mcp/www_authenticate"]` on insufficient-scope results. MCP `_meta` is
-// an open extension point, so other clients (Claude.ai, Claude Desktop, Claude
-// Code) ignore these keys. Authorization decisions never depend on which client
-// is connected; these helpers only describe decisions already made.
+// OAuth tools advertise the standard top-level `securitySchemes` field and keep
+// the same value in `_meta.securitySchemes` for older OpenAI clients. Runtime
+// authorization challenges use `_meta["mcp/www_authenticate"]`. Authorization
+// decisions never depend on which client is connected; these helpers only
+// describe decisions already made.
 import { oauthChallenge } from "./auth.js";
 
 export function toolSecurityMeta(oauth, access) {
