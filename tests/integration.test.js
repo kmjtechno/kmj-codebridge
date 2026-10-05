@@ -486,6 +486,92 @@ test("partial reads and git diff keep coding context bounded", async (t) => {
   assert.equal(typeof diff.truncated, "boolean");
 });
 
+test("repository map ranks relevant symbols without exposing denied files", async (t) => {
+  const { client, root } = await setup(t);
+  fs.mkdirSync(path.join(root, "src"));
+  fs.mkdirSync(path.join(root, "node_modules"));
+  fs.writeFileSync(
+    path.join(root, "src", "auth.ts"),
+    [
+      "export interface Session { id: string }",
+      "export async function authenticate(user: string) { return user; }",
+      "export class SessionManager {}",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(
+    path.join(root, "src", "billing.ts"),
+    "export function invoice() { return true; }\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "package.json"),
+    JSON.stringify({ name: "repo-map-fixture" }),
+  );
+  fs.writeFileSync(path.join(root, ".env"), "AUTH_SECRET=must-not-appear\n");
+  fs.writeFileSync(
+    path.join(root, "node_modules", "ignored.js"),
+    "function authenticateSecret() {}\n",
+  );
+
+  const result = content(
+    await client.callTool({
+      name: "repo_map",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        query: "auth",
+        maxFiles: 10,
+        maxSymbolsPerFile: 8,
+      },
+    }),
+  );
+
+  assert.equal(result.files[0].path, "src/auth.ts");
+  assert.ok(
+    result.files[0].symbols.some(
+      (symbol) => symbol.name === "authenticate" && symbol.kind === "function",
+    ),
+  );
+  assert.ok(
+    result.files[0].symbols.some(
+      (symbol) => symbol.name === "SessionManager" && symbol.kind === "class",
+    ),
+  );
+  assert.ok(result.files.some((file) => file.path === "package.json"));
+  assert.ok(!result.files.some((file) => file.path === ".env"));
+  assert.ok(!result.files.some((file) => file.path.includes("node_modules")));
+  assert.ok(!JSON.stringify(result).includes("must-not-appear"));
+  assert.equal(typeof result.scannedBytes, "number");
+  assert.equal(typeof result.truncated, "boolean");
+});
+
+test("repository map stays bounded on large candidate sets", async (t) => {
+  const { client, root } = await setup(t);
+  fs.mkdirSync(path.join(root, "src"));
+  for (let i = 0; i < 12; i++)
+    fs.writeFileSync(
+      path.join(root, "src", `file-${i}.js`),
+      `export function fn${i}() { return ${i}; }\n`,
+    );
+
+  const result = content(
+    await client.callTool({
+      name: "repo_map",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        maxFiles: 3,
+        maxSymbolsPerFile: 2,
+      },
+    }),
+  );
+
+  assert.equal(result.files.length, 3);
+  assert.equal(result.count, 3);
+  assert.ok(result.candidateFiles >= 12);
+  assert.equal(result.truncated, true);
+});
+
 test("batch reads return multiple bounded files in one MCP call", async (t) => {
   const { client, root } = await setup(t);
   fs.writeFileSync(path.join(root, "a.txt"), "a1\na2\na3\n");
