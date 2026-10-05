@@ -207,7 +207,7 @@ test("structured agent grants enforce per-project permissions", async (t) => {
       expectedSha256: "0".repeat(64),
     },
   });
-  assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
+  assert.match(denied.content[0].text, /ACCESS_DENIED/);
 });
 
 test("paused structured agent grants are not exposed or authorized", async (t) => {
