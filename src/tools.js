@@ -269,9 +269,7 @@ function classifyChangedPath(relative) {
   )
     return "tests";
   if (SOURCE_EXTENSIONS.has(ext)) return "source";
-  if (
-    [".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(ext)
-  )
+  if ([".gif", ".ico", ".jpeg", ".jpg", ".png", ".svg", ".webp"].includes(ext))
     return "assets";
   return "other";
 }
@@ -308,9 +306,13 @@ export function selectVerificationPlan({
     assets: 0,
     other: 0,
   };
-  for (const relative of changedPaths) counts[classifyChangedPath(relative)] += 1;
+  for (const relative of changedPaths)
+    counts[classifyChangedPath(relative)] += 1;
 
-  const changeCount = Object.values(counts).reduce((sum, value) => sum + value, 0);
+  const changeCount = Object.values(counts).reduce(
+    (sum, value) => sum + value,
+    0,
+  );
   const roles = new Map(allGates.map((gate) => [gate, gateRole(gate)]));
   const byRoles = (...wanted) =>
     allGates.filter((gate) => wanted.includes(roles.get(gate)));
@@ -327,7 +329,9 @@ export function selectVerificationPlan({
   } else if (!gitAvailable || truncated) {
     mode = "full";
     recommendedGates = allGates;
-    reasonCodes.push(!gitAvailable ? "CHANGE_SCOPE_UNKNOWN" : "CHANGE_SCOPE_TRUNCATED");
+    reasonCodes.push(
+      !gitAvailable ? "CHANGE_SCOPE_UNKNOWN" : "CHANGE_SCOPE_TRUNCATED",
+    );
   } else if (changeCount === 0) {
     reasonCodes.push("NO_WORKTREE_CHANGES");
   } else if (counts.config > 0 || counts.ci > 0 || counts.other > 0) {
