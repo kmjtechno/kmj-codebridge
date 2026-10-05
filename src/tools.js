@@ -67,6 +67,118 @@ export function preservesSensitiveBindings(before, after) {
   }
   return true;
 }
+function detectProjectEnvironment(files) {
+  const listing = files.list("");
+  const names = new Set(listing.entries.map((entry) => entry.name));
+  const stacks = new Set();
+  const frameworks = new Set();
+  const packageManagers = new Set();
+  const manifests = new Set();
+  const mark = (name, stack, packageManager = null) => {
+    if (!names.has(name)) return;
+    manifests.add(name);
+    if (stack) stacks.add(stack);
+    if (packageManager) packageManagers.add(packageManager);
+  };
+
+  mark("package.json", "node");
+  mark("composer.json", "php", "composer");
+  mark("Cargo.toml", "rust", "cargo");
+  mark("pyproject.toml", "python");
+  mark("requirements.txt", "python", "pip");
+  mark("Pipfile", "python", "pipenv");
+  mark("go.mod", "go", "go");
+  mark("pom.xml", "java", "maven");
+  mark("build.gradle", "java", "gradle");
+  mark("build.gradle.kts", "java", "gradle");
+  mark("Gemfile", "ruby", "bundler");
+  mark("Dockerfile", "docker", "docker");
+  mark("compose.yaml", "docker", "docker");
+  mark("compose.yml", "docker", "docker");
+  mark("docker-compose.yml", "docker", "docker");
+  mark("docker-compose.yaml", "docker", "docker");
+
+  if (
+    listing.entries.some(
+      (entry) =>
+        entry.type === "file" &&
+        (entry.name.endsWith(".csproj") || entry.name.endsWith(".sln")),
+    )
+  )
+    stacks.add("dotnet");
+
+  if (names.has("pnpm-lock.yaml")) packageManagers.add("pnpm");
+  if (names.has("package-lock.json")) packageManagers.add("npm");
+  if (names.has("yarn.lock")) packageManagers.add("yarn");
+  if (names.has("bun.lock") || names.has("bun.lockb"))
+    packageManagers.add("bun");
+
+  if (names.has("artisan")) frameworks.add("laravel");
+  if (names.has("manage.py")) frameworks.add("django");
+  if (
+    ["next.config.js", "next.config.mjs", "next.config.ts"].some((name) =>
+      names.has(name),
+    )
+  )
+    frameworks.add("nextjs");
+  if (
+    ["vite.config.js", "vite.config.mjs", "vite.config.ts"].some((name) =>
+      names.has(name),
+    )
+  )
+    frameworks.add("vite");
+
+  if (names.has("src-tauri")) {
+    try {
+      const tauri = new Set(
+        files.list("src-tauri").entries.map((entry) => entry.name),
+      );
+      if (tauri.has("tauri.conf.json") || tauri.has("Cargo.toml")) {
+        frameworks.add("tauri");
+        stacks.add("rust");
+      }
+    } catch {}
+  }
+
+  if (names.has("package.json")) {
+    try {
+      const pkg = JSON.parse(files.read("package.json").content);
+      const deps = {
+        ...(pkg?.dependencies ?? {}),
+        ...(pkg?.devDependencies ?? {}),
+      };
+      if (Object.hasOwn(deps, "react")) frameworks.add("react");
+      if (Object.hasOwn(deps, "vue")) frameworks.add("vue");
+      if (Object.hasOwn(deps, "svelte")) frameworks.add("svelte");
+      if (Object.hasOwn(deps, "@angular/core")) frameworks.add("angular");
+      if (Object.hasOwn(deps, "express")) frameworks.add("express");
+      if (Object.hasOwn(deps, "@nestjs/core")) frameworks.add("nestjs");
+      if (Object.hasOwn(deps, "next")) frameworks.add("nextjs");
+      if (Object.hasOwn(deps, "vite")) frameworks.add("vite");
+    } catch {}
+  }
+
+  if (names.has("composer.json")) {
+    try {
+      const composer = JSON.parse(files.read("composer.json").content);
+      const deps = {
+        ...(composer?.require ?? {}),
+        ...(composer?.["require-dev"] ?? {}),
+      };
+      if (Object.hasOwn(deps, "laravel/framework")) frameworks.add("laravel");
+      if (Object.keys(deps).some((name) => name.startsWith("symfony/")))
+        frameworks.add("symfony");
+    } catch {}
+  }
+
+  return {
+    stacks: [...stacks].sort(),
+    frameworks: [...frameworks].sort(),
+    packageManagers: [...packageManagers].sort(),
+    manifests: [...manifests].sort(),
+  };
+}
+
 const scoped = { device: identifier, project: identifier };
 const supervisorService = z.enum(["agent", "gateway"]);
 const contextBudget = z.enum(["small", "medium", "deep"]);
@@ -82,6 +194,8 @@ const fastReadTool = z.enum([
   "supervisor_config_validate",
   "supervisor_disk_space",
   "supervisor_project_status",
+  "supervisor_device_status",
+  "project_environment",
 ]);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
@@ -109,6 +223,13 @@ export const definitions = {
   inspect_project: {
     title: "Inspect project",
     description: "Inspect an authorized project and configured quality gates.",
+    input: scoped,
+    access: "read",
+  },
+  project_environment: {
+    title: "Detect project environment",
+    description:
+      "Detect bounded project stacks, common frameworks, package managers, and top-level manifests without executing project code.",
     input: scoped,
     access: "read",
   },
@@ -473,6 +594,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_device_status: {
+    title: "Device resource status",
+    description:
+      "Read a bounded device resource snapshot from the local CodeBridge supervisor, including CPU count, memory, load, uptime, platform, architecture, hostname, and Node runtime version.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_update_status: {
     title: "Auto-update status",
     description:
@@ -588,6 +716,12 @@ export function createDispatcher(
         })),
         connection: "connected",
         version: VERSION,
+      };
+    if (name === "project_environment")
+      return {
+        device: config.id,
+        project: p.id,
+        ...detectProjectEnvironment(p.files),
       };
     if (name === "project_snapshot") {
       const listing = p.files.list("");
@@ -966,6 +1100,8 @@ export function createDispatcher(
         op: "project_status",
         projectId: a.project,
       });
+    if (name === "supervisor_device_status")
+      return await supervisor.request({ op: "device_status" });
     if (name === "supervisor_update_status")
       return await supervisor.request({ op: "update_status" });
     if (name === "supervisor_update_now")
