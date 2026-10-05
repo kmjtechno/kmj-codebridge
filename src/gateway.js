@@ -113,7 +113,11 @@ export async function startGateway(rawConfig) {
   const agentProjectPermissions = (agent, project) => {
     const grant = agent.projectGrants?.find((item) => item.id === project);
     if (grant?.status === "paused") return [];
-    return grant?.permissions ?? agent.permissions ?? ["read", "write", "execute"];
+    return (
+      grant?.permissions ??
+      agent.permissions ??
+      ["read", "write", "execute"]
+    );
   };
 
   async function identifyAgent(req) {
