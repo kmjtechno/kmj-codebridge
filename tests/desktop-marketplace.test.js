@@ -29,7 +29,7 @@ test("Desktop plugin uses the bundled stdio OAuth bridge", () => {
   const manifest = readJson("plugin/plugin.json");
   const mcp = readJson("plugin/mcp.json");
   assert.equal(manifest.name, "kmj-codebridge");
-  assert.equal(manifest.version, "0.3.2");
+  assert.equal(manifest.version, "0.2.3");
   assert.deepEqual(mcp.mcpServers.codebridge, {
     type: "stdio",
     command: "node",
