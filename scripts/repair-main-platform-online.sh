@@ -12,6 +12,7 @@ CONFIG="$CONFIG_DIR/agent.json"
 STATE='/var/lib/kmj-codebridge-kmj-main-platform'
 RUNTIME='/opt/kmj-codebridge-agent'
 NODE='/opt/kmj-codebridge-node/bin/node'
+GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
 
 if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi
 [[ -n "$NODE" && -x "$NODE" ]] || { echo 'ERROR node_runtime_missing' >&2; exit 2; }
@@ -46,6 +47,38 @@ fi
 chown "$SERVICE_USER:$SERVICE_USER" "$CONFIG"
 chmod 0600 "$CONFIG"
 chown -R "$SERVICE_USER:$SERVICE_USER" "$STATE" "$PROJECT"
+
+CONFIG="$CONFIG" GATEWAY="$GATEWAY" "$NODE" --input-type=module <<'NODE'
+import fs from 'node:fs';
+const file=process.env.CONFIG;
+const c=JSON.parse(fs.readFileSync(file,'utf8'));
+let valid=false;
+if(typeof c.gateway==='string'){
+  try{
+    const u=new URL(c.gateway);
+    valid=u.protocol==='https:'&&!u.username&&!u.password&&!u.search&&!u.hash&&(u.pathname==='/'||u.pathname==='');
+  }catch{}
+}
+if(!valid){
+  const u=new URL(process.env.GATEWAY);
+  if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||!(u.pathname==='/'||u.pathname==='')){
+    throw new Error('FALLBACK_GATEWAY_INVALID');
+  }
+  c.gateway=u.origin;
+  const tmp=file+'.gateway-repair-'+process.pid;
+  const fd=fs.openSync(tmp,'wx',0o600);
+  try{
+    fs.writeFileSync(fd,JSON.stringify(c,null,2)+'\n');
+    fs.fsyncSync(fd);
+  }finally{
+    fs.closeSync(fd);
+  }
+  fs.renameSync(tmp,file);
+  console.log('gateway_repair=done');
+}else{
+  console.log('gateway_repair=not_needed');
+}
+NODE
 
 CONFIG="$CONFIG" PROJECT="$PROJECT" "$NODE" --input-type=module <<'NODE'
 import fs from 'node:fs';
