@@ -572,6 +572,120 @@ test("repository map stays bounded on large candidate sets", async (t) => {
   assert.equal(result.truncated, true);
 });
 
+test("context pack is delta-first, bounded and deterministic", async (t) => {
+  const { client, root } = await setup(t);
+  const { execFileSync } = await import("node:child_process");
+
+  fs.mkdirSync(path.join(root, "src"));
+  fs.writeFileSync(
+    path.join(root, "src", "auth.ts"),
+    [
+      "export interface Session { id: string }",
+      "export async function authenticate(user: string) {",
+      "  return user;",
+      "}",
+      "",
+    ].join("\n"),
+  );
+  fs.writeFileSync(
+    path.join(root, "src", "billing.ts"),
+    "export function invoice() { return true; }\n",
+  );
+  fs.writeFileSync(
+    path.join(root, "package.json"),
+    JSON.stringify({ name: "context-pack-fixture" }),
+  );
+  fs.writeFileSync(path.join(root, ".env"), "TOKEN=must-not-appear\n");
+
+  execFileSync("git", ["init"], { cwd: root, stdio: "pipe" });
+  execFileSync(
+    "git",
+    ["add", "src/auth.ts", "src/billing.ts", "package.json", ".env"],
+    { cwd: root, stdio: "pipe" },
+  );
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-m",
+      "baseline",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+
+  fs.appendFileSync(
+    path.join(root, "src", "auth.ts"),
+    "export const authVersion = 2;\n",
+  );
+  fs.writeFileSync(path.join(root, ".env"), "TOKEN=changed-secret\n");
+
+  const first = content(
+    await client.callTool({
+      name: "context_pack",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        query: "authenticate",
+        budget: "small",
+      },
+    }),
+  );
+
+  assert.equal(first.budget, "small");
+  assert.equal(first.git.available, true);
+  assert.equal(first.git.dirty, true);
+  assert.match(first.git.head, /^[a-f0-9]{40}$/);
+  assert.match(first.contextKey, /^[a-f0-9]{64}$/);
+  assert.equal(first.cacheable, true);
+  assert.ok(first.bytes <= first.budgetBytes);
+  assert.ok(first.changedFiles.includes("src/auth.ts"));
+  assert.ok(!first.changedFiles.includes(".env"));
+  assert.equal(first.files[0].path, "src/auth.ts");
+  assert.equal(first.files[0].changed, true);
+  assert.ok(
+    first.files.some((entry) =>
+      entry.symbols.some((symbol) => symbol.name === "authenticate"),
+    ),
+  );
+  assert.ok(!JSON.stringify(first).includes("changed-secret"));
+  assert.ok(!JSON.stringify(first).includes("must-not-appear"));
+
+  const repeated = content(
+    await client.callTool({
+      name: "context_pack",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        query: "authenticate",
+        budget: "small",
+      },
+    }),
+  );
+  assert.equal(repeated.contextKey, first.contextKey);
+
+  fs.appendFileSync(
+    path.join(root, "src", "billing.ts"),
+    "export const billingVersion = 2;\n",
+  );
+  const changed = content(
+    await client.callTool({
+      name: "context_pack",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        query: "authenticate",
+        budget: "small",
+      },
+    }),
+  );
+  assert.notEqual(changed.contextKey, first.contextKey);
+  assert.ok(changed.changedFiles.includes("src/billing.ts"));
+});
+
 test("batch reads return multiple bounded files in one MCP call", async (t) => {
   const { client, root } = await setup(t);
   fs.writeFileSync(path.join(root, "a.txt"), "a1\na2\na3\n");
