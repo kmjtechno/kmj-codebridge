@@ -755,10 +755,10 @@ export async function startGateway(rawConfig) {
                   devicesById.set(agent.id, {
                     id: agent.id,
                     projects,
-                    ...connectionHealth(
+                    online: connectionHealth(
                       lastSeen.get(agent.id),
                       agentHealth.get(agent.id),
-                    ),
+                    ).online,
                   });
                 }
 
@@ -780,7 +780,7 @@ export async function startGateway(rawConfig) {
                     devicesById.set(device, {
                       id: device,
                       projects,
-                      ...connectionHealth(null, null),
+                      online: false,
                     });
                   }
                 }
