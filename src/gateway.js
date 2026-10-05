@@ -261,6 +261,59 @@ export async function startGateway(rawConfig) {
       if (wake) wake();
     });
   }
+
+  function decodeForwardedResult(result) {
+    const text = result?.content?.find(
+      (item) => item?.type === "text" && typeof item.text === "string",
+    )?.text;
+    let value = null;
+    try {
+      value = text === undefined ? null : JSON.parse(text);
+    } catch {
+      return { ok: false, error: "INVALID_AGENT_RESULT" };
+    }
+    if (result?.isError)
+      return {
+        ok: false,
+        error:
+          value && typeof value.error === "string"
+            ? value.error
+            : "AGENT_TOOL_FAILED",
+      };
+    return { ok: true, value };
+  }
+
+  async function fastContext(user, args) {
+    authorize(user, args, "read");
+    const calls = [
+      ["project", "inspect_project", args],
+      ["git", "git_status", args],
+      [
+        "autopilot",
+        "autopilot_status",
+        {
+          device: args.device,
+          project: args.project,
+          limit: args.autopilotLimit,
+        },
+      ],
+    ];
+    const settled = await Promise.all(
+      calls.map(async ([key, name, input]) => {
+        try {
+          return [key, decodeForwardedResult(await forward(user, name, input))];
+        } catch (error) {
+          return [key, { ok: false, error: publicError(error).error }];
+        }
+      }),
+    );
+    return {
+      generatedAt: new Date().toISOString(),
+      device: args.device,
+      project: args.project,
+      parts: Object.fromEntries(settled),
+    };
+  }
   const server = http.createServer(async (req, res) => {
     try {
       const allowedHosts = config.allowedHosts.length
@@ -584,6 +637,12 @@ export async function startGateway(rawConfig) {
                       text: JSON.stringify({ devices, account }),
                     },
                   ],
+                };
+              }
+              if (name === "fast_context") {
+                const result = await fastContext(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
               if (githubDispatch && name.startsWith("github_")) {
