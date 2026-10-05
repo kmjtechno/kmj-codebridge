@@ -181,20 +181,34 @@ function reusableRelease(store, manifest) {
   return { name, target: marker.target, reused: true };
 }
 
-function connectionTime(stateDir) {
+function connectionEvidence(stateDir) {
   const file = path.join(stateDir, "connection.json");
-  if (!fs.existsSync(file)) return -1;
+  if (!fs.existsSync(file)) return null;
   try {
     const body = JSON.parse(fs.readFileSync(file, "utf8"));
     const time = Date.parse(body?.connectedAt ?? "");
-    return Number.isFinite(time) ? time : -1;
+    if (!Number.isFinite(time)) return null;
+    return { ...body, time };
   } catch {
-    return -1;
+    return null;
   }
 }
 
-export function freshAuthenticatedConnection(stateDir, notBefore) {
-  return connectionTime(stateDir) >= notBefore;
+export function freshAuthenticatedConnection(
+  stateDir,
+  notBefore,
+  expectedManifest = null,
+) {
+  const evidence = connectionEvidence(stateDir);
+  if (!evidence || evidence.time < notBefore) return false;
+  if (!expectedManifest) return true;
+  return Boolean(
+    evidence.version === expectedManifest.version &&
+      evidence.release?.sequence === expectedManifest.sequence &&
+      evidence.release?.version === expectedManifest.version &&
+      evidence.release?.revision === expectedManifest.revision &&
+      evidence.release?.sha256 === expectedManifest.sha256,
+  );
 }
 
 export function defaultStableUpdatePreflight({ stagingDir }) {
@@ -315,7 +329,11 @@ export async function runStableUpdate(
     releaseName: release.name,
     restart: () => fixedAgentRestart(config.supervisorSocket, restartRequest),
     healthCheck: async () =>
-      freshAuthenticatedConnection(config.stateDir, activationStart),
+      freshAuthenticatedConnection(
+        config.stateDir,
+        activationStart,
+        manifest,
+      ),
     attempts: config.health.attempts,
     delayMs: config.health.delayMs,
     sleep,
