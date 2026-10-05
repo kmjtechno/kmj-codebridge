@@ -9,7 +9,8 @@ import readline from "node:readline";
 const RESOURCE = "https://kmjtechno.com/mcp";
 const ORIGIN = "https://kmjtechno.com";
 const SCOPES = "codebridge:read codebridge:write codebridge:execute";
-const DATA_DIR = process.env.PLUGIN_DATA || path.join(os.homedir(), ".kmj-codebridge");
+const DATA_DIR =
+  process.env.PLUGIN_DATA || path.join(os.homedir(), ".kmj-codebridge");
 const TOKEN_FILE = path.join(DATA_DIR, "desktop-oauth.json");
 const VERSION = "0.2.3";
 let cachedTools = null;
@@ -46,11 +47,15 @@ function writeState(state) {
   const tmp = `${TOKEN_FILE}.tmp-${process.pid}`;
   fs.writeFileSync(tmp, JSON.stringify(state, null, 2), { mode: 0o600 });
   fs.renameSync(tmp, TOKEN_FILE);
-  try { fs.chmodSync(TOKEN_FILE, 0o600); } catch {}
+  try {
+    fs.chmodSync(TOKEN_FILE, 0o600);
+  } catch {}
 }
 
 function clearState() {
-  try { fs.unlinkSync(TOKEN_FILE); } catch {}
+  try {
+    fs.unlinkSync(TOKEN_FILE);
+  } catch {}
 }
 
 async function fetchJson(url, options = {}) {
@@ -64,10 +69,17 @@ async function fetchJson(url, options = {}) {
   });
   const text = await response.text();
   let body;
-  try { body = text ? JSON.parse(text) : {}; }
-  catch { throw new Error(`Invalid JSON from ${new URL(url).origin}`); }
+  try {
+    body = text ? JSON.parse(text) : {};
+  } catch {
+    throw new Error(`Invalid JSON from ${new URL(url).origin}`);
+  }
   if (!response.ok) {
-    const message = body?.error_description || body?.error?.message || body?.error || `HTTP ${response.status}`;
+    const message =
+      body?.error_description ||
+      body?.error?.message ||
+      body?.error ||
+      `HTTP ${response.status}`;
     const error = new Error(String(message));
     error.status = response.status;
     error.body = body;
@@ -77,15 +89,26 @@ async function fetchJson(url, options = {}) {
 }
 
 async function oauthMetadata() {
-  const protectedMeta = await fetchJson(`${ORIGIN}/.well-known/oauth-protected-resource`);
+  const protectedMeta = await fetchJson(
+    `${ORIGIN}/.well-known/oauth-protected-resource`,
+  );
   const issuer = Array.isArray(protectedMeta.authorization_servers)
     ? protectedMeta.authorization_servers[0]
     : ORIGIN;
   if (typeof issuer !== "string" || !issuer.startsWith("https://"))
     throw new Error("KMJ OAuth issuer is unavailable");
-  const authMeta = await fetchJson(new URL("/.well-known/oauth-authorization-server", issuer).toString());
-  for (const field of ["authorization_endpoint", "token_endpoint", "registration_endpoint"]) {
-    if (typeof authMeta[field] !== "string" || !authMeta[field].startsWith("https://"))
+  const authMeta = await fetchJson(
+    new URL("/.well-known/oauth-authorization-server", issuer).toString(),
+  );
+  for (const field of [
+    "authorization_endpoint",
+    "token_endpoint",
+    "registration_endpoint",
+  ]) {
+    if (
+      typeof authMeta[field] !== "string" ||
+      !authMeta[field].startsWith("https://")
+    )
       throw new Error(`KMJ OAuth metadata is missing ${field}`);
   }
   return authMeta;
@@ -104,7 +127,9 @@ function openBrowser(url) {
   } else {
     child = spawn("xdg-open", [url], { detached: true, stdio: "ignore" });
   }
-  child.on("error", (error) => log(`Could not open browser automatically: ${error.message}`));
+  child.on("error", (error) =>
+    log(`Could not open browser automatically: ${error.message}`),
+  );
   child.unref();
 }
 
@@ -124,8 +149,13 @@ function listenForCallback() {
         error: url.searchParams.get("error"),
         error_description: url.searchParams.get("error_description"),
       };
-      res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-      res.end("<!doctype html><meta charset=utf-8><title>KMJ CodeBridge connected</title><style>body{font-family:system-ui;background:#0b0b0b;color:#fff;padding:48px}b{color:#ff2b35}</style><h1><b>KMJ CodeBridge</b> connected</h1><p>Authorization complete. You can close this tab and return to ChatGPT.</p>");
+      res.writeHead(200, {
+        "content-type": "text/html; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      res.end(
+        "<!doctype html><meta charset=utf-8><title>KMJ CodeBridge connected</title><style>body{font-family:system-ui;background:#0b0b0b;color:#fff;padding:48px}b{color:#ff2b35}</style><h1><b>KMJ CodeBridge</b> connected</h1><p>Authorization complete. You can close this tab and return to ChatGPT.</p>",
+      );
       if (!settled) {
         settled = true;
         resolve(payload);
@@ -152,7 +182,10 @@ function listenForCallback() {
 
 async function createCallbackWaiter() {
   let resolvePayload, rejectPayload;
-  const payload = new Promise((resolve, reject) => { resolvePayload = resolve; rejectPayload = reject; });
+  const payload = new Promise((resolve, reject) => {
+    resolvePayload = resolve;
+    rejectPayload = reject;
+  });
   let settled = false;
   const server = http.createServer((req, res) => {
     const url = new URL(req.url || "/", "http://127.0.0.1");
@@ -167,8 +200,13 @@ async function createCallbackWaiter() {
       error: url.searchParams.get("error"),
       error_description: url.searchParams.get("error_description"),
     };
-    res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" });
-    res.end("<!doctype html><meta charset=utf-8><title>KMJ CodeBridge connected</title><style>body{font-family:system-ui;background:#0b0b0b;color:#fff;padding:48px}b{color:#ff2b35}</style><h1><b>KMJ CodeBridge</b> connected</h1><p>Authorization complete. You can close this tab and return to ChatGPT.</p>");
+    res.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+    });
+    res.end(
+      "<!doctype html><meta charset=utf-8><title>KMJ CodeBridge connected</title><style>body{font-family:system-ui;background:#0b0b0b;color:#fff;padding:48px}b{color:#ff2b35}</style><h1><b>KMJ CodeBridge</b> connected</h1><p>Authorization complete. You can close this tab and return to ChatGPT.</p>",
+    );
     if (!settled) {
       settled = true;
       resolvePayload(result);
@@ -210,10 +248,13 @@ async function interactiveAuthorize() {
           response_types: ["code"],
         }),
       });
-      if (typeof registration.client_id !== "string") throw new Error("KMJ OAuth registration did not return a client ID");
+      if (typeof registration.client_id !== "string")
+        throw new Error("KMJ OAuth registration did not return a client ID");
 
       const verifier = base64url(randomBytes(48));
-      const challenge = base64url(createHash("sha256").update(verifier).digest());
+      const challenge = base64url(
+        createHash("sha256").update(verifier).digest(),
+      );
       const state = base64url(randomBytes(24));
       const authorize = new URL(meta.authorization_endpoint);
       authorize.searchParams.set("response_type", "code");
@@ -228,8 +269,10 @@ async function interactiveAuthorize() {
       log("Opening KMJ OAuth in the default browser");
       openBrowser(authorize.toString());
       const result = await callback.payload;
-      if (result.error) throw new Error(result.error_description || result.error);
-      if (!result.code || result.state !== state) throw new Error("KMJ OAuth callback validation failed");
+      if (result.error)
+        throw new Error(result.error_description || result.error);
+      if (!result.code || result.state !== state)
+        throw new Error("KMJ OAuth callback validation failed");
 
       const token = await fetchJson(meta.token_endpoint, {
         method: "POST",
@@ -255,15 +298,21 @@ async function interactiveAuthorize() {
         token_endpoint: meta.token_endpoint,
         connected_at: new Date(now).toISOString(),
       };
-      if (typeof stored.access_token !== "string" || !stored.access_token) throw new Error("KMJ OAuth token response did not include an access token");
+      if (typeof stored.access_token !== "string" || !stored.access_token)
+        throw new Error(
+          "KMJ OAuth token response did not include an access token",
+        );
       writeState(stored);
       return stored;
     } finally {
       callback.close();
     }
   })();
-  try { return await authInFlight; }
-  finally { authInFlight = null; }
+  try {
+    return await authInFlight;
+  } finally {
+    authInFlight = null;
+  }
 }
 
 async function refreshToken(state) {
@@ -289,7 +338,8 @@ async function refreshToken(state) {
       expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
       token_endpoint: meta.token_endpoint,
     };
-    if (typeof refreshed.access_token !== "string" || !refreshed.access_token) return null;
+    if (typeof refreshed.access_token !== "string" || !refreshed.access_token)
+      return null;
     writeState(refreshed);
     return refreshed;
   } catch {
@@ -300,7 +350,8 @@ async function refreshToken(state) {
 async function ensureToken(forceInteractive = false) {
   if (forceInteractive) clearState();
   let state = readState();
-  if (state.access_token && Number(state.expires_at || 0) > Date.now() + 60000) return state;
+  if (state.access_token && Number(state.expires_at || 0) > Date.now() + 60000)
+    return state;
   if (!forceInteractive) {
     const refreshed = await refreshToken(state);
     if (refreshed) return refreshed;
@@ -318,7 +369,9 @@ function parseMcpResponse(text) {
     .map((line) => line.slice(5).trim())
     .filter(Boolean);
   for (const item of data) {
-    try { return JSON.parse(item); } catch {}
+    try {
+      return JSON.parse(item);
+    } catch {}
   }
   throw new Error("Invalid MCP response from KMJ CodeBridge");
 }
@@ -340,7 +393,8 @@ async function remoteRpc(method, params, token = null, id = 1) {
     error.status = 401;
     throw error;
   }
-  if (!response.ok) throw new Error(`KMJ CodeBridge MCP returned HTTP ${response.status}`);
+  if (!response.ok)
+    throw new Error(`KMJ CodeBridge MCP returned HTTP ${response.status}`);
   return parseMcpResponse(text);
 }
 
@@ -359,38 +413,80 @@ const accountTools = [
   {
     name: "codebridge_account_status",
     title: "KMJ CodeBridge account status",
-    description: "Check whether the local Desktop bridge is connected to a KMJ account. Never returns access or refresh tokens.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    description:
+      "Check whether the local Desktop bridge is connected to a KMJ account. Never returns access or refresh tokens.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: "codebridge_account_connect",
     title: "Connect KMJ CodeBridge account",
-    description: "Open the user's default browser, complete KMJ OAuth, and securely store the resulting credentials in the local plugin data directory.",
-    inputSchema: { type: "object", properties: { force: { type: "boolean", default: false } }, additionalProperties: false },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
+    description:
+      "Open the user's default browser, complete KMJ OAuth, and securely store the resulting credentials in the local plugin data directory.",
+    inputSchema: {
+      type: "object",
+      properties: { force: { type: "boolean", default: false } },
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: true,
+    },
   },
   {
     name: "codebridge_account_disconnect",
     title: "Disconnect KMJ CodeBridge account",
-    description: "Delete the local Desktop OAuth credentials for KMJ CodeBridge. Does not revoke the user's KMJ account or project grants.",
-    inputSchema: { type: "object", properties: {}, additionalProperties: false },
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    description:
+      "Delete the local Desktop OAuth credentials for KMJ CodeBridge. Does not revoke the user's KMJ account or project grants.",
+    inputSchema: {
+      type: "object",
+      properties: {},
+      additionalProperties: false,
+    },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
 ];
 
 async function toolsList() {
   if (cachedTools && Date.now() - cachedToolsAt < 30000) return cachedTools;
   const response = await remoteRpc("tools/list", {}, null, 1001);
-  const remoteTools = Array.isArray(response?.result?.tools) ? response.result.tools.map(sanitizeTool) : [];
-  cachedTools = [...accountTools, ...remoteTools.filter((tool) => !accountTools.some((local) => local.name === tool.name))];
+  const remoteTools = Array.isArray(response?.result?.tools)
+    ? response.result.tools.map(sanitizeTool)
+    : [];
+  cachedTools = [
+    ...accountTools,
+    ...remoteTools.filter(
+      (tool) => !accountTools.some((local) => local.name === tool.name),
+    ),
+  ];
   cachedToolsAt = Date.now();
   return cachedTools;
 }
 
 function textResult(value, isError = false) {
   return {
-    content: [{ type: "text", text: typeof value === "string" ? value : JSON.stringify(value) }],
+    content: [
+      {
+        type: "text",
+        text: typeof value === "string" ? value : JSON.stringify(value),
+      },
+    ],
     ...(isError ? { isError: true } : {}),
   };
 }
@@ -403,7 +499,10 @@ async function callTool(name, args) {
       connected,
       endpoint: RESOURCE,
       scope: connected ? state.scope || SCOPES : null,
-      expiresAt: connected && state.expires_at ? new Date(state.expires_at).toISOString() : null,
+      expiresAt:
+        connected && state.expires_at
+          ? new Date(state.expires_at).toISOString()
+          : null,
       connectedAt: connected ? state.connected_at || null : null,
       credentialStorage: TOKEN_FILE,
     });
@@ -414,7 +513,9 @@ async function callTool(name, args) {
       connected: true,
       endpoint: RESOURCE,
       scope: state.scope || SCOPES,
-      expiresAt: state.expires_at ? new Date(state.expires_at).toISOString() : null,
+      expiresAt: state.expires_at
+        ? new Date(state.expires_at).toISOString()
+        : null,
     });
   }
   if (name === "codebridge_account_disconnect") {
@@ -425,15 +526,30 @@ async function callTool(name, args) {
   let state = await ensureToken(false);
   let response;
   try {
-    response = await remoteRpc("tools/call", { name, arguments: args || {} }, state.access_token, 2001);
+    response = await remoteRpc(
+      "tools/call",
+      { name, arguments: args || {} },
+      state.access_token,
+      2001,
+    );
   } catch (error) {
     if (error.status !== 401) throw error;
     clearState();
     state = await ensureToken(false);
-    response = await remoteRpc("tools/call", { name, arguments: args || {} }, state.access_token, 2002);
+    response = await remoteRpc(
+      "tools/call",
+      { name, arguments: args || {} },
+      state.access_token,
+      2002,
+    );
   }
-  if (response?.error) throw new Error(response.error.message || "KMJ CodeBridge tool call failed");
-  return response?.result || textResult("KMJ CodeBridge returned no result", true);
+  if (response?.error)
+    throw new Error(
+      response.error.message || "KMJ CodeBridge tool call failed",
+    );
+  return (
+    response?.result || textResult("KMJ CodeBridge returned no result", true)
+  );
 }
 
 async function handle(message) {
@@ -450,8 +566,13 @@ async function handle(message) {
           result: {
             protocolVersion: message.params?.protocolVersion || "2025-06-18",
             capabilities: { tools: { listChanged: false } },
-            serverInfo: { name: "kmj-codebridge-desktop", title: "KMJ CodeBridge", version: VERSION },
-            instructions: "Use codebridge_account_connect when the KMJ account is not connected. Remote project tools automatically trigger browser OAuth on first use.",
+            serverInfo: {
+              name: "kmj-codebridge-desktop",
+              title: "KMJ CodeBridge",
+              version: VERSION,
+            },
+            instructions:
+              "Use codebridge_account_connect when the KMJ account is not connected. Remote project tools automatically trigger browser OAuth on first use.",
           },
         };
       case "ping":
@@ -459,22 +580,50 @@ async function handle(message) {
       case "tools/list":
         return { jsonrpc: "2.0", id, result: { tools: await toolsList() } };
       case "tools/call":
-        return { jsonrpc: "2.0", id, result: await callTool(message.params?.name, message.params?.arguments || {}) };
+        return {
+          jsonrpc: "2.0",
+          id,
+          result: await callTool(
+            message.params?.name,
+            message.params?.arguments || {},
+          ),
+        };
       default:
-        return { jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${message.method}` } };
+        return {
+          jsonrpc: "2.0",
+          id,
+          error: {
+            code: -32601,
+            message: `Method not found: ${message.method}`,
+          },
+        };
     }
   } catch (error) {
-    return { jsonrpc: "2.0", id, result: textResult(error?.message || String(error), true) };
+    return {
+      jsonrpc: "2.0",
+      id,
+      result: textResult(error?.message || String(error), true),
+    };
   }
 }
 
-const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+const rl = readline.createInterface({
+  input: process.stdin,
+  crlfDelay: Infinity,
+});
 rl.on("line", async (line) => {
   if (!line.trim()) return;
   let message;
-  try { message = JSON.parse(line); }
-  catch {
-    process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } }) + "\n");
+  try {
+    message = JSON.parse(line);
+  } catch {
+    process.stdout.write(
+      JSON.stringify({
+        jsonrpc: "2.0",
+        id: null,
+        error: { code: -32700, message: "Parse error" },
+      }) + "\n",
+    );
     return;
   }
   const response = await handle(message);
