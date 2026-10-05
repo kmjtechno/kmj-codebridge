@@ -120,7 +120,10 @@ export async function startAgent(rawConfig) {
     const identity = { version: VERSION, release: null };
     try {
       const marker = JSON.parse(
-        fs.readFileSync(new URL("../.codebridge-release.json", import.meta.url), "utf8"),
+        fs.readFileSync(
+          new URL("../.codebridge-release.json", import.meta.url),
+          "utf8",
+        ),
       );
       if (
         marker?.schema === 1 &&
