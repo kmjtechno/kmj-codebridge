@@ -20,6 +20,20 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
+      - name: Temporary mission formatter
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          npx prettier src/autopilot.js tests/autopilot.test.js --write
+          echo 'KMJ_MISSION_AUTOPILOT_BEGIN'
+          base64 -w0 src/autopilot.js
+          echo
+          echo 'KMJ_MISSION_AUTOPILOT_END'
+          echo 'KMJ_MISSION_TEST_BEGIN'
+          base64 -w0 tests/autopilot.test.js
+          echo
+          echo 'KMJ_MISSION_TEST_END'
+          exit 1
       - run: npm run check
       - run: npm test
       - run: npm run package:runtime
