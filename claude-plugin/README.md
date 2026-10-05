@@ -26,9 +26,11 @@ manage remote MCP servers in **Inference configuration → Connectors**. In that
 mode add `https://kmjtechno.com/mcp` as a Streamable HTTP server and use
 OAuth auto-registration; the account-level plugin Connect control may be
 unavailable in that deployment profile. If a previously working connector gets
-stuck on `invalid_client`, edit or re-add it, choose **Use your own OAuth
-client**, set Client ID to `kmj_codebridge_claude`, and leave the client secret
-blank. The fixed client remains PKCE-only and is bound to Claude's hosted callback.
+stuck on `invalid_client`, re-add it and use a freshly registered public OAuth
+client instead of retrying the stale registration. Leave the client secret
+blank. Claude Desktop managed MCP may use an RFC 8252 loopback callback with an
+ephemeral local port; the CodeBridge authorization server supports that
+port-varying loopback behavior while keeping PKCE mandatory.
 
 ## Self-hosted deployments
 
