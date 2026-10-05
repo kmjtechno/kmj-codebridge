@@ -66,8 +66,7 @@ export function generatedArtifacts() {
     product: manifest.product.slug,
     version: manifest.versions.stable,
     runtimeAuthority: "KMJ Main Platform",
-    note:
-      "Generated import contract only. Server-side entitlement enforcement remains authoritative.",
+    note: "Generated import contract only. Server-side entitlement enforcement remains authoritative.",
     launch: manifest.launch,
     plans: manifest.plans,
   };
