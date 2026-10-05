@@ -91,6 +91,30 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   });
   assert.equal(content(r).content, "hello");
 });
+
+test("fast context composes legacy read tools behind one MCP call", async (t) => {
+  const { client } = await setup(t);
+  const list = await client.listTools();
+  assert.ok(list.tools.some((x) => x.name === "fast_context"));
+
+  const result = content(
+    await client.callTool({
+      name: "fast_context",
+      arguments: { device: "d1", project: "p1", autopilotLimit: 5 },
+    }),
+  );
+
+  assert.equal(result.device, "d1");
+  assert.equal(result.project, "p1");
+  assert.equal(result.parts.project.ok, true);
+  assert.equal(result.parts.project.value.version, VERSION);
+  assert.equal(result.parts.project.value.writable, true);
+  assert.deepEqual(result.parts.project.value.gates, ["unit"]);
+  assert.equal(result.parts.git.ok, false);
+  assert.equal(result.parts.git.error, "GIT_ROOT_OUTSIDE_PROJECT");
+  assert.equal(result.parts.autopilot.ok, true);
+  assert.equal(result.parts.autopilot.value.counts.queued, 0);
+});
 test("account diagnostics expose safe membership and same-tenant agent visibility", async (t) => {
   const { client } = await setup(t);
   const result = content(
