@@ -1337,6 +1337,8 @@ export function createDispatcher(
           id,
           category: profile.category,
           description: profile.description,
+          risk: commandRisk(profile.category),
+          approvalRequired: approvalRequired(commandRisk(profile.category)),
           variants: Object.keys(profile.variants),
         })),
       };
