@@ -59,7 +59,7 @@ test("Windows Desktop installer only configures the public KMJ marketplace", () 
   );
   assert.match(script, /\.codex\\plugins\\kmj-codebridge/);
   assert.match(script, /\.agents\\plugins\\marketplace\.json/);
-  assert.match(script, /\.\/\.codex\/plugins\/kmj-codebridge/);
+  assert.match(script, /\.\/\.\.\/\.\.\/\.codex\/plugins\/kmj-codebridge/);
   assert.match(script, /INSTALLED_BY_DEFAULT/);
   assert.match(
     script,
