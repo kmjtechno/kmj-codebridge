@@ -703,7 +703,9 @@ export function createDispatcher(
         } catch {
           continue;
         }
-        let text = redact(file.content);
+        const redactedContent = redact(file.content);
+        const wasRedacted = redactedContent !== file.content;
+        let text = redactedContent;
         const remaining = budget.maxBytes - bytes;
         let excerptTruncated = false;
         if (Buffer.byteLength(text, "utf8") > remaining) {
@@ -725,7 +727,7 @@ export function createDispatcher(
           changed: changedSet.has(relative),
           symbols: mapEntry?.symbols ?? [],
           content: text,
-          redacted: text !== file.content,
+          redacted: wasRedacted,
           bytes: excerptBytes,
         });
       }
@@ -758,7 +760,7 @@ export function createDispatcher(
         git: {
           available: gitAvailable,
           head,
-          dirty: changedFiles.length > 0,
+          dirty: statusRaw.trim().length > 0,
           statusHash,
         },
         changedFiles,
