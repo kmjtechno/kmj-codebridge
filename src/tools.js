@@ -179,6 +179,45 @@ function detectProjectEnvironment(files) {
   };
 }
 
+const RISK_CLASSES = [
+  "READ",
+  "TEST",
+  "EDIT",
+  "GIT_WRITE",
+  "SERVICE",
+  "DEPLOY",
+  "PRIVILEGED",
+  "DESTRUCTIVE",
+];
+
+function commandRisk(category) {
+  return (
+    {
+      inspect: "READ",
+      build: "TEST",
+      write: "EDIT",
+      network: "SERVICE",
+    }[category] ?? "PRIVILEGED"
+  );
+}
+
+function toolRisk(name, definition) {
+  if (definition.access === "read") return "READ";
+  if (name === "run_quality_gate") return "TEST";
+  if (
+    ["write_file", "edit_file", "write_files_atomic", "cancel_job"].includes(
+      name,
+    )
+  )
+    return "EDIT";
+  if (definition.access === "write") return "EDIT";
+  return "SERVICE";
+}
+
+function approvalRequired(risk) {
+  return ["DEPLOY", "PRIVILEGED", "DESTRUCTIVE"].includes(risk);
+}
+
 const scoped = { device: identifier, project: identifier };
 const supervisorService = z.enum(["agent", "gateway"]);
 const contextBudget = z.enum(["small", "medium", "deep"]);
@@ -230,6 +269,13 @@ export const definitions = {
     title: "Detect project environment",
     description:
       "Detect bounded project stacks, common frameworks, package managers, and top-level manifests without executing project code.",
+    input: scoped,
+    access: "read",
+  },
+  policy_catalog: {
+    title: "CodeBridge policy catalog",
+    description:
+      "Read deterministic risk classes and approval metadata for CodeBridge tools and configured project command profiles without exposing raw commands.",
     input: scoped,
     access: "read",
   },
@@ -712,6 +758,8 @@ export function createDispatcher(
           id,
           category: profile.category,
           description: profile.description,
+          risk: commandRisk(profile.category),
+          approvalRequired: approvalRequired(commandRisk(profile.category)),
           variants: Object.keys(profile.variants),
         })),
         connection: "connected",
@@ -722,6 +770,37 @@ export function createDispatcher(
         device: config.id,
         project: p.id,
         ...detectProjectEnvironment(p.files),
+      };
+    if (name === "policy_catalog")
+      return {
+        device: config.id,
+        project: p.id,
+        riskClasses: [...RISK_CLASSES],
+        approvalRequiredFor: RISK_CLASSES.filter(approvalRequired),
+        tools: Object.entries(definitions)
+          .filter(([tool]) => tool !== "list_devices")
+          .map(([tool, toolDefinition]) => {
+            const risk = toolRisk(tool, toolDefinition);
+            return {
+              tool,
+              access: toolDefinition.access,
+              risk,
+              approvalRequired: approvalRequired(risk),
+            };
+          })
+          .sort((a, b) => a.tool.localeCompare(b.tool)),
+        commands: Object.entries(p.commands ?? {})
+          .map(([id, profile]) => {
+            const risk = commandRisk(profile.category);
+            return {
+              id,
+              category: profile.category,
+              risk,
+              approvalRequired: approvalRequired(risk),
+              variants: Object.keys(profile.variants),
+            };
+          })
+          .sort((a, b) => a.id.localeCompare(b.id)),
       };
     if (name === "project_snapshot") {
       const listing = p.files.list("");
@@ -1258,6 +1337,8 @@ export function createDispatcher(
           id,
           category: profile.category,
           description: profile.description,
+          risk: commandRisk(profile.category),
+          approvalRequired: approvalRequired(commandRisk(profile.category)),
           variants: Object.keys(profile.variants),
         })),
       };
