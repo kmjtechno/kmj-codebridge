@@ -24,7 +24,10 @@ test("Commander create folder allows one approved directory and rejects unsafe p
   const created = files.createDirectory("docs");
   assert.deepEqual(created, { path: "docs", created: true });
   assert.equal(fs.statSync(path.join(root, "docs")).isDirectory(), true);
-  assert.throws(() => files.createDirectory("docs"), /NOT_REGULAR_FILE|DIRECTORY_EXISTS/);
+  assert.throws(
+    () => files.createDirectory("docs"),
+    /NOT_REGULAR_FILE|DIRECTORY_EXISTS/,
+  );
   assert.throws(() => files.createDirectory("../outside"), /INVALID_PATH/);
   assert.throws(() => files.createDirectory(".ssh/private"), /PATH_DENIED/);
   assert.throws(() => files.createDirectory("node_modules/new"), /PATH_DENIED/);
@@ -39,7 +42,10 @@ test("Commander move never overwrites a file or accepts stale content", (t) => {
     () => files.moveFile("README.md", "existing.md", before.sha256),
     /DESTINATION_EXISTS/,
   );
-  assert.equal(fs.readFileSync(path.join(root, "existing.md"), "utf8"), "do not overwrite");
+  assert.equal(
+    fs.readFileSync(path.join(root, "existing.md"), "utf8"),
+    "do not overwrite",
+  );
   assert.throws(
     () => files.moveFile("README.md", "docs/renamed.md", "0".repeat(64)),
     /CONTENT_CONFLICT/,
@@ -54,7 +60,10 @@ test("Commander move never overwrites a file or accepts stale content", (t) => {
     moved: true,
   });
   assert.equal(fs.existsSync(path.join(root, "README.md")), false);
-  assert.equal(fs.readFileSync(path.join(root, "docs", "renamed.md"), "utf8"), before.content);
+  assert.equal(
+    fs.readFileSync(path.join(root, "docs", "renamed.md"), "utf8"),
+    before.content,
+  );
 });
 
 test("Commander move does not follow symlinks or move hardlinked and secret paths", (t) => {
@@ -63,9 +72,18 @@ test("Commander move does not follow symlinks or move hardlinked and secret path
   fs.symlinkSync("README.md", path.join(root, "shortcut"));
   fs.linkSync(path.join(root, "README.md"), path.join(root, "linked"));
   assert.throws(() => files.moveFile("shortcut", "x", hash), /SYMLINK_DENIED/);
-  assert.throws(() => files.moveFile("README.md", "x", hash), /HARDLINK_DENIED/);
-  assert.throws(() => files.moveFile("README.md", "../outside", hash), /INVALID_PATH/);
-  assert.throws(() => files.moveFile("README.md", "node_modules/x", hash), /PATH_DENIED/);
+  assert.throws(
+    () => files.moveFile("README.md", "x", hash),
+    /HARDLINK_DENIED/,
+  );
+  assert.throws(
+    () => files.moveFile("README.md", "../outside", hash),
+    /INVALID_PATH/,
+  );
+  assert.throws(
+    () => files.moveFile("README.md", "node_modules/x", hash),
+    /PATH_DENIED/,
+  );
   assert.throws(() => files.moveFile(".env", "new.md", hash), /PATH_DENIED/);
 });
 
@@ -94,35 +112,53 @@ test("Commander write tools inherit project permissions and audit attempt/result
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("move_project_file", {
-      ...scope,
-      from: "README.md",
-      to: "renamed.md",
-      expectedHash: "0".repeat(64),
-    }, ["read"]),
+    dispatch(
+      "move_project_file",
+      {
+        ...scope,
+        from: "README.md",
+        to: "renamed.md",
+        expectedHash: "0".repeat(64),
+      },
+      ["read"],
+    ),
     /ACCESS_DENIED/,
   );
   assert.equal(fs.existsSync(path.join(root, "docs")), false);
 
-  await dispatch("create_project_directory", { ...scope, path: "docs" }, ["write"]);
+  await dispatch("create_project_directory", { ...scope, path: "docs" }, [
+    "write",
+  ]);
   const before = new ProjectFiles(root).read("README.md");
   await dispatch(
     "move_project_file",
-    { ...scope, from: "README.md", to: "docs/renamed.md", expectedHash: before.sha256 },
+    {
+      ...scope,
+      from: "README.md",
+      to: "docs/renamed.md",
+      expectedHash: before.sha256,
+    },
     ["write"],
   );
   const status = audit.status("p1");
   assert.equal(status.events, 4);
   const tail = audit.tail("p1", 4).entries;
-  assert.deepEqual(tail.map((entry) => [entry.tool, entry.phase, entry.outcome]), [
-    ["create_project_directory", "attempt", "pending"],
-    ["create_project_directory", "result", "succeeded"],
-    ["move_project_file", "attempt", "pending"],
-    ["move_project_file", "result", "succeeded"],
-  ]);
+  assert.deepEqual(
+    tail.map((entry) => [entry.tool, entry.phase, entry.outcome]),
+    [
+      ["create_project_directory", "attempt", "pending"],
+      ["create_project_directory", "result", "succeeded"],
+      ["move_project_file", "attempt", "pending"],
+      ["move_project_file", "result", "succeeded"],
+    ],
+  );
   assert.ok(!JSON.stringify(tail).includes("renamed.md"));
   await assert.rejects(
-    dispatch("create_project_directory", { ...scope, project: "p2", path: "other" }, ["write"]),
+    dispatch(
+      "create_project_directory",
+      { ...scope, project: "p2", path: "other" },
+      ["write"],
+    ),
     /PROJECT_NOT_FOUND/,
   );
 });
