@@ -28,15 +28,27 @@ test("Commander session paging and project isolation", async (t) => {
   }
   const first = runner.list("p1", 2);
   assert.equal(first.total, 5);
-  assert.deepEqual(first.jobs.map((j) => j.id), ["job-4", "job-3"]);
+  assert.deepEqual(
+    first.jobs.map((j) => j.id),
+    ["job-4", "job-3"],
+  );
   assert.equal(first.nextCursor, "job-3");
   const second = runner.list("p1", 2, { cursor: first.nextCursor });
-  assert.deepEqual(second.jobs.map((j) => j.id), ["job-2", "job-1"]);
+  assert.deepEqual(
+    second.jobs.map((j) => j.id),
+    ["job-2", "job-1"],
+  );
   const last = runner.list("p1", 2, { cursor: second.nextCursor });
-  assert.deepEqual(last.jobs.map((j) => j.id), ["job-0"]);
+  assert.deepEqual(
+    last.jobs.map((j) => j.id),
+    ["job-0"],
+  );
   assert.equal(last.nextCursor, null);
   const failed = runner.list("p1", 10, { state: "failed" });
-  assert.deepEqual(failed.jobs.map((j) => j.id), ["job-3", "job-1"]);
+  assert.deepEqual(
+    failed.jobs.map((j) => j.id),
+    ["job-3", "job-1"],
+  );
   assert.equal(failed.total, 2);
   assert.ok(!JSON.stringify(first).includes("private"));
   assert.ok(!JSON.stringify(first).includes("sensitive-key"));
