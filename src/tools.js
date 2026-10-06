@@ -664,6 +664,25 @@ export const definitions = {
     input: file,
     access: "read",
   },
+  create_project_directory: {
+    title: "Create project folder",
+    description:
+      "Create one missing directory within an already-authorized writable project. Parent directory must exist; no arbitrary root, shell, symlink or dependency-folder traversal.",
+    input: file,
+    access: "write",
+  },
+  move_project_file: {
+    title: "Move or rename project file",
+    description:
+      "Copy one bounded approved file to a previously nonexistent destination inside the same writable project, verify SHA-256 and remove the original. Existing destination is never overwritten.",
+    input: {
+      ...scoped,
+      from: z.string().min(1).max(1024),
+      to: z.string().min(1).max(1024),
+      expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
+    },
+    access: "write",
+  },
   list_project_jobs: {
     title: "Project sessions and jobs",
     description:
@@ -1248,6 +1267,14 @@ export function createDispatcher(
     if (name === "project_tree")
       return p.files.tree(a.path, a.maxDepth, a.maxEntries);
     if (name === "project_file_info") return p.files.fileInfo(a.path);
+    if (name === "create_project_directory") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return p.files.createDirectory(a.path);
+    }
+    if (name === "move_project_file") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return p.files.moveFile(a.from, a.to, a.expectedHash);
+    }
     if (name === "list_project_jobs") return runner.list(p.id, a.limit);
     if (name === "repo_map")
       return p.files.repoMap(a.query, a.maxFiles, a.maxSymbolsPerFile);
