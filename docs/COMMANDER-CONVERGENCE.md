@@ -40,7 +40,7 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
 | Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Native                      |
 | Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Implementing                |
-| Checkpoint / rollback                    | Project snapshots and rollback evidence before risky mutations                               | Planned                     |
+| Checkpoint / rollback                    | Private bounded file snapshots and read-only recovery planning; restore needs approval        | Implementing                |
 | Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
 | Desktop notifications / mobile approvals | Main Platform + optional native companion UX                                                 | Planned                     |
 | Native Tauri desktop shell               | Optional CodeBridge operator client, not a second backend                                    | Planned                     |
@@ -67,6 +67,22 @@ will be created with private permissions and never overwrites an existing
 file. Bounded binary files are supported; symlinks, hardlinks, secret paths,
 unapproved folders and out-of-root paths fail closed. The source is kept
 unchanged.
+
+## Checkpoint safety baseline
+
+The `checkpoint_create` tool stores one authorized UTF-8 file (maximum
+64 KiB) inside the enrolled agent's restricted state directory. The caller
+must provide the file's current SHA-256 and a stable request key. Replays are
+idempotent; changed payloads with the same key fail closed. Known secret
+bindings and protected paths cannot be captured. No checkpoint contents are
+returned to an AI client.
+
+`checkpoint_restore_plan` checks integrity, reads the currently authorized
+file through project-root safeguards, and compares its SHA-256 with the
+checkpoint. **It does not restore or modify files.** Actual rollback is
+reserved for a separate approval-backed write operation after Main Platform
+approval policy is implemented and tested. This avoids silently overwriting
+newer customer work.
 
 ## Security invariants
 
