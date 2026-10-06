@@ -701,6 +701,100 @@ export async function startGateway(rawConfig) {
                   ],
                   ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
+              if (name === "connection_overview") {
+                const memberships = user.memberships?.length
+                  ? user.memberships
+                  : [user];
+                const devices = [];
+                for (const membership of memberships) {
+                  if (!membership?.tenant || !membership.devices) continue;
+                  for (const [device, projects] of Object.entries(
+                    membership.devices,
+                  )) {
+                    if (args.expectedDevice && args.expectedDevice !== device)
+                      continue;
+                    const agent = agents.get(device);
+                    const registered =
+                      agent !== undefined && agent.tenant === membership.tenant;
+                    const health = registered
+                      ? connectionHealth(
+                          lastSeen.get(device),
+                          agentHealth.get(device),
+                        )
+                      : null;
+                    for (const project of projects) {
+                      const activeProject =
+                        registered &&
+                        (!agent.dynamic || agent.projects?.includes(project));
+                      const status = !registered
+                        ? "GATEWAY_REGISTRATION_MISSING"
+                        : !activeProject
+                          ? "PROJECT_SCOPE_MISMATCH"
+                          : health.online
+                            ? "READY"
+                            : health.connectionState === "never_seen"
+                              ? "AGENT_NEVER_ONLINE"
+                              : "AGENT_OFFLINE";
+                      const nextAction = {
+                        READY: "NONE",
+                        GATEWAY_REGISTRATION_MISSING:
+                          "RUN_VM_CONNECTION_DOCTOR",
+                        PROJECT_SCOPE_MISMATCH:
+                          "VERIFY_ENROLLED_PROJECT_AND_GRANT",
+                        AGENT_NEVER_ONLINE: "CHECK_AGENT_SERVICE_LOGS",
+                        AGENT_OFFLINE: "CHECK_AGENT_SERVICE_LOGS",
+                      }[status];
+                      devices.push({
+                        device,
+                        project,
+                        status,
+                        nextAction,
+                        ...(health
+                          ? { connectionState: health.connectionState }
+                          : {}),
+                      });
+                    }
+                  }
+                }
+                devices.sort(
+                  (a, b) =>
+                    a.device.localeCompare(b.device) ||
+                    a.project.localeCompare(b.project),
+                );
+                const expectedNotGranted =
+                  Boolean(args.expectedDevice) &&
+                  devices.length === 0;
+                return {
+                  content: [
+                    {
+                      type: "text",
+                      text: JSON.stringify({
+                        overallStatus: expectedNotGranted
+                          ? "ACCOUNT_GRANT_MISSING"
+                          : !devices.length
+                            ? "NO_GRANTED_DEVICES"
+                            : devices.every((entry) => entry.status === "READY")
+                              ? "READY"
+                              : "NEEDS_ATTENTION",
+                        ...(expectedNotGranted
+                          ? {
+                              expectedDevice: args.expectedDevice,
+                              nextAction:
+                                "CHECK_MAIN_PLATFORM_ACCOUNT_AND_DEVICE_PAIRING",
+                            }
+                          : {}),
+                        readyCount: devices.filter(
+                          (entry) => entry.status === "READY",
+                        ).length,
+                        attentionCount: devices.filter(
+                          (entry) => entry.status !== "READY",
+                        ).length,
+                        devices,
+                      }),
+                    },
+                  ],
+                };
+              }
               if (name === "account_diagnostics") {
                 const memberships = (
                   user.memberships?.length ? user.memberships : [user]
