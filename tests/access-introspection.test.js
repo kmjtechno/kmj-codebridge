@@ -295,19 +295,19 @@ test("connection overview does not disclose a device without account grant", asy
 });
 
 test("connection overview detects project mismatch without permitting access", async (t) => {
-  const result = await gatewayGrants(
-    t,
-    { device1: ["project1"] },
-    true,
-    ["different_project"],
-  );
+  const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
+    "different_project",
+  ]);
   const response = await result.client.callTool({
     name: "connection_overview",
     arguments: {},
   });
   const overview = JSON.parse(response.content[0].text);
   assert.equal(overview.devices[0].status, "PROJECT_SCOPE_MISMATCH");
-  assert.equal(overview.devices[0].nextAction, "VERIFY_ENROLLED_PROJECT_AND_GRANT");
+  assert.equal(
+    overview.devices[0].nextAction,
+    "VERIFY_ENROLLED_PROJECT_AND_GRANT",
+  );
   const denied = await result.client.callTool({
     name: "read_file",
     arguments: { device: "device1", project: "project1", path: "README.md" },
