@@ -723,6 +723,11 @@ export async function startGateway(rawConfig) {
                         )
                       : null;
                     for (const project of projects) {
+                      if (
+                        args.expectedProject &&
+                        args.expectedProject !== project
+                      )
+                        continue;
                       const activeProject =
                         registered &&
                         (!agent.dynamic || agent.projects?.includes(project));
@@ -762,14 +767,17 @@ export async function startGateway(rawConfig) {
                     a.project.localeCompare(b.project),
                 );
                 const expectedNotGranted =
-                  Boolean(args.expectedDevice) && devices.length === 0;
+                  Boolean(args.expectedDevice || args.expectedProject) &&
+                  devices.length === 0;
                 return {
                   content: [
                     {
                       type: "text",
                       text: JSON.stringify({
                         overallStatus: expectedNotGranted
-                          ? "ACCOUNT_GRANT_MISSING"
+                          ? args.expectedProject && !args.expectedDevice
+                            ? "ACCOUNT_PROJECT_GRANT_MISSING"
+                            : "ACCOUNT_GRANT_MISSING"
                           : !devices.length
                             ? "NO_GRANTED_DEVICES"
                             : devices.every((entry) => entry.status === "READY")
@@ -777,7 +785,12 @@ export async function startGateway(rawConfig) {
                               : "NEEDS_ATTENTION",
                         ...(expectedNotGranted
                           ? {
-                              expectedDevice: args.expectedDevice,
+                              ...(args.expectedDevice
+                                ? { expectedDevice: args.expectedDevice }
+                                : {}),
+                              ...(args.expectedProject
+                                ? { expectedProject: args.expectedProject }
+                                : {}),
                               nextAction:
                                 "CHECK_MAIN_PLATFORM_ACCOUNT_AND_DEVICE_PAIRING",
                             }
