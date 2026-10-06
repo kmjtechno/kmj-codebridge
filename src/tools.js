@@ -499,6 +499,9 @@ const fastReadTool = z.enum([
   "git_status",
   "git_log",
   "list_directory",
+  "project_tree",
+  "project_file_info",
+  "list_project_jobs",
   "search_code",
   "autopilot_status",
   "supervisor_status",
@@ -640,6 +643,35 @@ export const definitions = {
     description:
       "List up to 500 non-sensitive entries in one directory inside an authorized project.",
     input: { ...scoped, path: z.string().max(1024).default("") },
+    access: "read",
+  },
+  project_tree: {
+    title: "Explore project folders",
+    description:
+      "Browse a bounded, recursive tree of approved project files and directories without listing hidden secrets, following symlinks, or leaving the authorized root.",
+    input: {
+      ...scoped,
+      path: z.string().max(1024).default(""),
+      maxDepth: z.number().int().min(0).max(5).default(3),
+      maxEntries: z.number().int().min(1).max(200).default(100),
+    },
+    access: "read",
+  },
+  project_file_info: {
+    title: "Project file details",
+    description:
+      "Read safe file metadata (size and modified date) from one authorized project file without returning file contents.",
+    input: file,
+    access: "read",
+  },
+  list_project_jobs: {
+    title: "Project sessions and jobs",
+    description:
+      "List bounded recent CodeBridge execution sessions for the authorized project without returning command output, arguments, or environment secrets.",
+    input: {
+      ...scoped,
+      limit: z.number().int().min(1).max(100).default(20),
+    },
     access: "read",
   },
   repo_map: {
@@ -1213,6 +1245,10 @@ export function createDispatcher(
       };
     }
     if (name === "list_directory") return p.files.list(a.path);
+    if (name === "project_tree")
+      return p.files.tree(a.path, a.maxDepth, a.maxEntries);
+    if (name === "project_file_info") return p.files.fileInfo(a.path);
+    if (name === "list_project_jobs") return runner.list(p.id, a.limit);
     if (name === "repo_map")
       return p.files.repoMap(a.query, a.maxFiles, a.maxSymbolsPerFile);
     if (name === "context_pack") {
