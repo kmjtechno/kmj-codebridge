@@ -159,12 +159,9 @@ test("Windows personal marketplace points at the plugin relative to home", () =>
     path.join(cwd, "scripts/install-chatgpt-desktop.ps1"),
     "utf8",
   );
-  assert.match(script, /path = '\\.\\/.codex\\/plugins\\/kmj-codebridge'/);
-  assert.doesNotMatch(
-    script,
-    /path = '\\.\\/\\.\\.\\/\\.\\.\\/\\.codex\\/plugins\\/kmj-codebridge'/,
-  );
-  assert.match(script, /Install\\/enable KMJ CodeBridge if prompted/);
+  assert.ok(script.includes("path = './.codex/plugins/kmj-codebridge'"));
+  assert.ok(!script.includes("path = './../../.codex/plugins/kmj-codebridge'"));
+  assert.ok(script.includes("Install/enable KMJ CodeBridge if prompted"));
 });
 
 test("Claude Code package follows the plugin and marketplace layout", (t) => {
