@@ -12,7 +12,9 @@ that the plugin package alone gives machine access.
 1. For a missing/offline connection, run `connection_overview` first, without parameters.
    Explain `ACCOUNT_GRANT_MISSING`, `GATEWAY_REGISTRATION_MISSING`,
    `PROJECT_SCOPE_MISMATCH`, or `AGENT_OFFLINE` in plain language and
-   recommend only the matching next step. Do not repeatedly reconnect OAuth,
+   recommend only the matching next step. For the Main Platform testing agent,
+   check `expectedProject: "kmj-main-platform"` even when its device ID is unknown.
+   Do not repeatedly reconnect OAuth,
    change existing devices/projects, guess credentials, or promise server access
    from plugin installation alone. For the testing VM, use the read-only guide
    in the CodeBridge repository's `docs/CONNECTION-DOCTOR.md`.
