@@ -41,6 +41,10 @@ A successful gateway health result proves the agent token was accepted and regis
 ## Interpret VM output
 
 - `ACCOUNT_PROJECT_GRANT_MISSING` (in the MCP result): the requested project is not granted to the signed-in account; check its enrollment and organization grant, not OAuth reconnect.
+- `agent_last_error=GATEWAY_UNAUTHORIZED`: the running agent received HTTP 401; check its enrolled credential and device ID, not ChatGPT OAuth. The agent writes a bounded error code to `connection-status.json`, never a token or response body.
+- `agent_last_error=GATEWAY_UNAVAILABLE`: the gateway returned a 5xx failure; check service health and deployment.
+- `agent_last_error=NETWORK_ERROR`: the agent could not complete the gateway request; check TLS, DNS and networking.
+- `agent_recorded_status=UNAVAILABLE_OLD_RUNTIME`: this runtime does not yet produce the new connection-status record; do not interpret a missing record as healthy.
 - `node_access=DENIED_TO_SERVICE_USER`: check the runtime's directory traversal/execute permissions (prior systemd `203/EXEC` is consistent with this).
 - `credential_introspection_http=401`: credential inactive, expired, revoked or not issued by the current Main Platform; check the correct pairing without touching any existing credential.
 - `credential_identity=MISMATCH`: the local device ID or tenant does not match what Main Platform authorized. Stop; do not edit the old `project1`.
