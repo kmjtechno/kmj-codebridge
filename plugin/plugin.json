@@ -19,6 +19,7 @@
         "developerName": "KMJ TECHNO",
         "category": "Developer Tools",
         "capabilities": [
+          "One-step connection doctor for authorized devices",
           "Inspect authorized projects",
           "Guarded file changes",
           "Git status",
@@ -26,9 +27,9 @@
           "Verified quality gates"
         ],
         "defaultPrompt": [
-          "Inspect my authorized project, show Git status, and run the configured quality gates with KMJ CodeBridge.",
-          "Check the latest GitHub pull request and Actions status for my allowed repository.",
-          "Check my CodeBridge connection and latest job results."
+          "Check my CodeBridge connections. Do not reconnect OAuth or change existing projects. Explain what needs fixing.",
+          "Show my authorized devices and projects, with online status.",
+          "Diagnose the Main Platform testing agent without changing device1/project1."
         ],
         "logo": "./assets/logo.png",
         "composerIcon": "./assets/icon.png",
