@@ -167,6 +167,105 @@ export class ProjectFiles {
       fs.closeSync(fd);
     }
   }
+  createDirectory(relative) {
+    const target = this.resolve(relative, true);
+    try {
+      fs.mkdirSync(target, { mode: 0o700 });
+    } catch (error) {
+      if (error.code === "EEXIST") fail("DIRECTORY_EXISTS");
+      throw error;
+    }
+    return { path: relative, created: true };
+  }
+  moveFile(from, to, expectedHash) {
+    if (from === to) fail("INVALID_MOVE");
+    if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
+      fail("INVALID_HASH");
+    const source = this.resolve(from);
+    const destination = this.resolve(to, true);
+    const sourceFd = fs.openSync(
+      source,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+    let copied = false;
+    let removed = false;
+    try {
+      const stat = fs.fstatSync(sourceFd);
+      if (!stat.isFile() || stat.nlink !== 1)
+        fail(stat.nlink > 1 ? "HARDLINK_DENIED" : "NOT_REGULAR_FILE");
+      if (stat.size > MAX_FILE_BYTES) fail("FILE_TOO_LARGE");
+      const contents = Buffer.alloc(stat.size);
+      const count = fs.readSync(sourceFd, contents, 0, contents.length, 0);
+      if (count !== stat.size || hash(contents) !== expectedHash)
+        fail("CONTENT_CONFLICT");
+
+      // wx gives exclusive creation: an existing destination is NEVER replaced.
+      const destinationFd = fs.openSync(destination, "wx", 0o600);
+      copied = true;
+      try {
+        fs.writeFileSync(destinationFd, contents);
+        fs.fsyncSync(destinationFd);
+      } finally {
+        fs.closeSync(destinationFd);
+      }
+
+      // Refuse to remove the source after a replacement or concurrent edit.
+      const current = fs.lstatSync(source);
+      const sourceNow = fs.fstatSync(sourceFd);
+      if (
+        !current.isFile() ||
+        current.isSymbolicLink() ||
+        current.nlink !== 1 ||
+        current.dev !== stat.dev ||
+        current.ino !== stat.ino ||
+        sourceNow.size !== stat.size
+      )
+        fail("CONTENT_CONFLICT");
+      const verified = Buffer.alloc(stat.size);
+      const n = fs.readSync(sourceFd, verified, 0, verified.length, 0);
+      if (n !== stat.size || hash(verified) !== expectedHash)
+        fail("CONTENT_CONFLICT");
+
+      const copiedFd = fs.openSync(
+        destination,
+        fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+      );
+      try {
+        const copyStat = fs.fstatSync(copiedFd);
+        const copy = Buffer.alloc(copyStat.size);
+        const bytes = fs.readSync(copiedFd, copy, 0, copy.length, 0);
+        if (
+          !copyStat.isFile() ||
+          copyStat.nlink !== 1 ||
+          bytes !== stat.size ||
+          hash(copy) !== expectedHash
+        )
+          fail("COPY_INTEGRITY_FAILED");
+      } finally {
+        fs.closeSync(copiedFd);
+      }
+
+      fs.unlinkSync(source);
+      removed = true;
+      return { from, to, sha256: expectedHash, bytes: stat.size, moved: true };
+    } catch (error) {
+      // On an incomplete move, only clean up bytes still matching our copy.
+      // Do not delete a destination subsequently modified by another writer.
+      if (copied && !removed) {
+        try {
+          const dst = fs.lstatSync(destination);
+          if (dst.isFile() && !dst.isSymbolicLink() && dst.nlink === 1) {
+            const bytes = fs.readFileSync(destination);
+            if (hash(bytes) === expectedHash) fs.unlinkSync(destination);
+          }
+        } catch {}
+      }
+      if (error.code === "EEXIST") fail("DESTINATION_EXISTS");
+      throw error;
+    } finally {
+      fs.closeSync(sourceFd);
+    }
+  }
   read(relative) {
     const target = this.resolve(relative);
     const fd = fs.openSync(
