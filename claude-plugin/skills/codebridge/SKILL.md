@@ -18,7 +18,11 @@ that the plugin package alone gives machine access.
    change existing devices/projects, guess credentials, or promise server access
    from plugin installation alone. For the testing VM, use the read-only guide
    in the CodeBridge repository's `docs/CONNECTION-DOCTOR.md`.
-2. List authorized devices. If the requested target is ambiguous, ask for its name.
+2. For an ordinary "open workspace" request, list authorized devices first.
+   When exactly one device/project pair is authorized, select it automatically
+   and call `workspace_home` once. Show a clear, simple file explorer,
+   detected frameworks, quality gates, and recent sessions. Ask the user to
+   choose a target only when there are multiple authorized projects.
 3. Inspect the project and Git status before editing. Preserve user changes.
    For Desktop Commander-style navigation, prefer `project_tree` for bounded
    folder browsing, `project_file_info` for safe file metadata, and
