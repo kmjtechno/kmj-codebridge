@@ -14,7 +14,7 @@ function fixture(t) {
   const stateDir = path.join(base, "state");
   fs.mkdirSync(root);
   fs.writeFileSync(path.join(root, "README.md"), "Version one");
-  fs.writeFileSync(path.join(root, "secrets.txt"), "token=confidential-key");
+  fs.writeFileSync(path.join(root, "settings.txt"), "token=confidential-key");
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   return { base, root, stateDir, files: new ProjectFiles(root) };
 }
@@ -95,8 +95,8 @@ test("checkpoint rejects stale hashes, reuse conflicts, known secrets and protec
       store.create(
         "p1",
         "hidden",
-        "secrets.txt",
-        files.read("secrets.txt").sha256,
+        "settings.txt",
+        files.read("settings.txt").sha256,
         files,
         (content) => !content.includes("token="),
       ),
