@@ -15,7 +15,10 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, "node_modules"));
   fs.mkdirSync(path.join(root, ".ssh"));
   fs.writeFileSync(path.join(root, "README.md"), "Project introduction");
-  fs.writeFileSync(path.join(root, "src", "main.ts"), "export const value = 1;");
+  fs.writeFileSync(
+    path.join(root, "src", "main.ts"),
+    "export const value = 1;",
+  );
   fs.writeFileSync(path.join(root, ".env"), "token=private");
   fs.writeFileSync(path.join(root, ".ssh", "config"), "private");
   fs.writeFileSync(path.join(root, "node_modules", "library.js"), "hidden");
@@ -58,7 +61,10 @@ test("Commander file info returns metadata only and rejects sensitive and linked
   assert.match(metadata.modifiedAt, /^\d{4}-\d{2}-\d{2}T/);
   assert.equal(JSON.stringify(metadata).includes("export const"), false);
   assert.throws(() => files.fileInfo(".env"), /PATH_DENIED/);
-  assert.throws(() => files.fileInfo("shortcut/main.ts"), /INVALID_PATH|SYMLINK_DENIED/);
+  assert.throws(
+    () => files.fileInfo("shortcut/main.ts"),
+    /INVALID_PATH|SYMLINK_DENIED/,
+  );
   fs.linkSync(path.join(root, "README.md"), path.join(root, "linked.md"));
   assert.throws(() => files.fileInfo("linked.md"), /HARDLINK_DENIED/);
 });
@@ -109,25 +115,36 @@ test("Commander job sessions are project-scoped, sorted, bounded and redacted by
     stateDir: path.join(base, "state"),
     projects: [{ id: "p1", root, writable: true, gates: {}, commands: {} }],
   };
-  const dispatch = createDispatcher(
-    config,
-    runner,
-    () => ({
-      features: ["read", "write", "execute"],
-      limits: { concurrent_jobs: 1 },
-    }),
-  );
+  const dispatch = createDispatcher(config, runner, () => ({
+    features: ["read", "write", "execute"],
+    limits: { concurrent_jobs: 1 },
+  }));
   const scope = { device: "d1", project: "p1" };
-  const sessions = await dispatch("list_project_jobs", { ...scope, limit: 1 }, ["read"]);
+  const sessions = await dispatch("list_project_jobs", { ...scope, limit: 1 }, [
+    "read",
+  ]);
   assert.equal(sessions.total, 2);
   assert.equal(sessions.jobs.length, 1);
   assert.equal(sessions.jobs[0].id, "c3");
   assert.ok(!JSON.stringify(sessions).includes("secret"));
   assert.ok(!JSON.stringify(sessions).includes("another-tenant-data"));
   assert.ok(!JSON.stringify(sessions).includes("idempotency"));
-  assert.equal((await dispatch("project_tree", { ...scope, maxDepth: 2, maxEntries: 30 }, ["read"])).path, "");
   assert.equal(
-    (await dispatch("project_file_info", { ...scope, path: "README.md" }, ["read"])).type,
+    (
+      await dispatch(
+        "project_tree",
+        { ...scope, maxDepth: 2, maxEntries: 30 },
+        ["read"],
+      )
+    ).path,
+    "",
+  );
+  assert.equal(
+    (
+      await dispatch("project_file_info", { ...scope, path: "README.md" }, [
+        "read",
+      ])
+    ).type,
     "file",
   );
   await assert.rejects(
