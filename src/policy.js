@@ -155,7 +155,8 @@ export class ProjectFiles {
     );
     try {
       const st = fs.fstatSync(fd);
-      if (!st.isFile() || st.nlink !== 1) fail("NOT_REGULAR_FILE");
+      if (!st.isFile() || st.nlink !== 1)
+        fail(st.nlink > 1 ? "HARDLINK_DENIED" : "NOT_REGULAR_FILE");
       return {
         path: relative,
         type: "file",
