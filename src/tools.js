@@ -738,6 +738,8 @@ export const definitions = {
     input: {
       ...scoped,
       limit: z.number().int().min(1).max(100).default(20),
+      state: z.enum(["all", "running", "queued", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]).default("all"),
+      cursor: z.string().regex(/^[a-zA-Z0-9-]{1,128}$/).nullable().default(null),
     },
     access: "read",
   },
@@ -1364,7 +1366,8 @@ export function createDispatcher(
       if (!p.writable) fail("READ_ONLY_PROJECT");
       return p.files.copyFile(a.from, a.to, a.expectedHash);
     }
-    if (name === "list_project_jobs") return runner.list(p.id, a.limit);
+    if (name === "list_project_jobs")
+      return runner.list(p.id, a.limit, { state: a.state, cursor: a.cursor });
     if (name === "repo_map")
       return p.files.repoMap(a.query, a.maxFiles, a.maxSymbolsPerFile);
     if (name === "context_pack") {
