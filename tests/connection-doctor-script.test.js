@@ -12,7 +12,10 @@ test("VM connection doctor is shell-valid and locally read-only", () => {
   const source = fs.readFileSync(doctor, "utf8");
   assert.match(source, /kmj-codebridge-kmj-main-platform\.service/);
   assert.match(source, /\/etc\/kmj-codebridge-main-platform\/agent\.json/);
-  assert.match(source, /\/etc\/kmj-codebridge\/agents\/kmj-main-platform\.json/);
+  assert.match(
+    source,
+    /\/etc\/kmj-codebridge\/agents\/kmj-main-platform\.json/,
+  );
   assert.match(source, /systemctl show "\$SERVICE" -p ExecStart/);
   assert.match(source, /credential_introspection_http/);
   assert.match(source, /gateway_agent_health_http/);
@@ -20,8 +23,14 @@ test("VM connection doctor is shell-valid and locally read-only", () => {
   assert.match(source, /https:\/\/kmj-codebridge-gateway\.onrender\.com/);
   assert.match(source, /legacy_project1=UNTOUCHED/);
   assert.doesNotMatch(source, /systemctl\s+(?:restart|stop|disable|enable)/);
-  assert.doesNotMatch(source, /rm\s+-rf|chmod\s|chown\s|curl\s+[^\n]*\|\s*(?:sh|bash)/);
-  assert.doesNotMatch(source, /console\.log\([^\n]*\.token|echo\s+[^\n]*\$\{?TOKEN/i);
+  assert.doesNotMatch(
+    source,
+    /rm\s+-rf|chmod\s|chown\s|curl\s+[^\n]*\|\s*(?:sh|bash)/,
+  );
+  assert.doesNotMatch(
+    source,
+    /console\.log\([^\n]*\.token|echo\s+[^\n]*\$\{?TOKEN/i,
+  );
 
   if (process.platform !== "win32") {
     const check = spawnSync("bash", ["-n", doctor], { encoding: "utf8" });
