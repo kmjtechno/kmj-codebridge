@@ -314,7 +314,7 @@ test("client packagers reject unsafe endpoints, options and output locations", (
 test("branding, license and policies are present in every client package", () => {
   const i = canonical.extensions["com.openai"].interface;
   assert.equal(canonical.license, "Apache-2.0");
-  assert.equal(i.logo, "./assets/logo.png");
+  assert.equal(i.logo, "./assets/icon.png");
   assert.equal(i.composerIcon, "./assets/icon.png");
   assert.match(i.brandColor, /^#[0-9A-F]{6}$/);
   assert.equal(i.websiteURL, "https://kmjtechno.com/products/kmj-codebridge");
