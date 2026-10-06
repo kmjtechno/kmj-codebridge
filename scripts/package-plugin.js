@@ -22,6 +22,15 @@ try {
   // The public/submission package uses the hosted remote MCP endpoint.
   // Desktop-only local bridge code stays in the repository marketplace package.
   fs.rmSync(path.join(out, "desktop"), { recursive: true, force: true });
+  // The registered KMJ app belongs to the canonical hosted deployment.
+  // A self-hosted distribution must never silently connect to KMJ instead.
+  if (url.href !== "https://kmjtechno.com/mcp") {
+    fs.rmSync(path.join(out, ".app.json"), { force: true });
+    const manifestFile = path.join(out, "plugin.json");
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    delete manifest.extensions["com.openai"].apps;
+    writeJson(manifestFile, manifest);
+  }
   writeJson(path.join(out, "mcp.json"), {
     $schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
     mcpServers: { codebridge: { type: "streamable-http", url: url.href } },
