@@ -683,6 +683,18 @@ export const definitions = {
     },
     access: "write",
   },
+  copy_project_file: {
+    title: "Copy project file",
+    description:
+      "Duplicate one bounded, hash-verified file within the same authorized writable project. Requires an unused destination and never removes or overwrites the source.",
+    input: {
+      ...scoped,
+      from: z.string().min(1).max(1024),
+      to: z.string().min(1).max(1024),
+      expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
+    },
+    access: "write",
+  },
   list_project_jobs: {
     title: "Project sessions and jobs",
     description:
@@ -1274,6 +1286,10 @@ export function createDispatcher(
     if (name === "move_project_file") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
       return p.files.moveFile(a.from, a.to, a.expectedHash);
+    }
+    if (name === "copy_project_file") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return p.files.copyFile(a.from, a.to, a.expectedHash);
     }
     if (name === "list_project_jobs") return runner.list(p.id, a.limit);
     if (name === "repo_map")
