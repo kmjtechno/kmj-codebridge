@@ -167,7 +167,17 @@ export class ProjectFiles {
       fs.closeSync(fd);
     }
   }
+  assertCommanderPath(relative) {
+    if (
+      typeof relative !== "string" ||
+      relative.split("/").some(
+        (part) => skipped.has(part) || part.startsWith(".codebridge-"),
+      )
+    )
+      fail("PATH_DENIED");
+  }
   createDirectory(relative) {
+    this.assertCommanderPath(relative);
     const target = this.resolve(relative, true);
     try {
       fs.mkdirSync(target, { mode: 0o700 });
@@ -179,6 +189,8 @@ export class ProjectFiles {
   }
   moveFile(from, to, expectedHash) {
     if (from === to) fail("INVALID_MOVE");
+    this.assertCommanderPath(from);
+    this.assertCommanderPath(to);
     if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
       fail("INVALID_HASH");
     const source = this.resolve(from);
@@ -232,6 +244,7 @@ export class ProjectFiles {
       );
       try {
         const copyStat = fs.fstatSync(copiedFd);
+        if (copyStat.size > MAX_FILE_BYTES) fail("FILE_TOO_LARGE");
         const copy = Buffer.alloc(copyStat.size);
         const bytes = fs.readSync(copiedFd, copy, 0, copy.length, 0);
         if (
