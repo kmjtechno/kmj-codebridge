@@ -170,9 +170,9 @@ export class ProjectFiles {
   assertCommanderPath(relative) {
     if (
       typeof relative !== "string" ||
-      relative.split("/").some(
-        (part) => skipped.has(part) || part.startsWith(".codebridge-"),
-      )
+      relative
+        .split("/")
+        .some((part) => skipped.has(part) || part.startsWith(".codebridge-"))
     )
       fail("PATH_DENIED");
   }
@@ -191,7 +191,10 @@ export class ProjectFiles {
     if (from === to) fail("INVALID_MOVE");
     this.assertCommanderPath(from);
     this.assertCommanderPath(to);
-    if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
+    if (
+      typeof expectedHash !== "string" ||
+      !/^[a-f0-9]{64}$/.test(expectedHash)
+    )
       fail("INVALID_HASH");
     const source = this.resolve(from);
     const destination = this.resolve(to, true);
