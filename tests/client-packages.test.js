@@ -96,9 +96,16 @@ test("OpenAI package keeps its layout, metadata and exact endpoint", (t) => {
     "kmj-codebridge/plugin.json",
     "kmj-codebridge/skills/codebridge/SKILL.md",
   ]);
-  assert.deepEqual(readJson(path.join(out, "kmj-codebridge/plugin.json")), {
-    ...canonical,
-  });
+  const selfHostedManifest = structuredClone(canonical);
+  delete selfHostedManifest.extensions["com.openai"].apps;
+  assert.deepEqual(
+    readJson(path.join(out, "kmj-codebridge/plugin.json")),
+    selfHostedManifest,
+  );
+  assert.equal(
+    fs.existsSync(path.join(out, "kmj-codebridge/.app.json")),
+    false,
+  );
   assert.equal(
     canonical.extensions["com.openai"].interface.displayName,
     "KMJ CodeBridge",
@@ -115,6 +122,49 @@ test("OpenAI package keeps its layout, metadata and exact endpoint", (t) => {
     canonicalSkill,
   );
   assertCredentialFree(out);
+});
+
+test("canonical ChatGPT package links only the existing registered KMJ MCP app", (t) => {
+  const installed = readJson(path.join(cwd, "plugin/.app.json"));
+  assert.deepEqual(installed, {
+    apps: {
+      codebridge: {
+        id: "asdk_app_6abf4c8dddb08191a983c2bd9fe79732",
+        required: true,
+      },
+    },
+  });
+  assert.equal(canonical.extensions["com.openai"].apps, "./.app.json");
+
+  const out = path.join(tempDir(t, "cb-hosted-openai-"), "out");
+  const result = run("scripts/package-plugin.js", [
+    "https://kmjtechno.com/mcp",
+    "--out",
+    out,
+  ]);
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(
+    readJson(path.join(out, "kmj-codebridge/plugin.json")),
+    canonical,
+  );
+  assert.deepEqual(
+    readJson(path.join(out, "kmj-codebridge/.app.json")),
+    installed,
+  );
+  assertCredentialFree(out);
+});
+
+test("Windows personal marketplace points at the plugin relative to home", () => {
+  const script = fs.readFileSync(
+    path.join(cwd, "scripts/install-chatgpt-desktop.ps1"),
+    "utf8",
+  );
+  assert.match(script, /path = '\\.\\/.codex\\/plugins\\/kmj-codebridge'/);
+  assert.doesNotMatch(
+    script,
+    /path = '\\.\\/\\.\\.\\/\\.\\.\\/\\.codex\\/plugins\\/kmj-codebridge'/,
+  );
+  assert.match(script, /Install\\/enable KMJ CodeBridge if prompted/);
 });
 
 test("Claude Code package follows the plugin and marketplace layout", (t) => {
