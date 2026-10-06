@@ -20,6 +20,8 @@
         "category": "Developer Tools",
         "capabilities": [
           "One-step connection doctor for authorized devices",
+          "One-click project workspace, file explorer and recent jobs",
+          "Guarded folder creation and file moves",
           "Inspect authorized projects",
           "Guarded file changes",
           "Git status",
@@ -28,8 +30,8 @@
         ],
         "defaultPrompt": [
           "Check my CodeBridge connections. Do not reconnect OAuth or change existing projects. Explain what needs fixing.",
-          "Show my authorized devices and projects, with online status.",
-          "Diagnose the Main Platform testing agent without changing device1/project1."
+          "Open my CodeBridge workspace. Show project folders, tech stack and recent jobs; choose my only authorized project if unique.",
+          "Show my authorized devices and projects, with online status."
         ],
         "logo": "./assets/logo.png",
         "composerIcon": "./assets/icon.png",
