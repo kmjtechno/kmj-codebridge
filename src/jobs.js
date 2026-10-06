@@ -309,7 +309,8 @@ export class JobRunner {
         (a, b) =>
           b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id),
       );
-    const offset = cursor === null ? 0 : scoped.findIndex((job) => job.id === cursor) + 1;
+    const offset =
+      cursor === null ? 0 : scoped.findIndex((job) => job.id === cursor) + 1;
     if (cursor !== null && offset === 0) fail("JOB_CURSOR_NOT_FOUND");
     const page = scoped.slice(offset, offset + limit);
     return {
