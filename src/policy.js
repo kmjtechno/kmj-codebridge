@@ -282,6 +282,81 @@ export class ProjectFiles {
       fs.closeSync(sourceFd);
     }
   }
+  copyFile(from, to, expectedHash) {
+    if (from === to) fail("INVALID_COPY");
+    this.assertCommanderPath(from);
+    this.assertCommanderPath(to);
+    if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
+      fail("INVALID_HASH");
+
+    const source = this.resolve(from);
+    const destination = this.resolve(to, true);
+    const sourceFd = fs.openSync(
+      source,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+    let created = false;
+    try {
+      const st = fs.fstatSync(sourceFd);
+      if (!st.isFile() || st.nlink !== 1)
+        fail(st.nlink > 1 ? "HARDLINK_DENIED" : "NOT_REGULAR_FILE");
+      if (st.size > MAX_FILE_BYTES) fail("FILE_TOO_LARGE");
+      const bytes = Buffer.alloc(st.size);
+      if (fs.readSync(sourceFd, bytes, 0, st.size, 0) !== st.size)
+        fail("CONTENT_CONFLICT");
+      if (hash(bytes) !== expectedHash) fail("CONTENT_CONFLICT");
+
+      // Exclusive create: no destination overwrite, including symlinks.
+      const destinationFd = fs.openSync(destination, "wx", 0o600);
+      created = true;
+      try {
+        fs.writeFileSync(destinationFd, bytes);
+        fs.fsyncSync(destinationFd);
+      } finally {
+        fs.closeSync(destinationFd);
+      }
+
+      // Reopen the copy without following links; verify its full contents.
+      const destinationCheck = fs.openSync(
+        destination,
+        fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+      );
+      try {
+        const actual = fs.fstatSync(destinationCheck);
+        if (!actual.isFile() || actual.nlink !== 1 || actual.size !== bytes.length)
+          fail("COPY_INTEGRITY_FAILED");
+        const verified = Buffer.alloc(actual.size);
+        if (
+          fs.readSync(destinationCheck, verified, 0, verified.length, 0) !==
+            verified.length ||
+          hash(verified) !== expectedHash
+        ) fail("COPY_INTEGRITY_FAILED");
+      } finally {
+        fs.closeSync(destinationCheck);
+      }
+      return {
+        from,
+        to,
+        sha256: expectedHash,
+        bytes: bytes.length,
+        copied: true,
+      };
+    } catch (error) {
+      if (created) {
+        try {
+          const current = fs.lstatSync(destination);
+          if (current.isFile() && !current.isSymbolicLink() && current.nlink === 1) {
+            const bytes = fs.readFileSync(destination);
+            if (hash(bytes) === expectedHash) fs.unlinkSync(destination);
+          }
+        } catch {}
+      }
+      if (error.code === "EEXIST") fail("DESTINATION_EXISTS");
+      throw error;
+    } finally {
+      fs.closeSync(sourceFd);
+    }
+  }
   read(relative) {
     const target = this.resolve(relative);
     const fd = fs.openSync(
