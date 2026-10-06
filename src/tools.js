@@ -541,6 +541,7 @@ export const definitions = {
       "One-step account-safe connection doctor: distinguish missing device grant, missing gateway registration, project grant mismatch and offline agent without reconnecting OAuth or exposing credentials.",
     input: {
       expectedDevice: identifier.optional(),
+      expectedProject: identifier.optional(),
     },
     access: "read",
   },
