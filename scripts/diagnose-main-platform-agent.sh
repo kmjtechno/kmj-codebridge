@@ -131,6 +131,27 @@ function report(key, value) {
     report("last_agent_connected_at", "NEVER_RECORDED");
   }
 
+  const connectionStatus = path.join(process.env.STATE, "connection-status.json");
+  if (fs.existsSync(connectionStatus)) {
+    try {
+      const health = JSON.parse(fs.readFileSync(connectionStatus, "utf8"));
+      if (
+        health.schema !== 1 ||
+        !["connected", "error"].includes(health.status) ||
+        (health.errorCode !== null &&
+          (typeof health.errorCode !== "string" ||
+            !/^[A-Z_]{1,64}$/.test(health.errorCode)))
+      ) throw new Error("INVALID_CONNECTION_STATUS");
+      report("agent_recorded_status", health.status);
+      report("agent_last_error", health.errorCode || "NONE");
+      report("agent_status_at", health.observedAt || "UNKNOWN");
+    } catch {
+      report("agent_recorded_status", "STATE_UNREADABLE");
+    }
+  } else {
+    report("agent_recorded_status", "UNAVAILABLE_OLD_RUNTIME");
+  }
+
   if (
     typeof c.token !== "string" || c.token.length < 32 ||
     typeof c.id !== "string" || !c.id ||
