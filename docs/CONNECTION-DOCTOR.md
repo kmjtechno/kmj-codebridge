@@ -8,7 +8,7 @@ Ask:
 
 > KMJ CodeBridge, run `connection_overview` and show which device needs attention.
 
-The read-only MCP tool needs **no parameters**. If the new device does not appear in the account grants, use its exact `configured_device_id` reported by the VM doctor:
+The read-only MCP tool needs **no parameters**. To check the new Main Platform **without knowing its device ID**, ask CodeBridge to check project `kmj-main-platform`, or call `connection_overview({"expectedProject":"kmj-main-platform"})`. If you know the exact device ID from the VM doctor, you can check it directly:
 
 `connection_overview({"expectedDevice":"main-platform-example"})`
 
@@ -40,6 +40,7 @@ A successful gateway health result proves the agent token was accepted and regis
 
 ## Interpret VM output
 
+- `ACCOUNT_PROJECT_GRANT_MISSING` (in the MCP result): the requested project is not granted to the signed-in account; check its enrollment and organization grant, not OAuth reconnect.
 - `node_access=DENIED_TO_SERVICE_USER`: check the runtime's directory traversal/execute permissions (prior systemd `203/EXEC` is consistent with this).
 - `credential_introspection_http=401`: credential inactive, expired, revoked or not issued by the current Main Platform; check the correct pairing without touching any existing credential.
 - `credential_identity=MISMATCH`: the local device ID or tenant does not match what Main Platform authorized. Stop; do not edit the old `project1`.
