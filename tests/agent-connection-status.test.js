@@ -62,7 +62,9 @@ test("connection recorder stores only bounded status, debounces failures, and cl
 });
 
 test("recorder write failures never interrupt an agent", (t) => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-connection-unwritable-"));
+  const dir = fs.mkdtempSync(
+    path.join(os.tmpdir(), "cb-connection-unwritable-"),
+  );
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const missing = path.join(dir, "nonexistent");
   const recorder = new AgentConnectionRecorder(missing);
