@@ -186,8 +186,9 @@ export async function startAgent(rawConfig) {
       error.code = gatewayFailureCode(response.status);
       throw error;
     }
+    const payload = await readJsonLimited(response.body);
     markConnected();
-    return readJsonLimited(response.body);
+    return payload;
   };
   let nextRenewal = 0;
   const renew = async () => {
