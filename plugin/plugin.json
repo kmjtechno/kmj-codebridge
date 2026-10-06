@@ -27,9 +27,9 @@
           "Verified quality gates"
         ],
         "defaultPrompt": [
-          "Check my KMJ CodeBridge connections and tell me in simple language what needs fixing. Do not reconnect OAuth or change an existing project.",
-          "Show my authorized devices and projects, and which ones are online.",
-          "Diagnose my new Main Platform testing agent without changing device1 or project1."
+          "Check my CodeBridge connections. Do not reconnect OAuth or change existing projects. Explain what needs fixing.",
+          "Show my authorized devices and projects, with online status.",
+          "Diagnose the Main Platform testing agent without changing device1/project1."
         ],
         "logo": "./assets/logo.png",
         "composerIcon": "./assets/icon.png",
