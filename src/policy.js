@@ -112,6 +112,60 @@ export class ProjectFiles {
     }
     return { path: relative, entries, truncated };
   }
+  tree(relative = "", maxDepth = 3, maxEntries = 100) {
+    if (
+      !Number.isInteger(maxDepth) ||
+      maxDepth < 0 ||
+      maxDepth > 5 ||
+      !Number.isInteger(maxEntries) ||
+      maxEntries < 1 ||
+      maxEntries > 200
+    )
+      fail("INVALID_TREE_LIMIT");
+    const entries = [];
+    let truncated = false;
+    const walk = (dir, depth) => {
+      const listing = this.list(dir);
+      for (const entry of listing.entries) {
+        if (entries.length >= maxEntries) {
+          truncated = true;
+          return;
+        }
+        if (entry.type === "other") continue;
+        const relativePath = dir ? `${dir}/${entry.name}` : entry.name;
+        entries.push({ path: relativePath, type: entry.type, depth });
+        if (entry.type === "directory" && depth < maxDepth) {
+          walk(relativePath, depth + 1);
+          if (entries.length >= maxEntries) {
+            truncated = true;
+            return;
+          }
+        }
+      }
+      if (listing.truncated) truncated = true;
+    };
+    walk(relative, 0);
+    return { path: relative, entries, truncated, maxDepth, maxEntries };
+  }
+  fileInfo(relative) {
+    const target = this.resolve(relative);
+    const fd = fs.openSync(
+      target,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+    );
+    try {
+      const st = fs.fstatSync(fd);
+      if (!st.isFile() || st.nlink !== 1) fail("NOT_REGULAR_FILE");
+      return {
+        path: relative,
+        type: "file",
+        bytes: st.size,
+        modifiedAt: st.mtime.toISOString(),
+      };
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
   read(relative) {
     const target = this.resolve(relative);
     const fd = fs.openSync(
