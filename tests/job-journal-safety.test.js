@@ -53,7 +53,10 @@ test("oversized journals are rejected before parsing", (t) => {
 test("symlinked and hardlinked journals are rejected", (t) => {
   const root = directory(t);
   const outside = path.join(root, "target.txt");
-  fs.writeFileSync(outside, JSON.stringify({ id: "linked", project: "p1", state: "succeeded" }));
+  fs.writeFileSync(
+    outside,
+    JSON.stringify({ id: "linked", project: "p1", state: "succeeded" }),
+  );
   fs.symlinkSync(outside, path.join(root, "linked.json"));
   assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
   fs.unlinkSync(path.join(root, "linked.json"));
