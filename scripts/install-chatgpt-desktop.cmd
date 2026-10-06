@@ -2,7 +2,7 @@
 setlocal
 title KMJ CodeBridge - ChatGPT Desktop Setup
 
-set "KMJ_SETUP_REF=f9c4ffb3693bf458a3bff2fef5a3a891fa99af39"
+set "KMJ_SETUP_REF=e98cc972bddc968eb74ccdb7d9cd2421b13576a3"
 set "KMJ_SETUP_SHA256=bb0c8d98145df63c653c591e14484b05e4cb51215f12ace3d26de6d2232fd1a4"
 set "KMJ_SETUP_URL=https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/%KMJ_SETUP_REF%/scripts/install-chatgpt-desktop.ps1"
 set "KMJ_SETUP_FILE=%TEMP%\KMJ-CodeBridge-ChatGPT-Desktop.ps1"
