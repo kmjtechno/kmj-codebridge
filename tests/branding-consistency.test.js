@@ -21,7 +21,10 @@ function pngInfo(data) {
   const colorType = data[25];
   assert.ok(width >= 64 && width <= 4096);
   assert.ok(height >= 64 && height <= 4096);
-  assert.ok([2, 3, 6].includes(colorType), "expected RGB, indexed, or RGBA PNG");
+  assert.ok(
+    [2, 3, 6].includes(colorType),
+    "expected RGB, indexed, or RGBA PNG",
+  );
   return { width, height, colorType };
 }
 
