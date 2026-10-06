@@ -41,17 +41,25 @@ test("Commander job sessions filter and paginate without exposing other projects
   assert.ok(!JSON.stringify(first).includes("private"));
   assert.ok(!JSON.stringify(first).includes("sensitive-key"));
   assert.ok(!JSON.stringify(first).includes("job-5"));
-  assert.throws(() => runner.list("p1", 2, { cursor: "job-5" }), /JOB_CURSOR_NOT_FOUND/);
+  assert.throws(
+    () => runner.list("p1", 2, { cursor: "job-5" }),
+    /JOB_CURSOR_NOT_FOUND/,
+  );
   assert.throws(() => runner.list("p1", 2, { state: "unknown" }), /INVALID_JOB_STATE/);
 
   const dispatch = createDispatcher(
     {
       id: "d1",
       stateDir: path.join(base, "state"),
-      projects: [{ id: "p1", root: base, writable: false, gates: {}, commands: {} }],
+      projects: [
+        { id: "p1", root: base, writable: false, gates: {}, commands: {} },
+      ],
     },
     runner,
-    () => ({ features: ["read"], limits: { concurrent_jobs: 1 } }),
+    () => ({
+      features: ["read"],
+      limits: { concurrent_jobs: 1 },
+    }),
   );
   const scope = { device: "d1", project: "p1" };
   const response = await dispatch(
