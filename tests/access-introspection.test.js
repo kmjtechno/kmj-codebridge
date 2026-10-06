@@ -294,6 +294,22 @@ test("connection overview does not disclose a device without account grant", asy
   );
 });
 
+test("Main Platform can be checked by project ID without knowing its device ID", async (t) => {
+  const result = await gatewayGrants(t, { device1: ["project1"] }, true);
+  const response = await result.client.callTool({
+    name: "connection_overview",
+    arguments: { expectedProject: "kmj-main-platform" },
+  });
+  const overview = JSON.parse(response.content[0].text);
+  assert.equal(overview.overallStatus, "ACCOUNT_PROJECT_GRANT_MISSING");
+  assert.equal(overview.expectedProject, "kmj-main-platform");
+  assert.deepEqual(overview.devices, []);
+  assert.equal(
+    overview.nextAction,
+    "CHECK_MAIN_PLATFORM_ACCOUNT_AND_DEVICE_PAIRING",
+  );
+});
+
 test("connection overview detects project mismatch without permitting access", async (t) => {
   const result = await gatewayGrants(t, { device1: ["project1"] }, true, [
     "different_project",
