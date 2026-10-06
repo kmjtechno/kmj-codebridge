@@ -57,7 +57,7 @@ test("double-click Windows launcher verifies pinned setup", () => {
   const ref = script.match(/KMJ_SETUP_REF=([0-9a-f]{40})/)?.[1];
   const expected = script.match(/KMJ_SETUP_SHA256=([0-9a-f]{64})/)?.[1];
 
-  assert.equal(ref, "9b27cfa3fb38c7cb08e1fda0da8cec384e625b06");
+  assert.equal(ref, "f9c4ffb3693bf458a3bff2fef5a3a891fa99af39");
   assert.equal(expected, createHash("sha256").update(installer).digest("hex"));
   assert.match(
     script,
@@ -84,7 +84,7 @@ test("Windows Desktop installer only configures the public KMJ marketplace", () 
   );
   assert.match(script, /\.codex\\plugins\\kmj-codebridge/);
   assert.match(script, /\.agents\\plugins\\marketplace\.json/);
-  assert.match(script, /\.\/\.\.\/\.\.\/\.codex\/plugins\/kmj-codebridge/);
+  assert.match(script, /\.\/\.codex\/plugins\/kmj-codebridge/);
   assert.match(script, /INSTALLED_BY_DEFAULT/);
   assert.match(
     script,
