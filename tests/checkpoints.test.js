@@ -35,17 +35,34 @@ test("checkpoint saves a bounded private file and detects drift without restorin
   assert.equal(saved.sha256, original.sha256);
   assert.equal(JSON.stringify(saved).includes("Version one"), false);
   assert.equal(
-    checkpoints.create("p1", "create-one", "README.md", original.sha256, files, () => true).existing,
+    checkpoints.create(
+      "p1",
+      "create-one",
+      "README.md",
+      original.sha256,
+      files,
+      () => true,
+    ).existing,
     true,
   );
-  assert.equal(checkpoints.restorePlan("p1", "create-one", files).unchanged, true);
+  assert.equal(
+    checkpoints.restorePlan("p1", "create-one", files).unchanged,
+    true,
+  );
 
   files.write("README.md", "Version two", original.sha256);
-  const plan = new FileCheckpoints(stateDir).restorePlan("p1", "create-one", files);
+  const plan = new FileCheckpoints(stateDir).restorePlan(
+    "p1",
+    "create-one",
+    files,
+  );
   assert.equal(plan.unchanged, false);
   assert.equal(plan.restoreAvailable, false);
   assert.equal(plan.nextAction, "REQUIRE_EXPLICIT_APPROVAL_FOR_ROLLBACK");
-  assert.equal(fs.readFileSync(path.join(root, "README.md"), "utf8"), "Version two");
+  assert.equal(
+    fs.readFileSync(path.join(root, "README.md"), "utf8"),
+    "Version two",
+  );
   assert.ok(!JSON.stringify(plan).includes("Version one"));
 
   const privateDir = path.join(stateDir, "file-checkpoints", "p1");
@@ -62,26 +79,51 @@ test("checkpoint rejects stale hashes, reuse conflicts, known secrets and protec
   const store = new FileCheckpoints(stateDir);
   const source = files.read("README.md");
   assert.throws(
-    () => store.create("p1", "stale", "README.md", "0".repeat(64), files, () => true),
+    () =>
+      store.create(
+        "p1",
+        "stale",
+        "README.md",
+        "0".repeat(64),
+        files,
+        () => true,
+      ),
     /CONTENT_CONFLICT/,
   );
   assert.throws(
-    () => store.create("p1", "hidden", "secrets.txt",
-      files.read("secrets.txt").sha256, files, (content) => !content.includes("token=")),
+    () =>
+      store.create(
+        "p1",
+        "hidden",
+        "secrets.txt",
+        files.read("secrets.txt").sha256,
+        files,
+        (content) => !content.includes("token="),
+      ),
     /SENSITIVE_CONTENT_PROTECTED/,
   );
   assert.throws(
-    () => store.create("p1", "denied", ".env", source.sha256, files, () => true),
+    () =>
+      store.create("p1", "denied", ".env", source.sha256, files, () => true),
     /PATH_DENIED/,
   );
   fs.symlinkSync("README.md", path.join(root, "shortcut"));
   assert.throws(
-    () => store.create("p1", "link", "shortcut", source.sha256, files, () => true),
+    () =>
+      store.create("p1", "link", "shortcut", source.sha256, files, () => true),
     /SYMLINK_DENIED/,
   );
   store.create("p1", "same", "README.md", source.sha256, files, () => true);
   assert.throws(
-    () => store.create("p1", "same", "another.md", source.sha256, files, () => true),
+    () =>
+      store.create(
+        "p1",
+        "same",
+        "another.md",
+        source.sha256,
+        files,
+        () => true,
+      ),
     /IDEMPOTENCY_CONFLICT/,
   );
   assert.throws(
@@ -94,10 +136,28 @@ test("checkpoint detects file tampering and refuses unsafe restoration planning"
   const { stateDir, files } = fixture(t);
   const store = new FileCheckpoints(stateDir);
   const original = files.read("README.md");
-  const saved = store.create("p1", "tamper", "README.md", original.sha256, files, () => true);
-  const target = path.join(stateDir, "file-checkpoints", "p1", saved.checkpoint + ".json");
-  fs.writeFileSync(target, fs.readFileSync(target, "utf8").replace("Version one", "Version xxx"));
-  assert.throws(() => store.restorePlan("p1", "tamper", files), /CHECKPOINT_INVALID/);
+  const saved = store.create(
+    "p1",
+    "tamper",
+    "README.md",
+    original.sha256,
+    files,
+    () => true,
+  );
+  const target = path.join(
+    stateDir,
+    "file-checkpoints",
+    "p1",
+    saved.checkpoint + ".json",
+  );
+  fs.writeFileSync(
+    target,
+    fs.readFileSync(target, "utf8").replace("Version one", "Version xxx"),
+  );
+  assert.throws(
+    () => store.restorePlan("p1", "tamper", files),
+    /CHECKPOINT_INVALID/,
+  );
 });
 
 test("MCP checkpoint capture requires approved write scope and logs audit evidence", async (t) => {
