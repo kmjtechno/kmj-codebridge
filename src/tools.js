@@ -535,6 +535,15 @@ export const definitions = {
     input: {},
     access: "read",
   },
+  connection_overview: {
+    title: "Check my CodeBridge connections",
+    description:
+      "One-step account-safe connection doctor: distinguish missing device grant, missing gateway registration, project grant mismatch and offline agent without reconnecting OAuth or exposing credentials.",
+    input: {
+      expectedDevice: identifier.optional(),
+    },
+    access: "read",
+  },
   inspect_project: {
     title: "Inspect project",
     description: "Inspect an authorized project and configured quality gates.",
