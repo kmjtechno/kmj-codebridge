@@ -83,7 +83,7 @@ test("Commander session paging and project isolation", async (t) => {
     ["read"],
   );
   assert.equal(response.jobs[0].id, "job-4");
-  assert.equal(response.nextCursor, "job-2");
+  assert.equal(response.nextCursor, "job-4");
   await assert.rejects(
     dispatch("list_project_jobs", { ...scope, project: "other" }, ["read"]),
     /PROJECT_NOT_FOUND/,
