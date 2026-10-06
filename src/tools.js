@@ -738,8 +738,23 @@ export const definitions = {
     input: {
       ...scoped,
       limit: z.number().int().min(1).max(100).default(20),
-      state: z.enum(["all", "running", "queued", "succeeded", "failed", "cancelled", "timed_out", "interrupted"]).default("all"),
-      cursor: z.string().regex(/^[a-zA-Z0-9-]{1,128}$/).nullable().default(null),
+      state: z
+        .enum([
+          "all",
+          "running",
+          "queued",
+          "succeeded",
+          "failed",
+          "cancelled",
+          "timed_out",
+          "interrupted",
+        ])
+        .default("all"),
+      cursor: z
+        .string()
+        .regex(/^[a-zA-Z0-9-]{1,128}$/)
+        .nullable()
+        .default(null),
     },
     access: "read",
   },
