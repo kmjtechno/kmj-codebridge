@@ -35,16 +35,29 @@ test("Commander copy duplicates a verified file without touching source", (t) =>
     bytes: source.bytes,
     copied: true,
   });
-  assert.equal(fs.readFileSync(path.join(root, "README.md"), "utf8"), source.content);
-  assert.equal(fs.readFileSync(path.join(root, "docs/duplicate.md"), "utf8"), source.content);
+  assert.equal(
+    fs.readFileSync(path.join(root, "README.md"), "utf8"),
+    source.content,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(root, "docs/duplicate.md"), "utf8"),
+    source.content,
+  );
 });
 
 test("Commander copy permits bounded binary files but never overwrites", (t) => {
   const { root, files } = fixture(t);
   const bytes = fs.readFileSync(path.join(root, "asset.bin"));
-  const result = files.copyFile("asset.bin", "docs/asset-copy.bin", hash(bytes));
+  const result = files.copyFile(
+    "asset.bin",
+    "docs/asset-copy.bin",
+    hash(bytes),
+  );
   assert.equal(result.bytes, 3);
-  assert.deepEqual(fs.readFileSync(path.join(root, "docs/asset-copy.bin")), bytes);
+  assert.deepEqual(
+    fs.readFileSync(path.join(root, "docs/asset-copy.bin")),
+    bytes,
+  );
   assert.throws(
     () => files.copyFile("asset.bin", "docs/asset-copy.bin", hash(bytes)),
     /DESTINATION_EXISTS/,
@@ -53,7 +66,10 @@ test("Commander copy permits bounded binary files but never overwrites", (t) => 
     () => files.copyFile("asset.bin", "existing.md", hash(bytes)),
     /DESTINATION_EXISTS/,
   );
-  assert.equal(fs.readFileSync(path.join(root, "existing.md"), "utf8"), "do not overwrite");
+  assert.equal(
+    fs.readFileSync(path.join(root, "existing.md"), "utf8"),
+    "do not overwrite",
+  );
 });
 
 test("Commander copy rejects stale hashes, secret paths, symlinks and traversal", (t) => {
@@ -118,7 +134,10 @@ test("Commander copy requires write access, inherits tenant/project scope and re
     to: "docs/copied.md",
     expectedHash: new ProjectFiles(root).read("README.md").sha256,
   };
-  await assert.rejects(dispatch("copy_project_file", input, ["read"]), /ACCESS_DENIED/);
+  await assert.rejects(
+    dispatch("copy_project_file", input, ["read"]),
+    /ACCESS_DENIED/,
+  );
   await assert.rejects(
     dispatch("copy_project_file", { ...input, device: "d2" }, ["write"]),
     /ACCESS_DENIED/,
