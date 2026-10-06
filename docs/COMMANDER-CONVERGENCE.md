@@ -28,7 +28,7 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Approval gate                            | Main Platform approval records for privileged/destructive actions                            | Next                        |
 | Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
 | Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Native                      |
-| Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Planned                     |
+| Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Implementing                |
 | Checkpoint / rollback                    | Project snapshots and rollback evidence before risky mutations                               | Planned                     |
 | Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
 | Desktop notifications / mobile approvals | Main Platform + optional native companion UX                                                 | Planned                     |
@@ -72,10 +72,11 @@ P1:
 - formal risk-class metadata and policy decision tool;
 - append-only hash-chained audit/evidence ledger;
 - resource-aware job concurrency and disk-pressure guard;
-- heartbeat/watchdog/reconnect status surfaced to Main Platform (current slice).
+- heartbeat/watchdog/reconnect status surfaced to Main Platform.
 
 P2:
 
+- smart test selection with conservative full-gate escalation (current slice);
 - checkpoint/rollback primitives;
 - controlled privileged broker with Main Platform approvals;
 - mobile approval workflow;
