@@ -128,6 +128,12 @@ The device agent must be online, authorized for the tenant, and configured for t
 
 No generic “run any shell command” MCP tool is exposed.
 
+## Check connections without reconnecting
+
+For a new or offline device, ask ChatGPT or Claude: **"KMJ CodeBridge, check my connections and tell me what to fix."**
+
+The read-only `connection_overview` tool shows whether the problem is in the account grant, gateway registration, project scope or agent heartbeat. It does not touch existing projects or require repeated OAuth sign-in. For an offline Main Platform testing VM, use the [single-command Connection Doctor](docs/CONNECTION-DOCTOR.md) to inspect its identity and gateway acceptance without restarting the agent.
+
 ## Quick start
 
 > **Use a disposable or non-production project first.** Start read-only, verify the boundary, then enable writes only where you explicitly intend to.
