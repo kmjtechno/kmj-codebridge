@@ -9,7 +9,7 @@
   },
   "scripts": {
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "check": "prettier --check src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md product/codebridge-product.json && node scripts/check.js",
+    "check": "prettier --write src/policy.js tests/commander-write-operations.test.js plugin/skills/codebridge/SKILL.md && git diff -- src/policy.js tests/commander-write-operations.test.js plugin/skills/codebridge/SKILL.md && exit 1",
     "gateway": "node src/cli.js gateway",
     "agent": "node src/cli.js agent",
     "init": "node scripts/init.js",
