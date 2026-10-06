@@ -6,7 +6,9 @@ import path from "node:path";
 import { JobRunner } from "../src/jobs.js";
 import { createDispatcher } from "../src/tools.js";
 
-test("Commander job sessions filter and paginate without exposing other projects or outputs", async (t) => {
+test(
+  "Commander job sessions filter and paginate without exposing other projects or outputs",
+  async (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-job-session-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const runner = new JobRunner(path.join(base, "jobs"));
@@ -45,7 +47,10 @@ test("Commander job sessions filter and paginate without exposing other projects
     () => runner.list("p1", 2, { cursor: "job-5" }),
     /JOB_CURSOR_NOT_FOUND/,
   );
-  assert.throws(() => runner.list("p1", 2, { state: "unknown" }), /INVALID_JOB_STATE/);
+  assert.throws(
+    () => runner.list("p1", 2, { state: "unknown" }),
+    /INVALID_JOB_STATE/,
+  );
 
   const dispatch = createDispatcher(
     {
@@ -77,4 +82,5 @@ test("Commander job sessions filter and paginate without exposing other projects
     dispatch("list_project_jobs", scope, ["write"]),
     /ACCESS_DENIED/,
   );
-});
+  },
+);
