@@ -14,15 +14,15 @@ The read-only MCP tool needs **no parameters**. If the new device does not appea
 
 It reports only devices/projects already granted to the authenticated account. An ungranted expected device gets `ACCOUNT_GRANT_MISSING`; that result **does not disclose whether the device exists** on another tenant.
 
-| Status | Meaning | Next action |
-| --- | --- | --- |
-| `READY` | Gateway registered and heartbeat online | Use the authorized project |
-| `ACCOUNT_GRANT_MISSING` | No grant in the signed-in user's Main Platform account | Check KMJ organization, CodeBridge license, pairing and device grants |
-| `GATEWAY_REGISTRATION_MISSING` | User grant exists, but the gateway has not accepted an agent identity | Run the VM doctor, check credential introspection and gateway health |
-| `PROJECT_SCOPE_MISMATCH` | Gateway accepts this device but does not grant the requested project | Check the enrolled project ID, credential pairing and intended project grant |
-| `AGENT_NEVER_ONLINE` | Gateway has a registered identity without a successful health call | Check agent service, runtime permissions and network |
-| `AGENT_OFFLINE` | Identity exists but the heartbeat is stale | Check agent service logs and connectivity |
-| `NO_GRANTED_DEVICES` | No explicit device/project grant was returned | Check OAuth subject and Main Platform organization grants; **do not reconnect repeatedly** |
+| Status                         | Meaning                                                               | Next action                                                                                |
+| ------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `READY`                        | Gateway registered and heartbeat online                               | Use the authorized project                                                                 |
+| `ACCOUNT_GRANT_MISSING`        | No grant in the signed-in user's Main Platform account                | Check KMJ organization, CodeBridge license, pairing and device grants                      |
+| `GATEWAY_REGISTRATION_MISSING` | User grant exists, but the gateway has not accepted an agent identity | Run the VM doctor, check credential introspection and gateway health                       |
+| `PROJECT_SCOPE_MISMATCH`       | Gateway accepts this device but does not grant the requested project  | Check the enrolled project ID, credential pairing and intended project grant               |
+| `AGENT_NEVER_ONLINE`           | Gateway has a registered identity without a successful health call    | Check agent service, runtime permissions and network                                       |
+| `AGENT_OFFLINE`                | Identity exists but the heartbeat is stale                            | Check agent service logs and connectivity                                                  |
+| `NO_GRANTED_DEVICES`           | No explicit device/project grant was returned                         | Check OAuth subject and Main Platform organization grants; **do not reconnect repeatedly** |
 
 ## One safe diagnostic on the testing VM
 
