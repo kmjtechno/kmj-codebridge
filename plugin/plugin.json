@@ -33,7 +33,7 @@
           "Open my CodeBridge workspace. Show project folders, tech stack and recent jobs; choose my only authorized project if unique.",
           "Show my authorized devices and projects, with online status."
         ],
-        "logo": "./assets/logo.png",
+        "logo": "./assets/icon.png",
         "composerIcon": "./assets/icon.png",
         "brandColor": "#ED010B",
         "websiteURL": "https://kmjtechno.com/products/kmj-codebridge",
@@ -41,7 +41,7 @@
         "termsOfServiceURL": "https://kmjtechno.com/products/kmj-codebridge/terms",
         "supportURL": "https://kmjtechno.com/products/kmj-codebridge/support",
         "composerIconDark": "./assets/icon.png",
-        "logoDark": "./assets/logo.png"
+        "logoDark": "./assets/icon.png"
       },
       "onboardingSkill": "./skills/codebridge/SKILL.md",
       "review": {
