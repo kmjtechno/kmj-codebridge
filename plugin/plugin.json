@@ -20,6 +20,8 @@
         "category": "Developer Tools",
         "capabilities": [
           "One-step connection doctor for authorized devices",
+          "One-click project workspace, file explorer and recent jobs",
+          "Guarded folder creation and file moves",
           "Inspect authorized projects",
           "Guarded file changes",
           "Git status",
@@ -27,9 +29,11 @@
           "Verified quality gates"
         ],
         "defaultPrompt": [
+          "Open my KMJ CodeBridge workspace: select my only authorized project automatically, if unambiguous, and show safe folders, detected environment and recent jobs.",
           "Check my CodeBridge connections. Do not reconnect OAuth or change existing projects. Explain what needs fixing.",
           "Show my authorized devices and projects, with online status.",
-          "Diagnose the Main Platform testing agent without changing device1/project1."
+          "Show recent CodeBridge jobs and what is waiting, running or finished.",
+          "Help me create a project folder or safely rename a file without overwriting any existing data."
         ],
         "logo": "./assets/logo.png",
         "composerIcon": "./assets/icon.png",
