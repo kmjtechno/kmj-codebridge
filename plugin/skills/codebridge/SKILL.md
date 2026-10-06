@@ -44,7 +44,7 @@ that the plugin package alone gives machine access.
 9. Reuse the same requestKey when retrying the same job. After a timeout, inspect
    status before repeating changes. A network timeout is not proof execution failed.
 10. Read the job result. Report the actual exit code and limitations. Never claim
-   tests, licensing, deployment or a restart succeeded without verified results.
+    tests, licensing, deployment or a restart succeeded without verified results.
 11. Require explicit authorization for destructive or production actions. Do not
     broaden project paths or change permissions to bypass a denial.
 
