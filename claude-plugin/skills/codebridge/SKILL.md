@@ -35,7 +35,7 @@ that the plugin package alone gives machine access.
 9. Read the job result. Report the actual exit code and limitations. Never claim
    tests, licensing, deployment or a restart succeeded without verified results.
 10. Require explicit authorization for destructive or production actions. Do not
-   broaden project paths or change permissions to bypass a denial.
+    broaden project paths or change permissions to bypass a denial.
 
 Plans and billing are controlled by KMJ Main Platform. Explain unavailable
 entitlements neutrally. Do not promote upgrades or initiate subscription checkout
