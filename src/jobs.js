@@ -51,8 +51,37 @@ export class JobRunner {
     this.active = new Map();
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".json"))) {
-      const j = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
-      if (!/^[a-zA-Z0-9-]+$/.test(j.id) || !j.project || !j.state)
+      const journalPath = path.join(dir, file);
+      const metadata = fs.lstatSync(journalPath);
+      if (!metadata.isFile() || metadata.nlink !== 1 || metadata.size > 131072)
+        fail("CORRUPT_JOURNAL");
+      const fd = fs.openSync(
+        journalPath,
+        fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+      );
+      let j;
+      try {
+        const current = fs.fstatSync(fd);
+        if (!current.isFile() || current.nlink !== 1 || current.size > 131072)
+          fail("CORRUPT_JOURNAL");
+        try {
+          j = JSON.parse(fs.readFileSync(fd, "utf8"));
+        } catch {
+          fail("CORRUPT_JOURNAL");
+        }
+      } finally {
+        fs.closeSync(fd);
+      }
+      if (
+        !j ||
+        typeof j !== "object" ||
+        !/^[a-zA-Z0-9-]+$/.test(j.id ?? "") ||
+        file !== j.id + ".json" ||
+        typeof j.project !== "string" ||
+        !j.project ||
+        typeof j.state !== "string" ||
+        !j.state
+      )
         fail("CORRUPT_JOURNAL");
       if (["running", "queued"].includes(j.state)) {
         j.state = "interrupted";
