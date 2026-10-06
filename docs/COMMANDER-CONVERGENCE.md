@@ -18,6 +18,7 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
 | Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Native                      |
 | Recursive file explorer                  | Bounded project_tree with denylisted paths and symlink rejection                             | Implementing                |
+| One-click Workspace Home                 | One bounded MCP read for project environment, safe tree, gates and recent sessions           | Implementing                |
 | File metadata                            | Project_file_info returns approved file size and modification time                           | Implementing                |
 | Process / session listing                | List persisted CodeBridge project jobs, no machine-global process enumeration                | Implementing                |
 | File read and multi-read                 | Scoped read_file, read_file_range and read_files_batch with redaction                        | Native                      |
@@ -127,6 +128,19 @@ grant, sensitive-path rejection and append-only audit attempt/result chain.
 They do not accept absolute filesystem roots, shell commands, sudo flags, or
 arbitrary host paths. This is bounded cross-platform file management, not
 a general machine administrator interface.
+
+## One-click workspace home
+
+The `workspace_home` tool uses **one** project-scoped read-only request to
+return approved folder structure, detected development stack, quality-gate
+names, recent persisted jobs, and safe next action identifiers. It deliberately
+excludes file contents, secrets, raw process environments, other projects and
+arbitrary OS commands.
+
+Both ChatGPT and Claude plugin guidance instructs a single device/project
+selection automatically when that account has exactly one authorized target.
+For accounts with multiple targets, it asks for the intended project rather
+than guessing or mixing customer data.
 
 ## Product-wide feature status
 
