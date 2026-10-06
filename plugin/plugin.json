@@ -95,7 +95,8 @@
       },
       "publication": {
         "release_notes": "KMJ CodeBridge 0.2.3 adds fail-closed signed update download and extraction plus health-checked activation orchestration with bounded verification and automatic rollback recovery, while preserving the restricted Supervisor and project-scoped security boundary."
-      }
+      },
+      "apps": "./.app.json"
     }
   },
   "keywords": [
