@@ -762,8 +762,7 @@ export async function startGateway(rawConfig) {
                     a.project.localeCompare(b.project),
                 );
                 const expectedNotGranted =
-                  Boolean(args.expectedDevice) &&
-                  devices.length === 0;
+                  Boolean(args.expectedDevice) && devices.length === 0;
                 return {
                   content: [
                     {
