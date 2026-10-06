@@ -286,7 +286,10 @@ export class ProjectFiles {
     if (from === to) fail("INVALID_COPY");
     this.assertCommanderPath(from);
     this.assertCommanderPath(to);
-    if (typeof expectedHash !== "string" || !/^[a-f0-9]{64}$/.test(expectedHash))
+    if (
+      typeof expectedHash !== "string" ||
+      !/^[a-f0-9]{64}$/.test(expectedHash)
+    )
       fail("INVALID_HASH");
 
     const source = this.resolve(from);
@@ -323,14 +326,19 @@ export class ProjectFiles {
       );
       try {
         const actual = fs.fstatSync(destinationCheck);
-        if (!actual.isFile() || actual.nlink !== 1 || actual.size !== bytes.length)
+        if (
+          !actual.isFile() ||
+          actual.nlink !== 1 ||
+          actual.size !== bytes.length
+        )
           fail("COPY_INTEGRITY_FAILED");
         const verified = Buffer.alloc(actual.size);
         if (
           fs.readSync(destinationCheck, verified, 0, verified.length, 0) !==
             verified.length ||
           hash(verified) !== expectedHash
-        ) fail("COPY_INTEGRITY_FAILED");
+        )
+          fail("COPY_INTEGRITY_FAILED");
       } finally {
         fs.closeSync(destinationCheck);
       }
@@ -345,7 +353,11 @@ export class ProjectFiles {
       if (created) {
         try {
           const current = fs.lstatSync(destination);
-          if (current.isFile() && !current.isSymbolicLink() && current.nlink === 1) {
+          if (
+            current.isFile() &&
+            !current.isSymbolicLink() &&
+            current.nlink === 1
+          ) {
             const bytes = fs.readFileSync(destination);
             if (hash(bytes) === expectedHash) fs.unlinkSync(destination);
           }
