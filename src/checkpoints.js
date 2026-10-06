@@ -64,7 +64,8 @@ export class FileCheckpoints {
       digest(payload.content) !== payload.sha256 ||
       typeof integrity !== "string" ||
       digest(JSON.stringify(payload)) !== integrity
-    ) fail("CHECKPOINT_INVALID");
+    )
+      fail("CHECKPOINT_INVALID");
     return payload;
   }
 
