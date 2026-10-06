@@ -17,14 +17,15 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Desktop Commander capability             | CodeBridge target                                                                            | Status                      |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
 | Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Native                      |
-| Recursive file explorer                  | Bounded project_tree with denylisted paths and symlink rejection                             | Implementing                |
-| File metadata                            | Project_file_info returns approved file size and modification time                           | Implementing                |
-| Process / session listing                | List persisted CodeBridge project jobs, no machine-global process enumeration                | Implementing                |
+| Recursive file explorer                  | Bounded project_tree with denylisted paths and symlink rejection                             | Native                      |
+| File metadata                            | Project_file_info returns approved file size and modification time                           | Native                      |
+| Process / session listing                | List persisted CodeBridge project jobs, no machine-global process enumeration                | Native                      |
 | File read and multi-read                 | Scoped read_file, read_file_range and read_files_batch with redaction                        | Native                      |
 | File write and edit                      | Hashed preconditions, preview and atomic multi-file updates                                  | Native                      |
 | Full-text search                         | Bounded project search_code and repository map                                               | Native                      |
-| File move / rename                       | Controlled within-root operation with hash guards and audit                                  | Implementing                |
-| Create directory                         | Controlled within-root operation with policy and audit                                       | Implementing                |
+| File move / rename                       | Controlled within-root operation with hash guards and audit                                  | Native                      |
+| File copy / duplication                  | Hash-verified bounded copy to a previously nonexistent authorized destination                | Implementing                |
+| Create directory                         | Controlled within-root operation with policy and audit                                       | Native                      |
 | Arbitrary process listing or kill        | Restricted to CodeBridge-managed jobs only                                                   | Restricted                  |
 | Project inspect / stack discovery        | Structured project environment detection                                                     | Native                      |
 | Persistent operation jobs                | Existing CodeBridge JobRunner + bounded logs/cancel                                          | Native                      |
@@ -54,6 +55,17 @@ The first convergence slice adds:
 - Fast-read compatibility so both signals can be composed with existing CodeBridge read workflows.
 
 These tools are read-only and inherit the same device/project authorization as every other CodeBridge MCP operation.
+
+## Commander File Copy slice
+
+The `copy_project_file` operation uses the **same** CodeBridge connection,
+tenant/project authorization, write entitlement and tamper-evident audit
+ledger. Only a file within a customer-authorized writable root can be copied.
+The source must match the supplied SHA-256. The destination must be absent,
+will be created with private permissions and never overwrites an existing
+file. Bounded binary files are supported; symlinks, hardlinks, secret paths,
+unapproved folders and out-of-root paths fail closed. The source is kept
+unchanged.
 
 ## Security invariants
 
