@@ -140,6 +140,6 @@ test("Commander job sessions are project-scoped, sorted, bounded and redacted by
   );
   await assert.rejects(
     dispatch("project_tree", { ...scope, maxEntries: 500 }, ["read"]),
-    /too_big|INVALID|validation|at most/i,
+    /200|too_big/i,
   );
 });
