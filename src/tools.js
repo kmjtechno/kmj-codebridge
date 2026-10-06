@@ -499,6 +499,7 @@ const fastReadTool = z.enum([
   "git_status",
   "git_log",
   "list_directory",
+  "workspace_home",
   "project_tree",
   "project_file_info",
   "list_project_jobs",
@@ -606,6 +607,18 @@ export const definitions = {
     input: {
       ...scoped,
       maxEntries: z.number().int().min(1).max(100).default(50),
+    },
+    access: "read",
+  },
+  workspace_home: {
+    title: "Open my CodeBridge workspace",
+    description:
+      "Show project identity, detected stacks, safe file explorer and recent project-owned sessions in one read-only view. No system shell, credential access or changes.",
+    input: {
+      ...scoped,
+      maxDepth: z.number().int().min(0).max(3).default(2),
+      maxEntries: z.number().int().min(5).max(100).default(50),
+      recentJobs: z.number().int().min(1).max(20).default(5),
     },
     access: "read",
   },
@@ -1220,6 +1233,27 @@ export function createDispatcher(
           truncated: changes.truncated,
           environment,
         }),
+      };
+    }
+    if (name === "workspace_home") {
+      return {
+        device: config.id,
+        project: p.id,
+        writable: p.writable,
+        version: VERSION,
+        environment: detectProjectEnvironment(p.files),
+        explorer: p.files.tree("", a.maxDepth, a.maxEntries),
+        sessions: runner.list(p.id, a.recentJobs),
+        qualityGates: Object.keys(p.gates).sort(),
+        nextActions: {
+          browse: "project_tree",
+          fileDetails: "project_file_info",
+          sessions: "list_project_jobs",
+          projectStatus: "project_snapshot",
+          safeFolderCreation: "create_project_directory",
+          guardedFileMove: "move_project_file",
+          safeFileCopy: "copy_project_file",
+        },
       };
     }
     if (name === "project_snapshot") {
