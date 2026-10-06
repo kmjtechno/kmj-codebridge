@@ -22,8 +22,13 @@ echo "mode=READ_ONLY"
 echo "legacy_project1=UNTOUCHED"
 echo "service=$SERVICE"
 
+SERVICE_EXEC="$(systemctl show "$SERVICE" -p ExecStart --value 2>/dev/null || true)"
 if [[ -z "$CONFIG" ]]; then
-  if [[ -f "$NEW_CONFIG" ]]; then
+  if [[ "$SERVICE_EXEC" == *"$NEW_CONFIG"* && -f "$NEW_CONFIG" ]]; then
+    CONFIG="$NEW_CONFIG"
+  elif [[ "$SERVICE_EXEC" == *"$OLD_CONFIG"* && -f "$OLD_CONFIG" ]]; then
+    CONFIG="$OLD_CONFIG"
+  elif [[ -f "$NEW_CONFIG" ]]; then
     CONFIG="$NEW_CONFIG"
   elif [[ -f "$OLD_CONFIG" ]]; then
     CONFIG="$OLD_CONFIG"
@@ -165,7 +170,11 @@ function report(key, value) {
       gateway.protocol !== "https:" ||
       gateway.username || gateway.password ||
       gateway.search || gateway.hash ||
-      (gateway.pathname !== "/" && gateway.pathname !== "")
+      (gateway.pathname !== "/" && gateway.pathname !== "") ||
+      !new Set([
+        "https://kmj-codebridge-gateway.onrender.com",
+        "https://kmjtechno.com",
+      ]).has(gateway.origin)
     ) throw new Error("INVALID_GATEWAY");
   } catch {
     report("gateway_config", "INVALID_HTTPS_ORIGIN");
