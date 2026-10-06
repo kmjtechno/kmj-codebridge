@@ -17,15 +17,15 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Desktop Commander capability             | CodeBridge target                                                                            | Status                      |
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
 | Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Native                      |
-| Recursive file explorer                  | Bounded project_tree with denylisted paths and symlink rejection                            | Implementing                |
-| File metadata                            | Project_file_info returns approved file size and modification time                          | Implementing                |
-| Process / session listing                | List persisted CodeBridge project jobs, no machine-global process enumeration               | Implementing                |
-| File read and multi-read                 | Scoped read_file, read_file_range and read_files_batch with redaction                       | Native                      |
-| File write and edit                      | Hashed preconditions, preview and atomic multi-file updates                                 | Native                      |
+| Recursive file explorer                  | Bounded project_tree with denylisted paths and symlink rejection                             | Implementing                |
+| File metadata                            | Project_file_info returns approved file size and modification time                           | Implementing                |
+| Process / session listing                | List persisted CodeBridge project jobs, no machine-global process enumeration                | Implementing                |
+| File read and multi-read                 | Scoped read_file, read_file_range and read_files_batch with redaction                        | Native                      |
+| File write and edit                      | Hashed preconditions, preview and atomic multi-file updates                                  | Native                      |
 | Full-text search                         | Bounded project search_code and repository map                                               | Native                      |
-| File move / rename                       | Controlled within-root operation with hash guards and audit                                 | Next                        |
-| Create directory                         | Controlled within-root operation with policy and audit                                      | Next                        |
-| Arbitrary process listing or kill        | Restricted to CodeBridge-managed jobs only                                                  | Restricted                  |
+| File move / rename                       | Controlled within-root operation with hash guards and audit                                  | Next                        |
+| Create directory                         | Controlled within-root operation with policy and audit                                       | Next                        |
+| Arbitrary process listing or kill        | Restricted to CodeBridge-managed jobs only                                                   | Restricted                  |
 | Project inspect / stack discovery        | Structured project environment detection                                                     | Native                      |
 | Persistent operation jobs                | Existing CodeBridge JobRunner + bounded logs/cancel                                          | Native                      |
 | AI-safe structured operations            | Existing gates + command profiles + supervisor requests                                      | Native                      |
