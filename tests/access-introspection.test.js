@@ -237,3 +237,80 @@ test("structured agent grants reject duplicate project ids", async (t) => {
   );
   assert.equal(result.heartbeatStatus, 401);
 });
+
+test("connection overview separates registered agent and missing gateway registration", async (t) => {
+  const result = await gatewayGrants(
+    t,
+    { device1: ["project1"], main_platform_vm: ["kmj-main-platform"] },
+    true,
+  );
+  assert.deepEqual(result.devices, [
+    { id: "device1", projects: ["project1"], online: true },
+    {
+      id: "main_platform_vm",
+      projects: ["kmj-main-platform"],
+      online: false,
+    },
+  ]);
+  const response = await result.client.callTool({
+    name: "connection_overview",
+    arguments: {},
+  });
+  const overview = JSON.parse(response.content[0].text);
+  assert.equal(overview.overallStatus, "NEEDS_ATTENTION");
+  assert.equal(overview.readyCount, 1);
+  assert.equal(overview.attentionCount, 1);
+  assert.deepEqual(overview.devices, [
+    {
+      device: "device1",
+      project: "project1",
+      status: "READY",
+      nextAction: "NONE",
+      connectionState: "online",
+    },
+    {
+      device: "main_platform_vm",
+      project: "kmj-main-platform",
+      status: "GATEWAY_REGISTRATION_MISSING",
+      nextAction: "RUN_VM_CONNECTION_DOCTOR",
+    },
+  ]);
+  assert.doesNotMatch(JSON.stringify(overview), /tenant-a|aaaaaa/);
+});
+
+test("connection overview does not disclose a device without account grant", async (t) => {
+  const result = await gatewayGrants(t, { device1: ["project1"] }, true);
+  const response = await result.client.callTool({
+    name: "connection_overview",
+    arguments: { expectedDevice: "not_mine" },
+  });
+  const overview = JSON.parse(response.content[0].text);
+  assert.equal(overview.overallStatus, "ACCOUNT_GRANT_MISSING");
+  assert.equal(overview.expectedDevice, "not_mine");
+  assert.deepEqual(overview.devices, []);
+  assert.equal(
+    overview.nextAction,
+    "CHECK_MAIN_PLATFORM_ACCOUNT_AND_DEVICE_PAIRING",
+  );
+});
+
+test("connection overview detects project mismatch without permitting access", async (t) => {
+  const result = await gatewayGrants(
+    t,
+    { device1: ["project1"] },
+    true,
+    ["different_project"],
+  );
+  const response = await result.client.callTool({
+    name: "connection_overview",
+    arguments: {},
+  });
+  const overview = JSON.parse(response.content[0].text);
+  assert.equal(overview.devices[0].status, "PROJECT_SCOPE_MISMATCH");
+  assert.equal(overview.devices[0].nextAction, "VERIFY_ENROLLED_PROJECT_AND_GRANT");
+  const denied = await result.client.callTool({
+    name: "read_file",
+    arguments: { device: "device1", project: "project1", path: "README.md" },
+  });
+  assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
+});
