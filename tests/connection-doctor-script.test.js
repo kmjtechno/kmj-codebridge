@@ -19,6 +19,8 @@ test("VM connection doctor is shell-valid and locally read-only", () => {
   assert.match(source, /systemctl show "\$SERVICE" -p ExecStart/);
   assert.match(source, /credential_introspection_http/);
   assert.match(source, /gateway_agent_health_http/);
+  assert.match(source, /agent_last_error/);
+  assert.match(source, /agent_recorded_status/);
   assert.match(source, /node_access=DENIED_TO_SERVICE_USER/);
   assert.match(source, /https:\/\/kmj-codebridge-gateway\.onrender\.com/);
   assert.match(source, /legacy_project1=UNTOUCHED/);

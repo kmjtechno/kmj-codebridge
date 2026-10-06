@@ -12,6 +12,10 @@ import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
 import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
+import {
+  AgentConnectionRecorder,
+  gatewayFailureCode,
+} from "./agent-connection-status.js";
 import { VERSION } from "./version.js";
 export async function startAgent(rawConfig) {
   const c = agentSchema.parse(rawConfig);
@@ -149,9 +153,9 @@ export async function startAgent(rawConfig) {
     return identity;
   };
   let connected = false;
+  const connectionRecorder = new AgentConnectionRecorder(state);
   const markConnected = () => {
     if (connected) return;
-    connected = true;
     const now = Date.now();
     const tmp = connectionState + ".tmp";
     fs.writeFileSync(
@@ -163,6 +167,8 @@ export async function startAgent(rawConfig) {
       { mode: 0o600 },
     );
     fs.renameSync(tmp, connectionState);
+    connected = true;
+    connectionRecorder.record("CONNECTED");
   };
   const post = async (endpoint, data) => {
     const response = await fetch(new URL(endpoint, c.gateway), {
@@ -175,9 +181,14 @@ export async function startAgent(rawConfig) {
       signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
       redirect: "error",
     });
-    if (!response.ok) throw Error("GATEWAY_REQUEST_FAILED");
+    if (!response.ok) {
+      const error = new Error("GATEWAY_REQUEST_FAILED");
+      error.code = gatewayFailureCode(response.status);
+      throw error;
+    }
+    const payload = await readJsonLimited(response.body);
     markConnected();
-    return readJsonLimited(response.body);
+    return payload;
   };
   let nextRenewal = 0;
   const renew = async () => {
@@ -256,8 +267,9 @@ export async function startAgent(rawConfig) {
           }
           await post("/agent/result", { id: work.id, result });
         }
-      } catch {
+      } catch (error) {
         if (stopped) break;
+        connectionRecorder.record(error?.code);
         connected = false;
         needsHealthProbe = true;
         failures = Math.min(failures + 1, 6);
