@@ -5,6 +5,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
 import { ProjectFiles } from "./policy.js";
+import { FileCheckpoints } from "./checkpoints.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
@@ -502,6 +503,7 @@ const fastReadTool = z.enum([
   "workspace_home",
   "project_tree",
   "project_file_info",
+  "checkpoint_restore_plan",
   "list_project_jobs",
   "search_code",
   "autopilot_status",
@@ -675,6 +677,27 @@ export const definitions = {
     description:
       "Read safe file metadata (size and modified date) from one authorized project file without returning file contents.",
     input: file,
+    access: "read",
+  },
+  checkpoint_create: {
+    title: "Save file checkpoint",
+    description:
+      "Save a limited private checkpoint of one authorized UTF-8 project file only when its current SHA-256 matches. Never capture recognized secrets.",
+    input: {
+      ...file,
+      requestKey: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
+      expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
+    },
+    access: "write",
+  },
+  checkpoint_restore_plan: {
+    title: "Compare checkpoint before recovery",
+    description:
+      "Compare a saved private checkpoint with the current authorized file hash; does not change project files or authorize rollback.",
+    input: {
+      ...scoped,
+      requestKey: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
+    },
     access: "read",
   },
   create_project_directory: {
@@ -1127,6 +1150,9 @@ export function createDispatcher(
       { ...p, files: new ProjectFiles(p.root) },
     ]),
   );
+  let checkpointStore;
+  const checkpoints = () =>
+    (checkpointStore ??= new FileCheckpoints(config.stateDir));
   const dispatchCore = async function dispatchCore(name, input, permissions) {
     const definition = definitions[name];
     if (!definition || name === "list_devices") fail("UNKNOWN_TOOL");
@@ -1313,6 +1339,19 @@ export function createDispatcher(
     if (name === "project_tree")
       return p.files.tree(a.path, a.maxDepth, a.maxEntries);
     if (name === "project_file_info") return p.files.fileInfo(a.path);
+    if (name === "checkpoint_create") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return checkpoints().create(
+        p.id,
+        a.requestKey,
+        a.path,
+        a.expectedHash,
+        p.files,
+        (content) => redact(content) === content,
+      );
+    }
+    if (name === "checkpoint_restore_plan")
+      return checkpoints().restorePlan(p.id, a.requestKey, p.files);
     if (name === "create_project_directory") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
       return p.files.createDirectory(a.path);
