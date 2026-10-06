@@ -40,7 +40,7 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
 | Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Native                      |
 | Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Implementing                |
-| Checkpoint / rollback                    | Private bounded file snapshots and read-only recovery planning; restore needs approval        | Implementing                |
+| Checkpoint / rollback                    | Private bounded file snapshots and read-only recovery planning; restore needs approval       | Implementing                |
 | Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
 | Desktop notifications / mobile approvals | Main Platform + optional native companion UX                                                 | Planned                     |
 | Native Tauri desktop shell               | Optional CodeBridge operator client, not a second backend                                    | Planned                     |
