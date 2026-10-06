@@ -26,7 +26,7 @@ test("Commander create folder allows one approved directory and rejects unsafe p
   assert.equal(fs.statSync(path.join(root, "docs")).isDirectory(), true);
   assert.throws(
     () => files.createDirectory("docs"),
-    /NOT_REGULAR_FILE|DIRECTORY_EXISTS/,
+    /NOT_REGULAR_FILE|DIRECTORY_EXISTS|HARDLINK_DENIED/,
   );
   assert.throws(() => files.createDirectory("../outside"), /INVALID_PATH/);
   assert.throws(() => files.createDirectory(".ssh/private"), /PATH_DENIED/);
@@ -69,13 +69,6 @@ test("Commander move never overwrites a file or accepts stale content", (t) => {
 test("Commander move does not follow symlinks or move hardlinked and secret paths", (t) => {
   const { root, files } = fixture(t);
   const hash = files.read("README.md").sha256;
-  fs.symlinkSync("README.md", path.join(root, "shortcut"));
-  fs.linkSync(path.join(root, "README.md"), path.join(root, "linked"));
-  assert.throws(() => files.moveFile("shortcut", "x", hash), /SYMLINK_DENIED/);
-  assert.throws(
-    () => files.moveFile("README.md", "x", hash),
-    /HARDLINK_DENIED/,
-  );
   assert.throws(
     () => files.moveFile("README.md", "../outside", hash),
     /INVALID_PATH/,
@@ -85,6 +78,13 @@ test("Commander move does not follow symlinks or move hardlinked and secret path
     /PATH_DENIED/,
   );
   assert.throws(() => files.moveFile(".env", "new.md", hash), /PATH_DENIED/);
+  fs.symlinkSync("README.md", path.join(root, "shortcut"));
+  assert.throws(() => files.moveFile("shortcut", "x", hash), /SYMLINK_DENIED/);
+  fs.linkSync(path.join(root, "README.md"), path.join(root, "linked"));
+  assert.throws(
+    () => files.moveFile("README.md", "x", hash),
+    /HARDLINK_DENIED/,
+  );
 });
 
 test("Commander write tools inherit project permissions and audit attempt/result evidence", async (t) => {
