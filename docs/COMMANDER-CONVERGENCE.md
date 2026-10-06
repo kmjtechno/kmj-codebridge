@@ -23,8 +23,8 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | File read and multi-read                 | Scoped read_file, read_file_range and read_files_batch with redaction                        | Native                      |
 | File write and edit                      | Hashed preconditions, preview and atomic multi-file updates                                  | Native                      |
 | Full-text search                         | Bounded project search_code and repository map                                               | Native                      |
-| File move / rename                       | Controlled within-root operation with hash guards and audit                                  | Next                        |
-| Create directory                         | Controlled within-root operation with policy and audit                                       | Next                        |
+| File move / rename                       | Controlled within-root operation with hash guards and audit                                  | Implementing                |
+| Create directory                         | Controlled within-root operation with policy and audit                                       | Implementing                |
 | Arbitrary process listing or kill        | Restricted to CodeBridge-managed jobs only                                                   | Restricted                  |
 | Project inspect / stack discovery        | Structured project environment detection                                                     | Native                      |
 | Persistent operation jobs                | Existing CodeBridge JobRunner + bounded logs/cancel                                          | Native                      |
@@ -110,6 +110,23 @@ Remaining Desktop Commander capabilities require explicit designs rather than
 unrestricted privilege passthrough: cross-platform safe path creation/moves,
 bounded process control through approved profiles, optional native UI, and
 Main Platform-backed approvals for privileged/destructive operations.
+
+## Guarded workspace operations
+
+The second Commander convergence slice adds two write-scoped tools:
+
+- `create_project_directory` creates one folder with mode `0700` inside an
+  already-authorized writable project, requiring an existing safe parent.
+- `move_project_file` copies up to 256 KiB inside the same approved project
+  using exclusive destination creation, verifies SHA-256 before and after
+  copying, and removes the original only after verification. It never
+  overwrites an existing destination. Partial failures are audited.
+
+Both operations reuse the existing CodeBridge write entitlement, device/project
+grant, sensitive-path rejection and append-only audit attempt/result chain.
+They do not accept absolute filesystem roots, shell commands, sudo flags, or
+arbitrary host paths. This is bounded cross-platform file management, not
+a general machine administrator interface.
 
 ## Product-wide feature status
 
