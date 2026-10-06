@@ -261,8 +261,7 @@ export class JobRunner {
       .filter((job) => job.project === project)
       .sort(
         (a, b) =>
-          b.startedAt.localeCompare(a.startedAt) ||
-          b.id.localeCompare(a.id),
+          b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id),
       );
     return {
       project,
