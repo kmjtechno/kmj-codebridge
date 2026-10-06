@@ -11,7 +11,10 @@ const sha256 = (data) => createHash("sha256").update(data).digest("hex");
 const canonical = "assets/icon.png";
 
 function pngInfo(data) {
-  assert.deepEqual(data.subarray(0, 8), Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  assert.deepEqual(
+    data.subarray(0, 8),
+    Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]),
+  );
   assert.equal(data.toString("ascii", 12, 16), "IHDR");
   const width = data.readUInt32BE(16);
   const height = data.readUInt32BE(20);
@@ -27,7 +30,10 @@ test("all supported ChatGPT and Claude icon fields select the same existing Code
   const ui = plugin.extensions["com.openai"].interface;
   for (const field of ["logo", "logoDark", "composerIcon", "composerIconDark"])
     assert.equal(ui[field], "./" + canonical, field);
-  assert.equal(json("claude-plugin/.claude-plugin/plugin.json").icon, "./" + canonical);
+  assert.equal(
+    json("claude-plugin/.claude-plugin/plugin.json").icon,
+    "./" + canonical,
+  );
   assert.equal(plugin.extensions["com.openai"].apps, "./.app.json");
   assert.equal(
     json("plugin/.app.json").apps.codebridge.id,
