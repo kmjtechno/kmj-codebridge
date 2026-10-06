@@ -254,6 +254,29 @@ export class JobRunner {
     const { key, fingerprint, ...visible } = j;
     return structuredClone(visible);
   }
+  list(project, limit = 20) {
+    if (!Number.isInteger(limit) || limit < 1 || limit > 100)
+      fail("INVALID_JOB_LIMIT");
+    const scoped = [...this.jobs.values()]
+      .filter((job) => job.project === project)
+      .sort(
+        (a, b) =>
+          b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id),
+      );
+    return {
+      project,
+      total: scoped.length,
+      jobs: scoped.slice(0, limit).map((job) => ({
+        id: job.id,
+        gate: job.gate,
+        state: job.state,
+        startedAt: job.startedAt,
+        endedAt: job.endedAt,
+        exitCode: job.exitCode,
+        truncated: job.truncated,
+      })),
+    };
+  }
   get(id, project) {
     const j = this.jobs.get(id);
     if (!j || j.project !== project) fail("JOB_NOT_FOUND");
