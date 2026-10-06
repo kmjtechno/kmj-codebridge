@@ -17,7 +17,8 @@ function safeDirectory(dir) {
     !stats.isDirectory() ||
     stats.isSymbolicLink() ||
     (process.platform !== "win32" && (stats.mode & 0o077) !== 0)
-  ) fail("CHECKPOINT_DIR_INSECURE");
+  )
+    fail("CHECKPOINT_DIR_INSECURE");
 }
 
 export class FileCheckpoints {
@@ -44,7 +45,8 @@ export class FileCheckpoints {
       stats.nlink !== 1 ||
       stats.size > MAX_CHECKPOINT_BYTES * 4 ||
       (process.platform !== "win32" && (stats.mode & 0o077) !== 0)
-    ) fail("CHECKPOINT_INVALID");
+    )
+      fail("CHECKPOINT_INVALID");
     let record;
     try {
       record = JSON.parse(fs.readFileSync(file, "utf8"));
@@ -92,9 +94,11 @@ export class FileCheckpoints {
     if (source.bytes > MAX_CHECKPOINT_BYTES) fail("CHECKPOINT_TOO_LARGE");
     if (!contentAllowed(source.content)) fail("SENSITIVE_CONTENT_PROTECTED");
     const folder = path.dirname(target);
-    if (fs.readdirSync(folder).filter((name) => name.endsWith(".json")).length >=
+    if (
+      fs.readdirSync(folder).filter((name) => name.endsWith(".json")).length >=
       MAX_PROJECT_CHECKPOINTS
-    ) fail("CHECKPOINT_CAPACITY_EXCEEDED");
+    )
+      fail("CHECKPOINT_CAPACITY_EXCEEDED");
 
     const record = {
       schema: 1,
