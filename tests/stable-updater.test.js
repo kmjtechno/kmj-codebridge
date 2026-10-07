@@ -8,6 +8,7 @@ import {
   defaultStableUpdatePreflight,
   freshAuthenticatedConnection,
   readAcceptedUpdateState,
+  runStableRollback,
   runStableUpdate,
 } from "../src/stable-updater.js";
 import { releaseDirectoryName } from "../src/update.js";
@@ -373,5 +374,57 @@ test("fresh authenticated connection requires time and expected signed runtime i
       revision: "d".repeat(40),
     }),
     false,
+  );
+});
+
+test("stable rollback only uses the recorded previous immutable release", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-rollback-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const cfg = config(root, signed.trustedKeys);
+  const store = fakeStore(root);
+  const previous = writeMarker(store, signed.manifest);
+  let rollbackCalls = 0;
+  store.status = () => ({ current: "current-release", previous, history: [] });
+  store.rollback = () => {
+    rollbackCalls += 1;
+    return { current: previous, previous: "current-release" };
+  };
+  fs.writeFileSync(
+    path.join(cfg.agentStateDir, "connection.json"),
+    JSON.stringify({
+      connectedAt: new Date(2000).toISOString(),
+      version: signed.manifest.version,
+      release: {
+        sequence: signed.manifest.sequence,
+        version: signed.manifest.version,
+        revision: signed.manifest.revision,
+        sha256: signed.manifest.sha256,
+      },
+    }) + "\n",
+  );
+
+  const result = await runStableRollback(cfg, {
+    createStore: () => store,
+    restartRequest: async () => ({ service: "agent", accepted: true }),
+    now: () => 1000,
+    sleep: async () => {},
+  });
+
+  assert.equal(result.rolledBack, true);
+  assert.equal(result.current, previous);
+  assert.equal(rollbackCalls, 1);
+});
+
+test("stable rollback fails closed when no previous release is recorded", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-no-rollback-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const cfg = config(root, signed.trustedKeys);
+  const store = fakeStore(root);
+
+  await assert.rejects(
+    runStableRollback(cfg, { createStore: () => store }),
+    /UPDATE_ROLLBACK_UNAVAILABLE/,
   );
 });

@@ -9,17 +9,26 @@ test("update controls reject caller-selected targets", async () => {
   const handle = createSupervisorHandler({
     run: () => inactive,
     readFile: () =>
-      JSON.stringify({
-        current: "0.2.4",
-        previous: "0.2.3",
-        sequence: 44,
-        releases: [],
-      }),
+      JSON.stringify([
+        {
+          action: "activate",
+          release: "0.2.4-aaaaaaaaaaaa",
+          previous: "0.2.3-bbbbbbbbbbbb",
+          at: "2026-10-07T10:00:00.000Z",
+        },
+      ]),
+    lstat: () => ({ isSymbolicLink: () => true }),
+    readlink: (file) =>
+      file.endsWith("/current")
+        ? "releases/0.2.4-aaaaaaaaaaaa"
+        : "releases/0.2.3-bbbbbbbbbbbb",
     start: (unit) => started.push(unit),
   });
 
   const history = await handle({ op: "release_history" });
-  assert.equal(history.response.current, "0.2.4");
+  assert.equal(history.response.current, "0.2.4-aaaaaaaaaaaa");
+  assert.equal(history.response.previous, "0.2.3-bbbbbbbbbbbb");
+  assert.equal(history.response.releases[0].action, "activate");
 
   const check = await handle({ op: "update_check" });
   check.afterSend();
@@ -27,8 +36,8 @@ test("update controls reject caller-selected targets", async () => {
   rollback.afterSend();
 
   assert.deepEqual(started, [
-    "kmj-codebridge-update-check.service",
-    "kmj-codebridge-update-rollback.service",
+    "kmj-codebridge-stable-update.service",
+    "kmj-codebridge-stable-rollback.service",
   ]);
 
   const bad = [
@@ -45,7 +54,12 @@ test("update controls reject caller-selected targets", async () => {
 test("rollback fails closed without previous release", async () => {
   const handle = createSupervisorHandler({
     run: () => inactive,
-    readFile: () => JSON.stringify({ current: "0.2.4", releases: [] }),
+    readFile: () => "[]",
+    lstat: (file) => {
+      if (file.endsWith("/previous")) throw Error("missing");
+      return { isSymbolicLink: () => true };
+    },
+    readlink: () => "releases/0.2.4-aaaaaaaaaaaa",
   });
   await assert.rejects(
     handle({ op: "update_rollback" }),
