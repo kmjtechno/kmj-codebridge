@@ -58,6 +58,7 @@ async function gatewayGrants(
   scopes = ["read"],
   expectedHeartbeatStatus = 200,
   staticUser = false,
+  legacyStaticDevices = null,
 ) {
   const { generateKeyPair, exportJWK, SignJWT } = await import("jose");
   const { createHash } = await import("node:crypto");
@@ -92,18 +93,20 @@ async function gatewayGrants(
       resource: "https://bridge.example/mcp",
       jwks: { keys: [jwk] },
     },
-    ...(staticUser
-      ? {
-          users: [
+    users:
+      staticUser || legacyStaticDevices
+        ? [
             {
               id: "static-user",
               subject: "user-7",
               tenant: "tenant-a",
-              devices,
+              devices: staticUser ? devices : legacyStaticDevices,
               permissions: scopes,
             },
-          ],
-        }
+          ]
+        : [],
+    ...(staticUser
+      ? {}
       : {
           userIntrospection: {
             endpoint: "https://platform.example/user",
@@ -182,6 +185,36 @@ test("OAuth introspection grants a listed static agent project", async (t) => {
   assert.deepEqual(result.devices, [
     { id: "device1", projects: ["project1"], online: true },
   ]);
+});
+
+test("dynamic membership preserves same-tenant legacy static agent grants", async (t) => {
+  const result = await gatewayGrants(
+    t,
+    undefined,
+    false,
+    ["project1"],
+    ["read"],
+    200,
+    false,
+    { device1: ["project1"] },
+  );
+  assert.deepEqual(result.devices, [
+    { id: "device1", projects: ["project1"], online: true },
+  ]);
+});
+
+test("explicit dynamic device grants remain authoritative over legacy static grants", async (t) => {
+  const result = await gatewayGrants(
+    t,
+    {},
+    false,
+    ["project1"],
+    ["read"],
+    200,
+    false,
+    { device1: ["project1"] },
+  );
+  assert.deepEqual(result.devices, []);
 });
 
 test("explicit OAuth grants deny an unlisted dynamic agent", async (t) => {
