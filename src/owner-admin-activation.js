@@ -126,16 +126,18 @@ export async function activateOwnerAdmin(
   const dir = path.dirname(configPath);
   const temp = configPath + ".signed-" + randomUUID() + ".tmp";
   let leaseWritten = false;
+  let configCommitted = false;
   try {
     writeExclusive(backupPath, configText + "\n");
     writeExclusive(leasePath, token + "\n");
     leaseWritten = true;
     writeExclusive(temp, JSON.stringify(updated, null, 2) + "\n");
     fs.renameSync(temp, configPath);
+    configCommitted = true;
     syncDirectory(dir);
   } catch (error) {
     if (fs.existsSync(temp)) fs.unlinkSync(temp);
-    if (leaseWritten) fs.unlinkSync(leasePath);
+    if (leaseWritten && !configCommitted) fs.unlinkSync(leasePath);
     throw error;
   }
 
