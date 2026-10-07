@@ -83,8 +83,7 @@ for (const [id, contract] of Object.entries(expected)) {
     fail("price drift for " + id);
   for (const [key, value] of Object.entries(contract)) {
     if (key === "INR" || key === "USD") continue;
-    if (plan.limits?.[key] !== value)
-      fail("limit drift for " + id + "." + key);
+    if (plan.limits?.[key] !== value) fail("limit drift for " + id + "." + key);
   }
 }
 if (
