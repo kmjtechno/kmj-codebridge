@@ -74,7 +74,7 @@ export function verifyEntitlement(
       !p.limits ||
       !Number.isInteger(p.limits.concurrent_jobs) ||
       p.limits.concurrent_jobs < 1 ||
-      p.limits.concurrent_jobs > 16 ||
+      p.limits.concurrent_jobs > 64 ||
       !Number.isInteger(p.limits.devices) ||
       p.limits.devices < 1
     )
