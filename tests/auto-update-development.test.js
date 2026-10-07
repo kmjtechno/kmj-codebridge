@@ -37,6 +37,9 @@ test("development auto updater preserves project enrollment and defers active jo
   assert.match(script, /--device "\$DEVICE"/);
   assert.match(script, /--service-user "\$SERVICE_USER"/);
   assert.match(script, /--ref "\$remote"/);
+  assert.match(script, /c\.gateway/);
+  assert.match(script, /GATEWAY="\$\{cfg\[4\]\}"/);
+  assert.match(script, /CODEBRIDGE_GATEWAY="\$GATEWAY"/);
 });
 
 test("development auto updater refuses dirty runtime and does not accept caller repository URLs", () => {
