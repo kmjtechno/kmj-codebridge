@@ -514,7 +514,9 @@ async function main() {
   log("gatewayMcp: probing /healthz if --gateway was given...");
   out.gatewayMcp = await sampleGatewayMcp();
 
-  log("simulatedScale: timing deterministic 1/10/100/1000-agent map operations...");
+  log(
+    "simulatedScale: timing deterministic 1/10/100/1000-agent map operations...",
+  );
   out.simulatedScale = simulateControlPlaneScale();
 
   console.log(JSON.stringify(out, null, 2));
