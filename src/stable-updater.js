@@ -434,8 +434,7 @@ export async function runStableRollback(
   const before = store.status();
   if (!before.previous) fail("UPDATE_ROLLBACK_UNAVAILABLE");
 
-  const previousMarker = markerFor(store, before.previous);
-  if (!previousMarker) fail("UPDATE_ROLLBACK_UNAVAILABLE");
+  if (!markerFor(store, before.previous)) fail("UPDATE_ROLLBACK_UNAVAILABLE");
   const rollbackStart = now();
   const result = store.rollback();
   try {
