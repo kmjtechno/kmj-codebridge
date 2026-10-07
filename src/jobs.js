@@ -283,19 +283,42 @@ export class JobRunner {
     const { key, fingerprint, ...visible } = j;
     return structuredClone(visible);
   }
-  list(project, limit = 20) {
+  list(project, limit = 20, { state = "all", cursor = null } = {}) {
     if (!Number.isInteger(limit) || limit < 1 || limit > 100)
       fail("INVALID_JOB_LIMIT");
+    const allowedStates = [
+      "all",
+      "running",
+      "queued",
+      "succeeded",
+      "failed",
+      "cancelled",
+      "timed_out",
+      "interrupted",
+    ];
+    if (!allowedStates.includes(state)) fail("INVALID_JOB_STATE");
+    if (
+      cursor !== null &&
+      (typeof cursor !== "string" || !/^[a-zA-Z0-9-]{1,128}$/.test(cursor))
+    )
+      fail("INVALID_JOB_CURSOR");
     const scoped = [...this.jobs.values()]
       .filter((job) => job.project === project)
+      .filter((job) => state === "all" || job.state === state)
       .sort(
         (a, b) =>
           b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id),
       );
+    const offset =
+      cursor === null ? 0 : scoped.findIndex((job) => job.id === cursor) + 1;
+    if (cursor !== null && offset === 0) fail("JOB_CURSOR_NOT_FOUND");
+    const page = scoped.slice(offset, offset + limit);
     return {
       project,
+      state,
       total: scoped.length,
-      jobs: scoped.slice(0, limit).map((job) => ({
+      nextCursor: offset + limit < scoped.length ? page.at(-1).id : null,
+      jobs: page.map((job) => ({
         id: job.id,
         gate: job.gate,
         state: job.state,
