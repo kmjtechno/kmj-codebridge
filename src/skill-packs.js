@@ -3,8 +3,20 @@ const PACKS = Object.freeze([
     id: "security-hardening",
     title: "Security hardening",
     signals: Object.freeze([
-      "auth", "oauth", "oidc", "token", "secret", "credential", "permission",
-      "tenant", "acl", "security", "crypto", "signature", "csrf", "xss",
+      "auth",
+      "oauth",
+      "oidc",
+      "token",
+      "secret",
+      "credential",
+      "permission",
+      "tenant",
+      "acl",
+      "security",
+      "crypto",
+      "signature",
+      "csrf",
+      "xss",
     ]),
     workflow: Object.freeze([
       "map trust boundaries and authorization checks",
@@ -22,8 +34,17 @@ const PACKS = Object.freeze([
     id: "debugging",
     title: "Systematic debugging",
     signals: Object.freeze([
-      "bug", "error", "failure", "failing", "crash", "regression", "timeout",
-      "broken", "exception", "incident", "flaky",
+      "bug",
+      "error",
+      "failure",
+      "failing",
+      "crash",
+      "regression",
+      "timeout",
+      "broken",
+      "exception",
+      "incident",
+      "flaky",
     ]),
     workflow: Object.freeze([
       "reproduce or bound the failure",
@@ -41,8 +62,16 @@ const PACKS = Object.freeze([
     id: "tdd",
     title: "Test-driven implementation",
     signals: Object.freeze([
-      "feature", "implement", "refactor", "fix", "behavior", "contract", "api",
-      "parser", "adapter", "workflow",
+      "feature",
+      "implement",
+      "refactor",
+      "fix",
+      "behavior",
+      "contract",
+      "api",
+      "parser",
+      "adapter",
+      "workflow",
     ]),
     workflow: Object.freeze([
       "state the behavioral contract",
@@ -60,8 +89,18 @@ const PACKS = Object.freeze([
     id: "release-readiness",
     title: "Release readiness",
     signals: Object.freeze([
-      "release", "deploy", "publish", "package", "version", "marketplace",
-      "distribution", "update", "installer", "artifact", "sbom", "provenance",
+      "release",
+      "deploy",
+      "publish",
+      "package",
+      "version",
+      "marketplace",
+      "distribution",
+      "update",
+      "installer",
+      "artifact",
+      "sbom",
+      "provenance",
     ]),
     workflow: Object.freeze([
       "verify canonical version and product metadata",
@@ -78,9 +117,12 @@ const PACKS = Object.freeze([
   }),
 ]);
 
-const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9._/-]+/g, " ");
+const normalize = (value) =>
+  value.toLowerCase().replace(/[^a-z0-9._/-]+/g, " ");
 
-export const SKILL_PACKS = PACKS.map(({ signals, ...pack }) => Object.freeze(pack));
+export const SKILL_PACKS = PACKS.map(({ signals, ...pack }) =>
+  Object.freeze(pack),
+);
 
 export function selectSkillPacks({
   objective,
