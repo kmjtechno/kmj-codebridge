@@ -70,3 +70,21 @@ test("generated release dashboard reports marketplace state without claiming app
   assert.notEqual(dashboard.marketplaces.openai.status, "approved");
   assert.notEqual(dashboard.marketplaces.claude.status, "approved");
 });
+
+
+test("ChatGPT registered app identity matches the canonical product contract", () => {
+  const plugin = JSON.parse(fs.readFileSync("plugin/plugin.json", "utf8"));
+  const app = JSON.parse(fs.readFileSync("plugin/.app.json", "utf8"));
+  const ui = plugin.extensions["com.openai"].interface;
+  assert.equal(manifest.product.developer, "KMJ TECHNO");
+  assert.equal(manifest.product.category, "Developer Tools");
+  assert.equal(manifest.product.assets.icon, "plugin/assets/icon.png");
+  assert.equal(manifest.product.assets.logo, manifest.product.assets.icon);
+  assert.equal(ui.developerName, manifest.product.developer);
+  assert.equal(ui.category, manifest.product.category);
+  assert.equal(ui.websiteURL, manifest.product.homepage);
+  assert.equal(ui.logo, "./assets/icon.png");
+  assert.equal(ui.composerIcon, "./assets/icon.png");
+  assert.equal(app.apps.codebridge.id, manifest.marketplaces.openai.appId);
+  assert.equal(manifest.marketplaces.openai.mcpEndpoint, manifest.endpoints.mcp);
+});
