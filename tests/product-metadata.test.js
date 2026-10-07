@@ -23,6 +23,52 @@ test("generated product artifacts match the canonical manifest", () => {
   assert.ok(artifacts.has("product/LAUNCH-OFFER.generated.md"));
 });
 
+test(
+  "generated Main Platform catalog is non-secret and preserves commercial authority",
+  () => {
+    const catalog = JSON.parse(
+      fs.readFileSync("product/main-platform-catalog.generated.json", "utf8"),
+    );
+    assert.equal(catalog.runtimeAuthority, "KMJ Main Platform");
+    assert.equal(catalog.version, manifest.versions.stable);
+    assert.deepEqual(catalog.launch, manifest.launch);
+    assert.deepEqual(catalog.plans, manifest.plans);
+
+    const serialized = JSON.stringify(catalog).toLowerCase();
+    for (const forbidden of [
+      "private_key",
+      "client_secret",
+      "access_token",
+      "refresh_token",
+      "bearer ",
+    ])
+      assert.ok(!serialized.includes(forbidden), forbidden);
+  },
+);ort test from "node:test";
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import {
+  generatedArtifacts,
+  generatedDrift,
+} from "../scripts/generate-product-artifacts.js";
+import { readCanonical } from "../scripts/package-common.js";
+
+const manifest = JSON.parse(
+  fs.readFileSync("product/codebridge-product.json", "utf8"),
+);
+
+test("generated product artifacts match the canonical manifest", () => {
+  assert.deepEqual(generatedDrift(), []);
+  const artifacts = generatedArtifacts();
+  assert.equal(artifacts.size, 6);
+  assert.ok(artifacts.has("product/clients.generated.json"));
+  assert.ok(artifacts.has("product/plans.generated.json"));
+  assert.ok(artifacts.has("product/main-platform-catalog.generated.json"));
+  assert.ok(artifacts.has("product/release-dashboard.generated.json"));
+  assert.ok(artifacts.has("product/PLAN-TABLE.generated.md"));
+  assert.ok(artifacts.has("product/LAUNCH-OFFER.generated.md"));
+});
+
 test("generated Main Platform catalog is non-secret and preserves commercial authority", () => {
   const catalog = JSON.parse(
     fs.readFileSync("product/main-platform-catalog.generated.json", "utf8"),
