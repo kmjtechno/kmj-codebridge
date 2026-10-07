@@ -392,7 +392,16 @@ test("stable rollback only uses the recorded previous immutable release", async 
   };
   fs.writeFileSync(
     path.join(cfg.agentStateDir, "connection.json"),
-    JSON.stringify({ connectedAt: new Date(2000).toISOString() }) + "\n",
+    JSON.stringify({
+      connectedAt: new Date(2000).toISOString(),
+      version: signed.manifest.version,
+      release: {
+        sequence: signed.manifest.sequence,
+        version: signed.manifest.version,
+        revision: signed.manifest.revision,
+        sha256: signed.manifest.sha256,
+      },
+    }) + "\n",
   );
 
   const result = await runStableRollback(cfg, {
