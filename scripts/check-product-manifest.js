@@ -93,7 +93,19 @@ if (
 )
   fail("business custom pricing missing");
 
-if (manifest.product?.assets?.logo !== "plugin/assets/icon.png")\n  fail("canonical logo asset mismatch");\nif (manifest.product?.assets?.icon !== "plugin/assets/icon.png")\n  fail("canonical icon asset mismatch");\nif (\n  manifest.marketplaces?.openai?.appId !==\n    "asdk_app_6abf4c8dddb08191a983c2bd9fe79732"\n)\n  fail("OpenAI app id mismatch");\nif (manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp)\n  fail("OpenAI MCP endpoint mismatch");\n\nif (
+if (manifest.product?.assets?.logo !== "plugin/assets/icon.png")
+  fail("canonical logo asset mismatch");
+if (manifest.product?.assets?.icon !== "plugin/assets/icon.png")
+  fail("canonical icon asset mismatch");
+if (
+  manifest.marketplaces?.openai?.appId !==
+    "asdk_app_6abf4c8dddb08191a983c2bd9fe79732"
+)
+  fail("OpenAI app id mismatch");
+if (manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp)
+  fail("OpenAI MCP endpoint mismatch");
+
+if (
   !manifest.product?.assets?.logo ||
   !manifest.product?.assets?.icon ||
   !fs.existsSync(manifest.product.assets.logo) ||
