@@ -113,4 +113,8 @@ echo "AUTO_UPDATE_TO=$remote"
 
 CODEBRIDGE_GATEWAY="$GATEWAY" CODEBRIDGE_REF="$remote" CODEBRIDGE_AUTO_UPDATE_MODE=development bash "$TMP/codebridge/scripts/install-vps.sh"   --project "$PROJECT_ROOT"   --project-id "$PROJECT_ID"   --device "$DEVICE"   --service-user "$SERVICE_USER"   --ref "$remote"
 
+if systemctl is-active --quiet kmj-codebridge-gateway.service; then
+  systemctl restart kmj-codebridge-gateway.service
+fi
+
 echo "AUTO_UPDATE_APPLIED=$remote"
