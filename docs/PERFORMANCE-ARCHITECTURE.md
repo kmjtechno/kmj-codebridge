@@ -204,7 +204,6 @@ cleanup in a `finally` block and a non-zero exit code plus a stack trace on
 failure, so it cannot leave stray `/tmp` state or silently report success
 on partial failure, and never adds a second source of idle load itself.
 
-
 ### Simulated control-plane scale evidence
 
 The benchmark also emits a separate `simulatedScale` section for 1, 10, 100 and
