@@ -98,7 +98,7 @@
     "repoMap": "available",
     "desktopMarketplace": "preview",
     "signedStableUpdates": "implemented_needs_live_evidence",
-    "accountWideDeviceDiscovery": "implemented_needs_live_evidence",
+    "accountWideDeviceDiscovery": "verified_live",
     "publicDirectoryPublication": "external_review_required"
   },
   "marketplaces": {
