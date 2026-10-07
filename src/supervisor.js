@@ -401,7 +401,7 @@ export function createSupervisorHandler({
         "ActiveState",
         "SubState",
       ]);
-      if (!service.installed) fail("SUPERVISOR_MAIN_PLATFORM_REFRESH_UNAVAILABLE");
+      if (!service.installed)\n        fail("SUPERVISOR_MAIN_PLATFORM_REFRESH_UNAVAILABLE");
       return {
         response: { accepted: true },
         afterSend: () => start(MAIN_PLATFORM_REFRESH_SERVICE),
