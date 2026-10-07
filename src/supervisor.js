@@ -16,9 +16,10 @@ const CONFIGS = {
 };
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
-const UPDATE_CHECK_SERVICE = "kmj-codebridge-update-check.service";
-const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-update-rollback.service";
-const UPDATE_STATE = "/var/lib/kmj-codebridge/update-state.json";
+const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
+const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
+const UPDATE_INSTALL_ROOT = "/opt/kmj-codebridge-stable";
+const UPDATE_HISTORY = "/var/lib/kmj-codebridge-update/release-history.json";
 const SYSTEMCTL = "/usr/bin/systemctl";
 const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
@@ -182,41 +183,47 @@ export function createSupervisorHandler({
   deviceStatus = defaultDeviceStatus,
 } = {}) {
   const readUpdateState = () => {
+    const readLink = (name) => {
+      try {
+        const link = `${UPDATE_INSTALL_ROOT}/${name}`;
+        if (!fs.lstatSync(link).isSymbolicLink()) return null;
+        const release = fs.readlinkSync(link).split("/").pop();
+        return /^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?-[a-f0-9]{12}$/.test(
+          release,
+        )
+          ? release
+          : null;
+      } catch {
+        return null;
+      }
+    };
     try {
-      const raw = JSON.parse(readFile(UPDATE_STATE));
-      const releases = Array.isArray(raw.releases)
-        ? raw.releases.slice(-20)
-        : [];
+      const raw = JSON.parse(readFile(UPDATE_HISTORY));
+      const releases = Array.isArray(raw) ? raw.slice(-20) : [];
       return {
-        current:
-          typeof raw.current === "string" ? raw.current.slice(0, 128) : null,
-        previous:
-          typeof raw.previous === "string" ? raw.previous.slice(0, 128) : null,
-        sequence:
-          Number.isSafeInteger(raw.sequence) && raw.sequence >= 0
-            ? raw.sequence
-            : null,
-        releases: releases.map((release) => ({
-          version:
-            typeof release?.version === "string"
-              ? release.version.slice(0, 64)
+        current: readLink("current"),
+        previous: readLink("previous"),
+        releases: releases.map((entry) => ({
+          action: ["activate", "rollback"].includes(entry?.action)
+            ? entry.action
+            : "unknown",
+          release:
+            typeof entry?.release === "string"
+              ? entry.release.slice(0, 128)
               : "unknown",
-          revision:
-            typeof release?.revision === "string"
-              ? release.revision.slice(0, 40)
-              : "unknown",
-          sequence: Number.isSafeInteger(release?.sequence)
-            ? release.sequence
-            : null,
-          activatedAt:
-            typeof release?.activatedAt === "string"
-              ? release.activatedAt.slice(0, 64)
+          previous:
+            typeof entry?.previous === "string"
+              ? entry.previous.slice(0, 128)
               : null,
-          healthy: release?.healthy === true,
+          at: typeof entry?.at === "string" ? entry.at.slice(0, 64) : null,
         })),
       };
     } catch {
-      return { current: null, previous: null, sequence: null, releases: [] };
+      return {
+        current: readLink("current"),
+        previous: readLink("previous"),
+        releases: [],
+      };
     }
   };
 
