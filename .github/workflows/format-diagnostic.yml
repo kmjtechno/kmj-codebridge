@@ -1,0 +1,21 @@
+name: Format diagnostic
+on:
+  push:
+    branches:
+      - feat/structured-command-presets
+permissions:
+  contents: read
+jobs:
+  prettier-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Show exact Prettier diff
+        run: |
+          npx prettier --write src/config.js
+          git diff -- src/config.js
