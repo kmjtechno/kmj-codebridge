@@ -27,8 +27,8 @@ test("update controls reject caller-selected targets", async () => {
   rollback.afterSend();
 
   assert.deepEqual(started, [
-    "kmj-codebridge-update-check.service",
-    "kmj-codebridge-update-rollback.service",
+    "kmj-codebridge-stable-update.service",
+    "kmj-codebridge-stable-rollback.service",
   ]);
 
   const bad = [
