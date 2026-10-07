@@ -68,7 +68,11 @@ export class JobRunner {
       recheckIntervalMs > 60000
     )
       fail("INVALID_JOB_RECHECK_INTERVAL");
-    if (!Number.isInteger(journalLimit) || journalLimit < 1 || journalLimit > JOURNAL_LIMIT)
+    if (
+      !Number.isInteger(journalLimit) ||
+      journalLimit < 1 ||
+      journalLimit > JOURNAL_LIMIT
+    )
       fail("INVALID_JOB_JOURNAL_LIMIT");
     this.journalLimit = journalLimit;
     this.dir = dir;
@@ -81,7 +85,9 @@ export class JobRunner {
     this.active = new Map();
     this.pending = new Map();
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
-    this.archive = new DurableJobArchive(dir, { maxEntries: archiveMaxEntries });
+    this.archive = new DurableJobArchive(dir, {
+      maxEntries: archiveMaxEntries,
+    });
     for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".json"))) {
       const journalPath = path.join(dir, file);
       const metadata = fs.lstatSync(journalPath);
@@ -116,10 +122,14 @@ export class JobRunner {
       )
         fail("CORRUPT_JOURNAL");
       const archived = this.archive.get(j.id);
-      if (archived && (
-        archived.project !== j.project || archived.key !== j.key ||
-        archived.fingerprint !== j.fingerprint || archived.state !== j.state
-      )) fail("CORRUPT_JOB_ARCHIVE");
+      if (
+        archived &&
+        (archived.project !== j.project ||
+          archived.key !== j.key ||
+          archived.fingerprint !== j.fingerprint ||
+          archived.state !== j.state)
+      )
+        fail("CORRUPT_JOB_ARCHIVE");
       if (["running", "queued"].includes(j.state)) {
         j.state = "interrupted";
         j.endedAt = new Date().toISOString();
@@ -145,12 +155,19 @@ export class JobRunner {
     if (capacity.blocked) fail("RESOURCE_PRESSURE");
     const target = Math.max(0, Math.floor(this.journalLimit * 0.7));
     const terminal = [...this.jobs.values()]
-      .filter((job) => [
-        "succeeded", "failed", "cancelled", "timed_out", "interrupted",
-      ].includes(job.state))
-      .sort((a, b) =>
-        (a.endedAt ?? "").localeCompare(b.endedAt ?? "") ||
-        a.id.localeCompare(b.id),
+      .filter((job) =>
+        [
+          "succeeded",
+          "failed",
+          "cancelled",
+          "timed_out",
+          "interrupted",
+        ].includes(job.state),
+      )
+      .sort(
+        (a, b) =>
+          (a.endedAt ?? "").localeCompare(b.endedAt ?? "") ||
+          a.id.localeCompare(b.id),
       );
     for (const job of terminal) {
       if (this.jobs.size <= target) break;
@@ -164,9 +181,13 @@ export class JobRunner {
       );
       try {
         const current = fs.fstatSync(fd);
-        if (!current.isFile() || current.nlink !== 1 ||
-          current.ino !== stat.ino || current.dev !== stat.dev ||
-          current.size > 131072)
+        if (
+          !current.isFile() ||
+          current.nlink !== 1 ||
+          current.ino !== stat.ino ||
+          current.dev !== stat.dev ||
+          current.size > 131072
+        )
           fail("CORRUPT_JOURNAL");
         if (fs.readFileSync(fd, "utf8") !== JSON.stringify(job))
           fail("CORRUPT_JOURNAL");
