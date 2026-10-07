@@ -8,7 +8,7 @@ import {
 
 const base = {
   gateway: "https://gateway.example.test",
-  token: [REDACTED],
+  token: "x".repeat(32),
   id: "device1",
   tenant: "tenant1",
   stateDir: "/tmp/codebridge-state",
