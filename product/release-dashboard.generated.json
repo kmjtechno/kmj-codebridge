@@ -17,7 +17,9 @@
   "marketplaces": {
     "openai": {
       "packageId": "kmj-codebridge",
-      "status": "prepared"
+      "status": "prepared",
+      "appId": "asdk_app_6abf4c8dddb08191a983c2bd9fe79732",
+      "mcpEndpoint": "https://kmjtechno.com/mcp"
     },
     "claude": {
       "marketplace": "kmj-techno",
