@@ -202,10 +202,12 @@ test("installer wires signed stable updates with isolated root-owned trust state
   assert.doesNotMatch(script, /stateDir:process\.env\.AGENT_STATE_DIR/);
 });
 
-test("agent service prefers the immutable signed current runtime with bootstrap fallback", () => {
+test("agent service selects immutable stable runtime only for signed channels", () => {
+  assert.match(script, /AUTO_UPDATE_MODE" = "stable"/);
+  assert.match(script, /AUTO_UPDATE_MODE" = "beta"/);
   assert.match(
     script,
-    /if \[ -L "\$STABLE_INSTALL_ROOT\/current" \] && \[ -f "\$STABLE_INSTALL_ROOT\/current\/src\/cli\.js" \]/,
+    /\[ -L "\$STABLE_INSTALL_ROOT\/current" \] && \[ -f "\$STABLE_INSTALL_ROOT\/current\/src\/cli\.js" \]/,
   );
   assert.match(script, /runtime="\$INSTALL_DIR"/);
   assert.match(script, /runtime="\$STABLE_INSTALL_ROOT\/current"/);
