@@ -51,7 +51,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 function parseArgs(argv) {
   const out = {};
@@ -67,6 +67,26 @@ const gatewayUrl = args.gateway ? String(args.gateway) : null;
 
 function log(...xs) {
   console.error(...xs);
+}
+
+function environmentMetadata() {
+  let repoRevision = null;
+  try {
+    repoRevision = execFileSync("git", ["rev-parse", "HEAD"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    // A source archive may not contain .git; preserve null rather than guess.
+  }
+  return {
+    nodeVersion: process.version,
+    platform: process.platform,
+    arch: process.arch,
+    cpuCount: os.cpus().length,
+    totalMemoryBytes: os.totalmem(),
+    repoRevision,
+  };
 }
 
 // ---------- platform constants: never silently assumed ----------
@@ -119,7 +139,24 @@ function findPidsByMatch(matchSubstring) {
   return pids;
 }
 
-function resolveTargetPid(explicitPid, matchSubstring, label) {
+function fixedServiceMainPid(service) {
+  if (process.platform !== "linux") return null;
+  try {
+    const raw = execFileSync(
+      "systemctl",
+      ["show", service, "--property", "MainPID", "--value"],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] },
+    ).trim();
+    const pid = Number(raw);
+    if (!Number.isInteger(pid) || pid <= 0) return null;
+    fs.readFileSync(`/proc/${pid}/stat`, "utf8");
+    return pid;
+  } catch {
+    return null;
+  }
+}
+
+function resolveTargetPid(explicitPid, matchSubstring, label, fixedService) {
   if (explicitPid) {
     const pid = Number(explicitPid);
     try {
@@ -128,6 +165,10 @@ function resolveTargetPid(explicitPid, matchSubstring, label) {
     } catch {
       return { pid: null, note: `${label}: PID ${pid} not found in /proc` };
     }
+  }
+  if (!matchSubstring && fixedService) {
+    const pid = fixedServiceMainPid(fixedService);
+    if (pid) return { pid, note: null };
   }
   if (!matchSubstring) {
     return {
@@ -210,11 +251,13 @@ async function sampleProcessIdle(seconds) {
     args["agent-pid"],
     args["agent-match"],
     "agent",
+    "kmj-codebridge-agent.service",
   );
   const gateway = resolveTargetPid(
     args["gateway-pid"],
     args["gateway-match"],
     "gateway",
+    "kmj-codebridge-gateway.service",
   );
   if (!agent.pid && !gateway.pid) {
     return {
@@ -296,7 +339,7 @@ async function sampleDispatcherLocal() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const repoRoot = path.resolve(here, "..");
   const { createDispatcher } = await import(
-    path.join(repoRoot, "src", "tools.js")
+    pathToFileURL(path.join(repoRoot, "src", "tools.js")).href
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-bench-"));
   try {
@@ -452,6 +495,7 @@ async function sampleGatewayMcp() {
 async function main() {
   const out = {
     generatedAt: new Date().toISOString(),
+    environment: environmentMetadata(),
     processIdle: null,
     dispatcherLocal: null,
     gatewayMcp: null,
