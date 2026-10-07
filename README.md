@@ -122,7 +122,7 @@ The device agent must be online, authorized for the tenant, and configured for t
 | Edit                                                 | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                |
 | Verify                                               | `run_quality_gate`                                         | Only administrator-configured executable + arguments |
 | Structured workflows                                 | `run_project_command`, command presets                     | Fixed admin-approved profiles; no generic shell      |
-| Repository intelligence                              | `repo_intelligence`, `context_pack`, fast read batching  | Bounded local metadata/context; no hosted-AI upload  |
+| Repository intelligence                              | `repo_intelligence`, `context_pack`, fast read batching    | Bounded local metadata/context; no hosted-AI upload  |
 | Workflow guidance                                    | `skill_recommendations`, mission/autopilot tools           | Deterministic bounded workflow metadata/state        |
 | Jobs                                                 | `get_job_status`, `cancel_job`                             | Durable bounded job state                            |
 | `github_repository`, `github_pull_request*`          | Server-side GitHub repository and PR inspection            |
