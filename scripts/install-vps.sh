@@ -47,8 +47,10 @@ STABLE_SIGNATURE_URL="${CODEBRIDGE_STABLE_SIGNATURE_URL:-}"
 STABLE_TRUSTED_KEYS_FILE="${CODEBRIDGE_STABLE_TRUSTED_KEYS_FILE:-}"
 STABLE_UPDATE_SERVICE="kmj-codebridge-stable-update.service"
 STABLE_UPDATE_TIMER="kmj-codebridge-stable-update.timer"
+STABLE_ROLLBACK_SERVICE="kmj-codebridge-stable-rollback.service"
 STABLE_UPDATE_SERVICE_FILE="/etc/systemd/system/$STABLE_UPDATE_SERVICE"
 STABLE_UPDATE_TIMER_FILE="/etc/systemd/system/$STABLE_UPDATE_TIMER"
+STABLE_ROLLBACK_SERVICE_FILE="/etc/systemd/system/$STABLE_ROLLBACK_SERVICE"
 ROLLBACK_STABLE_UPDATE_SERVICE="${STABLE_UPDATE_SERVICE_FILE}.rollback-codebridge"
 ROLLBACK_STABLE_UPDATE_TIMER="${STABLE_UPDATE_TIMER_FILE}.rollback-codebridge"
 ROLLBACK_STABLE_UPDATE_CONFIG="${STABLE_UPDATE_CONFIG}.rollback-codebridge"
@@ -493,6 +495,33 @@ ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR $STABLE_WORK_DIR
 UMask=0077
 Nice=10
 IOSchedulingClass=idle
+EOF
+
+cat >"$STABLE_ROLLBACK_SERVICE_FILE" <<EOF
+[Unit]
+Description=KMJ CodeBridge bounded stable rollback
+After=$SUPERVISOR_SOCKET_UNIT
+Wants=$SUPERVISOR_SOCKET_UNIT
+ConditionPathExists=$STABLE_UPDATE_CONFIG
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/bin/bash -c 'runtime="$INSTALL_DIR"; if [ -L "$STABLE_INSTALL_ROOT/current" ] && [ -f "$STABLE_INSTALL_ROOT/current/src/cli.js" ]; then runtime="$STABLE_INSTALL_ROOT/current"; fi; exec "$NODE" "\$runtime/src/cli.js" stable-rollback "$STABLE_UPDATE_CONFIG"'
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR
+UMask=0077
 EOF
 
 cat >"$STABLE_UPDATE_TIMER_FILE" <<EOF
