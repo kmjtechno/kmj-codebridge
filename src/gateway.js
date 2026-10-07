@@ -146,6 +146,15 @@ export async function startGateway(rawConfig) {
         ? granted.filter((project) => agent.projects?.includes(project))
         : granted;
     }
+    if (!agent.dynamic) {
+      const legacyUser = config.users.find(
+        (candidate) =>
+          candidate.subject === user.subject &&
+          candidate.tenant === agent.tenant,
+      );
+      const legacyProjects = legacyUser?.devices?.[agent.id];
+      if (legacyProjects !== undefined) return legacyProjects;
+    }
     return agent.dynamic ? agent.projects : undefined;
   };
   const allowedPermissions = (user, agent) =>
