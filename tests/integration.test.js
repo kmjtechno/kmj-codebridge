@@ -1258,7 +1258,7 @@ test("dynamically enrolled agent introspects once then serves MCP tools from cac
         id: "u1",
         tenant: "t1",
         tokenHash: digest(userToken),
-        devices: {},
+        devices: { dyn1: ["p1"] },
         permissions: ["read", "write", "execute"],
       },
     ],
