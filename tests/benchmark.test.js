@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { simulateControlPlaneScale } from "../src/benchmark-scale.js";
 
 test("benchmark PID matcher ignores the benchmark process itself", (t) => {
   if (process.platform !== "linux") {
@@ -56,4 +57,37 @@ test("benchmark records reproducible environment metadata", () => {
     parsed.environment.repoRevision === null ||
       /^[a-f0-9]{40}$/i.test(parsed.environment.repoRevision),
   );
+});
+
+test("simulated control-plane scale covers 1/10/100/1000 agents within conservative budgets", () => {
+  const results = simulateControlPlaneScale({ iterations: 25 });
+  assert.deepEqual(
+    results.map((result) => result.agents),
+    [1, 10, 100, 1000],
+  );
+  for (const result of results) {
+    assert.equal(result.model, "in-process-map-simulation");
+    assert.equal(result.budgetPass, true);
+    assert.ok(result.serializedMetadataBytesPerAgent <= 256);
+    assert.ok(result.presenceList.iterations >= 25);
+  }
+});
+
+test("benchmark JSON labels simulated scale separately from measured process/network data", () => {
+  const marker = "KMJ_BENCHMARK_SCALE_SENTINEL";
+  const result = spawnSync(
+    process.execPath,
+    ["scripts/benchmark.js", "--idle-seconds=0", `--agent-match=${marker}`],
+    {
+      encoding: "utf8",
+      timeout: 30000,
+      maxBuffer: 2 * 1024 * 1024,
+    },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const parsed = JSON.parse(result.stdout);
+  assert.equal(parsed.simulatedScale.length, 4);
+  assert.equal(parsed.simulatedScale.at(-1).agents, 1000);
+  assert.equal(parsed.simulatedScale.at(-1).model, "in-process-map-simulation");
+  assert.ok(!("simulatedScale" in parsed.processIdle));
 });
