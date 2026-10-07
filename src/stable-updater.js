@@ -411,7 +411,6 @@ export async function runStableUpdate(
   };
 }
 
-
 export async function runStableRollback(
   rawConfig,
   {
