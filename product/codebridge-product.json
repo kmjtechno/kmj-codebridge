@@ -39,26 +39,47 @@
     {
       "id": "community",
       "name": "Community",
-      "prices": { "INR": 0, "USD": 0 },
-      "limits": { "devices": 1, "projects": 1, "concurrentJobs": 1 }
+      "prices": {
+        "INR": 0,
+        "USD": 0
+      },
+      "limits": {
+        "devices": 1,
+        "projects": 1,
+        "concurrentJobs": 1
+      }
     },
     {
       "id": "pro",
       "name": "Pro Launch",
-      "prices": { "INR": 149, "USD": 1.99 },
-      "limits": { "devices": 3, "projects": 10, "concurrentJobs": 3 }
+      "prices": {
+        "INR": 149,
+        "USD": 1.99
+      },
+      "limits": {
+        "devices": 3,
+        "projects": 10,
+        "concurrentJobs": 3
+      }
     },
     {
       "id": "team",
       "name": "Team Launch",
-      "prices": { "INR": 399, "USD": 4.99 },
+      "prices": {
+        "INR": 399,
+        "USD": 4.99
+      },
       "limits": {
         "devicesPerUser": 10,
         "projectsPerUser": 50,
         "concurrentJobsPerUser": 10
       }
     },
-    { "id": "business", "name": "Business", "customPricing": true }
+    {
+      "id": "business",
+      "name": "Business",
+      "customPricing": true
+    }
   ],
   "supportedClients": [
     "chatgpt",
@@ -72,7 +93,10 @@
     "codex",
     "generic-streamable-http-mcp"
   ],
-  "updateChannels": ["stable", "preview"],
+  "updateChannels": [
+    "stable",
+    "preview"
+  ],
   "features": {
     "repoMap": "available",
     "desktopMarketplace": "preview",
@@ -87,7 +111,11 @@
       "appId": "asdk_app_6abf4c8dddb08191a983c2bd9fe79732",
       "mcpEndpoint": "https://kmjtechno.com/mcp"
     },
-    "claude": { "marketplace": "kmj-techno", "pluginId": "kmj-codebridge", "status": "prepared" },
+    "claude": {
+      "marketplace": "kmj-techno",
+      "pluginId": "kmj-codebridge",
+      "status": "prepared"
+    },
     "chatgptDesktop": {
       "marketplace": "kmj-techno",
       "pluginId": "kmj-codebridge",
