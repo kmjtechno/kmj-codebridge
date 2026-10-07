@@ -33,6 +33,8 @@ if (manifest.schema !== 2) fail("unsupported schema");
 if (manifest.product?.name !== "KMJ CodeBridge") fail("product name mismatch");
 if (manifest.product?.slug !== "kmj-codebridge") fail("product slug mismatch");
 if (manifest.product?.package !== pkg.name) fail("package name mismatch");
+if (manifest.product?.developer !== "KMJ TECHNO") fail("developer mismatch");
+if (manifest.product?.category !== "Developer Tools") fail("category mismatch");
 if (manifest.versions?.stable !== pkg.version) fail("stable version mismatch");
 if (manifest.versions?.minimumAgent !== pkg.version)
   fail("minimum agent version mismatch");
@@ -91,7 +93,7 @@ if (
 )
   fail("business custom pricing missing");
 
-if (
+if (manifest.product?.assets?.logo !== "plugin/assets/icon.png")\n  fail("canonical logo asset mismatch");\nif (manifest.product?.assets?.icon !== "plugin/assets/icon.png")\n  fail("canonical icon asset mismatch");\nif (\n  manifest.marketplaces?.openai?.appId !==\n    "asdk_app_6abf4c8dddb08191a983c2bd9fe79732"\n)\n  fail("OpenAI app id mismatch");\nif (manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp)\n  fail("OpenAI MCP endpoint mismatch");\n\nif (
   !manifest.product?.assets?.logo ||
   !manifest.product?.assets?.icon ||
   !fs.existsSync(manifest.product.assets.logo) ||
