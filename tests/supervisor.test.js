@@ -292,8 +292,9 @@ test("client refuses arbitrary local socket paths", async () => {
   assert.equal(SUPERVISOR_SOCKET, "/run/kmj-codebridge/supervisor.sock");
 });
 
-
-test("signed update control plane accepts no caller-selected source or rollback target", async () => {
+test(
+  "signed update control plane accepts no caller-selected source or rollback target",
+  async () => {
   const started = [];
   const handle = createSupervisorHandler({
     run: (_command, args) =>
@@ -348,7 +349,8 @@ test("signed update control plane accepts no caller-selected source or rollback 
     { op: "update_rollback", unit: "ssh.service" },
   ])
     await assert.rejects(handle(request), /INVALID_SUPERVISOR_REQUEST/);
-});
+  },
+);
 
 test("rollback fails closed without a recorded previous release", async () => {
   const handle = createSupervisorHandler({
