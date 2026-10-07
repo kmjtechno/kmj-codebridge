@@ -40,7 +40,7 @@ test("all supported ChatGPT and Claude icon fields select the same existing Code
   assert.equal(plugin.extensions["com.openai"].apps, "./.app.json");
   assert.equal(
     json("plugin/.app.json").apps.codebridge.id,
-    "asdk_app_6ac22c9a4cc881918c59cdd9acda428f",
+    "asdk_app_6abf4c8dddb08191a983c2bd9fe79732",
   );
 });
 

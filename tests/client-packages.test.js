@@ -129,7 +129,7 @@ test("canonical ChatGPT package links only the existing registered KMJ MCP app",
   assert.deepEqual(installed, {
     apps: {
       codebridge: {
-        id: "asdk_app_6ac22c9a4cc881918c59cdd9acda428f",
+        id: "asdk_app_6abf4c8dddb08191a983c2bd9fe79732",
         required: true,
       },
     },
