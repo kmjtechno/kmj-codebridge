@@ -32,6 +32,8 @@ The helper:
   and read/write/execute features **before** changing any file.
 - Saves a private original-config backup, private signed lease and atomically
   replaces only the license configuration; all project grants are preserved.
+  The renewable lease is placed in the agent's writable private state directory,
+  not the read-only system configuration directory.
 - Does not restart services or print credentials. The operator must
   explicitly restart the existing agent and check `execution_capacity`
   after confirming the backup and lease.
