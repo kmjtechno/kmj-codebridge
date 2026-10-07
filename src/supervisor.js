@@ -15,6 +15,8 @@ const CONFIGS = {
   gateway: "/etc/kmj-codebridge/gateway.json",
 };
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
+const MAIN_PLATFORM_REFRESH_SERVICE =
+  "kmj-codebridge-main-platform-refresh.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
@@ -374,6 +376,36 @@ export function createSupervisorHandler({
           timer,
           service,
         },
+      };
+    }
+
+    if (request.op === "main_platform_refresh_status") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, MAIN_PLATFORM_REFRESH_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "Result",
+        "ExecMainStatus",
+      ]);
+      return {
+        response: {
+          available: service.installed,
+          service,
+        },
+      };
+    }
+
+    if (request.op === "main_platform_refresh") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, MAIN_PLATFORM_REFRESH_SERVICE, [
+        "ActiveState",
+        "SubState",
+      ]);
+      if (!service.installed)
+        fail("SUPERVISOR_MAIN_PLATFORM_REFRESH_UNAVAILABLE");
+      return {
+        response: { accepted: true },
+        afterSend: () => start(MAIN_PLATFORM_REFRESH_SERVICE),
       };
     }
 

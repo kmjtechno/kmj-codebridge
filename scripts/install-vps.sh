@@ -27,6 +27,9 @@ SUPERVISOR_SOCKET_FILE="/etc/systemd/system/$SUPERVISOR_SOCKET_UNIT"
 SUPERVISOR_SOCKET_PATH="/run/kmj-codebridge/supervisor.sock"
 ROLLBACK_SUPERVISOR_SERVICE="${SUPERVISOR_SERVICE_FILE}.rollback-codebridge"
 ROLLBACK_SUPERVISOR_SOCKET="${SUPERVISOR_SOCKET_FILE}.rollback-codebridge"
+MAIN_PLATFORM_REFRESH_SERVICE="kmj-codebridge-main-platform-refresh.service"
+MAIN_PLATFORM_REFRESH_SERVICE_FILE="/etc/systemd/system/$MAIN_PLATFORM_REFRESH_SERVICE"
+ROLLBACK_MAIN_PLATFORM_REFRESH="${MAIN_PLATFORM_REFRESH_SERVICE_FILE}.rollback-codebridge"
 SUPERVISOR_SOCKET_WAS_ENABLED=0
 ROLLBACK_CODE="${INSTALL_DIR}.rollback"
 ROLLBACK_CONFIG="$CONFIG_DIR/agent.json.rollback"
@@ -348,7 +351,7 @@ if [[ -d "$INSTALL_DIR" ]]; then
 fi
 mv "$NEW_DIR" "$INSTALL_DIR"
 
-rm -f "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_ROLLBACK_SERVICE" "$ROLLBACK_STABLE_UPDATE_CONFIG"
+rm -f "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET" "$ROLLBACK_MAIN_PLATFORM_REFRESH"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_ROLLBACK_SERVICE" "$ROLLBACK_STABLE_UPDATE_CONFIG"
 if [[ -f "$SERVICE_FILE" ]]; then
   cp -a "$SERVICE_FILE" "$ROLLBACK_SERVICE"
 fi
@@ -357,6 +360,9 @@ if [[ -f "$SUPERVISOR_SERVICE_FILE" ]]; then
 fi
 if [[ -f "$SUPERVISOR_SOCKET_FILE" ]]; then
   cp -a "$SUPERVISOR_SOCKET_FILE" "$ROLLBACK_SUPERVISOR_SOCKET"
+fi
+if [[ -f "$MAIN_PLATFORM_REFRESH_SERVICE_FILE" ]]; then
+  cp -a "$MAIN_PLATFORM_REFRESH_SERVICE_FILE" "$ROLLBACK_MAIN_PLATFORM_REFRESH"
 fi
 if [[ -f "$STABLE_UPDATE_SERVICE_FILE" ]]; then
   cp -a "$STABLE_UPDATE_SERVICE_FILE" "$ROLLBACK_STABLE_UPDATE_SERVICE"
@@ -493,6 +499,35 @@ LockPersonality=true
 RestrictAddressFamilies=AF_UNIX
 UMask=0077
 EOF
+
+cat >"$MAIN_PLATFORM_REFRESH_SERVICE_FILE" <<EOF
+[Unit]
+Description=KMJ CodeBridge fixed Main Platform agent refresh
+After=network-online.target
+Wants=network-online.target
+ConditionPathExists=/etc/kmj-codebridge-main-platform/agent.json
+ConditionPathExists=/srv/kmj-codebridge-projects/kmj-main-platform/.git
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=$INSTALL_DIR
+Environment=CODEBRIDGE_RUNTIME=$INSTALL_DIR
+ExecStart=/bin/bash $INSTALL_DIR/scripts/refresh-main-platform-agent.sh
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+ReadWritePaths=/etc/kmj-codebridge-main-platform /etc/systemd/system /var/lib/kmj-codebridge-kmj-main-platform /srv/kmj-codebridge-projects/kmj-main-platform
+UMask=0077
+EOF
 }
 
 write_stable_update_units() {
@@ -603,6 +638,11 @@ rollback() {
     cp -a "$ROLLBACK_SUPERVISOR_SOCKET" "$SUPERVISOR_SOCKET_FILE"
   else
     rm -f "$SUPERVISOR_SOCKET_FILE"
+  fi
+  if [[ -f "$ROLLBACK_MAIN_PLATFORM_REFRESH" ]]; then
+    cp -a "$ROLLBACK_MAIN_PLATFORM_REFRESH" "$MAIN_PLATFORM_REFRESH_SERVICE_FILE"
+  else
+    rm -f "$MAIN_PLATFORM_REFRESH_SERVICE_FILE"
   fi
   if [[ -f "$ROLLBACK_STABLE_UPDATE_SERVICE" ]]; then
     cp -a "$ROLLBACK_STABLE_UPDATE_SERVICE" "$STABLE_UPDATE_SERVICE_FILE"
