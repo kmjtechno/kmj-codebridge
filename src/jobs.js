@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import os from "node:os";
 import { fail } from "./errors.js";
 import { hash } from "./policy.js";
+import { DurableJobArchive } from "./job-archive.js";
 export function redact(text) {
   return text
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, "$1[REDACTED]")
@@ -57,6 +58,8 @@ export class JobRunner {
       maxConcurrent = 1,
       resourceProbe = defaultResourceProbe,
       recheckIntervalMs = 1000,
+      journalLimit = JOURNAL_LIMIT,
+      archiveMaxEntries = 100000,
     } = {},
   ) {
     if (
@@ -65,6 +68,9 @@ export class JobRunner {
       recheckIntervalMs > 60000
     )
       fail("INVALID_JOB_RECHECK_INTERVAL");
+    if (!Number.isInteger(journalLimit) || journalLimit < 1 || journalLimit > JOURNAL_LIMIT)
+      fail("INVALID_JOB_JOURNAL_LIMIT");
+    this.journalLimit = journalLimit;
     this.dir = dir;
     this.maxConcurrent = maxConcurrent;
     this.resourceProbe = resourceProbe;
@@ -75,6 +81,7 @@ export class JobRunner {
     this.active = new Map();
     this.pending = new Map();
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    this.archive = new DurableJobArchive(dir, { maxEntries: archiveMaxEntries });
     for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".json"))) {
       const journalPath = path.join(dir, file);
       const metadata = fs.lstatSync(journalPath);
@@ -108,6 +115,11 @@ export class JobRunner {
         !j.state
       )
         fail("CORRUPT_JOURNAL");
+      const archived = this.archive.get(j.id);
+      if (archived && (
+        archived.project !== j.project || archived.key !== j.key ||
+        archived.fingerprint !== j.fingerprint || archived.state !== j.state
+      )) fail("CORRUPT_JOB_ARCHIVE");
       if (["running", "queued"].includes(j.state)) {
         j.state = "interrupted";
         j.endedAt = new Date().toISOString();
@@ -128,6 +140,55 @@ export class JobRunner {
     }
     fs.renameSync(tmp, target);
   }
+  compactJournal() {
+    const capacity = this.capacity();
+    if (capacity.blocked) fail("RESOURCE_PRESSURE");
+    const target = Math.max(0, Math.floor(this.journalLimit * 0.7));
+    const terminal = [...this.jobs.values()]
+      .filter((job) => [
+        "succeeded", "failed", "cancelled", "timed_out", "interrupted",
+      ].includes(job.state))
+      .sort((a, b) =>
+        (a.endedAt ?? "").localeCompare(b.endedAt ?? "") ||
+        a.id.localeCompare(b.id),
+      );
+    for (const job of terminal) {
+      if (this.jobs.size <= target) break;
+      const file = path.join(this.dir, job.id + ".json");
+      const stat = fs.lstatSync(file);
+      if (!stat.isFile() || stat.nlink !== 1 || stat.size > 131072)
+        fail("CORRUPT_JOURNAL");
+      const fd = fs.openSync(
+        file,
+        fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0),
+      );
+      try {
+        const current = fs.fstatSync(fd);
+        if (!current.isFile() || current.nlink !== 1 ||
+          current.ino !== stat.ino || current.dev !== stat.dev ||
+          current.size > 131072)
+          fail("CORRUPT_JOURNAL");
+        if (fs.readFileSync(fd, "utf8") !== JSON.stringify(job))
+          fail("CORRUPT_JOURNAL");
+      } finally {
+        fs.closeSync(fd);
+      }
+      // Journal is removed only after an authenticated tombstone reaches disk.
+      // After a crash both files may remain; add() verifies idempotent replay.
+      this.archive.add(job);
+      fs.unlinkSync(file);
+      if (process.platform !== "win32") {
+        const dirfd = fs.openSync(this.dir, "r");
+        try {
+          fs.fsyncSync(dirfd);
+        } finally {
+          fs.closeSync(dirfd);
+        }
+      }
+      this.jobs.delete(job.id);
+    }
+  }
+
   capacity(cwd = this.dir) {
     let raw;
     try {
@@ -180,8 +241,11 @@ export class JobRunner {
       queuedJobs: this.pending.size,
       queueLimit: QUEUE_LIMIT,
       journalUsed: this.jobs.size,
-      journalLimit: JOURNAL_LIMIT,
-      journalRemaining: Math.max(0, JOURNAL_LIMIT - this.jobs.size),
+      journalLimit: this.journalLimit,
+      journalRemaining: Math.max(0, this.journalLimit - this.jobs.size),
+      archiveUsed: this.archive.count(),
+      archiveLimit: this.archive.maxEntries,
+      archiveRemaining: this.archive.maxEntries - this.archive.count(),
       cpuCount,
       loadOne,
       loadPerCpu,
@@ -212,9 +276,15 @@ export class JobRunner {
       if (existing.fingerprint !== fingerprint) fail("IDEMPOTENCY_CONFLICT");
       return this.public(existing);
     }
+    const archived = this.archive.lookup(project, key);
+    if (archived) {
+      if (archived.fingerprint !== fingerprint) fail("IDEMPOTENCY_CONFLICT");
+      return this.public(archived);
+    }
     const capacity = this.capacity(cwd);
     if (capacity.blocked) fail("RESOURCE_PRESSURE");
-    if (this.jobs.size >= JOURNAL_LIMIT) fail("JOURNAL_FULL");
+    if (this.jobs.size >= this.journalLimit) this.compactJournal();
+    if (this.jobs.size >= this.journalLimit) fail("JOURNAL_FULL");
     if (this.pending.size >= QUEUE_LIMIT) fail("JOB_QUEUE_FULL");
     const j = {
       id: randomUUID(),
@@ -430,6 +500,7 @@ export class JobRunner {
       state,
       total: scoped.length,
       summary,
+      archivedJobs: this.archive.count(project),
       nextCursor: offset + limit < scoped.length ? page.at(-1).id : null,
       jobs: page.map((job) => ({
         id: job.id,
@@ -448,13 +519,14 @@ export class JobRunner {
   }
   get(id, project) {
     this.drain();
-    const j = this.jobs.get(id);
+    const j = this.jobs.get(id) ?? this.archive.get(id);
     if (!j || j.project !== project) fail("JOB_NOT_FOUND");
     return this.public(j);
   }
   cancel(id, project) {
-    const j = this.jobs.get(id);
+    const j = this.jobs.get(id) ?? this.archive.get(id);
     if (!j || j.project !== project) fail("JOB_NOT_FOUND");
+    if (j.archived) return this.public(j);
     if (this.pending.delete(id)) {
       if (this.pending.size === 0) this.clearRecheck();
       j.state = "cancelled";
