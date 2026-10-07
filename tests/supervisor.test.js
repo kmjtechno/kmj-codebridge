@@ -297,35 +297,35 @@ test(
   async () => {
     const started = [];
     const handle = createSupervisorHandler({
-    run: (_command, args) =>
-      args[1] === "kmj-codebridge-update-check.service" ||
-      args[1] === "kmj-codebridge-update-rollback.service"
-        ? "LoadState=loaded\nActiveState=inactive\n"
-        : "LoadState=loaded\nActiveState=inactive\n",
-    readFile: () =>
-      JSON.stringify({
-        current: "0.2.4-aaaaaaaaaaaa",
-        previous: "0.2.3-bbbbbbbbbbbb",
-        sequence: 44,
-        releases: [
-          {
-            version: "0.2.3",
-            revision: "b".repeat(40),
-            sequence: 43,
-            activatedAt: "2026-10-06T00:00:00Z",
-            healthy: true,
-          },
-          {
-            version: "0.2.4",
-            revision: "a".repeat(40),
-            sequence: 44,
-            activatedAt: "2026-10-07T00:00:00Z",
-            healthy: true,
-          },
-        ],
-      }),
-    start: (unit) => started.push(unit),
-  });
+      run: (_command, args) =>
+        args[1] === "kmj-codebridge-update-check.service" ||
+        args[1] === "kmj-codebridge-update-rollback.service"
+          ? "LoadState=loaded\\nActiveState=inactive\\n"
+          : "LoadState=loaded\\nActiveState=inactive\\n",
+      readFile: () =>
+        JSON.stringify({
+          current: "0.2.4-aaaaaaaaaaaa",
+          previous: "0.2.3-bbbbbbbbbbbb",
+          sequence: 44,
+          releases: [
+            {
+              version: "0.2.3",
+              revision: "b".repeat(40),
+              sequence: 43,
+              activatedAt: "2026-10-06T00:00:00Z",
+              healthy: true,
+            },
+            {
+              version: "0.2.4",
+              revision: "a".repeat(40),
+              sequence: 44,
+              activatedAt: "2026-10-07T00:00:00Z",
+              healthy: true,
+            },
+          ],
+        }),
+      start: (unit) => started.push(unit),
+    });
 
     const history = await handle({ op: "release_history" });
     assert.equal(history.response.current, "0.2.4-aaaaaaaaaaaa");
@@ -333,21 +333,21 @@ test(
     assert.equal(history.response.releases.length, 2);
 
     const check = await handle({ op: "update_check" });
-  check.afterSend();
+    check.afterSend();
     const rollback = await handle({ op: "update_rollback" });
     assert.deepEqual(rollback.response, { accepted: true, target: "previous" });
-  rollback.afterSend();
+    rollback.afterSend();
     assert.deepEqual(started, [
-    "kmj-codebridge-update-check.service",
-    "kmj-codebridge-update-rollback.service",
-  ]);
+      "kmj-codebridge-update-check.service",
+      "kmj-codebridge-update-rollback.service",
+    ]);
 
     for (const request of [
-    { op: "update_check", url: "https://attacker.example/release.json" },
-    { op: "release_history", path: "/tmp/state.json" },
-    { op: "update_rollback", version: "0.1.0" },
-    { op: "update_rollback", unit: "ssh.service" },
-  ])
+      { op: "update_check", url: "https://attacker.example/release.json" },
+      { op: "release_history", path: "/tmp/state.json" },
+      { op: "update_rollback", version: "0.1.0" },
+      { op: "update_rollback", unit: "ssh.service" },
+    ])
       await assert.rejects(handle(request), /INVALID_SUPERVISOR_REQUEST/);
   },
 );
