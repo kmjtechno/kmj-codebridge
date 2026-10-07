@@ -9,6 +9,8 @@ TARGET="${CODEBRIDGE_PROJECT_ROOT:-/srv/kmj-codebridge-projects/kmj-main-platfor
 STATE="${CODEBRIDGE_STATE_DIR:-/var/lib/kmj-codebridge-main-platform}"
 KEY_DIR="$STATE/repository"
 KEY="$KEY_DIR/deploy_ed25519"
+SETUP_REVISION='09f4cb5942140af58ea36ed5894074bea752b6a5'
+SETUP_SHA256='c62396fcc0eb17ee4d1e4c6072137bb1533cbffe5c36fafff3bdaa8e413c36fa'
 
 if id kmjrunner >/dev/null 2>&1; then
   SERVICE_USER=kmjrunner
@@ -123,8 +125,17 @@ echo 'Main Platform Git checkout ready.'
 echo "project_root=$TARGET"
 echo
 
-curl -fsSL https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/6c1fd924b4af563fe231f9cd71785fc28b2d6a0a/scripts/setup-main-platform-agent.sh \
-| env -u CODEBRIDGE_SOURCE_ROOT \
-    CODEBRIDGE_SOURCE_ROOT="$TARGET" \
-    CODEBRIDGE_SERVICE_USER="$SERVICE_USER" \
-    bash
+SETUP_SCRIPT="$(mktemp /tmp/kmj-codebridge-setup.XXXXXX)"
+cleanup_setup() { rm -f "$SETUP_SCRIPT"; }
+trap cleanup_setup EXIT
+curl -fsSL --proto '=https' --tlsv1.2 \
+  "https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/$SETUP_REVISION/scripts/setup-main-platform-agent.sh" \
+  -o "$SETUP_SCRIPT"
+printf '%s  %s\n' "$SETUP_SHA256" "$SETUP_SCRIPT" | sha256sum -c - >/dev/null
+chmod 0700 "$SETUP_SCRIPT"
+env -u CODEBRIDGE_SOURCE_ROOT \
+  CODEBRIDGE_SOURCE_ROOT="$TARGET" \
+  CODEBRIDGE_SERVICE_USER="$SERVICE_USER" \
+  bash "$SETUP_SCRIPT"
+cleanup_setup
+trap - EXIT
