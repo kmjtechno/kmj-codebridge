@@ -701,59 +701,71 @@ export async function startGateway(rawConfig) {
                   ? user.memberships
                   : [user];
                 const devices = [];
-                for (const membership of memberships) {
-                  if (!membership?.tenant || !membership.devices) continue;
-                  for (const [device, projects] of Object.entries(
-                    membership.devices,
-                  )) {
-                    if (args.expectedDevice && args.expectedDevice !== device)
-                      continue;
-                    const agent = agents.get(device);
-                    const registered =
-                      agent !== undefined && agent.tenant === membership.tenant;
-                    const health = registered
-                      ? connectionHealth(
-                          lastSeen.get(device),
-                          agentHealth.get(device),
-                        )
-                      : null;
-                    for (const project of projects) {
-                      if (
-                        args.expectedProject &&
-                        args.expectedProject !== project
+                const addDeviceProjects = (membership, device, projects) => {
+                  if (args.expectedDevice && args.expectedDevice !== device)
+                    return;
+                  const agent = agents.get(device);
+                  const registered =
+                    agent !== undefined && agent.tenant === membership.tenant;
+                  const health = registered
+                    ? connectionHealth(
+                        lastSeen.get(device),
+                        agentHealth.get(device),
                       )
-                        continue;
-                      const activeProject =
-                        registered &&
-                        (!agent.dynamic || agent.projects?.includes(project));
-                      const status = !registered
-                        ? "GATEWAY_REGISTRATION_MISSING"
-                        : !activeProject
-                          ? "PROJECT_SCOPE_MISMATCH"
-                          : health.online
-                            ? "READY"
-                            : health.connectionState === "never_seen"
-                              ? "AGENT_NEVER_ONLINE"
-                              : "AGENT_OFFLINE";
-                      const nextAction = {
-                        READY: "NONE",
-                        GATEWAY_REGISTRATION_MISSING:
-                          "RUN_VM_CONNECTION_DOCTOR",
-                        PROJECT_SCOPE_MISMATCH:
-                          "VERIFY_ENROLLED_PROJECT_AND_GRANT",
-                        AGENT_NEVER_ONLINE: "CHECK_AGENT_SERVICE_LOGS",
-                        AGENT_OFFLINE: "CHECK_AGENT_SERVICE_LOGS",
-                      }[status];
-                      devices.push({
-                        device,
-                        project,
-                        status,
-                        nextAction,
-                        ...(health
-                          ? { connectionState: health.connectionState }
-                          : {}),
-                      });
-                    }
+                    : null;
+                  for (const project of projects) {
+                    if (
+                      args.expectedProject &&
+                      args.expectedProject !== project
+                    )
+                      continue;
+                    const activeProject =
+                      registered &&
+                      (!agent.dynamic || agent.projects?.includes(project));
+                    const status = !registered
+                      ? "GATEWAY_REGISTRATION_MISSING"
+                      : !activeProject
+                        ? "PROJECT_SCOPE_MISMATCH"
+                        : health.online
+                          ? "READY"
+                          : health.connectionState === "never_seen"
+                            ? "AGENT_NEVER_ONLINE"
+                            : "AGENT_OFFLINE";
+                    const nextAction = {
+                      READY: "NONE",
+                      GATEWAY_REGISTRATION_MISSING: "RUN_VM_CONNECTION_DOCTOR",
+                      PROJECT_SCOPE_MISMATCH:
+                        "VERIFY_ENROLLED_PROJECT_AND_GRANT",
+                      AGENT_NEVER_ONLINE: "CHECK_AGENT_SERVICE_LOGS",
+                      AGENT_OFFLINE: "CHECK_AGENT_SERVICE_LOGS",
+                    }[status];
+                    devices.push({
+                      device,
+                      project,
+                      status,
+                      nextAction,
+                      ...(health
+                        ? { connectionState: health.connectionState }
+                        : {}),
+                    });
+                  }
+                };
+                for (const membership of memberships) {
+                  if (!membership?.tenant) continue;
+                  if (membership.devices !== undefined) {
+                    for (const [device, projects] of Object.entries(
+                      membership.devices,
+                    ))
+                      addDeviceProjects(membership, device, projects);
+                    continue;
+                  }
+                  for (const agent of agents.values()) {
+                    if (agent.tenant !== membership.tenant) continue;
+                    addDeviceProjects(
+                      membership,
+                      agent.id,
+                      allowedProjects(user, agent) ?? [],
+                    );
                   }
                 }
                 devices.sort(

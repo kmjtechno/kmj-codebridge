@@ -203,6 +203,46 @@ test("dynamic membership preserves same-tenant legacy static agent grants", asyn
   ]);
 });
 
+test("connection overview derives projects when dynamic membership omits device grants", async (t) => {
+  const result = await gatewayGrants(t, undefined, true);
+  const response = await result.client.callTool({
+    name: "connection_overview",
+    arguments: { expectedDevice: "device1", expectedProject: "project1" },
+  });
+  const overview = JSON.parse(response.content[0].text);
+  assert.equal(overview.overallStatus, "READY");
+  assert.equal(overview.readyCount, 1);
+  assert.deepEqual(overview.devices, [
+    {
+      device: "device1",
+      project: "project1",
+      status: "READY",
+      nextAction: "NONE",
+      connectionState: "online",
+    },
+  ]);
+});
+
+test("connection overview preserves licensed legacy static projects", async (t) => {
+  const result = await gatewayGrants(
+    t,
+    undefined,
+    false,
+    ["project1"],
+    ["read"],
+    200,
+    false,
+    { device1: ["project1"] },
+  );
+  const response = await result.client.callTool({
+    name: "connection_overview",
+    arguments: { expectedDevice: "device1", expectedProject: "project1" },
+  });
+  const overview = JSON.parse(response.content[0].text);
+  assert.equal(overview.overallStatus, "READY");
+  assert.equal(overview.readyCount, 1);
+});
+
 test("explicit dynamic device grants remain authoritative over legacy static grants", async (t) => {
   const result = await gatewayGrants(
     t,
