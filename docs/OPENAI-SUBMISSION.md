@@ -13,7 +13,7 @@ approval or publication.
 - Listing URLs for website, support, privacy policy, and terms.
 - Primary/composer icons in the plugin package.
 - Exactly five positive and three negative review cases in `plugin.json`.
-- Commerce declaration and 0.1.8 release notes in `plugin.json`.
+- Commerce declaration and current canonical release notes in `plugin.json`.
 - A configurable `/.well-known/openai-apps-challenge` response that serves
   only the exact portal-provided token and is disabled when no token is set.
 - Credential scanning and package-contract tests in CI.
