@@ -8,7 +8,7 @@ The ChatGPT plugin manifest previously used `assets/logo.png` for `logo` / `logo
 
 ## Platform-managed icon
 
-The registered Apps SDK app is referenced by `plugin/.app.json` (ID `asdk_app_6abf4c8dddb08191a983c2bd9fe79732`). ChatGPT may render its **Apps** icon from the separately registered app record rather than the plugin manifest. The repository cannot read or change that platform-side image with a manifest edit. In the existing app's management UI, inspect its **App icon / Logo** setting and replace that image with the unchanged `plugin/assets/icon.png`, then save/publish or resubmit if the platform requires it. Do **not** create another app, change the ID, MCP URL, OAuth client, grants or account connections.
+The registered Apps SDK app is referenced by `plugin/.app.json` (ID `asdk_app_6ac22c9a4cc881918c59cdd9acda428f`). ChatGPT may render its **Apps** icon from the separately registered app record rather than the plugin manifest. The repository cannot read or change that platform-side image with a manifest edit. In the existing app's management UI, inspect its **App icon / Logo** setting and replace that image with the unchanged `plugin/assets/icon.png`, then save/publish or resubmit if the platform requires it. Do **not** create another app, change the ID, MCP URL, OAuth client, grants or account connections.
 
 The MCP server supports an optional `iconUrl` which advertises `serverInfo.icons` for clients honoring MCP icon metadata. It must be an approved, publicly reachable HTTPS URL serving the same CodeBridge icon bytes; this PR deliberately does not set or deploy a production URL. MCP icon metadata does not guarantee that ChatGPT's platform-managed Apps listing uses it.
 
