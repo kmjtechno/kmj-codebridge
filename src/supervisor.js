@@ -184,16 +184,34 @@ export function createSupervisorHandler({
   const readUpdateState = () => {
     try {
       const raw = JSON.parse(readFile(UPDATE_STATE));
-      const releases = Array.isArray(raw.releases) ? raw.releases.slice(-20) : [];
+      const releases = Array.isArray(raw.releases)
+        ? raw.releases.slice(-20)
+        : [];
       return {
-        current: typeof raw.current === "string" ? raw.current.slice(0, 128) : null,
-        previous: typeof raw.previous === "string" ? raw.previous.slice(0, 128) : null,
-        sequence: Number.isSafeInteger(raw.sequence) && raw.sequence >= 0 ? raw.sequence : null,
+        current:
+          typeof raw.current === "string" ? raw.current.slice(0, 128) : null,
+        previous:
+          typeof raw.previous === "string" ? raw.previous.slice(0, 128) : null,
+        sequence:
+          Number.isSafeInteger(raw.sequence) && raw.sequence >= 0
+            ? raw.sequence
+            : null,
         releases: releases.map((release) => ({
-          version: typeof release?.version === "string" ? release.version.slice(0, 64) : "unknown",
-          revision: typeof release?.revision === "string" ? release.revision.slice(0, 40) : "unknown",
-          sequence: Number.isSafeInteger(release?.sequence) ? release.sequence : null,
-          activatedAt: typeof release?.activatedAt === "string" ? release.activatedAt.slice(0, 64) : null,
+          version:
+            typeof release?.version === "string"
+              ? release.version.slice(0, 64)
+              : "unknown",
+          revision:
+            typeof release?.revision === "string"
+              ? release.revision.slice(0, 40)
+              : "unknown",
+          sequence: Number.isSafeInteger(release?.sequence)
+            ? release.sequence
+            : null,
+          activatedAt:
+            typeof release?.activatedAt === "string"
+              ? release.activatedAt.slice(0, 64)
+              : null,
           healthy: release?.healthy === true,
         })),
       };
@@ -342,7 +360,9 @@ export function createSupervisorHandler({
 
     if (request.op === "update_check") {
       exactKeys(request, ["op"]);
-      const service = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, ["ActiveState"]);
+      const service = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, [
+        "ActiveState",
+      ]);
       if (!service.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
       return {
         response: { accepted: true },
@@ -359,7 +379,9 @@ export function createSupervisorHandler({
       exactKeys(request, ["op"]);
       const state = readUpdateState();
       if (!state.previous) fail("SUPERVISOR_ROLLBACK_UNAVAILABLE");
-      const service = fixedUnitStatus(run, UPDATE_ROLLBACK_SERVICE, ["ActiveState"]);
+      const service = fixedUnitStatus(run, UPDATE_ROLLBACK_SERVICE, [
+        "ActiveState",
+      ]);
       if (!service.installed) fail("SUPERVISOR_ROLLBACK_UNAVAILABLE");
       return {
         response: { accepted: true, target: "previous" },
