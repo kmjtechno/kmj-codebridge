@@ -291,4 +291,3 @@ test("client refuses arbitrary local socket paths", async () => {
   );
   assert.equal(SUPERVISOR_SOCKET, "/run/kmj-codebridge/supervisor.sock");
 });
-
