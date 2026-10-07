@@ -42,6 +42,23 @@ test("development auto updater preserves project enrollment and defers active jo
   assert.match(script, /CODEBRIDGE_GATEWAY="\$GATEWAY"/);
 });
 
+test("development auto updater refreshes an existing Main Platform enrollment without caller input", () => {
+  assert.match(
+    script,
+    /MAIN_PLATFORM_REFRESH_SERVICE="kmj-codebridge-main-platform-refresh\.service"/,
+  );
+  assert.match(script, /-f \/etc\/kmj-codebridge-main-platform\/agent\.json/);
+  assert.match(
+    script,
+    /-d \/srv\/kmj-codebridge-projects\/kmj-main-platform\/\.git/,
+  );
+  assert.match(
+    script,
+    /systemctl start --no-block "\$MAIN_PLATFORM_REFRESH_SERVICE"/,
+  );
+  assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
+});
+
 test("development auto updater refuses dirty runtime and does not accept caller repository URLs", () => {
   assert.match(script, /AUTO_UPDATE_DIRTY_RUNTIME/);
   assert.doesNotMatch(script, /CODEBRIDGE_UPDATE_REPO/);

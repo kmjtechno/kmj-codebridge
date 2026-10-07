@@ -113,4 +113,13 @@ echo "AUTO_UPDATE_TO=$remote"
 
 CODEBRIDGE_GATEWAY="$GATEWAY" CODEBRIDGE_REF="$remote" CODEBRIDGE_AUTO_UPDATE_MODE=development bash "$TMP/codebridge/scripts/install-vps.sh"   --project "$PROJECT_ROOT"   --project-id "$PROJECT_ID"   --device "$DEVICE"   --service-user "$SERVICE_USER"   --ref "$remote"
 
+MAIN_PLATFORM_REFRESH_SERVICE="kmj-codebridge-main-platform-refresh.service"
+if [[ -f /etc/kmj-codebridge-main-platform/agent.json && -d /srv/kmj-codebridge-projects/kmj-main-platform/.git ]]; then
+  if systemctl start --no-block "$MAIN_PLATFORM_REFRESH_SERVICE"; then
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULED=1"
+  else
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULE_FAILED=1" >&2
+  fi
+fi
+
 echo "AUTO_UPDATE_APPLIED=$remote"
