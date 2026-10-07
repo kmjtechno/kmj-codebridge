@@ -53,9 +53,23 @@ export function hostedConfig(text, port = "10000", env = process.env) {
       fail("HOSTED_CONFIG_INVALID");
     const parsed = JSON.parse(text);
     const github = parsed.github ?? hostedGitHubConfig(env);
+    let userIntrospection = parsed.userIntrospection;
+    const userIntrospectionEndpoint =
+      env.CODEBRIDGE_USER_INTROSPECTION_ENDPOINT;
+    if (userIntrospectionEndpoint) {
+      const endpoint = new URL(userIntrospectionEndpoint);
+      if (
+        endpoint.protocol !== "https:" ||
+        !parsed.oauth ||
+        endpoint.origin !== new URL(parsed.oauth.issuer).origin
+      )
+        fail("HOSTED_CONFIG_INVALID");
+      userIntrospection = { endpoint: endpoint.href, cacheSeconds: 30 };
+    }
     const config = gatewaySchema.parse({
       ...parsed,
       ...(github ? { github } : {}),
+      ...(userIntrospection ? { userIntrospection } : {}),
       host: "0.0.0.0",
       port: Number(port),
     });
