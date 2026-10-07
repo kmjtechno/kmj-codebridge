@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { COMMAND_PRESET_IDS, expandCommandPresets } from "./command-presets.js";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const permission = z.enum(["read", "write", "execute"]);
@@ -218,54 +219,66 @@ export const agentSchema = z.object({
   pollMs: z.number().min(10).max(5000).default(250),
   projects: z
     .array(
-      z.object({
-        id,
-        root: z.string(),
-        writable: z.boolean().default(false),
-        gates: z
-          .record(
-            z.object({
-              command: z.string().min(1),
-              args: z.array(z.string()).default([]),
-              timeoutMs: z.number().int().min(10).max(300000).default(30000),
-            }),
-          )
-          .default({}),
-        commands: z
-          .record(
-            z.object({
-              category: z.enum(["inspect", "build", "write", "network"]),
-              description: z.string().max(160).default(""),
-              command: z
-                .string()
-                .min(1)
-                .max(260)
-                .refine((value) => !/[\x00-\x1f]/.test(value)),
-              variants: z
-                .record(
-                  z.object({
-                    args: z
-                      .array(
-                        z
-                          .string()
-                          .max(512)
-                          .refine((value) => !/[\x00-\x1f]/.test(value)),
-                      )
-                      .max(32)
-                      .default([]),
-                    timeoutMs: z
-                      .number()
-                      .int()
-                      .min(10)
-                      .max(300000)
-                      .default(30000),
-                  }),
-                )
-                .refine((variants) => Object.keys(variants).length > 0),
-            }),
-          )
-          .default({}),
-      }),
+      z
+        .object({
+          id,
+          root: z.string(),
+          writable: z.boolean().default(false),
+          gates: z
+            .record(
+              z.object({
+                command: z.string().min(1),
+                args: z.array(z.string()).default([]),
+                timeoutMs: z.number().int().min(10).max(300000).default(30000),
+              }),
+            )
+            .default({}),
+          commandPresets: z
+            .array(z.enum(COMMAND_PRESET_IDS))
+            .max(COMMAND_PRESET_IDS.length)
+            .default([]),
+          commands: z
+            .record(
+              z.object({
+                category: z.enum(["inspect", "build", "write", "network"]),
+                description: z.string().max(160).default(""),
+                command: z
+                  .string()
+                  .min(1)
+                  .max(260)
+                  .refine((value) => !/[\x00-\x1f]/.test(value)),
+                variants: z
+                  .record(
+                    z.object({
+                      args: z
+                        .array(
+                          z
+                            .string()
+                            .max(512)
+                            .refine((value) => !/[\x00-\x1f]/.test(value)),
+                        )
+                        .max(32)
+                        .default([]),
+                      timeoutMs: z
+                        .number()
+                        .int()
+                        .min(10)
+                        .max(300000)
+                        .default(30000),
+                    }),
+                  )
+                  .refine((variants) => Object.keys(variants).length > 0),
+              }),
+            )
+            .default({}),
+        })
+        .transform((project) => ({
+          ...project,
+          commands: expandCommandPresets(
+            project.commandPresets,
+            project.commands,
+          ),
+        })),
     )
     .min(1),
   license: z.discriminatedUnion("mode", [
