@@ -121,6 +121,9 @@ The device agent must be online, authorized for the tenant, and configured for t
 | Read                                                 | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                        |
 | Edit                                                 | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                |
 | Verify                                               | `run_quality_gate`                                         | Only administrator-configured executable + arguments |
+| Structured workflows                                 | `run_project_command`, command presets                     | Fixed admin-approved profiles; no generic shell      |
+| Repository intelligence                              | `repo_intelligence`, `context_pack`, fast read batching  | Bounded local metadata/context; no hosted-AI upload  |
+| Workflow guidance                                    | `skill_recommendations`, mission/autopilot tools           | Deterministic bounded workflow metadata/state        |
 | Jobs                                                 | `get_job_status`, `cancel_job`                             | Durable bounded job state                            |
 | `github_repository`, `github_pull_request*`          | Server-side GitHub repository and PR inspection            |
 | `github_actions_*`                                   | Bounded/redacted GitHub Actions runs, jobs and logs        |
@@ -192,9 +195,11 @@ The target production flow is:
 curl -fsSL https://kmjtechno.com/install | sudo bash
 ```
 
-The installer is designed to detect architecture, stage the runtime, enroll the device, install a hardened systemd service and verify gateway connectivity without installing a GitHub self-hosted runner.
+The installer is designed to detect architecture, stage the runtime, enroll the device, install a hardened systemd service and verify gateway connectivity without installing a GitHub self-hosted runner. The Main Platform bootstrap now pins the CodeBridge setup helper to an immutable 40-hex revision, downloads it over HTTPS/TLS, verifies its exact SHA-256 before execution, preserves an existing enrollment, and uses a read-only repository deploy key. It does not pass an agent token on the command line.
 
-**Current production gate:** Main Platform source now includes the matching enrollment, OAuth, and introspection APIs. Release readiness requires the official-domain bootstrap plus a recorded fresh-device pairing against the deployed service. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
+Already-enrolled Main Platform agents can be refreshed through a fixed Supervisor operation that accepts no repository, path, service name, command, or credential input and refuses to create a new enrollment.
+
+**Current production gate:** deterministic bootstrap/repair and existing-enrollment refresh behavior are verified in CI and the live account currently reports both authorized projects READY. A recorded end-to-end run on a disposable fresh device is still required before claiming fresh-device production proof. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
 
 ## Free forever + ultra-low-cost launch plans
 
