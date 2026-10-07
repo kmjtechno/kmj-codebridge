@@ -238,11 +238,11 @@ export const agentSchema = z.object({
               }),
             )
             .default({}),
-          commandPresets: z
+            commandPresets: z
             .array(z.enum(COMMAND_PRESET_IDS))
             .max(COMMAND_PRESET_IDS.length)
             .default([]),
-          commands: z
+            commands: z
             .record(
               z.object({
                 category: z.enum(["inspect", "build", "write", "network"]),
