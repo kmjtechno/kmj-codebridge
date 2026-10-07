@@ -93,10 +93,7 @@
     "codex",
     "generic-streamable-http-mcp"
   ],
-  "updateChannels": [
-    "stable",
-    "preview"
-  ],
+  "updateChannels": ["stable", "preview"],
   "features": {
     "repoMap": "available",
     "desktopMarketplace": "preview",
