@@ -260,8 +260,7 @@ export class JobRunner {
         waitingForResources = true;
         continue;
       }
-      if (capacity.blocked || capacity.constrained)
-        waitingForResources = true;
+      if (capacity.blocked || capacity.constrained) waitingForResources = true;
       if (
         capacity.blocked ||
         this.active.size >= capacity.effectiveMaxConcurrent
@@ -375,7 +374,8 @@ export class JobRunner {
     const { key, fingerprint, ...visible } = j;
     return structuredClone({
       ...visible,
-      queuePosition: j.state === "queued" ? this.queuePosition(j.id, j.project) : null,
+      queuePosition:
+        j.state === "queued" ? this.queuePosition(j.id, j.project) : null,
       durationMs: durationMs(j),
     });
   }
