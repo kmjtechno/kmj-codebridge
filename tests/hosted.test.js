@@ -143,6 +143,16 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
   }
 });
 
+test("hosted static OAuth users default omitted device grants to deny-all", () => {
+  const { devices: _devices, ...userWithoutDevices } = config.users[0];
+  const parsed = hostedConfig(
+    JSON.stringify({ ...config, users: [userWithoutDevices] }),
+    "10000",
+    {},
+  );
+  assert.deepEqual(parsed.users[0].devices, {});
+});
+
 test("hosted mode requires OAuth and matching public hostname", () => {
   for (const value of [
     { ...config, oauth: undefined },
