@@ -106,7 +106,7 @@ test("real MCP SDK discovers tools and reaches outbound agent", async (t) => {
   assert.equal(server?.name, "kmj-codebridge");
   assert.equal(server?.title, "KMJ CodeBridge");
   assert.equal(server?.version, VERSION);
-  assert.equal(server?.websiteUrl, "https://kmjtechno.com");
+  assert.equal(\n    server?.websiteUrl,\n    "https://kmjtechno.com/products/kmj-codebridge",\n  );
   const list = await client.listTools();
   assert.ok(list.tools.some((x) => x.name === "read_file"));
   const r = await client.callTool({
