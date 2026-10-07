@@ -219,8 +219,9 @@ export const agentSchema = z.object({
   pollMs: z.number().min(10).max(5000).default(250),
   projects: z
     .array(
-      z.object({
-        id,
+      z
+        .object({
+          id,
         root: z.string(),
         writable: z.boolean().default(false),
         gates: z
@@ -270,10 +271,14 @@ export const agentSchema = z.object({
             }),
           )
           .default({}),
-      }).transform((project) => ({
-        ...project,
-        commands: expandCommandPresets(project.commandPresets, project.commands),
-      })),
+        })
+        .transform((project) => ({
+          ...project,
+          commands: expandCommandPresets(
+            project.commandPresets,
+            project.commands,
+          ),
+        })),
     )
     .min(1),
   license: z.discriminatedUnion("mode", [
