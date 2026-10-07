@@ -295,8 +295,8 @@ test("client refuses arbitrary local socket paths", async () => {
 test(
   "signed update control plane accepts no caller-selected source or rollback target",
   async () => {
-  const started = [];
-  const handle = createSupervisorHandler({
+    const started = [];
+    const handle = createSupervisorHandler({
     run: (_command, args) =>
       args[1] === "kmj-codebridge-update-check.service" ||
       args[1] === "kmj-codebridge-update-rollback.service"
@@ -327,28 +327,28 @@ test(
     start: (unit) => started.push(unit),
   });
 
-  const history = await handle({ op: "release_history" });
-  assert.equal(history.response.current, "0.2.4-aaaaaaaaaaaa");
-  assert.equal(history.response.previous, "0.2.3-bbbbbbbbbbbb");
-  assert.equal(history.response.releases.length, 2);
+    const history = await handle({ op: "release_history" });
+    assert.equal(history.response.current, "0.2.4-aaaaaaaaaaaa");
+    assert.equal(history.response.previous, "0.2.3-bbbbbbbbbbbb");
+    assert.equal(history.response.releases.length, 2);
 
-  const check = await handle({ op: "update_check" });
+    const check = await handle({ op: "update_check" });
   check.afterSend();
-  const rollback = await handle({ op: "update_rollback" });
-  assert.deepEqual(rollback.response, { accepted: true, target: "previous" });
+    const rollback = await handle({ op: "update_rollback" });
+    assert.deepEqual(rollback.response, { accepted: true, target: "previous" });
   rollback.afterSend();
-  assert.deepEqual(started, [
+    assert.deepEqual(started, [
     "kmj-codebridge-update-check.service",
     "kmj-codebridge-update-rollback.service",
   ]);
 
-  for (const request of [
+    for (const request of [
     { op: "update_check", url: "https://attacker.example/release.json" },
     { op: "release_history", path: "/tmp/state.json" },
     { op: "update_rollback", version: "0.1.0" },
     { op: "update_rollback", unit: "ssh.service" },
   ])
-    await assert.rejects(handle(request), /INVALID_SUPERVISOR_REQUEST/);
+      await assert.rejects(handle(request), /INVALID_SUPERVISOR_REQUEST/);
   },
 );
 
