@@ -8,7 +8,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "test": "node --test --test-concurrency=1 tests/*.test.js",
+    "test": "node --test --test-concurrency=2 tests/*.test.js",
     "check": "prettier --check src scripts tests plugin package.json .github README.md SECURITY.md docs/*.md product/codebridge-product.json && node scripts/check.js",
     "gateway": "node src/cli.js gateway",
     "agent": "node src/cli.js agent",
