@@ -1128,6 +1128,20 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_refresh_status: {
+    title: "Main Platform refresh status",
+    description:
+      "Read the fixed Main Platform refresh service state. No service name, command, path or credential can be supplied.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_main_platform_refresh: {
+    title: "Refresh Main Platform agent",
+    description:
+      "Start the fixed existing-enrollment Main Platform agent refresh service. It cannot enroll a new device and accepts no command, path, service name or credential.",
+    input: scoped,
+    access: "execute",
+  },
   supervisor_update_status: {
     title: "Auto-update status",
     description:
@@ -1792,6 +1806,10 @@ export function createDispatcher(
       });
     if (name === "supervisor_device_status")
       return await supervisor.request({ op: "device_status" });
+    if (name === "supervisor_main_platform_refresh_status")
+      return await supervisor.request({ op: "main_platform_refresh_status" });
+    if (name === "supervisor_main_platform_refresh")
+      return await supervisor.request({ op: "main_platform_refresh" });
     if (name === "supervisor_update_status")
       return await supervisor.request({ op: "update_status" });
     if (name === "supervisor_update_check")
