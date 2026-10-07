@@ -494,30 +494,40 @@ function approvalRequired(risk) {
 const scoped = { device: identifier, project: identifier };
 const supervisorService = z.enum(["agent", "gateway"]);
 const contextBudget = z.enum(["small", "medium", "deep"]);
-const fastReadTool = z.enum([
+export const FAST_READ_TOOLS = [
   "inspect_project",
   "connection_doctor",
-  "git_status",
-  "git_log",
-  "list_directory",
+  "project_environment",
+  "policy_catalog",
+  "audit_status",
+  "audit_tail",
+  "execution_capacity",
+  "verification_plan",
+  "project_snapshot",
   "workspace_home",
+  "list_directory",
   "project_tree",
   "project_file_info",
   "checkpoint_restore_plan",
   "list_project_jobs",
+  "repo_map",
+  "context_pack",
+  "git_status",
+  "git_diff",
+  "git_log",
+  "git_show",
   "search_code",
+  "read_file",
+  "read_file_range",
+  "read_files_batch",
   "autopilot_status",
   "supervisor_status",
   "supervisor_config_validate",
   "supervisor_disk_space",
   "supervisor_project_status",
   "supervisor_device_status",
-  "project_environment",
-  "audit_status",
-  "audit_tail",
-  "execution_capacity",
-  "verification_plan",
-]);
+];
+const fastReadTool = z.enum(FAST_READ_TOOLS);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
   ...file,
