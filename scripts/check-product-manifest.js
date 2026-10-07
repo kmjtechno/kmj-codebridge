@@ -102,9 +102,7 @@ if (
     "asdk_app_6abf4c8dddb08191a983c2bd9fe79732"
 )
   fail("OpenAI app id mismatch");
-if (
-  manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp
-)
+if (manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp)
   fail("OpenAI MCP endpoint mismatch");
 
 if (
