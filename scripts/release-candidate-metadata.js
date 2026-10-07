@@ -70,7 +70,11 @@ export function buildReleaseCandidateMetadata({ product, runtime }) {
   return { compatibility, signingRequest, checksums, releaseNotes };
 }
 
-export function writeReleaseCandidateMetadata({ productPath, runtimePath, outDir }) {
+export function writeReleaseCandidateMetadata({
+  productPath,
+  runtimePath,
+  outDir,
+}) {
   const product = JSON.parse(fs.readFileSync(productPath, "utf8"));
   const runtime = JSON.parse(fs.readFileSync(runtimePath, "utf8"));
   const built = buildReleaseCandidateMetadata({ product, runtime });
@@ -83,8 +87,14 @@ export function writeReleaseCandidateMetadata({ productPath, runtimePath, outDir
   };
   for (const file of Object.values(outputs))
     if (fs.existsSync(file)) throw Error("OUTPUT_EXISTS");
-  fs.writeFileSync(outputs.compatibility, JSON.stringify(built.compatibility, null, 2) + "\n");
-  fs.writeFileSync(outputs.signingRequest, JSON.stringify(built.signingRequest, null, 2) + "\n");
+  fs.writeFileSync(
+    outputs.compatibility,
+    JSON.stringify(built.compatibility, null, 2) + "\n",
+  );
+  fs.writeFileSync(
+    outputs.signingRequest,
+    JSON.stringify(built.signingRequest, null, 2) + "\n",
+  );
   fs.writeFileSync(outputs.checksums, built.checksums);
   fs.writeFileSync(outputs.releaseNotes, built.releaseNotes);
   return outputs;
