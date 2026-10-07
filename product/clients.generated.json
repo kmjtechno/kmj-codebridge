@@ -2,9 +2,9 @@
   "schema": 1,
   "product": "KMJ CodeBridge",
   "slug": "kmj-codebridge",
-  "stableVersion": "0.2.3",
-  "minimumAgentVersion": "0.2.3",
-  "minimumClientPackageVersion": "0.2.3",
+  "stableVersion": "0.3.2",
+  "minimumAgentVersion": "0.3.2",
+  "minimumClientPackageVersion": "0.3.2",
   "endpoints": {
     "mcp": "https://kmjtechno.com/mcp",
     "enrollment": "https://kmjtechno.com",

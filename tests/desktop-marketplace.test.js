@@ -28,9 +28,10 @@ test("KMJ Desktop marketplace installs CodeBridge by default", () => {
 
 test("Desktop plugin uses the bundled stdio OAuth bridge", () => {
   const manifest = readJson("plugin/plugin.json");
+  const product = readJson("product/codebridge-product.json");
   const mcp = readJson("plugin/mcp.json");
   assert.equal(manifest.name, "kmj-codebridge");
-  assert.equal(manifest.version, "0.2.3");
+  assert.equal(manifest.version, product.versions.stable);
   assert.deepEqual(mcp.mcpServers.codebridge, {
     type: "stdio",
     command: "node",

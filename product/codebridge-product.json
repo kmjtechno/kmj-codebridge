@@ -19,10 +19,10 @@
     "category": "Developer Tools"
   },
   "versions": {
-    "stable": "0.2.3",
+    "stable": "0.3.2",
     "preview": null,
-    "minimumAgent": "0.2.3",
-    "minimumClientPackage": "0.2.3"
+    "minimumAgent": "0.3.2",
+    "minimumClientPackage": "0.3.2"
   },
   "endpoints": {
     "mcp": "https://kmjtechno.com/mcp",
