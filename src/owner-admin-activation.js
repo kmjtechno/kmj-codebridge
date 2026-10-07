@@ -86,7 +86,12 @@ export async function activateOwnerAdmin(
   });
   if (credential.length < 32) fail("OWNER_ADMIN_INVALID_CREDENTIAL");
 
-  const leasePath = configPath + ".entitlement.jws";
+  const stateDir = fs.realpathSync(config.stateDir);
+  const stateMeta = fs.statSync(stateDir);
+  const configMeta = fs.statSync(configPath);
+  if (!stateMeta.isDirectory() || stateMeta.uid !== configMeta.uid)
+    fail("OWNER_ADMIN_STATE_DIR_OWNER_MISMATCH");
+  const leasePath = path.join(stateDir, "owner-admin-entitlement.jws");
   const backupPath = configPath + ".before-owner-admin.bak";
   if (fs.existsSync(leasePath) || fs.existsSync(backupPath))
     fail("OWNER_ADMIN_EXISTING_ACTIVATION");
@@ -132,6 +137,7 @@ export async function activateOwnerAdmin(
     writeExclusive(backupPath, configText + "\n");
     writeExclusive(leasePath, token + "\n");
     leaseWritten = true;
+    syncDirectory(stateDir);
     writeExclusive(temp, JSON.stringify(updated, null, 2) + "\n");
     fs.renameSync(temp, configPath);
     configCommitted = true;
