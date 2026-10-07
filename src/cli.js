@@ -4,17 +4,23 @@ import path from "node:path";
 import { startGateway } from "./gateway.js";
 import { startAgent } from "./agent.js";
 import { startSupervisor } from "./supervisor.js";
-import { runStableUpdate } from "./stable-updater.js";
+import { runStableRollback, runStableUpdate } from "./stable-updater.js";
 const version = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
 const [mode, file] = process.argv.slice(2);
 if (
-  !["gateway", "agent", "supervisor", "stable-update"].includes(mode) ||
+  ![
+    "gateway",
+    "agent",
+    "supervisor",
+    "stable-update",
+    "stable-rollback",
+  ].includes(mode) ||
   (mode === "supervisor" ? Boolean(file) : !file)
 ) {
   console.error(
-    "Usage: node src/cli.js gateway|agent|stable-update /absolute/path/config.json | supervisor",
+    "Usage: node src/cli.js gateway|agent|stable-update|stable-rollback /absolute/path/config.json | supervisor",
   );
   process.exit(2);
 }
@@ -32,7 +38,7 @@ try {
     if (process.platform !== "win32" && stat.mode & 0o077)
       throw Error("Configuration must have mode 0600.");
     if (
-      mode === "stable-update" &&
+      ["stable-update", "stable-rollback"].includes(mode) &&
       process.platform !== "win32" &&
       (stat.uid !== 0 || process.getuid?.() !== 0)
     )
@@ -56,10 +62,15 @@ try {
           );
       }
 
-    if (mode === "stable-update") {
-      const result = await runStableUpdate(config);
+    if (mode === "stable-update" || mode === "stable-rollback") {
+      const result =
+        mode === "stable-update"
+          ? await runStableUpdate(config)
+          : await runStableRollback(config);
       console.log(
-        `KMJ CodeBridge stable update complete; version ${result.version}, sequence ${result.sequence}, updated=${result.updated}.`,
+        mode === "stable-update"
+          ? `KMJ CodeBridge stable update complete; version ${result.version}, sequence ${result.sequence}, updated=${result.updated}.`
+          : `KMJ CodeBridge stable rollback complete; current ${result.current}.`,
       );
     } else {
       service =
