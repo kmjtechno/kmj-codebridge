@@ -9,6 +9,7 @@ import { FileCheckpoints } from "./checkpoints.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
+import { selectSkillPacks } from "./skill-packs.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -517,6 +518,7 @@ export const FAST_READ_TOOLS = [
   "git_log",
   "git_show",
   "search_code",
+  "skill_recommendations",
   "read_file",
   "read_file_range",
   "read_files_batch",
@@ -925,6 +927,18 @@ export const definitions = {
         .max(50),
     },
     access: "write",
+  },
+  skill_recommendations: {
+    title: "Recommend engineering skill packs",
+    description:
+      "Deterministically select bounded vendor-neutral engineering workflows from the task objective, changed paths and an optional failure summary. No model call or repository upload is used.",
+    input: {
+      ...scoped,
+      objective: z.string().min(1).max(4096),
+      changedFiles: z.array(z.string().min(1).max(1024)).max(50).default([]),
+      failureSummary: z.string().max(4096).default(""),
+    },
+    access: "read",
   },
   mission_compile: {
     title: "Compile mission",
@@ -1677,6 +1691,14 @@ export function createDispatcher(
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
     }
+    if (name === "skill_recommendations")
+      return {
+        skills: selectSkillPacks({
+          objective: a.objective,
+          changedFiles: a.changedFiles,
+          failureSummary: a.failureSummary,
+        }),
+      };
     if (name.startsWith("mission_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
     if (name === "mission_compile")
