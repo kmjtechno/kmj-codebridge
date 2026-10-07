@@ -71,7 +71,6 @@ test("generated release dashboard reports marketplace state without claiming app
   assert.notEqual(dashboard.marketplaces.claude.status, "approved");
 });
 
-
 test("ChatGPT registered app identity matches the canonical product contract", () => {
   const plugin = JSON.parse(fs.readFileSync("plugin/plugin.json", "utf8"));
   const app = JSON.parse(fs.readFileSync("plugin/.app.json", "utf8"));
