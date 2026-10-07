@@ -58,6 +58,7 @@ export async function activateOwnerAdmin(
   { configPath, publicKeysPath, credentialPath },
   options = {},
 ) {
+  if (process.platform === "win32") fail("OWNER_ADMIN_ACL_VERIFICATION_UNAVAILABLE");
   if (![configPath, publicKeysPath, credentialPath].every(
     (value) => typeof value === "string" && path.isAbsolute(value),
   ))
