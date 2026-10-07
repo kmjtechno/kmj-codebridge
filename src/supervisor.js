@@ -22,7 +22,6 @@ const UPDATE_STATE = "/var/lib/kmj-codebridge/update-state.json";
 const SYSTEMCTL = "/usr/bin/systemctl";
 const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
-const PROJECT_ROOT = "/srv/kmj-codebridge-projects";
 const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 function defaultDeviceStatus() {
@@ -297,7 +296,17 @@ export function createSupervisorHandler({
         !PROJECT_ID.test(request.projectId)
       )
         fail("INVALID_SUPERVISOR_REQUEST");
-      const root = `${PROJECT_ROOT}/${request.projectId}`;
+      let agentConfig;
+      try {
+        agentConfig = agentSchema.parse(JSON.parse(readFile(CONFIGS.agent)));
+      } catch {
+        fail("SUPERVISOR_CONFIG_INVALID");
+      }
+      const managedProject = agentConfig.projects.find(
+        (project) => project.id === request.projectId,
+      );
+      if (!managedProject) fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
+      const root = managedProject.root;
       const present = exists(root);
       let directory = false;
       let gitCheckout = false;

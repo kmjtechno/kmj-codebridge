@@ -146,12 +146,25 @@ test("device status sanitizes invalid provider values", async () => {
   assert.equal(result.response.nodeVersion, "unknown");
 });
 
-test("project status derives only the managed project root", async () => {
+test("project status derives the root from the fixed agent config", async () => {
   const seen = [];
+  const root = "/srv/kmj-codebridge-projects/codebridge-control";
   const handle = createSupervisorHandler({
+    readFile: (file) => {
+      assert.equal(file, "/etc/kmj-codebridge/agent.json");
+      return JSON.stringify({
+        gateway: "https://kmjtechno.com",
+        token: "x".repeat(48),
+        id: "d1",
+        tenant: "t1",
+        stateDir: "/var/lib/kmj-codebridge",
+        projects: [{ id: "project_1", root }],
+        license: { mode: "free" },
+      });
+    },
     exists: (target) => {
       seen.push(target);
-      return target === "/srv/kmj-codebridge-projects/project_1";
+      return target === root || target === `${root}/.git`;
     },
     stat: (target) => {
       seen.push(target);
@@ -163,13 +176,9 @@ test("project status derives only the managed project root", async () => {
     projectId: "project_1",
     present: true,
     directory: true,
-    gitCheckout: false,
+    gitCheckout: true,
   });
-  assert.deepEqual(seen, [
-    "/srv/kmj-codebridge-projects/project_1",
-    "/srv/kmj-codebridge-projects/project_1",
-    "/srv/kmj-codebridge-projects/project_1/.git",
-  ]);
+  assert.deepEqual(seen, [root, root, `${root}/.git`]);
 });
 
 test("project status rejects traversal and arbitrary path inputs", async () => {
