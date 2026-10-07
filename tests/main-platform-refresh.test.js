@@ -27,10 +27,7 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
     refresh,
     /PROJECT_ROOT="\/srv\/kmj-codebridge-projects\/kmj-main-platform"/,
   );
-  assert.match(
-    refresh,
-    /CONFIG_DIR="\/etc\/kmj-codebridge-main-platform"/,
-  );
+  assert.match(refresh, /CONFIG_DIR="\/etc\/kmj-codebridge-main-platform"/);
   assert.match(refresh, /CODEBRIDGE_RUNTIME="\$RUNTIME"/);
   assert.match(refresh, /bash "\$SETUP"/);
   assert.doesNotMatch(refresh, /enroll-device\.js/);
@@ -96,7 +93,10 @@ test("Main Platform refresh fails closed when its fixed unit is absent", async (
 });
 
 test("MCP refresh controls preserve read versus execute policy", () => {
-  assert.equal(definitions.supervisor_main_platform_refresh_status.access, "read");
+  assert.equal(
+    definitions.supervisor_main_platform_refresh_status.access,
+    "read",
+  );
   assert.equal(definitions.supervisor_main_platform_refresh.access, "execute");
   assert.deepEqual(
     Object.keys(definitions.supervisor_main_platform_refresh.input).sort(),
