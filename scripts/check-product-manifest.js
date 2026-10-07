@@ -83,7 +83,8 @@ for (const [id, contract] of Object.entries(expected)) {
     fail("price drift for " + id);
   for (const [key, value] of Object.entries(contract)) {
     if (key === "INR" || key === "USD") continue;
-    if (plan.limits?.[key] !== value) fail("limit drift for " + id + "." + key);
+    if (plan.limits?.[key] !== value)
+      fail("limit drift for " + id + "." + key);
   }
 }
 if (
@@ -99,12 +100,10 @@ if (manifest.product?.assets?.icon !== "plugin/assets/icon.png")
   fail("canonical icon asset mismatch");
 if (
   manifest.marketplaces?.openai?.appId !==
-    "asdk_app_6abf4c8dddb08191a983c2bd9fe79732"
+  "asdk_app_6abf4c8dddb08191a983c2bd9fe79732"
 )
   fail("OpenAI app id mismatch");
-if (
-  manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp
-)
+if (manifest.marketplaces?.openai?.mcpEndpoint !== manifest.endpoints?.mcp)
   fail("OpenAI MCP endpoint mismatch");
 
 if (
