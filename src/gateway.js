@@ -13,7 +13,7 @@ import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { gatewaySchema } from "./config.js";
-import { definitions } from "./tools.js";
+import { definitions, FAST_READ_TOOLS } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { fail, publicError } from "./errors.js";
 import { VERSION } from "./version.js";
@@ -426,18 +426,7 @@ export async function startGateway(rawConfig) {
     };
   }
 
-  const fastReadTools = new Set([
-    "inspect_project",
-    "connection_doctor",
-    "git_status",
-    "git_log",
-    "list_directory",
-    "search_code",
-    "autopilot_status",
-    "supervisor_status",
-    "supervisor_config_validate",
-    "supervisor_disk_space",
-  ]);
+  const fastReadTools = new Set(FAST_READ_TOOLS);
 
   async function fastReadBatch(user, args) {
     authorize(user, args, "read");

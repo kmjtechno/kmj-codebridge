@@ -153,6 +153,12 @@ test("fast read batch isolates read-only results behind one MCP call", async (t)
         project: "p1",
         calls: [
           { key: "project", tool: "inspect_project", args: {} },
+          {
+            key: "range",
+            tool: "read_file_range",
+            args: { path: "hello.txt", startLine: 1, maxLines: 1 },
+          },
+          { key: "environment", tool: "project_environment", args: {} },
           { key: "git", tool: "git_status", args: {} },
           {
             key: "autopilot",
@@ -166,16 +172,21 @@ test("fast read batch isolates read-only results behind one MCP call", async (t)
 
   assert.equal(result.device, "d1");
   assert.equal(result.project, "p1");
-  assert.equal(result.results.length, 3);
+  assert.equal(result.results.length, 5);
   assert.equal(result.results[0].key, "project");
   assert.equal(result.results[0].ok, true);
   assert.equal(result.results[0].value.version, VERSION);
-  assert.equal(result.results[1].key, "git");
-  assert.equal(result.results[1].ok, false);
-  assert.equal(result.results[1].error, "GIT_ROOT_OUTSIDE_PROJECT");
-  assert.equal(result.results[2].key, "autopilot");
+  assert.equal(result.results[1].key, "range");
+  assert.equal(result.results[1].ok, true);
+  assert.equal(result.results[1].value.content, "hello");
+  assert.equal(result.results[2].key, "environment");
   assert.equal(result.results[2].ok, true);
-  assert.equal(result.results[2].value.counts.queued, 0);
+  assert.equal(result.results[3].key, "git");
+  assert.equal(result.results[3].ok, false);
+  assert.equal(result.results[3].error, "GIT_ROOT_OUTSIDE_PROJECT");
+  assert.equal(result.results[4].key, "autopilot");
+  assert.equal(result.results[4].ok, true);
+  assert.equal(result.results[4].value.counts.queued, 0);
 });
 test("structured project commands expose profiles without raw argv and run exact variants", async (t) => {
   const { client } = await setup(t);
