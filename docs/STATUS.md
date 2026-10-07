@@ -38,7 +38,13 @@ file records verified capability, not a percentage-complete claim.
   measurements, not a full authenticated MCP round-trip benchmark.
 - **Main Platform:** source contains CodeBridge OAuth/OIDC, device pairing and
   redemption, user/device introspection, entitlement/renewal services, account
-  UI, and regression tests.
+  UI, and regression tests. The one-command bootstrap pins the setup helper to
+  an immutable 40-hex revision and verifies its exact SHA-256 before execution;
+  tests require HTTPS/TLS, forbid curl-pipe-bash and manual agent-token
+  injection, preserve existing enrollment, and limit repository authorization
+  to a read-only deploy key. A fixed Supervisor refresh operation updates an
+  already-enrolled Main Platform agent without accepting a repository, path,
+  service name, command, credential, or new-enrollment input.
 - **Updates:** signed immutable release verification, DNS-pinned/no-redirect
   metadata and archive download, exact size/hash enforcement, safe runtime
   extraction, atomic activation/rollback, root-isolated anti-rollback state,
@@ -49,6 +55,17 @@ file records verified capability, not a percentage-complete claim.
   immutable signed `current` runtime with bootstrap fallback. Publishing a real
   signed stable release and observing live activation plus rollback remain
   separate production-evidence gates.
+- **Developer workflow:** opt-in Node/Python/Cargo/Go structured command
+  presets run through the existing bounded job runner without exposing a raw
+  shell; deterministic security/debugging/TDD/release-readiness skill
+  recommendations and bounded local repository intelligence are implemented.
+  Repository intelligence is metadata-only, skips denied/vendor trees, caps
+  files/results/bytes, and does not upload repository content to hosted AI.
+- **Scale regression evidence:** the benchmark includes separately labelled
+  deterministic 1/10/100/1000-agent in-process control-plane simulations with
+  latency and metadata budgets. All four budgets passed on current main. This
+  is regression evidence, not a claim of a real 1000-device network or
+  multi-replica load test.
 - **Distribution:** OpenAI package, hosted Claude plugin, endpoint-specific
   Claude package generator, credential scan, and package contract gates.
 - **GitHub:** optional server-side bridge for allowlisted repositories, pull requests,
@@ -60,8 +77,10 @@ file records verified capability, not a percentage-complete claim.
 
 ## Still requiring production evidence or external approval
 
-- Fresh-device one-command enrollment must be re-run against the live Main Platform
-  service after the current agent/runtime update is deployed.
+- Fresh-device one-command enrollment now has deterministic bootstrap/repair
+  coverage, while the existing production enrollment is online and refreshable
+  without re-pairing. A recorded end-to-end pairing on a disposable fresh
+  device is still required before claiming fresh-device production proof.
 - A real stable/beta release manifest, detached signature, trusted public key,
   immutable archive and release sequence must be published and exercised on a
   live enrolled device, including observed failed-health rollback evidence.
@@ -75,6 +94,16 @@ file records verified capability, not a percentage-complete claim.
 - macOS/native Rust expansion, stronger untrusted-code isolation, shared durable gateway
   routing for multi-replica scale, formal penetration testing, and enterprise features
   remain later roadmap work.
+
+## Current verification snapshot
+
+On current main `c47912ad4c198e6b43cbca5f4487447005dd8147`, the full local gate set
+passed: formatting/static checks; 398 tests with 396 pass, 0 fail and 2 skip;
+credential scan across 196 tracked files; client tests with 12 pass, 0 fail and
+1 skip; Claude marketplace canonical check; and the benchmark, including all
+1/10/100/1000 simulated-scale budgets. The live account reported both
+`device1/project1` and
+`main-platform-kmjtechnonetgmailcom/kmj-main-platform` READY.
 
 ## Release discipline
 
