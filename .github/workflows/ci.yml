@@ -20,7 +20,11 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run check
+      - name: Temporary formatting diagnostic
+        run: |
+          npx prettier --write src/owner-admin-activation.js scripts/activate-owner-admin.js tests/owner-admin-activation.test.js docs/OWNER-SIGNED-ACTIVATION.md
+          git diff -- src/owner-admin-activation.js scripts/activate-owner-admin.js tests/owner-admin-activation.test.js docs/OWNER-SIGNED-ACTIVATION.md
+          exit 1
       - run: npm test
       - run: npm run package:runtime
       - uses: actions/upload-artifact@v4
