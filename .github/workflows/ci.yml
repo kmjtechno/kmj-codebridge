@@ -54,6 +54,11 @@ jobs:
   distribution:
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -70,3 +75,28 @@ jobs:
           node scripts/package-claude.js https://codebridge.example.invalid/mcp --auth bearer-env --out "$RUNNER_TEMP/pkg/claude-env"
       - name: Credential scan of repository and packages
         run: npm run scan:secrets -- "$RUNNER_TEMP/pkg"
+      - name: Build release-candidate evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/release-candidate"
+          npm run package:runtime -- "$RUNNER_TEMP/release-candidate/runtime"
+          npm sbom --sbom-format cyclonedx > "$RUNNER_TEMP/release-candidate/sbom.cdx.json"
+          cp -R "$RUNNER_TEMP/pkg" "$RUNNER_TEMP/release-candidate/clients"
+          npm run scan:secrets -- "$RUNNER_TEMP/release-candidate"
+      - name: Attest release-candidate provenance
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/attest@v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/release-candidate/**/*
+      - name: Attest runtime SBOM
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/attest@v4.2.2
+        with:
+          subject-path: ${{ runner.temp }}/release-candidate/runtime/*.tar.gz
+          sbom-path: ${{ runner.temp }}/release-candidate/sbom.cdx.json
+      - name: Upload release-candidate evidence
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: codebridge-release-candidate
+          path: ${{ runner.temp }}/release-candidate/
+          if-no-files-found: error
+          retention-days: 14
