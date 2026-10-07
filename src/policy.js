@@ -2,6 +2,12 @@ import fs from "node:fs";
 import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { fail } from "./errors.js";
+import {
+  extractLexicalSymbols,
+  findIdentifierLocations,
+  languageForExtension,
+  REPO_INTELLIGENCE_ADAPTER,
+} from "./repo-intelligence.js";
 export const MAX_FILE_BYTES = 262144;
 export const hash = (text) => createHash("sha256").update(text).digest("hex");
 const denied =
@@ -582,6 +588,130 @@ export class ProjectFiles {
         }
       }
     }
+  }
+  repoIntelligence(
+    identifier,
+    operation = "both",
+    maxFiles = 80,
+    maxResults = 200,
+  ) {
+    if (
+      typeof identifier !== "string" ||
+      !/^[A-Za-z_$][A-Za-z0-9_$]{0,79}$/.test(identifier) ||
+      !["definitions", "references", "both"].includes(operation) ||
+      !Number.isInteger(maxFiles) ||
+      maxFiles < 1 ||
+      maxFiles > 200 ||
+      !Number.isInteger(maxResults) ||
+      maxResults < 1 ||
+      maxResults > 500
+    )
+      fail("INVALID_REPO_INTELLIGENCE");
+
+    const files = [];
+    let visitedEntries = 0;
+    let scannedBytes = 0;
+    let resultCount = 0;
+    let truncated = false;
+
+    const walk = (dir, depth) => {
+      if (
+        depth > 12 ||
+        truncated ||
+        files.length >= maxFiles ||
+        resultCount >= maxResults
+      ) {
+        truncated = true;
+        return;
+      }
+      let entries;
+      try {
+        entries = fs.readdirSync(path.join(this.root, dir), {
+          withFileTypes: true,
+        });
+      } catch {
+        return;
+      }
+      for (const item of entries) {
+        if (++visitedEntries > 4000 || scannedBytes >= 16 * 1024 * 1024) {
+          truncated = true;
+          return;
+        }
+        if (
+          denied.test(item.name) ||
+          skipped.has(item.name) ||
+          item.isSymbolicLink() ||
+          item.name.startsWith(".codebridge-")
+        )
+          continue;
+        const relative = dir ? `${dir}/${item.name}` : item.name;
+        if (item.isDirectory()) {
+          walk(relative, depth + 1);
+          if (truncated) return;
+          continue;
+        }
+        if (!item.isFile()) continue;
+
+        const language = languageForExtension(path.extname(item.name));
+        if (!language) continue;
+        let file;
+        try {
+          file = this.read(relative);
+        } catch {
+          continue;
+        }
+        scannedBytes += file.bytes;
+
+        const allSymbols = extractLexicalSymbols(file.content, 100);
+        const definitions =
+          operation === "references"
+            ? []
+            : allSymbols.filter((symbol) => symbol.name === identifier);
+        const definitionLines = new Set(
+          allSymbols
+            .filter((symbol) => symbol.name === identifier)
+            .map((symbol) => symbol.line),
+        );
+        const remaining = Math.max(0, maxResults - resultCount);
+        const references =
+          operation === "definitions" || remaining === 0
+            ? []
+            : findIdentifierLocations(file.content, identifier, remaining).map(
+                (location) => ({
+                  ...location,
+                  isDefinition: definitionLines.has(location.line),
+                }),
+              );
+
+        const count = definitions.length + references.length;
+        if (!count) continue;
+        resultCount += count;
+        files.push({
+          path: relative,
+          language,
+          definitions,
+          references,
+        });
+        if (files.length >= maxFiles || resultCount >= maxResults) {
+          truncated = true;
+          return;
+        }
+      }
+    };
+    walk("", 0);
+
+    return {
+      adapter: REPO_INTELLIGENCE_ADAPTER,
+      fallback: true,
+      identifier,
+      operation,
+      files,
+      fileCount: files.length,
+      resultCount,
+      visitedEntries,
+      scannedBytes,
+      truncated,
+    };
   }
   repoMap(query = "", maxFiles = 80, maxSymbolsPerFile = 12) {
     if (

@@ -512,6 +512,7 @@ export const FAST_READ_TOOLS = [
   "checkpoint_restore_plan",
   "list_project_jobs",
   "repo_map",
+  "repo_intelligence",
   "context_pack",
   "git_status",
   "git_diff",
@@ -767,6 +768,19 @@ export const definitions = {
         .regex(/^[a-zA-Z0-9-]{1,128}$/)
         .nullable()
         .default(null),
+    },
+    access: "read",
+  },
+  repo_intelligence: {
+    title: "Repository intelligence",
+    description:
+      "Find bounded deterministic lexical symbol definitions and references inside the authorized project without uploading repository content or invoking an AI model.",
+    input: {
+      ...scoped,
+      identifier: z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]{0,79}$/),
+      operation: z.enum(["definitions", "references", "both"]).default("both"),
+      maxFiles: z.number().int().min(1).max(200).default(80),
+      maxResults: z.number().int().min(1).max(500).default(200),
     },
     access: "read",
   },
@@ -1438,6 +1452,13 @@ export function createDispatcher(
     }
     if (name === "list_project_jobs")
       return runner.list(p.id, a.limit, { state: a.state, cursor: a.cursor });
+    if (name === "repo_intelligence")
+      return p.files.repoIntelligence(
+        a.identifier,
+        a.operation,
+        a.maxFiles,
+        a.maxResults,
+      );
     if (name === "repo_map")
       return p.files.repoMap(a.query, a.maxFiles, a.maxSymbolsPerFile);
     if (name === "context_pack") {
