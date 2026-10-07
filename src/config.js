@@ -229,20 +229,15 @@ export const agentSchema = z.object({
               z.object({
                 command: z.string().min(1),
                 args: z.array(z.string()).default([]),
-                timeoutMs: z
-                  .number()
-                  .int()
-                  .min(10)
-                  .max(300000)
-                  .default(30000),
+                timeoutMs: z.number().int().min(10).max(300000).default(30000),
               }),
             )
             .default({}),
-            commandPresets: z
+          commandPresets: z
             .array(z.enum(COMMAND_PRESET_IDS))
             .max(COMMAND_PRESET_IDS.length)
             .default([]),
-            commands: z
+          commands: z
             .record(
               z.object({
                 category: z.enum(["inspect", "build", "write", "network"]),
