@@ -63,15 +63,16 @@ mapfile -d '' cfg < <("$NODE" - "$CONFIG" <<'NODE'
 const fs=require("node:fs");
 const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));
 const p=c.projects?.[0];
-if(!c.id||!p?.id||!p?.root||!c.stateDir) process.exit(2);
-for(const value of [c.id,p.id,p.root,c.stateDir]) process.stdout.write(String(value)+"\0");
+if(!c.id||!p?.id||!p?.root||!c.stateDir||!c.gateway) process.exit(2);
+for(const value of [c.id,p.id,p.root,c.stateDir,c.gateway]) process.stdout.write(String(value)+"\0");
 NODE
 )
-[[ ${#cfg[@]} -eq 4 ]] || { echo "AUTO_UPDATE_CONFIG_INVALID" >&2; exit 7; }
+[[ ${#cfg[@]} -eq 5 ]] || { echo "AUTO_UPDATE_CONFIG_INVALID" >&2; exit 7; }
 DEVICE="${cfg[0]}"
 PROJECT_ID="${cfg[1]}"
 PROJECT_ROOT="${cfg[2]}"
 STATE_DIR="${cfg[3]}"
+GATEWAY="${cfg[4]}"
 SERVICE_USER="$(stat -c '%U' "$PROJECT_ROOT")"
 
 if "$NODE" - "$STATE_DIR" <<'NODE'
@@ -110,6 +111,6 @@ pkg="$("$NODE" -e 'const p=require(process.argv[1]);process.stdout.write(p.name+
 echo "AUTO_UPDATE_FROM=$current"
 echo "AUTO_UPDATE_TO=$remote"
 
-CODEBRIDGE_REF="$remote" CODEBRIDGE_AUTO_UPDATE_MODE=development bash "$TMP/codebridge/scripts/install-vps.sh"   --project "$PROJECT_ROOT"   --project-id "$PROJECT_ID"   --device "$DEVICE"   --service-user "$SERVICE_USER"   --ref "$remote"
+CODEBRIDGE_GATEWAY="$GATEWAY" CODEBRIDGE_REF="$remote" CODEBRIDGE_AUTO_UPDATE_MODE=development bash "$TMP/codebridge/scripts/install-vps.sh"   --project "$PROJECT_ROOT"   --project-id "$PROJECT_ID"   --device "$DEVICE"   --service-user "$SERVICE_USER"   --ref "$remote"
 
 echo "AUTO_UPDATE_APPLIED=$remote"

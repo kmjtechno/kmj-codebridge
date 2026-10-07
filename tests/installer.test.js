@@ -35,6 +35,13 @@ test("fresh installer uses secure enrollment and never requires manual agent tok
   );
 });
 
+test("installer accepts secure HTTPS gateways and same-host loopback HTTP", () => {
+  assert.match(script, /valid_gateway_origin/);
+  assert.match(script, /localhost\|127\\\.0\\\.0\\\.1\|\\\[::1\\\]/);
+  assert.match(script, /Gateway must be canonical HTTPS or loopback HTTP/);
+  assert.match(script, /canonical_https_origin "\$ENROLLMENT_BASE"/);
+});
+
 test("installer verifies Node download and supports x64 plus arm64", () => {
   assert.match(script, /sha256sum -c/);
   assert.match(script, /x86_64\|amd64/);

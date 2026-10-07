@@ -94,7 +94,11 @@ done
 canonical_https_origin() {
   [[ "$1" =~ ^https://[^/?#]+/?$ ]]
 }
-canonical_https_origin "$GATEWAY" || { echo "Gateway must be a canonical HTTPS origin." >&2; exit 2; }
+valid_gateway_origin() {
+  canonical_https_origin "$1" ||
+    [[ "$1" =~ ^http://(localhost|127\.0\.0\.1|\[::1\])(:[0-9]{1,5})?/?$ ]]
+}
+valid_gateway_origin "$GATEWAY" || { echo "Gateway must be canonical HTTPS or loopback HTTP." >&2; exit 2; }
 canonical_https_origin "$ENROLLMENT_BASE" || { echo "Enrollment base must be a canonical HTTPS origin." >&2; exit 2; }
 GATEWAY="${GATEWAY%/}"
 ENROLLMENT_BASE="${ENROLLMENT_BASE%/}"
@@ -264,7 +268,7 @@ const gateway =
     : process.env.GATEWAY;
 const c={
   gateway,
-  token:result.agent.token,
+  token:[REDACTED],
   id:result.agent.id,
   tenant:result.agent.tenant,
   stateDir:process.env.STATE_DIR,
