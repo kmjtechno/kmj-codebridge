@@ -20,11 +20,7 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - name: Exact formatter diagnostic
-        run: |
-          npx prettier --write tests/auto-update-development.test.js
-          git diff -- tests/auto-update-development.test.js
-          exit 1
+      - run: npm run check
       - run: npm test
       - run: npm run package:runtime
       - uses: actions/upload-artifact@v4
