@@ -211,7 +211,7 @@ export const gatewaySchema = z
   });
 export const agentSchema = z.object({
   gateway: z.string().url(),
-  token: [REDACTED],
+  token: z.string().min(32),
   id,
   tenant: id,
   stateDir: z.string(),
