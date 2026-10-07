@@ -824,6 +824,16 @@ export const definitions = {
     },
     access: "read",
   },
+  git_reconcile_main: {
+    title: "Reconcile merged main",
+    description:
+      "Fast-forward a writable authorized checkout to an exact origin/main commit only when every tracked working-tree byte already matches that commit and no untracked files exist.",
+    input: {
+      ...scoped,
+      expectedRemoteHead: z.string().regex(/^[a-f0-9]{40}$/i),
+    },
+    access: "execute",
+  },
   search_code: {
     title: "Search code",
     description:
@@ -1787,6 +1797,92 @@ export function createDispatcher(
           fail("SENSITIVE_CONTENT_PROTECTED");
       }
       return p.files.writeBatch(a.changes);
+    }
+    if (name === "git_reconcile_main") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      const gitDir = path.join(p.files.root, ".git");
+      let gitStat;
+      try {
+        gitStat = fs.lstatSync(gitDir);
+      } catch {
+        fail("GIT_ROOT_OUTSIDE_PROJECT");
+      }
+      if (!gitStat.isDirectory() || gitStat.isSymbolicLink())
+        fail("GIT_ROOT_OUTSIDE_PROJECT");
+      const common = [
+        "--no-optional-locks",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+      ];
+      const gitEnv = {
+        PATH: process.env.PATH,
+        SystemRoot: process.env.SystemRoot,
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_OPTIONAL_LOCKS: "0",
+      };
+      const runGit = (args, timeout = 5000) =>
+        execFileSync("git", [...common, ...args], {
+          cwd: p.files.root,
+          encoding: "utf8",
+          timeout,
+          maxBuffer: 32768,
+          env: gitEnv,
+          stdio: ["ignore", "pipe", "pipe"],
+        });
+      let branch;
+      try {
+        branch = runGit(["symbolic-ref", "--short", "HEAD"]).trim();
+      } catch {
+        fail("GIT_RECONCILE_BRANCH_FAILED");
+      }
+      if (branch !== "main") fail("GIT_RECONCILE_NOT_MAIN");
+      try {
+        runGit(["fetch", "--no-tags", "origin", "main"], 120000);
+      } catch {
+        fail("GIT_RECONCILE_FETCH_FAILED");
+      }
+      let remoteHead;
+      try {
+        remoteHead = runGit(["rev-parse", "origin/main"]).trim();
+      } catch {
+        fail("GIT_RECONCILE_REMOTE_FAILED");
+      }
+      if (remoteHead !== a.expectedRemoteHead)
+        fail("GIT_RECONCILE_REMOTE_CHANGED");
+      let untracked;
+      try {
+        untracked = runGit([
+          "ls-files",
+          "--others",
+          "--exclude-standard",
+        ]).trim();
+      } catch {
+        fail("GIT_RECONCILE_CHECK_FAILED");
+      }
+      if (untracked) fail("GIT_RECONCILE_UNTRACKED");
+      try {
+        runGit(["diff", "--quiet", a.expectedRemoteHead, "--"]);
+      } catch (error) {
+        if (error?.status === 1) fail("GIT_RECONCILE_CONTENT_MISMATCH");
+        fail("GIT_RECONCILE_CHECK_FAILED");
+      }
+      try {
+        runGit(["reset", "--hard", a.expectedRemoteHead]);
+      } catch {
+        fail("GIT_RECONCILE_RESET_FAILED");
+      }
+      let head;
+      try {
+        head = runGit(["rev-parse", "HEAD"]).trim();
+      } catch {
+        fail("GIT_RECONCILE_VERIFY_FAILED");
+      }
+      if (head !== a.expectedRemoteHead) fail("GIT_RECONCILE_VERIFY_FAILED");
+      return { reconciled: true, head };
     }
     if (
       name === "git_status" ||
