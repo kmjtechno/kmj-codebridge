@@ -1,0 +1,57 @@
+[
+  {
+    "name": "auth regression fix",
+    "input": {
+      "objective": "Fix OAuth tenant authorization regression",
+      "changedFiles": [
+        "src/auth.js",
+        "tests/auth.test.js"
+      ],
+      "failureSummary": "failing cross-tenant test"
+    },
+    "expected": [
+      "security-hardening",
+      "debugging",
+      "tdd"
+    ]
+  },
+  {
+    "name": "release candidate",
+    "input": {
+      "objective": "Prepare signed release candidate with SBOM provenance",
+      "changedFiles": [
+        ".github/workflows/ci.yml"
+      ]
+    },
+    "expected": [
+      "release-readiness"
+    ]
+  },
+  {
+    "name": "new adapter",
+    "input": {
+      "objective": "Implement a bounded parser adapter with tests",
+      "changedFiles": [
+        "src/repo-intelligence.js"
+      ]
+    },
+    "expected": [
+      "tdd"
+    ]
+  },
+  {
+    "name": "installer failure",
+    "input": {
+      "objective": "Fix installer timeout and package update failure",
+      "changedFiles": [
+        "scripts/install-vps.sh"
+      ],
+      "failureSummary": "installer error"
+    },
+    "expected": [
+      "debugging",
+      "tdd",
+      "release-readiness"
+    ]
+  }
+]
