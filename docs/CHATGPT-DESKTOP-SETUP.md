@@ -4,7 +4,7 @@ This guide uses the **existing** KMJ CodeBridge MCP registration. Do not create 
 
 ## Canonical connection
 
-- Registered app: `asdk_app_6abf4c8dddb08191a983c2bd9fe79732`
+- Registered app: `asdk_app_6ac22c9a4cc881918c59cdd9acda428f`
 - Identity policy: this app ID is owner-locked. Do not replace it from client UI discovery or auto-detection; changing it requires an explicit owner decision.
 - Public MCP resource: `https://kmjtechno.com/mcp`
 - Repository marketplace: `kmjtechno/kmj-codebridge`
