@@ -28,13 +28,14 @@ function lease(overrides = {}) {
     limits: { devices: 2147483647, concurrent_jobs: 16 },
     ...overrides,
   };
-  const encoded = [
-    { alg: "EdDSA", kid: "owner", typ: "JWT" },
-    claims,
-  ]
+  const encoded = [{ alg: "EdDSA", kid: "owner", typ: "JWT" }, claims]
     .map((value) => Buffer.from(JSON.stringify(value)).toString("base64url"))
     .join(".");
-  return encoded + "." + sign(null, Buffer.from(encoded), privateKey).toString("base64url");
+  return (
+    encoded +
+    "." +
+    sign(null, Buffer.from(encoded), privateKey).toString("base64url")
+  );
 }
 
 function fixture(t) {
@@ -61,7 +62,14 @@ function fixture(t) {
   fs.writeFileSync(publicKeysPath, JSON.stringify(keys), { mode: 0o600 });
   fs.writeFileSync(credentialPath, "c".repeat(48), { mode: 0o600 });
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  return { root, project, configPath, publicKeysPath, credentialPath, original };
+  return {
+    root,
+    project,
+    configPath,
+    publicKeysPath,
+    credentialPath,
+    original,
+  };
 }
 
 function mockFetch(token = lease()) {
@@ -75,56 +83,114 @@ function mockFetch(token = lease()) {
   };
 }
 
-test("real signed owner lease switches free agent safely and preserves grants", { skip: process.platform === "win32" }, async (t) => {
-  const f = fixture(t);
-  const result = await activateOwnerAdmin(f, { fetch: mockFetch(), now });
-  assert.equal(result.activated, true);
-  assert.equal(result.signedConcurrentJobs, 16);
-  assert.equal(result.restartRequired, true);
-  const config = JSON.parse(fs.readFileSync(f.configPath, "utf8"));
-  assert.equal(config.license.mode, "signed");
-  assert.deepEqual(config.projects, f.original.projects);
-  assert.equal(config.token, f.original.token);
-  assert.equal(config.license.renewal.endpoint, "https://kmjtechno.com/api/v1/codebridge/renew");
-  assert.equal(config.license.renewal.credential, "c".repeat(48));
-  assert.equal(fs.readFileSync(config.license.tokenFile, "utf8").trim(), lease());
-  assert.equal(fs.statSync(config.license.tokenFile).mode & 0o077, 0);
-  assert.deepEqual(JSON.parse(fs.readFileSync(result.backupPath, "utf8")), f.original);
-  await assert.rejects(() => activateOwnerAdmin(f, { fetch: mockFetch(), now }), /OWNER_ADMIN_ALREADY_SIGNED/);
-});
-
-test("rejects unapproved plan, wrong device, forged lease and bad credentials before any write", { skip: process.platform === "win32" }, async (t) => {
-  const cases = [
-    lease({ limits: { devices: 3, concurrent_jobs: 2 } }),
-    lease({ device: "different" }),
-    lease().slice(0, -4) + "abcd",
-  ];
-  for (const token of cases) {
+test(
+  "real signed owner lease switches free agent safely and preserves grants",
+  { skip: process.platform === "win32" },
+  async (t) => {
     const f = fixture(t);
-    await assert.rejects(() => activateOwnerAdmin(f, { fetch: mockFetch(token), now }), /LICENSE|OWNER_ADMIN/);
-    assert.equal(JSON.parse(fs.readFileSync(f.configPath, "utf8")).license.mode, "free");
-    assert.equal(fs.existsSync(path.join(f.root, "private/state/owner-admin-entitlement.jws")), false);
-    assert.equal(fs.existsSync(f.configPath + ".before-owner-admin.bak"), false);
-  }
-});
+    const result = await activateOwnerAdmin(f, { fetch: mockFetch(), now });
+    assert.equal(result.activated, true);
+    assert.equal(result.signedConcurrentJobs, 16);
+    assert.equal(result.restartRequired, true);
+    const config = JSON.parse(fs.readFileSync(f.configPath, "utf8"));
+    assert.equal(config.license.mode, "signed");
+    assert.deepEqual(config.projects, f.original.projects);
+    assert.equal(config.token, f.original.token);
+    assert.equal(
+      config.license.renewal.endpoint,
+      "https://kmjtechno.com/api/v1/codebridge/renew",
+    );
+    assert.equal(config.license.renewal.credential, "c".repeat(48));
+    assert.equal(
+      fs.readFileSync(config.license.tokenFile, "utf8").trim(),
+      lease(),
+    );
+    assert.equal(fs.statSync(config.license.tokenFile).mode & 0o077, 0);
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(result.backupPath, "utf8")),
+      f.original,
+    );
+    await assert.rejects(
+      () => activateOwnerAdmin(f, { fetch: mockFetch(), now }),
+      /OWNER_ADMIN_ALREADY_SIGNED/,
+    );
+  },
+);
 
-test("rejects insecure credential and symlink before making any renewal request", { skip: process.platform === "win32" }, async (t) => {
-  const f = fixture(t);
-  fs.chmodSync(f.credentialPath, 0o644);
-  let called = false;
-  const fake = async () => { called = true; throw Error("should not call"); };
-  await assert.rejects(() => activateOwnerAdmin(f, { fetch: fake, now }), /OWNER_ADMIN_INSECURE_PERMISSIONS/);
-  assert.equal(called, false);
-  fs.chmodSync(f.credentialPath, 0o600);
-  fs.renameSync(f.credentialPath, f.credentialPath + ".real");
-  fs.symlinkSync(f.credentialPath + ".real", f.credentialPath);
-  await assert.rejects(() => activateOwnerAdmin(f, { fetch: fake, now }), /OWNER_ADMIN_INVALID_FILE/);
-  assert.equal(called, false);
-});
+test(
+  "rejects unapproved plan, wrong device, forged lease and bad credentials before any write",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const cases = [
+      lease({ limits: { devices: 3, concurrent_jobs: 2 } }),
+      lease({ device: "different" }),
+      lease().slice(0, -4) + "abcd",
+    ];
+    for (const token of cases) {
+      const f = fixture(t);
+      await assert.rejects(
+        () => activateOwnerAdmin(f, { fetch: mockFetch(token), now }),
+        /LICENSE|OWNER_ADMIN/,
+      );
+      assert.equal(
+        JSON.parse(fs.readFileSync(f.configPath, "utf8")).license.mode,
+        "free",
+      );
+      assert.equal(
+        fs.existsSync(
+          path.join(f.root, "private/state/owner-admin-entitlement.jws"),
+        ),
+        false,
+      );
+      assert.equal(
+        fs.existsSync(f.configPath + ".before-owner-admin.bak"),
+        false,
+      );
+    }
+  },
+);
 
-test("rejects missing owner entitlement and leaves original free mode untouched", { skip: process.platform === "win32" }, async (t) => {
-  const f = fixture(t);
-  const fake = async () => new Response(JSON.stringify({ error: "denied" }), { status: 403 });
-  await assert.rejects(() => activateOwnerAdmin(f, { fetch: fake, now }), /LICENSE_RENEWAL_UNAVAILABLE/);
-  assert.equal(JSON.parse(fs.readFileSync(f.configPath, "utf8")).license.mode, "free");
-});
+test(
+  "rejects insecure credential and symlink before making any renewal request",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const f = fixture(t);
+    fs.chmodSync(f.credentialPath, 0o644);
+    let called = false;
+    const fake = async () => {
+      called = true;
+      throw Error("should not call");
+    };
+    await assert.rejects(
+      () => activateOwnerAdmin(f, { fetch: fake, now }),
+      /OWNER_ADMIN_INSECURE_PERMISSIONS/,
+    );
+    assert.equal(called, false);
+    fs.chmodSync(f.credentialPath, 0o600);
+    fs.renameSync(f.credentialPath, f.credentialPath + ".real");
+    fs.symlinkSync(f.credentialPath + ".real", f.credentialPath);
+    await assert.rejects(
+      () => activateOwnerAdmin(f, { fetch: fake, now }),
+      /OWNER_ADMIN_INVALID_FILE/,
+    );
+    assert.equal(called, false);
+  },
+);
+
+test(
+  "rejects missing owner entitlement and leaves original free mode untouched",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const f = fixture(t);
+    const fake = async () =>
+      new Response(JSON.stringify({ error: "denied" }), { status: 403 });
+    await assert.rejects(
+      () => activateOwnerAdmin(f, { fetch: fake, now }),
+      /LICENSE_RENEWAL_UNAVAILABLE/,
+    );
+    assert.equal(
+      JSON.parse(fs.readFileSync(f.configPath, "utf8")).license.mode,
+      "free",
+    );
+  },
+);
