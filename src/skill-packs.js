@@ -117,8 +117,7 @@ const PACKS = Object.freeze([
   }),
 ]);
 
-const normalize = (value) =>
-  value.toLowerCase().replace(/[^a-z0-9._/-]+/g, " ");
+const normalize = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ");
 
 export const SKILL_PACKS = PACKS.map(({ signals, ...pack }) =>
   Object.freeze(pack),
@@ -132,11 +131,10 @@ export function selectSkillPacks({
   const haystack = normalize(
     [objective, failureSummary, ...changedFiles].filter(Boolean).join(" "),
   );
+  const tokens = new Set(haystack.split(" ").filter(Boolean));
   const selected = [];
   for (const pack of PACKS) {
-    const matchedSignals = pack.signals.filter((signal) =>
-      haystack.includes(signal),
-    );
+    const matchedSignals = pack.signals.filter((signal) => tokens.has(signal));
     if (matchedSignals.length === 0) continue;
     selected.push({
       id: pack.id,
