@@ -4,7 +4,7 @@ This guide uses the **existing** KMJ CodeBridge MCP registration. Do not create 
 
 ## Canonical connection
 
-- Registered app: `asdk_app_6ac22c9a4cc881918c59cdd9acda428f`
+- Registered app: `asdk_app_6abf4c8dddb08191a983c2bd9fe79732`
 - Public MCP resource: `https://kmjtechno.com/mcp`
 - Repository marketplace: `kmjtechno/kmj-codebridge`
 - Plugin source: `plugin/`
