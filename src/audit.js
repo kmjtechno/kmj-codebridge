@@ -26,6 +26,30 @@ function digest(payload) {
   return createHash("sha256").update(JSON.stringify(payload)).digest("hex");
 }
 
+function secureDirectory(dir) {
+  fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+  const stats = fs.lstatSync(dir);
+  if (
+    !stats.isDirectory() ||
+    stats.isSymbolicLink() ||
+    (process.platform !== "win32" && (stats.mode & 0o077) !== 0)
+  )
+    fail("AUDIT_DIR_INSECURE");
+}
+
+function secureLedgerFile(file) {
+  const stats = fs.lstatSync(file);
+  if (
+    !stats.isFile() ||
+    stats.isSymbolicLink() ||
+    stats.nlink !== 1 ||
+    stats.size > MAX_LEDGER_BYTES ||
+    (process.platform !== "win32" && (stats.mode & 0o077) !== 0)
+  )
+    fail("AUDIT_LEDGER_INVALID");
+  return stats;
+}
+
 function validEntry(entry, project, expectedSequence, previousHash) {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return false;
   const { hash, ...payload } = entry;
@@ -70,7 +94,7 @@ export class AuditLedger {
     this.dir = dir;
     this.now = now;
     this.id = id;
-    fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
+    secureDirectory(dir);
   }
 
   file(project) {
@@ -89,9 +113,7 @@ export class AuditLedger {
         tail: [],
       };
 
-    const stats = fs.statSync(file);
-    if (!stats.isFile() || stats.size > MAX_LEDGER_BYTES)
-      fail("AUDIT_LEDGER_INVALID");
+    secureLedgerFile(file);
 
     const raw = fs.readFileSync(file, "utf8");
     if (raw !== "" && !raw.endsWith("\n")) fail("AUDIT_LEDGER_INVALID");
@@ -154,10 +176,27 @@ export class AuditLedger {
 
     let fd;
     try {
-      fd = fs.openSync(state.file, "a", 0o600);
+      const noFollow =
+        process.platform === "win32" ? 0 : (fs.constants.O_NOFOLLOW ?? 0);
+      fd = fs.openSync(
+        state.file,
+        fs.constants.O_WRONLY |
+          fs.constants.O_APPEND |
+          fs.constants.O_CREAT |
+          noFollow,
+        0o600,
+      );
+      const opened = fs.fstatSync(fd);
+      if (
+        !opened.isFile() ||
+        opened.nlink !== 1 ||
+        (process.platform !== "win32" && (opened.mode & 0o077) !== 0)
+      )
+        fail("AUDIT_LEDGER_INVALID");
       fs.writeFileSync(fd, JSON.stringify(entry) + "\n");
       fs.fsyncSync(fd);
-    } catch {
+    } catch (error) {
+      if (error?.code === "AUDIT_LEDGER_INVALID") throw error;
       fail("AUDIT_WRITE_FAILED");
     } finally {
       if (fd !== undefined) fs.closeSync(fd);

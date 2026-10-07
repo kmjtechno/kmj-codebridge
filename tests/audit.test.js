@@ -76,6 +76,49 @@ test("audit ledger rejects tampering and truncation", (t) => {
   assert.throws(() => ledger.status("p1"), /AUDIT_LEDGER_INVALID/);
 });
 
+test("audit ledger rejects symlink, hardlink and insecure-permission replacement", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX audit filesystem hardening contract");
+    return;
+  }
+  const { dir, ledger } = ledgerFixture(t);
+  const event = {
+    device: "d1",
+    tool: "write_file",
+    access: "write",
+    risk: "EDIT",
+    phase: "attempt",
+    outcome: "pending",
+  };
+  ledger.append("p1", event);
+  const file = path.join(dir, "p1.jsonl");
+
+  fs.chmodSync(file, 0o644);
+  assert.throws(() => ledger.status("p1"), /AUDIT_LEDGER_INVALID/);
+  fs.chmodSync(file, 0o600);
+
+  const hardlink = path.join(dir, "hardlink.jsonl");
+  fs.linkSync(file, hardlink);
+  assert.throws(() => ledger.status("p1"), /AUDIT_LEDGER_INVALID/);
+  fs.unlinkSync(hardlink);
+
+  const target = path.join(dir, "target.jsonl");
+  fs.renameSync(file, target);
+  fs.symlinkSync(target, file);
+  assert.throws(() => ledger.status("p1"), /AUDIT_LEDGER_INVALID/);
+});
+
+test("audit ledger rejects an insecure state directory", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX audit directory-permission contract");
+    return;
+  }
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-audit-insecure-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  fs.chmodSync(dir, 0o755);
+  assert.throws(() => new AuditLedger(dir), /AUDIT_DIR_INSECURE/);
+});
+
 test("audit ledger stores only bounded event metadata supplied by the dispatcher", (t) => {
   const { ledger } = ledgerFixture(t);
   const entry = ledger.append("p1", {
