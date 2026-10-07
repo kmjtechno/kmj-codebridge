@@ -85,5 +85,8 @@ test("ChatGPT registered app identity matches the canonical product contract", (
   assert.equal(ui.logo, "./assets/icon.png");
   assert.equal(ui.composerIcon, "./assets/icon.png");
   assert.equal(app.apps.codebridge.id, manifest.marketplaces.openai.appId);
-  assert.equal(manifest.marketplaces.openai.mcpEndpoint, manifest.endpoints.mcp);
+  assert.equal(
+    manifest.marketplaces.openai.mcpEndpoint,
+    manifest.endpoints.mcp,
+  );
 });
