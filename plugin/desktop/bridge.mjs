@@ -274,7 +274,7 @@ async function interactiveAuthorize() {
       if (!result.code || result.state !== state)
         throw new Error("KMJ OAuth callback validation failed");
 
-      const token = [REDACTED] fetchJson(meta.token_endpoint, {
+      const token = await fetchJson(meta.token_endpoint, {
         method: "POST",
         headers: { "content-type": "application/x-www-form-urlencoded" },
         body: new URLSearchParams({
@@ -289,8 +289,8 @@ async function interactiveAuthorize() {
       const now = Date.now();
       const stored = {
         client_id: registration.client_id,
-        access_token: [REDACTED],
-        refresh_token: [REDACTED] || null,
+        access_token: token.access_token,
+        refresh_token: token.refresh_token || null,
         token_type: token.token_type || "Bearer",
         scope: token.scope || SCOPES,
         expires_at: now + Number(token.expires_in || 3600) * 1000,
@@ -319,20 +319,20 @@ async function refreshToken(state) {
   if (!state.refresh_token || !state.client_id) return null;
   const meta = await oauthMetadata();
   try {
-    const token = [REDACTED] fetchJson(meta.token_endpoint, {
+    const token = await fetchJson(meta.token_endpoint, {
       method: "POST",
       headers: { "content-type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         grant_type: "refresh_token",
-        refresh_token: [REDACTED],
+        refresh_token: state.refresh_token,
         client_id: state.client_id,
         resource: RESOURCE,
       }),
     });
     const refreshed = {
       ...state,
-      access_token: [REDACTED],
-      refresh_token: [REDACTED] || state.refresh_token,
+      access_token: token.access_token,
+      refresh_token: token.refresh_token || state.refresh_token,
       token_type: token.token_type || "Bearer",
       scope: token.scope || state.scope || SCOPES,
       expires_at: Date.now() + Number(token.expires_in || 3600) * 1000,
@@ -376,7 +376,7 @@ function parseMcpResponse(text) {
   throw new Error("Invalid MCP response from KMJ CodeBridge");
 }
 
-async function remoteRpc(method, params, token = [REDACTED], id = 1) {
+async function remoteRpc(method, params, token = null, id = 1) {
   const headers = {
     "content-type": "application/json",
     accept: "application/json, text/event-stream",
