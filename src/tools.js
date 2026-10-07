@@ -1087,6 +1087,27 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_update_check: {
+    title: "Check signed update",
+    description:
+      "Start the fixed signed-update check service. No URL, repository, branch, command or path can be supplied.",
+    input: scoped,
+    access: "execute",
+  },
+  supervisor_release_history: {
+    title: "Release history",
+    description:
+      "Read bounded secret-free release activation history from the fixed updater state.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_update_rollback: {
+    title: "Rollback CodeBridge release",
+    description:
+      "Request rollback only to the updater-recorded previous healthy release. No version, path or command can be supplied.",
+    input: scoped,
+    access: "execute",
+  },
   supervisor_update_now: {
     title: "Run guarded auto-update",
     description:
@@ -1710,6 +1731,12 @@ export function createDispatcher(
       return await supervisor.request({ op: "device_status" });
     if (name === "supervisor_update_status")
       return await supervisor.request({ op: "update_status" });
+    if (name === "supervisor_update_check")
+      return await supervisor.request({ op: "update_check" });
+    if (name === "supervisor_release_history")
+      return await supervisor.request({ op: "release_history" });
+    if (name === "supervisor_update_rollback")
+      return await supervisor.request({ op: "update_rollback" });
     if (name === "supervisor_update_now")
       return await supervisor.request({ op: "update_now" });
     if (name === "supervisor_restart")

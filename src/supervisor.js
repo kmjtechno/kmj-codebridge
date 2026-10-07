@@ -16,6 +16,9 @@ const CONFIGS = {
 };
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
+const UPDATE_CHECK_SERVICE = "kmj-codebridge-update-check.service";
+const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-update-rollback.service";
+const UPDATE_STATE = "/var/lib/kmj-codebridge/update-state.json";
 const SYSTEMCTL = "/usr/bin/systemctl";
 const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
@@ -178,6 +181,45 @@ export function createSupervisorHandler({
   stat = (target) => fs.statSync(target),
   deviceStatus = defaultDeviceStatus,
 } = {}) {
+  const readUpdateState = () => {
+    try {
+      const raw = JSON.parse(readFile(UPDATE_STATE));
+      const releases = Array.isArray(raw.releases)
+        ? raw.releases.slice(-20)
+        : [];
+      return {
+        current:
+          typeof raw.current === "string" ? raw.current.slice(0, 128) : null,
+        previous:
+          typeof raw.previous === "string" ? raw.previous.slice(0, 128) : null,
+        sequence:
+          Number.isSafeInteger(raw.sequence) && raw.sequence >= 0
+            ? raw.sequence
+            : null,
+        releases: releases.map((release) => ({
+          version:
+            typeof release?.version === "string"
+              ? release.version.slice(0, 64)
+              : "unknown",
+          revision:
+            typeof release?.revision === "string"
+              ? release.revision.slice(0, 40)
+              : "unknown",
+          sequence: Number.isSafeInteger(release?.sequence)
+            ? release.sequence
+            : null,
+          activatedAt:
+            typeof release?.activatedAt === "string"
+              ? release.activatedAt.slice(0, 64)
+              : null,
+          healthy: release?.healthy === true,
+        })),
+      };
+    } catch {
+      return { current: null, previous: null, sequence: null, releases: [] };
+    }
+  };
+
   return async function handle(request) {
     exactKeys(request, ["op", "service", "lines", "projectId"]);
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
@@ -313,6 +355,37 @@ export function createSupervisorHandler({
           timer,
           service,
         },
+      };
+    }
+
+    if (request.op === "update_check") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, [
+        "ActiveState",
+      ]);
+      if (!service.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
+      return {
+        response: { accepted: true },
+        afterSend: () => start(UPDATE_CHECK_SERVICE),
+      };
+    }
+
+    if (request.op === "release_history") {
+      exactKeys(request, ["op"]);
+      return { response: readUpdateState() };
+    }
+
+    if (request.op === "update_rollback") {
+      exactKeys(request, ["op"]);
+      const state = readUpdateState();
+      if (!state.previous) fail("SUPERVISOR_ROLLBACK_UNAVAILABLE");
+      const service = fixedUnitStatus(run, UPDATE_ROLLBACK_SERVICE, [
+        "ActiveState",
+      ]);
+      if (!service.installed) fail("SUPERVISOR_ROLLBACK_UNAVAILABLE");
+      return {
+        response: { accepted: true, target: "previous" },
+        afterSend: () => start(UPDATE_ROLLBACK_SERVICE),
       };
     }
 
