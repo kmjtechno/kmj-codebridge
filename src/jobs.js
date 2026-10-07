@@ -49,6 +49,7 @@ export class JobRunner {
     this.resourceProbe = resourceProbe;
     this.jobs = new Map();
     this.active = new Map();
+    this.pending = new Map();
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".json"))) {
       const journalPath = path.join(dir, file);
@@ -152,6 +153,7 @@ export class JobRunner {
       configuredMaxConcurrent,
       effectiveMaxConcurrent,
       activeJobs: this.active.size,
+      queuedJobs: this.pending.size,
       cpuCount,
       loadOne,
       loadPerCpu,
@@ -183,22 +185,52 @@ export class JobRunner {
     }
     const capacity = this.capacity(cwd);
     if (capacity.blocked) fail("RESOURCE_PRESSURE");
-    if (this.active.size >= capacity.effectiveMaxConcurrent) fail("JOB_BUSY");
     if (this.jobs.size >= 1000) fail("JOURNAL_FULL");
+    if (this.pending.size >= 64) fail("JOB_QUEUE_FULL");
     const j = {
       id: randomUUID(),
       project,
       gate,
       key,
       fingerprint,
-      state: "running",
-      startedAt: new Date().toISOString(),
+      state: "queued",
+      queuedAt: new Date().toISOString(),
+      startedAt: null,
       endedAt: null,
       exitCode: null,
       output: "",
       truncated: false,
     };
     this.jobs.set(j.id, j);
+    this.pending.set(j.id, { cwd, command, args, timeoutMs });
+    this.persist(j);
+    this.drain();
+    return this.public(j);
+  }
+
+  drain() {
+    for (const [id, spec] of this.pending) {
+      let capacity;
+      try {
+        capacity = this.capacity(spec.cwd);
+      } catch {
+        continue;
+      }
+      if (
+        capacity.blocked ||
+        this.active.size >= capacity.effectiveMaxConcurrent
+      )
+        continue;
+      const j = this.jobs.get(id);
+      this.pending.delete(id);
+      if (!j || j.state !== "queued") continue;
+      this.start(j, spec);
+    }
+  }
+
+  start(j, { cwd, command, args, timeoutMs }) {
+    j.state = "running";
+    j.startedAt = new Date().toISOString();
     this.persist(j);
     // Deliberately exclude gateway tokens, credentials and inherited application secrets.
     const env = {
@@ -251,6 +283,7 @@ export class JobRunner {
         j.endedAt = new Date().toISOString();
         this.persist(j);
         this.active.delete(j.id);
+        this.drain();
         resolve();
       });
     });
@@ -258,7 +291,6 @@ export class JobRunner {
       () => this.stop(j.id, "timed_out"),
       Math.max(10, Math.min(timeoutMs, 300000)),
     );
-    return this.public(j);
   }
   stop(id, reason) {
     const a = this.active.get(id);
@@ -284,6 +316,7 @@ export class JobRunner {
     return structuredClone(visible);
   }
   list(project, limit = 20, { state = "all", cursor = null } = {}) {
+    this.drain();
     if (!Number.isInteger(limit) || limit < 1 || limit > 100)
       fail("INVALID_JOB_LIMIT");
     const allowedStates = [
@@ -305,10 +338,11 @@ export class JobRunner {
     const scoped = [...this.jobs.values()]
       .filter((job) => job.project === project)
       .filter((job) => state === "all" || job.state === state)
-      .sort(
-        (a, b) =>
-          b.startedAt.localeCompare(a.startedAt) || b.id.localeCompare(a.id),
-      );
+      .sort((a, b) => {
+        const aTime = a.startedAt ?? a.queuedAt ?? "";
+        const bTime = b.startedAt ?? b.queuedAt ?? "";
+        return bTime.localeCompare(aTime) || b.id.localeCompare(a.id);
+      });
     const offset =
       cursor === null ? 0 : scoped.findIndex((job) => job.id === cursor) + 1;
     if (cursor !== null && offset === 0) fail("JOB_CURSOR_NOT_FOUND");
@@ -322,7 +356,8 @@ export class JobRunner {
         id: job.id,
         gate: job.gate,
         state: job.state,
-        startedAt: job.startedAt,
+        queuedAt: job.queuedAt ?? null,
+        startedAt: job.startedAt ?? null,
         endedAt: job.endedAt,
         exitCode: job.exitCode,
         truncated: job.truncated,
@@ -330,16 +365,32 @@ export class JobRunner {
     };
   }
   get(id, project) {
+    this.drain();
     const j = this.jobs.get(id);
     if (!j || j.project !== project) fail("JOB_NOT_FOUND");
     return this.public(j);
   }
   cancel(id, project) {
-    this.get(id, project);
+    const j = this.jobs.get(id);
+    if (!j || j.project !== project) fail("JOB_NOT_FOUND");
+    if (this.pending.delete(id)) {
+      j.state = "cancelled";
+      j.endedAt = new Date().toISOString();
+      this.persist(j);
+      return this.public(j);
+    }
     this.stop(id, "cancelled");
-    return this.get(id, project);
+    return this.public(j);
   }
   async close() {
+    for (const id of this.pending.keys()) {
+      const j = this.jobs.get(id);
+      if (!j) continue;
+      j.state = "interrupted";
+      j.endedAt = new Date().toISOString();
+      this.persist(j);
+    }
+    this.pending.clear();
     const running = [...this.active.values()];
     for (const id of this.active.keys()) this.stop(id, "interrupted");
     await Promise.all(running.map((a) => a.done));
