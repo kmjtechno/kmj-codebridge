@@ -410,3 +410,51 @@ export async function runStableUpdate(
     reused: Boolean(release.reused),
   };
 }
+
+
+export async function runStableRollback(
+  rawConfig,
+  {
+    createStore = (config) =>
+      new ReleaseStore({
+        installRoot: config.installRoot,
+        stateDir: config.stateDir,
+      }),
+    restartRequest = supervisorRequest,
+    now = () => Date.now(),
+    sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  } = {},
+) {
+  const config = stableUpdateConfigSchema.parse(rawConfig);
+  secureDirectory(config.stateDir);
+  const agentStateDir = existingDirectory(
+    config.agentStateDir,
+    "UPDATE_AGENT_STATE_INVALID",
+  );
+  const store = createStore(config);
+  const before = store.status();
+  if (!before.previous) fail("UPDATE_ROLLBACK_UNAVAILABLE");
+
+  const previousMarker = markerFor(store, before.previous);
+  if (!previousMarker) fail("UPDATE_ROLLBACK_UNAVAILABLE");
+  const rollbackStart = now();
+  const result = store.rollback();
+  try {
+    await fixedAgentRestart(config.supervisorSocket, restartRequest);
+  } catch {
+    store.rollback();
+    await fixedAgentRestart(config.supervisorSocket, restartRequest);
+    fail("UPDATE_ROLLBACK_RESTART_FAILED");
+  }
+
+  for (let attempt = 0; attempt < config.health.attempts; attempt += 1) {
+    if (freshAuthenticatedConnection(agentStateDir, rollbackStart)) {
+      return { rolledBack: true, ...result };
+    }
+    if (attempt + 1 < config.health.attempts) await sleep(config.health.delayMs);
+  }
+
+  store.rollback();
+  await fixedAgentRestart(config.supervisorSocket, restartRequest);
+  fail("UPDATE_ROLLBACK_HEALTH_FAILED");
+}
