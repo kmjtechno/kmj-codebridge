@@ -129,7 +129,6 @@ npm run sign:runtime -- \
 
 The signer refuses a private key stored inside the checked-out repository. The runtime receives only the signed manifest, detached base64url signature and configured trusted public keys.
 
-
 ## Release-candidate evidence bundle
 
 Distribution CI now generates release-candidate metadata next to the runtime archive:
