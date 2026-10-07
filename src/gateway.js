@@ -649,7 +649,7 @@ export async function startGateway(rawConfig) {
         version: VERSION,
         description:
           "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
-        websiteUrl: "https://kmjtechno.com/products/kmj-codebridge",
+        websiteUrl: "https://kmjtechno.com",
         // Standard MCP `Implementation.icons` (spec 2025-11-25 / SEP-973).
         // Omitted entirely unless the operator configures a real, publicly
         // reachable HTTPS icon URL via `iconUrl` — never a fabricated or
