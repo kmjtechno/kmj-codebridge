@@ -1,6 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
+import {
+  createHmac,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from "node:crypto";
 import { fail } from "./errors.js";
 
 const TERMINAL = new Set([
@@ -16,8 +21,7 @@ const ENTRY_PATTERN = /^[a-zA-Z0-9-]+\.entry$/;
 
 function secureDirectory(dir) {
   const stat = fs.lstatSync(dir);
-  if (!stat.isDirectory() || stat.isSymbolicLink())
-    fail("CORRUPT_JOB_ARCHIVE");
+  if (!stat.isDirectory() || stat.isSymbolicLink()) fail("CORRUPT_JOB_ARCHIVE");
   if (process.platform !== "win32") {
     if ((stat.mode & 0o077) !== 0) fail("INSECURE_JOB_ARCHIVE");
     if (typeof process.getuid === "function" && stat.uid !== process.getuid())
@@ -59,7 +63,8 @@ function syncDirectory(dir) {
   if (process.platform === "win32") return;
   const fd = fs.openSync(
     dir,
-    fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY || 0) |
+    fs.constants.O_RDONLY |
+      (fs.constants.O_DIRECTORY || 0) |
       (fs.constants.O_NOFOLLOW || 0),
   );
   try {
@@ -72,7 +77,9 @@ function syncDirectory(dir) {
 function writeExclusive(file, data) {
   const fd = fs.openSync(
     file,
-    fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL |
+    fs.constants.O_WRONLY |
+      fs.constants.O_CREAT |
+      fs.constants.O_EXCL |
       (fs.constants.O_NOFOLLOW || 0),
     0o600,
   );
@@ -134,14 +141,18 @@ function validRecord(record, filename) {
 
 export class DurableJobArchive {
   constructor(root, { maxEntries = 100000 } = {}) {
-    if (!Number.isSafeInteger(maxEntries) || maxEntries < 1 || maxEntries > 1000000)
+    if (
+      !Number.isSafeInteger(maxEntries) ||
+      maxEntries < 1 ||
+      maxEntries > 1000000
+    )
       fail("INVALID_JOB_ARCHIVE_LIMIT");
     this.root = root;
     this.dir = path.join(root, "job-archive");
     this.maxEntries = maxEntries;
     this.byId = new Map();
     this.byKey = new Map();
-    this.secret = null;
+    this.secret = [REDACTED];
     if (fs.existsSync(this.dir)) this.load();
   }
 
@@ -157,11 +168,10 @@ export class DurableJobArchive {
     secureDirectory(this.dir);
     const names = fs.readdirSync(this.dir);
     if (!names.includes(".hmac-key")) fail("CORRUPT_JOB_ARCHIVE");
-    this.secret = readPrivateFile(path.join(this.dir, ".hmac-key"), KEY_BYTES);
+    this.secret = [REDACTED], ".hmac-key"), KEY_BYTES);
     if (this.secret.length !== KEY_BYTES) fail("CORRUPT_JOB_ARCHIVE");
     for (const name of names) {
-      if (name === ".hmac-key" || /^\.pending-[a-f0-9-]+$/.test(name))
-        continue;
+      if (name === ".hmac-key" || /^\.pending-[a-f0-9-]+$/.test(name)) continue;
       if (!ENTRY_PATTERN.test(name)) fail("CORRUPT_JOB_ARCHIVE");
       if (this.byId.size >= this.maxEntries) fail("JOB_ARCHIVE_FULL");
       let container;
@@ -197,7 +207,7 @@ export class DurableJobArchive {
     writeExclusive(path.join(this.dir, ".hmac-key"), key);
     syncDirectory(this.dir);
     syncDirectory(this.root);
-    this.secret = key;
+    this.secret = [REDACTED];
   }
 
   lookup(project, key) {
@@ -216,8 +226,9 @@ export class DurableJobArchive {
 
   count(project = null) {
     if (project === null) return this.byId.size;
-    return [...this.byId.values()].filter((record) => record.project === project)
-      .length;
+    return [...this.byId.values()].filter(
+      (record) => record.project === project,
+    ).length;
   }
 
   add(job) {
