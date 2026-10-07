@@ -47,10 +47,7 @@ test("development auto updater refreshes an existing Main Platform enrollment wi
     script,
     /MAIN_PLATFORM_REFRESH_SERVICE="kmj-codebridge-main-platform-refresh\.service"/,
   );
-  assert.match(
-    script,
-    /-f \/etc\/kmj-codebridge-main-platform\/agent\.json/,
-  );
+  assert.match(script, /-f \/etc\/kmj-codebridge-main-platform\/agent\.json/);
   assert.match(
     script,
     /-d \/srv\/kmj-codebridge-projects\/kmj-main-platform\/\.git/,
