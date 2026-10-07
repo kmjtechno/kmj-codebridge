@@ -431,7 +431,7 @@ Type=simple
 User=$SERVICE_USER
 Group=$SERVICE_GROUP
 WorkingDirectory=$INSTALL_DIR
-ExecStart=/bin/bash -c 'runtime="$INSTALL_DIR"; if [ -L "$STABLE_INSTALL_ROOT/current" ] && [ -f "$STABLE_INSTALL_ROOT/current/src/cli.js" ]; then runtime="$STABLE_INSTALL_ROOT/current"; fi; exec "$NODE" "\$runtime/src/cli.js" agent "$CONFIG"'
+ExecStart=/bin/bash -c 'runtime="$INSTALL_DIR"; if { [ "$AUTO_UPDATE_MODE" = "stable" ] || [ "$AUTO_UPDATE_MODE" = "beta" ]; } && [ -L "$STABLE_INSTALL_ROOT/current" ] && [ -f "$STABLE_INSTALL_ROOT/current/src/cli.js" ]; then runtime="$STABLE_INSTALL_ROOT/current"; fi; exec "$NODE" "\$runtime/src/cli.js" agent "$CONFIG"'
 Restart=always
 RestartSec=2
 NoNewPrivileges=true
