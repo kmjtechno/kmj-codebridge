@@ -68,6 +68,37 @@ test("OAuth verifier can resolve licensed customer memberships dynamically", asy
   ]);
 });
 
+test("configured user introspection is authoritative over stale static subjects", async () => {
+  let calls = 0;
+  const authoritative = createOAuthVerifier(
+    config,
+    users,
+    async (_authorization, subject) => {
+      calls++;
+      return {
+        id: "authoritative-user",
+        subject,
+        memberships: [
+          {
+            tenant: "tenant-live",
+            permissions: ["read", "execute"],
+            devices: { live_device: ["live_project"] },
+          },
+        ],
+        permissions: ["read", "execute"],
+        dynamic: true,
+      };
+    },
+  );
+  const user = await authoritative("Bearer " + (await token()));
+  assert.equal(calls, 1);
+  assert.equal(user.id, "authoritative-user");
+  assert.equal(user.dynamic, true);
+  assert.deepEqual(user.memberships[0].devices, {
+    live_device: ["live_project"],
+  });
+});
+
 test("OAuth verifier loads and caches public keys from a remote JWKS endpoint", async () => {
   let requests = 0;
   const server = createServer((request, response) => {
