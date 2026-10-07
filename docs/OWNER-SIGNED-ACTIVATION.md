@@ -24,6 +24,7 @@ permissions (0600), never symlinks. Use a trusted operator with appropriate
 filesystem permissions.
 
 The helper:
+
 - Requires existing `license.mode=free` and valid agent configuration.
 - Calls the fixed `https://kmjtechno.com/api/v1/codebridge/renew` endpoint
   using the existing device credential, starting at sequence -1.
