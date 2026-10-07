@@ -128,3 +128,19 @@ npm run sign:runtime -- \
 ```
 
 The signer refuses a private key stored inside the checked-out repository. The runtime receives only the signed manifest, detached base64url signature and configured trusted public keys.
+
+
+## Release-candidate evidence bundle
+
+Distribution CI now generates release-candidate metadata next to the runtime archive:
+`compatibility.json`, `checksums.txt`, `RELEASE-NOTES.md`, and
+`signing-request.json`. The metadata is bound to the exact runtime version,
+40-character source revision, archive name, byte count and SHA-256 and is
+included in the credential scan and main-branch provenance artifact.
+
+`signing-request.json` deliberately records `owner_signing_required`. CI does
+not invent, store, or use a production private key and does not convert the
+release candidate into an official stable release. Stable publication remains
+gated on an owner-controlled Ed25519 key outside the repository, a monotonic
+release sequence, the final public HTTPS archive URL, and observed live
+activation plus failed-health rollback evidence.
