@@ -25,18 +25,36 @@ const CODE_LANGUAGES = new Map([
 ]);
 
 const SYMBOL_PATTERNS = [
-  ["function", /(?:^|\s)(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/],
-  ["function", /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/],
+  [
+    "function",
+    /(?:^|\s)(?:export\s+)?(?:default\s+)?(?:async\s+)?function\s+([A-Za-z_$][\w$]*)/,
+  ],
+  [
+    "function",
+    /^\s*(?:export\s+)?const\s+([A-Za-z_$][\w$]*)\s*=\s*(?:async\s*)?\(/,
+  ],
   ["class", /(?:^|\s)(?:export\s+)?(?:default\s+)?class\s+([A-Za-z_$][\w$]*)/],
-  ["type", /(?:^|\s)(?:export\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/],
+  [
+    "type",
+    /(?:^|\s)(?:export\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/,
+  ],
   ["function", /^\s*(?:async\s+)?def\s+([A-Za-z_]\w*)\s*\(/],
   ["class", /^\s*class\s+([A-Za-z_]\w*)\b/],
   ["function", /\bfunction\s+([A-Za-z_]\w*)\s*\(/],
   ["function", /^\s*func\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*\(/],
   ["type", /^\s*type\s+([A-Za-z_]\w*)\s+(?:struct|interface)\b/],
-  ["function", /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*\(/],
-  ["type", /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_]\w*)\b/],
-  ["type", /^\s*(?:(?:public|private|protected|internal|static|final|abstract|sealed|data|open)\s+)*(?:class|interface|enum|record)\s+([A-Za-z_]\w*)\b/],
+  [
+    "function",
+    /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:async\s+)?fn\s+([A-Za-z_]\w*)\s*\(/,
+  ],
+  [
+    "type",
+    /^\s*(?:pub(?:\([^)]*\))?\s+)?(?:struct|enum|trait)\s+([A-Za-z_]\w*)\b/,
+  ],
+  [
+    "type",
+    /^\s*(?:(?:public|private|protected|internal|static|final|abstract|sealed|data|open)\s+)*(?:class|interface|enum|record)\s+([A-Za-z_]\w*)\b/,
+  ],
 ];
 
 export const REPO_INTELLIGENCE_ADAPTER = "bounded-lexical-v1";
