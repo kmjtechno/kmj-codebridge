@@ -232,3 +232,14 @@ test("installer rollback includes signed stable updater units and config", () =>
   assert.match(script, /systemctl stop "\$STABLE_UPDATE_SERVICE"/);
   assert.match(script, /systemctl stop "\$STABLE_UPDATE_TIMER"/);
 });
+
+
+test("installer provisions fixed bounded stable rollback service", () => {
+  assert.match(script, /kmj-codebridge-stable-rollback\.service/);
+  assert.match(script, /stable-rollback "\$STABLE_UPDATE_CONFIG"/);
+  assert.match(script, /RestrictAddressFamilies=AF_UNIX/);
+  assert.match(
+    script,
+    /ReadWritePaths=\$STABLE_INSTALL_ROOT \$STABLE_UPDATE_STATE_DIR/,
+  );
+});
