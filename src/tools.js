@@ -601,7 +601,7 @@ export const definitions = {
   execution_capacity: {
     title: "Execution capacity",
     description:
-      "Read bounded resource-aware job capacity for the authorized project, including memory, disk, CPU load, active jobs, and effective concurrency.",
+      "Read bounded resource-aware job capacity for the authorized project, including memory, disk, CPU load, active/queued jobs, and effective concurrency.",
     input: scoped,
     access: "read",
   },

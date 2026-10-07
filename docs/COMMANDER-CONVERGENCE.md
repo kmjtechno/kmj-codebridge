@@ -109,7 +109,7 @@ P1:
 
 - formal risk-class metadata and policy decision tool;
 - append-only hash-chained audit/evidence ledger;
-- resource-aware job concurrency and disk-pressure guard;
+- resource-aware job concurrency, bounded queue/backpressure and disk-pressure guard;
 - heartbeat/watchdog/reconnect status surfaced to Main Platform.
 
 P2:

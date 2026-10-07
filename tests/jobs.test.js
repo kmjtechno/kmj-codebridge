@@ -62,10 +62,18 @@ test("project cannot read another project job", async (t) => {
   const j = runner.run(opts(root, "job", ""));
   assert.throws(() => runner.get(j.id, "p2"), /JOB_NOT_FOUND/);
 });
-test("concurrency limit rejects excessive work", async (t) => {
+test("concurrency limit queues excess work and drains it without retry", async (t) => {
   const { root, runner } = fixture(t);
-  runner.run(opts(root, "one", "setTimeout(()=>{},1000)"));
-  assert.throws(() => runner.run(opts(root, "two", "")), /BUSY/);
+  const first = runner.run(opts(root, "one", "setTimeout(()=>{},150)"));
+  const second = runner.run(opts(root, "two", 'console.log("second")'));
+  assert.equal(first.state, "running");
+  assert.equal(second.state, "queued");
+  assert.equal(runner.capacity(root).queuedJobs, 1);
+
+  assert.equal((await finished(runner, first.id)).state, "succeeded");
+  const secondDone = await finished(runner, second.id);
+  assert.equal(secondDone.state, "succeeded");
+  assert.match(secondDone.output, /second/);
 });
 test("captures failure and enforces output cap", async (t) => {
   const { root, runner } = fixture(t);
@@ -213,7 +221,10 @@ test("capacity throttles high load to one active job", async (t) => {
   const first = runner.run(
     opts(root, "pressure-one", "setTimeout(()=>{},1000)"),
   );
-  assert.throws(() => runner.run(opts(root, "pressure-two", "")), /JOB_BUSY/);
+  const second = runner.run(opts(root, "pressure-two", ""));
+  assert.equal(second.state, "queued");
+  assert.equal(runner.capacity(root).queuedJobs, 1);
+  assert.equal(runner.cancel(second.id, "p1").state, "cancelled");
   runner.cancel(first.id, "p1");
   await finished(runner, first.id);
 });
