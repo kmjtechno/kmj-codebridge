@@ -40,6 +40,11 @@ test("development auto updater preserves project enrollment and defers active jo
   assert.match(script, /c\.gateway/);
   assert.match(script, /GATEWAY="\$\{cfg\[4\]\}"/);
   assert.match(script, /CODEBRIDGE_GATEWAY="\$GATEWAY"/);
+  assert.match(
+    script,
+    /systemctl is-active --quiet kmj-codebridge-gateway\.service/,
+  );
+  assert.match(script, /systemctl restart kmj-codebridge-gateway\.service/);
 });
 
 test("development auto updater refuses dirty runtime and does not accept caller repository URLs", () => {
