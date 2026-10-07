@@ -26,9 +26,9 @@ export function createOAuthVerifier(config, users, resolveUser) {
         clockTolerance: 0,
       });
       if (payload.iat > Math.floor(Date.now() / 1000)) return null;
-      const user =
-        users.find((u) => u.subject === payload.sub) ??
-        (resolveUser ? await resolveUser(authorization, payload.sub) : null);
+      const user = resolveUser
+        ? await resolveUser(authorization, payload.sub)
+        : users.find((u) => u.subject === payload.sub);
       if (!user || typeof payload.scope !== "string") return null;
       const granted = new Set(payload.scope.split(" "));
       const filterPermissions = (permissions) =>
