@@ -8,7 +8,7 @@ import {
 
 const base = {
   gateway: "https://gateway.example.test",
-  token: "x".repeat(32),
+  token: [REDACTED],
   id: "device1",
   tenant: "tenant1",
   stateDir: "/tmp/codebridge-state",
@@ -49,12 +49,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
 test("agent config expands only explicitly selected command presets", () => {
   const parsed = agentSchema.parse({
     ...base,
-    projects: [
-      {
-        ...base.projects[0],
-        commandPresets: ["node-standard"],
-      },
-    ],
+    projects: [{ ...base.projects[0], commandPresets: ["node-standard"] }],
   });
   const project = parsed.projects[0];
   assert.deepEqual(project.commandPresets, ["node-standard"]);
@@ -84,10 +79,7 @@ test("explicit administrator commands override a preset by exact profile id", ()
             description: "Administrator-specific verification.",
             command: "node",
             variants: {
-              verify: {
-                args: ["scripts/verify.mjs"],
-                timeoutMs: 120000,
-              },
+              verify: { args: ["scripts/verify.mjs"], timeoutMs: 120000 },
             },
           },
         },
@@ -107,12 +99,7 @@ test("unknown command presets fail closed", () => {
     () =>
       agentSchema.parse({
         ...base,
-        projects: [
-          {
-            ...base.projects[0],
-            commandPresets: ["raw-shell"],
-          },
-        ],
+        projects: [{ ...base.projects[0], commandPresets: ["raw-shell"] }],
       }),
     /Invalid enum value|Invalid option/,
   );
