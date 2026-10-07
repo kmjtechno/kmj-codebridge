@@ -52,6 +52,7 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { simulateControlPlaneScale } from "../src/benchmark-scale.js";
 
 function parseArgs(argv) {
   const out = {};
@@ -499,6 +500,7 @@ async function main() {
     processIdle: null,
     dispatcherLocal: null,
     gatewayMcp: null,
+    simulatedScale: null,
   };
 
   log(`processIdle: sampling for ${idleSeconds}s...`);
@@ -511,6 +513,9 @@ async function main() {
 
   log("gatewayMcp: probing /healthz if --gateway was given...");
   out.gatewayMcp = await sampleGatewayMcp();
+
+  log("simulatedScale: timing deterministic 1/10/100/1000-agent map operations...");
+  out.simulatedScale = simulateControlPlaneScale();
 
   console.log(JSON.stringify(out, null, 2));
 
@@ -540,6 +545,11 @@ async function main() {
   for (const r of out.dispatcherLocal) {
     log(
       `dispatcherLocal.${r.label}: p50 ${r.p50ms}ms, p95 ${r.p95ms}ms, max ${r.maxMs}ms`,
+    );
+  }
+  for (const scale of out.simulatedScale) {
+    log(
+      `simulatedScale.${scale.agents}: presence p95 ${scale.presenceList.p95ms}ms, heartbeat p95 ${scale.heartbeatUpdate.p95ms}ms, queue p95 ${scale.queueLookup.p95ms}ms, metadata ${scale.serializedMetadataBytesPerAgent}B/agent, budget ${scale.budgetPass ? "PASS" : "FAIL"}`,
     );
   }
   log(
