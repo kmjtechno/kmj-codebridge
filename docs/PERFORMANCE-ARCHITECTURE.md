@@ -203,3 +203,17 @@ number of dispatcher-timing iterations, then exit) with temp-project
 cleanup in a `finally` block and a non-zero exit code plus a stack trace on
 failure, so it cannot leave stray `/tmp` state or silently report success
 on partial failure, and never adds a second source of idle load itself.
+
+
+### Simulated control-plane scale evidence
+
+The benchmark also emits a separate `simulatedScale` section for 1, 10, 100 and
+1000 idle-agent metadata entries. This is an **in-process Map/data-structure
+simulation**, not a claim that 1000 real networked agents were load-tested. It
+measures bounded presence-list scans, heartbeat updates, pending-queue lookups
+and deterministic serialized metadata bytes per agent, with deliberately
+conservative regression budgets.
+
+This simulation exists to catch accidental algorithmic/control-plane regressions
+cheaply in normal CI. Real multi-host and multi-replica load/failover tests remain
+a separate production benchmark and must not be inferred from these numbers.
