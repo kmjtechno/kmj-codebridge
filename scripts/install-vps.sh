@@ -242,6 +242,26 @@ if [[ -f "$CONFIG" ]]; then
   fi
 fi
 
+if (( have_config == 1 )); then
+  EXISTING_STATE_DIR="$("$NODE" -e '
+    const fs=require("node:fs");
+    const c=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
+    if(typeof c.stateDir!=="string"||!c.stateDir.startsWith("/")) process.exit(1);
+    process.stdout.write(c.stateDir);
+  ' "$CONFIG")"
+  safe_absolute_path "$EXISTING_STATE_DIR" || {
+    echo "Existing stateDir must be a safe absolute path." >&2
+    exit 1
+  }
+  STATE_DIR="$(readlink -f "$EXISTING_STATE_DIR")"
+  [[ -n "$STATE_DIR" ]] || { echo "Existing stateDir cannot be resolved." >&2; exit 1; }
+  safe_absolute_path "$STATE_DIR" || {
+    echo "Resolved existing stateDir must be a safe absolute path." >&2
+    exit 1
+  }
+  install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_GROUP" "$STATE_DIR"
+fi
+
 if (( have_config == 0 )); then
   echo "Starting secure KMJ CodeBridge device pairing..."
   "$NODE" "$NEW_DIR/scripts/enroll-device.js"     "$ENROLLMENT_BASE" "$DEVICE" "$PROJECT_ID" "$PROJECT" "$ENROLLMENT_RESULT"
