@@ -79,6 +79,7 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/release-candidate"
           npm run package:runtime -- "$RUNNER_TEMP/release-candidate/runtime"
+          node scripts/release-candidate-metadata.js "$RUNNER_TEMP/release-candidate/runtime/manifest.json" "$RUNNER_TEMP/release-candidate/metadata"
           npm sbom --sbom-format cyclonedx > "$RUNNER_TEMP/release-candidate/sbom.cdx.json"
           cp -R "$RUNNER_TEMP/pkg" "$RUNNER_TEMP/release-candidate/clients"
           npm run scan:secrets -- "$RUNNER_TEMP/release-candidate"
