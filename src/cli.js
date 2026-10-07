@@ -10,7 +10,13 @@ const version = JSON.parse(
 ).version;
 const [mode, file] = process.argv.slice(2);
 if (
-  !["gateway", "agent", "supervisor", "stable-update", "stable-rollback"].includes(mode) ||
+  ![
+    "gateway",
+    "agent",
+    "supervisor",
+    "stable-update",
+    "stable-rollback",
+  ].includes(mode) ||
   (mode === "supervisor" ? Boolean(file) : !file)
 ) {
   console.error(
