@@ -35,7 +35,9 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
   assert.ok(Object.keys(commands).length >= 8);
   for (const profile of Object.values(commands)) {
     assert.ok(["build", "write", "network"].includes(profile.category));
-    assert.ok(\n      !["sh", "bash", "cmd", "powershell", "pwsh"].includes(profile.command),\n    );
+    assert.ok(
+      !["sh", "bash", "cmd", "powershell", "pwsh"].includes(profile.command),
+    );
     assert.ok(Object.keys(profile.variants).length > 0);
     for (const variant of Object.values(profile.variants)) {
       assert.ok(variant.args.length <= 32);
