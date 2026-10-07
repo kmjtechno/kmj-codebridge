@@ -2,7 +2,7 @@
   "schema": 1,
   "source": "product/codebridge-product.json",
   "product": "kmj-codebridge",
-  "version": "0.2.3",
+  "version": "0.3.2",
   "runtimeAuthority": "KMJ Main Platform",
   "note": "Generated import contract only. Server-side entitlement enforcement remains authoritative.",
   "launch": {
