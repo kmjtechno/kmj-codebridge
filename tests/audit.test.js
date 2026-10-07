@@ -130,7 +130,7 @@ test("audit ledger stores only bounded event metadata supplied by the dispatcher
     outcome: "failed",
     correlationId: "attempt-0001",
     error: "GATE_FAILED",
-    ignoredSecret: [REDACTED],
+    ignoredSecret: "supersecret",
   });
 
   assert.equal(entry.error, "GATE_FAILED");
