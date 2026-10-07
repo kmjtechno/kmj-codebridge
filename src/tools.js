@@ -778,9 +778,7 @@ export const definitions = {
     input: {
       ...scoped,
       identifier: z.string().regex(/^[A-Za-z_$][A-Za-z0-9_$]{0,79}$/),
-      operation: z
-        .enum(["definitions", "references", "both"])
-        .default("both"),
+      operation: z.enum(["definitions", "references", "both"]).default("both"),
       maxFiles: z.number().int().min(1).max(200).default(80),
       maxResults: z.number().int().min(1).max(500).default(200),
     },
