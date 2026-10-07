@@ -27,6 +27,9 @@ file records verified capability, not a percentage-complete claim.
   Supervisor are implemented. Live account-wide discovery is verified: the
   authenticated account resolves both `device1/project1` and
   `main-platform-kmjtechnonetgmailcom/kmj-main-platform` online, and
+  `connection_overview` reports both READY with zero attention items. Live account-wide discovery is verified: the
+  authenticated account resolves both `device1/project1` and
+  `main-platform-kmjtechnonetgmailcom/kmj-main-platform` online, and
   `connection_overview` reports both READY with zero attention items.
 - **Crash recovery:** the agent state lock now recovers automatically only when
   staleness is provable; exact-head Linux, Windows, client, and distribution CI
