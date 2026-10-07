@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "product": "kmj-codebridge",
-  "stableVersion": "0.2.3",
+  "stableVersion": "0.3.2",
   "previewVersion": null,
   "updateChannels": [
     "stable",
