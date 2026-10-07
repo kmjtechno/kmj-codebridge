@@ -65,6 +65,16 @@ export function hostedConfig(text, port = "10000", env = process.env) {
       )
         fail("HOSTED_CONFIG_INVALID");
       userIntrospection = { endpoint: endpoint.href, cacheSeconds: 30 };
+    } else if (!userIntrospection && parsed.oauth) {
+      const issuer = new URL(parsed.oauth.issuer);
+      const resource = new URL(parsed.oauth.resource);
+      if (issuer.origin === resource.origin) {
+        userIntrospection = {
+          endpoint: new URL("/api/codebridge/v1/user-access/introspect", issuer)
+            .href,
+          cacheSeconds: 30,
+        };
+      }
     }
     const config = gatewaySchema.parse({
       ...parsed,
