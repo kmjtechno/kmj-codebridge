@@ -2,7 +2,7 @@
   "schema": 1,
   "product": "KMJ CodeBridge",
   "slug": "kmj-codebridge",
-  "stableVersion": "0.2.3",
+  "stableVersion": "0.3.2",
   "minimumAgentVersion": "0.2.3",
   "minimumClientPackageVersion": "0.2.3",
   "endpoints": {
