@@ -377,7 +377,6 @@ test("fresh authenticated connection requires time and expected signed runtime i
   );
 });
 
-
 test("stable rollback only uses the recorded previous immutable release", async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-rollback-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
