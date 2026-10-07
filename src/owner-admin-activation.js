@@ -58,10 +58,13 @@ export async function activateOwnerAdmin(
   { configPath, publicKeysPath, credentialPath },
   options = {},
 ) {
-  if (process.platform === "win32") fail("OWNER_ADMIN_ACL_VERIFICATION_UNAVAILABLE");
-  if (![configPath, publicKeysPath, credentialPath].every(
-    (value) => typeof value === "string" && path.isAbsolute(value),
-  ))
+  if (process.platform === "win32")
+    fail("OWNER_ADMIN_ACL_VERIFICATION_UNAVAILABLE");
+  if (
+    ![configPath, publicKeysPath, credentialPath].every(
+      (value) => typeof value === "string" && path.isAbsolute(value),
+    )
+  )
     fail("OWNER_ADMIN_ABSOLUTE_PATH_REQUIRED");
 
   const configText = readFileSafe(configPath, { privateFile: true });
@@ -98,7 +101,12 @@ export async function activateOwnerAdmin(
   for (const project of config.projects) {
     const root = fs.realpathSync(project.root);
     const rel = path.relative(root, leasePath);
-    if (!rel || (!rel.startsWith(".." + path.sep) && rel !== ".." && !path.isAbsolute(rel)))
+    if (
+      !rel ||
+      (!rel.startsWith(".." + path.sep) &&
+        rel !== ".." &&
+        !path.isAbsolute(rel))
+    )
       fail("OWNER_ADMIN_LEASE_INSIDE_PROJECT");
   }
 
