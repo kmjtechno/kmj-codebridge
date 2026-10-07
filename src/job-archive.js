@@ -152,7 +152,7 @@ export class DurableJobArchive {
     this.maxEntries = maxEntries;
     this.byId = new Map();
     this.byKey = new Map();
-    this.secret = [REDACTED];
+    this.secret = null;
     if (fs.existsSync(this.dir)) this.load();
   }
 
@@ -168,7 +168,7 @@ export class DurableJobArchive {
     secureDirectory(this.dir);
     const names = fs.readdirSync(this.dir);
     if (!names.includes(".hmac-key")) fail("CORRUPT_JOB_ARCHIVE");
-    this.secret = [REDACTED], ".hmac-key"), KEY_BYTES);
+    this.secret = readPrivateFile(path.join(this.dir, ".hmac-key"), KEY_BYTES);
     if (this.secret.length !== KEY_BYTES) fail("CORRUPT_JOB_ARCHIVE");
     for (const name of names) {
       if (name === ".hmac-key" || /^\.pending-[a-f0-9-]+$/.test(name)) continue;
@@ -207,7 +207,7 @@ export class DurableJobArchive {
     writeExclusive(path.join(this.dir, ".hmac-key"), key);
     syncDirectory(this.dir);
     syncDirectory(this.root);
-    this.secret = [REDACTED];
+    this.secret = key;
   }
 
   lookup(project, key) {
