@@ -51,7 +51,7 @@ import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 function parseArgs(argv) {
   const out = {};
@@ -339,7 +339,7 @@ async function sampleDispatcherLocal() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const repoRoot = path.resolve(here, "..");
   const { createDispatcher } = await import(
-    path.join(repoRoot, "src", "tools.js")
+    pathToFileURL(path.join(repoRoot, "src", "tools.js")).href
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-bench-"));
   try {
