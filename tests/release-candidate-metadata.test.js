@@ -27,7 +27,10 @@ test("release candidate metadata binds compatibility and checksum to runtime", (
   const built = buildReleaseCandidateMetadata({ product, runtime });
   assert.equal(built.compatibility.version, "0.3.2");
   assert.equal(built.compatibility.revision, runtime.revision);
-  assert.deepEqual(built.compatibility.supportedClients, product.supportedClients);
+  assert.deepEqual(
+    built.compatibility.supportedClients,
+    product.supportedClients,
+  );
   assert.equal(
     built.checksums,
     `${runtime.sha256}  runtime/${runtime.archive}\n`,
