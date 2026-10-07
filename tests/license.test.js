@@ -112,3 +112,9 @@ test("rejects unsupported version and oversized token", () => {
     /LICENSE/,
   );
 });
+
+test("accepts signed high-capacity admin entitlement, rejects oversized concurrency", () => {
+  const admin = { ...base, limits: { devices: 2147483647, concurrent_jobs: 64 } };
+  assert.equal(verifyEntitlement(token(admin), keys, binding, now).limits.concurrent_jobs, 64);
+  assert.throws(() => verifyEntitlement(token({ ...admin, limits: { devices: 2147483647, concurrent_jobs: 65 } }), keys, binding, now), /LICENSE/);
+});
