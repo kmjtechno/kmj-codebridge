@@ -32,7 +32,7 @@ const PRESETS = freeze({
     }),
     node_dev: freeze({
       category: "build",
-      description: "Run the repository-defined Node development process as a cancellable bounded job.",
+      description:\n        "Run the repository-defined Node development process as a cancellable bounded job.",
       command: "npm",
       variants: freeze({
         start: freeze({ args: ["run", "dev"], timeoutMs: 300000 }),
@@ -57,7 +57,7 @@ const PRESETS = freeze({
       command: "python3",
       variants: freeze({
         test: freeze({ args: ["-m", "pytest"], timeoutMs: 300000 }),
-        compile: freeze({ args: ["-m", "compileall", "-q", "."], timeoutMs: 300000 }),
+        compile: freeze({\n          args: ["-m", "compileall", "-q", "."],\n          timeoutMs: 300000,\n        }),
       }),
     }),
   }),
@@ -70,8 +70,8 @@ const PRESETS = freeze({
         check: freeze({ args: ["check", "--locked"], timeoutMs: 300000 }),
         build: freeze({ args: ["build", "--locked"], timeoutMs: 300000 }),
         test: freeze({ args: ["test", "--locked"], timeoutMs: 300000 }),
-        clippy: freeze({ args: ["clippy", "--locked", "--", "-D", "warnings"], timeoutMs: 300000 }),
-        format_check: freeze({ args: ["fmt", "--", "--check"], timeoutMs: 300000 }),
+        clippy: freeze({\n          args: ["clippy", "--locked", "--", "-D", "warnings"],\n          timeoutMs: 300000,\n        }),
+        format_check: freeze({\n          args: ["fmt", "--", "--check"],\n          timeoutMs: 300000,\n        }),
       }),
     }),
     cargo_format: freeze({
