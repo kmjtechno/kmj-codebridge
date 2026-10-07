@@ -43,6 +43,7 @@ function fixture(t) {
   const secrets = path.join(root, "private");
   fs.mkdirSync(project);
   fs.mkdirSync(secrets, { mode: 0o700 });
+  fs.mkdirSync(path.join(secrets, "state"), { mode: 0o700 });
   const configPath = path.join(secrets, "agent.json");
   const publicKeysPath = path.join(secrets, "keys.json");
   const credentialPath = path.join(secrets, "credential");
@@ -102,7 +103,7 @@ test("rejects unapproved plan, wrong device, forged lease and bad credentials be
     const f = fixture(t);
     await assert.rejects(() => activateOwnerAdmin(f, { fetch: mockFetch(token), now }), /LICENSE|OWNER_ADMIN/);
     assert.equal(JSON.parse(fs.readFileSync(f.configPath, "utf8")).license.mode, "free");
-    assert.equal(fs.existsSync(f.configPath + ".entitlement.jws"), false);
+    assert.equal(fs.existsSync(path.join(f.root, "private/state/owner-admin-entitlement.jws")), false);
     assert.equal(fs.existsSync(f.configPath + ".before-owner-admin.bak"), false);
   }
 });
