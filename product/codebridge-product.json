@@ -12,9 +12,11 @@
     "terms": "https://kmjtechno.com/products/kmj-codebridge/terms",
     "support": "https://kmjtechno.com/products/kmj-codebridge/support",
     "assets": {
-      "logo": "plugin/assets/logo.png",
+      "logo": "plugin/assets/icon.png",
       "icon": "plugin/assets/icon.png"
-    }
+    },
+    "developer": "KMJ TECHNO",
+    "category": "Developer Tools"
   },
   "versions": {
     "stable": "0.2.3",
@@ -91,7 +93,10 @@
     "codex",
     "generic-streamable-http-mcp"
   ],
-  "updateChannels": ["stable", "preview"],
+  "updateChannels": [
+    "stable",
+    "preview"
+  ],
   "features": {
     "repoMap": "available",
     "desktopMarketplace": "preview",
@@ -102,7 +107,9 @@
   "marketplaces": {
     "openai": {
       "packageId": "kmj-codebridge",
-      "status": "prepared"
+      "status": "prepared",
+      "appId": "asdk_app_6abf4c8dddb08191a983c2bd9fe79732",
+      "mcpEndpoint": "https://kmjtechno.com/mcp"
     },
     "claude": {
       "marketplace": "kmj-techno",
