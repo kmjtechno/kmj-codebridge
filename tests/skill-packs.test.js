@@ -4,7 +4,10 @@ import fs from "node:fs";
 import { selectSkillPacks, SKILL_PACKS } from "../src/skill-packs.js";
 
 const fixtures = JSON.parse(
-  fs.readFileSync(new URL("../evals/skill-selection.json", import.meta.url), "utf8"),
+  fs.readFileSync(
+    new URL("../evals/skill-selection.json", import.meta.url),
+    "utf8",
+  ),
 );
 
 test("skill pack catalog is vendor-neutral and bounded", () => {
