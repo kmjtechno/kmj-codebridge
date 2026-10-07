@@ -21,6 +21,8 @@ const MIN_FREE_MEMORY_BYTES = 128 * 1024 * 1024;
 const MIN_FREE_DISK_BYTES = 512 * 1024 * 1024;
 const CONSTRAINED_MEMORY_RATIO = 0.1;
 const CONSTRAINED_LOAD_PER_CPU = 1.5;
+const JOURNAL_LIMIT = 1000;
+const QUEUE_LIMIT = 64;
 
 function defaultResourceProbe(cwd) {
   const stats = fs.statfsSync(cwd);
@@ -39,14 +41,36 @@ function boundedNonNegative(value, fallback = 0) {
   return Number.isFinite(value) && value >= 0 ? value : fallback;
 }
 
+function durationMs(job) {
+  if (!job.startedAt) return null;
+  const start = Date.parse(job.startedAt);
+  const end = job.endedAt ? Date.parse(job.endedAt) : Date.now();
+  return Number.isFinite(start) && Number.isFinite(end)
+    ? Math.max(0, end - start)
+    : null;
+}
+
 export class JobRunner {
   constructor(
     dir,
-    { maxConcurrent = 1, resourceProbe = defaultResourceProbe } = {},
+    {
+      maxConcurrent = 1,
+      resourceProbe = defaultResourceProbe,
+      recheckIntervalMs = 1000,
+    } = {},
   ) {
+    if (
+      !Number.isInteger(recheckIntervalMs) ||
+      recheckIntervalMs < 10 ||
+      recheckIntervalMs > 60000
+    )
+      fail("INVALID_JOB_RECHECK_INTERVAL");
     this.dir = dir;
     this.maxConcurrent = maxConcurrent;
     this.resourceProbe = resourceProbe;
+    this.recheckIntervalMs = recheckIntervalMs;
+    this.recheckTimer = null;
+    this.closed = false;
     this.jobs = new Map();
     this.active = new Map();
     this.pending = new Map();
@@ -154,6 +178,10 @@ export class JobRunner {
       effectiveMaxConcurrent,
       activeJobs: this.active.size,
       queuedJobs: this.pending.size,
+      queueLimit: QUEUE_LIMIT,
+      journalUsed: this.jobs.size,
+      journalLimit: JOURNAL_LIMIT,
+      journalRemaining: Math.max(0, JOURNAL_LIMIT - this.jobs.size),
       cpuCount,
       loadOne,
       loadPerCpu,
@@ -171,6 +199,7 @@ export class JobRunner {
   }
 
   run({ project, gate, key, cwd, command, args = [], timeoutMs = 30000 }) {
+    if (this.closed) fail("JOB_RUNNER_CLOSED");
     if (typeof key !== "string" || key.length < 1 || key.length > 128)
       fail("INVALID_IDEMPOTENCY_KEY");
     const fingerprint = hash(
@@ -185,8 +214,8 @@ export class JobRunner {
     }
     const capacity = this.capacity(cwd);
     if (capacity.blocked) fail("RESOURCE_PRESSURE");
-    if (this.jobs.size >= 1000) fail("JOURNAL_FULL");
-    if (this.pending.size >= 64) fail("JOB_QUEUE_FULL");
+    if (this.jobs.size >= JOURNAL_LIMIT) fail("JOURNAL_FULL");
+    if (this.pending.size >= QUEUE_LIMIT) fail("JOB_QUEUE_FULL");
     const j = {
       id: randomUUID(),
       project,
@@ -208,14 +237,30 @@ export class JobRunner {
     return this.public(j);
   }
 
+  scheduleRecheck() {
+    if (this.closed || this.pending.size === 0 || this.recheckTimer) return;
+    this.recheckTimer = setTimeout(() => {
+      this.recheckTimer = null;
+      this.drain();
+    }, this.recheckIntervalMs);
+    this.recheckTimer.unref?.();
+  }
+  clearRecheck() {
+    if (this.recheckTimer) clearTimeout(this.recheckTimer);
+    this.recheckTimer = null;
+  }
   drain() {
+    if (this.closed) return;
+    let waitingForResources = false;
     for (const [id, spec] of this.pending) {
       let capacity;
       try {
         capacity = this.capacity(spec.cwd);
       } catch {
+        waitingForResources = true;
         continue;
       }
+      if (capacity.blocked || capacity.constrained) waitingForResources = true;
       if (
         capacity.blocked ||
         this.active.size >= capacity.effectiveMaxConcurrent
@@ -226,6 +271,11 @@ export class JobRunner {
       if (!j || j.state !== "queued") continue;
       this.start(j, spec);
     }
+    // A queued job must resume after pressure clears without requiring MCP polling.
+    // When all licensed slots are busy, process completion already wakes the queue.
+    if (this.pending.size && (waitingForResources || this.active.size === 0))
+      this.scheduleRecheck();
+    else this.clearRecheck();
   }
 
   start(j, { cwd, command, args, timeoutMs }) {
@@ -311,9 +361,23 @@ export class JobRunner {
     kill("SIGTERM");
     if (!a.killTimer) a.killTimer = setTimeout(() => kill("SIGKILL"), 500);
   }
+  queuePosition(id, project) {
+    let position = 0;
+    for (const pendingId of this.pending.keys()) {
+      if (this.jobs.get(pendingId)?.project !== project) continue;
+      position++;
+      if (pendingId === id) return position;
+    }
+    return null;
+  }
   public(j) {
     const { key, fingerprint, ...visible } = j;
-    return structuredClone(visible);
+    return structuredClone({
+      ...visible,
+      queuePosition:
+        j.state === "queued" ? this.queuePosition(j.id, j.project) : null,
+      durationMs: durationMs(j),
+    });
   }
   list(project, limit = 20, { state = "all", cursor = null } = {}) {
     this.drain();
@@ -335,8 +399,22 @@ export class JobRunner {
       (typeof cursor !== "string" || !/^[a-zA-Z0-9-]{1,128}$/.test(cursor))
     )
       fail("INVALID_JOB_CURSOR");
-    const scoped = [...this.jobs.values()]
-      .filter((job) => job.project === project)
+    const projectJobs = [...this.jobs.values()].filter(
+      (job) => job.project === project,
+    );
+    const summary = {
+      queued: 0,
+      running: 0,
+      succeeded: 0,
+      failed: 0,
+      cancelled: 0,
+      timed_out: 0,
+      interrupted: 0,
+    };
+    for (const job of projectJobs) {
+      if (Object.hasOwn(summary, job.state)) summary[job.state]++;
+    }
+    const scoped = projectJobs
       .filter((job) => state === "all" || job.state === state)
       .sort((a, b) => {
         const aTime = a.startedAt ?? a.queuedAt ?? "";
@@ -351,6 +429,7 @@ export class JobRunner {
       project,
       state,
       total: scoped.length,
+      summary,
       nextCursor: offset + limit < scoped.length ? page.at(-1).id : null,
       jobs: page.map((job) => ({
         id: job.id,
@@ -361,6 +440,9 @@ export class JobRunner {
         endedAt: job.endedAt,
         exitCode: job.exitCode,
         truncated: job.truncated,
+        queuePosition:
+          job.state === "queued" ? this.queuePosition(job.id, project) : null,
+        durationMs: durationMs(job),
       })),
     };
   }
@@ -374,6 +456,7 @@ export class JobRunner {
     const j = this.jobs.get(id);
     if (!j || j.project !== project) fail("JOB_NOT_FOUND");
     if (this.pending.delete(id)) {
+      if (this.pending.size === 0) this.clearRecheck();
       j.state = "cancelled";
       j.endedAt = new Date().toISOString();
       this.persist(j);
@@ -383,6 +466,8 @@ export class JobRunner {
     return this.public(j);
   }
   async close() {
+    this.closed = true;
+    this.clearRecheck();
     for (const id of this.pending.keys()) {
       const j = this.jobs.get(id);
       if (!j) continue;

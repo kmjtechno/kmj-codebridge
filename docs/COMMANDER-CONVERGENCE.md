@@ -170,6 +170,29 @@ selection automatically when that account has exactly one authorized target.
 For accounts with multiple targets, it asks for the intended project rather
 than guessing or mixing customer data.
 
+## Resilient Job Manager (no Desktop Commander dependency)
+
+CodeBridge's native `JobRunner` now self-wakes queued jobs after temporary
+resource-probe failures or memory/disk pressure clears. It uses one bounded,
+unref'd timer **only while queued work needs a resource recheck**; the timer is
+cancelled when the queue drains or the agent shuts down. A busy licensed slot
+still waits for the running job's completion rather than polling needlessly.
+The runner does not automatically replay interrupted, failed or cancelled jobs.
+
+The existing `list_project_jobs` tool includes project-scoped state counts,
+queue positions (per authorized project), and elapsed job duration. The
+existing `get_job_status` includes queue position and duration, while
+`execution_capacity` reports journal occupancy, remaining record slots and
+the bounded queue limit. No shell command, environment value, idempotency key,
+other project's job details, or unredacted logs are exposed.
+
+**Limits remain enforced:** free mode allows one concurrent job; signed
+entitlements can authorize more, and resource pressure can reduce effective
+concurrency. Journals still stop accepting new work at 1,000 records to avoid
+unsafe silent pruning/replay; archival with retained idempotency tombstones is
+future work. This is not permission for arbitrary terminal or privileged
+machine administration.
+
 ## Product-wide feature status
 
 The user-facing goal is **Desktop Commander-class usability within one
