@@ -61,6 +61,10 @@ test("installer is idempotent and preserves valid enrollment on rerun", () => {
   assert.match(script, /ROLLBACK_SERVICE/);
   assert.match(script, /bound to a different project/);
   assert.match(script, /\.rollback/);
+  assert.match(script, /EXISTING_STATE_DIR/);
+  assert.match(script, /c\.stateDir/);
+  assert.match(script, /STATE_DIR="\$\(readlink -f "\$EXISTING_STATE_DIR"\)"/);
+  assert.match(script, /Existing stateDir must be a safe absolute path/);
 });
 
 test("installer stages updates and rolls back failed service or gateway verification", () => {
