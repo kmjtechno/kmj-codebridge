@@ -10,6 +10,18 @@ const branchName = z
   .min(1)
   .max(255)
   .regex(/^[A-Za-z0-9._\/-]+$/);
+const commitSha = z.string().regex(/^[a-f0-9]{40}$/i);
+const contentPath = z
+  .string()
+  .min(1)
+  .max(1024)
+  .refine(
+    (value) =>
+      !value.startsWith("/") &&
+      !value.includes("\\") &&
+      !/[\x00-\x1f]/.test(value) &&
+      value.split("/").every((part) => part && part !== "." && part !== ".."),
+  );
 const issueNumber = z.number().int().min(1);
 const runId = z.number().int().min(1);
 
@@ -70,7 +82,21 @@ export const githubDefinitions = {
     input: {
       repository: repoName,
       branch: branchName,
-      sha: z.string().regex(/^[a-f0-9]{40}$/i),
+      sha: commitSha,
+    },
+    access: "write",
+  },
+  github_update_file: {
+    title: "Update GitHub file",
+    description:
+      "Replace one existing repository file on an exact branch and blob SHA. The server credential remains private and stale writes fail closed.",
+    input: {
+      repository: repoName,
+      path: contentPath,
+      branch: branchName,
+      sha: commitSha,
+      content: z.string().max(262144),
+      message: z.string().min(1).max(256),
     },
     access: "write",
   },
@@ -88,10 +114,29 @@ export const githubDefinitions = {
     },
     access: "write",
   },
+  github_merge_pull_request: {
+    title: "Merge green GitHub pull request",
+    description:
+      "Merge only an exact pull-request head after all GitHub check runs for that head are completed and successful.",
+    input: {
+      repository: repoName,
+      number: issueNumber,
+      expectedHeadSha: commitSha,
+      method: z.enum(["squash", "merge", "rebase"]).default("squash"),
+    },
+    access: "write",
+  },
 };
 
 function safePath(repository) {
   return repository
+    .split("/")
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+}
+
+function safeContentPath(value) {
+  return value
     .split("/")
     .map((part) => encodeURIComponent(part))
     .join("/");
@@ -319,6 +364,25 @@ export function createGitHubBridge(config) {
       return { ref: data.ref, sha: data.object?.sha };
     }
 
+    if (name === "github_update_file") {
+      const data = await request(
+        "PUT",
+        a.repository,
+        `contents/${safeContentPath(a.path)}`,
+        {
+          message: a.message,
+          content: Buffer.from(a.content, "utf8").toString("base64"),
+          sha: a.sha,
+          branch: a.branch,
+        },
+      );
+      return {
+        path: data.content?.path,
+        content_sha: data.content?.sha,
+        commit_sha: data.commit?.sha,
+      };
+    }
+
     if (name === "github_create_pull_request") {
       const data = await request("POST", a.repository, "pulls", {
         title: a.title,
@@ -334,6 +398,50 @@ export function createGitHubBridge(config) {
         head: data.head?.sha,
         base: data.base?.sha,
         url: data.html_url,
+      };
+    }
+
+    if (name === "github_merge_pull_request") {
+      const pull = await request(
+        "GET",
+        a.repository,
+        `pulls/${a.number}`,
+        undefined,
+      );
+      if (pull.state !== "open") fail("GITHUB_PULL_REQUEST_NOT_OPEN");
+      if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
+
+      const checks = await request(
+        "GET",
+        a.repository,
+        `commits/${a.expectedHeadSha}/check-runs?per_page=100`,
+        undefined,
+      );
+      const runs = checks.check_runs ?? [];
+      if (
+        !Number.isInteger(checks.total_count) ||
+        checks.total_count < 1 ||
+        checks.total_count > 100 ||
+        runs.length !== checks.total_count ||
+        runs.some(
+          (run) => run.status !== "completed" || run.conclusion !== "success",
+        )
+      )
+        fail("GITHUB_CHECKS_NOT_GREEN");
+
+      const data = await request(
+        "PUT",
+        a.repository,
+        `pulls/${a.number}/merge`,
+        {
+          sha: a.expectedHeadSha,
+          merge_method: a.method,
+        },
+      );
+      return {
+        merged: data.merged === true,
+        sha: data.sha ?? null,
+        message: bounded(data.message ?? "", 1024).text,
       };
     }
 

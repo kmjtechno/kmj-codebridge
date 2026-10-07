@@ -6,6 +6,18 @@ function json(data, status = 200) {
   return Response.json(data, { status });
 }
 
+function writableBridge(t) {
+  const credentialEnv = ["CODEBRIDGE_TEST_GITHUB", "TOKEN"].join("_");
+  process.env[credentialEnv] = "j".repeat(40);
+  t.after(() => delete process.env[credentialEnv]);
+  return createGitHubBridge({
+    apiBase: "https://api.github.com/",
+    tokenEnv: credentialEnv,
+    repositories: ["kmjtechno/kmj-codebridge"],
+    cacheSeconds: 30,
+  });
+}
+
 test("GitHub bridge keeps credential server-side, enforces allowlist and caches reads", async (t) => {
   process.env.CODEBRIDGE_TEST_GITHUB_TOKEN = "g".repeat(40);
   t.after(() => delete process.env.CODEBRIDGE_TEST_GITHUB_TOKEN);
@@ -219,6 +231,106 @@ test("GitHub bridge creates branches and pull requests without returning the cre
   assert.equal(pr.number, 9);
   assert.ok(!JSON.stringify(pr).includes("i".repeat(20)));
   assert.equal(calls.filter((c) => c.method === "POST").length, 2);
+});
+
+test("GitHub bridge updates exact files and merges only an exact green head", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const value = String(url);
+    calls.push({ url: value, method: options.method, body: options.body });
+    if (value.endsWith("/contents/src/a.js"))
+      return json({
+        content: { path: "src/a.js", sha: "b".repeat(40) },
+        commit: { sha: "c".repeat(40) },
+      });
+    if (value.endsWith("/pulls/9"))
+      return json({ state: "open", head: { sha: "a".repeat(40) } });
+    if (value.includes(`/commits/${"a".repeat(40)}/check-runs`))
+      return json({
+        total_count: 2,
+        check_runs: [
+          { status: "completed", conclusion: "success" },
+          { status: "completed", conclusion: "success" },
+        ],
+      });
+    if (value.endsWith("/pulls/9/merge"))
+      return json({ merged: true, sha: "d".repeat(40), message: "merged" });
+    throw new Error(`unexpected fetch ${value}`);
+  });
+
+  const dispatch = writableBridge(t);
+  const updated = await dispatch("github_update_file", {
+    repository: "kmjtechno/kmj-codebridge",
+    path: "src/a.js",
+    branch: "feature",
+    sha: "a".repeat(40),
+    content: "const ok = true;\n",
+    message: "fix: exact file",
+  });
+  assert.equal(updated.content_sha, "b".repeat(40));
+  const updateBody = JSON.parse(calls[0].body);
+  assert.equal(
+    Buffer.from(updateBody.content, "base64").toString("utf8"),
+    "const ok = true;\n",
+  );
+  assert.equal(updateBody.sha, "a".repeat(40));
+  assert.equal(updateBody.branch, "feature");
+
+  const merged = await dispatch("github_merge_pull_request", {
+    repository: "kmjtechno/kmj-codebridge",
+    number: 9,
+    expectedHeadSha: "a".repeat(40),
+    method: "squash",
+  });
+  assert.equal(merged.merged, true);
+  assert.equal(merged.sha, "d".repeat(40));
+  const mergeBody = JSON.parse(calls.at(-1).body);
+  assert.equal(mergeBody.sha, "a".repeat(40));
+  assert.equal(mergeBody.merge_method, "squash");
+});
+
+test("GitHub safe merge rejects moved heads and non-green checks", async (t) => {
+  let head = "b".repeat(40);
+  let green = true;
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const value = String(url);
+    if (value.endsWith("/pulls/9"))
+      return json({ state: "open", head: { sha: head } });
+    if (value.includes("/check-runs"))
+      return json({
+        total_count: 1,
+        check_runs: [
+          {
+            status: green ? "completed" : "in_progress",
+            conclusion: green ? "success" : null,
+          },
+        ],
+      });
+    throw new Error(`unexpected fetch ${value}`);
+  });
+
+  const dispatch = writableBridge(t);
+  await assert.rejects(
+    dispatch("github_merge_pull_request", {
+      repository: "kmjtechno/kmj-codebridge",
+      number: 9,
+      expectedHeadSha: "a".repeat(40),
+      method: "squash",
+    }),
+    /GITHUB_HEAD_MOVED/,
+  );
+
+  head = "a".repeat(40);
+  green = false;
+  await assert.rejects(
+    dispatch("github_merge_pull_request", {
+      repository: "kmjtechno/kmj-codebridge",
+      number: 9,
+      expectedHeadSha: "a".repeat(40),
+      method: "squash",
+    }),
+    /GITHUB_CHECKS_NOT_GREEN/,
+  );
 });
 
 test("GitHub bridge supports credential-free reads only for explicitly public mode", async (t) => {

@@ -49,11 +49,15 @@ Read scope:
 Write scope:
 
 - `github_create_branch`
+- `github_update_file`
 - `github_create_pull_request`
+- `github_merge_pull_request`
 
 Repository access is additionally restricted by the configured repository allowlist.
 Read requests are cached briefly to reduce GitHub API traffic. Write operations clear
-the cache.
+the cache. File updates require an exact existing blob SHA and branch, so stale writes
+fail closed. Pull-request merge requires the exact expected head SHA and refuses to
+merge until every bounded GitHub check run for that head is completed successfully.
 
 Actions job logs are bounded and pass through CodeBridge secret redaction before
 being returned to the model.
