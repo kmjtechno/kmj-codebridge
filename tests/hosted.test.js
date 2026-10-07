@@ -74,6 +74,23 @@ test("hosted config can switch OAuth user grants to the issuer introspection end
   );
 });
 
+test("hosted config auto-discovers same-origin user introspection even with static users", () => {
+  const sameOrigin = {
+    ...config,
+    oauth: {
+      ...config.oauth,
+      issuer: "https://kmjtechno.com",
+      resource: "https://kmjtechno.com/mcp",
+    },
+    allowedHosts: ["kmjtechno.com"],
+  };
+  const parsed = hostedConfig(JSON.stringify(sameOrigin), "10000", {});
+  assert.deepEqual(parsed.userIntrospection, {
+    endpoint: "https://kmjtechno.com/api/codebridge/v1/user-access/introspect",
+    cacheSeconds: 30,
+  });
+});
+
 test("hosted config rejects partial GitHub environment settings", () => {
   assert.throws(
     () =>
