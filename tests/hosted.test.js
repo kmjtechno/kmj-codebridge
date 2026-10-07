@@ -54,6 +54,26 @@ test("hosted config supports explicit public read-only GitHub mode without a cre
   });
 });
 
+test("hosted config can switch OAuth user grants to the issuer introspection endpoint", () => {
+  const parsed = hostedConfig(JSON.stringify(config), "10000", {
+    CODEBRIDGE_USER_INTROSPECTION_ENDPOINT:
+      "https://identity.example/api/codebridge/v1/user-access/introspect",
+  });
+  assert.deepEqual(parsed.userIntrospection, {
+    endpoint:
+      "https://identity.example/api/codebridge/v1/user-access/introspect",
+    cacheSeconds: 30,
+  });
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        CODEBRIDGE_USER_INTROSPECTION_ENDPOINT:
+          "https://other.example/api/codebridge/v1/user-access/introspect",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+});
+
 test("hosted config rejects partial GitHub environment settings", () => {
   assert.throws(
     () =>
@@ -121,6 +141,16 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
   } finally {
     await gateway.close();
   }
+});
+
+test("hosted static OAuth users default omitted device grants to deny-all", () => {
+  const { devices: _devices, ...userWithoutDevices } = config.users[0];
+  const parsed = hostedConfig(
+    JSON.stringify({ ...config, users: [userWithoutDevices] }),
+    "10000",
+    {},
+  );
+  assert.deepEqual(parsed.users[0].devices, {});
 });
 
 test("hosted mode requires OAuth and matching public hostname", () => {
