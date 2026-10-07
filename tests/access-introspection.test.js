@@ -57,6 +57,7 @@ async function gatewayGrants(
   agentProjects = ["project1"],
   scopes = ["read"],
   expectedHeartbeatStatus = 200,
+  staticUser = false,
 ) {
   const { generateKeyPair, exportJWK, SignJWT } = await import("jose");
   const { createHash } = await import("node:crypto");
@@ -91,10 +92,24 @@ async function gatewayGrants(
       resource: "https://bridge.example/mcp",
       jwks: { keys: [jwk] },
     },
-    userIntrospection: {
-      endpoint: "https://platform.example/user",
-      cacheSeconds: 30,
-    },
+    ...(staticUser
+      ? {
+          users: [
+            {
+              id: "static-user",
+              subject: "user-7",
+              tenant: "tenant-a",
+              devices,
+              permissions: scopes,
+            },
+          ],
+        }
+      : {
+          userIntrospection: {
+            endpoint: "https://platform.example/user",
+            cacheSeconds: 30,
+          },
+        }),
     agentIntrospection: {
       endpoint: "https://platform.example/agent",
       cacheSeconds: 30,
@@ -171,6 +186,24 @@ test("OAuth introspection grants a listed static agent project", async (t) => {
 
 test("explicit OAuth grants deny an unlisted dynamic agent", async (t) => {
   const result = await gatewayGrants(t, {}, true);
+  assert.deepEqual(result.devices, []);
+  const denied = await result.client.callTool({
+    name: "read_file",
+    arguments: { device: "device1", project: "project1", path: "hello.txt" },
+  });
+  assert.equal(JSON.parse(denied.content[0].text).error, "ACCESS_DENIED");
+});
+
+test("explicit static OAuth grants also deny an unlisted dynamic agent", async (t) => {
+  const result = await gatewayGrants(
+    t,
+    {},
+    true,
+    ["project1"],
+    ["read"],
+    200,
+    true,
+  );
   assert.deepEqual(result.devices, []);
   const denied = await result.client.callTool({
     name: "read_file",

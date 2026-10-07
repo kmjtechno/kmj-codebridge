@@ -139,7 +139,7 @@ export const gatewaySchema = z
           tenant: id,
           tokenHash: digest.optional(),
           subject: z.string().min(1).max(256).optional(),
-          devices: z.record(z.array(id)),
+          devices: z.record(z.array(id)).default({}),
           permissions: z.array(permission),
         }),
       )
