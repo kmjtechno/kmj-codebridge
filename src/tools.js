@@ -27,6 +27,41 @@ const KEY_VALUE_BINDING =
 const PRIVATE_KEY_BINDING =
   /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g;
 
+// Inspect only administrator-declared regular files, through the same project
+// path policy as reads. Never open file contents or execute a probe command.
+function gateReadiness(files, gate) {
+  const required = gate.requiredFiles ?? [];
+  const checks = required.map((relative) => {
+    try {
+      const target = files.resolve(relative);
+      fs.accessSync(target, fs.constants.R_OK);
+      return { path: relative, status: "present" };
+    } catch (error) {
+      if (error.code === "FILE_NOT_FOUND")
+        return { path: relative, status: "missing", code: "FILE_NOT_FOUND" };
+      const code = [
+        "INVALID_PATH",
+        "PATH_DENIED",
+        "SYMLINK_DENIED",
+        "HARDLINK_DENIED",
+        "NOT_REGULAR_FILE",
+      ].includes(error.code)
+        ? error.code
+        : "PREREQUISITE_UNREADABLE";
+      return { status: "blocked", code };
+    }
+  });
+  return {
+    status: !required.length
+      ? "not_configured"
+      : checks.every((c) => c.status === "present")
+        ? "satisfied"
+        : "blocked",
+    scope: "declared_files_only",
+    checks,
+  };
+}
+
 export function sensitiveBindings(text) {
   const bindings = [];
   for (const match of text.matchAll(BEARER_BINDING))
@@ -387,15 +422,16 @@ export function createDispatcher(
       fail("ACCESS_DENIED");
     const p = projects.get(a.project);
     if (!p) fail("PROJECT_NOT_FOUND");
+    let entitlement;
     // Safe status and cancellation remain usable after paid lease expiry.
     if (!["get_job_status", "cancel_job", "autopilot_status"].includes(name)) {
-      const entitlement = licenseProvider();
+      entitlement = licenseProvider();
       if (!entitlement.features.includes(definition.access))
         fail("FEATURE_UNAVAILABLE");
       runner.maxConcurrent = entitlement.limits.concurrent_jobs;
     }
-    if (name === "inspect_project" || name === "connection_doctor")
-      return {
+    if (name === "inspect_project" || name === "connection_doctor") {
+      const result = {
         device: config.id,
         project: p.id,
         writable: p.writable,
@@ -403,6 +439,22 @@ export function createDispatcher(
         connection: "connected",
         version: VERSION,
       };
+      if (name === "connection_doctor") {
+        result.effectivePermissions = ["read", "write", "execute"].filter(
+          (permission) =>
+            permissions.includes(permission) &&
+            entitlement.features.includes(permission) &&
+            (permission === "read" || p.writable),
+        );
+        result.gateReadiness = Object.fromEntries(
+          Object.entries(p.gates).map(([gate, settings]) => [
+            gate,
+            gateReadiness(p.files, settings),
+          ]),
+        );
+      }
+      return result;
+    }
     if (name === "list_directory") return p.files.list(a.path);
     if (name === "read_file") {
       const r = p.files.read(a.path);
@@ -640,6 +692,10 @@ export function createDispatcher(
         key: a.requestKey,
         cwd: p.files.root,
         ...gate,
+        validateStart: () => {
+          if (gateReadiness(p.files, gate).status === "blocked")
+            fail("GATE_PREREQUISITES_NOT_MET");
+        },
       });
     }
     if (name === "get_job_status") return runner.get(a.job, p.id);

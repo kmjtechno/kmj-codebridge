@@ -227,6 +227,10 @@ export const agentSchema = z.object({
             z.object({
               command: z.string().min(1),
               args: z.array(z.string()).default([]),
+              requiredFiles: z
+                .array(z.string().min(1).max(1024))
+                .max(32)
+                .default([]),
               timeoutMs: z.number().int().min(10).max(300000).default(30000),
             }),
           )

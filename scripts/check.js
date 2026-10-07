@@ -21,4 +21,18 @@ const versions = [
 ];
 if (versions.some((version) => version !== pkg.version))
   throw Error("Version mismatch");
-console.log("JavaScript syntax and package/plugin versions verified.");
+// --check cannot detect missing named exports or CommonJS assignments in ESM.
+// Import the real startup graphs without starting servers or loading credentials.
+for (const entry of ["src/gateway.js", "src/agent.js"])
+  execFileSync(process.execPath, [path.resolve(entry)], {
+    stdio: "pipe",
+    timeout: 10000,
+    env: {
+      PATH: process.env.PATH ?? "",
+      SystemRoot: process.env.SystemRoot ?? "",
+      LANG: "C.UTF-8",
+    },
+  });
+console.log(
+  "JavaScript syntax, startup imports and package/plugin versions verified.",
+);

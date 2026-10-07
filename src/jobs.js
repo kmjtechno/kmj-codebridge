@@ -47,7 +47,16 @@ export class JobRunner {
     }
     fs.renameSync(tmp, target);
   }
-  run({ project, gate, key, cwd, command, args = [], timeoutMs = 30000 }) {
+  run({
+    project,
+    gate,
+    key,
+    cwd,
+    command,
+    args = [],
+    timeoutMs = 30000,
+    validateStart = () => {},
+  }) {
     if (typeof key !== "string" || key.length < 1 || key.length > 128)
       fail("INVALID_IDEMPOTENCY_KEY");
     const fingerprint = hash(
@@ -62,6 +71,8 @@ export class JobRunner {
     }
     if (this.active.size >= this.maxConcurrent) fail("JOB_BUSY");
     if (this.jobs.size >= 1000) fail("JOURNAL_FULL");
+    // Admission checks apply only to new jobs, never idempotent replays.
+    validateStart();
     const j = {
       id: randomUUID(),
       project,
