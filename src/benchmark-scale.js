@@ -1,6 +1,8 @@
 const percentile = (samples, fraction) => {
   const sorted = [...samples].sort((a, b) => a - b);
-  return sorted[Math.min(sorted.length - 1, Math.floor(fraction * sorted.length))];
+  return sorted[
+    Math.min(sorted.length - 1, Math.floor(fraction * sorted.length))
+  ];
 };
 
 const timed = (iterations, fn) => {
@@ -43,7 +45,8 @@ export function simulateControlPlaneScale({
     const listPresence = () => {
       const visible = [];
       for (const agent of agents.values()) {
-        if (now - (lastSeen.get(agent.id) ?? 0) <= leaseMs) visible.push(agent.id);
+        if (now - (lastSeen.get(agent.id) ?? 0) <= leaseMs)
+          visible.push(agent.id);
       }
       return visible;
     };
