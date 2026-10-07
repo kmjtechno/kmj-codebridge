@@ -20,7 +20,11 @@ jobs:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
-      - run: npm run check
+      - name: Exact formatter diagnostic
+        run: |
+          npx prettier --write src/supervisor.js tests/main-platform-refresh.test.js
+          git diff -- src/supervisor.js tests/main-platform-refresh.test.js
+          exit 1
       - run: npm test
       - run: npm run package:runtime
       - uses: actions/upload-artifact@v4
