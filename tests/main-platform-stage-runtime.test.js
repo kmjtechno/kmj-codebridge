@@ -33,8 +33,14 @@ function fixture() {
 }
 
 function dispose(root) {
-  fs.chmodSync(root, 0o700);
-  // Test teardown only, never used on the live fixed staging root.
+  // Make only this test-created temporary directory writable for teardown.
+  function unlock(directory) {
+    for (const e of fs.readdirSync(directory, { withFileTypes: true })) {
+      if (e.isDirectory()) unlock(path.join(directory, e.name));
+    }
+    fs.chmodSync(directory, 0o700);
+  }
+  unlock(root);
   fs.rmSync(root, { recursive: true, force: true });
 }
 
@@ -74,8 +80,8 @@ test("refuses uncommitted changes rather than staging dirty source", () => {
 test("refuses source revision that differs from origin/main", () => {
   const { root, source, destination } = fixture();
   try {
-    git(source, "update-ref", "refs/remotes/origin/main",
-      "0".repeat(40));
+    git(source, "-c", "user.name=Test", "-c", "user.email=test@example.test",
+      "commit", "--allow-empty", "-qm", "move local HEAD ahead of origin/main");
     assert.throws(
       () => stageRuntime({ source, destination, requireRoot: false }),
       /MAIN_PLATFORM_STAGE_REVISION_UNVERIFIED/,
