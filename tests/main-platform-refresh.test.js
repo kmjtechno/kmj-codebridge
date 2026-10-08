@@ -39,7 +39,6 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
   assert.match(refresh, /fs\.realpathSync\(c\.projects\[0\]\.root\)/);
   assert.match(refresh, /c\.stateDir !== process\.env\.STATE_DIR/);
   assert.doesNotMatch(refresh, /rm -rf "\$LEGACY_CONFIG"/);
-
 });
 
 test("installer provisions a rollback-safe fixed Main Platform refresh unit", () => {
