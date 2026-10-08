@@ -388,6 +388,13 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       nRestarts: "unknown",
       execMainStartTimestamp: "unknown",
     },
+    privatePr322Ci: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+    },
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
@@ -416,6 +423,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-kmj-main-platform.service",
       "kmj-codebridge-main-platform-refresh.service",
       "kmj-codebridge-kmj-main-platform.service",
+      "kmj-codebridge-private-pr322-ci.service",
     ],
   );
   await assert.rejects(
