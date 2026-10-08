@@ -34,7 +34,10 @@ const plan = (tasks, pools, effectiveMaxConcurrent = 3, extra = {}) =>
 
 test("never increases licensed slots or claims real execution", () => {
   const result = plan(
-    [task("alpha", { dataClass: "public" }), task("beta", { dataClass: "public" })],
+    [
+      task("alpha", { dataClass: "public" }),
+      task("beta", { dataClass: "public" }),
+    ],
     [pool("free")],
     1,
   );
@@ -50,11 +53,18 @@ test("parallelizes independent paths only when eligible free quotas exist", () =
     [
       task("a", { paths: ["app/a"], dataClass: "public" }),
       task("b", { paths: ["app/b"], dataClass: "public" }),
-      task("c", { dependsOn: ["a", "b"], paths: ["app/c"], dataClass: "public" }),
+      task("c", {
+        dependsOn: ["a", "b"],
+        paths: ["app/c"],
+        dataClass: "public",
+      }),
     ],
     [pool("free", { remainingRequests: 3 })],
   );
-  assert.deepEqual(result.waves.map((wave) => wave.length), [2, 1]);
+  assert.deepEqual(
+    result.waves.map((wave) => wave.length),
+    [2, 1],
+  );
   assert.equal(result.scheduledCount, 3);
 });
 
@@ -67,7 +77,10 @@ test("overlapping file scopes cannot share the same wave", () => {
     [pool("free")],
     3,
   );
-  assert.deepEqual(result.waves.map((wave) => wave.length), [1, 1]);
+  assert.deepEqual(
+    result.waves.map((wave) => wave.length),
+    [1, 1],
+  );
 });
 
 test("protects private source unless the selected pool is approved for it", () => {
@@ -97,12 +110,17 @@ test("paid, unavailable and exhausted model pools never get selected", () => {
 
 test("offline local backup stays off unless explicitly permitted", () => {
   const tasks = [task("a")];
-  const providers = [pool("local", {
-    mode: "local",
-    canProcessPrivateCode: true,
-  })];
+  const providers = [
+    pool("local", {
+      mode: "local",
+      canProcessPrivateCode: true,
+    }),
+  ];
   assert.equal(plan(tasks, providers).scheduledCount, 0);
-  assert.equal(plan(tasks, providers, 1, { allowLocal: true }).scheduledCount, 1);
+  assert.equal(
+    plan(tasks, providers, 1, { allowLocal: true }).scheduledCount,
+    1,
+  );
 });
 
 test("never consumes more provider RPM than modeled per wave", () => {
@@ -115,7 +133,10 @@ test("never consumes more provider RPM than modeled per wave", () => {
     [pool("limited", { requestsPerMinute: 1, remainingRequests: 3 })],
     3,
   );
-  assert.deepEqual(result.waves.map((wave) => wave.length), [1, 1, 1]);
+  assert.deepEqual(
+    result.waves.map((wave) => wave.length),
+    [1, 1, 1],
+  );
 });
 
 test("fails closed on CPU/resource block", () => {
@@ -127,13 +148,20 @@ test("fails closed on CPU/resource block", () => {
 });
 
 test("rejects duplicate ids, missing dependencies, cycles and unsafe scopes", () => {
-  assert.throws(() => plan([task("a"), task("a")], []), /INVALID_HYPERSPEED_PLAN/);
-  assert.throws(() => plan([task("a", { dependsOn: ["z"] })], []), /INVALID_HYPERSPEED_PLAN/);
   assert.throws(
-    () => plan([
-      task("a", { dependsOn: ["b"] }),
-      task("b", { dependsOn: ["a"] }),
-    ], []),
+    () => plan([task("a"), task("a")], []),
+    /INVALID_HYPERSPEED_PLAN/,
+  );
+  assert.throws(
+    () => plan([task("a", { dependsOn: ["z"] })], []),
+    /INVALID_HYPERSPEED_PLAN/,
+  );
+  assert.throws(
+    () =>
+      plan(
+        [task("a", { dependsOn: ["b"] }), task("b", { dependsOn: ["a"] })],
+        [],
+      ),
     /HYPERSPEED_DEPENDENCY_CYCLE/,
   );
   assert.throws(
