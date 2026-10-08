@@ -37,6 +37,30 @@ current="$(git -C "$INSTALL_DIR" rev-parse HEAD)"
 remote="$(git ls-remote "$REPO" "refs/heads/$BRANCH" | awk 'NR==1{print $1}')"
 [[ "$remote" =~ ^[a-f0-9]{40}$ ]] || { echo "AUTO_UPDATE_REMOTE_INVALID" >&2; exit 5; }
 
+# Check only the fixed Main Platform systemd unit. A development updater must
+# not repeatedly trigger a refresh that would overwrite a release/canary
+# ExecStart. Retain the signed-promotion gate and report an explicit outcome.
+main_platform_refresh_allowed() {
+  local unit="kmj-codebridge-kmj-main-platform.service"
+  local loaded dropins directory
+  if ! loaded="$(systemctl show "$unit" -p LoadState --value 2>/dev/null)" ||
+     ! dropins="$(systemctl show "$unit" -p DropInPaths --value 2>/dev/null)" ||
+     ! directory="$(systemctl show "$unit" -p WorkingDirectory --value 2>/dev/null)" ||
+     [[ "$loaded" != "loaded" ]]; then
+    echo "AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE" >&2
+    return 1
+  fi
+  if [[ "$dropins" == *"/99-kmj-release.conf"* ||
+        "$dropins" == *"/zz-kmj-codebridge-development-canary.conf"* ||
+        "$dropins" == *"/30-readiness-runtime.conf"* ||
+        "$directory" == /opt/kmj-codebridge-releases/* ||
+        "$directory" == /opt/kmj-codebridge-main-platform-agent-* ]]; then
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE"
+    return 1
+  fi
+  return 0
+}
+
 retry_skipped_main_platform_refresh() {
   local service="kmj-codebridge-main-platform-refresh.service"
   local current_config="/etc/kmj-codebridge-main-platform/agent.json"
@@ -86,6 +110,9 @@ if (fs.existsSync(journal)) {
 NODE
   then
     echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED" >&2
+    return 0
+  fi
+  if ! main_platform_refresh_allowed; then
     return 0
   fi
   if systemctl start --no-block "$service"; then
@@ -174,10 +201,12 @@ CODEBRIDGE_GATEWAY="$GATEWAY" CODEBRIDGE_REF="$remote" CODEBRIDGE_AUTO_UPDATE_MO
 
 MAIN_PLATFORM_REFRESH_SERVICE="kmj-codebridge-main-platform-refresh.service"
 if [[ -f /etc/kmj-codebridge-main-platform/agent.json && -d /srv/kmj-codebridge-projects/kmj-main-platform/.git ]]; then
-  if systemctl start --no-block "$MAIN_PLATFORM_REFRESH_SERVICE"; then
-    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULED=1"
-  else
-    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULE_FAILED=1" >&2
+  if main_platform_refresh_allowed; then
+    if systemctl start --no-block "$MAIN_PLATFORM_REFRESH_SERVICE"; then
+      echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULED=1"
+    else
+      echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULE_FAILED=1" >&2
+    fi
   fi
 fi
 
