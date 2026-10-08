@@ -35,11 +35,21 @@ def fixture_lstat(p):
         project_reads += 1
         if os.environ.get('PROJECT_RACE') and project_reads > 1: result.st_ino=2
         return result
-    return fixture_stat(p)
+    result=fixture_stat(p)
+    if p.endswith('/.git') or p.endswith('/.git/config'):
+        label='GIT' if p.endswith('/.git') else 'CONFIG'
+        if os.environ.get(label+'_MISSING'): raise FileNotFoundError(2, 'private error')
+        if os.environ.get(label+'_ROOT'): result.st_uid=0; result.st_gid=0
+        if os.environ.get(label+'_GID'): result.st_gid=1002
+        if os.environ.get(label+'_LINK'): result.st_mode=stat.S_IFLNK|0o755
+        if os.environ.get(label+'_NLINK'): result.st_nlink=2
+        if os.environ.get(label+'_SIZE'): result.st_size=65537
+    return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 9
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 9
 os.close=lambda *a: None
-os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
+os.stat=lambda p, **kw: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/'+p)
+os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
 def chmod(fd, mode):
     global project_mode
     assert fd==10 and locked
@@ -164,6 +174,33 @@ subprocess.run=stub
   assert.match(hardened.stdout, /CHMOD=GROUP_WRITE_REMOVED/);
   assert.match(hardened.stdout, /AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1/);
   assert.match(hardened.stdout, /PR322_REF_REFRESHED=1/);
+  for (const [env, markers] of [
+    [
+      { SERVICE_OWNER: "1", GIT_ROOT: "1", CONFIG_ROOT: "1" },
+      [
+        "GIT_DIRECTORY_OWNER=ROOT",
+        "GIT_CONFIG_OWNER=ROOT",
+        "GIT_CONFIG_GID=MATCHES_PRIMARY",
+      ],
+    ],
+    [{ CONFIG_GID: "1" }, ["GIT_CONFIG_GID=DIFFERS"]],
+    [{ CONFIG_LINK: "1" }, ["GIT_CONFIG_TYPE=SYMLINK"]],
+    [
+      { GIT_LINK: "1" },
+      ["GIT_DIRECTORY_TYPE=SYMLINK", "GIT_CONFIG_READ=BLOCKED_DIRECTORY"],
+    ],
+    [{ CONFIG_MISSING: "1" }, ["GIT_CONFIG_READ=MISSING"]],
+    [
+      { CONFIG_NLINK: "1", CONFIG_SIZE: "1" },
+      ["GIT_CONFIG_NLINK=INVALID", "GIT_CONFIG_SIZE=INVALID"],
+    ],
+  ]) {
+    const result = run(env);
+    assert.equal(result.status, 0, result.stderr);
+    for (const marker of markers)
+      assert.ok(result.stdout.includes("AUTO_UPDATE_PRIVATE_CI_" + marker));
+    assert.doesNotMatch(result.stdout, /UPDATED=|CHMOD=|private error/);
+  }
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(

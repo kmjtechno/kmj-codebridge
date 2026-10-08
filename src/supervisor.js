@@ -164,6 +164,38 @@ function fixedUpdateMarkers(run, unit) {
     "AUTO_UPDATE_PRIVATE_PR322_REF_REFRESHED",
     "AUTO_UPDATE_PRIVATE_PR337_REF_REFRESHED",
   ]);
+  const gitMetadataFields = new Map();
+  for (const entry of ["GIT_DIRECTORY", "GIT_CONFIG"]) {
+    for (const [field, values] of [
+      [
+        "READ",
+        [
+          "OK",
+          "MISSING",
+          "PERMISSION_DENIED",
+          "OTHER_ERROR",
+          "BLOCKED_DIRECTORY",
+          "CHANGED",
+        ],
+      ],
+      ["OWNER", ["MATCHES_PROJECT", "ROOT", "TRUSTED_SERVICE", "OTHER"]],
+      ["GID", ["MATCHES_PRIMARY", "DIFFERS", "UNAVAILABLE"]],
+      ["TYPE", ["DIRECTORY", "REGULAR", "SYMLINK", "OTHER"]],
+      [
+        "MODE",
+        ["NONWRITE", "GROUP_WRITE", "WORLD_WRITE", "GROUP_AND_WORLD_WRITE"],
+      ],
+    ])
+      gitMetadataFields.set(
+        `AUTO_UPDATE_PRIVATE_CI_${entry}_${field}`,
+        new Set(values),
+      );
+  }
+  for (const field of ["NLINK", "SIZE"])
+    gitMetadataFields.set(
+      `AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_${field}`,
+      new Set(["VALID", "INVALID"]),
+    );
   const refSteps = new Set([
     "PROJECT_METADATA",
     "PROJECT_LSTAT_READ",
@@ -260,6 +292,7 @@ function fixedUpdateMarkers(run, unit) {
       return (
         (commits.has(key) && /^[a-f0-9]{40}$/.test(value)) ||
         (flags.has(key) && value === "1") ||
+        gitMetadataFields.get(key)?.has(value) ||
         (key === "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP" &&
           refSteps.has(value)) ||
         ([

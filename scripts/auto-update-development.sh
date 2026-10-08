@@ -166,10 +166,67 @@ try:
     owner = pwd.getpwuid(project.st_uid)
     if owner.pw_name not in {"root", "kmjrunner", "kmjprod", "kmjstage"} or project.st_gid != owner.pw_gid:
         raise ValueError("owner")
+    step = "GIT_DIRECTORY"
+    # Emit only fixed metadata classes for both entries before enforcing guards.
+    # A held directory descriptor prevents following a substituted .git link.
+    def metadata(label, meta):
+        prefix = "AUTO_UPDATE_PRIVATE_CI_" + label + "_"
+        try:
+            account = pwd.getpwuid(meta.st_uid)
+        except KeyError:
+            account = None
+        owner_class = "MATCHES_PROJECT" if meta.st_uid == owner.pw_uid else "ROOT" if meta.st_uid == 0 else "TRUSTED_SERVICE" if account and account.pw_name in {"kmjrunner", "kmjprod", "kmjstage"} else "OTHER"
+        group_class = "UNAVAILABLE" if account is None else "MATCHES_PRIMARY" if meta.st_gid == account.pw_gid else "DIFFERS"
+        kind = "DIRECTORY" if stat.S_ISDIR(meta.st_mode) else "REGULAR" if stat.S_ISREG(meta.st_mode) else "SYMLINK" if stat.S_ISLNK(meta.st_mode) else "OTHER"
+        writable = meta.st_mode & 0o022
+        mode = "GROUP_AND_WORLD_WRITE" if writable == 0o022 else "GROUP_WRITE" if writable == 0o020 else "WORLD_WRITE" if writable else "NONWRITE"
+        for field, value in [("OWNER", owner_class), ("GID", group_class), ("TYPE", kind), ("MODE", mode)]:
+            print(prefix + field + "=" + value)
+        if label == "GIT_CONFIG":
+            print(prefix + "NLINK=" + ("VALID" if meta.st_nlink == 1 else "INVALID"))
+            print(prefix + "SIZE=" + ("VALID" if 0 < meta.st_size <= 65536 else "INVALID"))
+    def read_metadata(label, read):
+        try:
+            meta = read()
+        except FileNotFoundError:
+            result = "MISSING"
+        except PermissionError:
+            result = "PERMISSION_DENIED"
+        except OSError:
+            result = "OTHER_ERROR"
+        else:
+            print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=OK")
+            metadata(label, meta)
+            return meta
+        print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=" + result)
+        return None
+    git_directory = read_metadata("GIT_DIRECTORY", lambda: os.lstat(PROJECT + "/.git"))
+    git_config = None
+    git_fd = None
+    try:
+        if git_directory is not None and stat.S_ISDIR(git_directory.st_mode):
+            git_fd = os.open(PROJECT + "/.git", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            held = os.fstat(git_fd)
+            state = lambda meta: (meta.st_dev, meta.st_ino, meta.st_uid, meta.st_gid, meta.st_mode)
+            if state(held) != state(git_directory):
+                git_directory = None
+                print("AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_READ=CHANGED")
+                print("AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_READ=BLOCKED_DIRECTORY")
+            else:
+                git_config = read_metadata("GIT_CONFIG", lambda: os.stat("config", dir_fd=git_fd, follow_symlinks=False))
+        else:
+            print("AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_READ=BLOCKED_DIRECTORY")
+    except OSError:
+        print("AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_READ=BLOCKED_DIRECTORY")
+    finally:
+        if git_fd is not None:
+            os.close(git_fd)
     repository_metadata = []
     for path in [PROJECT + "/.git", PROJECT + "/.git/config"]:
         step = "GIT_CONFIG" if path.endswith("/config") else "GIT_DIRECTORY"
-        meta = os.lstat(path)
+        meta = git_config if path.endswith("/config") else git_directory
+        if meta is None:
+            raise ValueError("repository metadata unavailable")
         regular = path.endswith("/config")
         if (not stat.S_ISREG(meta.st_mode) if regular else not stat.S_ISDIR(meta.st_mode)) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o022 or (regular and (meta.st_nlink != 1 or not 0 < meta.st_size <= 65536)):
             raise ValueError("repository metadata")

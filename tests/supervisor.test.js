@@ -1639,3 +1639,43 @@ test("owner source readback rejects private or malformed Git output", async () =
     assert.doesNotMatch(JSON.stringify(result), /\/private|secret/);
   }
 });
+
+test("fixed Git metadata markers expose only classes for both protected entries", async () => {
+  const expected = [
+    "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_READ=OK",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_OWNER=ROOT",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_GID=MATCHES_PRIMARY",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_TYPE=DIRECTORY",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_MODE=NONWRITE",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_READ=OK",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_OWNER=MATCHES_PROJECT",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_GID=DIFFERS",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_TYPE=SYMLINK",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_MODE=GROUP_WRITE",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_NLINK=INVALID",
+    "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_SIZE=VALID",
+  ];
+  const handle = createSupervisorHandler({
+    run: (command, args) =>
+      command.endsWith("journalctl") &&
+      args[1] === "kmj-codebridge-auto-update.service"
+        ? [
+            ...expected,
+            "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_OWNER=secret-account",
+            "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_SIZE=VALID",
+            "AUTO_UPDATE_PRIVATE_CI_GIT_OTHER_TYPE=DIRECTORY",
+            "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_READ=/private/secret",
+            "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_SIZE=VALID=secret",
+          ].join("\n")
+        : "LoadState=loaded\nActiveState=inactive\n",
+    lstat: () => {
+      throw new Error("fixture");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.updateMarkers, expected);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /secret|GIT_OTHER|GIT_DIRECTORY_SIZE/,
+  );
+});
