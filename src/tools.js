@@ -1145,7 +1145,7 @@ export const definitions = {
   supervisor_update_status: {
     title: "Auto-update status",
     description:
-      "Read bounded status for the hardcoded CodeBridge development auto-update service and timer.",
+      "Read bounded status for the fixed CodeBridge development auto-update timer/service and existing Main Platform agent refresh service. No arbitrary service names or paths.",
     input: scoped,
     access: "read",
   },

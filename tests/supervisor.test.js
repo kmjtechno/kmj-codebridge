@@ -207,7 +207,7 @@ test("disk-space operation accepts no caller path", async () => {
   );
 });
 
-test("auto-update status inspects only hardcoded service and timer units", async () => {
+test("auto-update status reports only fixed timer, updater and Main Platform refresh units", async () => {
   const calls = [];
   const handle = createSupervisorHandler({
     run: (command, args) => {
@@ -233,10 +233,21 @@ test("auto-update status inspects only hardcoded service and timer units", async
       result: "success",
       execMainStatus: "0",
     },
+    mainPlatformRefresh: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+    },
   });
   assert.deepEqual(
     calls.map((entry) => entry[1][1]),
-    ["kmj-codebridge-auto-update.timer", "kmj-codebridge-auto-update.service"],
+    [
+      "kmj-codebridge-auto-update.timer",
+      "kmj-codebridge-auto-update.service",
+      "kmj-codebridge-main-platform-refresh.service",
+    ],
   );
   await assert.rejects(
     handle({ op: "update_status", branch: "main" }),
