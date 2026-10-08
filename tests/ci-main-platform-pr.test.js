@@ -145,6 +145,7 @@ test("PR337 local CI pins source and isolates production", () => {
   assert.ok(websiteSource.includes(fixedRef));
   assert.ok(websiteFixedSource.includes(fixedRef));
   assert.match(websiteFixedSource, /EUID.*-eq 0.*# -eq 0/);
+  assert.match(websiteFixedSource, /KMJ_CI_FIXED_REF_LOOKUP_FAILED/);
   assert.match(websiteSource, /"pr": 337/);
   assert.match(websiteSource, /latest-pr337\.json/);
   for (const item of [
