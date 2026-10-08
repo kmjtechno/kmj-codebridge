@@ -250,6 +250,56 @@ function fixedWebsiteCiDiagnostic(run) {
       return "ORIGIN_MISMATCH";
     if (line.includes("PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED"))
       return "REF_FETCH_FAILED";
+    // Preparation tools may fail before the confined worker creates evidence.
+    // Emit only fixed categories, never tool stderr or caller-derived paths.
+    if (/^cp: /i.test(line)) {
+      if (
+        /preserving (?:times|permissions).*operation not permitted/i.test(line)
+      )
+        return "CP_METADATA_OPERATION_NOT_PERMITTED";
+      if (/cannot stat /i.test(line)) {
+        const source = /cannot stat ['‘]([^'’]+)['’]/i.exec(line)?.[1];
+        if (
+          source ===
+          "/srv/kmj-codebridge-projects/kmj-main-platform/apps/platform/vendor"
+        )
+          return "CP_SOURCE_UNAVAILABLE_VENDOR";
+        if (
+          source ===
+          "/srv/kmj-codebridge-projects/kmj-main-platform/apps/platform/node_modules"
+        )
+          return "CP_SOURCE_UNAVAILABLE_NPM";
+        return "CP_SOURCE_UNAVAILABLE_OTHER";
+      }
+      if (/are the same file/i.test(line)) return "CP_SAME_FILE";
+      if (/read-only file system/i.test(line)) return "CP_READ_ONLY_FILESYSTEM";
+      if (/permission denied/i.test(line)) return "CP_PERMISSION_DENIED";
+      if (/operation not permitted/i.test(line))
+        return "CP_OPERATION_NOT_PERMITTED";
+      return "CP_FAILED";
+    }
+    if (/^chown: /i.test(line)) {
+      if (/read-only file system/i.test(line))
+        return "CHOWN_READ_ONLY_FILESYSTEM";
+      if (/permission denied/i.test(line)) return "CHOWN_PERMISSION_DENIED";
+      if (/operation not permitted/i.test(line))
+        return "CHOWN_OPERATION_NOT_PERMITTED";
+      return "CHOWN_FAILED";
+    }
+    if (/^tar: /i.test(line)) {
+      if (/read-only file system/i.test(line))
+        return "TAR_READ_ONLY_FILESYSTEM";
+      if (/permission denied/i.test(line)) return "TAR_PERMISSION_DENIED";
+      if (/operation not permitted/i.test(line))
+        return "TAR_OPERATION_NOT_PERMITTED";
+      return "TAR_FAILED";
+    }
+    if (
+      /^(?:systemd-run: |Failed to (?:start transient service unit|connect to bus):)/i.test(
+        line,
+      )
+    )
+      return "SYSTEMD_RUN_FAILED";
     if (/fatal: .*dubious ownership/i.test(line)) return "GIT_UNSAFE_OWNERSHIP";
     if (/fatal: .*not a git repository/i.test(line))
       return "GIT_REPO_UNAVAILABLE";

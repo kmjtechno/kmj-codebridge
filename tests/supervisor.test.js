@@ -1068,3 +1068,77 @@ test("website CI pinpoints only allowlisted missing lock paths and revisions", a
     assert.doesNotMatch(JSON.stringify(result), /private-secret|private-ref/);
   }
 });
+
+test("website CI classifies preparation tool failures without exposing private paths", async () => {
+  for (const [journal, expected] of [
+    [
+      "cp: preserving times for '/private/secret': Operation not permitted",
+      "CP_METADATA_OPERATION_NOT_PERMITTED",
+    ],
+    [
+      "cp: preserving permissions for '/private/secret': Operation not permitted",
+      "CP_METADATA_OPERATION_NOT_PERMITTED",
+    ],
+    [
+      "cp: cannot stat '/srv/kmj-codebridge-projects/kmj-main-platform/apps/platform/vendor': No such file or directory",
+      "CP_SOURCE_UNAVAILABLE_VENDOR",
+    ],
+    [
+      "cp: cannot stat '/srv/kmj-codebridge-projects/kmj-main-platform/apps/platform/node_modules': Permission denied",
+      "CP_SOURCE_UNAVAILABLE_NPM",
+    ],
+    [
+      "cp: cannot stat '/private/secret': No such file or directory",
+      "CP_SOURCE_UNAVAILABLE_OTHER",
+    ],
+    ["cp: '/private/a' and '/private/b' are the same file", "CP_SAME_FILE"],
+    [
+      "cp: cannot create '/private/secret': Read-only file system",
+      "CP_READ_ONLY_FILESYSTEM",
+    ],
+    [
+      "cp: cannot open '/private/secret': Permission denied",
+      "CP_PERMISSION_DENIED",
+    ],
+    [
+      "cp: cannot create '/private/secret': Operation not permitted",
+      "CP_OPERATION_NOT_PERMITTED",
+    ],
+    ["cp: other failure '/private/secret'", "CP_FAILED"],
+    [
+      "chown: changing ownership of '/private/secret': Operation not permitted",
+      "CHOWN_OPERATION_NOT_PERMITTED",
+    ],
+    [
+      "chown: cannot access '/private/secret': Permission denied",
+      "CHOWN_PERMISSION_DENIED",
+    ],
+    [
+      "tar: /private/secret: Cannot open: Read-only file system",
+      "TAR_READ_ONLY_FILESYSTEM",
+    ],
+    [
+      "tar: /private/secret: Cannot open: Permission denied",
+      "TAR_PERMISSION_DENIED",
+    ],
+    ["tar: Error is not recoverable: exiting now", "TAR_FAILED"],
+    ["systemd-run: failed to connect /private/secret", "SYSTEMD_RUN_FAILED"],
+    [
+      "Failed to start transient service unit: /private/secret",
+      "SYSTEMD_RUN_FAILED",
+    ],
+  ]) {
+    const handle = createSupervisorHandler({
+      run: (cmd) =>
+        cmd.endsWith("journalctl")
+          ? journal
+          : "LoadState=loaded\nActiveState=inactive\nSubState=dead\n",
+      lstat: () => {
+        throw new Error("fixture");
+      },
+    });
+    const result = await handle({ op: "update_status" });
+    assert.equal(result.response.privatePr337Diagnostic, expected, journal);
+    assert.doesNotMatch(JSON.stringify(result), /\/private|secret|\/srv/);
+  }
+});
