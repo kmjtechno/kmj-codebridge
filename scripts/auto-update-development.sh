@@ -126,7 +126,7 @@ NODE
 # Never execute a service-owned SSH command as the privileged updater.
 refresh_fixed_private_ci_refs() {
   /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I - <<'PY'
-import fcntl, grp, os, pwd, re, stat, subprocess
+import fcntl, grp, hashlib, os, pwd, re, stat, subprocess
 
 PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
 BASE = "/var/lib/kmj-codebridge-ci"
@@ -343,7 +343,7 @@ try:
         raise ValueError("origin")
     # Repair only the proved legacy root-private website tracking pair.
     # No shared ref directories, other refs, modes or contents are changed.
-    def repair_fixed_tracking_metadata():
+    def repair_fixed_tracking_metadata(reflog=False):
         global step
         if owner.pw_uid == 0:
             return
@@ -351,7 +351,9 @@ try:
         ancestors = []
         changed = False
         leaf = "public-marketing-standalone-nav-20261008"
-        directory_path = PROJECT + "/.git/refs/remotes/origin/fix"
+        components = ["logs", "refs", "remotes", "origin"] if reflog else ["refs", "remotes", "origin"]
+        directory_path = PROJECT + "/.git/" + "/".join(components) + "/fix"
+        repair_prefix = "AUTO_UPDATE_PRIVATE_PR337_" + ("REFLOG_METADATA_" if reflog else "REF_METADATA_")
         ref_path = directory_path + "/" + leaf
         old_ref = b"05d1c69eddb3c47854362f5681ebe7ebf3dd7e51\n"
         try:
@@ -362,7 +364,7 @@ try:
                 raise ValueError("repository descriptor changed")
             ancestor_path = PROJECT + "/.git"
             ancestors.append((ancestor_path, current, git_directory))
-            for component in ["refs", "remotes", "origin"]:
+            for component in components:
                 meta = os.stat(component, dir_fd=current, follow_symlinks=False)
                 if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o002:
                     raise ValueError("ref ancestor")
@@ -385,13 +387,27 @@ try:
             if directory.st_uid != 0 or directory.st_gid != 0 or stat.S_IMODE(directory.st_mode) != 0o700:
                 raise ValueError("unproven ref directory owner")
             allowed_ref_owner = (ref.st_uid == 0 and ref.st_gid == 0) or (ref.st_uid == owner.pw_uid and ref.st_gid == owner.pw_gid)
-            if not allowed_ref_owner or not stat.S_ISREG(ref.st_mode) or stat.S_IMODE(ref.st_mode) != 0o600 or ref.st_nlink != 1 or ref.st_size != len(old_ref):
+            size_valid = 0 < ref.st_size <= 8388608 if reflog else ref.st_size == len(old_ref)
+            if not allowed_ref_owner or not stat.S_ISREG(ref.st_mode) or stat.S_IMODE(ref.st_mode) != 0o600 or ref.st_nlink != 1 or not size_valid:
                 raise ValueError("unproven ref file")
-            ref_fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd)
+            ref_fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory_fd)
             descriptors.append(ref_fd)
             entries = [(directory_path, directory_fd, directory), (ref_path, ref_fd, ref)]
             snapshots = [directory, ref]
-            def verify_pair():
+            # Preserve opaque history; never print its bytes, actors or messages.
+            def digest_content(validate=False):
+                data = os.pread(ref_fd, ref.st_size + 1, 0)
+                if len(data) != ref.st_size:
+                    raise ValueError("ref content size changed")
+                if validate:
+                    if reflog:
+                        lines = data.splitlines(keepends=True)
+                        if not lines or any(len(line) > 65536 or not re.fullmatch(rb"[0-9a-f]{40} [0-9a-f]{40} [^\x00\r\n\t]+\t[^\x00\r\n]*\n", line) for line in lines) or lines[-1][41:81] != old_ref[:40]:
+                            raise ValueError("unproven reflog history")
+                    elif data != old_ref:
+                        raise ValueError("unproven ref content")
+                return hashlib.sha256(data).digest()
+            def verify_identity():
                 verify_parents()
                 for path, fd, previous in ancestors:
                     if parent_identity(os.fstat(fd)) != parent_identity(previous) or parent_identity(os.lstat(path)) != parent_identity(previous):
@@ -399,8 +415,14 @@ try:
                 for (path, fd, _), previous in zip(entries, snapshots):
                     if parent_identity(os.fstat(fd)) != parent_identity(previous) or parent_identity(os.lstat(path)) != parent_identity(previous):
                         raise ValueError("ref pair changed")
-                if os.listdir(directory_fd) != [leaf] or os.pread(ref_fd, len(old_ref) + 1, 0) != old_ref:
-                    raise ValueError("ref pair content or children")
+                if os.listdir(directory_fd) != [leaf]:
+                    raise ValueError("ref pair children")
+            verify_identity()
+            content_digest = digest_content(validate=True)
+            def verify_pair():
+                verify_identity()
+                if digest_content() != content_digest:
+                    raise ValueError("ref pair content")
             step = "REF_METADATA_CONTENT"
             verify_pair()
             step = "REF_METADATA_GROUP"
@@ -434,15 +456,21 @@ try:
                     snapshots[index] = after
             verify_pair()
             if changed:
-                print("AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIRED=1")
+                print(repair_prefix + "REPAIRED=1")
+        except FileNotFoundError:
+            if not reflog or changed:
+                if changed:
+                    print(repair_prefix + "REPAIR_INCOMPLETE")
+                raise
         except Exception:
             if changed:
-                print("AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIR_INCOMPLETE")
+                print(repair_prefix + "REPAIR_INCOMPLETE")
             raise
         finally:
             for fd in reversed(descriptors):
                 os.close(fd)
     repair_fixed_tracking_metadata()
+    repair_fixed_tracking_metadata(reflog=True)
     if needs_hardening:
         step = "PROJECT_WRITE_AUTHORITY_READ"
         authority = subprocess.run(["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
