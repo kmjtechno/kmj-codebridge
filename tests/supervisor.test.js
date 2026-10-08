@@ -402,6 +402,8 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       result: "success",
       execMainStatus: "0",
     },
+    privatePr322Evidence: null,
+    privatePr337Evidence: null,
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
