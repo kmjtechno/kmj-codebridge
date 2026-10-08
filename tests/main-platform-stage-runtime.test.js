@@ -18,6 +18,7 @@ function fixture() {
   fs.mkdirSync(path.join(source, "src"));
   fs.mkdirSync(path.join(source, "node_modules", "dummy"), { recursive: true });
   fs.writeFileSync(path.join(source, "src", "cli.js"), "export const live = true;\n");
+  fs.writeFileSync(path.join(source, ".gitignore"), "node_modules/\n");
   fs.writeFileSync(path.join(source, "package.json"),
     JSON.stringify({ name: "@kmjtechno/codebridge", version: "0.3.2" }));
   fs.writeFileSync(path.join(source, "package-lock.json"), "{}\n");
