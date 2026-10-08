@@ -108,7 +108,8 @@ export function stageRuntime({ source = SOURCE, destination = DESTINATION,
     const paths = execFileSync("git", ["-C", source, "ls-files", "-z"], {
       timeout: 30000, maxBuffer: 8 * 1024 * 1024,
     }).toString("utf8").split("\0").filter(Boolean);
-    if (!paths.includes("src/cli.js") || !paths.includes("package-lock.json") ||
+    if (paths.some((p) => p === "node_modules" || p.startsWith("node_modules/")) ||
+        !paths.includes("src/cli.js") || !paths.includes("package-lock.json") ||
         paths.length > 10000) {
       throw new Error("MAIN_PLATFORM_STAGE_TRACKED_PATHS_UNSAFE");
     }
