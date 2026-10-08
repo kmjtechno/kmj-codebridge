@@ -75,5 +75,13 @@ CI_UNIT
 chown root:root "$unit"
 chmod 0644 "$unit"
 systemctl daemon-reload
-# This oneshot has no [Install] section and is never auto-started.
+# The fixed, nonproduction PR337 job is started once when the guarded
+# CodeBridge installer provisions this unit. systemd owns execution; no
+# arbitrary command, target SHA, repository or argument can be supplied.
+# The script uses a disposable kmjci sandbox and never deploys the website.
 echo PRIVATE_CI_NATIVE_UNIT_INSTALLED=1
+if ! systemctl start --no-block kmj-codebridge-private-pr337-ci.service; then
+  echo PRIVATE_WEBSITE_CI_START_DEFERRED >&2
+  exit 4
+fi
+echo PRIVATE_WEBSITE_CI_START_ACCEPTED=1
