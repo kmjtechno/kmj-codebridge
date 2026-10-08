@@ -405,6 +405,12 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
     privatePr322Evidence: null,
     privatePr337Evidence: null,
     privatePr337Diagnostic: "NO_CLASSIFIED_ERROR",
+    privatePr337Source: {
+      headSha: null,
+      refSha: null,
+      headLocks: null,
+      refLocks: null,
+    },
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
@@ -884,4 +890,70 @@ test("website CI classifies missing paths and read-only Git failures without exp
       /private-sha|secret-ref|secret-object|\/private/,
     );
   }
+});
+
+test("website CI source readback pins checkout and reports only SHAs and lock presence", async () => {
+  const head = "a".repeat(40),
+    ref = "b".repeat(40);
+  const calls = [];
+  const handle = createSupervisorHandler({
+    run: (cmd, args) => {
+      if (cmd === "/usr/bin/git") {
+        calls.push(args);
+        if (args.includes("rev-parse"))
+          return args.at(-1) === "HEAD" ? head : ref;
+        if (args.at(-1) === `${head}:apps/platform/composer.lock`)
+          throw new Error("private failure");
+        return "";
+      }
+      return "LoadState=loaded\nActiveState=inactive\nSubState=dead\n";
+    },
+    lstat: () => {
+      throw new Error("fixture");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.privatePr337Source, {
+    headSha: head,
+    refSha: ref,
+    headLocks: { composer: false, npm: true },
+    refLocks: { composer: true, npm: true },
+  });
+  assert.equal(calls.length, 6);
+  for (const args of calls)
+    assert.deepEqual(args.slice(0, 4), [
+      "-c",
+      "safe.directory=/srv/kmj-codebridge-projects/kmj-main-platform",
+      "-C",
+      "/srv/kmj-codebridge-projects/kmj-main-platform",
+    ]);
+  assert.doesNotMatch(JSON.stringify(result), /private failure/);
+  await assert.rejects(
+    handle({ op: "update_status", ref: "attacker" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+});
+
+test("website CI source readback rejects malformed revisions and hides Git errors", async () => {
+  const handle = createSupervisorHandler({
+    run: (cmd) => {
+      if (cmd === "/usr/bin/git")
+        return "secret-ref https://credential@example.invalid";
+      return "LoadState=loaded\nActiveState=inactive\nSubState=dead\n";
+    },
+    lstat: () => {
+      throw new Error("fixture");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.privatePr337Source, {
+    headSha: null,
+    refSha: null,
+    headLocks: null,
+    refLocks: null,
+  });
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /secret-ref|credential|example.invalid/,
+  );
 });
