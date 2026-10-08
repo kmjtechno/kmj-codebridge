@@ -1706,6 +1706,7 @@ test("fixed Git metadata markers expose only classes for both protected entries"
     "AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=DIFFERS",
     "AUTO_UPDATE_PRIVATE_CI_REF_OWNER_REPAIRED=1",
     "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED",
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=FIXED_REF_OWNER_REPAIR",
   ];
   const handle = createSupervisorHandler({
     run: (command, args) =>
