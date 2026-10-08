@@ -105,6 +105,19 @@ test("offline local backup stays off unless explicitly permitted", () => {
   assert.equal(plan(tasks, providers, 1, { allowLocal: true }).scheduledCount, 1);
 });
 
+test("never consumes more provider RPM than modeled per wave", () => {
+  const result = plan(
+    [
+      task("a", { dataClass: "public" }),
+      task("b", { dataClass: "public" }),
+      task("c", { dataClass: "public" }),
+    ],
+    [pool("limited", { requestsPerMinute: 1, remainingRequests: 3 })],
+    3,
+  );
+  assert.deepEqual(result.waves.map((wave) => wave.length), [1, 1, 1]);
+});
+
 test("fails closed on CPU/resource block", () => {
   const result = plan([task("a")], [pool("free")], 8, {
     capacity: { blocked: true, effectiveMaxConcurrent: 8 },
