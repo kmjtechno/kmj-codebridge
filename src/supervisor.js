@@ -198,19 +198,39 @@ function fixedUpdateMarkers(run, unit) {
 
 // Classify only hardcoded PR337 CI journal events. Do not return stderr,
 // repository URLs, remote authentication details or attacker-controlled output.
+function fixedWebsiteCiJournal(run) {
+  const args = [
+    "-u",
+    PRIVATE_PR337_CI_SERVICE,
+    "-n",
+    "70",
+    "--no-pager",
+    "--output=cat",
+  ];
+  // Tie diagnostics to the last unit invocation where systemd provides an ID.
+  // Accept only its fixed hex format before adding the journal match.
+  try {
+    const invocation = String(
+      run(SYSTEMCTL, [
+        "show",
+        PRIVATE_PR337_CI_SERVICE,
+        "--property=InvocationID",
+        "--value",
+        "--no-pager",
+      ]),
+    ).trim();
+    if (/^[a-f0-9]{32}$/.test(invocation))
+      args.push(`_SYSTEMD_INVOCATION_ID=${invocation}`);
+  } catch {
+    /* Older systemd status may not expose the invocation. */
+  }
+  return String(run(JOURNALCTL, args));
+}
+
 function fixedWebsiteCiDiagnostic(run) {
   let output;
   try {
-    output = String(
-      run(JOURNALCTL, [
-        "-u",
-        PRIVATE_PR337_CI_SERVICE,
-        "-n",
-        "70",
-        "--no-pager",
-        "--output=cat",
-      ]),
-    );
+    output = fixedWebsiteCiJournal(run);
   } catch {
     return "LOG_UNAVAILABLE";
   }
@@ -289,6 +309,8 @@ function fixedWebsiteCiSource(run) {
         GIT_TERMINAL_PROMPT: "0",
         GIT_NO_LAZY_FETCH: "1",
         GIT_OPTIONAL_LOCKS: "0",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_NO_REPLACE_OBJECTS: "1",
       },
     });
   const revision = (ref) => {
@@ -324,6 +346,40 @@ function fixedWebsiteCiSource(run) {
     refSha,
     headLocks: locks(headSha),
     refLocks: locks(refSha),
+  };
+}
+
+// Preserve preceding non-fatal Git errors as fixed signals: a later fatal
+// missing-path message can otherwise hide the actual object read failure.
+function fixedWebsiteCiGitSignals(run) {
+  let output;
+  try {
+    output = fixedWebsiteCiJournal(run);
+  } catch {
+    return null;
+  }
+  const stages = new Set([
+    "REF_VERIFIED",
+    "TARGET_LOCK_READ",
+    "HEAD_LOCK_READ",
+    "LOCKS_VERIFIED",
+  ]);
+  const lines = output.split(/\r?\n/).slice(-70);
+  const stage =
+    lines
+      .map((line) => line.match(/^KMJ_CI_PREP_STAGE=(\w+)$/)?.[1])
+      .filter((value) => stages.has(value))
+      .at(-1) ?? null;
+  return {
+    permissionDenied: lines.some((line) =>
+      /(?:error|fatal): .*permission denied/i.test(line),
+    ),
+    objectReadFailure: lines.some((line) =>
+      /(?:error|fatal): .*(?:cannot open|unable to read|failed to read|unable to mmap|object file|packfile)/i.test(
+        line,
+      ),
+    ),
+    preparationStage: stage,
   };
 }
 
@@ -764,6 +820,9 @@ export function createSupervisorHandler({
             "SubState",
             "Result",
             "ExecMainStatus",
+            "ExecMainStartTimestamp",
+            "ExecMainExitTimestamp",
+            "InvocationID",
           ]),
           privatePr322Evidence: privateCiEvidence(
             lstat,
@@ -778,6 +837,7 @@ export function createSupervisorHandler({
             PRIVATE_PR337_CI_EVIDENCE,
           ),
           privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
+          privatePr337GitSignals: fixedWebsiteCiGitSignals(run),
           privatePr337Source: fixedWebsiteCiSource(run),
           mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
