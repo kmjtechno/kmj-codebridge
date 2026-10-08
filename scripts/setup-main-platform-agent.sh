@@ -227,6 +227,15 @@ if (fs.existsSync(dir)) {
 }
 NODE
 
+# Ensure the actual service identity can traverse Node and read the runtime.
+# Root's -x check does not detect permission-denied parent directories.
+if ! runuser -u "$SERVICE_USER" -- test -x "$NODE" ||
+   ! runuser -u "$SERVICE_USER" -- test -r "$RUNTIME/src/cli.js" ||
+   ! runuser -u "$SERVICE_USER" -- test -x "$RUNTIME"; then
+  echo 'MAIN_PLATFORM_RUNTIME_NOT_ACCESSIBLE_TO_SERVICE_USER' >&2
+  exit 5
+fi
+
 # Keep an isolated copy of the existing unit so a failed restart can restore it.
 UNIT_BACKUP=""
 [[ ! -L "$SERVICE_FILE" ]] || {
@@ -269,6 +278,22 @@ WantedBy=multi-user.target
 EOF_UNIT
 
 systemctl daemon-reload
+# Release drop-ins can silently override ExecStart and WorkingDirectory.
+# Verify the *effective* configuration before touching the running process.
+effective_runtime="$(systemctl show "$SERVICE" -p WorkingDirectory --value)"
+effective_exec="$(systemctl show "$SERVICE" -p ExecStart --value)"
+expected_argv="argv[]=$NODE $RUNTIME/src/cli.js agent $CONFIG ;"
+if [[ "$effective_runtime" != "$RUNTIME" || "$effective_exec" != *"$expected_argv"* ]]; then
+  echo 'MAIN_PLATFORM_RESTART_EFFECTIVE_UNIT_CONFLICT' >&2
+  if [[ -n "$UNIT_BACKUP" ]]; then
+    cp "$UNIT_BACKUP" "$SERVICE_FILE"
+    rm -f "$UNIT_BACKUP"
+  else
+    rm -f "$SERVICE_FILE"
+  fi
+  systemctl daemon-reload
+  exit 6
+fi
 systemctl enable "$SERVICE" >/dev/null
 
 # enable --now does not replace an already running v0.2.x agent.

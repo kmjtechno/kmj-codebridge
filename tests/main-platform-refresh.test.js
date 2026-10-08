@@ -94,6 +94,20 @@ test("existing Main Platform agent requires a bounded job-safe restart and rollb
   assert.ok(setup.includes('systemctl enable "$SERVICE"'));
   assert.ok(setup.includes("UNIT_BACKUP"));
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_FAILED_ROLLBACK_ATTEMPTED"));
+  assert.ok(
+    setup.includes("MAIN_PLATFORM_RUNTIME_NOT_ACCESSIBLE_TO_SERVICE_USER"),
+  );
+  assert.ok(setup.includes('runuser -u "$SERVICE_USER" -- test -x "$NODE"'));
+  assert.ok(
+    setup.includes(
+      'runuser -u "$SERVICE_USER" -- test -r "$RUNTIME/src/cli.js"',
+    ),
+  );
+  assert.ok(setup.includes("MAIN_PLATFORM_RESTART_EFFECTIVE_UNIT_CONFLICT"));
+  assert.ok(
+    setup.includes('systemctl show "$SERVICE" -p WorkingDirectory --value'),
+  );
+  assert.ok(setup.includes('systemctl show "$SERVICE" -p ExecStart --value'));
   assert.ok(setup.includes("MAIN_PLATFORM_AGENT_RESTARTED=1"));
   assert.doesNotMatch(setup, /systemctl enable --now "\$SERVICE"/);
 });
