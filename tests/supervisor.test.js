@@ -823,18 +823,23 @@ test("website CI diagnosis exposes only fixed error categories", async () => {
     "fatal: detected dubious ownership in repository at /private/example",
     "fatal: unable to access https://secret-token@example.invalid/repo",
     "KMJ_CI_FIXED_REF_LOOKUP_FAILED",
-  ].join("\\n");
+  ].join("\n");
   const handle = createSupervisorHandler({
     run: (cmd, args) =>
       cmd.endsWith("journalctl") &&
       args[1] === "kmj-codebridge-private-pr337-ci.service"
         ? journal
-        : "LoadState=loaded\\nActiveState=inactive\\nSubState=dead\\n",
-    lstat: () => { throw new Error("fixture"); },
+        : "LoadState=loaded\nActiveState=inactive\nSubState=dead\n",
+    lstat: () => {
+      throw new Error("fixture");
+    },
   });
   const result = await handle({ op: "update_status" });
   assert.equal(result.response.privatePr337Diagnostic, "FIXED_REF_LOOKUP_FAILED");
-  assert.doesNotMatch(JSON.stringify(result), /secret-token|example.invalid|private\\/example/);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /secret-token|example.invalid|private/,
+  );
   await assert.rejects(
     handle({ op: "update_status", unit: "ssh.service" }),
     /INVALID_SUPERVISOR_REQUEST/,
