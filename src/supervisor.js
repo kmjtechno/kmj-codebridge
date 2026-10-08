@@ -235,7 +235,23 @@ function fixedWebsiteCiDiagnostic(run) {
       return "GIT_REPO_UNAVAILABLE";
     if (/fatal: .*permission denied/i.test(line))
       return "GIT_PERMISSION_DENIED";
-    if (/fatal: .*not a valid object name/i.test(line))
+    if (/fatal: .*read-only file system/i.test(line))
+      return "GIT_READ_ONLY_FILESYSTEM";
+    if (/fatal: .*operation not permitted/i.test(line))
+      return "GIT_OPERATION_NOT_PERMITTED";
+    if (
+      /fatal: .*path .*does not exist in/i.test(line) ||
+      /fatal: .*path .*exists on disk, but not in/i.test(line)
+    )
+      return "GIT_PATH_UNAVAILABLE";
+    if (/fatal: .*ambiguous argument.*unknown revision/i.test(line))
+      return "GIT_REF_UNAVAILABLE";
+    if (/fatal: .*bad config/i.test(line)) return "GIT_CONFIG_INVALID";
+    if (
+      /fatal: .*(?:not a valid object name|bad object|invalid object name)/i.test(
+        line,
+      )
+    )
       return "GIT_OBJECT_UNAVAILABLE";
     if (/fatal: .*unable to access/i.test(line)) return "GIT_ACCESS_FAILED";
     if (/fatal: /.test(line)) return "GIT_FATAL_OTHER";
