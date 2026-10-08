@@ -97,12 +97,15 @@ test("VPS installer provisions a bounded auto-update timer", () => {
 
 test("protected fixed-unit overrides are reported and never silently bypassed", (t) => {
   assert.match(script, /main_platform_refresh_allowed\(\)/);
-  assert.match(script, /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE/);
+  assert.match(
+    script,
+    /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE/,
+  );
   assert.match(script, /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/);
   assert.match(script, /main_platform_refresh_allowed; then/);
-  assert.match(script, /99-kmj-release\\.conf/);
-  assert.match(script, /zz-kmj-codebridge-development-canary\\.conf/);
-  assert.match(script, /30-readiness-runtime\\.conf/);
+  assert.match(script, /99-kmj-release\.conf/);
+  assert.match(script, /zz-kmj-codebridge-development-canary\.conf/);
+  assert.match(script, /30-readiness-runtime\.conf/);
   if (process.platform === "win32") {
     t.skip("systemd shell mock is covered by Linux CI");
     return;
@@ -137,16 +140,25 @@ main_platform_refresh_allowed
   assert.equal(clean.status, 0, clean.stderr);
   for (const [dropins, workdir] of [
     ["/etc/systemd/system/example/99-kmj-release.conf", staged],
-    ["/etc/systemd/system/example/zz-kmj-codebridge-development-canary.conf", staged],
+    [
+      "/etc/systemd/system/example/zz-kmj-codebridge-development-canary.conf",
+      staged,
+    ],
     ["/etc/systemd/system/example/30-readiness-runtime.conf", staged],
     ["", "/opt/kmj-codebridge-main-platform-agent-cb64119277ef"],
     ["", "/opt/kmj-codebridge-releases/abc123def456"],
   ]) {
     const blocked = check("loaded", dropins, workdir);
     assert.equal(blocked.status, 1, blocked.stderr);
-    assert.match(blocked.stdout, /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE/);
+    assert.match(
+      blocked.stdout,
+      /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE/,
+    );
   }
   const unverified = check("not-found", "", staged);
   assert.equal(unverified.status, 1);
-  assert.match(unverified.stderr, /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/);
+  assert.match(
+    unverified.stderr,
+    /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/,
+  );
 });
