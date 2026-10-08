@@ -51,7 +51,10 @@ RestrictSUIDSGID=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-CapabilityBoundingSet=
+# Fixed trusted preparation only; PR code stays in its zero-capability worker.
+# Source and runtime are read-only, with no access to protected credentials.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE
+ReadOnlyPaths=/srv/kmj-codebridge-projects/kmj-main-platform /opt/kmj-codebridge-agent
 ReadWritePaths=/var/lib/kmj-codebridge-ci
 InaccessiblePaths=/etc/kmj-codebridge-main-platform /var/lib/kmj-codebridge-kmj-main-platform
 MemoryMax=14G
