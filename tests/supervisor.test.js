@@ -835,7 +835,10 @@ test("website CI diagnosis exposes only fixed error categories", async () => {
     },
   });
   const result = await handle({ op: "update_status" });
-  assert.equal(result.response.privatePr337Diagnostic, "FIXED_REF_LOOKUP_FAILED");
+  assert.equal(
+    result.response.privatePr337Diagnostic,
+    "FIXED_REF_LOOKUP_FAILED",
+  );
   assert.doesNotMatch(
     JSON.stringify(result),
     /secret-token|example.invalid|private/,
