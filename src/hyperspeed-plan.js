@@ -10,16 +10,28 @@ function requireValid(value) {
 }
 
 function validate(tasks, pools) {
-  requireValid(Array.isArray(tasks) && tasks.length > 0 && tasks.length <= MAX_TASKS);
+  requireValid(
+    Array.isArray(tasks) && tasks.length > 0 && tasks.length <= MAX_TASKS,
+  );
   requireValid(Array.isArray(pools) && pools.length <= MAX_POOLS);
   const ids = new Set();
   for (const task of tasks) {
     requireValid(task && IDENTIFIER.test(task.id) && !ids.has(task.id));
     ids.add(task.id);
     requireValid(KINDS.has(task.kind));
-    requireValid(Number.isInteger(task.estimateMinutes) && task.estimateMinutes >= 1 && task.estimateMinutes <= 240);
-    requireValid(Number.isInteger(task.priority) && task.priority >= 0 && task.priority <= 100);
-    requireValid(Array.isArray(task.dependsOn) && task.dependsOn.length <= MAX_TASKS);
+    requireValid(
+      Number.isInteger(task.estimateMinutes) &&
+        task.estimateMinutes >= 1 &&
+        task.estimateMinutes <= 240,
+    );
+    requireValid(
+      Number.isInteger(task.priority) &&
+        task.priority >= 0 &&
+        task.priority <= 100,
+    );
+    requireValid(
+      Array.isArray(task.dependsOn) && task.dependsOn.length <= MAX_TASKS,
+    );
     requireValid(new Set(task.dependsOn).size === task.dependsOn.length);
     requireValid(Array.isArray(task.paths) && task.paths.length <= 32);
     for (const scope of task.paths) {
@@ -53,10 +65,23 @@ function validate(tasks, pools) {
   for (const pool of pools) {
     requireValid(pool && IDENTIFIER.test(pool.id) && !poolIds.has(pool.id));
     poolIds.add(pool.id);
-    requireValid(Array.isArray(pool.kinds) && pool.kinds.every((kind) => KINDS.has(kind)));
-    requireValid(Number.isInteger(pool.remainingRequests) && pool.remainingRequests >= 0 && pool.remainingRequests <= 1000000);
-    requireValid(Number.isInteger(pool.requestsPerMinute) && pool.requestsPerMinute >= 1 && pool.requestsPerMinute <= 100000);
-    requireValid(pool.unitCostUsd === 0 && pool.enabled === true || pool.unitCostUsd >= 0 && pool.enabled === false);
+    requireValid(
+      Array.isArray(pool.kinds) && pool.kinds.every((kind) => KINDS.has(kind)),
+    );
+    requireValid(
+      Number.isInteger(pool.remainingRequests) &&
+        pool.remainingRequests >= 0 &&
+        pool.remainingRequests <= 1000000,
+    );
+    requireValid(
+      Number.isInteger(pool.requestsPerMinute) &&
+        pool.requestsPerMinute >= 1 &&
+        pool.requestsPerMinute <= 100000,
+    );
+    requireValid(
+      (pool.unitCostUsd === 0 && pool.enabled === true) ||
+        (pool.unitCostUsd >= 0 && pool.enabled === false),
+    );
     requireValid(typeof pool.canProcessPrivateCode === "boolean");
     requireValid(typeof pool.quotaVerified === "boolean");
     requireValid(pool.mode === "cloud" || pool.mode === "local");
@@ -68,8 +93,13 @@ function overlaps(a, b) {
   if (a.length === 0 || b.length === 0) return true;
   for (const one of a) {
     for (const two of b) {
-      if (one === "*" || two === "*" || one === two ||
-          one.startsWith(two + "/") || two.startsWith(one + "/"))
+      if (
+        one === "*" ||
+        two === "*" ||
+        one === two ||
+        one.startsWith(two + "/") ||
+        two.startsWith(one + "/")
+      )
         return true;
     }
   }
@@ -79,10 +109,16 @@ function overlaps(a, b) {
 export function planHyperSpeed({ tasks, pools, capacity, allowLocal = false }) {
   const byId = validate(tasks, pools);
   requireValid(capacity && typeof capacity === "object");
-  const slots = capacity.blocked === true
-    ? 0
-    : Math.max(0, Math.min(16, Math.floor(capacity.effectiveMaxConcurrent || 0)));
-  const remaining = new Map(pools.map((pool) => [pool.id, pool.remainingRequests]));
+  const slots =
+    capacity.blocked === true
+      ? 0
+      : Math.max(
+          0,
+          Math.min(16, Math.floor(capacity.effectiveMaxConcurrent || 0)),
+        );
+  const remaining = new Map(
+    pools.map((pool) => [pool.id, pool.remainingRequests]),
+  );
   const done = new Set();
   const waves = [];
   const reasons = {};
@@ -97,29 +133,47 @@ export function planHyperSpeed({ tasks, pools, capacity, allowLocal = false }) {
       note: "No agent executed; signed entitlement and resource-pressure gates remain authoritative.",
     };
   }
-  for (let turn = 0; turn < tasks.length && done.size < tasks.length; turn += 1) {
+  for (
+    let turn = 0;
+    turn < tasks.length && done.size < tasks.length;
+    turn += 1
+  ) {
     const ready = tasks
-      .filter((task) => !done.has(task.id) &&
-        task.dependsOn.every((id) => done.has(id)))
-      .sort((a, b) => b.priority - a.priority ||
-        b.estimateMinutes - a.estimateMinutes || a.id.localeCompare(b.id));
+      .filter(
+        (task) =>
+          !done.has(task.id) && task.dependsOn.every((id) => done.has(id)),
+      )
+      .sort(
+        (a, b) =>
+          b.priority - a.priority ||
+          b.estimateMinutes - a.estimateMinutes ||
+          a.id.localeCompare(b.id),
+      );
     const wave = [];
     const waveUsage = new Map();
     for (const task of ready) {
       if (wave.length >= slots) break;
-      if (wave.some((other) => overlaps(task.paths, byId.get(other.taskId).paths)))
+      if (
+        wave.some((other) => overlaps(task.paths, byId.get(other.taskId).paths))
+      )
         continue;
       const options = pools
-        .filter((pool) => pool.enabled && pool.unitCostUsd === 0 &&
-          (pool.mode !== "local" || allowLocal) &&
-          pool.kinds.includes(task.kind) &&
-          (task.dataClass === "public" || pool.canProcessPrivateCode) &&
-          (remaining.get(pool.id) ?? 0) > 0 &&
-          (waveUsage.get(pool.id) ?? 0) < pool.requestsPerMinute)
-        .sort((a, b) =>
-          Number(b.quotaVerified) - Number(a.quotaVerified) ||
-          (remaining.get(b.id) - remaining.get(a.id)) ||
-          a.id.localeCompare(b.id));
+        .filter(
+          (pool) =>
+            pool.enabled &&
+            pool.unitCostUsd === 0 &&
+            (pool.mode !== "local" || allowLocal) &&
+            pool.kinds.includes(task.kind) &&
+            (task.dataClass === "public" || pool.canProcessPrivateCode) &&
+            (remaining.get(pool.id) ?? 0) > 0 &&
+            (waveUsage.get(pool.id) ?? 0) < pool.requestsPerMinute,
+        )
+        .sort(
+          (a, b) =>
+            Number(b.quotaVerified) - Number(a.quotaVerified) ||
+            remaining.get(b.id) - remaining.get(a.id) ||
+            a.id.localeCompare(b.id),
+        );
       const selected = options[0];
       if (!selected) {
         reasons[task.id] = "NO_ELIGIBLE_FREE_MODEL";
