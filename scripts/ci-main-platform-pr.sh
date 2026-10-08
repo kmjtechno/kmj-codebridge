@@ -63,7 +63,8 @@ systemd-run --quiet --wait --collect --pipe \
   -p RestrictSUIDSGID=yes -p RestrictRealtime=yes -p LockPersonality=yes \
   -p ProtectKernelTunables=yes -p ProtectKernelModules=yes \
   -p ProtectControlGroups=yes -p CapabilityBoundingSet= \
-  -p RestrictAddressFamilies=AF_UNIX \
+  -p 'RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6' \
+  -p IPAddressDeny=any -p IPAddressAllow=localhost \
   -p "InaccessiblePaths=/srv /etc/kmj-codebridge-main-platform /var/lib/kmj-codebridge-kmj-main-platform" \
   -p "ReadWritePaths=$job" \
   -p MemoryMax=12G -p TasksMax=512 -p CPUQuota=200% -p RuntimeMaxSec=15min \
