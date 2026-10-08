@@ -242,8 +242,26 @@ function fixedWebsiteCiDiagnostic(run) {
     if (
       /fatal: .*path .*does not exist in/i.test(line) ||
       /fatal: .*path .*exists on disk, but not in/i.test(line)
-    )
-      return "GIT_PATH_UNAVAILABLE";
+    ) {
+      const match =
+        /fatal: path '([^']*)' (?:does not exist in|exists on disk, but not in) '([^']*)'/i.exec(
+          line,
+        );
+      if (!match) return "GIT_PATH_UNAVAILABLE";
+      const file =
+        match[1] === "apps/platform/composer.lock"
+          ? "COMPOSER"
+          : match[1] === "apps/platform/package-lock.json"
+            ? "NPM"
+            : "OTHER";
+      const revision =
+        match[2] === "HEAD"
+          ? "HEAD"
+          : /^[a-f0-9]{40}$/.test(match[2])
+            ? "COMMIT"
+            : "UNKNOWN";
+      return `GIT_PATH_UNAVAILABLE_${file}_${revision}`;
+    }
     if (/fatal: .*ambiguous argument.*unknown revision/i.test(line))
       return "GIT_REF_UNAVAILABLE";
     if (/fatal: .*bad config/i.test(line)) return "GIT_CONFIG_INVALID";

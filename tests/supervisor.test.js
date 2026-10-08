@@ -856,7 +856,7 @@ test("website CI classifies missing paths and read-only Git failures without exp
   for (const [journal, expected] of [
     [
       "fatal: path 'apps/platform/composer.lock' does not exist in 'private-sha'",
-      "GIT_PATH_UNAVAILABLE",
+      "GIT_PATH_UNAVAILABLE_COMPOSER_UNKNOWN",
     ],
     [
       "fatal: ambiguous argument 'secret-ref': unknown revision or path not in the working tree.",
@@ -956,4 +956,37 @@ test("website CI source readback rejects malformed revisions and hides Git error
     JSON.stringify(result),
     /secret-ref|credential|example.invalid/,
   );
+});
+
+test("website CI pinpoints only allowlisted missing lock paths and revisions", async () => {
+  for (const [line, expected] of [
+    [
+      "fatal: path 'apps/platform/composer.lock' does not exist in 'HEAD'",
+      "GIT_PATH_UNAVAILABLE_COMPOSER_HEAD",
+    ],
+    [
+      "fatal: path 'apps/platform/package-lock.json' exists on disk, but not in '" +
+        "a".repeat(40) +
+        "'",
+      "GIT_PATH_UNAVAILABLE_NPM_COMMIT",
+    ],
+    [
+      "fatal: path 'private-secret' does not exist in 'private-ref'",
+      "GIT_PATH_UNAVAILABLE_OTHER_UNKNOWN",
+    ],
+  ]) {
+    const handle = createSupervisorHandler({
+      run: (cmd, args) =>
+        cmd.endsWith("journalctl") &&
+        args[1] === "kmj-codebridge-private-pr337-ci.service"
+          ? line
+          : "LoadState=loaded\nActiveState=inactive\nSubState=dead\n",
+      lstat: () => {
+        throw new Error("fixture");
+      },
+    });
+    const result = await handle({ op: "update_status" });
+    assert.equal(result.response.privatePr337Diagnostic, expected);
+    assert.doesNotMatch(JSON.stringify(result), /private-secret|private-ref/);
+  }
 });
