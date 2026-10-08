@@ -176,10 +176,14 @@ export function stageRuntime({
     );
     inspectLinks(temporary, temporary);
     // A candidate must parse under the runtime's actual Node.js version.
-    execFileSync(process.execPath, ["--check", path.join(temporary, "src/cli.js")], {
-      timeout: 30000,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    execFileSync(
+      process.execPath,
+      ["--check", path.join(temporary, "src/cli.js")],
+      {
+        timeout: 30000,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
     const stagePkg = JSON.parse(
       fs.readFileSync(path.join(temporary, "package.json"), "utf8"),
     );
