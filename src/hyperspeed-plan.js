@@ -104,6 +104,7 @@ export function planHyperSpeed({ tasks, pools, capacity, allowLocal = false }) {
       .sort((a, b) => b.priority - a.priority ||
         b.estimateMinutes - a.estimateMinutes || a.id.localeCompare(b.id));
     const wave = [];
+    const waveUsage = new Map();
     for (const task of ready) {
       if (wave.length >= slots) break;
       if (wave.some((other) => overlaps(task.paths, byId.get(other.taskId).paths)))
@@ -113,7 +114,8 @@ export function planHyperSpeed({ tasks, pools, capacity, allowLocal = false }) {
           (pool.mode !== "local" || allowLocal) &&
           pool.kinds.includes(task.kind) &&
           (task.dataClass === "public" || pool.canProcessPrivateCode) &&
-          (remaining.get(pool.id) ?? 0) > 0)
+          (remaining.get(pool.id) ?? 0) > 0 &&
+          (waveUsage.get(pool.id) ?? 0) < pool.requestsPerMinute)
         .sort((a, b) =>
           Number(b.quotaVerified) - Number(a.quotaVerified) ||
           (remaining.get(b.id) - remaining.get(a.id)) ||
@@ -124,6 +126,7 @@ export function planHyperSpeed({ tasks, pools, capacity, allowLocal = false }) {
         continue;
       }
       remaining.set(selected.id, remaining.get(selected.id) - 1);
+      waveUsage.set(selected.id, (waveUsage.get(selected.id) ?? 0) + 1);
       wave.push({
         taskId: task.id,
         modelPool: selected.id,
