@@ -94,9 +94,9 @@ chmod 0600 "$manifest"
 # Fixed supervisor readback: only root can update the evidence directory,
 # and the consumer validates owner, mode, size, SHA and enum fields.
 latest="$base/evidence/latest-pr322.json"
-cp -- "$manifest" "$base/evidence/.latest-pr322.json.$"
-chmod 0600 "$base/evidence/.latest-pr322.json.$"
-mv -f -- "$base/evidence/.latest-pr322.json.$" "$latest"
+cp -- "$manifest" "$base/evidence/.latest-pr322.json.$$"
+chmod 0600 "$base/evidence/.latest-pr322.json.$$"
+mv -f -- "$base/evidence/.latest-pr322.json.$$" "$latest"
 echo "KMJ_CI_SHA=$sha"
 echo "KMJ_CI_LOCAL_RESULT=$([[ $code -eq 0 ]] && echo PASS || echo FAIL)"
 echo "KMJ_CI_EVIDENCE=$manifest"
