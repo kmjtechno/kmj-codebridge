@@ -72,7 +72,7 @@ os.fstat = lambda value: root_stat(real_fstat(value))
 def stub_run(args, **kwargs):
     with open(os.environ['TEST_CALLS'], 'a') as f: f.write(json.dumps(args) + '\\n')
     if args[0] == '/usr/bin/git':
-        return SimpleNamespace(returncode=int(os.environ.get('TEST_SOURCE_EXIT', '0')) if args[-1] != 'HEAD' else 0, stdout=(os.environ.get('TEST_CONTROL_SHA', 'b' * 40) if args[-1] == 'HEAD' else os.environ.get('TEST_SOURCE', '7718aa00dff8e505e525411b89cb4288a2b6559e' if 'public-marketing' in args[-1] else '${expected}')) + '\\n')
+        return SimpleNamespace(returncode=int(os.environ.get('TEST_SOURCE_EXIT', '0')) if args[-1] != 'HEAD' else 0, stdout=(os.environ.get('TEST_CONTROL_SHA', 'b' * 40) if args[-1] == 'HEAD' else os.environ.get('TEST_SOURCE', '7a6d163dab3a7676d8dacc58fb0624bca3255c00' if 'public-marketing' in args[-1] else '${expected}')) + '\\n')
     if args[0] == '/usr/bin/flock':
         return SimpleNamespace(returncode=int(os.environ.get('TEST_LOCK_BUSY', '0')), stdout='')
     if args[0] == '/usr/bin/systemctl' and args[1] == 'show':
