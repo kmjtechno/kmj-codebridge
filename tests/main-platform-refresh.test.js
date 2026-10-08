@@ -118,10 +118,10 @@ test("existing Main Platform agent requires a bounded job-safe restart and rollb
   assert.match(setup, /systemd-run --quiet --wait --collect --pipe/);
   assert.ok(setup.includes('-p "User=$SERVICE_USER"'));
   assert.ok(setup.includes('-p "Group=$SERVICE_USER"'));
-  assert.ok(setup.includes('-p NoNewPrivileges=true'));
-  assert.ok(setup.includes('-p RestrictSUIDSGID=true'));
-  assert.ok(setup.includes('-p ProtectSystem=strict'));
-  assert.ok(setup.includes('-p RestrictAddressFamilies=AF_UNIX'));
+  assert.ok(setup.includes("-p NoNewPrivileges=true"));
+  assert.ok(setup.includes("-p RestrictSUIDSGID=true"));
+  assert.ok(setup.includes("-p ProtectSystem=strict"));
+  assert.ok(setup.includes("-p RestrictAddressFamilies=AF_UNIX"));
   assert.ok(
     setup.includes(`/bin/sh -c 'test -x "$1" && test -r "$2" && test -x "$3"'`),
   );
