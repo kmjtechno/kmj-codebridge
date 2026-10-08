@@ -17,8 +17,7 @@ const CONFIGS = {
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
-const MAIN_PLATFORM_AGENT_SERVICE =
-  "kmj-codebridge-kmj-main-platform.service";
+const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
@@ -189,7 +188,10 @@ function fixedUpdateMarkers(run, unit) {
 
 function fixedMainPlatformMarkers(run) {
   const allowed = new Map([
-    ["Existing Main Platform agent config verified.", "EXISTING_CONFIG_VERIFIED"],
+    [
+      "Existing Main Platform agent config verified.",
+      "EXISTING_CONFIG_VERIFIED",
+    ],
     [
       "KMJ Main Platform CodeBridge project agent is active.",
       "SERVICE_ACTIVE_CONFIRMED",
