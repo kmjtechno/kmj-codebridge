@@ -216,7 +216,9 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
         return "LoadState=loaded\nActiveState=active\nSubState=waiting\nUnitFileState=enabled\n";
       return "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n";
     },
-    lstat: () => { throw new Error("not present"); },
+    lstat: () => {
+      throw new Error("not present");
+    },
   });
   const result = await handle({ op: "update_status" });
   assert.deepEqual(result.response, {
@@ -270,9 +272,24 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
     run: () => "LoadState=loaded\nActiveState=inactive\nSubState=dead\n",
     lstat: (p) => {
       seen.push(p);
-      if (p.endsWith("/.git")) return { isSymbolicLink: () => false, isDirectory: () => true };
-      if (p.endsWith("/agent.json")) return { isSymbolicLink: () => true, isFile: () => true, nlink: 1 };
-      return { isSymbolicLink: () => false, isFile: () => true, nlink: 1 };
+      if (p.endsWith("/.git")) {
+        return {
+          isSymbolicLink: () => false,
+          isDirectory: () => true,
+        };
+      }
+      if (p.endsWith("/agent.json")) {
+        return {
+          isSymbolicLink: () => true,
+          isFile: () => true,
+          nlink: 1,
+        };
+      }
+      return {
+        isSymbolicLink: () => false,
+        isFile: () => true,
+        nlink: 1,
+      };
     },
   });
   const result = await handle({ op: "update_status" });
@@ -281,11 +298,14 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
     legacyConfig: true,
     projectGit: true,
   });
-  assert.deepEqual(seen.sort(), [
-    "/etc/kmj-codebridge-main-platform/agent.json",
-    "/etc/kmj-codebridge/agents/kmj-main-platform.json",
-    "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
-  ].sort());
+  assert.deepEqual(
+    seen.sort(),
+    [
+      "/etc/kmj-codebridge-main-platform/agent.json",
+      "/etc/kmj-codebridge/agents/kmj-main-platform.json",
+      "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
+    ].sort(),
+  );
   await assert.rejects(
     handle({ op: "update_status", path: "/etc/shadow" }),
     /INVALID_SUPERVISOR_REQUEST/,
