@@ -14,17 +14,17 @@ for tool in git tar python3 systemd-run flock; do command -v "$tool" >/dev/null 
 id -u kmjci >/dev/null || { echo CI_UNPRIVILEGED_IDENTITY_MISSING >&2; exit 2; }
 test -f "$worker" && test -f "$control/src/license.js" || exit 2
 test -d "$repo/.git" || exit 2
-[[ "$(git -C "$repo" rev-parse refs/remotes/origin/feat/codebridge-owner-tier)" == "$sha" ]] ||
+[[ "$(git -c safe.directory="$repo" -C "$repo" rev-parse refs/remotes/origin/feat/codebridge-owner-tier)" == "$sha" ]] ||
   { echo CI_REF_SHA_MISMATCH >&2; exit 3; }
-[[ "$(git -C "$repo" cat-file -t "$sha")" == commit ]] || exit 3
-[[ -z "$(git -C "$repo" status --porcelain)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
+[[ "$(git -c safe.directory="$repo" -C "$repo" cat-file -t "$sha")" == commit ]] || exit 3
+[[ -z "$(git -c safe.directory="$repo" -C "$repo" status --porcelain)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
 for file in apps/platform/composer.lock apps/platform/package-lock.json; do
-  target="$(git -C "$repo" show "$sha:$file" | sha256sum | cut -d' ' -f1)"
-  installed="$(git -C "$repo" show "HEAD:$file" | sha256sum | cut -d' ' -f1)"
+  target="$(git -c safe.directory="$repo" -C "$repo" show "$sha:$file" | sha256sum | cut -d' ' -f1)"
+  installed="$(git -c safe.directory="$repo" -C "$repo" show "HEAD:$file" | sha256sum | cut -d' ' -f1)"
   [[ "$target" == "$installed" ]] || { echo CI_DEPENDENCY_LOCK_CONFLICT >&2; exit 3; }
 done
 # Disallow tracked Git symlinks before root-owned archive extraction.
-if git -C "$repo" ls-tree -r "$sha" | grep -q '^120000 '; then
+if git -c safe.directory="$repo" -C "$repo" ls-tree -r "$sha" | grep -q '^120000 '; then
   echo CI_UNSAFE_TRACKED_SYMLINK >&2; exit 3
 fi
 install -d -o root -g root -m 0711 "$base" "$base/jobs"
@@ -35,7 +35,7 @@ job="$(mktemp -d "$base/jobs/owner322-XXXXXXXX")"
 cleanup() { [[ "$job" == "$base"/jobs/owner322-* ]] && rm -rf --one-file-system -- "$job"; }
 trap cleanup EXIT
 mkdir -p "$job/src/.codebridge-contract/src"
-git -C "$repo" archive --format=tar "$sha" |
+git -c safe.directory="$repo" -C "$repo" archive --format=tar "$sha" |
   tar -x --no-same-owner --no-same-permissions -C "$job/src"
 # Detached .git HEAD is a nonproduction fixture for the staging header test.
 mkdir "$job/src/.git"
