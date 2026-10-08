@@ -22,8 +22,10 @@ git_modes = {}
 project_reads = 0
 locked = False
 parent_reads = 0
-def fixture_lstat(p):
-    global project_reads, parent_reads
+ref_owners = {}
+ref_reads = 0
+def fixture_lstat(p, from_fd=False):
+    global project_reads, parent_reads, ref_reads
     if p == '/srv/kmj-codebridge-projects/kmj-main-platform':
         error=os.environ.get('PROJECT_ERROR')
         if error=='missing': raise FileNotFoundError(2, 'private error')
@@ -39,6 +41,17 @@ def fixture_lstat(p):
         return result
     result=fixture_stat(p)
     if p.endswith('/packed-refs') or p.endswith('/public-marketing-standalone-nav-20261008'): result.st_mode=stat.S_IFREG|0o600
+    if os.environ.get('REF_REPAIR') and (p.endswith('/refs/remotes/origin/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
+        result.st_uid=0; result.st_gid=0; result.st_mode=(stat.S_IFDIR|0o700 if p.endswith('/fix') else stat.S_IFREG|0o600); result.st_size=41 if not p.endswith('/fix') else 64
+        if os.environ.get('REF_DONE') or (os.environ.get('REF_PARTIAL') and not p.endswith('/fix')): result.st_uid=1001; result.st_gid=1001
+        if p in ref_owners: result.st_uid,result.st_gid=ref_owners[p]
+        if os.environ.get('REF_SWAP_AFTER_LEAF') and p.endswith('/fix') and ref_paths[25] in ref_owners and not from_fd: result.st_ino=2
+        if not p.endswith('/fix'):
+            ref_reads += 1
+            if os.environ.get('REF_RACE') and ref_reads>1: result.st_ino=2
+        if os.environ.get('REF_BAD_OWNER'): result.st_uid=1002
+        if os.environ.get('REF_WORLD'): result.st_mode |= 0o002
+        if os.environ.get('REF_HARDLINK') and not p.endswith('/fix'): result.st_nlink=2
     if p.endswith('/refs/remotes/origin/fix'):
         if os.environ.get('REF_PRIVATE'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
         if os.environ.get('REF_LINK'): result.st_mode=stat.S_IFLNK|0o755
@@ -72,11 +85,11 @@ def fixture_lstat(p):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23,'objects':24}.get(p,9)
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23,'objects':24,'public-marketing-standalone-nav-20261008':25}.get(p,9)
 os.close=lambda *a: None
-ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects'}
+ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects',25:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008'}
 os.stat=lambda p, **kw: fixture_lstat(ref_paths.get(kw.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p)
-os.fstat=lambda fd: fixture_lstat(ref_paths[fd]) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
+os.fstat=lambda fd: fixture_lstat(ref_paths[fd],from_fd=True) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
     global project_mode
     assert fd in [10,11,12] and locked
@@ -86,6 +99,16 @@ def chmod(fd, mode):
     else: git_modes['GIT' if fd==11 else 'CONFIG']=stat.S_IFDIR|mode if fd==11 else stat.S_IFREG|mode
     print('CHMOD='+str(fd))
 os.fchmod=chmod
+def change_owner(fd, uid, gid):
+    assert fd in [23,25] and locked
+    assert uid==1001 and gid==1001
+    if fd==23 and os.environ.get('REF_CHOWN_FAIL'): raise PermissionError(13,'private error')
+    ref_owners[ref_paths[fd]]=(uid,gid)
+    print('CHOWN='+str(fd))
+os.fchown=change_owner
+os.listdir=lambda fd: ['public-marketing-standalone-nav-20261008','other-ref'] if os.environ.get('REF_OTHER_CHILD') else ['public-marketing-standalone-nav-20261008']
+os.pread=lambda fd,n,offset: (b'private-invalid-ref' if os.environ.get('REF_BAD_CONTENT') else b'05d1c69eddb3c47854362f5681ebe7ebf3dd7e51\\n')[:n]
+
 pwd.getpwuid=lambda uid: SimpleNamespace(pw_name='untrusted' if os.environ.get('UNTRUSTED_OWNER') else 'kmjrunner' if uid else 'root', pw_uid=uid, pw_gid=uid, pw_dir='/home/kmjrunner' if uid else '/root')
 def lock(*a):
     global locked
@@ -120,6 +143,7 @@ def stub(args, **kw):
         ref=a[-1]
         result=refs.get(ref, old)
         if ref.startswith('refs/remotes/') and os.environ.get('TRACKING_FAIL'): rc=128
+        if os.environ.get('REF_REPAIR') and 'public-marketing' in ref and (fixture_lstat(ref_paths[23]).st_uid!=1001 or fixture_lstat(ref_paths[25]).st_uid!=1001): rc=128
     elif a[0]=='show-ref': rc=0 if os.environ.get('TEMP_EXISTS') else 1
     elif a[0]=='fetch':
         if os.environ.get('PROJECT_WRITE')=='020': assert project_mode is not None and not project_mode & 0o022
@@ -383,7 +407,6 @@ subprocess.run=stub
   const unreadableRef = run({
     SERVICE_OWNER: "1",
     TRACKING_FAIL: "1",
-    REF_PRIVATE: "1",
     GIT_STDERR: "fatal: Needed a single revision",
   });
   assert.equal(unreadableRef.status, 0, unreadableRef.stderr);
@@ -391,7 +414,7 @@ subprocess.run=stub
     "REF_FAILURE_STAGE=TRACKING_REF_READ",
     "REF_FAILURE_KIND=REVISION_UNAVAILABLE",
     "REF_FIX_PARENT_READ=OK",
-    "REF_FIX_PARENT_OWNER=ROOT",
+    "REF_FIX_PARENT_OWNER=MATCHES_PROJECT",
     "REF_FIX_PARENT_ACCESS=DENIED",
     "REF_FIX_PARENT_WRITE_ACCESS=DENIED",
   ])
@@ -403,13 +426,83 @@ subprocess.run=stub
     REF_LINK: "1",
   });
   assert.equal(linkedRef.status, 0, linkedRef.stderr);
-  assert.match(linkedRef.stdout, /REF_FIX_PARENT_TYPE=SYMLINK/);
-  assert.match(linkedRef.stdout, /REF_WEBSITE_READ=BLOCKED_DIRECTORY/);
-  assert.match(linkedRef.stdout, /REF_PACKED_READ=OK/);
-  assert.match(linkedRef.stdout, /OBJECT_ROOT_READ=OK/);
-  assert.match(linkedRef.stdout, /OBJECT_PACK_READ=OK/);
-  assert.match(linkedRef.stdout, /OBJECT_INFO_READ=OK/);
-  assert.doesNotMatch(linkedRef.stdout, /REF_WEBSITE_READ=OK|UPDATED=|CHMOD=/);
+  assert.match(linkedRef.stdout, /REF_REFRESH_DEFERRED_UNTRUSTED/);
+  assert.doesNotMatch(linkedRef.stdout, /CHOWN=|UPDATED=/);
+  const repairedRef = run({
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    REF_REPAIR: "1",
+    WRITE_USER: "kmjrunner",
+  });
+  assert.equal(repairedRef.status, 0, repairedRef.stderr);
+  assert.deepEqual(repairedRef.stdout.match(/CHOWN=\d+/g), [
+    "CHOWN=25",
+    "CHOWN=23",
+  ]);
+  assert.match(repairedRef.stdout, /PR337_REF_REFRESHED=1/);
+  for (const extra of [
+    { REF_RACE: "1" },
+    { REF_BAD_OWNER: "1" },
+    { REF_WORLD: "1" },
+    { REF_HARDLINK: "1" },
+    { REF_OTHER_CHILD: "1" },
+    { REF_BAD_CONTENT: "1" },
+    { GROUP_OTHER: "1" },
+    { WRITE_USER: "different" },
+  ]) {
+    const refused = run({
+      SERVICE_OWNER: "1",
+      SERVICE_PARENT: "1",
+      REF_REPAIR: "1",
+      WRITE_USER: "kmjrunner",
+      ...extra,
+    });
+    assert.equal(refused.status, 0, refused.stderr);
+    assert.doesNotMatch(refused.stdout, /CHOWN=|UPDATED=/);
+  }
+  const partialRef = run({
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    REF_REPAIR: "1",
+    REF_PARTIAL: "1",
+    WRITE_USER: "kmjrunner",
+  });
+  assert.equal(partialRef.status, 0, partialRef.stderr);
+  assert.deepEqual(partialRef.stdout.match(/CHOWN=\d+/g), ["CHOWN=23"]);
+  assert.match(partialRef.stdout, /PR337_REF_REFRESHED=1/);
+  const interruptedRef = run({
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    REF_REPAIR: "1",
+    REF_CHOWN_FAIL: "1",
+    WRITE_USER: "kmjrunner",
+  });
+  assert.equal(interruptedRef.status, 0, interruptedRef.stderr);
+  assert.match(interruptedRef.stdout, /REF_METADATA_REPAIR_INCOMPLETE/);
+  assert.doesNotMatch(interruptedRef.stdout, /UPDATED=/);
+  const alreadyRepairedRef = run({
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    REF_REPAIR: "1",
+    REF_DONE: "1",
+    WRITE_USER: "kmjrunner",
+  });
+  assert.equal(alreadyRepairedRef.status, 0, alreadyRepairedRef.stderr);
+  assert.doesNotMatch(alreadyRepairedRef.stdout, /CHOWN=/);
+  assert.match(alreadyRepairedRef.stdout, /PR337_REF_REFRESHED=1/);
+  const replacedDirectoryRef = run({
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    REF_REPAIR: "1",
+    REF_SWAP_AFTER_LEAF: "1",
+    WRITE_USER: "kmjrunner",
+  });
+  assert.equal(replacedDirectoryRef.status, 0, replacedDirectoryRef.stderr);
+  assert.deepEqual(replacedDirectoryRef.stdout.match(/CHOWN=\d+/g), [
+    "CHOWN=25",
+  ]);
+  assert.match(replacedDirectoryRef.stdout, /REF_METADATA_REPAIR_INCOMPLETE/);
+  assert.doesNotMatch(replacedDirectoryRef.stdout, /CHOWN=23|UPDATED=/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(

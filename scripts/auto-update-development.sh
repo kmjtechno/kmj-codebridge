@@ -341,6 +341,108 @@ try:
     step = "ORIGIN_ALLOWLIST"
     if remote.stdout.strip() not in ORIGINS:
         raise ValueError("origin")
+    # Repair only the proved legacy root-private website tracking pair.
+    # No shared ref directories, other refs, modes or contents are changed.
+    def repair_fixed_tracking_metadata():
+        global step
+        if owner.pw_uid == 0:
+            return
+        descriptors = []
+        ancestors = []
+        changed = False
+        leaf = "public-marketing-standalone-nav-20261008"
+        directory_path = PROJECT + "/.git/refs/remotes/origin/fix"
+        ref_path = directory_path + "/" + leaf
+        old_ref = b"05d1c69eddb3c47854362f5681ebe7ebf3dd7e51\n"
+        try:
+            step = "REF_METADATA_IDENTITY"
+            current = os.open(PROJECT + "/.git", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            descriptors.append(current)
+            if parent_identity(os.fstat(current)) != parent_identity(git_directory):
+                raise ValueError("repository descriptor changed")
+            ancestor_path = PROJECT + "/.git"
+            ancestors.append((ancestor_path, current, git_directory))
+            for component in ["refs", "remotes", "origin"]:
+                meta = os.stat(component, dir_fd=current, follow_symlinks=False)
+                if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o002:
+                    raise ValueError("ref ancestor")
+                following = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+                descriptors.append(following)
+                if parent_identity(os.fstat(following)) != parent_identity(meta):
+                    raise ValueError("ref ancestor changed")
+                ancestor_path += "/" + component
+                ancestors.append((ancestor_path, following, meta))
+                current = following
+            directory = os.stat("fix", dir_fd=current, follow_symlinks=False)
+            if not stat.S_ISDIR(directory.st_mode):
+                raise ValueError("ref directory")
+            directory_fd = os.open("fix", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+            descriptors.append(directory_fd)
+            ref = os.stat(leaf, dir_fd=directory_fd, follow_symlinks=False)
+            if directory.st_uid == owner.pw_uid and ref.st_uid == owner.pw_uid:
+                return
+            step = "REF_METADATA_OWNER"
+            if directory.st_uid != 0 or directory.st_gid != 0 or stat.S_IMODE(directory.st_mode) != 0o700:
+                raise ValueError("unproven ref directory owner")
+            allowed_ref_owner = (ref.st_uid == 0 and ref.st_gid == 0) or (ref.st_uid == owner.pw_uid and ref.st_gid == owner.pw_gid)
+            if not allowed_ref_owner or not stat.S_ISREG(ref.st_mode) or stat.S_IMODE(ref.st_mode) != 0o600 or ref.st_nlink != 1 or ref.st_size != len(old_ref):
+                raise ValueError("unproven ref file")
+            ref_fd = os.open(leaf, os.O_RDONLY | os.O_NOFOLLOW, dir_fd=directory_fd)
+            descriptors.append(ref_fd)
+            entries = [(directory_path, directory_fd, directory), (ref_path, ref_fd, ref)]
+            snapshots = [directory, ref]
+            def verify_pair():
+                verify_parents()
+                for path, fd, previous in ancestors:
+                    if parent_identity(os.fstat(fd)) != parent_identity(previous) or parent_identity(os.lstat(path)) != parent_identity(previous):
+                        raise ValueError("ref ancestor changed")
+                for (path, fd, _), previous in zip(entries, snapshots):
+                    if parent_identity(os.fstat(fd)) != parent_identity(previous) or parent_identity(os.lstat(path)) != parent_identity(previous):
+                        raise ValueError("ref pair changed")
+                if os.listdir(directory_fd) != [leaf] or os.pread(ref_fd, len(old_ref) + 1, 0) != old_ref:
+                    raise ValueError("ref pair content or children")
+            step = "REF_METADATA_CONTENT"
+            verify_pair()
+            step = "REF_METADATA_GROUP"
+            group = grp.getgrgid(owner.pw_gid)
+            members = {account.pw_uid for account in pwd.getpwall() if account.pw_gid == owner.pw_gid}
+            members.update(pwd.getpwnam(name).pw_uid for name in group.gr_mem)
+            if owner.pw_uid not in members or not members <= {0, owner.pw_uid}:
+                raise ValueError("ref owner group shared")
+            step = "REF_METADATA_WRITER"
+            authority = subprocess.run(["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
+            fields = dict(line.split("=", 1) for line in authority.stdout.splitlines() if "=" in line)
+            if authority.returncode or fields.get("LoadState") != "loaded" or "User" not in fields:
+                raise ValueError("ref writer unavailable")
+            user = fields["User"].strip()
+            writer = 0 if user == "" else pwd.getpwuid(int(user)).pw_uid if re.fullmatch("[0-9]{1,10}", user) else pwd.getpwnam(user).pw_uid if re.fullmatch("[A-Za-z_][A-Za-z0-9_-]{0,63}", user) else None
+            if writer != owner.pw_uid:
+                raise ValueError("ref writer differs")
+            # Transfer the leaf first: source traversal is granted only last.
+            step = "REF_METADATA_IDENTITY"
+            for index in [1, 0]:
+                verify_pair()
+                path, fd, previous = entries[index]
+                if previous.st_uid != owner.pw_uid:
+                    os.fchown(fd, owner.pw_uid, owner.pw_gid)
+                    changed = True
+                    after = os.fstat(fd)
+                    before_state = parent_identity(previous)
+                    expected = (*before_state[:2], owner.pw_uid, owner.pw_gid, *before_state[4:-1])
+                    if parent_identity(after)[:-1] != expected:
+                        raise ValueError("ref owner transfer changed invariants")
+                    snapshots[index] = after
+            verify_pair()
+            if changed:
+                print("AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIRED=1")
+        except Exception:
+            if changed:
+                print("AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIR_INCOMPLETE")
+            raise
+        finally:
+            for fd in reversed(descriptors):
+                os.close(fd)
+    repair_fixed_tracking_metadata()
     if needs_hardening:
         step = "PROJECT_WRITE_AUTHORITY_READ"
         authority = subprocess.run(["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
