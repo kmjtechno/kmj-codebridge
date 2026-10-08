@@ -839,10 +839,7 @@ test("website CI diagnosis exposes only fixed error categories", async () => {
     result.response.privatePr337Diagnostic,
     "FIXED_REF_LOOKUP_FAILED",
   );
-  assert.doesNotMatch(
-    JSON.stringify(result),
-    /secret-token|example.invalid/,
-  );
+  assert.doesNotMatch(JSON.stringify(result), /secret-token|example.invalid/);
   await assert.rejects(
     handle({ op: "update_status", unit: "ssh.service" }),
     /INVALID_SUPERVISOR_REQUEST/,
