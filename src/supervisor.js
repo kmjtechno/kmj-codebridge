@@ -166,7 +166,15 @@ function fixedUpdateMarkers(run, unit) {
     "AUTO_UPDATE_PRIVATE_PR337_REF_REFRESHED",
   ]);
   const gitMetadataFields = new Map();
-  for (const entry of ["GIT_DIRECTORY", "GIT_CONFIG"]) {
+  for (const entry of [
+    "GIT_DIRECTORY",
+    "GIT_CONFIG",
+    "TRUST_PROJECT_PARENT",
+    "TRUST_SRV",
+    "TRUST_ROOT",
+    "TRUST_BASE",
+    "TRUST_LOCK",
+  ]) {
     for (const [field, values] of [
       [
         "READ",
@@ -176,6 +184,7 @@ function fixedUpdateMarkers(run, unit) {
           "PERMISSION_DENIED",
           "OTHER_ERROR",
           "BLOCKED_DIRECTORY",
+          "BLOCKED_BASE",
           "CHANGED",
         ],
       ],
@@ -197,6 +206,16 @@ function fixedUpdateMarkers(run, unit) {
       `AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_${field}`,
       new Set(["VALID", "INVALID"]),
     );
+  for (const [key, values] of [
+    ["TRUST_LOCK_NLINK", ["VALID", "INVALID"]],
+    ["TRUST_LOCK_PRIVATE_MODE", ["VALID", "INVALID"]],
+    ["TRUST_LOCK_IDENTITY", ["MATCHES_PATH", "CHANGED"]],
+    ["TRUST_SOURCE_OWNER", ["ROOT", "TRUSTED_SERVICE"]],
+    ["TRUST_GROUP", ["EXCLUSIVE", "OTHER_MEMBERS", "UNAVAILABLE"]],
+    ["TRUST_WRITER_LOAD", ["LOADED", "NOT_LOADED", "UNAVAILABLE"]],
+    ["TRUST_WRITER_UID", ["MATCHES_OWNER", "DIFFERS", "UNAVAILABLE"]],
+  ])
+    gitMetadataFields.set(`AUTO_UPDATE_PRIVATE_CI_${key}`, new Set(values));
   const refSteps = new Set([
     "PROJECT_METADATA",
     "PROJECT_LSTAT_READ",
@@ -304,7 +323,7 @@ function fixedUpdateMarkers(run, unit) {
           ownerSteps.has(value))
       );
     })
-    .slice(-24);
+    .slice(-64);
 }
 
 // Classify only hardcoded PR337 CI journal events. Do not return stderr,

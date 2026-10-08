@@ -231,6 +231,62 @@ try:
         if (not stat.S_ISREG(meta.st_mode) if regular else not stat.S_ISDIR(meta.st_mode)) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o002 or (regular and (meta.st_nlink != 1 or not 0 < meta.st_size <= 65536)):
             raise ValueError("repository metadata")
         repository_metadata.append((path, meta))
+    # Collect all remaining fixed trust facts before the first ancestor refusal.
+    for label, path in [("TRUST_PROJECT_PARENT", "/srv/kmj-codebridge-projects"), ("TRUST_SRV", "/srv"), ("TRUST_ROOT", "/")]:
+        read_metadata(label, lambda path=path: os.lstat(path))
+    proof_base = read_metadata("TRUST_BASE", lambda: os.lstat(BASE))
+    proof_lock_fd = proof_base_fd = None
+    if proof_base is None or not stat.S_ISDIR(proof_base.st_mode) or proof_base.st_uid != 0 or proof_base.st_mode & 0o022:
+        print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_READ=BLOCKED_BASE")
+    else:
+        try:
+            proof_base_fd = os.open(BASE, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            state = lambda m: (m.st_dev, m.st_ino, m.st_uid, m.st_gid, m.st_mode, m.st_nlink)
+            if state(os.fstat(proof_base_fd)) != state(proof_base):
+                raise OSError("base changed")
+            proof_lock_fd = os.open(".ci.lock", os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=proof_base_fd)
+            proof_lock = read_metadata("TRUST_LOCK", lambda: os.fstat(proof_lock_fd))
+            if proof_lock is not None:
+                print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_PRIVATE_MODE=" + ("VALID" if not proof_lock.st_mode & 0o077 else "INVALID"))
+                print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_NLINK=" + ("VALID" if proof_lock.st_nlink == 1 else "INVALID"))
+                state = lambda m: (m.st_dev, m.st_ino, m.st_uid, m.st_gid, m.st_mode, m.st_nlink)
+                same = state(os.lstat(BASE)) == state(proof_base) and state(os.lstat(BASE + "/.ci.lock")) == state(proof_lock)
+                print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_IDENTITY=" + ("MATCHES_PATH" if same else "CHANGED"))
+        except FileNotFoundError:
+            print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_READ=MISSING")
+        except PermissionError:
+            print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_READ=PERMISSION_DENIED")
+        except OSError:
+            print("AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_READ=OTHER_ERROR")
+        finally:
+            if proof_lock_fd is not None:
+                os.close(proof_lock_fd)
+            if proof_base_fd is not None:
+                os.close(proof_base_fd)
+    print("AUTO_UPDATE_PRIVATE_CI_TRUST_SOURCE_OWNER=" + ("ROOT" if owner.pw_uid == 0 else "TRUSTED_SERVICE"))
+    try:
+        proof_group = grp.getgrgid(owner.pw_gid)
+        members = {entry.pw_uid for entry in pwd.getpwall() if entry.pw_gid == owner.pw_gid}
+        members.update(pwd.getpwnam(name).pw_uid for name in proof_group.gr_mem)
+        group_result = "EXCLUSIVE" if owner.pw_uid in members and members <= {0, owner.pw_uid} else "OTHER_MEMBERS"
+    except (KeyError, OSError):
+        group_result = "UNAVAILABLE"
+    print("AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=" + group_result)
+    load_result = uid_result = "UNAVAILABLE"
+    try:
+        proof_authority = subprocess.run(["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
+        proof_fields = dict(line.split("=", 1) for line in proof_authority.stdout.splitlines() if "=" in line)
+        if not proof_authority.returncode:
+            load_result = "LOADED" if proof_fields.get("LoadState") == "loaded" else "NOT_LOADED"
+            if load_result == "LOADED" and "User" in proof_fields:
+                user = proof_fields["User"].strip()
+                uid = 0 if user == "" else pwd.getpwuid(int(user)).pw_uid if re.fullmatch("[0-9]{1,10}", user) else pwd.getpwnam(user).pw_uid if re.fullmatch("[A-Za-z_][A-Za-z0-9_-]{0,63}", user) else None
+                if uid is not None:
+                    uid_result = "MATCHES_OWNER" if uid == owner.pw_uid else "DIFFERS"
+    except (KeyError, OSError, subprocess.TimeoutExpired):
+        pass
+    print("AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_LOAD=" + load_result)
+    print("AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=" + uid_result)
     # Root execution requires a root-owned path all the way to the filesystem.
     step = "PROJECT_PARENTS"
     parent = os.path.dirname(PROJECT)

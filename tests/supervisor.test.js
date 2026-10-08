@@ -1656,6 +1656,27 @@ test("fixed Git metadata markers expose only classes for both protected entries"
     "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_MODE=GROUP_WRITE",
     "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_NLINK=INVALID",
     "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_SIZE=VALID",
+    ...[
+      "TRUST_PROJECT_PARENT",
+      "TRUST_SRV",
+      "TRUST_ROOT",
+      "TRUST_BASE",
+      "TRUST_LOCK",
+    ].flatMap((entry) => [
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_READ=OK`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_OWNER=ROOT`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_GID=MATCHES_PRIMARY`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_TYPE=DIRECTORY`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_MODE=NONWRITE`,
+    ]),
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_NLINK=INVALID",
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_PRIVATE_MODE=INVALID",
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_IDENTITY=CHANGED",
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_SOURCE_OWNER=TRUSTED_SERVICE",
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=OTHER_MEMBERS",
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_LOAD=LOADED",
+    "AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=DIFFERS",
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED",
   ];
   const handle = createSupervisorHandler({
     run: (command, args) =>
@@ -1663,6 +1684,8 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       args[1] === "kmj-codebridge-auto-update.service"
         ? [
             ...expected,
+            "AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=secret-account",
+            "AUTO_UPDATE_PRIVATE_CI_TRUST_OTHER_MODE=NONWRITE",
             "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_OWNER=secret-account",
             "AUTO_UPDATE_PRIVATE_CI_GIT_DIRECTORY_SIZE=VALID",
             "AUTO_UPDATE_PRIVATE_CI_GIT_OTHER_TYPE=DIRECTORY",
@@ -1679,5 +1702,15 @@ test("fixed Git metadata markers expose only classes for both protected entries"
   assert.doesNotMatch(
     JSON.stringify(result),
     /secret|GIT_OTHER|GIT_DIRECTORY_SIZE/,
+  );
+  expected.push(
+    ...Array(80).fill("AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE"),
+  );
+  const capped = await handle({ op: "update_status" });
+  assert.equal(capped.response.updateMarkers.length, 64);
+  assert.ok(
+    capped.response.updateMarkers.every(
+      (marker) => marker === "AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE",
+    ),
   );
 });
