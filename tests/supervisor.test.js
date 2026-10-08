@@ -327,7 +327,8 @@ test("effective-unit doctor identifies overrides without leaking ExecStart", asy
   assert.equal(JSON.stringify(result).includes("NEVER_LEAK"), false);
   assert.equal(JSON.stringify(result).includes(directory), false);
   assert.deepEqual(
-    calls.filter((entry) => entry[1].includes("--property=WorkingDirectory"))
+    calls
+      .filter((entry) => entry[1].includes("--property=WorkingDirectory"))
       .map((entry) => entry[1][1]),
     ["kmj-codebridge-kmj-main-platform.service"],
   );
@@ -339,22 +340,36 @@ test("effective-unit doctor identifies overrides without leaking ExecStart", asy
 
 test("effective-unit doctor treats canary and unknown runtime as unverified", async () => {
   for (const [directory, expected] of [
-    ["/opt/kmj-codebridge-main-platform-agent-cb64119277ef", "development-canary"],
+    [
+      "/opt/kmj-codebridge-main-platform-agent-cb64119277ef",
+      "development-canary",
+    ],
     ["/tmp/untrusted", "unknown"],
   ]) {
     const handle = createSupervisorHandler({
       run: (_command, args) =>
         args.includes("--property=WorkingDirectory")
-          ? "LoadState=loaded\nWorkingDirectory=" + directory + "\nExecStart=unverified\nDropInPaths=\n"
+          ? "LoadState=loaded\nWorkingDirectory=" +
+            directory +
+            "\nExecStart=unverified\nDropInPaths=\n"
           : "LoadState=loaded\nActiveState=active\n",
       lstat: () => {
         throw new Error("absent");
       },
     });
     const result = await handle({ op: "update_status" });
-    assert.equal(result.response.mainPlatformEffectiveUnit.runtimeKind, expected);
-    assert.equal(result.response.mainPlatformEffectiveUnit.stagedRuntimeEffective, false);
-    assert.equal(result.response.mainPlatformEffectiveUnit.signedProductionProven, false);
+    assert.equal(
+      result.response.mainPlatformEffectiveUnit.runtimeKind,
+      expected,
+    );
+    assert.equal(
+      result.response.mainPlatformEffectiveUnit.stagedRuntimeEffective,
+      false,
+    );
+    assert.equal(
+      result.response.mainPlatformEffectiveUnit.signedProductionProven,
+      false,
+    );
   }
 });
 
