@@ -65,7 +65,7 @@ os.fstat = lambda value: root_stat(real_fstat(value))
 def stub_run(args, **kwargs):
     with open(os.environ['TEST_CALLS'], 'a') as f: f.write(json.dumps(args) + '\\n')
     if args[0] == '/usr/bin/git':
-        return SimpleNamespace(returncode=0, stdout=(os.environ.get('TEST_CONTROL_SHA', 'b' * 40) if args[-1] == 'HEAD' else os.environ.get('TEST_SOURCE', '${expected}')) + '\\n')
+        return SimpleNamespace(returncode=int(os.environ.get('TEST_SOURCE_EXIT', '0')) if args[-1] != 'HEAD' else 0, stdout=(os.environ.get('TEST_CONTROL_SHA', 'b' * 40) if args[-1] == 'HEAD' else os.environ.get('TEST_SOURCE', '${expected}')) + '\\n')
     if args[0] == '/usr/bin/flock':
         return SimpleNamespace(returncode=int(os.environ.get('TEST_LOCK_BUSY', '0')), stdout='')
     if args[0] == '/usr/bin/systemctl' and args[1] == 'show':
@@ -116,6 +116,28 @@ subprocess.run = stub_run
         /private|override|trusted-worker/,
       );
     }
+    for (const [env, step] of [
+      [{ TEST_SOURCE_EXIT: "128" }, "SOURCE_REF_READ"],
+      [{ TEST_SOURCE: "/private/secret" }, "SOURCE_REF_FORMAT"],
+      [{ TEST_SOURCE: "a".repeat(40) }, "SOURCE_REF_MISMATCH"],
+      [{ TEST_CONTROL_SHA: "invalid" }, "CONTROL_REVISION"],
+    ]) {
+      const { result, starts } = run(env);
+      assert.equal(starts.length, 0);
+      assert.equal(fs.existsSync(marker), false);
+      assert.ok(
+        result.stdout.includes(
+          `AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=${step}`,
+        ),
+      );
+      assert.doesNotMatch(
+        result.stdout + result.stderr,
+        /private\/secret|invalid/,
+      );
+    }
+    fs.chmodSync(worker, 0o666);
+    assert.match(run().result.stdout, /UNTRUSTED_STEP=WORKER_FILE/);
+    fs.chmodSync(worker, 0o644);
     assert.equal(run().starts.length, 1);
     assert.equal(fs.statSync(marker).mode & 0o777, 0o600);
     const first = fs.readFileSync(marker, "utf8");
