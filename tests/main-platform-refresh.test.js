@@ -112,12 +112,22 @@ test("existing Main Platform agent requires a bounded job-safe restart and rollb
   assert.ok(
     setup.includes("MAIN_PLATFORM_RUNTIME_NOT_ACCESSIBLE_TO_SERVICE_USER"),
   );
-  assert.ok(setup.includes('runuser -u "$SERVICE_USER" -- test -x "$NODE"'));
+  // Hardened root oneshots have NoNewPrivileges + RestrictSUIDSGID, so
+  // runuser/PAM cannot switch UID even when the staged runtime is accessible.
+  assert.doesNotMatch(setup, /runuser -u/);
+  assert.match(setup, /systemd-run --quiet --wait --collect --pipe/);
+  assert.ok(setup.includes('-p "User=$SERVICE_USER"'));
+  assert.ok(setup.includes('-p "Group=$SERVICE_USER"'));
+  assert.ok(setup.includes('-p NoNewPrivileges=true'));
+  assert.ok(setup.includes('-p RestrictSUIDSGID=true'));
+  assert.ok(setup.includes('-p ProtectSystem=strict'));
+  assert.ok(setup.includes('-p RestrictAddressFamilies=AF_UNIX'));
   assert.ok(
     setup.includes(
-      'runuser -u "$SERVICE_USER" -- test -r "$RUNTIME/src/cli.js"',
+      `/bin/sh -c 'test -x "$1" && test -r "$2" && test -x "$3"'`,
     ),
   );
+  assert.ok(setup.includes('sh "$NODE" "$RUNTIME/src/cli.js" "$RUNTIME"'));
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_EFFECTIVE_UNIT_CONFLICT"));
   assert.ok(
     setup.includes('systemctl show "$SERVICE" -p WorkingDirectory --value'),
