@@ -395,6 +395,13 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       result: "success",
       execMainStatus: "0",
     },
+    privatePr337Ci: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+    },
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
@@ -423,6 +430,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-kmj-main-platform.service",
       "kmj-codebridge-main-platform-refresh.service",
       "kmj-codebridge-private-pr322-ci.service",
+      "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-kmj-main-platform.service",
     ],
   );
@@ -694,3 +702,114 @@ test("client refuses arbitrary local socket paths", async () => {
   );
   assert.equal(SUPERVISOR_SOCKET, "/run/kmj-codebridge/supervisor.sock");
 });
+
+// PR337 uses the same fail-closed supervisor protections as PR322.
+test("native private PR337 CI starts fixed systemd unit", async () => {
+  const calls = [];
+  const started = [];
+  const handle = createSupervisorHandler({
+    run: (bin, args) => {
+      calls.push([bin, args]);
+      return "LoadState=loaded\nActiveState=inactive\n";
+    },
+    start: (service) => started.push(service),
+  });
+  const result = await handle({ op: "private_pr337_ci_start" });
+  assert.deepEqual(result.response, {
+    accepted: true,
+    target: "private-pr337",
+  });
+  assert.deepEqual(started, []);
+  result.afterSend();
+  assert.deepEqual(started, ["kmj-codebridge-private-pr337-ci.service"]);
+  assert.equal(calls[0][0], "/usr/bin/systemctl");
+  assert.equal(calls[0][1][1], "kmj-codebridge-private-pr337-ci.service");
+  await assert.rejects(
+    handle({ op: "private_pr337_ci_start", command: "/bin/sh" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+  await assert.rejects(
+    handle({ op: "private_pr337_ci_start", sha: "a".repeat(40) }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+  await assert.rejects(
+    createSupervisorHandler({
+      run: () => "LoadState=not-found\nActiveState=inactive\n",
+    })({ op: "private_pr337_ci_start" }),
+    /SUPERVISOR_PRIVATE_CI_UNAVAILABLE/,
+  );
+  await assert.rejects(
+    createSupervisorHandler({
+      run: () => "LoadState=loaded\nActiveState=active\n",
+    })({ op: "private_pr337_ci_start" }),
+    /SUPERVISOR_PRIVATE_CI_BUSY/,
+  );
+});
+
+test("native CI status validates bounded root evidence", async () => {
+  const evidence = {
+    schema: 1,
+    repo: "kmjtechno/kmj-main-platform",
+    pr: 337,
+    sha: "a".repeat(40),
+    linux_result: "PASS",
+    exit_code: 0,
+    github_actions: "NOT_RUN",
+    windows: "NOT_RUN",
+    signed_production: false,
+    log_sha256: "b".repeat(64),
+    secret: "NEVER_RETURN",
+  };
+  const locations = [];
+  const handle = createSupervisorHandler({
+    run: () =>
+      "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0\n",
+    lstat: (name) => {
+      locations.push(name);
+      return {
+        isFile: () => true,
+        isSymbolicLink: () => false,
+        uid: 0,
+        nlink: 1,
+        mode: 0o100600,
+        size: 250,
+      };
+    },
+    readFile: (name) => {
+      locations.push(name);
+      return JSON.stringify(evidence);
+    },
+  });
+  const result = await handle({ op: "private_pr337_ci_status" });
+  assert.deepEqual(result.response.last, {
+    testedSha: "a".repeat(40),
+    linuxResult: "PASS",
+    exitCode: 0,
+    logSha256: "b".repeat(64),
+    githubActions: "NOT_RUN",
+    windows: "NOT_RUN",
+    signedProduction: false,
+  });
+  assert.equal(result.response.service.installed, true);
+  assert.deepEqual(locations, [
+    "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
+    "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
+  ]);
+  assert.doesNotMatch(JSON.stringify(result), /NEVER_RETURN/);
+  await assert.rejects(
+    handle({ op: "private_pr337_ci_status", path: "/etc/shadow" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+  evidence.windows = "PASS";
+  assert.equal(
+    (await handle({ op: "private_pr337_ci_status" })).response.last,
+    null,
+  );
+  evidence.windows = "NOT_RUN";
+  evidence.log_sha256 = "invalid";
+  assert.equal(
+    (await handle({ op: "private_pr337_ci_status" })).response.last,
+    null,
+  );
+});
+
