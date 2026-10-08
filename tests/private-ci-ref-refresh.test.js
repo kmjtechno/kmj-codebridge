@@ -16,7 +16,20 @@ from types import SimpleNamespace
 class Meta:
     st_uid=0; st_gid=0; st_nlink=1; st_size=64
     st_mode=stat.S_IFDIR | 0o755
-os.lstat=lambda p: SimpleNamespace(st_uid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_gid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_nlink=1, st_size=64, st_mode=(stat.S_IFREG|0o666 if os.environ.get('UNSAFE_CONFIG') and p.endswith('/config') else stat.S_IFREG|0o600 if p.endswith('/config') or p.endswith('/.ci.lock') else stat.S_IFDIR|0o755))
+fixture_stat=lambda p: SimpleNamespace(st_uid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_gid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_nlink=1, st_size=64, st_mode=(stat.S_IFREG|0o666 if os.environ.get('UNSAFE_CONFIG') and p.endswith('/config') else stat.S_IFREG|0o600 if p.endswith('/config') or p.endswith('/.ci.lock') else stat.S_IFDIR|0o755))
+def fixture_lstat(p):
+    if p == '/srv/kmj-codebridge-projects/kmj-main-platform':
+        error=os.environ.get('PROJECT_ERROR')
+        if error=='missing': raise FileNotFoundError(2, 'private error')
+        if error=='denied': raise PermissionError(13, 'private error')
+        if error=='other': raise OSError(5, 'private error')
+        result=fixture_stat(p)
+        kind=os.environ.get('PROJECT_TYPE')
+        if kind: result.st_mode=(stat.S_IFLNK if kind=='link' else stat.S_IFREG)|0o755
+        result.st_mode |= int(os.environ.get('PROJECT_WRITE', '0'), 8)
+        return result
+    return fixture_stat(p)
+os.lstat=fixture_lstat
 os.open=lambda *a, **k: 9
 os.close=lambda *a: None
 os.fstat=lambda *a: SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
@@ -88,6 +101,25 @@ subprocess.run=stub
       ),
     );
     assert.doesNotMatch(result.stdout, /UPDATED=|secret|evil/);
+  }
+  for (const [env, step] of [
+    [{ PROJECT_ERROR: "missing" }, "PROJECT_LSTAT_MISSING"],
+    [{ PROJECT_ERROR: "denied" }, "PROJECT_LSTAT_PERMISSION_DENIED"],
+    [{ PROJECT_ERROR: "other" }, "PROJECT_LSTAT_OTHER_ERROR"],
+    [{ PROJECT_TYPE: "link" }, "PROJECT_DIRECTORY_SYMLINK"],
+    [{ PROJECT_TYPE: "file" }, "PROJECT_DIRECTORY_OTHER_TYPE"],
+    [{ PROJECT_WRITE: "020" }, "PROJECT_MODE_GROUP_WRITE"],
+    [{ PROJECT_WRITE: "002" }, "PROJECT_MODE_WORLD_WRITE"],
+    [{ PROJECT_WRITE: "022" }, "PROJECT_MODE_GROUP_AND_WORLD_WRITE"],
+  ]) {
+    const result = run(env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(
+      result.stdout.includes(
+        `AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=${step}`,
+      ),
+    );
+    assert.doesNotMatch(result.stdout, /UPDATED=|private error/);
   }
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
