@@ -236,6 +236,48 @@ function fixedMainPlatformMarkers(run) {
     .slice(-24);
 }
 
+// Secret-free, read-only effective-unit classification. Never return raw
+// ExecStart/Environment/DropInPaths or accept a caller-selected unit/path.
+// A release-named drop-in is NOT proof of signed release provenance.
+function fixedMainPlatformEffectiveUnit(run) {
+  const unit = fixedUnitStatus(run, MAIN_PLATFORM_AGENT_SERVICE, [
+    "WorkingDirectory",
+    "ExecStart",
+    "DropInPaths",
+  ]);
+  const directory = unit.workingDirectory;
+  const dropins = unit.dropInPaths;
+  const staged = /^\/opt\/kmj-codebridge-main-platform-stage\/[a-f0-9]{40}$/.test(
+    directory,
+  );
+  const canary = /^\/opt\/kmj-codebridge-main-platform-agent-[a-zA-Z0-9_-]+$/.test(
+    directory,
+  );
+  const release = /^\/opt\/kmj-codebridge-releases\/[a-f0-9]{12,40}$/.test(
+    directory,
+  );
+  const expectedExec = `argv[]=/opt/kmj-codebridge-node/bin/node ${directory}/src/cli.js agent /etc/kmj-codebridge-main-platform/agent.json ;`;
+  return {
+    installed: unit.installed,
+    runtimeKind: staged
+      ? "staged-development"
+      : canary
+        ? "development-canary"
+        : release
+          ? "release-override-unverified"
+          : "unknown",
+    stagedRuntimeEffective: staged && unit.execStart.includes(expectedExec),
+    releaseOverridePresent:
+      /\/99-kmj-release\.conf(?:\s|$)/.test(dropins),
+    developmentCanaryOverridePresent:
+      /\/zz-kmj-codebridge-development-canary\.conf(?:\s|$)/.test(dropins),
+    readinessOverridePresent:
+      /\/30-readiness-runtime\.conf(?:\s|$)/.test(dropins),
+    // Paths and release labels alone cannot authenticate a signed manifest.
+    signedProductionProven: false,
+  };
+}
+
 function defaultRun(command, args, options = {}) {
   return execFileSync(command, args, {
     encoding: "utf8",
@@ -525,6 +567,7 @@ export function createSupervisorHandler({
           service,
           mainPlatformRefresh,
           mainPlatformAgent,
+          mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
           mainPlatformEvidence: fixedMainPlatformMarkers(run),
           updateMarkers: fixedUpdateMarkers(run, UPDATE_SERVICE),
