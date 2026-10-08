@@ -90,8 +90,8 @@ test("existing Main Platform agent requires a bounded job-safe restart and rollb
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_JOURNAL_UNSAFE"));
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_STATE_MISMATCH"));
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_ARCHIVE_UNSAFE"));
-  assert.ok(setup.includes("systemctl restart \"$SERVICE\""));
-  assert.ok(setup.includes("systemctl enable \"$SERVICE\""));
+  assert.ok(setup.includes('systemctl restart "$SERVICE"'));
+  assert.ok(setup.includes('systemctl enable "$SERVICE"'));
   assert.ok(setup.includes("UNIT_BACKUP"));
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_FAILED_ROLLBACK_ATTEMPTED"));
   assert.ok(setup.includes("MAIN_PLATFORM_AGENT_RESTARTED=1"));
