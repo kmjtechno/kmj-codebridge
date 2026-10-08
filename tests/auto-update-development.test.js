@@ -59,6 +59,21 @@ test("development auto updater refreshes an existing Main Platform enrollment wi
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
 });
 
+test("already-current updater safely retries only skipped fixed Main Platform refresh", () => {
+  assert.match(script, /retry_skipped_main_platform_refresh/);
+  assert.match(script, /ConditionResult --value/);
+  assert.match(script, /ExecMainStartTimestamp --value/);
+  assert.match(script, /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED/);
+  assert.match(script, /job\.state === "running" \|\| job\.state === "queued"/);
+  assert.match(script, /c\.stateDir !== "\/var\/lib\/kmj-codebridge-kmj-main-platform"/);
+  assert.match(
+    script,
+    /local service="kmj-codebridge-main-platform-refresh\.service"/,
+  );
+  assert.match(script, /systemctl start --no-block "\$service"/);
+  assert.doesNotMatch(script, /CODEBRIDGE_MAIN_REFRESH_COMMAND/);
+});
+
 test("development auto updater refuses dirty runtime and does not accept caller repository URLs", () => {
   assert.match(script, /AUTO_UPDATE_DIRTY_RUNTIME/);
   assert.doesNotMatch(script, /CODEBRIDGE_UPDATE_REPO/);
