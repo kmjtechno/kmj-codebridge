@@ -786,6 +786,13 @@ fi
 rm -rf "$ROLLBACK_CODE"
 rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_ROLLBACK_SERVICE" "$ROLLBACK_STABLE_UPDATE_CONFIG"
 
+# Provision only the fixed private PR322 CI unit on an existing Main Platform VPS.
+# A failure leaves CodeBridge running but never silently treats CI as installed.
+if [[ -f "$INSTALL_DIR/scripts/install-private-pr322-ci-unit.sh" ]]; then
+  if ! /bin/bash "$INSTALL_DIR/scripts/install-private-pr322-ci-unit.sh"; then
+    echo "PRIVATE_CI_INSTALL_DEFERRED" >&2
+  fi
+fi
 cat >"$AUTO_UPDATE_SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge guarded development auto-update

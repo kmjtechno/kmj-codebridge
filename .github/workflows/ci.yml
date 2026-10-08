@@ -21,6 +21,11 @@ jobs:
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+      - name: Print exact formatting diff on failed checks
+        if: failure()
+        run: |
+          npx prettier --write src/supervisor.js tests/supervisor.test.js tests/installer.test.js
+          git diff -- src/supervisor.js tests/supervisor.test.js tests/installer.test.js
       - run: npm test
       - run: npm run package:runtime
       - uses: actions/upload-artifact@v4

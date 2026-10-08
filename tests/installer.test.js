@@ -265,3 +265,34 @@ test("installer provisions fixed bounded stable rollback service", () => {
     /ReadWritePaths=\$STABLE_INSTALL_ROOT \$STABLE_UPDATE_STATE_DIR/,
   );
 });
+
+test("installer provisions fixed disabled CI only on Main Platform", () => {
+  assert.match(script, /install-private-pr322-ci-unit\.sh/);
+  assert.match(script, /PRIVATE_CI_INSTALL_DEFERRED/);
+  const unit = fs.readFileSync(
+    "scripts/install-private-pr322-ci-unit.sh",
+    "utf8",
+  );
+  assert.match(unit, /kmj-codebridge-private-pr322-ci\.service/);
+  assert.match(unit, /-d "\$project\/\.git"/);
+  assert.match(unit, /\/srv\/kmj-codebridge-projects\/kmj-main-platform/);
+  assert.match(unit, /useradd --system --user-group --no-create-home/);
+  assert.match(unit, /PRIVATE_CI_UNIT_OWNERSHIP_CONFLICT/);
+  assert.match(unit, /NoNewPrivileges=true/);
+  assert.match(unit, /PrivateNetwork=true/);
+  assert.match(unit, /ProtectSystem=strict/);
+  assert.match(unit, /RestrictAddressFamilies=AF_UNIX/);
+  assert.match(unit, /InaccessiblePaths=\/etc\/kmj-codebridge-main-platform/);
+  assert.match(unit, /ReadWritePaths=\/var\/lib\/kmj-codebridge-ci/);
+  assert.match(unit, /ci-main-platform-pr-fixed\.sh/);
+  assert.doesNotMatch(unit, /systemctl enable --now/);
+});
+
+test("fixed private CI entry cannot accept a user-selected revision or command", () => {
+  const entry = fs.readFileSync("scripts/ci-main-platform-pr-fixed.sh", "utf8");
+  assert.match(entry, /refs\/remotes\/origin\/feat\/codebridge-owner-tier/);
+  assert.match(entry, /-eq 0 && \$# -eq 0/);
+  assert.match(entry, /CI_FIXED_REVISION_INVALID/);
+  assert.match(entry, /ci-main-platform-pr\.sh "\$sha"/);
+  assert.doesNotMatch(entry, /eval |git\s+push|git\s+fetch|sudo |gh pr merge/);
+});

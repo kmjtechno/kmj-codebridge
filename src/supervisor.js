@@ -20,6 +20,9 @@ const MAIN_PLATFORM_REFRESH_SERVICE =
 const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
+const PRIVATE_PR322_CI_SERVICE = "kmj-codebridge-private-pr322-ci.service";
+const PRIVATE_PR322_CI_EVIDENCE =
+  "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
 const UPDATE_INSTALL_ROOT = "/opt/kmj-codebridge-stable";
 const UPDATE_HISTORY = "/var/lib/kmj-codebridge-update/release-history.json";
@@ -608,6 +611,71 @@ export function createSupervisorHandler({
       return {
         response: { accepted: true },
         afterSend: () => start(MAIN_PLATFORM_REFRESH_SERVICE),
+      };
+    }
+
+    if (request.op === "private_pr322_ci_status") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, PRIVATE_PR322_CI_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "Result",
+        "ExecMainStatus",
+      ]);
+      let last = null;
+      try {
+        const meta = lstat(PRIVATE_PR322_CI_EVIDENCE);
+        if (
+          meta.isFile() &&
+          !meta.isSymbolicLink() &&
+          meta.uid === 0 &&
+          meta.nlink === 1 &&
+          (meta.mode & 0o077) === 0 &&
+          meta.size > 0 &&
+          meta.size <= 4096
+        ) {
+          const record = JSON.parse(readFile(PRIVATE_PR322_CI_EVIDENCE));
+          if (
+            record.schema === 1 &&
+            record.repo === "kmjtechno/kmj-main-platform" &&
+            record.pr === 322 &&
+            /^[a-f0-9]{40}$/.test(record.sha) &&
+            ["PASS", "FAIL"].includes(record.linux_result) &&
+            Number.isInteger(record.exit_code) &&
+            record.exit_code >= 0 &&
+            record.exit_code <= 255 &&
+            record.github_actions === "NOT_RUN" &&
+            record.windows === "NOT_RUN" &&
+            record.signed_production === false &&
+            /^[a-f0-9]{64}$/.test(record.log_sha256)
+          ) {
+            last = {
+              testedSha: record.sha,
+              linuxResult: record.linux_result,
+              exitCode: record.exit_code,
+              logSha256: record.log_sha256,
+              githubActions: "NOT_RUN",
+              windows: "NOT_RUN",
+              signedProduction: false,
+            };
+          }
+        }
+      } catch {
+        // Missing/untrusted evidence cannot be represented as success.
+      }
+      return { response: { service, last } };
+    }
+
+    if (request.op === "private_pr322_ci_start") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, PRIVATE_PR322_CI_SERVICE, [
+        "ActiveState",
+      ]);
+      if (!service.installed) fail("SUPERVISOR_PRIVATE_CI_UNAVAILABLE");
+      if (service.activeState === "active") fail("SUPERVISOR_PRIVATE_CI_BUSY");
+      return {
+        response: { accepted: true, target: "private-pr322" },
+        afterSend: () => start(PRIVATE_PR322_CI_SERVICE),
       };
     }
 
