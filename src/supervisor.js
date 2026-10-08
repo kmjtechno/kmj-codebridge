@@ -382,8 +382,12 @@ export function createSupervisorHandler({
         }
       };
       const mainPlatformPrerequisites = {
-        currentConfig: safeFixedPath("/etc/kmj-codebridge-main-platform/agent.json"),
-        legacyConfig: safeFixedPath("/etc/kmj-codebridge/agents/kmj-main-platform.json"),
+        currentConfig: safeFixedPath(
+          "/etc/kmj-codebridge-main-platform/agent.json",
+        ),
+        legacyConfig: safeFixedPath(
+          "/etc/kmj-codebridge/agents/kmj-main-platform.json",
+        ),
         projectGit: safeFixedPath(
           "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
           true,
