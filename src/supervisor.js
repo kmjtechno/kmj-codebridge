@@ -159,6 +159,9 @@ function fixedUpdateMarkers(run, unit) {
     "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED",
     "PRIVATE_CI_NATIVE_UNIT_INSTALLED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED",
+    "AUTO_UPDATE_PRIVATE_PR337_CI_SCHEDULED",
+    "AUTO_UPDATE_PRIVATE_PR322_REF_REFRESHED",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_REFRESHED",
   ]);
   const ownerSteps = new Set([
     "BASE_DIRECTORY",
@@ -183,6 +186,16 @@ function fixedUpdateMarkers(run, unit) {
     "MARKER_COMMIT",
   ]);
   const bare = new Set([
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_BUSY",
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED",
+    "AUTO_UPDATE_PRIVATE_PR322_REF_CURRENT",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_CURRENT",
+    "AUTO_UPDATE_PRIVATE_PR322_REF_REFRESH_FAILED",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_REFRESH_FAILED",
+    "AUTO_UPDATE_PRIVATE_PR337_CI_ALREADY_SCHEDULED",
+    "AUTO_UPDATE_PRIVATE_PR337_CI_DEFERRED_BUSY",
+    "AUTO_UPDATE_PRIVATE_PR337_CI_START_FAILED",
+    "AUTO_UPDATE_PRIVATE_PR337_CI_DEFERRED_UNTRUSTED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_ALREADY_SCHEDULED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY",
     "AUTO_UPDATE_PRIVATE_PR322_CI_START_FAILED",
@@ -219,7 +232,10 @@ function fixedUpdateMarkers(run, unit) {
       return (
         (commits.has(key) && /^[a-f0-9]{40}$/.test(value)) ||
         (flags.has(key) && value === "1") ||
-        (key === "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP" &&
+        ([
+          "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP",
+          "AUTO_UPDATE_PRIVATE_PR337_CI_UNTRUSTED_STEP",
+        ].includes(key) &&
           ownerSteps.has(value))
       );
     })
@@ -833,6 +849,7 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
       "php_syntax",
       "platform_runtime",
       "license_runtime",
+      "public_layout",
       "fmt_lint",
       "frontend_build",
       "typescript",

@@ -375,15 +375,7 @@ test("PR337 service is independent of PR322 and hardened", () => {
   assert.match(websiteUnit, /kmj-codebridge-private-pr337-ci\.service/);
   assert.match(websiteUnit, /ci-main-platform-pr337-fixed\.sh/);
   assert.match(websiteUnit, /ci-main-platform-pr337\.sh/);
-  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_ORIGIN_MISMATCH/);
-  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED/);
-  assert.match(websiteUnit, /timeout 45s git/);
-  assert.ok(
-    websiteUnit.includes(
-      "refs/heads/fix/public-marketing-standalone-nav-20261008:" +
-        "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
-    ),
-  );
+  assert.doesNotMatch(websiteUnit, /git[^\n]*fetch|systemctl start/);
   for (const item of [
     "Type=oneshot",
     "PrivateNetwork=true",
@@ -396,11 +388,6 @@ test("PR337 service is independent of PR322 and hardened", () => {
     assert.ok(websiteUnit.includes(item), item);
   }
   assert.doesNotMatch(websiteUnit, /systemctl\s+enable|WantedBy=/);
-  assert.match(
-    websiteUnit,
-    /systemctl start --no-block kmj-codebridge-private-pr337-ci\.service/,
-  );
-  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_START_ACCEPTED=1/);
 });
 
 test("trusted PR337 preparation has file setup capabilities while PR worker has none", () => {
@@ -431,6 +418,12 @@ test("trusted CI evidence writers record only fixed worker failure categories an
       );
       const writer = content.match(/<<'PY'\n([\s\S]*?)\nPY/)[1];
       for (const [logText, code, failure, gate] of [
+        [
+          "KMJ_CI_GATE_BEGIN=public_layout\nassertion failed: NEVER_RETURN",
+          1,
+          "COMMAND_FAILED_UNCLASSIFIED",
+          "public_layout",
+        ],
         [
           "KMJ_CI_GATE_BEGIN=NEVER_RETURN\nKMJ_CI_GATE_PASS=NEVER_RETURN\nsh: 1: vp: not found",
           0,
@@ -502,5 +495,57 @@ test("trusted CI evidence writers record only fixed worker failure categories an
     }
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("public layout preflight runs the existing checker when present and retains npm check", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX worker gate");
+  const block = source.match(
+    /if \[\[ -f scripts\/check-public-layout\.mjs \]\]; then\n[\s\S]*?\nfi/,
+  );
+  assert.ok(block);
+  assert.ok(
+    source.indexOf(block[0]) < source.indexOf("gate fmt_lint npm run check"),
+  );
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "kmj-public-layout-gate-"),
+  );
+  try {
+    fs.mkdirSync(path.join(directory, "scripts"));
+    const run = () =>
+      spawnSync(
+        "bash",
+        [
+          "-c",
+          'set -e; gate() { label=$1; shift; echo BEGIN=$label; "$@"; echo PASS=$label; };\n' +
+            block[0],
+        ],
+        { cwd: directory, encoding: "utf8" },
+      );
+    assert.equal(run().stdout, "");
+    fs.writeFileSync(
+      path.join(directory, "scripts/check-public-layout.mjs"),
+      'import assert from "node:assert/strict"; assert.equal(1, 2);',
+    );
+    const failed = run();
+    assert.notEqual(failed.status, 0);
+    assert.match(failed.stdout, /BEGIN=public_layout/);
+    assert.doesNotMatch(failed.stdout, /PASS=public_layout/);
+    fs.writeFileSync(
+      path.join(directory, "scripts/check-public-layout.mjs"),
+      'import assert from "node:assert/strict"; assert.equal(1, 1);',
+    );
+    const passed = run();
+    assert.equal(passed.status, 0, passed.stderr);
+    assert.match(passed.stdout, /PASS=public_layout/);
+    assert.match(source, /gate fmt_lint npm run check/);
+    assert.match(script, /"public_layout"/);
+    assert.match(websiteSource, /"public_layout"/);
+    assert.match(
+      websiteFixedSource,
+      /70a5efb9a43103cd17be15d056e166cb19813efe/,
+    );
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });

@@ -5,6 +5,7 @@ set -Eeuo pipefail
 umask 077
 if [[ $# != 1 || ! "$1" =~ ^[a-f0-9]{40}$ ]]; then echo CI_INVALID_SHA >&2; exit 2; fi
 sha="$1"
+[[ "$sha" == 8ebbb6f1999309875b6f6b0c6d25c21847fff3ff ]] || { echo CI_FIXED_SHA_MISMATCH >&2; exit 3; }
 if [[ "$EUID" != 0 ]]; then echo CI_PREP_REQUIRES_ROOT >&2; exit 2; fi
 repo=/srv/kmj-codebridge-projects/kmj-main-platform
 # Offline preparation must not inherit GIT_DIR, GIT_WORK_TREE, namespaces
@@ -151,7 +152,7 @@ sha, log, code, output, base_sha, consumer_sha, consumer_license_sha256 = sys.ar
 b = pathlib.Path(log).read_bytes()
 lines = b.decode("utf-8", errors="replace").splitlines()
 gates = {
-    "php_key_generate", "php_migrations", "php_syntax", "platform_runtime", "license_runtime", "fmt_lint", "frontend_build", "typescript", "php_format", "php_tests",
+    "php_key_generate", "php_migrations", "php_syntax", "platform_runtime", "license_runtime", "public_layout", "fmt_lint", "frontend_build", "typescript", "php_format", "php_tests",
     "activation_proof", "renewal", "node_lease_interop", "postgres_concurrency",
     "php_config_clear", "php_static_analysis", "foundation_python_runtime", "foundation_compile", "foundation_workers", "foundation_browser_qa", "foundation_policy", "foundation_backup", "foundation_architecture", "foundation_delivery", "foundation_public_surface", "foundation_free_router", "foundation_contracts", "rust_format", "rust_tests", "kslp_contract", "foundation_module_architecture", "foundation_runtime", "lease_encoder_syntax",
 }

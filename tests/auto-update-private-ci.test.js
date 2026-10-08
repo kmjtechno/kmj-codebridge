@@ -11,12 +11,12 @@ const expected = "8ebbb6f1999309875b6f6b0c6d25c21847fff3ff";
 test("current updater schedules fixed owner CI once and defers busy or untrusted state", (t) => {
   if (process.platform === "win32") return t.skip("POSIX guarded updater");
   const match = script.match(
-    /retry_fixed_private_pr322_ci\(\) \{[\s\S]*?<<'PY'\n([\s\S]*?)\nPY\n\}/,
+    /retry_fixed_private_ci\(\) \{[\s\S]*?<<'PY'\n([\s\S]*?)\nPY\n\}/,
   );
   assert.ok(match, "fixed CURRENT owner CI scheduler must exist");
   assert.match(
     script,
-    /if \[\[ "\$current" == "\$remote" \]\]; then[\s\S]*?retry_fixed_private_pr322_ci/,
+    /if \[\[ "\$current" == "\$remote" \]\]; then[\s\S]*?retry_fixed_private_ci/,
   );
   const directory = fs.mkdtempSync(
     path.join(os.tmpdir(), "kmj-owner-scheduler-"),
@@ -36,6 +36,8 @@ test("current updater schedules fixed owner CI once and defers busy or untrusted
     for (const script of [
       "ci-main-platform-pr-fixed.sh",
       "ci-main-platform-pr.sh",
+      "ci-main-platform-pr337-fixed.sh",
+      "ci-main-platform-pr337.sh",
     ])
       fs.writeFileSync(
         path.join(runtime, "scripts", script),
@@ -46,6 +48,11 @@ test("current updater schedules fixed owner CI once and defers busy or untrusted
     fs.writeFileSync(
       path.join(units, "kmj-codebridge-private-pr322-ci.service"),
       `Description=KMJ CodeBridge private PR322 CI\nExecStart=/bin/bash ${runtime}/scripts/ci-main-platform-pr-fixed.sh\n`,
+      { mode: 0o644 },
+    );
+    fs.writeFileSync(
+      path.join(units, "kmj-codebridge-private-pr337-ci.service"),
+      `Description=KMJ CodeBridge private PR337 CI\nExecStart=/bin/bash ${runtime}/scripts/ci-main-platform-pr337-fixed.sh\n`,
       { mode: 0o644 },
     );
     const body = match[1]
@@ -65,25 +72,33 @@ os.fstat = lambda value: root_stat(real_fstat(value))
 def stub_run(args, **kwargs):
     with open(os.environ['TEST_CALLS'], 'a') as f: f.write(json.dumps(args) + '\\n')
     if args[0] == '/usr/bin/git':
-        return SimpleNamespace(returncode=int(os.environ.get('TEST_SOURCE_EXIT', '0')) if args[-1] != 'HEAD' else 0, stdout=(os.environ.get('TEST_CONTROL_SHA', 'b' * 40) if args[-1] == 'HEAD' else os.environ.get('TEST_SOURCE', '${expected}')) + '\\n')
+        return SimpleNamespace(returncode=int(os.environ.get('TEST_SOURCE_EXIT', '0')) if args[-1] != 'HEAD' else 0, stdout=(os.environ.get('TEST_CONTROL_SHA', 'b' * 40) if args[-1] == 'HEAD' else os.environ.get('TEST_SOURCE', '70a5efb9a43103cd17be15d056e166cb19813efe' if 'public-marketing' in args[-1] else '${expected}')) + '\\n')
     if args[0] == '/usr/bin/flock':
         return SimpleNamespace(returncode=int(os.environ.get('TEST_LOCK_BUSY', '0')), stdout='')
     if args[0] == '/usr/bin/systemctl' and args[1] == 'show':
         unit = args[2]
         state = os.environ.get('TEST_337_STATE' if 'pr337' in unit else 'TEST_322_STATE', 'inactive')
         return SimpleNamespace(returncode=0, stdout='LoadState=loaded\\nActiveState=' + state + '\\nFragmentPath=' + os.environ.get('TEST_FRAGMENT', '${units}/' + unit) + '\\nDropInPaths=' + os.environ.get('TEST_DROPINS', '') + '\\n')
-    if args == ['/usr/bin/systemctl', 'start', '--no-block', 'kmj-codebridge-private-pr322-ci.service']:
+    if args[:3] == ['/usr/bin/systemctl', 'start', '--no-block'] and args[-1] in ['kmj-codebridge-private-pr322-ci.service','kmj-codebridge-private-pr337-ci.service']:
         return SimpleNamespace(returncode=int(os.environ.get('TEST_START_FAIL', '0')), stdout='')
     raise AssertionError('Unexpected scheduler command: ' + repr(args))
 subprocess.run = stub_run
 `;
     const run = (env = {}) => {
       fs.writeFileSync(calls, "");
-      const result = spawnSync("python3", ["-c", prelude + body], {
-        encoding: "utf8",
-        timeout: 5000,
-        env: { ...process.env, TEST_CALLS: calls, ...env },
-      });
+      const result = spawnSync(
+        "python3",
+        [
+          "-c",
+          prelude +
+            (env.TEST_BOTH ? body : body.replace(/^    \("337",[^\n]+\n/m, "")),
+        ],
+        {
+          encoding: "utf8",
+          timeout: 5000,
+          env: { ...process.env, TEST_CALLS: calls, ...env },
+        },
+      );
       assert.equal(result.status, 0, result.stderr);
       const commands = fs
         .readFileSync(calls, "utf8")
@@ -183,6 +198,21 @@ subprocess.run = stub_run
     fs.chmodSync(worker, 0o666);
     assert.equal(run().starts.length, 0);
     fs.chmodSync(worker, 0o644);
+    const siteMarker = path.join(evidence, "pr337-auto-update-scheduled.json");
+    const firstBoth = run({ TEST_BOTH: "1" });
+    assert.equal(
+      firstBoth.starts[0].at(-1),
+      "kmj-codebridge-private-pr337-ci.service",
+    );
+    assert.equal(firstBoth.starts.length, 1);
+    assert.equal(fs.existsSync(siteMarker), true);
+    const secondBoth = run({ TEST_BOTH: "1" });
+    assert.equal(
+      secondBoth.starts[0].at(-1),
+      "kmj-codebridge-private-pr322-ci.service",
+    );
+    assert.equal(run({ TEST_BOTH: "1" }).starts.length, 0);
+    fs.unlinkSync(marker);
     const unitfile = path.join(
       units,
       "kmj-codebridge-private-pr322-ci.service",
