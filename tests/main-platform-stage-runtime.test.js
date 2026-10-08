@@ -17,17 +17,32 @@ function fixture() {
   fs.mkdirSync(source, { recursive: true });
   fs.mkdirSync(path.join(source, "src"));
   fs.mkdirSync(path.join(source, "node_modules", "dummy"), { recursive: true });
-  fs.writeFileSync(path.join(source, "src", "cli.js"), "export const live = true;\n");
+  fs.writeFileSync(
+    path.join(source, "src", "cli.js"),
+    "export const live = true;\n",
+  );
   fs.writeFileSync(path.join(source, ".gitignore"), "node_modules/\n");
-  fs.writeFileSync(path.join(source, "package.json"),
-    JSON.stringify({ name: "@kmjtechno/codebridge", version: "0.3.2" }));
+  fs.writeFileSync(
+    path.join(source, "package.json"),
+    JSON.stringify({ name: "@kmjtechno/codebridge", version: "0.3.2" }),
+  );
   fs.writeFileSync(path.join(source, "package-lock.json"), "{}\n");
-  fs.writeFileSync(path.join(source, "node_modules", "dummy", "index.js"),
-    "export default true;\n");
+  fs.writeFileSync(
+    path.join(source, "node_modules", "dummy", "index.js"),
+    "export default true;\n",
+  );
   git(source, "init", "--initial-branch=main", "-q");
   git(source, "add", ".");
-  git(source, "-c", "user.name=Test", "-c", "user.email=test@example.test",
-    "commit", "-qm", "fixture");
+  git(
+    source,
+    "-c",
+    "user.name=Test",
+    "-c",
+    "user.email=test@example.test",
+    "commit",
+    "-qm",
+    "fixture",
+  );
   const sha = git(source, "rev-parse", "HEAD");
   git(source, "update-ref", "refs/remotes/origin/main", sha);
   return { root, source, destination, sha };
@@ -57,9 +72,14 @@ test("bounded readonly stage reuses exact immutable Git revision", (t) => {
     assert.equal(stage.sha, sha);
     assert.equal(path.basename(stage.directory), sha);
     assert.equal(fs.lstatSync(stage.directory).mode & 0o222, 0);
-    assert.equal(fs.lstatSync(path.join(stage.directory, "src/cli.js")).mode & 0o222, 0);
-    assert.equal(fs.readFileSync(path.join(stage.directory, "src/cli.js"), "utf8"),
-      "export const live = true;\n");
+    assert.equal(
+      fs.lstatSync(path.join(stage.directory, "src/cli.js")).mode & 0o222,
+      0,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(stage.directory, "src/cli.js"), "utf8"),
+      "export const live = true;\n",
+    );
     assert.equal(fs.existsSync(path.join(stage.directory, ".git")), false);
     const repeated = stageRuntime({ source, destination, requireRoot: false });
     assert.equal(repeated.created, false);
@@ -93,8 +113,17 @@ test("refuses source revision that differs from origin/main", (t) => {
   }
   const { root, source, destination } = fixture();
   try {
-    git(source, "-c", "user.name=Test", "-c", "user.email=test@example.test",
-      "commit", "--allow-empty", "-qm", "move local HEAD ahead of origin/main");
+    git(
+      source,
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.test",
+      "commit",
+      "--allow-empty",
+      "-qm",
+      "move local HEAD ahead of origin/main",
+    );
     assert.throws(
       () => stageRuntime({ source, destination, requireRoot: false }),
       /MAIN_PLATFORM_STAGE_REVISION_UNVERIFIED/,
@@ -123,10 +152,16 @@ test("refuses writable or corrupted reused stage", (t) => {
 });
 
 test("CLI has fixed paths and accepts no caller-specified destination", () => {
-  const script = fs.readFileSync("scripts/stage-main-platform-runtime.js", "utf8");
+  const script = fs.readFileSync(
+    "scripts/stage-main-platform-runtime.js",
+    "utf8",
+  );
   assert.match(script, /MAIN_PLATFORM_STAGE_ACCEPTS_NO_ARGUMENTS/);
   assert.match(script, /const SOURCE = "\/opt\/kmj-codebridge-agent"/);
-  assert.match(script, /const DESTINATION = "\/opt\/kmj-codebridge-main-platform-stage"/);
+  assert.match(
+    script,
+    /const DESTINATION = "\/opt\/kmj-codebridge-main-platform-stage"/,
+  );
   assert.match(script, /MAIN_PLATFORM_STAGE_REQUIRES_ROOT/);
   assert.doesNotMatch(script, /process\.env\.CODEBRIDGE_STAGE_SOURCE/);
 });
