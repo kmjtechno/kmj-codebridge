@@ -78,6 +78,15 @@ test("CI worker cannot run as production service user or reach network", () => {
   assert.doesNotMatch(script, /\b(?:docker|podman)\s+run\b/);
 });
 
+test("CI reports latest immutable SHA-bound evidence atomically for native CodeBridge", () => {
+  assert.match(script, /latest-pr322\.json/);
+  assert.match(script, /chmod 0600 "\$manifest"/);
+  assert.match(script, /chmod 0600 "\$base\/evidence\/\.latest-pr322\.json\.\$\$"/);
+  assert.match(script, /mv -f -- "\$base\/evidence\/\.latest-pr322\.json\.\$\$" "\$latest"/);
+  assert.match(script, /"windows": "NOT_RUN"/);
+  assert.match(script, /"github_actions": "NOT_RUN"/);
+});
+
 test("CI worker preserves required gates and never claims hosted green", () => {
   for (const gate of [
     "npm run check",
