@@ -490,7 +490,7 @@ try:
             print("AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1")
         if git_directory.st_mode & 0o020 or git_config.st_mode & 0o020:
             print("AUTO_UPDATE_PRIVATE_CI_GIT_METADATA_HARDENED=1")
-    def tracking_access_proof():
+    def tracking_access_proof(fetch_failure=False):
         paths = [
             ("REF_ROOT", PROJECT + "/.git/refs"),
             ("REF_REMOTES", PROJECT + "/.git/refs/remotes"),
@@ -502,6 +502,22 @@ try:
             ("OBJECT_PACK", PROJECT + "/.git/objects/pack"),
             ("OBJECT_INFO", PROJECT + "/.git/objects/info"),
         ]
+        if fetch_failure:
+            paths = [
+                ("REF_ROOT", PROJECT + "/.git/refs"),
+                ("REF_TEMP_ROOT", PROJECT + "/.git/refs/codebridge-private-ci-refresh"),
+                ("REF_TEMP_PR337", PROJECT + "/.git/refs/codebridge-private-ci-refresh/pr337"),
+                ("REF_TEMP_PR322", PROJECT + "/.git/refs/codebridge-private-ci-refresh/pr322"),
+                ("REF_LOG_ROOT", PROJECT + "/.git/logs"),
+                ("REF_LOG_REFS", PROJECT + "/.git/logs/refs"),
+                ("REF_LOG_REMOTES", PROJECT + "/.git/logs/refs/remotes"),
+                ("REF_LOG_ORIGIN", PROJECT + "/.git/logs/refs/remotes/origin"),
+                ("REF_LOG_FIX", PROJECT + "/.git/logs/refs/remotes/origin/fix"),
+                ("REF_LOG_WEBSITE", PROJECT + "/.git/logs/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008"),
+                ("REF_LOG_TEMP_ROOT", PROJECT + "/.git/logs/refs/codebridge-private-ci-refresh"),
+                ("REF_LOG_TEMP_PR337", PROJECT + "/.git/logs/refs/codebridge-private-ci-refresh/pr337"),
+                ("REF_LOG_TEMP_PR322", PROJECT + "/.git/logs/refs/codebridge-private-ci-refresh/pr322"),
+            ]
         proof_fds = []
         root_fd = None
         try:
@@ -512,56 +528,51 @@ try:
                 raise OSError("repository changed")
         except OSError:
             root_fd = None
-        parent_fd = root_fd
-        objects_fd = None
+        directories = {"": root_fd}
         try:
             for label, path in paths:
-                current = root_fd if label in {"REF_PACKED", "OBJECT_ROOT"} else objects_fd if label in {"OBJECT_PACK", "OBJECT_INFO"} else parent_fd
+                relative = path[len(PROJECT + "/.git/"):]
+                parent = relative.rsplit("/", 1)[0] if "/" in relative else ""
+                component = relative.rsplit("/", 1)[-1]
+                current = directories.get(parent)
                 if current is None:
                     print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=BLOCKED_DIRECTORY")
                     continue
-                component = path.rsplit("/", 1)[-1]
                 meta = read_metadata(label, lambda component=component, current=current: os.stat(component, dir_fd=current, follow_symlinks=False))
-                if label in {"REF_WEBSITE", "REF_PACKED"} and meta is not None:
+                if label in {"REF_WEBSITE", "REF_PACKED", "REF_TEMP_PR337", "REF_TEMP_PR322", "REF_LOG_WEBSITE", "REF_LOG_TEMP_PR337", "REF_LOG_TEMP_PR322"} and meta is not None:
                     print("AUTO_UPDATE_PRIVATE_CI_" + label + "_NLINK=" + ("VALID" if meta.st_nlink == 1 else "INVALID"))
                     print("AUTO_UPDATE_PRIVATE_CI_" + label + "_SIZE=" + ("VALID" if 0 < meta.st_size <= 8388608 else "INVALID"))
-                if label not in {"REF_WEBSITE", "REF_PACKED", "OBJECT_PACK", "OBJECT_INFO"}:
-                    if label == "OBJECT_ROOT":
-                        objects_fd = None
-                    else:
-                        parent_fd = None
-                    if meta is not None and stat.S_ISDIR(meta.st_mode):
-                        try:
-                            next_fd = os.open(component, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
-                            proof_fds.append(next_fd)
-                            held = os.fstat(next_fd)
-                            identity = lambda value: (value.st_dev, value.st_ino, value.st_uid, value.st_gid, value.st_mode)
-                            if identity(held) == identity(meta):
-                                if label == "OBJECT_ROOT":
-                                    objects_fd = next_fd
-                                else:
-                                    parent_fd = next_fd
-                            else:
-                                print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=CHANGED")
-                        except OSError:
-                            print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=BLOCKED_DIRECTORY")
+                if meta is not None and stat.S_ISDIR(meta.st_mode):
+                    try:
+                        next_fd = os.open(component, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+                        proof_fds.append(next_fd)
+                        held = os.fstat(next_fd)
+                        identity = lambda value: (value.st_dev, value.st_ino, value.st_uid, value.st_gid, value.st_mode)
+                        if identity(held) == identity(meta):
+                            directories[relative] = next_fd
+                        else:
+                            print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=CHANGED")
+                    except OSError:
+                        print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=BLOCKED_DIRECTORY")
         finally:
             for fd in reversed(proof_fds):
                 os.close(fd)
         # Fixed read-only probe uses exactly Git's source UID and primary group.
         probe = "import os,stat\npaths=" + repr(paths) + "\n" + """fds=[]
+repository='/srv/kmj-codebridge-projects/kmj-main-platform/.git'
 root=None
 try:
-    root=os.open('/srv/kmj-codebridge-projects/kmj-main-platform/.git',os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW)
+    root=os.open(repository,os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW)
     fds.append(root)
 except OSError:
     pass
-parent=root
-objects=None
+directories={'':root}
 try:
     for label,path in paths:
-        component=path.rsplit('/',1)[-1]
-        current=root if label in ['REF_PACKED','OBJECT_ROOT'] else objects if label in ['OBJECT_PACK','OBJECT_INFO'] else parent
+        relative=path[len(repository)+1:]
+        parent=relative.rsplit('/',1)[0] if '/' in relative else ''
+        component=relative.rsplit('/',1)[-1]
+        current=directories.get(parent)
         access=write='BLOCKED_DIRECTORY'
         if current is not None:
             try:
@@ -574,25 +585,13 @@ try:
                     write='ALLOWED' if os.access(component,os.W_OK,dir_fd=current,follow_symlinks=False) else 'DENIED'
                 else:
                     access=write='OTHER_TYPE'
-                if label not in ['REF_WEBSITE','REF_PACKED','OBJECT_PACK','OBJECT_INFO']:
-                    descriptor=None
-                    if stat.S_ISDIR(meta.st_mode):
-                        descriptor=os.open(component,os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=current)
-                        fds.append(descriptor)
-                    if label=='OBJECT_ROOT': objects=descriptor
-                    else: parent=descriptor
-            except FileNotFoundError:
-                access=write='MISSING'
-                if label=='OBJECT_ROOT': objects=None
-                elif label not in ['REF_PACKED','OBJECT_PACK','OBJECT_INFO']: parent=None
-            except PermissionError:
-                access=write='PERMISSION_DENIED'
-                if label=='OBJECT_ROOT': objects=None
-                elif label not in ['REF_PACKED','OBJECT_PACK','OBJECT_INFO']: parent=None
-            except OSError:
-                access=write='OTHER_ERROR'
-                if label=='OBJECT_ROOT': objects=None
-                elif label not in ['REF_PACKED','OBJECT_PACK','OBJECT_INFO']: parent=None
+                if stat.S_ISDIR(meta.st_mode):
+                    descriptor=os.open(component,os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=current)
+                    fds.append(descriptor)
+                    directories[relative]=descriptor
+            except FileNotFoundError: access=write='MISSING'
+            except PermissionError: access=write='PERMISSION_DENIED'
+            except OSError: access=write='OTHER_ERROR'
         print(label+'_ACCESS='+access)
         print(label+'_WRITE_ACCESS='+write)
 finally:
@@ -638,7 +637,17 @@ finally:
                 if any(pattern in error for pattern in patterns):
                     kind = category
                     break
-            for field, value in [("STAGE", stage), ("EXIT", code), ("KIND", kind)]:
+            target = "UNCLASSIFIED"
+            for category, pattern in [
+                ("WEBSITE_REFLOG", "logs/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008"),
+                ("TEMPORARY_REFLOG", "logs/refs/codebridge-private-ci-refresh"),
+                ("TEMPORARY_REF", "refs/codebridge-private-ci-refresh"),
+                ("OBJECT_STORAGE", ".git/objects"),
+            ]:
+                if pattern in error:
+                    target = category
+                    break
+            for field, value in [("STAGE", stage), ("EXIT", code), ("KIND", kind), ("TARGET", target)]:
                 print(prefix + "FAILURE_" + field + "=" + value)
         try:
             result = git("rev-parse", "--verify", tracking)
@@ -656,7 +665,7 @@ finally:
                 raise ValueError("temporary ref unavailable")
             attempted = True
             operation = "FETCH"
-            result = git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "origin", "refs/heads/" + branch + ":" + temporary)
+            result = git("fetch", "--refmap=", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "origin", "refs/heads/" + branch + ":" + temporary)
             if result.returncode:
                 raise ValueError("fetch")
             operation = "FETCHED_REF_READ"
@@ -681,6 +690,8 @@ finally:
             report_failure(operation, result, failure if not isinstance(failure, ValueError) else None)
             if operation == "TRACKING_REF_READ":
                 tracking_access_proof()
+            elif operation in {"FETCH", "TRACKING_REF_CAS"}:
+                tracking_access_proof(fetch_failure=True)
         finally:
             step = "REF_CLEANUP"
             cleanup_operation = "CLEANUP_REF_READ"

@@ -52,6 +52,7 @@ def fixture_lstat(p, from_fd=False):
         if os.environ.get('REF_BAD_OWNER'): result.st_uid=1002
         if os.environ.get('REF_WORLD'): result.st_mode |= 0o002
         if os.environ.get('REF_HARDLINK') and not p.endswith('/fix'): result.st_nlink=2
+    if os.environ.get('REFLOG_PRIVATE') and '/.git/logs/' in p and p.endswith('/fix'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
     if p.endswith('/refs/remotes/origin/fix'):
         if os.environ.get('REF_PRIVATE'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
         if os.environ.get('REF_LINK'): result.st_mode=stat.S_IFLNK|0o755
@@ -85,9 +86,29 @@ def fixture_lstat(p, from_fd=False):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23,'objects':24,'public-marketing-standalone-nav-20261008':25}.get(p,9)
+def open_fixture(p, *a, **k):
+    resolved=ref_paths.get(k.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p if not p.startswith('/') else p
+    known=next((fd for fd,path in ref_paths.items() if path==resolved),None)
+    if known is not None: return known
+    return 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else 9
+os.open=open_fixture
 os.close=lambda *a: None
-ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects',25:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008'}
+ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects',25:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008',26:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs',27:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/codebridge-private-ci-refresh'}
+ref_paths.update({
+    11:'/srv/kmj-codebridge-projects/kmj-main-platform/.git',
+    28:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs',
+    29:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/remotes',
+    30:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/remotes/origin',
+    31:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/remotes/origin/fix',
+    32:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008',
+    33:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/codebridge-private-ci-refresh',
+    34:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/codebridge-private-ci-refresh/pr337',
+    35:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/logs/refs/codebridge-private-ci-refresh/pr322',
+    36:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/codebridge-private-ci-refresh/pr337',
+    37:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/codebridge-private-ci-refresh/pr322',
+    38:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects/pack',
+    39:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects/info',
+})
 os.stat=lambda p, **kw: fixture_lstat(ref_paths.get(kw.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p)
 os.fstat=lambda fd: fixture_lstat(ref_paths[fd],from_fd=True) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
@@ -147,7 +168,7 @@ def stub(args, **kw):
     elif a[0]=='show-ref': rc=0 if os.environ.get('TEMP_EXISTS') else 1
     elif a[0]=='fetch':
         if os.environ.get('PROJECT_WRITE')=='020': assert project_mode is not None and not project_mode & 0o022
-        assert '--no-tags' in a and '--no-recurse-submodules' in a and '--no-write-fetch-head' in a
+        assert '--no-tags' in a and '--no-recurse-submodules' in a and '--no-write-fetch-head' in a and '--refmap=' in a
         assert a[-2]=='origin' and '+' not in a[-1]
         src,dst=a[-1].split(':'); refs[dst]=os.environ.get('FETCHED',owner_sha if 'owner-tier' in src else website); rc=int(os.environ.get('FETCH_FAIL','0'))
     elif a[0]=='merge-base': rc=int(os.environ.get('NON_FF','0'))
@@ -503,6 +524,21 @@ subprocess.run=stub
   ]);
   assert.match(replacedDirectoryRef.stdout, /REF_METADATA_REPAIR_INCOMPLETE/);
   assert.doesNotMatch(replacedDirectoryRef.stdout, /CHOWN=23|UPDATED=/);
+  const reflogDenied = run({
+    SERVICE_OWNER: "1",
+    REFLOG_PRIVATE: "1",
+    FETCH_FAIL: "1",
+    GIT_STDERR:
+      "error: unable to append to '.git/logs/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008': Permission denied",
+  });
+  assert.equal(reflogDenied.status, 0, reflogDenied.stderr);
+  assert.match(reflogDenied.stdout, /REF_FAILURE_TARGET=WEBSITE_REFLOG/);
+  assert.match(reflogDenied.stdout, /REF_LOG_FIX_READ=OK/);
+  assert.match(reflogDenied.stdout, /REF_LOG_FIX_OWNER=ROOT/);
+  assert.doesNotMatch(
+    reflogDenied.stdout,
+    /unable to append|Permission denied/,
+  );
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
@@ -536,6 +572,7 @@ test("source identity probe blocks symlink descendants without reading ref bytes
   try {
     const repository = temporary + "/.git";
     fs.mkdirSync(repository + "/refs/remotes/origin", { recursive: true });
+    fs.mkdirSync(repository + "/logs/refs/remotes/origin", { recursive: true });
     fs.mkdirSync(temporary + "/outside", { recursive: true });
     fs.writeFileSync(
       temporary + "/outside/public-marketing-standalone-nav-20261008",
@@ -544,6 +581,10 @@ test("source identity probe blocks symlink descendants without reading ref bytes
     fs.symlinkSync(
       temporary + "/outside",
       repository + "/refs/remotes/origin/fix",
+    );
+    fs.symlinkSync(
+      temporary + "/outside",
+      repository + "/logs/refs/remotes/origin/fix",
     );
     fs.writeFileSync(repository + "/packed-refs", "PRIVATE_PACKED_CONTENT");
     const paths = [
@@ -557,6 +598,16 @@ test("source identity probe blocks symlink descendants without reading ref bytes
           "/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
       ],
       ["REF_PACKED", repository + "/packed-refs"],
+      ["REF_LOG_ROOT", repository + "/logs"],
+      ["REF_LOG_REFS", repository + "/logs/refs"],
+      ["REF_LOG_REMOTES", repository + "/logs/refs/remotes"],
+      ["REF_LOG_ORIGIN", repository + "/logs/refs/remotes/origin"],
+      ["REF_LOG_FIX", repository + "/logs/refs/remotes/origin/fix"],
+      [
+        "REF_LOG_WEBSITE",
+        repository +
+          "/logs/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
+      ],
     ];
     const source = body.replace(
       "'/srv/kmj-codebridge-projects/kmj-main-platform/.git'",
@@ -575,9 +626,83 @@ test("source identity probe blocks symlink descendants without reading ref bytes
     assert.match(result.stdout, /REF_FIX_PARENT_ACCESS=SYMLINK/);
     assert.match(result.stdout, /REF_WEBSITE_ACCESS=BLOCKED_DIRECTORY/);
     assert.match(result.stdout, /REF_PACKED_ACCESS=ALLOWED/);
+    assert.match(result.stdout, /REF_LOG_FIX_ACCESS=SYMLINK/);
+    assert.match(result.stdout, /REF_LOG_WEBSITE_ACCESS=BLOCKED_DIRECTORY/);
     assert.doesNotMatch(
       result.stdout,
       /PRIVATE_REF_CONTENT|PRIVATE_PACKED_CONTENT/,
+    );
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("fixed fetch leaves tracking refs unchanged until the verified CAS", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX fixed Git fetch");
+  const temporary = fs.mkdtempSync("/tmp/kmj-refmap-");
+  const environment = {
+    PATH: process.env.PATH,
+    LANG: "C",
+    GIT_CONFIG_NOSYSTEM: "1",
+    GIT_CONFIG_GLOBAL: "/dev/null",
+    GIT_TERMINAL_PROMPT: "0",
+    GIT_NO_LAZY_FETCH: "1",
+  };
+  const git = (directory, ...args) => {
+    const result = spawnSync("git", ["-C", directory, ...args], {
+      env: environment,
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  try {
+    const remote = temporary + "/remote.git";
+    const seed = temporary + "/seed";
+    const local = temporary + "/local";
+    fs.mkdirSync(remote);
+    fs.mkdirSync(seed);
+    git(remote, "init", "--bare");
+    git(seed, "init", "-b", "fixture");
+    git(seed, "config", "user.name", "Fixture");
+    git(seed, "config", "user.email", "fixture@example.invalid");
+    fs.writeFileSync(seed + "/fixture", "one");
+    git(seed, "add", "fixture");
+    git(seed, "commit", "-m", "one");
+    git(seed, "push", remote, "HEAD:refs/heads/fixture");
+    git(temporary, "clone", "--branch", "fixture", remote, local);
+    const old = git(local, "rev-parse", "refs/remotes/origin/fixture");
+    fs.writeFileSync(seed + "/fixture", "two");
+    git(seed, "commit", "-am", "two");
+    git(seed, "push", remote, "HEAD:refs/heads/fixture");
+    const current = git(seed, "rev-parse", "HEAD");
+    const flags = script
+      .match(/result = git\("fetch", ([^\n]+)/)[1]
+      .match(/"--[^"]+"/g)
+      .map(JSON.parse);
+    const target = "refs/codebridge-private-ci-refresh/fixture";
+    const specification = "refs/heads/fixture:" + target;
+    git(
+      local,
+      "fetch",
+      ...flags.filter((flag) => flag !== "--refmap="),
+      "origin",
+      specification,
+    );
+    assert.equal(
+      git(local, "rev-parse", "refs/remotes/origin/fixture"),
+      current,
+    );
+    git(local, "update-ref", "refs/remotes/origin/fixture", old);
+    git(local, "update-ref", "-d", target);
+    git(local, "fetch", ...flags, "origin", specification);
+    assert.equal(git(local, "rev-parse", target), current);
+    assert.equal(git(local, "rev-parse", "refs/remotes/origin/fixture"), old);
+    git(local, "update-ref", "refs/remotes/origin/fixture", current, old);
+    assert.equal(
+      git(local, "rev-parse", "refs/remotes/origin/fixture"),
+      current,
     );
   } finally {
     fs.rmSync(temporary, { recursive: true, force: true });
