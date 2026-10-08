@@ -388,6 +388,92 @@ try:
             print("AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1")
         if git_directory.st_mode & 0o020 or git_config.st_mode & 0o020:
             print("AUTO_UPDATE_PRIVATE_CI_GIT_METADATA_HARDENED=1")
+    def repair_fixed_tracking_ref_owner():
+        # Repair only the two fixed entries proven inaccessible by the prior
+        # read-only diagnostic. Preserve modes and all unrelated refs.
+        descriptors = []
+        try:
+            root_fd = os.open(PROJECT + "/.git", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            descriptors.append(root_fd)
+            current = root_fd
+            for component in ["refs", "remotes", "origin"]:
+                current = os.open(component, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+                descriptors.append(current)
+            fix_fd = os.open("fix", os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+            descriptors.append(fix_fd)
+            website_fd = os.open("public-marketing-standalone-nav-20261008", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=fix_fd)
+            descriptors.append(website_fd)
+            fix_meta = os.fstat(fix_fd)
+            website_meta = os.fstat(website_fd)
+            fixed = [
+                ("fix", current, fix_fd, fix_meta, True),
+                ("public-marketing-standalone-nav-20261008", fix_fd, website_fd, website_meta, False),
+            ]
+            allowed_owners = {(0, 0), (owner.pw_uid, owner.pw_gid)}
+            if (
+                not stat.S_ISDIR(fix_meta.st_mode)
+                or not stat.S_ISREG(website_meta.st_mode)
+                or website_meta.st_nlink != 1
+                or not 0 < website_meta.st_size <= 8388608
+                or fix_meta.st_mode & 0o022
+                or website_meta.st_mode & 0o022
+                or (fix_meta.st_uid, fix_meta.st_gid) not in allowed_owners
+                or (website_meta.st_uid, website_meta.st_gid) not in allowed_owners
+            ):
+                return
+            if all((meta.st_uid, meta.st_gid) == (owner.pw_uid, owner.pw_gid) for _, _, _, meta, _ in fixed):
+                return
+            authority = subprocess.run(
+                ["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=5,
+                env=ENV,
+            )
+            fields = dict(line.split("=", 1) for line in authority.stdout.splitlines() if "=" in line)
+            if authority.returncode or fields.get("LoadState") != "loaded" or "User" not in fields:
+                return
+            user = fields["User"].strip()
+            try:
+                writer_uid = 0 if user == "" else pwd.getpwuid(int(user)).pw_uid if re.fullmatch("[0-9]{1,10}", user) else pwd.getpwnam(user).pw_uid if re.fullmatch("[A-Za-z_][A-Za-z0-9_-]{0,63}", user) else None
+            except KeyError:
+                return
+            if writer_uid != owner.pw_uid:
+                return
+            group = grp.getgrgid(owner.pw_gid)
+            members = {account.pw_uid for account in pwd.getpwall() if account.pw_gid == owner.pw_gid}
+            members.update(pwd.getpwnam(name).pw_uid for name in group.gr_mem)
+            if owner.pw_uid not in members or members - {0, owner.pw_uid}:
+                return
+            identity = lambda meta: (meta.st_dev, meta.st_ino, meta.st_mode, meta.st_nlink, meta.st_size)
+            verify_parents()
+            for component, parent, fd, before, _ in fixed:
+                if identity(os.stat(component, dir_fd=parent, follow_symlinks=False)) != identity(before) or identity(os.fstat(fd)) != identity(before):
+                    return
+            # File first: if the directory update fails, the source UID still
+            # cannot traverse the root-owned private directory.
+            for _, _, fd, before, _ in reversed(fixed):
+                if (before.st_uid, before.st_gid) == (0, 0):
+                    os.fchown(fd, owner.pw_uid, owner.pw_gid)
+            verify_parents()
+            for component, parent, fd, before, _ in fixed:
+                after = os.fstat(fd)
+                path_after = os.stat(component, dir_fd=parent, follow_symlinks=False)
+                if (
+                    identity(after) != identity(before)
+                    or identity(path_after) != identity(before)
+                    or (after.st_uid, after.st_gid) != (owner.pw_uid, owner.pw_gid)
+                    or (path_after.st_uid, path_after.st_gid) != (owner.pw_uid, owner.pw_gid)
+                ):
+                    raise ValueError("fixed ref ownership changed")
+            print("AUTO_UPDATE_PRIVATE_CI_REF_OWNER_REPAIRED=1")
+        except (KeyError, OSError, subprocess.TimeoutExpired):
+            return
+        finally:
+            for fd in reversed(descriptors):
+                os.close(fd)
+    repair_fixed_tracking_ref_owner()
     def tracking_access_proof():
         paths = [
             ("REF_ROOT", PROJECT + "/.git/refs"),
