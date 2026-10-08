@@ -33,10 +33,7 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
   assert.match(refresh, /stage-main-platform-runtime\.js/);
   assert.match(refresh, /MAIN_PLATFORM_REFRESH_STAGE_READY=1/);
   assert.match(refresh, /MAIN_PLATFORM_REFRESH_STAGE_FAILED/);
-  assert.match(
-    refresh,
-    /CODEBRIDGE_RUNTIME="\$STAGED_RUNTIME"/,
-  );
+  assert.match(refresh, /CODEBRIDGE_RUNTIME="\$STAGED_RUNTIME"/);
   assert.ok(refresh.includes("[a-f0-9]{40}"));
 
   assert.match(refresh, /bash "\$SETUP"/);
@@ -77,7 +74,10 @@ test("installer provisions a rollback-safe fixed Main Platform refresh unit", ()
     /ExecStart=\/bin\/bash \$INSTALL_DIR\/scripts\/refresh-main-platform-agent\.sh/,
   );
   assert.match(installer, /RestrictAddressFamilies=AF_UNIX/);
-  assert.match(installer, /MAIN_PLATFORM_STAGE_ROOT=\/opt\/kmj-codebridge-main-platform-stage/);
+  assert.match(
+    installer,
+    /MAIN_PLATFORM_STAGE_ROOT=\/opt\/kmj-codebridge-main-platform-stage/,
+  );
   assert.match(installer, /MAIN_PLATFORM_STAGE_DIR_UNSAFE/);
   assert.match(
     installer,
