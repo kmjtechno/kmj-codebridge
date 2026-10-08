@@ -568,6 +568,91 @@ function defaultRestart(unit) {
 
 // Read only root-owned, bounded native CI evidence. The PR code never writes
 // this summary; the trusted systemd preparer creates it after the sandbox exits.
+function classifyPrivateCiWorkerLog(text) {
+  const missingName = /Cannot find (?:package|module) '([^'\r\n]+)'/.exec(
+    text,
+  )?.[1];
+  let missingPackage;
+  if (
+    missingName === "vite-plus" ||
+    /^@voidzero-dev\/vite-plus-(?:linux-(?:x64|arm64)-(?:gnu|musl)|win32-x64-msvc|darwin-(?:x64|arm64))$/.test(
+      missingName ?? "",
+    )
+  )
+    missingPackage = "VITE_PLUS";
+  else if (
+    /^@voidzero-dev\/vite-plus-core(?:-(?:linux|darwin|win32)-(?:x64|arm64)(?:-(?:gnu|musl|msvc))?)?$/.test(
+      missingName ?? "",
+    )
+  )
+    missingPackage = "VITE_PLUS_CORE";
+  else if (
+    /^(?:oxlint|@oxlint\/(?:linux|darwin|win32)-(?:x64|arm64)(?:-(?:gnu|musl|msvc))?)$/.test(
+      missingName ?? "",
+    )
+  )
+    missingPackage = "OXLINT";
+  else if (
+    /^(?:oxfmt|@oxfmt\/(?:linux|darwin|win32)-(?:x64|arm64)(?:-(?:gnu|musl|msvc))?)$/.test(
+      missingName ?? "",
+    )
+  )
+    missingPackage = "OXFMT";
+  else if (
+    /^(?:rolldown|@rolldown\/binding-(?:linux|darwin|win32)-(?:x64|arm64)(?:-(?:gnu|musl|msvc))?)$/.test(
+      missingName ?? "",
+    )
+  )
+    missingPackage = "ROLLDOWN";
+  const result = (kind) => ({
+    kind,
+    ...(missingPackage ? { missingPackage } : {}),
+  });
+  const codes = new Set([
+    "ERR_MODULE_NOT_FOUND",
+    "MODULE_NOT_FOUND",
+    "ERR_REQUIRE_ESM",
+    "ERR_UNKNOWN_BUILTIN_MODULE",
+    "ERR_DLOPEN_FAILED",
+  ]);
+  for (const match of text.matchAll(
+    /Error \[([A-Z_]+)\]:|^[ \t]*code: ['"]([A-Z_]+)['"],?[ \t]*$/gm,
+  )) {
+    const code = match[1] ?? match[2];
+    if (codes.has(code)) return result(`NODE_${code}`);
+  }
+  if (/^Error: Cannot find module '/m.test(text))
+    return result("NODE_MODULE_NOT_FOUND");
+  if (/^Error: Cannot find package '/m.test(text))
+    return result("NODE_ERR_MODULE_NOT_FOUND");
+  const posix =
+    /(?:^Error: (ENOENT|EACCES|EPERM):|^[ \t]*code: ['"](ENOENT|EACCES|EPERM)['"],?[ \t]*$)/m.exec(
+      text,
+    );
+  if (posix) return result(`WORKER_${posix[1] ?? posix[2]}`);
+  if (/^[ \t]*SyntaxError(?: \[[A-Z_]+\])?: /m.test(text))
+    return result("NODE_SYNTAX_ERROR");
+  if (/^[ \t]*TypeError(?: \[[A-Z_]+\])?: /m.test(text))
+    return result("NODE_TYPE_ERROR");
+  if (/^fatal: not a git repository\b/m.test(text))
+    return result("GIT_REPO_UNAVAILABLE");
+  if (/npm (?:error|ERR!) code EBADENGINE/.test(text))
+    return result("NODE_ENGINE_ERROR");
+  if (
+    /(?:Cannot find native binding|Failed to load native binding)/i.test(text)
+  )
+    return result("NATIVE_BINDING_LOAD_ERROR");
+  if (/Formatting issues found in [1-9][0-9]* files?\b/i.test(text))
+    return result("FORMAT_ISSUES_REPORTED");
+  for (const match of text.matchAll(
+    /Found ([0-9]+) warnings? and ([0-9]+) errors?\./g,
+  )) {
+    if (Number(match[1]) > 0 || Number(match[2]) > 0)
+      return result("LINT_ISSUES_REPORTED");
+  }
+  return result("COMMAND_FAILED_UNCLASSIFIED");
+}
+
 function readBoundedPrivateCiLog(filename) {
   const limit = 16 * 1024 * 1024;
   const fd = fs.openSync(
@@ -667,24 +752,7 @@ function privateCiWorkerLogDiagnostic(lstat, readdir, readLog, record) {
         createHash("sha256").update(bytes).digest("hex") !== record.log_sha256
       )
         continue;
-      const text = bytes.toString("utf8");
-      if (/npm (?:error|ERR!) code EBADENGINE/.test(text))
-        return "NODE_ENGINE_ERROR";
-      if (
-        /(?:Cannot find native binding|Failed to load native binding)/i.test(
-          text,
-        )
-      )
-        return "NATIVE_BINDING_LOAD_ERROR";
-      if (/Formatting issues found in [1-9][0-9]* files?\b/i.test(text))
-        return "FORMAT_ISSUES_REPORTED";
-      for (const match of text.matchAll(
-        /Found ([0-9]+) warnings? and ([0-9]+) errors?\./g,
-      )) {
-        if (Number(match[1]) > 0 || Number(match[2]) > 0)
-          return "LINT_ISSUES_REPORTED";
-      }
-      return "COMMAND_FAILED_UNCLASSIFIED";
+      return classifyPrivateCiWorkerLog(bytes.toString("utf8"));
     }
   } catch {
     // Unreadable, oversized, untrusted or unmatched logs produce no diagnosis.
@@ -756,7 +824,14 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
         )
       : undefined;
     return {
-      ...(workerLogDiagnostic !== undefined ? { workerLogDiagnostic } : {}),
+      ...(workerLogDiagnostic !== undefined
+        ? {
+            workerLogDiagnostic: workerLogDiagnostic.kind,
+            ...(workerLogDiagnostic.missingPackage
+              ? { workerLogMissingPackage: workerLogDiagnostic.missingPackage }
+              : {}),
+          }
+        : {}),
       testedSha: record.sha,
       ...(record.failed_gate !== undefined
         ? { failedGate: record.failed_gate }
