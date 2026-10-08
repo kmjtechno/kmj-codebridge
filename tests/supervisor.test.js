@@ -103,10 +103,16 @@ test("private PR322 CI status returns only validated root-owned bounded evidence
     /INVALID_SUPERVISOR_REQUEST/,
   );
   evidence.windows = "PASS";
-  assert.equal((await handle({ op: "private_pr322_ci_status" })).response.last, null);
+  assert.equal(
+    (await handle({ op: "private_pr322_ci_status" })).response.last,
+    null,
+  );
   evidence.windows = "NOT_RUN";
   evidence.log_sha256 = "invalid";
-  assert.equal((await handle({ op: "private_pr322_ci_status" })).response.last, null);
+  assert.equal(
+    (await handle({ op: "private_pr322_ci_status" })).response.last,
+    null,
+  );
 });
 
 test("private PR322 CI refuses symlinked or world-readable evidence", async () => {
@@ -127,7 +133,10 @@ test("private PR322 CI refuses symlinked or world-readable evidence", async () =
         throw new Error("insecure evidence unexpectedly opened");
       },
     });
-    assert.equal((await handle({ op: "private_pr322_ci_status" })).response.last, null);
+    assert.equal(
+    (await handle({ op: "private_pr322_ci_status" })).response.last,
+    null,
+  );
   }
 });
 
