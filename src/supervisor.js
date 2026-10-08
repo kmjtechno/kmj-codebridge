@@ -373,7 +373,15 @@ export function createSupervisorHandler({
       const mainPlatformRefresh = fixedUnitStatus(
         run,
         MAIN_PLATFORM_REFRESH_SERVICE,
-        ["ActiveState", "SubState", "Result", "ExecMainStatus"],
+        [
+          "ActiveState",
+          "SubState",
+          "ConditionResult",
+          "Result",
+          "ExecMainStatus",
+          "ExecMainStartTimestamp",
+          "ExecMainExitTimestamp",
+        ],
       );
       return {
         response: {

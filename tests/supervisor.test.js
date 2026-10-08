@@ -237,8 +237,11 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       installed: true,
       activeState: "inactive",
       subState: "dead",
+      conditionResult: "unknown",
       result: "success",
       execMainStatus: "0",
+      execMainStartTimestamp: "unknown",
+      execMainExitTimestamp: "unknown",
     },
   });
   assert.deepEqual(
