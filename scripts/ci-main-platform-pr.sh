@@ -18,7 +18,27 @@ git_read() {
 control=/opt/kmj-codebridge-agent
 base=/var/lib/kmj-codebridge-ci
 worker="$(dirname "$(realpath "$0")")/ci-main-platform-pr-worker.sh"
+check_trusted_worker() {
+  /usr/bin/python3 -I - "$worker" <<'WORKER_META'
+import os, stat, sys
+try:
+    path = os.path.abspath(sys.argv[1])
+    metadata = os.lstat(path)
+    valid = stat.S_ISREG(metadata.st_mode) and metadata.st_uid == 0 and metadata.st_nlink == 1 and not (metadata.st_mode & 0o6022)
+    parent = os.path.dirname(path)
+    while valid:
+        metadata = os.lstat(parent)
+        valid = stat.S_ISDIR(metadata.st_mode) and metadata.st_uid == 0 and not (metadata.st_mode & 0o022)
+        if parent == '/':
+            break
+        parent = os.path.dirname(parent)
+except OSError:
+    valid = False
+raise SystemExit(0 if valid else 3)
+WORKER_META
+}
 for tool in git tar python3 systemd-run flock; do command -v "$tool" >/dev/null || exit 2; done
+check_trusted_worker || { echo CI_TRUSTED_WORKER_INVALID >&2; exit 3; }
 id -u kmjci >/dev/null || { echo CI_UNPRIVILEGED_IDENTITY_MISSING >&2; exit 2; }
 test -f "$worker" && test -f "$control/src/license.js" || exit 2
 test -d "$repo/.git" || exit 2
@@ -82,7 +102,6 @@ for file in src/license.js src/errors.js package.json; do
   control_git show "$consumer_sha:$file" > "$job/src/.codebridge-contract/$file"
 done
 consumer_license_sha256="$(sha256sum "$job/src/.codebridge-contract/src/license.js" | cut -d' ' -f1)"
-cp "$worker" "$job/worker.sh"
 chown -R kmjci:kmjci "$job"
 log="$base/evidence/$sha-$(date -u +%Y%m%dT%H%M%SZ).log"
 manifest="$(dirname "$log")/$(basename "$log" .log).json"
@@ -100,7 +119,7 @@ systemd-run --quiet --wait --collect --pipe \
   -p "ReadWritePaths=$job" \
   -p MemoryMax=12G -p TasksMax=512 -p CPUQuota=200% -p RuntimeMaxSec=15min \
   /usr/bin/env -i PATH=/usr/local/bin:/usr/bin:/bin HOME="$job" \
-    /bin/bash "$job/worker.sh" "$job/src" >"$log" 2>&1
+    /bin/bash "$worker" "$job/src" >"$log" 2>&1
 code=$?
 set -e
 chmod 0600 "$log"
