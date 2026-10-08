@@ -91,10 +91,39 @@ set -e
 chmod 0600 "$log"
 # Trusted parent writes append-only SHA-bound result (never from PR code).
 python3 - "$sha" "$log" "$code" "$manifest" <<'PY'
-import hashlib, json, pathlib, sys, time
+import hashlib, json, pathlib, re, sys, time
 sha, log, code, output = sys.argv[1:]
 b = pathlib.Path(log).read_bytes()
-passed = [x.split("=", 1)[1] for x in b.decode("utf-8", errors="replace").splitlines() if x.startswith("KMJ_CI_GATE_PASS=")]
+lines = b.decode("utf-8", errors="replace").splitlines()
+gates = {
+    "fmt_lint", "frontend_build", "typescript", "php_format", "php_tests",
+    "activation_proof", "renewal", "node_lease_interop", "postgres_concurrency",
+}
+passed = []
+failed_gate = None
+for line in lines:
+    if line.startswith("KMJ_CI_GATE_BEGIN="):
+        label = line.split("=", 1)[1]
+        if label in gates:
+            failed_gate = label
+    elif line.startswith("KMJ_CI_GATE_PASS="):
+        label = line.split("=", 1)[1]
+        if label in gates:
+            passed.append(label)
+            if label == failed_gate:
+                failed_gate = None
+failure_kind = None
+if int(code) != 0:
+    failure_kind = "COMMAND_FAILED_UNCLASSIFIED"
+    if "KMJ_CI_PG_REQUIRED_UNAVAILABLE" in lines:
+        failure_kind = "PG_UNAVAILABLE"
+        failed_gate = "postgres_concurrency"
+    elif any(re.search(r"(?:^|: )vp: (?:not found|command not found)$", line) for line in lines):
+        failure_kind = "VP_NOT_FOUND"
+    elif any(re.match(r"(?:Failed to (?:start transient service unit|connect to bus):|Failed at step |Failed to set up mount namespacing:)", line) for line in lines):
+        failure_kind = "WORKER_SANDBOX_START_FAILED"
+else:
+    failed_gate = None
 record = {
     "schema": 1, "repo": "kmjtechno/kmj-main-platform", "pr": 337,
     "sha": sha, "runner": "kmj-codebridge-private-vps-v1",
@@ -102,6 +131,7 @@ record = {
     "signed_production": False, "exit_code": int(code),
     "linux_result": "PASS" if int(code) == 0 else "FAIL",
     "gate_markers": passed, "log_sha256": hashlib.sha256(b).hexdigest(),
+    "failure_kind": failure_kind, "failed_gate": failed_gate,
     "ended_epoch": int(time.time()),
 }
 pathlib.Path(output).write_text(json.dumps(record, indent=2, sort_keys=True) + "\n")
