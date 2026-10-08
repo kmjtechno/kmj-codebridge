@@ -65,7 +65,10 @@ test("already-current updater safely retries only skipped fixed Main Platform re
   assert.match(script, /ExecMainStartTimestamp --value/);
   assert.match(script, /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED/);
   assert.match(script, /job\.state === "running" \|\| job\.state === "queued"/);
-  assert.match(script, /c\.stateDir !== "\/var\/lib\/kmj-codebridge-kmj-main-platform"/);
+  assert.match(
+    script,
+    /c\.stateDir !== "\/var\/lib\/kmj-codebridge-kmj-main-platform"/,
+  );
   assert.match(
     script,
     /local service="kmj-codebridge-main-platform-refresh\.service"/,
