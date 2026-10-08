@@ -11,13 +11,14 @@ test("fixed CI ref refresh verifies fetched heads before atomic tracking-ref upd
   );
   assert.ok(match, "fixed guarded refresh helper exists");
   const prelude = `
-import os, stat, subprocess, pwd, fcntl, json
+import os, stat, subprocess, pwd, grp, fcntl, json
 from types import SimpleNamespace
 class Meta:
     st_uid=0; st_gid=0; st_nlink=1; st_size=64
     st_mode=stat.S_IFDIR | 0o755
-fixture_stat=lambda p: SimpleNamespace(st_uid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_gid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_dev=1, st_ino=1, st_nlink=1, st_size=64, st_mode=(stat.S_IFREG|0o666 if os.environ.get('UNSAFE_CONFIG') and p.endswith('/config') else stat.S_IFREG|0o600 if p.endswith('/config') or p.endswith('/.ci.lock') else stat.S_IFDIR|0o755))
+fixture_stat=lambda p: SimpleNamespace(st_uid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_gid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_dev=1, st_ino=1, st_mtime_ns=1, st_ctime_ns=1, st_nlink=1, st_size=64, st_mode=(stat.S_IFREG|0o666 if os.environ.get('UNSAFE_CONFIG') and p.endswith('/config') else stat.S_IFREG|0o600 if p.endswith('/config') or p.endswith('/.ci.lock') else stat.S_IFDIR|0o755))
 project_mode = None
+git_modes = {}
 project_reads = 0
 locked = False
 def fixture_lstat(p):
@@ -44,18 +45,23 @@ def fixture_lstat(p):
         if os.environ.get(label+'_LINK'): result.st_mode=stat.S_IFLNK|0o755
         if os.environ.get(label+'_NLINK'): result.st_nlink=2
         if os.environ.get(label+'_SIZE'): result.st_size=65537
+        result.st_mode |= int(os.environ.get(label+'_WRITE','0'),8)
+        if label in git_modes: result.st_mode=git_modes[label]
+        if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 9
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 9
 os.close=lambda *a: None
 os.stat=lambda p, **kw: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/'+p)
-os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
+os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
 def chmod(fd, mode):
     global project_mode
-    assert fd==10 and locked
-    assert mode==(0o755 | int(os.environ.get('PROJECT_SPECIAL','0'),8))
-    project_mode=stat.S_IFDIR|mode
-    print('CHMOD=GROUP_WRITE_REMOVED')
+    assert fd in [10,11,12] and locked
+    before=os.fstat(fd)
+    assert mode==stat.S_IMODE(before.st_mode)&~0o020
+    if fd==10: project_mode=stat.S_IFDIR|mode
+    else: git_modes['GIT' if fd==11 else 'CONFIG']=stat.S_IFDIR|mode if fd==11 else stat.S_IFREG|mode
+    print('CHMOD='+str(fd))
 os.fchmod=chmod
 pwd.getpwuid=lambda uid: SimpleNamespace(pw_name='untrusted' if os.environ.get('UNTRUSTED_OWNER') else 'kmjrunner' if uid else 'root', pw_uid=uid, pw_gid=uid, pw_dir='/home/kmjrunner' if uid else '/root')
 def lock(*a):
@@ -63,6 +69,8 @@ def lock(*a):
     if os.environ.get('BUSY'): raise BlockingIOError()
     locked=True
 fcntl.flock=lock
+grp.getgrgid=lambda gid: SimpleNamespace(gr_mem=['different'] if os.environ.get('GROUP_OTHER') else [])
+pwd.getpwall=lambda: [SimpleNamespace(pw_uid=(1001 if os.environ.get('SERVICE_OWNER') else 0), pw_gid=(1001 if os.environ.get('SERVICE_OWNER') else 0)), *([SimpleNamespace(pw_uid=1002, pw_gid=(1001 if os.environ.get('SERVICE_OWNER') else 0))] if os.environ.get('PRIMARY_OTHER') else [])]
 pwd.getpwnam=lambda name: SimpleNamespace(pw_uid=0 if name=='root' else 1001 if name=='kmjrunner' else 1002)
 refs={}
 old='e'*40
@@ -171,7 +179,7 @@ subprocess.run=stub
     PROJECT_SPECIAL: "2000",
   });
   assert.equal(hardened.status, 0, hardened.stderr);
-  assert.match(hardened.stdout, /CHMOD=GROUP_WRITE_REMOVED/);
+  assert.match(hardened.stdout, /CHMOD=10/);
   assert.match(hardened.stdout, /AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1/);
   assert.match(hardened.stdout, /PR322_REF_REFRESHED=1/);
   for (const [env, markers] of [
@@ -201,6 +209,34 @@ subprocess.run=stub
       assert.ok(result.stdout.includes("AUTO_UPDATE_PRIVATE_CI_" + marker));
     assert.doesNotMatch(result.stdout, /UPDATED=|CHMOD=|private error/);
   }
+  const three = {
+    SERVICE_OWNER: "1",
+    WRITE_USER: "kmjrunner",
+    PROJECT_WRITE: "020",
+    GIT_WRITE: "020",
+    CONFIG_WRITE: "020",
+  };
+  for (const extra of [
+    { GROUP_OTHER: "1" },
+    { PRIMARY_OTHER: "1" },
+    { GIT_WRITE: "022" },
+    { CONFIG_WRITE: "002" },
+    { CONFIG_UID_RACE: "1" },
+    { WRITE_USER: "different" },
+  ]) {
+    const result = run({ ...three, ...extra });
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /CHMOD=|UPDATED=/);
+  }
+  const closed = run(three);
+  assert.equal(closed.status, 0, closed.stderr);
+  assert.deepEqual(closed.stdout.match(/CHMOD=\d+/g), [
+    "CHMOD=10",
+    "CHMOD=11",
+    "CHMOD=12",
+  ]);
+  assert.match(closed.stdout, /AUTO_UPDATE_PRIVATE_CI_GIT_METADATA_HARDENED=1/);
+  assert.match(closed.stdout, /PR337_REF_REFRESHED=1/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
