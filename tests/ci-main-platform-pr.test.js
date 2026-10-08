@@ -262,3 +262,17 @@ test("PR337 service is independent of PR322 and hardened", () => {
   );
   assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_START_ACCEPTED=1/);
 });
+
+test("trusted PR337 preparation has file setup capabilities while PR worker has none", () => {
+  assert.match(
+    websiteUnit,
+    /^CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE$/m,
+  );
+  assert.match(
+    websiteUnit,
+    /^ReadOnlyPaths=\/srv\/kmj-codebridge-projects\/kmj-main-platform \/opt\/kmj-codebridge-agent$/m,
+  );
+  assert.match(websiteSource, /-p CapabilityBoundingSet= \\/);
+  assert.match(websiteSource, /-p User=kmjci -p Group=kmjci/);
+  assert.match(websiteSource, /-p "InaccessiblePaths=\/srv/);
+});

@@ -64,7 +64,12 @@ RestrictSUIDSGID=true
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
-CapabilityBoundingSet=
+# Only the trusted, fixed preparer needs DAC access to the enrolled checkout
+# and CHOWN to copy dependencies, transfer the disposable job to kmjci, and
+# clean it afterwards. PR code executes in a separate zero-capability worker.
+# The preparer cannot write the source/runtime or access protected credentials.
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE
+ReadOnlyPaths=/srv/kmj-codebridge-projects/kmj-main-platform /opt/kmj-codebridge-agent
 ReadWritePaths=/var/lib/kmj-codebridge-ci
 InaccessiblePaths=/etc/kmj-codebridge-main-platform /var/lib/kmj-codebridge-kmj-main-platform
 MemoryMax=14G
