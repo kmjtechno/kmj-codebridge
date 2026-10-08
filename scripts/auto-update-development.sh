@@ -137,6 +137,7 @@ TARGETS = [
 ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.com/kmjtechno/kmj-main-platform.git", "https://github.com/kmjtechno/kmj-main-platform.git"}
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
 lock_fd = None
+project_fd = None
 step = "PROJECT_LSTAT_READ"
 try:
     try:
@@ -155,7 +156,7 @@ try:
         step = "PROJECT_DIRECTORY_SYMLINK" if stat.S_ISLNK(project.st_mode) else "PROJECT_DIRECTORY_OTHER_TYPE"
         raise ValueError("project")
     step = "PROJECT_MODE"
-    if project.st_mode & 0o022:
+    if project.st_mode & 0o002:
         if project.st_mode & 0o022 == 0o022:
             step = "PROJECT_MODE_GROUP_AND_WORLD_WRITE"
         else:
@@ -165,12 +166,14 @@ try:
     owner = pwd.getpwuid(project.st_uid)
     if owner.pw_name not in {"root", "kmjrunner", "kmjprod", "kmjstage"} or project.st_gid != owner.pw_gid:
         raise ValueError("owner")
+    repository_metadata = []
     for path in [PROJECT + "/.git", PROJECT + "/.git/config"]:
         step = "GIT_CONFIG" if path.endswith("/config") else "GIT_DIRECTORY"
         meta = os.lstat(path)
         regular = path.endswith("/config")
         if (not stat.S_ISREG(meta.st_mode) if regular else not stat.S_ISDIR(meta.st_mode)) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o022 or (regular and (meta.st_nlink != 1 or not 0 < meta.st_size <= 65536)):
             raise ValueError("repository metadata")
+        repository_metadata.append((path, meta))
     # Root execution requires a root-owned path all the way to the filesystem.
     step = "PROJECT_PARENTS"
     parent = os.path.dirname(PROJECT)
@@ -205,6 +208,45 @@ try:
     step = "ORIGIN_ALLOWLIST"
     if remote.stdout.strip() not in ORIGINS:
         raise ValueError("origin")
+    if project.st_mode & 0o020:
+        step = "PROJECT_WRITE_AUTHORITY_READ"
+        authority = subprocess.run(["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
+        fields = dict(line.split("=", 1) for line in authority.stdout.splitlines() if "=" in line)
+        if authority.returncode or fields.get("LoadState") != "loaded" or "User" not in fields:
+            raise ValueError("write authority unavailable")
+        user = fields["User"].strip()
+        if user == "":
+            writer_uid = 0
+        elif re.fullmatch("[0-9]{1,10}", user):
+            writer_uid = pwd.getpwuid(int(user)).pw_uid
+        elif re.fullmatch("[A-Za-z_][A-Za-z0-9_-]{0,63}", user):
+            writer_uid = pwd.getpwnam(user).pw_uid
+        else:
+            raise ValueError("write authority invalid")
+        step = "PROJECT_WRITE_AUTHORITY_DIFFERENT"
+        if writer_uid != owner.pw_uid:
+            raise ValueError("write authority differs")
+        step = "PROJECT_HARDEN_IDENTITY"
+        project_fd = os.open(PROJECT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        def identity(meta):
+            return (meta.st_dev, meta.st_ino, meta.st_uid, meta.st_gid, meta.st_mode)
+        if identity(os.fstat(project_fd)) != identity(project) or identity(os.lstat(PROJECT)) != identity(project):
+            raise ValueError("project changed")
+        for path, previous in repository_metadata:
+            if identity(os.lstat(path)) != identity(previous):
+                raise ValueError("repository metadata changed")
+        step = "PROJECT_HARDEN_MODE"
+        mode = stat.S_IMODE(project.st_mode) & ~0o020
+        os.fchmod(project_fd, mode)
+        after = os.fstat(project_fd)
+        current = os.lstat(PROJECT)
+        expected_identity = (project.st_dev, project.st_ino, project.st_uid, project.st_gid, stat.S_IFDIR | mode)
+        if identity(after) != expected_identity or identity(current) != expected_identity:
+            raise ValueError("project hardening changed")
+        for path, previous in repository_metadata:
+            if identity(os.lstat(path)) != identity(previous):
+                raise ValueError("repository metadata changed")
+        print("AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1")
     for label, branch, expected in TARGETS:
         prefix = "AUTO_UPDATE_PRIVATE_" + label + "_REF_"
         tracking = "refs/remotes/origin/" + branch
@@ -249,6 +291,8 @@ except Exception:
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED")
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=" + step)
 finally:
+    if project_fd is not None:
+        os.close(project_fd)
     if lock_fd is not None:
         os.close(lock_fd)
 PY
