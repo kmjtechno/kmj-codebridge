@@ -138,6 +138,7 @@ ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.c
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
 lock_fd = None
 harden_fds = []
+parent_fds = []
 step = "PROJECT_LSTAT_READ"
 try:
     try:
@@ -287,16 +288,25 @@ try:
         pass
     print("AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_LOAD=" + load_result)
     print("AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=" + uid_result)
-    # Root execution requires a root-owned path all the way to the filesystem.
+    # The nearest parent may belong to the already-authorized source owner.
+    # Upper ancestors remain root-owned; no shared directory is modified.
     step = "PROJECT_PARENTS"
-    parent = os.path.dirname(PROJECT)
-    while True:
+    def parent_identity(meta):
+        return (meta.st_dev, meta.st_ino, meta.st_uid, meta.st_gid, meta.st_mode, meta.st_nlink, meta.st_size, meta.st_mtime_ns, meta.st_ctime_ns)
+    for index, parent in enumerate(["/srv/kmj-codebridge-projects", "/srv", "/"]):
         meta = os.lstat(parent)
-        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
+        allowed = {0, owner.pw_uid} if index == 0 else {0}
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid not in allowed or meta.st_mode & 0o022:
             raise ValueError("repository parent")
-        if parent == "/":
-            break
-        parent = os.path.dirname(parent)
+        fd = os.open(parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        parent_fds.append((parent, meta, fd))
+        if parent_identity(os.fstat(fd)) != parent_identity(meta):
+            raise ValueError("repository parent changed")
+    def verify_parents():
+        for path, previous, fd in parent_fds:
+            if parent_identity(os.fstat(fd)) != parent_identity(previous) or parent_identity(os.lstat(path)) != parent_identity(previous):
+                raise ValueError("repository parent changed")
+    verify_parents()
     step = "CI_DIRECTORY"
     meta = os.lstat(BASE)
     if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
@@ -322,6 +332,7 @@ try:
             raise ValueError("other group writer")
     ENV["HOME"] = owner.pw_dir
     def git(*args):
+        verify_parents()
         return subprocess.run(["/usr/bin/git", "-c", "safe.directory=" + PROJECT, "-c", "core.hooksPath=/dev/null", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "-C", PROJECT, *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=45, env=ENV, user=owner.pw_uid, group=owner.pw_gid, extra_groups=[])
     step = "ORIGIN_READ"
     remote = git("remote", "get-url", "origin")
@@ -363,6 +374,7 @@ try:
         for path, previous in entries:
             if identity(os.lstat(path)) != identity(previous):
                 raise ValueError("metadata path changed")
+        verify_parents()
         step = "PROJECT_HARDEN_MODE"
         for (_, previous), fd in zip(entries, harden_fds):
             if previous.st_mode & 0o020:
@@ -420,6 +432,8 @@ except Exception:
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED")
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=" + step)
 finally:
+    for _, _, fd in reversed(parent_fds):
+        os.close(fd)
     for fd in reversed(harden_fds):
         os.close(fd)
     if lock_fd is not None:

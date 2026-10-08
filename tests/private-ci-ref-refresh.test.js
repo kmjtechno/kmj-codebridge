@@ -21,8 +21,9 @@ project_mode = None
 git_modes = {}
 project_reads = 0
 locked = False
+parent_reads = 0
 def fixture_lstat(p):
-    global project_reads
+    global project_reads, parent_reads
     if p == '/srv/kmj-codebridge-projects/kmj-main-platform':
         error=os.environ.get('PROJECT_ERROR')
         if error=='missing': raise FileNotFoundError(2, 'private error')
@@ -37,6 +38,15 @@ def fixture_lstat(p):
         if os.environ.get('PROJECT_RACE') and project_reads > 1: result.st_ino=2
         return result
     result=fixture_stat(p)
+    if p=='/srv/kmj-codebridge-projects':
+        parent_reads += 1
+        if os.environ.get('SERVICE_PARENT'): result.st_uid=1001; result.st_gid=1001
+        if os.environ.get('PARENT_OTHER'): result.st_uid=1002; result.st_gid=1002
+        if os.environ.get('PARENT_WRITE'): result.st_mode |= 0o020
+        if os.environ.get('PARENT_WORLD'): result.st_mode |= 0o002
+        if os.environ.get('PARENT_LINK'): result.st_mode=stat.S_IFLNK|0o755
+        if os.environ.get('PARENT_RACE') and parent_reads>2: result.st_ino=2
+    if p=='/srv' and os.environ.get('UPPER_OTHER'): result.st_uid=1001
     if os.environ.get('PROOF_COMBINED'):
         if p=='/srv/kmj-codebridge-projects': result.st_uid=1001; result.st_gid=1001
         if p=='/srv': result.st_mode |= 0o020
@@ -58,10 +68,10 @@ def fixture_lstat(p):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 9
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else 9
 os.close=lambda *a: None
 os.stat=lambda p, **kw: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/'+p)
-os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
+os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
     global project_mode
     assert fd in [10,11,12] and locked
@@ -280,6 +290,53 @@ subprocess.run=stub
   const fifoLock = run({ PROOF_LOCK_FIFO: "1" });
   assert.match(fifoLock.stdout, /TRUST_LOCK_TYPE=OTHER/);
   assert.doesNotMatch(fifoLock.stdout, /UPDATED=|CHMOD=/);
+  const serviceParent = run({
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    PROJECT_WRITE: "020",
+    GIT_WRITE: "020",
+    CONFIG_WRITE: "020",
+    WRITE_USER: "kmjrunner",
+  });
+  assert.match(serviceParent.stdout, /PR337_REF_REFRESHED=1/);
+  assert.deepEqual(serviceParent.stdout.match(/CHMOD=\d+/g), [
+    "CHMOD=10",
+    "CHMOD=11",
+    "CHMOD=12",
+  ]);
+  for (const extra of [
+    { PARENT_OTHER: "1" },
+    { PARENT_WRITE: "1" },
+    { PARENT_WORLD: "1" },
+    { PARENT_LINK: "1" },
+    { PARENT_RACE: "1" },
+    { UPPER_OTHER: "1" },
+  ]) {
+    const refused = run({
+      SERVICE_OWNER: "1",
+      SERVICE_PARENT: "1",
+      PROJECT_WRITE: "020",
+      WRITE_USER: "kmjrunner",
+      ...extra,
+    });
+    assert.equal(refused.status, 0, refused.stderr);
+    assert.match(refused.stdout, /REF_REFRESH_DEFERRED_UNTRUSTED/);
+    assert.doesNotMatch(refused.stdout, /CHMOD=|UPDATED=/);
+  }
+  const rootSourceForeignParent = run({
+    SERVICE_PARENT: "1",
+    PROJECT_WRITE: "020",
+  });
+  assert.equal(
+    rootSourceForeignParent.status,
+    0,
+    rootSourceForeignParent.stderr,
+  );
+  assert.match(
+    rootSourceForeignParent.stdout,
+    /REF_REFRESH_DEFERRED_UNTRUSTED/,
+  );
+  assert.doesNotMatch(rootSourceForeignParent.stdout, /CHMOD=|UPDATED=/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
