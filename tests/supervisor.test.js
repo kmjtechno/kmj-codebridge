@@ -401,10 +401,18 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       subState: "dead",
       result: "success",
       execMainStatus: "0",
+      execMainStartTimestamp: "unknown",
+      execMainExitTimestamp: "unknown",
+      invocationID: "unknown",
     },
     privatePr322Evidence: null,
     privatePr337Evidence: null,
     privatePr337Diagnostic: "NO_CLASSIFIED_ERROR",
+    privatePr337GitSignals: {
+      permissionDenied: false,
+      objectReadFailure: false,
+      preparationStage: null,
+    },
     privatePr337Source: {
       headSha: null,
       refSha: null,
@@ -439,6 +447,8 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-kmj-main-platform.service",
       "kmj-codebridge-main-platform-refresh.service",
       "kmj-codebridge-private-pr322-ci.service",
+      "kmj-codebridge-private-pr337-ci.service",
+      "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-kmj-main-platform.service",
     ],
@@ -897,8 +907,10 @@ test("website CI source readback pins checkout and reports only SHAs and lock pr
     ref = "b".repeat(40);
   const calls = [];
   const handle = createSupervisorHandler({
-    run: (cmd, args) => {
+    run: (cmd, args, options) => {
       if (cmd === "/usr/bin/git") {
+        assert.equal(options.env.GIT_CONFIG_NOSYSTEM, "1");
+        assert.equal(options.env.GIT_NO_REPLACE_OBJECTS, "1");
         calls.push(args);
         if (args.includes("rev-parse"))
           return args.at(-1) === "HEAD" ? head : ref;
@@ -932,6 +944,72 @@ test("website CI source readback pins checkout and reports only SHAs and lock pr
     handle({ op: "update_status", ref: "attacker" }),
     /INVALID_SUPERVISOR_REQUEST/,
   );
+});
+
+test("website CI run diagnostics expose freshness and fixed Git signals only", async () => {
+  const handle = createSupervisorHandler({
+    run: (cmd) => {
+      if (cmd === "/usr/bin/journalctl")
+        return "KMJ_CI_PREP_STAGE=HEAD_LOCK_READ\nerror: cannot open /private/object: Permission denied\nfatal: path 'apps/platform/composer.lock' does not exist in 'HEAD'\nsecret token=NEVER_RETURN";
+      return "LoadState=loaded\nExecMainStartTimestamp=Thu 2026-10-08 12:00:00 UTC\nExecMainExitTimestamp=Thu 2026-10-08 12:00:01 UTC\nInvocationID=0123456789abcdef0123456789abcdef\n";
+    },
+    lstat: () => {
+      throw new Error("absent");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.equal(
+    result.response.privatePr337Ci.execMainStartTimestamp,
+    "Thu 2026-10-08 12:00:00 UTC",
+  );
+  assert.equal(
+    result.response.privatePr337Ci.invocationID,
+    "0123456789abcdef0123456789abcdef",
+  );
+  assert.deepEqual(result.response.privatePr337GitSignals, {
+    permissionDenied: true,
+    objectReadFailure: true,
+    preparationStage: "HEAD_LOCK_READ",
+  });
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /private\/object|NEVER_RETURN|token=/,
+  );
+});
+
+test("website CI journal filters accept only systemd invocation IDs", async () => {
+  for (const id of [
+    "0123456789abcdef0123456789abcdef",
+    "secret --file=/private",
+  ]) {
+    const journals = [];
+    const handle = createSupervisorHandler({
+      run: (cmd, args) => {
+        if (cmd === "/usr/bin/journalctl") {
+          journals.push(args);
+          return "";
+        }
+        if (args.includes("--value")) return id;
+        return "LoadState=loaded\n";
+      },
+      lstat: () => {
+        throw new Error("absent");
+      },
+    });
+    await handle({ op: "update_status" });
+    for (const args of journals.filter(
+      (args) => args[1] === "kmj-codebridge-private-pr337-ci.service",
+    )) {
+      const matches = args.filter((arg) =>
+        arg.startsWith("_SYSTEMD_INVOCATION_ID="),
+      );
+      assert.deepEqual(
+        matches,
+        id.startsWith("secret") ? [] : [`_SYSTEMD_INVOCATION_ID=${id}`],
+      );
+      assert.doesNotMatch(args.join(" "), /\/private|secret/);
+    }
+  }
 });
 
 test("website CI source readback rejects malformed revisions and hides Git errors", async () => {

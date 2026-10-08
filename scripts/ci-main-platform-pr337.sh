@@ -26,11 +26,15 @@ test -d "$repo/.git" || exit 2
   { echo CI_REF_SHA_MISMATCH >&2; exit 3; }
 [[ "$(git_read cat-file -t "$sha")" == commit ]] || exit 3
 [[ -z "$(git_read status --porcelain)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
+echo KMJ_CI_PREP_STAGE=REF_VERIFIED
 for file in apps/platform/composer.lock apps/platform/package-lock.json; do
+  echo KMJ_CI_PREP_STAGE=TARGET_LOCK_READ
   target="$(git_read show "$sha:$file" | sha256sum | cut -d' ' -f1)"
+  echo KMJ_CI_PREP_STAGE=HEAD_LOCK_READ
   installed="$(git_read show "HEAD:$file" | sha256sum | cut -d' ' -f1)"
   [[ "$target" == "$installed" ]] || { echo CI_DEPENDENCY_LOCK_CONFLICT >&2; exit 3; }
 done
+echo KMJ_CI_PREP_STAGE=LOCKS_VERIFIED
 # Disallow tracked Git symlinks before root-owned archive extraction.
 if git_read ls-tree -r "$sha" | grep -q '^120000 '; then
   echo CI_UNSAFE_TRACKED_SYMLINK >&2; exit 3
