@@ -63,12 +63,33 @@ if awk '$1 == "120000" { found=1 } END { exit !found }' <<< "$tree_listing"; the
   echo CI_UNSAFE_TRACKED_SYMLINK >&2; exit 3
 fi
 install -d -o root -g root -m 0711 "$base" "$base/jobs"
+# Validate before creating or traversing the persistent immutable-worker area.
+/usr/bin/python3 -I - "$base/workers" <<'WORKER_DIRECTORY'
+import os, stat, sys
+path = sys.argv[1]
+while True:
+    if os.path.lexists(path):
+        metadata = os.lstat(path)
+        if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != 0 or metadata.st_mode & 0o022:
+            raise SystemExit(3)
+    if path == '/':
+        break
+    path = os.path.dirname(path)
+WORKER_DIRECTORY
+install -d -o root -g root -m 0711 "$base/workers"
 install -d -o root -g root -m 0700 "$base/evidence"
 exec 9>"$base/.ci.lock"
 flock -n 9 || { echo CI_ALREADY_RUNNING >&2; exit 4; }
-job="$(mktemp -d "$base/jobs/owner322-XXXXXXXX")"
-cleanup() { [[ "$job" == "$base"/jobs/owner322-* ]] && rm -rf --one-file-system -- "$job"; }
+worker_stage="$(mktemp -d "$base/workers/trusted-XXXXXXXX")"
+job=""
+cleanup() { [[ "$worker_stage" == "$base"/workers/trusted-* ]] && rm -rf --one-file-system -- "$worker_stage"; [[ "$job" == "$base"/jobs/owner322-* ]] && rm -rf --one-file-system -- "$job"; }
 trap cleanup EXIT
+chmod 0711 "$worker_stage"
+install -o root -g root -m 0444 "$worker" "$worker_stage/worker.sh"
+worker="$worker_stage/worker.sh"
+check_trusted_worker || { rm -rf --one-file-system -- "$worker_stage"; echo CI_TRUSTED_WORKER_INVALID >&2; exit 3; }
+job="$(mktemp -d "$base/jobs/owner322-XXXXXXXX")"
+
 mkdir -p "$job/src/.codebridge-contract/src"
 git_read archive --format=tar "$sha" |
   tar -x --no-same-owner --no-same-permissions -C "$job/src"

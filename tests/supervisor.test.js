@@ -1317,6 +1317,14 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
         "NODE_MODULE_NOT_FOUND",
       ],
       [
+        "/bin/bash: /opt/kmj-codebridge-agent/scripts/ci-main-platform-pr-worker.sh: Permission denied",
+        "WORKER_SCRIPT_PERMISSION_DENIED",
+      ],
+      [
+        "bash: /private/secret/ci-main-platform-pr-worker.sh: Permission denied",
+        "COMMAND_FAILED_UNCLASSIFIED",
+      ],
+      [
         "npm WARN EBADENGINE Unsupported engine\nunknown failure",
         "COMMAND_FAILED_UNCLASSIFIED",
       ],
@@ -1524,4 +1532,37 @@ test("native CI default log reader bounds bytes and rejects changed or linked fi
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });
   }
+});
+
+test("owner CI scheduler status exposes only fixed updater outcomes", async () => {
+  const expected = [
+    "AUTO_UPDATE_PRIVATE_PR322_CI_ALREADY_SCHEDULED",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_START_FAILED",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=1",
+  ];
+  const handle = createSupervisorHandler({
+    run: (command, args) =>
+      command.endsWith("journalctl") &&
+      args[1] === "kmj-codebridge-auto-update.service"
+        ? [
+            ...expected,
+            "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=secret",
+            "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=1=secret",
+            "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED=/private/secret",
+            "AUTO_UPDATE_PRIVATE_PR322_CI_UNKNOWN",
+            "credential=secret",
+          ].join("\n")
+        : "LoadState=loaded\nActiveState=inactive\n",
+    lstat: () => {
+      throw new Error("fixture");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.updateMarkers, expected);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /secret|credential|\/private|CI_UNKNOWN/,
+  );
 });

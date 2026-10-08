@@ -158,8 +158,13 @@ function fixedUpdateMarkers(run, unit) {
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_FAILED",
     "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED",
     "PRIVATE_CI_NATIVE_UNIT_INSTALLED",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED",
   ]);
   const bare = new Set([
+    "AUTO_UPDATE_PRIVATE_PR322_CI_ALREADY_SCHEDULED",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_START_FAILED",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_NODE_UNAVAILABLE",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE",
@@ -634,6 +639,12 @@ function classifyPrivateCiWorkerLog(text) {
     return result("NODE_SYNTAX_ERROR");
   if (/^[ \t]*TypeError(?: \[[A-Z_]+\])?: /m.test(text))
     return result("NODE_TYPE_ERROR");
+  if (
+    /^(?:\/bin\/)?bash: \/opt\/kmj-codebridge-agent\/scripts\/ci-main-platform-pr-worker\.sh: Permission denied$/m.test(
+      text,
+    )
+  )
+    return result("WORKER_SCRIPT_PERMISSION_DENIED");
   if (/^fatal: not a git repository\b/m.test(text))
     return result("GIT_REPO_UNAVAILABLE");
   if (/npm (?:error|ERR!) code EBADENGINE/.test(text))
