@@ -79,7 +79,11 @@ os.close=lambda *a: None
 ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects',25:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008'}
 ref_owners={}
 os.stat=lambda p, **kw: fixture_lstat(ref_paths.get(kw.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p)
-os.fstat=lambda fd: fixture_lstat(ref_paths[fd]) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
+def fixture_fstat(fd):
+    result=fixture_lstat(ref_paths[fd]) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
+    if fd==11 and locked and os.environ.get('REF_ROOT_RACE'): result.st_ino=2
+    return result
+os.fstat=fixture_fstat
 def chmod(fd, mode):
     global project_mode
     assert fd in [10,11,12] and locked
@@ -407,6 +411,14 @@ subprocess.run=stub
   );
   assert.match(repairedRefOwner.stdout, /PR337_REF_REFRESHED=1/);
   assert.doesNotMatch(repairedRefOwner.stdout, /CHMOD=/);
+  const replacedGitRoot = run({
+    SERVICE_OWNER: "1",
+    WRITE_USER: "kmjrunner",
+    REF_PRIVATE: "1",
+    REF_ROOT_RACE: "1",
+  });
+  assert.equal(replacedGitRoot.status, 0, replacedGitRoot.stderr);
+  assert.doesNotMatch(replacedGitRoot.stdout, /CHOWN=|UPDATED=/);
   const unreadableRef = run({
     SERVICE_OWNER: "1",
     TRACKING_FAIL: "1",
