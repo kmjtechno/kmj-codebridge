@@ -543,7 +543,7 @@ test("public layout preflight runs the existing checker when present and retains
     assert.match(websiteSource, /"public_layout"/);
     assert.match(
       websiteFixedSource,
-      /25950caa017fcb70d87564f3a817d6280a841cae/,
+      /7718aa00dff8e505e525411b89cb4288a2b6559e/,
     );
   } finally {
     fs.rmSync(directory, { recursive: true, force: true });

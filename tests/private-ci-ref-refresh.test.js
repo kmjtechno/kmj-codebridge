@@ -161,7 +161,7 @@ pwd.getpwnam=lambda name: SimpleNamespace(pw_uid=0 if name=='root' else 1001 if 
 refs={}
 old='e'*40
 owner_sha='d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764'
-website='25950caa017fcb70d87564f3a817d6280a841cae'
+website='7718aa00dff8e505e525411b89cb4288a2b6559e'
 def stub(args, **kw):
     if args[0]=='/usr/bin/python3':
         assert args[:3]==['/usr/bin/python3','-I','-c']
@@ -623,7 +623,7 @@ subprocess.run=stub
   );
   assert.match(
     success.stdout,
-    /UPDATED=refs\/remotes\/origin\/fix\/public-marketing-standalone-nav-20261008=25950c/,
+    /UPDATED=refs\/remotes\/origin\/fix\/public-marketing-standalone-nav-20261008=7718aa/,
   );
 });
 
