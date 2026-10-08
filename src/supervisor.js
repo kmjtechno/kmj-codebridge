@@ -231,8 +231,10 @@ function fixedWebsiteCiDiagnostic(run) {
     if (line.includes("PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED"))
       return "REF_FETCH_FAILED";
     if (/fatal: .*dubious ownership/i.test(line)) return "GIT_UNSAFE_OWNERSHIP";
-    if (/fatal: .*not a git repository/i.test(line)) return "GIT_REPO_UNAVAILABLE";
-    if (/fatal: .*permission denied/i.test(line)) return "GIT_PERMISSION_DENIED";
+    if (/fatal: .*not a git repository/i.test(line))
+      return "GIT_REPO_UNAVAILABLE";
+    if (/fatal: .*permission denied/i.test(line))
+      return "GIT_PERMISSION_DENIED";
     if (/fatal: .*not a valid object name/i.test(line))
       return "GIT_OBJECT_UNAVAILABLE";
     if (/fatal: .*unable to access/i.test(line)) return "GIT_ACCESS_FAILED";
