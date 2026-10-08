@@ -32,7 +32,10 @@ test("Main Platform restart errors expose only fixed sanitized markers", async (
     "RESTART_DEFERRED_ACTIVE_JOB",
     "RESTART_ROLLBACK_ATTEMPTED",
   ]);
-  assert.doesNotMatch(JSON.stringify(result.response), /not-for-display|unsafe\/path/);
+  assert.doesNotMatch(
+    JSON.stringify(result.response),
+    /not-for-display|unsafe\/path/,
+  );
   await assert.rejects(
     handle({ op: "update_status", unit: "ssh.service" }),
     /INVALID_SUPERVISOR_REQUEST/,
