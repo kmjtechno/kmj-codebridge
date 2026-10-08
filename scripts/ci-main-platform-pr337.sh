@@ -55,13 +55,14 @@ git_read archive --format=tar "$sha" |
 # Detached .git HEAD is a nonproduction fixture for the staging header test.
 mkdir "$job/src/.git"
 printf '%s\n' "$sha" > "$job/src/.git/HEAD"
-cp -a "$repo/apps/platform/vendor" "$job/src/apps/platform/vendor"
-cp -a "$repo/apps/platform/node_modules" "$job/src/apps/platform/node_modules"
+# Staging needs content, modes and links, not foreign ownership or timestamps.
+cp -a --no-preserve=ownership,timestamps "$repo/apps/platform/vendor" "$job/src/apps/platform/vendor"
+cp -a --no-preserve=ownership,timestamps "$repo/apps/platform/node_modules" "$job/src/apps/platform/node_modules"
 for package in "$job/src"/packages/domain-*; do
   [[ -d "$package/src" ]] || continue
   name="$(basename "$package")"
   target="$job/src/apps/platform/vendor/kmjtechno/$name"
-  [[ ! -d "$target/src" ]] || cp -a "$package/src/." "$target/src/"
+  [[ ! -d "$target/src" ]] || cp -a --no-preserve=ownership,timestamps "$package/src/." "$target/src/"
 done
 cp "$control/src/license.js" "$job/src/.codebridge-contract/src/license.js"
 cp "$control/src/errors.js" "$job/src/.codebridge-contract/src/errors.js"

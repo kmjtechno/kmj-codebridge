@@ -122,6 +122,98 @@ test("website CI rejects symlinks even when a large tree follows the first link"
   }
 });
 
+test("website CI staging copies content and modes without source ownership or timestamps", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX bash execution");
+  const content = fs.readFileSync(
+    path.join(root, "scripts/ci-main-platform-pr337.sh"),
+    "utf8",
+  );
+  const block = content.match(/cp -a[^\n]*vendor[^\n]*[\s\S]*?\ndone/)[0];
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-copy-metadata-"));
+  try {
+    const repo = path.join(temp, "repo"),
+      job = path.join(temp, "job");
+    const fixtures = [
+      ["apps/platform/vendor/dependency", "apps/platform/vendor/dependency"],
+      [
+        "apps/platform/node_modules/dependency",
+        "apps/platform/node_modules/dependency",
+      ],
+      [
+        "packages/domain-fixture/src/dependency",
+        "apps/platform/vendor/kmjtechno/domain-fixture/src/dependency",
+      ],
+    ];
+    let foreignOwnership = false;
+    for (const [source, destination] of fixtures) {
+      const file = path.join(repo, source);
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+
+      fs.writeFileSync(file, "fixture-content\n", { mode: 0o755 });
+      fs.utimesSync(file, 946684800, 946684800);
+      if (process.getuid() === 0) {
+        const ownership = spawnSync("chown", ["65534:65534", file]);
+        foreignOwnership = ownership.status === 0;
+      }
+    }
+    fs.mkdirSync(path.join(job, "src/apps/platform"), { recursive: true });
+    fs.mkdirSync(
+      path.join(repo, "apps/platform/vendor/kmjtechno/domain-fixture/src"),
+      { recursive: true },
+    );
+    const packageSource = path.join(repo, "packages/domain-fixture/src");
+    fs.cpSync(
+      packageSource,
+      path.join(job, "src/packages/domain-fixture/src"),
+      { recursive: true },
+    );
+    // The archived package source retains its original metadata before overlay.
+    const archived = path.join(
+      job,
+      "src/packages/domain-fixture/src/dependency",
+    );
+    fs.utimesSync(archived, 946684800, 946684800);
+    if (foreignOwnership) fs.chownSync(archived, 65534, 65534);
+    else
+      t.diagnostic(
+        "Foreign-owner fixture unavailable; timestamp, mode, content and symlink behavior remain verified",
+      );
+    fs.symlinkSync(
+      "dependency",
+      path.join(repo, "apps/platform/node_modules/link"),
+    );
+    const result = spawnSync(
+      "bash",
+      [
+        "-c",
+        'set -Eeuo pipefail; repo="$1"; job="$2";\n' + block,
+        "ci-copy",
+        repo,
+        job,
+      ],
+      { encoding: "utf8", timeout: 5000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    for (const [, destination] of fixtures) {
+      const file = path.join(job, "src", destination),
+        metadata = fs.statSync(file);
+      assert.equal(fs.readFileSync(file, "utf8"), "fixture-content\n");
+      assert.equal(metadata.mode & 0o777, 0o755);
+      assert.equal(metadata.uid, process.getuid());
+      assert.ok(
+        metadata.mtimeMs > 946684800000,
+        "staging must not preserve source timestamps",
+      );
+    }
+    assert.equal(
+      fs.readlinkSync(path.join(job, "src/apps/platform/node_modules/link")),
+      "dependency",
+    );
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
+
 test("CI shell files are syntactically valid on Linux", (t) => {
   if (process.platform === "win32") return t.skip("POSIX bash syntax");
   execFileSync("bash", ["-n", prepare]);
