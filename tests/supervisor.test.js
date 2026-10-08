@@ -394,6 +394,8 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       subState: "dead",
       result: "success",
       execMainStatus: "0",
+      execMainStartTimestamp: "unknown",
+      execMainExitTimestamp: "unknown",
     },
     privatePr337Ci: {
       installed: true,

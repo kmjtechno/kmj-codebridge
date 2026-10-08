@@ -864,6 +864,8 @@ export function createSupervisorHandler({
             "SubState",
             "Result",
             "ExecMainStatus",
+            "ExecMainStartTimestamp",
+            "ExecMainExitTimestamp",
           ]),
           privatePr337Ci: fixedUnitStatus(run, PRIVATE_PR337_CI_SERVICE, [
             "ActiveState",
@@ -938,6 +940,8 @@ export function createSupervisorHandler({
         "SubState",
         "Result",
         "ExecMainStatus",
+        "ExecMainStartTimestamp",
+        "ExecMainExitTimestamp",
       ]);
       let last = null;
       try {
