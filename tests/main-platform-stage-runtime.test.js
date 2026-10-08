@@ -151,6 +151,29 @@ test("refuses writable or corrupted reused stage", (t) => {
   }
 });
 
+test("rejects invalid Node agent syntax before publishing any stage", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX staging checks are verified on Linux CI");
+    return;
+  }
+  const { root, source, destination } = fixture();
+  try {
+    fs.writeFileSync(path.join(source, "src/cli.js"), "export default ===;\n");
+    git(source, "add", "src/cli.js");
+    git(source, "-c", "user.name=Test", "-c", "user.email=test@example.test",
+      "commit", "-qm", "invalid syntax");
+    git(source, "update-ref", "refs/remotes/origin/main",
+      git(source, "rev-parse", "HEAD"));
+    assert.throws(
+      () => stageRuntime({ source, destination, requireRoot: false }),
+      /Command failed/,
+    );
+    assert.equal(fs.readdirSync(destination).some(p => /^[a-f0-9]{40}$/.test(p)), false);
+  } finally {
+    dispose(root);
+  }
+});
+
 test("CLI has fixed paths and accepts no caller-specified destination", () => {
   const script = fs.readFileSync(
     "scripts/stage-main-platform-runtime.js",
