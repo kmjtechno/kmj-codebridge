@@ -37,7 +37,66 @@ current="$(git -C "$INSTALL_DIR" rev-parse HEAD)"
 remote="$(git ls-remote "$REPO" "refs/heads/$BRANCH" | awk 'NR==1{print $1}')"
 [[ "$remote" =~ ^[a-f0-9]{40}$ ]] || { echo "AUTO_UPDATE_REMOTE_INVALID" >&2; exit 5; }
 
+retry_skipped_main_platform_refresh() {
+  local service="kmj-codebridge-main-platform-refresh.service"
+  local current_config="/etc/kmj-codebridge-main-platform/agent.json"
+  local project="/srv/kmj-codebridge-projects/kmj-main-platform"
+  [[ -f "$current_config" && ! -L "$current_config" && -d "$project/.git" ]] || return 0
+
+  # Only retry a fixed unit that was previously skipped before any process ran.
+  # A successful, failed or running prior execution must not be replayed.
+  local condition last_run
+  condition="$(systemctl show "$service" -p ConditionResult --value 2>/dev/null || true)"
+  last_run="$(systemctl show "$service" -p ExecMainStartTimestamp --value 2>/dev/null || true)"
+  [[ "$condition" == "no" && -z "$last_run" ]] || return 0
+
+  local node
+  node="/opt/kmj-codebridge-node/bin/node"
+  [[ -x "$node" ]] || node="$(command -v node || true)"
+  [[ -n "$node" && -x "$node" ]] || {
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_NODE_UNAVAILABLE" >&2
+    return 0
+  }
+
+  # Never restart another enrolled agent while its private journal has work.
+  if ! CODEBRIDGE_MAIN_CONFIG="$current_config" CODEBRIDGE_MAIN_PROJECT="$project" "$node" --input-type=module <<'NODE'
+import fs from "node:fs";
+import path from "node:path";
+const configPath = process.env.CODEBRIDGE_MAIN_CONFIG;
+const meta = fs.lstatSync(configPath);
+if (!meta.isFile() || meta.nlink !== 1 || meta.size > 131072) process.exit(1);
+const c = JSON.parse(fs.readFileSync(configPath, "utf8"));
+if (!Array.isArray(c.projects) || c.projects.length !== 1 ||
+    c.projects[0].id !== "kmj-main-platform" ||
+    fs.realpathSync(c.projects[0].root) !== fs.realpathSync(process.env.CODEBRIDGE_MAIN_PROJECT) ||
+    c.stateDir !== "/var/lib/kmj-codebridge-kmj-main-platform") process.exit(1);
+const journal = path.join(c.stateDir, "jobs");
+if (fs.existsSync(journal)) {
+  const info = fs.lstatSync(journal);
+  if (!info.isDirectory() || info.isSymbolicLink()) process.exit(1);
+  for (const name of fs.readdirSync(journal)) {
+    if (!name.endsWith(".json")) continue;
+    const file = path.join(journal, name);
+    const st = fs.lstatSync(file);
+    if (!st.isFile() || st.nlink !== 1 || st.size > 131072) process.exit(1);
+    const job = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (job.state === "running" || job.state === "queued") process.exit(1);
+  }
+}
+NODE
+  then
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED" >&2
+    return 0
+  fi
+  if systemctl start --no-block "$service"; then
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED=1"
+  else
+    echo "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_FAILED=1" >&2
+  fi
+}
+
 if [[ "$current" == "$remote" ]]; then
+  retry_skipped_main_platform_refresh
   echo "AUTO_UPDATE_CURRENT=$current"
   exit 0
 fi
