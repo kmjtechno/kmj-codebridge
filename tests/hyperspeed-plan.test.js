@@ -8,7 +8,7 @@ const task = (id, overrides = {}) => ({
   estimateMinutes: 12,
   priority: 50,
   dependsOn: [],
-  paths: [id + "/"],
+  paths: [id],
   dataClass: "private",
   ...overrides,
 });
