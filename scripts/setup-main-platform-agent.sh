@@ -186,6 +186,51 @@ NODE
   echo 'Existing Main Platform agent config verified.'
 fi
 
+# Avoid interrupting a customer job during an existing-agent runtime upgrade.
+# Fail closed for unknown/symlinked/malformed records; never discard job history.
+STATE_DIR="$STATE_DIR" NODE_CONFIG="$CONFIG" "$NODE" --input-type=module <<'NODE'
+import fs from 'node:fs';
+import path from 'node:path';
+const config = JSON.parse(fs.readFileSync(process.env.NODE_CONFIG, 'utf8'));
+if (config.stateDir !== process.env.STATE_DIR) {
+  throw new Error('MAIN_PLATFORM_RESTART_STATE_MISMATCH');
+}
+const dir = path.join(config.stateDir, 'jobs');
+if (fs.existsSync(dir)) {
+  const info = fs.lstatSync(dir);
+  if (!info.isDirectory() || info.isSymbolicLink()) {
+    throw new Error('MAIN_PLATFORM_RESTART_JOURNAL_UNSAFE');
+  }
+  const entries = fs.readdirSync(dir);
+  if (entries.length > 1000) throw new Error('MAIN_PLATFORM_RESTART_JOURNAL_LIMIT');
+  for (const entry of entries) {
+    if (!entry.endsWith('.json')) {
+      throw new Error('MAIN_PLATFORM_RESTART_UNKNOWN_JOURNAL_ENTRY');
+    }
+    const file = path.join(dir, entry);
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > 131072) {
+      throw new Error('MAIN_PLATFORM_RESTART_JOURNAL_UNSAFE');
+    }
+    const job = JSON.parse(fs.readFileSync(file, 'utf8'));
+    if (job.state === 'queued' || job.state === 'running') {
+      throw new Error('MAIN_PLATFORM_RESTART_ACTIVE_JOB');
+    }
+  }
+}
+NODE
+
+# Keep an isolated copy of the existing unit so a failed restart can restore it.
+UNIT_BACKUP=""
+[[ ! -L "$SERVICE_FILE" ]] || {
+  echo 'MAIN_PLATFORM_RESTART_UNIT_SYMLINK' >&2
+  exit 3
+}
+if [[ -f "$SERVICE_FILE" ]]; then
+  UNIT_BACKUP="$(mktemp /etc/systemd/system/kmj-main-platform-agent.XXXXXXXX.backup)"
+  cp "$SERVICE_FILE" "$UNIT_BACKUP"
+fi
+
 cat >"$SERVICE_FILE" <<EOF_UNIT
 [Unit]
 Description=KMJ CodeBridge Agent - Main Platform
@@ -217,8 +262,26 @@ WantedBy=multi-user.target
 EOF_UNIT
 
 systemctl daemon-reload
-systemctl enable --now "$SERVICE"
-systemctl is-active --quiet "$SERVICE"
+systemctl enable "$SERVICE" >/dev/null
+
+# enable --now does not replace an already running v0.2.x agent.
+# A real restart is required to activate the reviewed runtime/ExecStart.
+if ! systemctl restart "$SERVICE" || ! systemctl is-active --quiet "$SERVICE"; then
+  echo 'MAIN_PLATFORM_RESTART_FAILED_ROLLBACK_ATTEMPTED' >&2
+  if [[ -n "$UNIT_BACKUP" ]]; then
+    cp "$UNIT_BACKUP" "$SERVICE_FILE"
+  else
+    rm -f "$SERVICE_FILE"
+  fi
+  systemctl daemon-reload
+  if [[ -n "$UNIT_BACKUP" ]]; then
+    systemctl restart "$SERVICE" || true
+  fi
+  [[ -z "$UNIT_BACKUP" ]] || rm -f "$UNIT_BACKUP"
+  exit 6
+fi
+[[ -z "$UNIT_BACKUP" ]] || rm -f "$UNIT_BACKUP"
+echo 'MAIN_PLATFORM_AGENT_RESTARTED=1'
 
 echo 'KMJ Main Platform CodeBridge project agent is active.'
 echo "project_id=$PROJECT_ID"
