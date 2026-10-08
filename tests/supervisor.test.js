@@ -251,6 +251,8 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       legacyConfig: false,
       projectGit: false,
     },
+    updateMarkers: [],
+    mainPlatformRefreshMarkers: [],
   });
   assert.deepEqual(
     calls.map((entry) => entry[1][1]),
@@ -310,6 +312,41 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
     handle({ op: "update_status", path: "/etc/shadow" }),
     /INVALID_SUPERVISOR_REQUEST/,
   );
+});
+
+test("only exact non-secret updater markers are exposed", async () => {
+  const handle = createSupervisorHandler({
+    run: (command, args) => {
+      if (command.endsWith("journalctl")) {
+        if (args[1] === "kmj-codebridge-auto-update.service") {
+          return [
+            "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
+            "AUTO_UPDATE_TOKEN=secret_should_not_appear",
+            "AUTHORIZATION: Bearer never_expose",
+            "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED=1",
+          ].join("\n");
+        }
+        return [
+          "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED=1",
+          "tenant_id=private",
+          "MAIN_PLATFORM_REFRESH_CONFIG_DIR_UNSAFE=/etc/private",
+        ].join("\n");
+      }
+      return "LoadState=loaded\nActiveState=inactive\nSubState=dead\n";
+    },
+    lstat: () => {
+      throw new Error("not installed");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.updateMarkers, [
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED=1",
+  ]);
+  assert.deepEqual(result.response.mainPlatformRefreshMarkers, [
+    "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED=1",
+  ]);
+  assert.doesNotMatch(JSON.stringify(result.response), /secret_should_not_appear|private|Bearer/);
 });
 
 test("auto-update trigger acknowledges before starting only the hardcoded unit", async () => {
