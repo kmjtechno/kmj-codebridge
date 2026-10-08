@@ -100,7 +100,7 @@ def stub(args, **kw):
         return SimpleNamespace(returncode=0,stdout='LoadState='+os.environ.get('WRITE_LOAD','loaded')+'\\nUser='+os.environ.get('WRITE_USER','root')+'\\n')
     assert kw['user']==(1001 if os.environ.get('SERVICE_OWNER') else 0) and kw['group']==kw['user'] and kw['extra_groups']==[]
     assert kw['env']['GIT_CONFIG_GLOBAL']=='/dev/null'
-    assert kw['stderr']==subprocess.DEVNULL
+    assert kw['stderr'] in [subprocess.DEVNULL,subprocess.PIPE]
     assert 'core.hooksPath=/dev/null' in args and 'maintenance.auto=false' in args and 'gc.auto=0' in args
     a=args[args.index('-C')+2:]
     result=''; rc=0
@@ -118,13 +118,14 @@ def stub(args, **kw):
     elif a[0]=='update-ref':
         if a[1]=='-d':
             assert refs.get(a[2])==a[3]
-            refs.pop(a[2],None); print('DELETED='+a[2])
+            rc=int(os.environ.get('CLEANUP_FAIL','0'))
+            if not rc: refs.pop(a[2],None); print('DELETED='+a[2])
         else:
             assert a[3]==old
             rc=int(os.environ.get('CAS_FAIL','0'))
             if not rc: print('UPDATED='+a[1]+'='+a[2])
     else: raise AssertionError(a)
-    return SimpleNamespace(returncode=rc,stdout=result+'\\n')
+    return SimpleNamespace(returncode=rc,stdout=result+'\\n',stderr=os.environ.get('GIT_STDERR',''))
 subprocess.run=stub
 `;
   const run = (env = {}) =>
@@ -337,6 +338,36 @@ subprocess.run=stub
     /REF_REFRESH_DEFERRED_UNTRUSTED/,
   );
   assert.doesNotMatch(rootSourceForeignParent.stdout, /CHMOD=|UPDATED=/);
+  for (const [message, kind] of [
+    ["Permissions 0644 for '/private/key' are too open.", "KEY_PERMISSIONS"],
+    ["Permission denied (publickey).", "PUBLICKEY_DENIED"],
+    ["Could not resolve hostname private-host", "DNS_FAILED"],
+    ["Host key verification failed.", "HOSTKEY_VERIFICATION_FAILED"],
+    [
+      "fatal: cannot lock ref private/ref: Permission denied",
+      "GIT_PERMISSION_DENIED",
+    ],
+  ]) {
+    const failure = run({ FETCH_FAIL: "128", GIT_STDERR: message });
+    assert.match(failure.stdout, /REF_FAILURE_STAGE=FETCH/);
+    assert.match(failure.stdout, /REF_FAILURE_EXIT=EXIT_128/);
+    assert.ok(failure.stdout.includes("REF_FAILURE_KIND=" + kind));
+    assert.doesNotMatch(
+      failure.stdout,
+      /\/private\/key|private-host|private\/ref|0644/,
+    );
+  }
+  for (const [env, stage] of [
+    [{ TEMP_EXISTS: "1" }, "TEMPORARY_REF_EXISTS"],
+    [{ FETCHED: "a".repeat(40) }, "EXPECTED_SHA"],
+    [{ NON_FF: "1" }, "ANCESTRY"],
+    [{ CAS_FAIL: "1" }, "TRACKING_REF_CAS"],
+    [{ CLEANUP_FAIL: "128" }, "CLEANUP_REF_CAS"],
+  ]) {
+    const failure = run(env);
+    assert.equal(failure.status, 0, failure.stderr);
+    assert.ok(failure.stdout.includes("REF_FAILURE_STAGE=" + stage), stage);
+  }
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
