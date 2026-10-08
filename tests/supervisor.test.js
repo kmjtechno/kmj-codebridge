@@ -404,6 +404,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
     },
     privatePr322Evidence: null,
     privatePr337Evidence: null,
+    privatePr337Diagnostic: "NO_CLASSIFIED_ERROR",
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
@@ -814,5 +815,28 @@ test("native CI status validates bounded root evidence", async () => {
   assert.equal(
     (await handle({ op: "private_pr337_ci_status" })).response.last,
     null,
+  );
+});
+
+test("website CI diagnosis exposes only fixed error categories", async () => {
+  const journal = [
+    "fatal: detected dubious ownership in repository at /private/example",
+    "fatal: unable to access https://secret-token@example.invalid/repo",
+    "KMJ_CI_FIXED_REF_LOOKUP_FAILED",
+  ].join("\\n");
+  const handle = createSupervisorHandler({
+    run: (cmd, args) =>
+      cmd.endsWith("journalctl") &&
+      args[1] === "kmj-codebridge-private-pr337-ci.service"
+        ? journal
+        : "LoadState=loaded\\nActiveState=inactive\\nSubState=dead\\n",
+    lstat: () => { throw new Error("fixture"); },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.equal(result.response.privatePr337Diagnostic, "FIXED_REF_LOOKUP_FAILED");
+  assert.doesNotMatch(JSON.stringify(result), /secret-token|example.invalid|private\\/example/);
+  await assert.rejects(
+    handle({ op: "update_status", unit: "ssh.service" }),
+    /INVALID_SUPERVISOR_REQUEST/,
   );
 });
