@@ -671,8 +671,7 @@ export function createSupervisorHandler({
         "ActiveState",
       ]);
       if (!service.installed) fail("SUPERVISOR_PRIVATE_CI_UNAVAILABLE");
-      if (service.activeState === "active")
-        fail("SUPERVISOR_PRIVATE_CI_BUSY");
+      if (service.activeState === "active") fail("SUPERVISOR_PRIVATE_CI_BUSY");
       return {
         response: { accepted: true, target: "private-pr322" },
         afterSend: () => start(PRIVATE_PR322_CI_SERVICE),
