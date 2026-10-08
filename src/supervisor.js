@@ -160,6 +160,28 @@ function fixedUpdateMarkers(run, unit) {
     "PRIVATE_CI_NATIVE_UNIT_INSTALLED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED",
   ]);
+  const ownerSteps = new Set([
+    "BASE_DIRECTORY",
+    "EVIDENCE_DIRECTORY",
+    "RUNTIME_DIRECTORY",
+    "SCRIPTS_DIRECTORY",
+    "UNIT_FILE",
+    "UNIT_DEFINITION",
+    "WORKER_FILE",
+    "WRAPPER_FILE",
+    "PREPARER_FILE",
+    "CONTROL_REVISION",
+    "SOURCE_REF_READ",
+    "SOURCE_REF_FORMAT",
+    "SOURCE_REF_MISMATCH",
+    "MARKER_FILE",
+    "MARKER_FORMAT",
+    "UNIT_STATE",
+    "SHARED_LOCK",
+    "MARKER_CREATE",
+    "UNIT_START",
+    "MARKER_COMMIT",
+  ]);
   const bare = new Set([
     "AUTO_UPDATE_PRIVATE_PR322_CI_ALREADY_SCHEDULED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY",
@@ -196,7 +218,9 @@ function fixedUpdateMarkers(run, unit) {
       const value = line.slice(split + 1);
       return (
         (commits.has(key) && /^[a-f0-9]{40}$/.test(value)) ||
-        (flags.has(key) && value === "1")
+        (flags.has(key) && value === "1") ||
+        (key === "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP" &&
+          ownerSteps.has(value))
       );
     })
     .slice(-24);
@@ -355,7 +379,7 @@ function fixedWebsiteCiDiagnostic(run) {
 
 // Read only the fixed CI source. Never fetch, print stderr, inspect credentials,
 // or accept a caller-controlled Git revision, repository or filesystem path.
-function fixedWebsiteCiSource(run) {
+function fixedCiSource(run, owner = false) {
   const repo = "/srv/kmj-codebridge-projects/kmj-main-platform";
   const git = (...args) =>
     run("/usr/bin/git", ["-c", `safe.directory=${repo}`, "-C", repo, ...args], {
@@ -366,6 +390,7 @@ function fixedWebsiteCiSource(run) {
         GIT_NO_LAZY_FETCH: "1",
         GIT_OPTIONAL_LOCKS: "0",
         GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: "/dev/null",
         GIT_NO_REPLACE_OBJECTS: "1",
       },
     });
@@ -395,7 +420,9 @@ function fixedWebsiteCiSource(run) {
   };
   const headSha = revision("HEAD");
   const refSha = revision(
-    "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
+    owner
+      ? "refs/remotes/origin/feat/codebridge-owner-tier"
+      : "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
   );
   return {
     headSha,
@@ -1230,7 +1257,8 @@ export function createSupervisorHandler({
           ),
           privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
           privatePr337GitSignals: fixedWebsiteCiGitSignals(run),
-          privatePr337Source: fixedWebsiteCiSource(run),
+          privatePr322Source: fixedCiSource(run, true),
+          privatePr337Source: fixedCiSource(run),
           mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
           mainPlatformEvidence: fixedMainPlatformMarkers(run),

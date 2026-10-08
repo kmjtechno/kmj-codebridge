@@ -416,6 +416,12 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       objectReadFailure: false,
       preparationStage: null,
     },
+    privatePr322Source: {
+      headSha: null,
+      refSha: null,
+      headLocks: null,
+      refLocks: null,
+    },
     privatePr337Source: {
       headSha: null,
       refSha: null,
@@ -934,7 +940,19 @@ test("website CI source readback pins checkout and reports only SHAs and lock pr
     headLocks: { composer: false, npm: true },
     refLocks: { composer: true, npm: true },
   });
-  assert.equal(calls.length, 6);
+  assert.deepEqual(result.response.privatePr322Source, {
+    headSha: head,
+    refSha: ref,
+    headLocks: { composer: false, npm: true },
+    refLocks: { composer: true, npm: true },
+  });
+  assert.ok(
+    calls.some(
+      (args) =>
+        args.at(-1) === "refs/remotes/origin/feat/codebridge-owner-tier",
+    ),
+  );
+  assert.equal(calls.length, 12);
   for (const args of calls)
     assert.deepEqual(args.slice(0, 4), [
       "-c",
@@ -1541,6 +1559,9 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
     "AUTO_UPDATE_PRIVATE_PR322_CI_START_FAILED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=1",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=SOURCE_REF_READ",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=SOURCE_REF_MISMATCH",
+    "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=WORKER_FILE",
   ];
   const handle = createSupervisorHandler({
     run: (command, args) =>
@@ -1552,6 +1573,9 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
             "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=1=secret",
             "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED=/private/secret",
             "AUTO_UPDATE_PRIVATE_PR322_CI_UNKNOWN",
+            "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=/private/secret",
+            "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=UNKNOWN",
+            "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=SOURCE_REF_READ=secret",
             "credential=secret",
           ].join("\n")
         : "LoadState=loaded\nActiveState=inactive\n",
@@ -1565,4 +1589,33 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
     JSON.stringify(result),
     /secret|credential|\/private|CI_UNKNOWN/,
   );
+});
+
+test("owner source readback rejects private or malformed Git output", async () => {
+  for (const output of ["/private/secret", "a".repeat(40) + "\nsecret", ""]) {
+    const handle = createSupervisorHandler({
+      run: (command, args, options) => {
+        if (command === "/usr/bin/git") {
+          assert.equal(options.env.GIT_CONFIG_GLOBAL, "/dev/null");
+          assert.equal(options.env.GIT_TERMINAL_PROMPT, "0");
+          assert.equal(options.env.GIT_NO_LAZY_FETCH, "1");
+          assert.equal(options.env.GIT_OPTIONAL_LOCKS, "0");
+          assert.ok(args.includes("rev-parse"));
+          return output;
+        }
+        return "LoadState=loaded\nActiveState=inactive\n";
+      },
+      lstat: () => {
+        throw new Error("fixture");
+      },
+    });
+    const result = await handle({ op: "update_status" });
+    assert.deepEqual(result.response.privatePr322Source, {
+      headSha: null,
+      refSha: null,
+      headLocks: null,
+      refLocks: null,
+    });
+    assert.doesNotMatch(JSON.stringify(result), /\/private|secret/);
+  }
 });
