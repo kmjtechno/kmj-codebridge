@@ -2,7 +2,6 @@
 // One fixed development runtime source -> one immutable, unprivileged-readable
 // stage. This is NOT a signed production release, license, or activation.
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import crypto from "node:crypto";
 import { execFileSync } from "node:child_process";
