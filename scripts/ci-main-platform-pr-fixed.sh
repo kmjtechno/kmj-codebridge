@@ -8,7 +8,7 @@ expected=refs/remotes/origin/feat/codebridge-owner-tier
 [[ -d "$repo/.git" && ! -L "$repo/.git" ]] || { echo KMJ_CI_FIXED_PROJECT_UNAVAILABLE >&2; exit 3; }
 # Git can fail with status 128 (inaccessible ref, ownership, inaccessible
 # worktree). Convert it to a bounded status instead of leaking raw stderr.
-if ! sha="$(/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_NOSYSTEM=1 GIT_NO_REPLACE_OBJECTS=1 /usr/bin/git -c safe.directory="$repo" -C "$repo" rev-parse --verify "$expected" 2>/dev/null)"; then
+if ! sha="$(/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1 /usr/bin/git -c safe.directory="$repo" -C "$repo" rev-parse --verify "$expected" 2>/dev/null)"; then
   echo KMJ_CI_FIXED_REF_LOOKUP_FAILED >&2
   exit 3
 fi

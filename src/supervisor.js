@@ -790,6 +790,11 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
     )
       return null;
     const gates = new Set([
+      "php_key_generate",
+      "php_migrations",
+      "php_syntax",
+      "platform_runtime",
+      "license_runtime",
       "fmt_lint",
       "frontend_build",
       "typescript",
@@ -799,7 +804,34 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
       "renewal",
       "node_lease_interop",
       "postgres_concurrency",
+      "php_config_clear",
+      "php_static_analysis",
+      "foundation_python_runtime",
+      "foundation_compile",
+      "foundation_workers",
+      "foundation_browser_qa",
+      "foundation_policy",
+      "foundation_backup",
+      "foundation_architecture",
+      "foundation_delivery",
+      "foundation_public_surface",
+      "foundation_free_router",
+      "foundation_contracts",
+      "rust_format",
+      "rust_tests",
+      "kslp_contract",
+      "foundation_module_architecture",
+      "foundation_runtime",
+      "lease_encoder_syntax",
     ]);
+    if (
+      record.gate_markers !== undefined &&
+      (!Array.isArray(record.gate_markers) ||
+        record.gate_markers.length > gates.size ||
+        new Set(record.gate_markers).size !== record.gate_markers.length ||
+        record.gate_markers.some((label) => !gates.has(label)))
+    )
+      return null;
     const failures = new Set([
       "VP_NOT_FOUND",
       "WORKER_SANDBOX_START_FAILED",
@@ -813,6 +845,45 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
       (record.failure_kind !== undefined &&
         record.failure_kind !== null &&
         !failures.has(record.failure_kind))
+    )
+      return null;
+    for (const field of ["base_sha", "consumer_sha"]) {
+      if (
+        record[field] !== undefined &&
+        (typeof record[field] !== "string" ||
+          !/^[a-f0-9]{40}$/.test(record[field]))
+      )
+        return null;
+    }
+    if (
+      record.consumer_license_sha256 !== undefined &&
+      (typeof record.consumer_license_sha256 !== "string" ||
+        !/^[a-f0-9]{64}$/.test(record.consumer_license_sha256))
+    )
+      return null;
+    const runtimeNames = new Set([
+      "PHP",
+      "NODE_PLATFORM",
+      "NODE_CONSUMER",
+      "PYTHON",
+      "CARGO",
+      "POSTGRES",
+    ]);
+    if (
+      record.runtime_versions !== undefined &&
+      (record.runtime_versions === null ||
+        typeof record.runtime_versions !== "object" ||
+        Array.isArray(record.runtime_versions) ||
+        Object.entries(record.runtime_versions).some(
+          ([name, value]) =>
+            !runtimeNames.has(name) ||
+            typeof value !== "string" ||
+            value.length > 64 ||
+            !(
+              value === "UNAVAILABLE" ||
+              /^[0-9]{1,3}\.[0-9]{1,3}(?:\.[0-9]{1,3})?$/.test(value)
+            ),
+        ))
     )
       return null;
     const workerLogDiagnostic = logAccess
@@ -833,6 +904,19 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
           }
         : {}),
       testedSha: record.sha,
+      ...(record.runtime_versions !== undefined
+        ? { runtimeVersions: record.runtime_versions }
+        : {}),
+      ...(record.gate_markers !== undefined
+        ? { gateMarkers: record.gate_markers }
+        : {}),
+      ...(record.base_sha !== undefined ? { baseSha: record.base_sha } : {}),
+      ...(record.consumer_sha !== undefined
+        ? { consumerSha: record.consumer_sha }
+        : {}),
+      ...(record.consumer_license_sha256 !== undefined
+        ? { consumerLicenseSha256: record.consumer_license_sha256 }
+        : {}),
       ...(record.failed_gate !== undefined
         ? { failedGate: record.failed_gate }
         : {}),
