@@ -847,6 +847,7 @@ function defaultRestart(unit) {
 // Read only root-owned, bounded native CI evidence. The PR code never writes
 // this summary; the trusted systemd preparer creates it after the sandbox exits.
 function classifyPrivateCiWorkerLog(text) {
+  text = text.replace(/\u001b\[[0-9;]*m/g, "");
   const missingName = /Cannot find (?:package|module) '([^'\r\n]+)'/.exec(
     text,
   )?.[1];
@@ -926,8 +927,70 @@ function classifyPrivateCiWorkerLog(text) {
     /(?:Cannot find native binding|Failed to load native binding)/i.test(text)
   )
     return result("NATIVE_BINDING_LOAD_ERROR");
-  if (/Formatting issues found in [1-9][0-9]* files?\b/i.test(text))
-    return result("FORMAT_ISSUES_REPORTED");
+  if (
+    /(?:Formatting issues found in|Found formatting issues in) [1-9][0-9]* files?\b/i.test(
+      text,
+    )
+  ) {
+    const targets = new Map([
+      ["scripts/check-public-layout.mjs", "PUBLIC_LAYOUT_CHECKER"],
+      ["scripts/check-public-navigation.test.mjs", "PUBLIC_NAVIGATION_TEST"],
+      ["package.json", "PLATFORM_PACKAGE"],
+      ["vite.config.ts", "VITE_CONFIG"],
+      ["resources/js/app.tsx", "APP_ENTRY"],
+      ["resources/js/components/public-site-header.tsx", "PUBLIC_HEADER"],
+      ["resources/js/components/public-site-footer.tsx", "PUBLIC_FOOTER"],
+      [
+        "resources/js/components/public-language-switch.tsx",
+        "PUBLIC_LANGUAGE_SWITCH",
+      ],
+      ["resources/js/components/public-seo.tsx", "PUBLIC_SEO"],
+      ["resources/js/lib/public-page-layout.ts", "PUBLIC_PAGE_LAYOUT"],
+      ["resources/js/pages/welcome.tsx", "WELCOME"],
+      ["resources/js/pages/company.tsx", "COMPANY"],
+      ["resources/js/pages/capabilities.tsx", "CAPABILITIES"],
+      ["resources/js/pages/trust.tsx", "TRUST"],
+      ["resources/js/pages/products/index.tsx", "PRODUCTS_INDEX"],
+      ["resources/js/pages/products/show.tsx", "PRODUCTS_SHOW"],
+      ["resources/js/pages/public-page.tsx", "PUBLIC_PAGE"],
+      ["resources/js/pages/legal/index.tsx", "LEGAL_INDEX"],
+      ["resources/js/pages/legal/acceptable-use.tsx", "LEGAL_ACCEPTABLE_USE"],
+      ["resources/js/pages/legal/cookie-policy.tsx", "LEGAL_COOKIE_POLICY"],
+      ["resources/js/pages/legal/privacy.tsx", "LEGAL_PRIVACY"],
+      ["resources/js/pages/legal/refund-policy.tsx", "LEGAL_REFUND_POLICY"],
+      ["resources/js/pages/legal/terms.tsx", "LEGAL_TERMS"],
+      [
+        "resources/js/pages/products/codebridge/privacy.tsx",
+        "CODEBRIDGE_PRIVACY",
+      ],
+      ["resources/js/pages/products/codebridge/terms.tsx", "CODEBRIDGE_TERMS"],
+      [
+        "resources/js/pages/products/codebridge/support.tsx",
+        "CODEBRIDGE_SUPPORT",
+      ],
+    ]);
+    const blockPattern =
+      /(?:^|\n)(?:error: )?Formatting issues found[ \t]*\n([\s\S]*?)\nFound formatting issues in [1-9][0-9]* files?\b/i;
+    const block = blockPattern.exec(text)?.[1];
+    const files = block?.split("\n").map((line) => line.replace(/^\.\//, ""));
+    const known = files
+      ? [...new Set(files.map((file) => targets.get(file)).filter(Boolean))]
+      : [];
+    return {
+      ...result("FORMAT_ISSUES_REPORTED"),
+      ...(known.length ? { targets: known } : {}),
+    };
+  }
+  if (/^error: Formatting could not start[ \t]*$/m.test(text))
+    return result("FORMAT_START_FAILED");
+  if (/^error: Linting could not start[ \t]*$/m.test(text))
+    return result("LINT_START_FAILED");
+  for (const match of text.matchAll(
+    /Found ([0-9]+) errors? and ([0-9]+) warnings? in\b/g,
+  )) {
+    if (Number(match[1]) > 0 || Number(match[2]) > 0)
+      return result("LINT_ISSUES_REPORTED");
+  }
   for (const match of text.matchAll(
     /Found ([0-9]+) warnings? and ([0-9]+) errors?\./g,
   )) {
@@ -1214,6 +1277,9 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
       ...(workerLogDiagnostic !== undefined
         ? {
             workerLogDiagnostic: workerLogDiagnostic.kind,
+            ...(workerLogDiagnostic.targets
+              ? { workerLogTargets: workerLogDiagnostic.targets }
+              : {}),
             ...(workerLogDiagnostic.missingPackage
               ? { workerLogMissingPackage: workerLogDiagnostic.missingPackage }
               : {}),

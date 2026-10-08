@@ -1223,10 +1223,47 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
     size: 500,
   };
   for (const pr of [322, 337]) {
-    for (const [text, expected, missingPackage] of [
+    for (const [text, expected, missingPackage, targets] of [
       [
         "Formatting issues found in 3 files. Run without --check to fix.\nsecret=NEVER_RETURN",
         "FORMAT_ISSUES_REPORTED",
+      ],
+      [
+        "\u001b[31merror:\u001b[0m Formatting issues found\nscripts/check-public-layout.mjs\nscripts/check-public-navigation.test.mjs\n/private/secret\nFound formatting issues in 3 files (10ms, 2 threads).",
+        "FORMAT_ISSUES_REPORTED",
+        undefined,
+        ["PUBLIC_LAYOUT_CHECKER", "PUBLIC_NAVIGATION_TEST"],
+      ],
+      [
+        "error: Formatting issues found\n./vite.config.ts\npackage.json\nFound formatting issues in 2 files (10ms, 2 threads).",
+        "FORMAT_ISSUES_REPORTED",
+        undefined,
+        ["VITE_CONFIG", "PLATFORM_PACKAGE"],
+      ],
+      [
+        "error: Formatting issues found\n/private/scripts/check-public-layout.mjs\nscripts/check-public-layout.mjs.secret\nFound formatting issues in 2 files (10ms, 2 threads).",
+        "FORMAT_ISSUES_REPORTED",
+      ],
+      [
+        "error: Formatting issues found\nresources/js/components/public-site-header.tsx\nresources/js/pages/products/codebridge/privacy.tsx\nFound formatting issues in 2 files (10ms, 2 threads).",
+        "FORMAT_ISSUES_REPORTED",
+        undefined,
+        ["PUBLIC_HEADER", "CODEBRIDGE_PRIVACY"],
+      ],
+      [
+        "error: Formatting issues found\nresources/js/components/public-site-header.tsx.secret\n/private/resources/js/components/public-site-header.tsx\nFound formatting issues in 2 files (10ms, 2 threads).",
+        "FORMAT_ISSUES_REPORTED",
+      ],
+      ["Found 0 errors and 2 warnings in 10 files", "LINT_ISSUES_REPORTED"],
+      ["Found 2 errors and 0 warnings in 10 files", "LINT_ISSUES_REPORTED"],
+      [
+        "error: Formatting could not start\n/private/secret",
+        "FORMAT_START_FAILED",
+      ],
+      ["error: Linting could not start\n/private/secret", "LINT_START_FAILED"],
+      [
+        "Found 0 errors and 0 warnings in 10 files",
+        "COMMAND_FAILED_UNCLASSIFIED",
       ],
       [
         "Found 0 warnings and 2 errors.\nsecret=NEVER_RETURN",
@@ -1401,8 +1438,13 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
         missingPackage,
       );
       assert.deepEqual(
+        (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+          .workerLogTargets,
+        targets,
+      );
+      assert.deepEqual(
         reads,
-        Array(2).fill(`/var/lib/kmj-codebridge-ci/evidence/${name}`),
+        Array(3).fill(`/var/lib/kmj-codebridge-ci/evidence/${name}`),
       );
       assert.doesNotMatch(
         JSON.stringify(await handle({ op: `private_pr${pr}_ci_status` })),
