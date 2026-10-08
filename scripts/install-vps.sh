@@ -500,12 +500,24 @@ RestrictAddressFamilies=AF_UNIX
 UMask=0077
 EOF
 
+# A legacy enrollment may exist without the new config directory. Create only
+# the fixed private destination, never overwrite ownership of an existing one.
+if [[ -L /etc/kmj-codebridge-main-platform ]]; then
+  echo 'MAIN_PLATFORM_REFRESH_CONFIG_DIR_UNSAFE' >&2
+  return 1
+fi
+if [[ ! -d /etc/kmj-codebridge-main-platform ]]; then
+  install -d -m 0700 -o root -g root /etc/kmj-codebridge-main-platform
+fi
+
 cat >"$MAIN_PLATFORM_REFRESH_SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge fixed Main Platform agent refresh
 After=network-online.target
 Wants=network-online.target
-ConditionPathExists=/etc/kmj-codebridge-main-platform/agent.json
+# One of the existing enrolled-agent configs must be present; repository is always required.
+ConditionPathExists=|/etc/kmj-codebridge-main-platform/agent.json
+ConditionPathExists=|/etc/kmj-codebridge/agents/kmj-main-platform.json
 ConditionPathExists=/srv/kmj-codebridge-projects/kmj-main-platform/.git
 
 [Service]
