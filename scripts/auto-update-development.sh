@@ -473,6 +473,7 @@ try:
         finally:
             for fd in reversed(descriptors):
                 os.close(fd)
+    step = "FIXED_REF_OWNER_REPAIR"
     repair_fixed_tracking_ref_owner()
     def tracking_access_proof():
         paths = [
