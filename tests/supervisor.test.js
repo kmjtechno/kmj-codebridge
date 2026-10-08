@@ -20,7 +20,10 @@ test("native private PR322 CI starts only the fixed systemd unit", async () => {
     start: (service) => started.push(service),
   });
   const result = await handle({ op: "private_pr322_ci_start" });
-  assert.deepEqual(result.response, { accepted: true, target: "private-pr322" });
+  assert.deepEqual(result.response, {
+    accepted: true,
+    target: "private-pr322",
+  });
   assert.deepEqual(started, []);
   result.afterSend();
   assert.deepEqual(started, ["kmj-codebridge-private-pr322-ci.service"]);
@@ -48,7 +51,9 @@ test("native private PR322 CI starts only the fixed systemd unit", async () => {
   );
 });
 
-test("private PR322 CI status returns only validated root-owned bounded evidence", async () => {
+test(
+  "private PR322 CI status returns only validated root-owned bounded evidence",
+  async () => {
   const evidence = {
     schema: 1,
     repo: "kmjtechno/kmj-main-platform",
@@ -113,7 +118,8 @@ test("private PR322 CI status returns only validated root-owned bounded evidence
     (await handle({ op: "private_pr322_ci_status" })).response.last,
     null,
   );
-});
+  },
+);
 
 test("private PR322 CI refuses symlinked or world-readable evidence", async () => {
   for (const insecure of [
