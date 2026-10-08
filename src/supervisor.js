@@ -370,6 +370,29 @@ export function createSupervisorHandler({
         "Result",
         "ExecMainStatus",
       ]);
+      const safeFixedPath = (fixedPath, directory = false) => {
+        try {
+          const info = lstat(fixedPath);
+          return (
+            !info.isSymbolicLink() &&
+            (directory ? info.isDirectory() : info.isFile() && info.nlink === 1)
+          );
+        } catch {
+          return false;
+        }
+      };
+      const mainPlatformPrerequisites = {
+        currentConfig: safeFixedPath(
+          "/etc/kmj-codebridge-main-platform/agent.json",
+        ),
+        legacyConfig: safeFixedPath(
+          "/etc/kmj-codebridge/agents/kmj-main-platform.json",
+        ),
+        projectGit: safeFixedPath(
+          "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
+          true,
+        ),
+      };
       const mainPlatformRefresh = fixedUnitStatus(
         run,
         MAIN_PLATFORM_REFRESH_SERVICE,
@@ -389,6 +412,7 @@ export function createSupervisorHandler({
           timer,
           service,
           mainPlatformRefresh,
+          mainPlatformPrerequisites,
         },
       };
     }
