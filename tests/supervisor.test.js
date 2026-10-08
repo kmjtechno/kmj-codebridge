@@ -9,7 +9,7 @@ import {
   supervisorRequest,
 } from "../src/supervisor-client.js";
 
-test("native private PR322 CI starts only the fixed systemd unit", async () => {
+test("native private PR322 CI starts fixed systemd unit", async () => {
   const calls = [];
   const started = [];
   const handle = createSupervisorHandler({
@@ -51,9 +51,7 @@ test("native private PR322 CI starts only the fixed systemd unit", async () => {
   );
 });
 
-test(
-  "private PR322 CI status returns only validated root-owned bounded evidence",
-  async () => {
+test("native CI status validates bounded root evidence", async () => {
   const evidence = {
     schema: 1,
     repo: "kmjtechno/kmj-main-platform",
@@ -118,10 +116,9 @@ test(
     (await handle({ op: "private_pr322_ci_status" })).response.last,
     null,
   );
-  },
-);
+});
 
-test("private PR322 CI refuses symlinked or world-readable evidence", async () => {
+test("private CI rejects symlink and insecure evidence", async () => {
   for (const insecure of [
     { mode: 0o100644, isSymbolicLink: () => false, uid: 0 },
     { mode: 0o100600, isSymbolicLink: () => true, uid: 0 },
