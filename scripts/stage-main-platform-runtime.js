@@ -77,7 +77,8 @@ function verifyReusedStage(source, final, sha, pkg, uid) {
       stat.isSymbolicLink() ||
       stat.uid !== uid ||
       (stat.mode & 0o222) !== 0
-    ) unsafe();
+    )
+      unsafe();
 
     const manifestPath = path.join(final, ".stage.json");
     const manifestStat = fs.lstatSync(manifestPath);
@@ -88,17 +89,20 @@ function verifyReusedStage(source, final, sha, pkg, uid) {
       manifestStat.uid !== uid ||
       (manifestStat.mode & 0o222) !== 0 ||
       manifestStat.size > 4096
-    ) unsafe();
+    )
+      unsafe();
     const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     if (
       manifest.sha !== sha ||
       manifest.package !== pkg.name ||
       manifest.version !== pkg.version ||
       manifest.packageLockSha256 !==
-        crypto.createHash("sha256")
+        crypto
+          .createHash("sha256")
           .update(fs.readFileSync(path.join(source, "package-lock.json")))
           .digest("hex")
-    ) unsafe();
+    )
+      unsafe();
 
     const deps = fs.lstatSync(path.join(final, "node_modules"));
     if (
@@ -106,7 +110,8 @@ function verifyReusedStage(source, final, sha, pkg, uid) {
       deps.isSymbolicLink() ||
       deps.uid !== uid ||
       (deps.mode & 0o222) !== 0
-    ) unsafe();
+    )
+      unsafe();
     // Revisit links/hardlinks in the stage; even untracked dependency trees
     // must not escape the staged root through a substituted symlink.
     inspectLinks(final, final);
@@ -114,18 +119,24 @@ function verifyReusedStage(source, final, sha, pkg, uid) {
     const tracked = execFileSync("git", ["-C", source, "ls-files", "-z"], {
       timeout: 30000,
       maxBuffer: 8 * 1024 * 1024,
-    }).toString("utf8").split("\0").filter(Boolean);
+    }).toString("utf8")
+      .split("\0")
+      .filter(Boolean);
     if (
       tracked.length > 10000 ||
       !tracked.includes("src/cli.js") ||
       !tracked.includes("package-lock.json") ||
       tracked.some((p) => p === "node_modules" || p.startsWith("node_modules/"))
-    ) unsafe();
+    )
+      unsafe();
     for (const relative of tracked) {
       if (
         path.isAbsolute(relative) ||
-        relative.split("/").some((part) => !part || part === "." || part === "..")
-      ) unsafe();
+        relative
+          .split("/")
+          .some((part) => !part || part === "." || part === "..")
+      )
+        unsafe();
       const candidate = path.join(final, relative);
       const info = fs.lstatSync(candidate);
       if (
@@ -134,7 +145,8 @@ function verifyReusedStage(source, final, sha, pkg, uid) {
         info.nlink !== 1 ||
         info.uid !== uid ||
         (info.mode & 0o222) !== 0
-      ) unsafe();
+      )
+        unsafe();
       const digest = (file) =>
         crypto.createHash("sha256").update(fs.readFileSync(file)).digest("hex");
       if (digest(candidate) !== digest(path.join(source, relative))) unsafe();
