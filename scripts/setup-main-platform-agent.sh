@@ -204,6 +204,13 @@ if (fs.existsSync(dir)) {
   const entries = fs.readdirSync(dir);
   if (entries.length > 1000) throw new Error('MAIN_PLATFORM_RESTART_JOURNAL_LIMIT');
   for (const entry of entries) {
+    if (entry === 'job-archive') {
+      const archive = fs.lstatSync(path.join(dir, entry));
+      if (!archive.isDirectory() || archive.isSymbolicLink()) {
+        throw new Error('MAIN_PLATFORM_RESTART_ARCHIVE_UNSAFE');
+      }
+      continue;
+    }
     if (!entry.endsWith('.json')) {
       throw new Error('MAIN_PLATFORM_RESTART_UNKNOWN_JOURNAL_ENTRY');
     }
