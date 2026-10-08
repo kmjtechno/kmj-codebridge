@@ -14,6 +14,19 @@ for f in ci-main-platform-pr337.sh ci-main-platform-pr-worker.sh ci-main-platfor
   [[ -f "$root/scripts/$f" && ! -L "$root/scripts/$f" ]] ||
     { echo PRIVATE_CI_TRUSTED_SCRIPT_MISSING >&2; exit 3; }
 done
+# Refresh only the exact trusted website review ref before installing the
+# offline CI service. Do not checkout, merge, push, touch production or fetch
+# caller-selected repositories. The existing private deploy key is required.
+remote="$(git -c safe.directory="$project" -C "$project" remote get-url origin)"
+case "$remote" in
+  git@github.com:kmjtechno/kmj-main-platform.git|ssh://git@github.com/kmjtechno/kmj-main-platform.git|https://github.com/kmjtechno/kmj-main-platform.git) ;;
+  *) echo PRIVATE_WEBSITE_CI_ORIGIN_MISMATCH >&2; exit 4 ;;
+esac
+if ! GIT_TERMINAL_PROMPT=0 timeout 45s git -c safe.directory="$project" -C "$project" fetch --no-tags origin \
+  refs/heads/fix/public-marketing-standalone-nav-20261008:refs/remotes/origin/fix/public-marketing-standalone-nav-20261008; then
+  echo PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED >&2
+  exit 4
+fi
 if ! getent passwd kmjci >/dev/null; then
   useradd --system --user-group --no-create-home --shell /usr/sbin/nologin kmjci
 fi
