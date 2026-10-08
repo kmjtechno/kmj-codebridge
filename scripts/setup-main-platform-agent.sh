@@ -227,6 +227,15 @@ if (fs.existsSync(dir)) {
 }
 NODE
 
+# Ensure the actual service identity can traverse Node and read the runtime.
+# Root's -x check does not detect permission-denied parent directories.
+if ! runuser -u "$SERVICE_USER" -- test -x "$NODE" ||
+   ! runuser -u "$SERVICE_USER" -- test -r "$RUNTIME/src/cli.js" ||
+   ! runuser -u "$SERVICE_USER" -- test -x "$RUNTIME"; then
+  echo 'MAIN_PLATFORM_RUNTIME_NOT_ACCESSIBLE_TO_SERVICE_USER' >&2
+  exit 5
+fi
+
 # Keep an isolated copy of the existing unit so a failed restart can restore it.
 UNIT_BACKUP=""
 [[ ! -L "$SERVICE_FILE" ]] || {
