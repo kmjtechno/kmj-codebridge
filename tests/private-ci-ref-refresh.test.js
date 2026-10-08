@@ -39,9 +39,11 @@ def fixture_lstat(p):
         return result
     result=fixture_stat(p)
     if p.endswith('/packed-refs') or p.endswith('/public-marketing-standalone-nav-20261008'): result.st_mode=stat.S_IFREG|0o600
-    if p.endswith('/refs/remotes/origin/fix'):
-        if os.environ.get('REF_PRIVATE'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
-        if os.environ.get('REF_LINK'): result.st_mode=stat.S_IFLNK|0o755
+    if p in ref_owners: result.st_uid=result.st_gid=ref_owners[p]
+    if os.environ.get('REF_PRIVATE') and p not in ref_owners and (p.endswith('/refs/remotes/origin/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
+        result.st_uid=0; result.st_gid=0
+        if p.endswith('/refs/remotes/origin/fix'): result.st_mode=stat.S_IFDIR|0o700
+    if p.endswith('/refs/remotes/origin/fix') and os.environ.get('REF_LINK'): result.st_mode=stat.S_IFLNK|0o755
     if p=='/srv/kmj-codebridge-projects':
         parent_reads += 1
         if os.environ.get('SERVICE_PARENT'): result.st_uid=1001; result.st_gid=1001
@@ -72,9 +74,10 @@ def fixture_lstat(p):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23,'objects':24}.get(p,9)
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23,'objects':24,'public-marketing-standalone-nav-20261008':25}.get(p,9)
 os.close=lambda *a: None
-ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects'}
+ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects',25:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008'}
+ref_owners={}
 os.stat=lambda p, **kw: fixture_lstat(ref_paths.get(kw.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p)
 os.fstat=lambda fd: fixture_lstat(ref_paths[fd]) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
@@ -86,6 +89,14 @@ def chmod(fd, mode):
     else: git_modes['GIT' if fd==11 else 'CONFIG']=stat.S_IFDIR|mode if fd==11 else stat.S_IFREG|mode
     print('CHMOD='+str(fd))
 os.fchmod=chmod
+def chown(fd, uid, gid):
+    assert fd in [23,25] and locked
+    assert uid==gid==1001
+    before=os.fstat(fd)
+    assert before.st_uid==before.st_gid==0
+    ref_owners[ref_paths[fd]]=uid
+    print('CHOWN='+str(fd))
+os.fchown=chown
 pwd.getpwuid=lambda uid: SimpleNamespace(pw_name='untrusted' if os.environ.get('UNTRUSTED_OWNER') else 'kmjrunner' if uid else 'root', pw_uid=uid, pw_gid=uid, pw_dir='/home/kmjrunner' if uid else '/root')
 def lock(*a):
     global locked
@@ -380,6 +391,22 @@ subprocess.run=stub
     assert.equal(failure.status, 0, failure.stderr);
     assert.ok(failure.stdout.includes("REF_FAILURE_STAGE=" + stage), stage);
   }
+  const repairedRefOwner = run({
+    SERVICE_OWNER: "1",
+    WRITE_USER: "kmjrunner",
+    REF_PRIVATE: "1",
+  });
+  assert.equal(repairedRefOwner.status, 0, repairedRefOwner.stderr);
+  assert.deepEqual(repairedRefOwner.stdout.match(/CHOWN=\d+/g), [
+    "CHOWN=25",
+    "CHOWN=23",
+  ]);
+  assert.match(
+    repairedRefOwner.stdout,
+    /AUTO_UPDATE_PRIVATE_CI_REF_OWNER_REPAIRED=1/,
+  );
+  assert.match(repairedRefOwner.stdout, /PR337_REF_REFRESHED=1/);
+  assert.doesNotMatch(repairedRefOwner.stdout, /CHMOD=/);
   const unreadableRef = run({
     SERVICE_OWNER: "1",
     TRACKING_FAIL: "1",
