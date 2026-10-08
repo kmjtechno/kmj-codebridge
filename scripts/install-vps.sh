@@ -513,6 +513,23 @@ RestrictAddressFamilies=AF_UNIX
 UMask=0077
 EOF
 
+# Fixed root-owned staging cache for Main Platform's read-only runtime.
+# Preserve the private CodeBridge development source; only the reviewed
+# tracked files and preinstalled Node dependencies enter this cache.
+MAIN_PLATFORM_STAGE_ROOT=/opt/kmj-codebridge-main-platform-stage
+if [[ -L "$MAIN_PLATFORM_STAGE_ROOT" ]]; then
+  echo 'MAIN_PLATFORM_STAGE_DIR_UNSAFE' >&2
+  return 1
+fi
+if [[ ! -d "$MAIN_PLATFORM_STAGE_ROOT" ]]; then
+  install -d -m 0700 -o root -g root "$MAIN_PLATFORM_STAGE_ROOT"
+fi
+if [[ "$(stat -c '%u' "$MAIN_PLATFORM_STAGE_ROOT")" != 0 ||
+      "$(stat -c '%F' "$MAIN_PLATFORM_STAGE_ROOT")" != directory ]]; then
+  echo 'MAIN_PLATFORM_STAGE_DIR_UNSAFE' >&2
+  return 1
+fi
+
 # A legacy enrollment may exist without the new config directory. Create only
 # the fixed private destination, never overwrite ownership of an existing one.
 if [[ -L /etc/kmj-codebridge-main-platform ]]; then
@@ -549,7 +566,7 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX
-ReadWritePaths=/etc/kmj-codebridge-main-platform /etc/systemd/system /var/lib/kmj-codebridge-kmj-main-platform /srv/kmj-codebridge-projects/kmj-main-platform
+ReadWritePaths=/etc/kmj-codebridge-main-platform /etc/systemd/system /var/lib/kmj-codebridge-kmj-main-platform /srv/kmj-codebridge-projects/kmj-main-platform /opt/kmj-codebridge-main-platform-stage
 UMask=0077
 EOF
 }

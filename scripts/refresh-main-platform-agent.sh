@@ -132,8 +132,32 @@ NODE
   echo 'MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED=1'
 fi
 
+# Stage only the fixed, clean Git commit into a root-owned read-only runtime.
+# Source remains root-private; the service user never gains source access.
+NODE="/opt/kmj-codebridge-node/bin/node"
+[[ -x "$NODE" ]] || {
+  echo 'MAIN_PLATFORM_REFRESH_NODE_MISSING' >&2
+  exit 3
+}
+STAGE_HELPER="$RUNTIME/scripts/stage-main-platform-runtime.js"
+[[ -f "$STAGE_HELPER" && ! -L "$STAGE_HELPER" ]] || {
+  echo 'MAIN_PLATFORM_REFRESH_STAGE_HELPER_MISSING' >&2
+  exit 3
+}
+STAGE_RESULT="$("$NODE" "$STAGE_HELPER")" || {
+  echo 'MAIN_PLATFORM_REFRESH_STAGE_FAILED' >&2
+  exit 4
+}
+STAGED_RUNTIME="$(printf '%s\n' "$STAGE_RESULT" | sed -n 's/^MAIN_PLATFORM_RUNTIME_STAGE_PATH=//p')"
+[[ "$STAGED_RUNTIME" =~ ^/opt/kmj-codebridge-main-platform-stage/[a-f0-9]{40}$ &&
+   -d "$STAGED_RUNTIME" && ! -L "$STAGED_RUNTIME" ]] || {
+  echo 'MAIN_PLATFORM_REFRESH_STAGE_INVALID' >&2
+  exit 4
+}
+echo 'MAIN_PLATFORM_REFRESH_STAGE_READY=1'
+
 exec env \
-  CODEBRIDGE_RUNTIME="$RUNTIME" \
+  CODEBRIDGE_RUNTIME="$STAGED_RUNTIME" \
   CODEBRIDGE_PROJECT_ROOT="$PROJECT_ROOT" \
   CODEBRIDGE_CONFIG_DIR="$CONFIG_DIR" \
   CODEBRIDGE_STATE_DIR="$STATE_DIR" \
