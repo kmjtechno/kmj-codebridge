@@ -151,6 +151,82 @@ test("refuses writable or corrupted reused stage", (t) => {
   }
 });
 
+test("cached stage rejects modified tracked runtime bytes", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX stage integrity is verified on Linux CI");
+    return;
+  }
+  const { root, source, destination } = fixture();
+  try {
+    const stage = stageRuntime({ source, destination, requireRoot: false });
+    const cli = path.join(stage.directory, "src/cli.js");
+    fs.chmodSync(cli, 0o644);
+    fs.writeFileSync(cli, "export const live = false;\n");
+    fs.chmodSync(cli, 0o444);
+    assert.throws(
+      () => stageRuntime({ source, destination, requireRoot: false }),
+      /MAIN_PLATFORM_STAGE_EXISTING_UNSAFE/,
+    );
+  } finally {
+    dispose(root);
+  }
+});
+
+test("cached stage refuses changed lockfile hash or malformed manifest", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX stage integrity is verified on Linux CI");
+    return;
+  }
+  const { root, source, destination } = fixture();
+  try {
+    const stage = stageRuntime({ source, destination, requireRoot: false });
+    const lockfile = path.join(stage.directory, "package-lock.json");
+    fs.chmodSync(lockfile, 0o644);
+    fs.writeFileSync(lockfile, '{"changed":true}\n');
+    fs.chmodSync(lockfile, 0o444);
+    assert.throws(
+      () => stageRuntime({ source, destination, requireRoot: false }),
+      /MAIN_PLATFORM_STAGE_EXISTING_UNSAFE/,
+    );
+    fs.chmodSync(lockfile, 0o644);
+    fs.writeFileSync(lockfile, "{}\n");
+    fs.chmodSync(lockfile, 0o444);
+    const manifest = path.join(stage.directory, ".stage.json");
+    fs.chmodSync(manifest, 0o600);
+    fs.writeFileSync(manifest, "{bad json");
+    fs.chmodSync(manifest, 0o400);
+    assert.throws(
+      () => stageRuntime({ source, destination, requireRoot: false }),
+      /MAIN_PLATFORM_STAGE_EXISTING_UNSAFE/,
+    );
+  } finally {
+    dispose(root);
+  }
+});
+
+test("cached stage rejects a dependency symlink escaping the stage root", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX stage integrity is verified on Linux CI");
+    return;
+  }
+  const { root, source, destination } = fixture();
+  try {
+    const stage = stageRuntime({ source, destination, requireRoot: false });
+    const outside = path.join(root, "outside.js");
+    fs.writeFileSync(outside, "export const secret = true;\n");
+    const dummy = path.join(stage.directory, "node_modules/dummy");
+    fs.chmodSync(dummy, 0o755);
+    fs.symlinkSync(outside, path.join(dummy, "outside.js"));
+    fs.chmodSync(dummy, 0o555);
+    assert.throws(
+      () => stageRuntime({ source, destination, requireRoot: false }),
+      /MAIN_PLATFORM_STAGE_EXISTING_UNSAFE/,
+    );
+  } finally {
+    dispose(root);
+  }
+});
+
 test("rejects invalid Node agent syntax before publishing any stage", (t) => {
   if (process.platform === "win32") {
     t.skip("POSIX staging checks are verified on Linux CI");
