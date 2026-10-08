@@ -1203,7 +1203,7 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
     size: 500,
   };
   for (const pr of [322, 337]) {
-    for (const [text, expected] of [
+    for (const [text, expected, missingPackage] of [
       [
         "Formatting issues found in 3 files. Run without --check to fix.\nsecret=NEVER_RETURN",
         "FORMAT_ISSUES_REPORTED",
@@ -1220,6 +1220,101 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
       [
         "npm error code EBADENGINE\nnpm error Unsupported engine",
         "NODE_ENGINE_ERROR",
+      ],
+      [
+        "Error [ERR_MODULE_NOT_FOUND]: Cannot find package 'vite-plus' imported from /private/secret",
+        "NODE_ERR_MODULE_NOT_FOUND",
+        "VITE_PLUS",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-core-linux-x64-gnu'\n  code: 'MODULE_NOT_FOUND',",
+        "NODE_MODULE_NOT_FOUND",
+        "VITE_PLUS_CORE",
+      ],
+      [
+        "Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@private/secret' imported from /private/secret",
+        "NODE_ERR_MODULE_NOT_FOUND",
+      ],
+      [
+        "Error [ERR_REQUIRE_ESM]: require() of ES Module /private/secret not supported",
+        "NODE_ERR_REQUIRE_ESM",
+      ],
+      [
+        "Error [ERR_UNKNOWN_BUILTIN_MODULE]: No such built-in module: node:private",
+        "NODE_ERR_UNKNOWN_BUILTIN_MODULE",
+      ],
+      [
+        "Error: /private/secret: invalid ELF header\n  code: 'ERR_DLOPEN_FAILED'",
+        "NODE_ERR_DLOPEN_FAILED",
+      ],
+      [
+        "Error: ENOENT: no such file or directory, open '/private/secret'",
+        "WORKER_ENOENT",
+      ],
+      [
+        "Error: EACCES: permission denied, open '/private/secret'",
+        "WORKER_EACCES",
+      ],
+      [
+        "Error: EPERM: operation not permitted, open '/private/secret'",
+        "WORKER_EPERM",
+      ],
+      ["SyntaxError: Unexpected token in /private/secret", "NODE_SYNTAX_ERROR"],
+      ["TypeError: private is not a function", "NODE_TYPE_ERROR"],
+      [
+        "fatal: not a git repository (or any of the parent directories): .git",
+        "GIT_REPO_UNAVAILABLE",
+      ],
+      [
+        "example text mentions ERR_MODULE_NOT_FOUND and ENOENT without an actual error",
+        "COMMAND_FAILED_UNCLASSIFIED",
+      ],
+      [
+        "TypeError [ERR_INVALID_ARG_TYPE]: private argument must be string",
+        "NODE_TYPE_ERROR",
+      ],
+      [
+        "Error: Cannot find module '@oxlint/linux-x64-gnu'",
+        "NODE_MODULE_NOT_FOUND",
+        "OXLINT",
+      ],
+      ["Error: Cannot find module 'oxfmt'", "NODE_MODULE_NOT_FOUND", "OXFMT"],
+      [
+        "Error: Cannot find module '@rolldown/binding-linux-arm64-musl'",
+        "NODE_MODULE_NOT_FOUND",
+        "ROLLDOWN",
+      ],
+      [
+        "Error: Cannot find module 'vite-plus/private-secret'",
+        "NODE_MODULE_NOT_FOUND",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-core-private-secret'",
+        "NODE_MODULE_NOT_FOUND",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-linux-x64-gnu'",
+        "NODE_MODULE_NOT_FOUND",
+        "VITE_PLUS",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-linux-arm64-musl'",
+        "NODE_MODULE_NOT_FOUND",
+        "VITE_PLUS",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-win32-x64-msvc'",
+        "NODE_MODULE_NOT_FOUND",
+        "VITE_PLUS",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-darwin-arm64'",
+        "NODE_MODULE_NOT_FOUND",
+        "VITE_PLUS",
+      ],
+      [
+        "Error: Cannot find module '@voidzero-dev/vite-plus-linux-x64-gnu-private-secret'",
+        "NODE_MODULE_NOT_FOUND",
       ],
       [
         "npm WARN EBADENGINE Unsupported engine\nunknown failure",
@@ -1272,10 +1367,18 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
           .workerLogDiagnostic,
         expected,
       );
-      assert.deepEqual(reads, [`/var/lib/kmj-codebridge-ci/evidence/${name}`]);
+      assert.equal(
+        (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+          .workerLogMissingPackage,
+        missingPackage,
+      );
+      assert.deepEqual(
+        reads,
+        Array(2).fill(`/var/lib/kmj-codebridge-ci/evidence/${name}`),
+      );
       assert.doesNotMatch(
         JSON.stringify(await handle({ op: `private_pr${pr}_ci_status` })),
-        /NEVER_RETURN|secret=|\/var\/lib/,
+        /NEVER_RETURN|secret=|\/var\/lib|\/private|@private|private-secret/,
       );
       for (const invalid of [
         { uid: 1000 },
