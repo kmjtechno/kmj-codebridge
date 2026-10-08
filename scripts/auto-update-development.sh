@@ -137,10 +137,29 @@ TARGETS = [
 ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.com/kmjtechno/kmj-main-platform.git", "https://github.com/kmjtechno/kmj-main-platform.git"}
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
 lock_fd = None
-step = "PROJECT_METADATA"
+step = "PROJECT_LSTAT_READ"
 try:
-    project = os.lstat(PROJECT)
-    if not stat.S_ISDIR(project.st_mode) or project.st_mode & 0o022:
+    try:
+        project = os.lstat(PROJECT)
+    except FileNotFoundError:
+        step = "PROJECT_LSTAT_MISSING"
+        raise
+    except PermissionError:
+        step = "PROJECT_LSTAT_PERMISSION_DENIED"
+        raise
+    except OSError:
+        step = "PROJECT_LSTAT_OTHER_ERROR"
+        raise
+    step = "PROJECT_DIRECTORY_TYPE"
+    if not stat.S_ISDIR(project.st_mode):
+        step = "PROJECT_DIRECTORY_SYMLINK" if stat.S_ISLNK(project.st_mode) else "PROJECT_DIRECTORY_OTHER_TYPE"
+        raise ValueError("project")
+    step = "PROJECT_MODE"
+    if project.st_mode & 0o022:
+        if project.st_mode & 0o022 == 0o022:
+            step = "PROJECT_MODE_GROUP_AND_WORLD_WRITE"
+        else:
+            step = "PROJECT_MODE_GROUP_WRITE" if project.st_mode & 0o020 else "PROJECT_MODE_WORLD_WRITE"
         raise ValueError("project")
     step = "PROJECT_ACCOUNT"
     owner = pwd.getpwuid(project.st_uid)
