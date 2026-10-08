@@ -21,7 +21,8 @@ const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
 const PRIVATE_PR322_CI_SERVICE = "kmj-codebridge-private-pr322-ci.service";
-const PRIVATE_PR322_CI_EVIDENCE = "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json";
+const PRIVATE_PR322_CI_EVIDENCE =
+  "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
 const UPDATE_INSTALL_ROOT = "/opt/kmj-codebridge-stable";
 const UPDATE_HISTORY = "/var/lib/kmj-codebridge-update/release-history.json";
