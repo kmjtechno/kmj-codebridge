@@ -115,3 +115,81 @@ test("CI worker preserves required gates and never claims hosted green", () => {
   assert.match(script, /CI_GITHUB_ACTIONS=NOT_RUN/);
   assert.doesNotMatch(script, /Checks API|check-runs|\/statuses\//);
 });
+
+const siteScript = (filename) => path.join(root, "scripts", filename);
+const websitePrepare = siteScript("ci-main-platform-pr337.sh");
+const websiteFixed = siteScript("ci-main-platform-pr337-fixed.sh");
+const websiteInstaller = siteScript("install-private-pr337-ci-unit.sh");
+const websiteSource = fs.readFileSync(websitePrepare, "utf8");
+const websiteFixedSource = fs.readFileSync(websiteFixed, "utf8");
+const websiteUnit = fs.readFileSync(websiteInstaller, "utf8");
+
+test("PR337 verifier refuses caller-selected refs", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX shell test");
+  for (const file of [websitePrepare, websiteFixed, websiteInstaller]) {
+    execFileSync("bash", ["-n", file]);
+  }
+  for (const args of [["main"], ["a".repeat(40)], ["--ref", "main"]]) {
+    const result = spawnSync("bash", [websiteFixed, ...args], {
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    assert.equal(result.status, 2, result.stderr);
+  }
+});
+
+test("PR337 local CI pins source and isolates production", () => {
+  const fixedRef =
+    "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008";
+  assert.ok(websitePrepare.includes("pr337"));
+  assert.ok(websiteSource.includes(fixedRef));
+  assert.ok(websiteFixedSource.includes(fixedRef));
+  assert.match(websiteFixedSource, /EUID.*-eq 0.*# -eq 0/);
+  assert.match(websiteSource, /"pr": 337/);
+  assert.match(websiteSource, /latest-pr337\.json/);
+  for (const item of [
+    "User=kmjci",
+    "PrivateNetwork=yes",
+    "ProtectSystem=strict",
+    "ProtectHome=yes",
+    "IPAddressDeny=any",
+    "InaccessiblePaths=/srv",
+    "CI_DEPENDENCY_LOCK_CONFLICT",
+    "CI_UNSAFE_TRACKED_SYMLINK",
+    '"github_actions": "NOT_RUN"',
+    '"windows": "NOT_RUN"',
+    '"signed_production": False',
+  ]) {
+    assert.ok(websiteSource.includes(item), item);
+  }
+  const forbidden = /git\s+push|gh\s+pr\s+merge|git\s+merge/;
+  assert.doesNotMatch(websiteSource, forbidden);
+  assert.doesNotMatch(websiteFixedSource, forbidden);
+});
+
+test("PR337 service is independent of PR322 and hardened", () => {
+  assert.match(websiteUnit, /kmj-codebridge-private-pr337-ci\.service/);
+  assert.match(websiteUnit, /ci-main-platform-pr337-fixed\.sh/);
+  assert.match(websiteUnit, /ci-main-platform-pr337\.sh/);
+  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_ORIGIN_MISMATCH/);
+  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED/);
+  assert.match(websiteUnit, /timeout 45s git/);
+  assert.ok(
+    websiteUnit.includes(
+      "refs/heads/fix/public-marketing-standalone-nav-20261008:" +
+        "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
+    ),
+  );
+  for (const item of [
+    "Type=oneshot",
+    "PrivateNetwork=true",
+    "ProtectSystem=strict",
+    "NoNewPrivileges=true",
+    "ReadWritePaths=/var/lib/kmj-codebridge-ci",
+    "InaccessiblePaths=/etc/kmj-codebridge-main-platform",
+    "CapabilityBoundingSet=",
+  ]) {
+    assert.ok(websiteUnit.includes(item), item);
+  }
+  assert.doesNotMatch(websiteUnit, /systemctl\s+enable|WantedBy=/);
+});
