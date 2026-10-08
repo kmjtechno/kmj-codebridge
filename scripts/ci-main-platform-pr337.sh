@@ -7,6 +7,14 @@ if [[ $# != 1 || ! "$1" =~ ^[a-f0-9]{40}$ ]]; then echo CI_INVALID_SHA >&2; exit
 sha="$1"
 if [[ "$EUID" != 0 ]]; then echo CI_PREP_REQUIRES_ROOT >&2; exit 2; fi
 repo=/srv/kmj-codebridge-projects/kmj-main-platform
+# Offline preparation must not inherit GIT_DIR, GIT_WORK_TREE, namespaces
+# or credential/config overrides from its service environment.
+git_read() {
+  /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 \
+    GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 \
+    GIT_CONFIG_NOSYSTEM=1 GIT_NO_REPLACE_OBJECTS=1 \
+    /usr/bin/git -c safe.directory="$repo" -C "$repo" "$@"
+}
 control=/opt/kmj-codebridge-agent
 base=/var/lib/kmj-codebridge-ci
 worker="$(dirname "$(realpath "$0")")/ci-main-platform-pr-worker.sh"
@@ -14,17 +22,17 @@ for tool in git tar python3 systemd-run flock; do command -v "$tool" >/dev/null 
 id -u kmjci >/dev/null || { echo CI_UNPRIVILEGED_IDENTITY_MISSING >&2; exit 2; }
 test -f "$worker" && test -f "$control/src/license.js" || exit 2
 test -d "$repo/.git" || exit 2
-[[ "$(git -c safe.directory="$repo" -C "$repo" rev-parse refs/remotes/origin/fix/public-marketing-standalone-nav-20261008)" == "$sha" ]] ||
+[[ "$(git_read rev-parse refs/remotes/origin/fix/public-marketing-standalone-nav-20261008)" == "$sha" ]] ||
   { echo CI_REF_SHA_MISMATCH >&2; exit 3; }
-[[ "$(git -c safe.directory="$repo" -C "$repo" cat-file -t "$sha")" == commit ]] || exit 3
-[[ -z "$(git -c safe.directory="$repo" -C "$repo" status --porcelain)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
+[[ "$(git_read cat-file -t "$sha")" == commit ]] || exit 3
+[[ -z "$(git_read status --porcelain)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
 for file in apps/platform/composer.lock apps/platform/package-lock.json; do
-  target="$(git -c safe.directory="$repo" -C "$repo" show "$sha:$file" | sha256sum | cut -d' ' -f1)"
-  installed="$(git -c safe.directory="$repo" -C "$repo" show "HEAD:$file" | sha256sum | cut -d' ' -f1)"
+  target="$(git_read show "$sha:$file" | sha256sum | cut -d' ' -f1)"
+  installed="$(git_read show "HEAD:$file" | sha256sum | cut -d' ' -f1)"
   [[ "$target" == "$installed" ]] || { echo CI_DEPENDENCY_LOCK_CONFLICT >&2; exit 3; }
 done
 # Disallow tracked Git symlinks before root-owned archive extraction.
-if git -c safe.directory="$repo" -C "$repo" ls-tree -r "$sha" | grep -q '^120000 '; then
+if git_read ls-tree -r "$sha" | grep -q '^120000 '; then
   echo CI_UNSAFE_TRACKED_SYMLINK >&2; exit 3
 fi
 install -d -o root -g root -m 0711 "$base" "$base/jobs"
@@ -35,7 +43,7 @@ job="$(mktemp -d "$base/jobs/website337-XXXXXXXX")"
 cleanup() { [[ "$job" == "$base"/jobs/website337-* ]] && rm -rf --one-file-system -- "$job"; }
 trap cleanup EXIT
 mkdir -p "$job/src/.codebridge-contract/src"
-git -c safe.directory="$repo" -C "$repo" archive --format=tar "$sha" |
+git_read archive --format=tar "$sha" |
   tar -x --no-same-owner --no-same-permissions -C "$job/src"
 # Detached .git HEAD is a nonproduction fixture for the staging header test.
 mkdir "$job/src/.git"

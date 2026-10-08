@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -10,6 +11,68 @@ const prepare = path.join(root, "scripts/ci-main-platform-pr.sh");
 const worker = path.join(root, "scripts/ci-main-platform-pr-worker.sh");
 const script = fs.readFileSync(prepare, "utf8");
 const source = fs.readFileSync(worker, "utf8");
+
+test("website CI lock reads ignore inherited Git repository overrides", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX bash execution");
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-git-env-"));
+  try {
+    const repo = path.join(temp, "source"),
+      decoy = path.join(temp, "decoy");
+    for (const dir of [repo, decoy]) {
+      fs.mkdirSync(dir);
+      execFileSync("git", ["-C", dir, "init", "-q"]);
+    }
+    const git = (...args) =>
+      execFileSync("git", ["-C", repo, ...args], { encoding: "utf8" });
+    fs.mkdirSync(path.join(repo, "apps/platform"), { recursive: true });
+    for (const name of ["composer.lock", "package-lock.json"])
+      fs.writeFileSync(
+        path.join(repo, "apps/platform", name),
+        '{"locked":true}\n',
+      );
+    git("add", ".");
+    git(
+      "-c",
+      "user.name=CI",
+      "-c",
+      "user.email=ci@example.invalid",
+      "commit",
+      "-qm",
+      "fixture",
+    );
+    const sha = git("rev-parse", "HEAD").trim();
+    const content = fs.readFileSync(
+      path.join(root, "scripts/ci-main-platform-pr337.sh"),
+      "utf8",
+    );
+    const helper = content.match(/git_read\(\) \{[\s\S]*?\n\}/)?.[0] ?? "";
+    const block = content.match(
+      /for file in apps\/platform\/composer.lock[\s\S]*?\ndone/,
+    )[0];
+    const result = spawnSync(
+      "bash",
+      [
+        "-c",
+        'set -Eeuo pipefail; repo="$1"; sha="$2";\n' + helper + "\n" + block,
+        "ci-lock",
+        repo,
+        sha,
+      ],
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_DIR: path.join(decoy, ".git"),
+          GIT_WORK_TREE: decoy,
+        },
+        timeout: 5000,
+      },
+    );
+    assert.equal(result.status, 0, result.stderr);
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});
 
 test("CI shell files are syntactically valid on Linux", (t) => {
   if (process.platform === "win32") return t.skip("POSIX bash syntax");
