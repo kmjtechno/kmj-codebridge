@@ -881,7 +881,7 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
             value.length > 64 ||
             !(
               value === "UNAVAILABLE" ||
-              /^[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[A-Za-z0-9.-]+)?$/.test(value)
+              /^[0-9]{1,3}\.[0-9]{1,3}(?:\.[0-9]{1,3})?$/.test(value)
             ),
         ))
     )

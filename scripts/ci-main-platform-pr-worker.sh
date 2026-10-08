@@ -11,6 +11,33 @@ if [[ "$src" != /var/lib/kmj-codebridge-ci/jobs/*/src ]]; then
   echo "CI_WORKER_UNTRUSTED_WORKSPACE" >&2
   exit 2
 fi
+# Emit fixed preflight versions before any project code or gate executes.
+platform_path="$PATH"
+# Hosted platform assertions require Node 22; the separate license consumer
+# assertion requires Node 24. Missing approved runtimes fail their named gate.
+if [[ -d /opt/kmj-codebridge-node22/bin ]]; then
+  export PATH="/opt/kmj-codebridge-node22/bin:$PATH"
+fi
+runtime_version() {
+  local label="$1" value
+  shift
+  value="$(cd / && "$@" 2>/dev/null)" || value=UNAVAILABLE
+  if [[ ! "$value" =~ ^[0-9]{1,3}\.[0-9]{1,3}(\.[0-9]{1,3})?$ || ${#value} -gt 64 ]]; then
+    value=UNAVAILABLE
+  fi
+  printf 'KMJ_CI_RUNTIME_%s=%s\n' "$label" "$value"
+}
+runtime_version PHP php -r 'echo PHP_VERSION;'
+runtime_version NODE_PLATFORM node -p 'process.versions.node'
+consumer_path="$platform_path"
+if [[ -x /opt/kmj-codebridge-node/bin/node ]]; then
+  consumer_path="/opt/kmj-codebridge-node/bin:$consumer_path"
+fi
+runtime_version NODE_CONSUMER /usr/bin/env PATH="$consumer_path" node -p 'process.versions.node'
+runtime_version PYTHON python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'
+runtime_version CARGO /bin/bash -o pipefail -c 'cargo --version | awk "{print \$2}"'
+runtime_version POSTGRES /bin/bash -o pipefail -c '/usr/lib/postgresql/17/bin/postgres --version | awk "{print \$3}"'
+
 cd "$src/apps/platform"
 export APP_ENV=testing
 export APP_KEY='0123456789abcdef0123456789abcdef'
@@ -35,12 +62,6 @@ gate() {
   "$@"
   echo "KMJ_CI_GATE_PASS=$label"
 }
-platform_path="$PATH"
-# Hosted platform assertions require Node 22; the separate license consumer
-# assertion requires Node 24. Missing approved runtimes fail their named gate.
-if [[ -d /opt/kmj-codebridge-node22/bin ]]; then
-  export PATH="/opt/kmj-codebridge-node22/bin:$PATH"
-fi
 platform_runtime() {
   php --version && node --version &&
   php -r 'exit(PHP_VERSION_ID >= 80300 && PHP_VERSION_ID < 80600 ? 0 : 1);' &&
@@ -54,25 +75,6 @@ php_syntax() {
     php -l "$src/$file" || return 1
   done <<< "$files"
 }
-runtime_version() {
-  local label="$1" value
-  shift
-  value="$("$@" 2>/dev/null)" || value=UNAVAILABLE
-  if [[ ! "$value" =~ ^[0-9]+\.[0-9]+(\.[0-9]+)?(-[A-Za-z0-9.-]+)?$ || ${#value} -gt 64 ]]; then
-    value=UNAVAILABLE
-  fi
-  printf 'KMJ_CI_RUNTIME_%s=%s\n' "$label" "$value"
-}
-runtime_version PHP php -r 'echo PHP_VERSION;'
-runtime_version NODE_PLATFORM node -p 'process.versions.node'
-consumer_path="$platform_path"
-if [[ -x /opt/kmj-codebridge-node/bin/node ]]; then
-  consumer_path="/opt/kmj-codebridge-node/bin:$consumer_path"
-fi
-runtime_version NODE_CONSUMER /usr/bin/env PATH="$consumer_path" node -p 'process.versions.node'
-runtime_version PYTHON python3 -c 'import sys; print(".".join(map(str, sys.version_info[:3])))'
-runtime_version CARGO /bin/bash -o pipefail -c 'cargo --version | awk "{print \$2}"'
-runtime_version POSTGRES /bin/bash -o pipefail -c '/usr/lib/postgresql/17/bin/postgres --version | awk "{print \$3}"'
 gate platform_runtime platform_runtime
 test -f .env || cp .env.example .env
 touch database/database.sqlite

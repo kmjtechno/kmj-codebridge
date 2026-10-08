@@ -117,8 +117,10 @@ gates = {
 }
 runtime_versions = {}
 for line in lines:
-    match = re.fullmatch(r"KMJ_CI_RUNTIME_(PHP|NODE_PLATFORM|NODE_CONSUMER|PYTHON|CARGO|POSTGRES)=(UNAVAILABLE|[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[A-Za-z0-9.-]+)?)", line)
-    if match and len(match[2]) <= 64:
+    if line.startswith("KMJ_CI_GATE_BEGIN="):
+        break
+    match = re.fullmatch(r"KMJ_CI_RUNTIME_(PHP|NODE_PLATFORM|NODE_CONSUMER|PYTHON|CARGO|POSTGRES)=(UNAVAILABLE|[0-9]{1,3}\.[0-9]{1,3}(?:\.[0-9]{1,3})?)", line)
+    if match and match[1] not in runtime_versions:
         runtime_versions[match[1]] = match[2]
 passed = []
 failed_gate = None

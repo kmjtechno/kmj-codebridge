@@ -106,6 +106,14 @@ test("isolated Git history supports existing head/base diff without source crede
     );
     const global = path.join(temp, "poison-global");
     fs.writeFileSync(global, `[init]\n templateDir = ${poison}\n`);
+    const unsafeControl = path.join(temp, "unsafe-template-control");
+    execFileSync("git", ["init", "-q", unsafeControl], {
+      env: { ...process.env, GIT_CONFIG_GLOBAL: global },
+    });
+    assert.equal(
+      fs.existsSync(path.join(unsafeControl, ".git/private-template-secret")),
+      true,
+    );
     const parent = fs.readFileSync(
       path.join(root, "scripts", parents[0]),
       "utf8",
@@ -124,7 +132,15 @@ test("isolated Git history supports existing head/base diff without source crede
         job,
         sha,
       ],
-      { encoding: "utf8", timeout: 5000 },
+      {
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GIT_CONFIG_GLOBAL: global,
+          GIT_CONFIG_SYSTEM: global,
+        },
+        timeout: 5000,
+      },
     );
     assert.equal(result.status, 0, result.stderr);
     const diff = execFileSync(
@@ -174,7 +190,7 @@ test("trusted manifests and readback retain new failure gates and producer/consu
         output = path.join(temp, "evidence.json");
       fs.writeFileSync(
         log,
-        "KMJ_CI_GATE_BEGIN=php_static_analysis\nKMJ_CI_RUNTIME_PHP=8.4.10\nKMJ_CI_RUNTIME_CARGO=UNAVAILABLE\nKMJ_CI_RUNTIME_NODE_PLATFORM=secret-invalid\nsecret details stay in bounded private log\n",
+        "KMJ_CI_RUNTIME_PHP=8.4.10\nKMJ_CI_RUNTIME_CARGO=UNAVAILABLE\nKMJ_CI_RUNTIME_NODE_PLATFORM=0.0-secretTOKEN\nKMJ_CI_GATE_BEGIN=php_static_analysis\nKMJ_CI_RUNTIME_PHP=9.9.9\nKMJ_CI_RUNTIME_CARGO=0.0-secretTOKEN\nKMJ_CI_RUNTIME_POSTGRES=17.9\nsecret details stay in bounded private log\n",
       );
       execFileSync("python3", [
         "-c",
@@ -233,6 +249,12 @@ test("trusted manifests and readback retain new failure gates and producer/consu
         null,
       );
       record.gate_markers = [];
+      record.runtime_versions.NODE_PLATFORM = "0.0-secretTOKEN";
+      assert.equal(
+        (await handler({ op: `private_pr${record.pr}_ci_status` })).response
+          .last,
+        null,
+      );
       record.runtime_versions.NODE_PLATFORM = ["22.0.0"];
       assert.equal(
         (await handler({ op: `private_pr${record.pr}_ci_status` })).response
@@ -260,7 +282,7 @@ test("runtime markers expose bounded versions and suppress arbitrary tool output
     [
       "-ec",
       helper +
-        "\nruntime_version PHP printf 8.4.10\nruntime_version CARGO printf secret-private-path\nruntime_version POSTGRES false\n",
+        "\nruntime_version PHP printf 8.4.10\nruntime_version CARGO printf 0.0-secretTOKEN\nruntime_version POSTGRES false\n",
     ],
     { encoding: "utf8", timeout: 5000 },
   );
