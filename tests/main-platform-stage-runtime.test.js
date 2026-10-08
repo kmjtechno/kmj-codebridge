@@ -160,15 +160,30 @@ test("rejects invalid Node agent syntax before publishing any stage", (t) => {
   try {
     fs.writeFileSync(path.join(source, "src/cli.js"), "export default ===;\n");
     git(source, "add", "src/cli.js");
-    git(source, "-c", "user.name=Test", "-c", "user.email=test@example.test",
-      "commit", "-qm", "invalid syntax");
-    git(source, "update-ref", "refs/remotes/origin/main",
-      git(source, "rev-parse", "HEAD"));
+    git(
+      source,
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.test",
+      "commit",
+      "-qm",
+      "invalid syntax",
+    );
+    git(
+      source,
+      "update-ref",
+      "refs/remotes/origin/main",
+      git(source, "rev-parse", "HEAD"),
+    );
     assert.throws(
       () => stageRuntime({ source, destination, requireRoot: false }),
       /Command failed/,
     );
-    assert.equal(fs.readdirSync(destination).some(p => /^[a-f0-9]{40}$/.test(p)), false);
+    assert.equal(
+      fs.readdirSync(destination).some((p) => /^[a-f0-9]{40}$/.test(p)),
+      false,
+    );
   } finally {
     dispose(root);
   }
