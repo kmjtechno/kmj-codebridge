@@ -196,6 +196,51 @@ function fixedUpdateMarkers(run, unit) {
     .slice(-24);
 }
 
+// Classify only hardcoded PR337 CI journal events. Do not return stderr,
+// repository URLs, remote authentication details or attacker-controlled output.
+function fixedWebsiteCiDiagnostic(run) {
+  let output;
+  try {
+    output = String(
+      run(JOURNALCTL, [
+        "-u",
+        PRIVATE_PR337_CI_SERVICE,
+        "-n",
+        "70",
+        "--no-pager",
+        "--output=cat",
+      ]),
+    );
+  } catch {
+    return "LOG_UNAVAILABLE";
+  }
+  const lines = output.split(/\r?\n/).slice(-70);
+  for (const line of lines.reverse()) {
+    if (line.includes("KMJ_CI_FIXED_REF_LOOKUP_FAILED"))
+      return "FIXED_REF_LOOKUP_FAILED";
+    if (line.includes("KMJ_CI_FIXED_REVISION_INVALID"))
+      return "FIXED_REF_INVALID";
+    if (line.includes("KMJ_CI_FIXED_PROJECT_UNAVAILABLE"))
+      return "PROJECT_UNAVAILABLE";
+    if (line.includes("CI_REF_SHA_MISMATCH")) return "HEAD_MISMATCH";
+    if (line.includes("CI_DIRTY_SOURCE")) return "DIRTY_SOURCE";
+    if (line.includes("CI_DEPENDENCY_LOCK_CONFLICT"))
+      return "DEPENDENCY_LOCK_CONFLICT";
+    if (line.includes("PRIVATE_WEBSITE_CI_ORIGIN_MISMATCH"))
+      return "ORIGIN_MISMATCH";
+    if (line.includes("PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED"))
+      return "REF_FETCH_FAILED";
+    if (/fatal: .*dubious ownership/i.test(line)) return "GIT_UNSAFE_OWNERSHIP";
+    if (/fatal: .*not a git repository/i.test(line)) return "GIT_REPO_UNAVAILABLE";
+    if (/fatal: .*permission denied/i.test(line)) return "GIT_PERMISSION_DENIED";
+    if (/fatal: .*not a valid object name/i.test(line))
+      return "GIT_OBJECT_UNAVAILABLE";
+    if (/fatal: .*unable to access/i.test(line)) return "GIT_ACCESS_FAILED";
+    if (/fatal: /.test(line)) return "GIT_FATAL_OTHER";
+  }
+  return "NO_CLASSIFIED_ERROR";
+}
+
 function fixedMainPlatformMarkers(run) {
   const allowed = new Map([
     [
@@ -646,6 +691,7 @@ export function createSupervisorHandler({
             337,
             PRIVATE_PR337_CI_EVIDENCE,
           ),
+          privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
           mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
           mainPlatformEvidence: fixedMainPlatformMarkers(run),
