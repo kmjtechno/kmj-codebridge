@@ -17,6 +17,7 @@ const CONFIGS = {
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
+const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
@@ -182,6 +183,43 @@ function fixedUpdateMarkers(run, unit) {
         (flags.has(key) && value === "1")
       );
     })
+    .slice(-24);
+}
+
+function fixedMainPlatformMarkers(run) {
+  const allowed = new Map([
+    [
+      "Existing Main Platform agent config verified.",
+      "EXISTING_CONFIG_VERIFIED",
+    ],
+    [
+      "KMJ Main Platform CodeBridge project agent is active.",
+      "SERVICE_ACTIVE_CONFIRMED",
+    ],
+    ["MAIN_PLATFORM_AGENT_GATEWAY_VERIFIED", "GATEWAY_VERIFIED"],
+    ["config_identity=PASS", "CONFIG_IDENTITY_PASS"],
+    ["gateway_health=PASS", "GATEWAY_HEALTH_PASS"],
+    ["credential_introspection=PASS", "CREDENTIAL_INTROSPECTION_PASS"],
+  ]);
+  let text;
+  try {
+    text = String(
+      run(JOURNALCTL, [
+        "-u",
+        MAIN_PLATFORM_REFRESH_SERVICE,
+        "-n",
+        "120",
+        "--no-pager",
+        "--output=cat",
+      ]),
+    );
+  } catch {
+    return [];
+  }
+  return text
+    .split(/\r?\n/)
+    .map((line) => allowed.get(line.trim()))
+    .filter(Boolean)
     .slice(-24);
 }
 
@@ -443,6 +481,17 @@ export function createSupervisorHandler({
           true,
         ),
       };
+      const mainPlatformAgent = fixedUnitStatus(
+        run,
+        MAIN_PLATFORM_AGENT_SERVICE,
+        [
+          "ActiveState",
+          "SubState",
+          "MainPID",
+          "NRestarts",
+          "ExecMainStartTimestamp",
+        ],
+      );
       const mainPlatformRefresh = fixedUnitStatus(
         run,
         MAIN_PLATFORM_REFRESH_SERVICE,
@@ -462,7 +511,9 @@ export function createSupervisorHandler({
           timer,
           service,
           mainPlatformRefresh,
+          mainPlatformAgent,
           mainPlatformPrerequisites,
+          mainPlatformEvidence: fixedMainPlatformMarkers(run),
           updateMarkers: fixedUpdateMarkers(run, UPDATE_SERVICE),
           mainPlatformRefreshMarkers: fixedUpdateMarkers(
             run,
