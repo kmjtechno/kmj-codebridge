@@ -370,11 +370,17 @@ export function createSupervisorHandler({
         "Result",
         "ExecMainStatus",
       ]);
+      const mainPlatformRefresh = fixedUnitStatus(
+        run,
+        MAIN_PLATFORM_REFRESH_SERVICE,
+        ["ActiveState", "SubState", "Result", "ExecMainStatus"],
+      );
       return {
         response: {
           available: timer.installed && service.installed,
           timer,
           service,
+          mainPlatformRefresh,
         },
       };
     }
