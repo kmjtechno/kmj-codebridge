@@ -123,9 +123,7 @@ test("existing Main Platform agent requires a bounded job-safe restart and rollb
   assert.ok(setup.includes('-p ProtectSystem=strict'));
   assert.ok(setup.includes('-p RestrictAddressFamilies=AF_UNIX'));
   assert.ok(
-    setup.includes(
-      `/bin/sh -c 'test -x "$1" && test -r "$2" && test -x "$3"'`,
-    ),
+    setup.includes(`/bin/sh -c 'test -x "$1" && test -r "$2" && test -x "$3"'`),
   );
   assert.ok(setup.includes('sh "$NODE" "$RUNTIME/src/cli.js" "$RUNTIME"'));
   assert.ok(setup.includes("MAIN_PLATFORM_RESTART_EFFECTIVE_UNIT_CONFLICT"));
