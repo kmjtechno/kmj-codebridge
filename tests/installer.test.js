@@ -124,6 +124,14 @@ test("installer defines agent and supervisor unit rollback paths before use", ()
   assert.match(script, /ROLLBACK_SUPERVISOR_SOCKET=/);
 });
 
+test("Node 24 installer preserves traversal-only access for a separate service identity", () => {
+  assert.match(installer, /CODEBRIDGE_NODE_DIR_UNSAFE/);
+  assert.match(installer, /stat -c '%u' "\$NODE_DIR"/);
+  assert.match(installer, /\[\[ -L "\$NODE_DIR" \]\]/);
+  assert.match(installer, /chmod 0711 "\$NODE_DIR"/);
+  assert.doesNotMatch(installer, /chmod 0777 "\$NODE_DIR"/);
+});
+
 test("installer provisions a restricted socket-activated supervisor", () => {
   assert.match(
     script,
