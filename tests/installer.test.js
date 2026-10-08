@@ -127,7 +127,7 @@ test("installer defines agent and supervisor unit rollback paths before use", ()
 test("Node 24 installer preserves traversal-only access for a separate service identity", () => {
   assert.match(script, /CODEBRIDGE_NODE_DIR_UNSAFE/);
   assert.match(script, /stat -c '%u' "\$NODE_DIR"/);
-  assert.match(script, /\[\[ -L "\$NODE_DIR" \]\]/);
+  assert.ok(script.includes('[[ -L "$NODE_DIR" ||'));
   assert.match(script, /chmod 0711 "\$NODE_DIR"/);
   assert.doesNotMatch(script, /chmod 0777 "\$NODE_DIR"/);
 });
