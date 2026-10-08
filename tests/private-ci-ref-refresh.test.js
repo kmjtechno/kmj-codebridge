@@ -24,8 +24,10 @@ locked = False
 parent_reads = 0
 ref_owners = {}
 ref_reads = 0
+log_reads = 0
+log_content = b'0'*40 + b' 05d1c69eddb3c47854362f5681ebe7ebf3dd7e51 Root <fixture@example.invalid> 1 +0000\\tfetch PRIVATE_HISTORY\\n'
 def fixture_lstat(p, from_fd=False):
-    global project_reads, parent_reads, ref_reads
+    global project_reads, parent_reads, ref_reads, log_reads
     if p == '/srv/kmj-codebridge-projects/kmj-main-platform':
         error=os.environ.get('PROJECT_ERROR')
         if error=='missing': raise FileNotFoundError(2, 'private error')
@@ -41,7 +43,7 @@ def fixture_lstat(p, from_fd=False):
         return result
     result=fixture_stat(p)
     if p.endswith('/packed-refs') or p.endswith('/public-marketing-standalone-nav-20261008'): result.st_mode=stat.S_IFREG|0o600
-    if os.environ.get('REF_REPAIR') and (p.endswith('/refs/remotes/origin/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
+    if os.environ.get('REF_REPAIR') and '/.git/refs/' in p and (p.endswith('/refs/remotes/origin/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
         result.st_uid=0; result.st_gid=0; result.st_mode=(stat.S_IFDIR|0o700 if p.endswith('/fix') else stat.S_IFREG|0o600); result.st_size=41 if not p.endswith('/fix') else 64
         if os.environ.get('REF_DONE') or (os.environ.get('REF_PARTIAL') and not p.endswith('/fix')): result.st_uid=1001; result.st_gid=1001
         if p in ref_owners: result.st_uid,result.st_gid=ref_owners[p]
@@ -52,6 +54,16 @@ def fixture_lstat(p, from_fd=False):
         if os.environ.get('REF_BAD_OWNER'): result.st_uid=1002
         if os.environ.get('REF_WORLD'): result.st_mode |= 0o002
         if os.environ.get('REF_HARDLINK') and not p.endswith('/fix'): result.st_nlink=2
+    if os.environ.get('LOG_REPAIR') and '/.git/logs/' in p and (p.endswith('/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
+        result.st_uid=0; result.st_gid=0; result.st_mode=(stat.S_IFDIR|0o700 if p.endswith('/fix') else stat.S_IFREG|0o600); result.st_size=len(log_content) if not p.endswith('/fix') else 64
+        if os.environ.get('LOG_DONE') or (os.environ.get('LOG_PARTIAL') and not p.endswith('/fix')): result.st_uid=1001; result.st_gid=1001
+        if p in ref_owners: result.st_uid,result.st_gid=ref_owners[p]
+        if os.environ.get('LOG_BAD_OWNER'): result.st_uid=1002
+        if os.environ.get('LOG_WORLD'): result.st_mode |= 0o002
+        if os.environ.get('LOG_HARDLINK') and not p.endswith('/fix'): result.st_nlink=2
+        if not p.endswith('/fix'):
+            log_reads += 1
+            if os.environ.get('LOG_RACE') and log_reads>1: result.st_ino=2
     if os.environ.get('REFLOG_PRIVATE') and '/.git/logs/' in p and p.endswith('/fix'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
     if p.endswith('/refs/remotes/origin/fix'):
         if os.environ.get('REF_PRIVATE'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
@@ -121,14 +133,21 @@ def chmod(fd, mode):
     print('CHMOD='+str(fd))
 os.fchmod=chmod
 def change_owner(fd, uid, gid):
-    assert fd in [23,25] and locked
+    assert fd in [23,25,31,32] and locked
     assert uid==1001 and gid==1001
+    if fd==31 and os.environ.get('LOG_CHOWN_FAIL'): raise PermissionError(13,'private error')
     if fd==23 and os.environ.get('REF_CHOWN_FAIL'): raise PermissionError(13,'private error')
     ref_owners[ref_paths[fd]]=(uid,gid)
     print('CHOWN='+str(fd))
 os.fchown=change_owner
-os.listdir=lambda fd: ['public-marketing-standalone-nav-20261008','other-ref'] if os.environ.get('REF_OTHER_CHILD') else ['public-marketing-standalone-nav-20261008']
-os.pread=lambda fd,n,offset: (b'private-invalid-ref' if os.environ.get('REF_BAD_CONTENT') else b'05d1c69eddb3c47854362f5681ebe7ebf3dd7e51\\n')[:n]
+os.listdir=lambda fd: ['public-marketing-standalone-nav-20261008','other-ref'] if os.environ.get('REF_OTHER_CHILD') or (fd==31 and os.environ.get('LOG_OTHER_CHILD')) else ['public-marketing-standalone-nav-20261008']
+def pread_fixture(fd,n,offset):
+    if fd==32:
+        data=b'private-invalid-history' if os.environ.get('LOG_BAD_CONTENT') else log_content
+        if os.environ.get('LOG_CHANGED') and ref_paths[32] in ref_owners: data+=b'changed'
+        return data[:n]
+    return (b'private-invalid-ref' if os.environ.get('REF_BAD_CONTENT') else b'05d1c69eddb3c47854362f5681ebe7ebf3dd7e51\\n')[:n]
+os.pread=pread_fixture
 
 pwd.getpwuid=lambda uid: SimpleNamespace(pw_name='untrusted' if os.environ.get('UNTRUSTED_OWNER') else 'kmjrunner' if uid else 'root', pw_uid=uid, pw_gid=uid, pw_dir='/home/kmjrunner' if uid else '/root')
 def lock(*a):
@@ -180,6 +199,7 @@ def stub(args, **kw):
         else:
             assert a[3]==old
             rc=int(os.environ.get('CAS_FAIL','0'))
+            if os.environ.get('LOG_REPAIR') and 'public-marketing' in a[1] and fixture_lstat(ref_paths[31]).st_uid!=1001: rc=128
             if not rc: print('UPDATED='+a[1]+'='+a[2])
     else: raise AssertionError(a)
     return SimpleNamespace(returncode=rc,stdout=result+'\\n',stderr=os.environ.get('GIT_STDERR',''))
@@ -526,7 +546,6 @@ subprocess.run=stub
   assert.doesNotMatch(replacedDirectoryRef.stdout, /CHOWN=23|UPDATED=/);
   const reflogDenied = run({
     SERVICE_OWNER: "1",
-    REFLOG_PRIVATE: "1",
     FETCH_FAIL: "1",
     GIT_STDERR:
       "error: unable to append to '.git/logs/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008': Permission denied",
@@ -534,11 +553,55 @@ subprocess.run=stub
   assert.equal(reflogDenied.status, 0, reflogDenied.stderr);
   assert.match(reflogDenied.stdout, /REF_FAILURE_TARGET=WEBSITE_REFLOG/);
   assert.match(reflogDenied.stdout, /REF_LOG_FIX_READ=OK/);
-  assert.match(reflogDenied.stdout, /REF_LOG_FIX_OWNER=ROOT/);
+  assert.match(reflogDenied.stdout, /REF_LOG_FIX_OWNER=MATCHES_PROJECT/);
   assert.doesNotMatch(
     reflogDenied.stdout,
     /unable to append|Permission denied/,
   );
+  const logFixture = {
+    SERVICE_OWNER: "1",
+    SERVICE_PARENT: "1",
+    LOG_REPAIR: "1",
+    WRITE_USER: "kmjrunner",
+  };
+  const repairedLog = run(logFixture);
+  assert.equal(repairedLog.status, 0, repairedLog.stderr);
+  assert.deepEqual(repairedLog.stdout.match(/CHOWN=\d+/g), [
+    "CHOWN=32",
+    "CHOWN=31",
+  ]);
+  assert.match(repairedLog.stdout, /PR337_REF_REFRESHED=1/);
+  assert.match(repairedLog.stdout, /PR337_REFLOG_METADATA_REPAIRED=1/);
+  assert.doesNotMatch(repairedLog.stdout, /PRIVATE_HISTORY|fixture@example/);
+  for (const flag of [
+    "LOG_BAD_OWNER",
+    "LOG_WORLD",
+    "LOG_HARDLINK",
+    "LOG_OTHER_CHILD",
+    "LOG_BAD_CONTENT",
+    "LOG_RACE",
+    "GROUP_OTHER",
+  ]) {
+    const rejected = run({ ...logFixture, [flag]: "1" });
+    assert.equal(rejected.status, 0, rejected.stderr);
+    assert.match(rejected.stdout, /REF_REFRESH_DEFERRED_UNTRUSTED/);
+    assert.doesNotMatch(rejected.stdout, /CHOWN=|UPDATED=/);
+  }
+  const partialLog = run({ ...logFixture, LOG_PARTIAL: "1" });
+  assert.equal(partialLog.status, 0, partialLog.stderr);
+  assert.deepEqual(partialLog.stdout.match(/CHOWN=\d+/g), ["CHOWN=31"]);
+  assert.match(partialLog.stdout, /PR337_REF_REFRESHED=1/);
+  const doneLog = run({ ...logFixture, LOG_DONE: "1" });
+  assert.equal(doneLog.status, 0, doneLog.stderr);
+  assert.doesNotMatch(doneLog.stdout, /CHOWN=/);
+  assert.match(doneLog.stdout, /PR337_REF_REFRESHED=1/);
+  for (const flag of ["LOG_CHOWN_FAIL", "LOG_CHANGED"]) {
+    const interrupted = run({ ...logFixture, [flag]: "1" });
+    assert.equal(interrupted.status, 0, interrupted.stderr);
+    assert.deepEqual(interrupted.stdout.match(/CHOWN=\d+/g), ["CHOWN=32"]);
+    assert.match(interrupted.stdout, /REFLOG_METADATA_REPAIR_INCOMPLETE/);
+    assert.doesNotMatch(interrupted.stdout, /UPDATED=/);
+  }
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
