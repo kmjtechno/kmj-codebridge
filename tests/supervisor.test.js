@@ -1669,6 +1669,25 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       `AUTO_UPDATE_PRIVATE_CI_${entry}_TYPE=DIRECTORY`,
       `AUTO_UPDATE_PRIVATE_CI_${entry}_MODE=NONWRITE`,
     ]),
+    ...[
+      "REF_ROOT",
+      "REF_REMOTES",
+      "REF_ORIGIN",
+      "REF_FIX_PARENT",
+      "REF_WEBSITE",
+      "REF_PACKED",
+    ].flatMap((entry) => [
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_READ=OK`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_OWNER=ROOT`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_GID=MATCHES_PRIMARY`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_TYPE=DIRECTORY`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_MODE=NONWRITE`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_ACCESS=DENIED`,
+      `AUTO_UPDATE_PRIVATE_CI_${entry}_WRITE_ACCESS=DENIED`,
+    ]),
+    "AUTO_UPDATE_PRIVATE_CI_REF_WEBSITE_NLINK=VALID",
+    "AUTO_UPDATE_PRIVATE_CI_REF_PACKED_SIZE=VALID",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=REVISION_UNAVAILABLE",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_STAGE=FETCH",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_EXIT=EXIT_128",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=KEY_PERMISSIONS",
@@ -1687,6 +1706,8 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       args[1] === "kmj-codebridge-auto-update.service"
         ? [
             ...expected,
+            "AUTO_UPDATE_PRIVATE_CI_REF_UNKNOWN_ACCESS=ALLOWED",
+            "AUTO_UPDATE_PRIVATE_CI_REF_WEBSITE_ACCESS=/private/key",
             "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=/private/key",
             "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_STAGE=UNKNOWN",
             "AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=secret-account",
@@ -1709,10 +1730,10 @@ test("fixed Git metadata markers expose only classes for both protected entries"
     /secret|GIT_OTHER|GIT_DIRECTORY_SIZE/,
   );
   expected.push(
-    ...Array(80).fill("AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE"),
+    ...Array(160).fill("AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE"),
   );
   const capped = await handle({ op: "update_status" });
-  assert.equal(capped.response.updateMarkers.length, 64);
+  assert.equal(capped.response.updateMarkers.length, 128);
   assert.ok(
     capped.response.updateMarkers.every(
       (marker) => marker === "AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE",

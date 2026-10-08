@@ -38,6 +38,10 @@ def fixture_lstat(p):
         if os.environ.get('PROJECT_RACE') and project_reads > 1: result.st_ino=2
         return result
     result=fixture_stat(p)
+    if p.endswith('/packed-refs') or p.endswith('/public-marketing-standalone-nav-20261008'): result.st_mode=stat.S_IFREG|0o600
+    if p.endswith('/refs/remotes/origin/fix'):
+        if os.environ.get('REF_PRIVATE'): result.st_uid=0; result.st_gid=0; result.st_mode=stat.S_IFDIR|0o700
+        if os.environ.get('REF_LINK'): result.st_mode=stat.S_IFLNK|0o755
     if p=='/srv/kmj-codebridge-projects':
         parent_reads += 1
         if os.environ.get('SERVICE_PARENT'): result.st_uid=1001; result.st_gid=1001
@@ -68,10 +72,11 @@ def fixture_lstat(p):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else 9
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23}.get(p,9)
 os.close=lambda *a: None
-os.stat=lambda p, **kw: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/'+p)
-os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
+ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix'}
+os.stat=lambda p, **kw: fixture_lstat(ref_paths.get(kw.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p)
+os.fstat=lambda fd: fixture_lstat(ref_paths[fd]) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
     global project_mode
     assert fd in [10,11,12] and locked
@@ -95,6 +100,12 @@ old='e'*40
 owner_sha='d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764'
 website='25950caa017fcb70d87564f3a817d6280a841cae'
 def stub(args, **kw):
+    if args[0]=='/usr/bin/python3':
+        assert args[:3]==['/usr/bin/python3','-I','-c']
+        assert kw['user']==(1001 if os.environ.get('SERVICE_OWNER') else 0) and kw['group']==kw['user'] and kw['extra_groups']==[]
+        assert kw['env']['GIT_CONFIG_GLOBAL']=='/dev/null' and kw['stderr']==subprocess.DEVNULL
+        result='REF_FIX_PARENT_ACCESS=DENIED\\nREF_FIX_PARENT_WRITE_ACCESS=DENIED\\nREF_WEBSITE_ACCESS=PERMISSION_DENIED\\n'
+        return SimpleNamespace(returncode=0,stdout=result)
     if args[0]=='/usr/bin/systemctl':
         assert args==['/usr/bin/systemctl','show','kmj-codebridge-kmj-main-platform.service','--property=LoadState','--property=User','--no-pager']
         return SimpleNamespace(returncode=0,stdout='LoadState='+os.environ.get('WRITE_LOAD','loaded')+'\\nUser='+os.environ.get('WRITE_USER','root')+'\\n')
@@ -108,6 +119,7 @@ def stub(args, **kw):
     elif a[0]=='rev-parse':
         ref=a[-1]
         result=refs.get(ref, old)
+        if ref.startswith('refs/remotes/') and os.environ.get('TRACKING_FAIL'): rc=128
     elif a[0]=='show-ref': rc=0 if os.environ.get('TEMP_EXISTS') else 1
     elif a[0]=='fetch':
         if os.environ.get('PROJECT_WRITE')=='020': assert project_mode is not None and not project_mode & 0o022
@@ -368,6 +380,33 @@ subprocess.run=stub
     assert.equal(failure.status, 0, failure.stderr);
     assert.ok(failure.stdout.includes("REF_FAILURE_STAGE=" + stage), stage);
   }
+  const unreadableRef = run({
+    SERVICE_OWNER: "1",
+    TRACKING_FAIL: "1",
+    REF_PRIVATE: "1",
+    GIT_STDERR: "fatal: Needed a single revision",
+  });
+  assert.equal(unreadableRef.status, 0, unreadableRef.stderr);
+  for (const marker of [
+    "REF_FAILURE_STAGE=TRACKING_REF_READ",
+    "REF_FAILURE_KIND=REVISION_UNAVAILABLE",
+    "REF_FIX_PARENT_READ=OK",
+    "REF_FIX_PARENT_OWNER=ROOT",
+    "REF_FIX_PARENT_ACCESS=DENIED",
+    "REF_FIX_PARENT_WRITE_ACCESS=DENIED",
+  ])
+    assert.ok(unreadableRef.stdout.includes(marker), marker);
+  assert.doesNotMatch(unreadableRef.stdout, /UPDATED=|CHMOD=|Needed a single/);
+  const linkedRef = run({
+    SERVICE_OWNER: "1",
+    TRACKING_FAIL: "1",
+    REF_LINK: "1",
+  });
+  assert.equal(linkedRef.status, 0, linkedRef.stderr);
+  assert.match(linkedRef.stdout, /REF_FIX_PARENT_TYPE=SYMLINK/);
+  assert.match(linkedRef.stdout, /REF_WEBSITE_READ=BLOCKED_DIRECTORY/);
+  assert.match(linkedRef.stdout, /REF_PACKED_READ=OK/);
+  assert.doesNotMatch(linkedRef.stdout, /REF_WEBSITE_READ=OK|UPDATED=|CHMOD=/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
@@ -391,4 +430,60 @@ subprocess.run=stub
     success.stdout,
     /UPDATED=refs\/remotes\/origin\/fix\/public-marketing-standalone-nav-20261008=25950c/,
   );
+});
+
+test("source identity probe blocks symlink descendants without reading ref bytes", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX source access probe");
+  const body = script.match(/probe = [^\n]+\+ """([\s\S]*?)"""/)?.[1];
+  assert.ok(body, "fixed source identity probe exists");
+  const temporary = fs.mkdtempSync("/tmp/kmj-ref-access-");
+  try {
+    const repository = temporary + "/.git";
+    fs.mkdirSync(repository + "/refs/remotes/origin", { recursive: true });
+    fs.mkdirSync(temporary + "/outside", { recursive: true });
+    fs.writeFileSync(
+      temporary + "/outside/public-marketing-standalone-nav-20261008",
+      "PRIVATE_REF_CONTENT",
+    );
+    fs.symlinkSync(
+      temporary + "/outside",
+      repository + "/refs/remotes/origin/fix",
+    );
+    fs.writeFileSync(repository + "/packed-refs", "PRIVATE_PACKED_CONTENT");
+    const paths = [
+      ["REF_ROOT", repository + "/refs"],
+      ["REF_REMOTES", repository + "/refs/remotes"],
+      ["REF_ORIGIN", repository + "/refs/remotes/origin"],
+      ["REF_FIX_PARENT", repository + "/refs/remotes/origin/fix"],
+      [
+        "REF_WEBSITE",
+        repository +
+          "/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
+      ],
+      ["REF_PACKED", repository + "/packed-refs"],
+    ];
+    const source = body.replace(
+      "'/srv/kmj-codebridge-projects/kmj-main-platform/.git'",
+      JSON.stringify(repository),
+    );
+    const result = spawnSync(
+      "python3",
+      [
+        "-I",
+        "-c",
+        "import os,stat\npaths=" + JSON.stringify(paths) + "\n" + source,
+      ],
+      { encoding: "utf8", timeout: 5000 },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(result.stdout, /REF_FIX_PARENT_ACCESS=SYMLINK/);
+    assert.match(result.stdout, /REF_WEBSITE_ACCESS=BLOCKED_DIRECTORY/);
+    assert.match(result.stdout, /REF_PACKED_ACCESS=ALLOWED/);
+    assert.doesNotMatch(
+      result.stdout,
+      /PRIVATE_REF_CONTENT|PRIVATE_PACKED_CONTENT/,
+    );
+  } finally {
+    fs.rmSync(temporary, { recursive: true, force: true });
+  }
 });

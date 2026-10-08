@@ -388,6 +388,111 @@ try:
             print("AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1")
         if git_directory.st_mode & 0o020 or git_config.st_mode & 0o020:
             print("AUTO_UPDATE_PRIVATE_CI_GIT_METADATA_HARDENED=1")
+    def tracking_access_proof():
+        paths = [
+            ("REF_ROOT", PROJECT + "/.git/refs"),
+            ("REF_REMOTES", PROJECT + "/.git/refs/remotes"),
+            ("REF_ORIGIN", PROJECT + "/.git/refs/remotes/origin"),
+            ("REF_FIX_PARENT", PROJECT + "/.git/refs/remotes/origin/fix"),
+            ("REF_WEBSITE", PROJECT + "/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008"),
+            ("REF_PACKED", PROJECT + "/.git/packed-refs"),
+        ]
+        proof_fds = []
+        root_fd = None
+        try:
+            root_fd = os.open(PROJECT + "/.git", os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW)
+            proof_fds.append(root_fd)
+            held = os.fstat(root_fd)
+            if (held.st_dev, held.st_ino, held.st_uid, held.st_gid) != (git_directory.st_dev, git_directory.st_ino, owner.pw_uid, owner.pw_gid):
+                raise OSError("repository changed")
+        except OSError:
+            root_fd = None
+        parent_fd = root_fd
+        try:
+            for label, path in paths:
+                current = root_fd if label == "REF_PACKED" else parent_fd
+                if current is None:
+                    print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=BLOCKED_DIRECTORY")
+                    continue
+                component = path.rsplit("/", 1)[-1]
+                meta = read_metadata(label, lambda component=component, current=current: os.stat(component, dir_fd=current, follow_symlinks=False))
+                if label in {"REF_WEBSITE", "REF_PACKED"} and meta is not None:
+                    print("AUTO_UPDATE_PRIVATE_CI_" + label + "_NLINK=" + ("VALID" if meta.st_nlink == 1 else "INVALID"))
+                    print("AUTO_UPDATE_PRIVATE_CI_" + label + "_SIZE=" + ("VALID" if 0 < meta.st_size <= 8388608 else "INVALID"))
+                if label not in {"REF_WEBSITE", "REF_PACKED"}:
+                    parent_fd = None
+                    if meta is not None and stat.S_ISDIR(meta.st_mode):
+                        try:
+                            next_fd = os.open(component, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
+                            proof_fds.append(next_fd)
+                            held = os.fstat(next_fd)
+                            identity = lambda value: (value.st_dev, value.st_ino, value.st_uid, value.st_gid, value.st_mode)
+                            if identity(held) == identity(meta):
+                                parent_fd = next_fd
+                            else:
+                                print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=CHANGED")
+                        except OSError:
+                            print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=BLOCKED_DIRECTORY")
+        finally:
+            for fd in reversed(proof_fds):
+                os.close(fd)
+        # Fixed read-only probe uses exactly Git's source UID and primary group.
+        probe = "import os,stat\npaths=" + repr(paths) + "\n" + """fds=[]
+root=None
+try:
+    root=os.open('/srv/kmj-codebridge-projects/kmj-main-platform/.git',os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW)
+    fds.append(root)
+except OSError:
+    pass
+parent=root
+try:
+    for label,path in paths:
+        component=path.rsplit('/',1)[-1]
+        current=root if label=='REF_PACKED' else parent
+        access=write='BLOCKED_DIRECTORY'
+        if current is not None:
+            try:
+                meta=os.stat(component,dir_fd=current,follow_symlinks=False)
+                if stat.S_ISLNK(meta.st_mode):
+                    access=write='SYMLINK'
+                elif stat.S_ISDIR(meta.st_mode) or stat.S_ISREG(meta.st_mode):
+                    requested=os.X_OK if stat.S_ISDIR(meta.st_mode) else os.R_OK
+                    access='ALLOWED' if os.access(component,requested,dir_fd=current,follow_symlinks=False) else 'DENIED'
+                    write='ALLOWED' if os.access(component,os.W_OK,dir_fd=current,follow_symlinks=False) else 'DENIED'
+                else:
+                    access=write='OTHER_TYPE'
+                if label not in ['REF_WEBSITE','REF_PACKED']:
+                    if stat.S_ISDIR(meta.st_mode):
+                        parent=os.open(component,os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=current)
+                        fds.append(parent)
+                    else:
+                        parent=None
+            except FileNotFoundError:
+                access=write='MISSING'
+                if label!='REF_PACKED': parent=None
+            except PermissionError:
+                access=write='PERMISSION_DENIED'
+                if label!='REF_PACKED': parent=None
+            except OSError:
+                access=write='OTHER_ERROR'
+                if label!='REF_PACKED': parent=None
+        print(label+'_ACCESS='+access)
+        print(label+'_WRITE_ACCESS='+write)
+finally:
+    for fd in reversed(fds): os.close(fd)
+"""
+        values = ["ALLOWED", "DENIED", "SYMLINK", "OTHER_TYPE", "MISSING", "PERMISSION_DENIED", "OTHER_ERROR", "BLOCKED_DIRECTORY"]
+        allowed = {label + "_" + field + "=" + value for label, _ in paths for field in ["ACCESS", "WRITE_ACCESS"] for value in values}
+        try:
+            verify_parents()
+            access = subprocess.run(["/usr/bin/python3", "-I", "-c", probe], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV, user=owner.pw_uid, group=owner.pw_gid, extra_groups=[])
+            if access.returncode:
+                raise ValueError("access probe")
+            for line in access.stdout.splitlines():
+                if line in allowed:
+                    print("AUTO_UPDATE_PRIVATE_CI_" + line)
+        except Exception:
+            print("AUTO_UPDATE_PRIVATE_CI_REF_ACCESS_PROBE=UNAVAILABLE")
     for label, branch, expected in TARGETS:
         prefix = "AUTO_UPDATE_PRIVATE_" + label + "_REF_"
         tracking = "refs/remotes/origin/" + branch
@@ -402,6 +507,7 @@ try:
             error = (getattr(response, "stderr", "") or "")[:4096].lower()
             kind = "UNCLASSIFIED"
             for category, patterns in [
+                ("REVISION_UNAVAILABLE", ["needed a single revision", "unknown revision or path not in the working tree"]),
                 ("KEY_PERMISSIONS", ["are too open", "bad owner or permissions", "bad permissions"]),
                 ("PUBLICKEY_DENIED", ["permission denied (publickey"]),
                 ("HOSTKEY_VERIFICATION_FAILED", ["host key verification failed", "remote host identification has changed"]),
@@ -455,6 +561,8 @@ try:
         except Exception as failure:
             print(prefix + "REFRESH_FAILED")
             report_failure(operation, result, failure if not isinstance(failure, ValueError) else None)
+            if operation == "TRACKING_REF_READ":
+                tracking_access_proof()
         finally:
             step = "REF_CLEANUP"
             cleanup_operation = "CLEANUP_REF_READ"
