@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { createSupervisorHandler, startSupervisor } from "../src/supervisor.js";
@@ -1187,5 +1188,237 @@ test("native CI exposes validated optional worker failure evidence", async () =>
       (await handle({ op: `private_pr${pr}_ci_status` })).response.last,
       null,
     );
+  }
+});
+
+test("native CI existing log diagnostics require trusted metadata and exact manifest hash", async () => {
+  const sha = "a".repeat(40),
+    name = `${sha}-20261008T130000Z.log`;
+  const trusted = {
+    isFile: () => true,
+    isSymbolicLink: () => false,
+    uid: 0,
+    nlink: 1,
+    mode: 0o100600,
+    size: 500,
+  };
+  for (const pr of [322, 337]) {
+    for (const [text, expected] of [
+      [
+        "Formatting issues found in 3 files. Run without --check to fix.\nsecret=NEVER_RETURN",
+        "FORMAT_ISSUES_REPORTED",
+      ],
+      [
+        "Found 0 warnings and 2 errors.\nsecret=NEVER_RETURN",
+        "LINT_ISSUES_REPORTED",
+      ],
+      ["Found 1 warning and 0 errors.", "LINT_ISSUES_REPORTED"],
+      [
+        "Error: Cannot find native binding. npm has a bug related to optional dependencies",
+        "NATIVE_BINDING_LOAD_ERROR",
+      ],
+      [
+        "npm error code EBADENGINE\nnpm error Unsupported engine",
+        "NODE_ENGINE_ERROR",
+      ],
+      [
+        "npm WARN EBADENGINE Unsupported engine\nunknown failure",
+        "COMMAND_FAILED_UNCLASSIFIED",
+      ],
+    ]) {
+      const bytes = Buffer.from(text),
+        record = {
+          schema: 1,
+          repo: "kmjtechno/kmj-main-platform",
+          pr,
+          sha,
+          linux_result: "FAIL",
+          exit_code: 1,
+          github_actions: "NOT_RUN",
+          windows: "NOT_RUN",
+          signed_production: false,
+          log_sha256: createHash("sha256").update(bytes).digest("hex"),
+        };
+      const reads = [];
+      let directoryMeta = {
+        isDirectory: () => true,
+        isSymbolicLink: () => false,
+        uid: 0,
+        mode: 0o40700,
+      };
+      let logBytes = bytes;
+      let meta = trusted,
+        names = [name];
+      const handle = createSupervisorHandler({
+        run: () => "LoadState=loaded\n",
+        lstat: (file) =>
+          file === "/var/lib/kmj-codebridge-ci/evidence"
+            ? directoryMeta
+            : file.endsWith(".log")
+              ? meta
+              : trusted,
+        readFile: () => JSON.stringify(record),
+        readdir: (directory) => {
+          assert.equal(directory, "/var/lib/kmj-codebridge-ci/evidence");
+          return names;
+        },
+        readLog: (file) => {
+          reads.push(file);
+          return logBytes;
+        },
+      });
+      assert.equal(
+        (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+          .workerLogDiagnostic,
+        expected,
+      );
+      assert.deepEqual(reads, [`/var/lib/kmj-codebridge-ci/evidence/${name}`]);
+      assert.doesNotMatch(
+        JSON.stringify(await handle({ op: `private_pr${pr}_ci_status` })),
+        /NEVER_RETURN|secret=|\/var\/lib/,
+      );
+      for (const invalid of [
+        { uid: 1000 },
+        { nlink: 2 },
+        { mode: 0o100644 },
+        { isFile: () => false },
+        { isSymbolicLink: () => true },
+        { size: 0 },
+        { size: 16777217 },
+      ]) {
+        meta = { ...trusted, ...invalid };
+        reads.length = 0;
+        assert.equal(
+          (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+            .workerLogDiagnostic,
+          undefined,
+        );
+        assert.equal(reads.length, 0);
+      }
+      meta = trusted;
+      for (const invalidName of [
+        "../secret.log",
+        `${"b".repeat(40)}-20261008T130000Z.log`,
+        `${sha}-20261399T130000Z.log`,
+        `${sha}-secret.log`,
+      ]) {
+        names = [invalidName];
+        reads.length = 0;
+        assert.equal(
+          (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+            .workerLogDiagnostic,
+          undefined,
+        );
+        assert.equal(reads.length, 0);
+      }
+      const validDirectory = directoryMeta;
+      for (const invalidDirectory of [
+        { uid: 1000 },
+        { mode: 0o40777 },
+        { isDirectory: () => false },
+        { isSymbolicLink: () => true },
+      ]) {
+        directoryMeta = { ...validDirectory, ...invalidDirectory };
+        reads.length = 0;
+        assert.equal(
+          (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+            .workerLogDiagnostic,
+          undefined,
+        );
+        assert.equal(reads.length, 0);
+      }
+      directoryMeta = validDirectory;
+      names = Array(1001).fill(name);
+      reads.length = 0;
+      assert.equal(
+        (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+          .workerLogDiagnostic,
+        undefined,
+      );
+      assert.equal(reads.length, 0);
+      names = [name];
+      for (const invalidBytes of ["untrusted text", Buffer.alloc(0)]) {
+        logBytes = invalidBytes;
+        assert.equal(
+          (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+            .workerLogDiagnostic,
+          undefined,
+        );
+      }
+      logBytes = bytes;
+      record.exit_code = 0;
+      record.linux_result = "PASS";
+      reads.length = 0;
+      assert.equal(
+        (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+          .workerLogDiagnostic,
+        undefined,
+      );
+      assert.equal(reads.length, 0);
+      record.exit_code = 1;
+      record.linux_result = "FAIL";
+      names = [name];
+      record.log_sha256 = "b".repeat(64);
+      assert.equal(
+        (await handle({ op: `private_pr${pr}_ci_status` })).response.last
+          .workerLogDiagnostic,
+        undefined,
+      );
+    }
+  }
+});
+
+test("native CI default log reader bounds bytes and rejects changed or linked files", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX root-owned CI logs");
+  const source = fs.readFileSync(
+    new URL("../src/supervisor.js", import.meta.url),
+    "utf8",
+  );
+  const implementation = source.match(
+    /function readBoundedPrivateCiLog\(filename\) \{[\s\S]*?^\}/m,
+  )[0];
+  const reader = new Function(
+    "fs",
+    implementation + "\nreturn readBoundedPrivateCiLog;",
+  )(fs);
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-bounded-log-"));
+  const filename = path.join(directory, "worker.log");
+  try {
+    fs.writeFileSync(filename, "fixture", { mode: 0o600 });
+    if (process.getuid() !== 0) {
+      assert.equal(reader(filename), null);
+      return;
+    }
+    assert.deepEqual(reader(filename), Buffer.from("fixture"));
+    fs.chmodSync(filename, 0o644);
+    assert.equal(reader(filename), null);
+    fs.chmodSync(filename, 0o600);
+    const link = path.join(directory, "linked.log");
+    fs.symlinkSync(filename, link);
+    assert.throws(() => reader(link), { code: "ELOOP" });
+    fs.unlinkSync(link);
+    fs.linkSync(filename, link);
+    assert.equal(reader(filename), null);
+    fs.unlinkSync(link);
+    fs.truncateSync(filename, 16777217);
+    assert.equal(reader(filename), null);
+    fs.writeFileSync(filename, "fixture");
+    let changed = false;
+    const growingReader = new Function(
+      "fs",
+      implementation + "\nreturn readBoundedPrivateCiLog;",
+    )({
+      ...fs,
+      readSync: (...args) => {
+        if (!changed) {
+          changed = true;
+          fs.appendFileSync(filename, "more-data");
+        }
+        return fs.readSync(...args);
+      },
+    });
+    assert.equal(growingReader(filename), null);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
   }
 });

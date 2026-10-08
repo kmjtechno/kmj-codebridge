@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import net from "node:net";
 import os from "node:os";
 import { spawn, execFileSync } from "node:child_process";
@@ -567,7 +568,131 @@ function defaultRestart(unit) {
 
 // Read only root-owned, bounded native CI evidence. The PR code never writes
 // this summary; the trusted systemd preparer creates it after the sandbox exits.
-function privateCiEvidence(lstat, readFile, pr, filename) {
+function readBoundedPrivateCiLog(filename) {
+  const limit = 16 * 1024 * 1024;
+  const fd = fs.openSync(
+    filename,
+    fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  try {
+    const meta = fs.fstatSync(fd);
+    if (
+      !meta.isFile() ||
+      meta.uid !== 0 ||
+      meta.nlink !== 1 ||
+      (meta.mode & 0o077) !== 0 ||
+      meta.size <= 0 ||
+      meta.size > limit
+    )
+      return null;
+    const bytes = Buffer.alloc(Math.min(meta.size + 1, limit + 1));
+    let length = 0;
+    while (length < bytes.length) {
+      const count = fs.readSync(
+        fd,
+        bytes,
+        length,
+        bytes.length - length,
+        length,
+      );
+      if (count === 0) break;
+      length += count;
+    }
+    const after = fs.fstatSync(fd);
+    if (
+      length !== meta.size ||
+      after.size !== meta.size ||
+      after.mtimeMs !== meta.mtimeMs ||
+      after.ctimeMs !== meta.ctimeMs
+    )
+      return null;
+    return bytes.subarray(0, length);
+  } finally {
+    fs.closeSync(fd);
+  }
+}
+
+// Read only a bounded root-owned log whose bytes match trusted CI evidence.
+// Filenames and returned categories are fixed; raw worker output never escapes.
+function privateCiWorkerLogDiagnostic(lstat, readdir, readLog, record) {
+  if (record.exit_code === 0) return undefined;
+  const directory = "/var/lib/kmj-codebridge-ci/evidence";
+  const limit = 16 * 1024 * 1024;
+  try {
+    const directoryMeta = lstat(directory);
+    if (
+      !directoryMeta.isDirectory() ||
+      directoryMeta.isSymbolicLink() ||
+      directoryMeta.uid !== 0 ||
+      (directoryMeta.mode & 0o022) !== 0
+    )
+      return undefined;
+    const entries = readdir(directory);
+    if (!Array.isArray(entries) || entries.length > 1000) return undefined;
+    const candidates = entries
+      .filter((name) => {
+        if (typeof name !== "string") return false;
+        const match = /^([a-f0-9]{40})-([0-9]{8}T[0-9]{6}Z)\.log$/.exec(name);
+        if (!match || match[1] !== record.sha) return false;
+        const stamp = match[2];
+        const date = new Date(
+          `${stamp.slice(0, 4)}-${stamp.slice(4, 6)}-${stamp.slice(6, 8)}T${stamp.slice(9, 11)}:${stamp.slice(11, 13)}:${stamp.slice(13, 15)}Z`,
+        );
+        return (
+          Number.isFinite(date.getTime()) &&
+          date.toISOString().replace(/[-:]/g, "").replace(".000", "") === stamp
+        );
+      })
+      .sort()
+      .reverse()
+      .slice(0, 20);
+    for (const name of candidates) {
+      const filename = `${directory}/${name}`;
+      const meta = lstat(filename);
+      if (
+        !meta.isFile() ||
+        meta.isSymbolicLink() ||
+        meta.uid !== 0 ||
+        meta.nlink !== 1 ||
+        (meta.mode & 0o077) !== 0 ||
+        meta.size <= 0 ||
+        meta.size > limit
+      )
+        continue;
+      const bytes = readLog(filename);
+      if (
+        !Buffer.isBuffer(bytes) ||
+        bytes.length === 0 ||
+        bytes.length > limit ||
+        createHash("sha256").update(bytes).digest("hex") !== record.log_sha256
+      )
+        continue;
+      const text = bytes.toString("utf8");
+      if (/npm (?:error|ERR!) code EBADENGINE/.test(text))
+        return "NODE_ENGINE_ERROR";
+      if (
+        /(?:Cannot find native binding|Failed to load native binding)/i.test(
+          text,
+        )
+      )
+        return "NATIVE_BINDING_LOAD_ERROR";
+      if (/Formatting issues found in [1-9][0-9]* files?\b/i.test(text))
+        return "FORMAT_ISSUES_REPORTED";
+      for (const match of text.matchAll(
+        /Found ([0-9]+) warnings? and ([0-9]+) errors?\./g,
+      )) {
+        if (Number(match[1]) > 0 || Number(match[2]) > 0)
+          return "LINT_ISSUES_REPORTED";
+      }
+      return "COMMAND_FAILED_UNCLASSIFIED";
+    }
+  } catch {
+    // Unreadable, oversized, untrusted or unmatched logs produce no diagnosis.
+  }
+  return undefined;
+}
+
+function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
   try {
     const meta = lstat(filename);
     if (
@@ -622,7 +747,16 @@ function privateCiEvidence(lstat, readFile, pr, filename) {
         !failures.has(record.failure_kind))
     )
       return null;
+    const workerLogDiagnostic = logAccess
+      ? privateCiWorkerLogDiagnostic(
+          lstat,
+          logAccess.readdir,
+          logAccess.readLog,
+          record,
+        )
+      : undefined;
     return {
+      ...(workerLogDiagnostic !== undefined ? { workerLogDiagnostic } : {}),
       testedSha: record.sha,
       ...(record.failed_gate !== undefined
         ? { failedGate: record.failed_gate }
@@ -647,6 +781,8 @@ export function createSupervisorHandler({
   start = defaultStart,
   restart = defaultRestart,
   readFile = (file) => fs.readFileSync(file, "utf8"),
+  readLog = readBoundedPrivateCiLog,
+  readdir = (directory) => fs.readdirSync(directory),
   readlink = (file) => fs.readlinkSync(file),
   lstat = (file) => fs.lstatSync(file),
   statfs = (target) => fs.statfsSync(target),
@@ -913,12 +1049,14 @@ export function createSupervisorHandler({
             readFile,
             322,
             PRIVATE_PR322_CI_EVIDENCE,
+            { readLog, readdir },
           ),
           privatePr337Evidence: privateCiEvidence(
             lstat,
             readFile,
             337,
             PRIVATE_PR337_CI_EVIDENCE,
+            { readLog, readdir },
           ),
           privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
           privatePr337GitSignals: fixedWebsiteCiGitSignals(run),
@@ -980,6 +1118,7 @@ export function createSupervisorHandler({
         readFile,
         322,
         PRIVATE_PR322_CI_EVIDENCE,
+        { readLog, readdir },
       );
       return { response: { service, last } };
     }
@@ -1010,6 +1149,7 @@ export function createSupervisorHandler({
         readFile,
         337,
         PRIVATE_PR337_CI_EVIDENCE,
+        { readLog, readdir },
       );
       return { response: { service, last } };
     }
