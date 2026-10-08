@@ -147,6 +147,15 @@ test("fails closed on CPU/resource block", () => {
   assert.equal(result.blocked.a, "LICENSE_OR_RESOURCE_BLOCKED");
 });
 
+test("rejects aliases that would bypass file-scope mutual exclusion", () => {
+  for (const path of [".", "src/", "src//main.js", "src/./main.js"]) {
+    assert.throws(
+      () => plan([task("a", { paths: [path] })], []),
+      /INVALID_HYPERSPEED_PLAN/,
+    );
+  }
+});
+
 test("rejects duplicate ids, missing dependencies, cycles and unsafe scopes", () => {
   assert.throws(
     () => plan([task("a"), task("a")], []),
