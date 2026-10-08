@@ -216,6 +216,55 @@ function fixedUpdateMarkers(run, unit) {
     ["TRUST_WRITER_UID", ["MATCHES_OWNER", "DIFFERS", "UNAVAILABLE"]],
   ])
     gitMetadataFields.set(`AUTO_UPDATE_PRIVATE_CI_${key}`, new Set(values));
+  for (const label of ["PR322", "PR337"])
+    for (const [field, values] of [
+      [
+        "STAGE",
+        [
+          "TRACKING_REF_READ",
+          "TEMPORARY_REF_READ",
+          "TEMPORARY_REF_EXISTS",
+          "FETCH",
+          "FETCHED_REF_READ",
+          "EXPECTED_SHA",
+          "ANCESTRY",
+          "TRACKING_REF_CAS",
+          "CLEANUP_REF_READ",
+          "CLEANUP_REF_CAS",
+        ],
+      ],
+      [
+        "EXIT",
+        [
+          "EXIT_0",
+          "EXIT_1",
+          "EXIT_128",
+          "SIGNAL",
+          "OTHER_NONZERO",
+          "NO_EXIT",
+          "TIMEOUT",
+          "EXCEPTION",
+        ],
+      ],
+      [
+        "KIND",
+        [
+          "KEY_PERMISSIONS",
+          "PUBLICKEY_DENIED",
+          "HOSTKEY_VERIFICATION_FAILED",
+          "DNS_FAILED",
+          "NETWORK_UNREACHABLE",
+          "GIT_PERMISSION_DENIED",
+          "REMOTE_REF_MISSING",
+          "GIT_LOCK_FAILED",
+          "UNCLASSIFIED",
+        ],
+      ],
+    ])
+      gitMetadataFields.set(
+        `AUTO_UPDATE_PRIVATE_${label}_REF_FAILURE_${field}`,
+        new Set(values),
+      );
   const refSteps = new Set([
     "PROJECT_METADATA",
     "PROJECT_LSTAT_READ",

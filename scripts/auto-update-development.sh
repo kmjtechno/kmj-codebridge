@@ -333,7 +333,7 @@ try:
     ENV["HOME"] = owner.pw_dir
     def git(*args):
         verify_parents()
-        return subprocess.run(["/usr/bin/git", "-c", "safe.directory=" + PROJECT, "-c", "core.hooksPath=/dev/null", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "-C", PROJECT, *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=45, env=ENV, user=owner.pw_uid, group=owner.pw_gid, extra_groups=[])
+        return subprocess.run(["/usr/bin/git", "-c", "safe.directory=" + PROJECT, "-c", "core.hooksPath=/dev/null", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "-C", PROJECT, *args], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=45, env=ENV, user=owner.pw_uid, group=owner.pw_gid, extra_groups=[])
     step = "ORIGIN_READ"
     remote = git("remote", "get-url", "origin")
     if remote.returncode:
@@ -394,40 +394,85 @@ try:
         temporary = "refs/codebridge-private-ci-refresh/" + label.lower()
         fetched = None
         attempted = False
+        operation = "TRACKING_REF_READ"
+        result = None
+        def report_failure(stage, response=None, exception=None):
+            code = "TIMEOUT" if isinstance(exception, subprocess.TimeoutExpired) else "EXCEPTION" if exception is not None else "NO_EXIT" if response is None else "EXIT_0" if response.returncode == 0 else "EXIT_1" if response.returncode == 1 else "EXIT_128" if response.returncode == 128 else "SIGNAL" if response.returncode < 0 else "OTHER_NONZERO"
+            # Only the first4096 characters influence a fixed public category.
+            error = (getattr(response, "stderr", "") or "")[:4096].lower()
+            kind = "UNCLASSIFIED"
+            for category, patterns in [
+                ("KEY_PERMISSIONS", ["are too open", "bad owner or permissions", "bad permissions"]),
+                ("PUBLICKEY_DENIED", ["permission denied (publickey"]),
+                ("HOSTKEY_VERIFICATION_FAILED", ["host key verification failed", "remote host identification has changed"]),
+                ("DNS_FAILED", ["could not resolve hostname", "could not resolve host:"]),
+                ("NETWORK_UNREACHABLE", ["network is unreachable", "connection timed out", "connection refused"]),
+                ("GIT_PERMISSION_DENIED", ["permission denied", "operation not permitted"]),
+                ("REMOTE_REF_MISSING", ["couldn't find remote ref"]),
+                ("GIT_LOCK_FAILED", ["cannot lock ref", "unable to create", "file exists"]),
+            ]:
+                if any(pattern in error for pattern in patterns):
+                    kind = category
+                    break
+            for field, value in [("STAGE", stage), ("EXIT", code), ("KIND", kind)]:
+                print(prefix + "FAILURE_" + field + "=" + value)
         try:
-            old = git("rev-parse", "--verify", tracking)
-            if old.returncode or not re.fullmatch("[a-f0-9]{40}", old.stdout.strip()):
+            result = git("rev-parse", "--verify", tracking)
+            if result.returncode or not re.fullmatch("[a-f0-9]{40}", result.stdout.strip()):
                 raise ValueError("existing tracking ref")
-            old = old.stdout.strip()
+            old = result.stdout.strip()
             if old == expected:
                 print(prefix + "CURRENT")
                 continue
-            exists = git("show-ref", "--verify", "--quiet", temporary)
-            if exists.returncode != 1:
-                raise ValueError("temporary ref exists")
+            operation = "TEMPORARY_REF_READ"
+            result = git("show-ref", "--verify", "--quiet", temporary)
+            if result.returncode != 1:
+                if result.returncode == 0:
+                    operation = "TEMPORARY_REF_EXISTS"
+                raise ValueError("temporary ref unavailable")
             attempted = True
+            operation = "FETCH"
             result = git("fetch", "--no-tags", "--no-recurse-submodules", "--no-write-fetch-head", "origin", "refs/heads/" + branch + ":" + temporary)
             if result.returncode:
                 raise ValueError("fetch")
-            revision = git("rev-parse", "--verify", temporary)
-            if revision.returncode or not re.fullmatch("[a-f0-9]{40}", revision.stdout.strip()):
+            operation = "FETCHED_REF_READ"
+            result = git("rev-parse", "--verify", temporary)
+            if result.returncode or not re.fullmatch("[a-f0-9]{40}", result.stdout.strip()):
                 raise ValueError("fetched revision")
-            fetched = revision.stdout.strip()
-            if fetched != expected or git("merge-base", "--is-ancestor", old, expected).returncode:
-                raise ValueError("unapproved or non-fast-forward head")
-            if git("update-ref", tracking, expected, old).returncode:
+            fetched = result.stdout.strip()
+            operation = "EXPECTED_SHA"
+            if fetched != expected:
+                raise ValueError("unapproved head")
+            operation = "ANCESTRY"
+            result = git("merge-base", "--is-ancestor", old, expected)
+            if result.returncode:
+                raise ValueError("non-fast-forward head")
+            operation = "TRACKING_REF_CAS"
+            result = git("update-ref", tracking, expected, old)
+            if result.returncode:
                 raise ValueError("tracking ref changed")
             print(prefix + "REFRESHED=1")
-        except Exception:
+        except Exception as failure:
             print(prefix + "REFRESH_FAILED")
+            report_failure(operation, result, failure if not isinstance(failure, ValueError) else None)
         finally:
             step = "REF_CLEANUP"
-            if attempted and fetched is None:
-                cleanup = git("rev-parse", "--verify", temporary)
-                if cleanup.returncode == 0 and re.fullmatch("[a-f0-9]{40}", cleanup.stdout.strip()):
-                    fetched = cleanup.stdout.strip()
-            if fetched is not None:
-                git("update-ref", "-d", temporary, fetched)
+            cleanup_operation = "CLEANUP_REF_READ"
+            cleanup = None
+            try:
+                if attempted and fetched is None:
+                    cleanup = git("rev-parse", "--verify", temporary)
+                    if cleanup.returncode == 0 and re.fullmatch("[a-f0-9]{40}", cleanup.stdout.strip()):
+                        fetched = cleanup.stdout.strip()
+                    else:
+                        report_failure(cleanup_operation, cleanup)
+                if fetched is not None:
+                    cleanup_operation = "CLEANUP_REF_CAS"
+                    cleanup = git("update-ref", "-d", temporary, fetched)
+                    if cleanup.returncode:
+                        report_failure(cleanup_operation, cleanup)
+            except Exception as failure:
+                report_failure(cleanup_operation, cleanup, failure)
 except Exception:
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED")
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=" + step)

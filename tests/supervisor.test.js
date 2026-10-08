@@ -1669,6 +1669,9 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       `AUTO_UPDATE_PRIVATE_CI_${entry}_TYPE=DIRECTORY`,
       `AUTO_UPDATE_PRIVATE_CI_${entry}_MODE=NONWRITE`,
     ]),
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_STAGE=FETCH",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_EXIT=EXIT_128",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=KEY_PERMISSIONS",
     "AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_NLINK=INVALID",
     "AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_PRIVATE_MODE=INVALID",
     "AUTO_UPDATE_PRIVATE_CI_TRUST_LOCK_IDENTITY=CHANGED",
@@ -1684,6 +1687,8 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       args[1] === "kmj-codebridge-auto-update.service"
         ? [
             ...expected,
+            "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=/private/key",
+            "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_STAGE=UNKNOWN",
             "AUTO_UPDATE_PRIVATE_CI_TRUST_WRITER_UID=secret-account",
             "AUTO_UPDATE_PRIVATE_CI_TRUST_OTHER_MODE=NONWRITE",
             "AUTO_UPDATE_PRIVATE_CI_GIT_CONFIG_OWNER=secret-account",
