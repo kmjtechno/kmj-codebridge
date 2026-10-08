@@ -254,6 +254,15 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       nRestarts: "unknown",
       execMainStartTimestamp: "unknown",
     },
+    mainPlatformEffectiveUnit: {
+      installed: true,
+      runtimeKind: "unknown",
+      stagedRuntimeEffective: false,
+      releaseOverridePresent: false,
+      developmentCanaryOverridePresent: false,
+      readinessOverridePresent: false,
+      signedProductionProven: false,
+    },
     mainPlatformPrerequisites: {
       currentConfig: false,
       legacyConfig: false,
@@ -272,12 +281,81 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-auto-update.service",
       "kmj-codebridge-kmj-main-platform.service",
       "kmj-codebridge-main-platform-refresh.service",
+      "kmj-codebridge-kmj-main-platform.service",
     ],
   );
   await assert.rejects(
     handle({ op: "update_status", branch: "main" }),
     /INVALID_SUPERVISOR_REQUEST/,
   );
+});
+
+test("effective-unit doctor identifies overrides without leaking ExecStart", async () => {
+  const sha = "a".repeat(40);
+  const directory = "/opt/kmj-codebridge-main-platform-stage/" + sha;
+  const calls = [];
+  const handle = createSupervisorHandler({
+    run: (command, args) => {
+      calls.push([command, args]);
+      if (args.includes("--property=WorkingDirectory")) {
+        return [
+          "LoadState=loaded",
+          "WorkingDirectory=" + directory,
+          "ExecStart=argv[]=/opt/kmj-codebridge-node/bin/node " +
+            directory +
+            "/src/cli.js agent /etc/kmj-codebridge-main-platform/agent.json ; token=NEVER_LEAK",
+          "DropInPaths=/etc/systemd/system/kmj-codebridge-kmj-main-platform.service.d/99-kmj-release.conf " +
+            "/etc/systemd/system/kmj-codebridge-kmj-main-platform.service.d/zz-kmj-codebridge-development-canary.conf",
+        ].join("\n");
+      }
+      return "LoadState=loaded\nActiveState=active\nSubState=running\n";
+    },
+    lstat: () => {
+      throw new Error("absent");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.mainPlatformEffectiveUnit, {
+    installed: true,
+    runtimeKind: "staged-development",
+    stagedRuntimeEffective: true,
+    releaseOverridePresent: true,
+    developmentCanaryOverridePresent: true,
+    readinessOverridePresent: false,
+    signedProductionProven: false,
+  });
+  assert.equal(JSON.stringify(result).includes("NEVER_LEAK"), false);
+  assert.equal(JSON.stringify(result).includes(directory), false);
+  assert.deepEqual(
+    calls.filter((entry) => entry[1].includes("--property=WorkingDirectory"))
+      .map((entry) => entry[1][1]),
+    ["kmj-codebridge-kmj-main-platform.service"],
+  );
+  await assert.rejects(
+    handle({ op: "update_status", runtime: "/tmp/unsafe" }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+});
+
+test("effective-unit doctor treats canary and unknown runtime as unverified", async () => {
+  for (const [directory, expected] of [
+    ["/opt/kmj-codebridge-main-platform-agent-cb64119277ef", "development-canary"],
+    ["/tmp/untrusted", "unknown"],
+  ]) {
+    const handle = createSupervisorHandler({
+      run: (_command, args) =>
+        args.includes("--property=WorkingDirectory")
+          ? "LoadState=loaded\nWorkingDirectory=" + directory + "\nExecStart=unverified\nDropInPaths=\n"
+          : "LoadState=loaded\nActiveState=active\n",
+      lstat: () => {
+        throw new Error("absent");
+      },
+    });
+    const result = await handle({ op: "update_status" });
+    assert.equal(result.response.mainPlatformEffectiveUnit.runtimeKind, expected);
+    assert.equal(result.response.mainPlatformEffectiveUnit.stagedRuntimeEffective, false);
+    assert.equal(result.response.mainPlatformEffectiveUnit.signedProductionProven, false);
+  }
 });
 
 test("Main Platform evidence returns allowlisted outcomes and no secret log text", async () => {
