@@ -402,6 +402,8 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       result: "success",
       execMainStatus: "0",
     },
+    privatePr322Evidence: null,
+    privatePr337Evidence: null,
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
@@ -596,6 +598,8 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
       "/etc/kmj-codebridge-main-platform/agent.json",
       "/etc/kmj-codebridge/agents/kmj-main-platform.json",
       "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
+      "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json",
+      "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
     ].sort(),
   );
   await assert.rejects(

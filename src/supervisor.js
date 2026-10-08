@@ -328,6 +328,51 @@ function defaultRestart(unit) {
   child.unref();
 }
 
+// Read only root-owned, bounded native CI evidence. The PR code never writes
+// this summary; the trusted systemd preparer creates it after the sandbox exits.
+function privateCiEvidence(lstat, readFile, pr, filename) {
+  try {
+    const meta = lstat(filename);
+    if (
+      !meta.isFile() ||
+      meta.isSymbolicLink() ||
+      meta.uid !== 0 ||
+      meta.nlink !== 1 ||
+      (meta.mode & 0o077) !== 0 ||
+      meta.size <= 0 ||
+      meta.size > 4096
+    )
+      return null;
+    const record = JSON.parse(readFile(filename));
+    if (
+      record.schema !== 1 ||
+      record.repo !== "kmjtechno/kmj-main-platform" ||
+      record.pr !== pr ||
+      !/^[a-f0-9]{40}$/.test(record.sha) ||
+      !["PASS", "FAIL"].includes(record.linux_result) ||
+      !Number.isInteger(record.exit_code) ||
+      record.exit_code < 0 ||
+      record.exit_code > 255 ||
+      record.github_actions !== "NOT_RUN" ||
+      record.windows !== "NOT_RUN" ||
+      record.signed_production !== false ||
+      !/^[a-f0-9]{64}$/.test(record.log_sha256)
+    )
+      return null;
+    return {
+      testedSha: record.sha,
+      linuxResult: record.linux_result,
+      exitCode: record.exit_code,
+      logSha256: record.log_sha256,
+      githubActions: "NOT_RUN",
+      windows: "NOT_RUN",
+      signedProduction: false,
+    };
+  } catch {
+    return null;
+  }
+}
+
 export function createSupervisorHandler({
   run = defaultRun,
   start = defaultStart,
@@ -589,6 +634,18 @@ export function createSupervisorHandler({
             "Result",
             "ExecMainStatus",
           ]),
+          privatePr322Evidence: privateCiEvidence(
+            lstat,
+            readFile,
+            322,
+            PRIVATE_PR322_CI_EVIDENCE,
+          ),
+          privatePr337Evidence: privateCiEvidence(
+            lstat,
+            readFile,
+            337,
+            PRIVATE_PR337_CI_EVIDENCE,
+          ),
           mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
           mainPlatformEvidence: fixedMainPlatformMarkers(run),
