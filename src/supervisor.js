@@ -247,12 +247,12 @@ function fixedMainPlatformEffectiveUnit(run) {
   ]);
   const directory = unit.workingDirectory;
   const dropins = unit.dropInPaths;
-  const staged = /^\/opt\/kmj-codebridge-main-platform-stage\/[a-f0-9]{40}$/.test(
-    directory,
-  );
-  const canary = /^\/opt\/kmj-codebridge-main-platform-agent-[a-zA-Z0-9_-]+$/.test(
-    directory,
-  );
+  const staged =
+    /^\/opt\/kmj-codebridge-main-platform-stage\/[a-f0-9]{40}$/.test(directory);
+  const canary =
+    /^\/opt\/kmj-codebridge-main-platform-agent-[a-zA-Z0-9_-]+$/.test(
+      directory,
+    );
   const release = /^\/opt\/kmj-codebridge-releases\/[a-f0-9]{12,40}$/.test(
     directory,
   );
@@ -267,12 +267,12 @@ function fixedMainPlatformEffectiveUnit(run) {
           ? "release-override-unverified"
           : "unknown",
     stagedRuntimeEffective: staged && unit.execStart.includes(expectedExec),
-    releaseOverridePresent:
-      /\/99-kmj-release\.conf(?:\s|$)/.test(dropins),
+    releaseOverridePresent: /\/99-kmj-release\.conf(?:\s|$)/.test(dropins),
     developmentCanaryOverridePresent:
       /\/zz-kmj-codebridge-development-canary\.conf(?:\s|$)/.test(dropins),
-    readinessOverridePresent:
-      /\/30-readiness-runtime\.conf(?:\s|$)/.test(dropins),
+    readinessOverridePresent: /\/30-readiness-runtime\.conf(?:\s|$)/.test(
+      dropins,
+    ),
     // Paths and release labels alone cannot authenticate a signed manifest.
     signedProductionProven: false,
   };
