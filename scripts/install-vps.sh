@@ -793,6 +793,14 @@ if [[ -f "$INSTALL_DIR/scripts/install-private-pr322-ci-unit.sh" ]]; then
     echo "PRIVATE_CI_INSTALL_DEFERRED" >&2
   fi
 fi
+
+# Keep PR337 website verification completely separate from Owner PR322.
+# Both use the fixed local, network-isolated runner; no automatic merge.
+if [[ -f "$INSTALL_DIR/scripts/install-private-pr337-ci-unit.sh" ]]; then
+  if ! /bin/bash "$INSTALL_DIR/scripts/install-private-pr337-ci-unit.sh"; then
+    echo "PRIVATE_WEBSITE_CI_INSTALL_DEFERRED" >&2
+  fi
+fi
 cat >"$AUTO_UPDATE_SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge guarded development auto-update
