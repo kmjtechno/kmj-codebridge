@@ -461,6 +461,8 @@ test("only exact non-secret updater markers are exposed", async () => {
         if (args[1] === "kmj-codebridge-auto-update.service") {
           return [
             "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
+            "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE",
+            "AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE",
             "AUTO_UPDATE_TOKEN=secret_should_not_appear",
             "AUTHORIZATION: Bearer never_expose",
             "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED=1",
@@ -481,6 +483,8 @@ test("only exact non-secret updater markers are exposed", async () => {
   const result = await handle({ op: "update_status" });
   assert.deepEqual(result.response.updateMarkers, [
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE",
+    "AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED=1",
   ]);
   assert.deepEqual(result.response.mainPlatformRefreshMarkers, [
