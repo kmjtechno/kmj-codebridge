@@ -845,3 +845,43 @@ test("website CI diagnosis exposes only fixed error categories", async () => {
     /INVALID_SUPERVISOR_REQUEST/,
   );
 });
+
+test("website CI classifies missing paths and read-only Git failures without exposing private data", async () => {
+  for (const [journal, expected] of [
+    [
+      "fatal: path 'apps/platform/composer.lock' does not exist in 'private-sha'",
+      "GIT_PATH_UNAVAILABLE",
+    ],
+    [
+      "fatal: ambiguous argument 'secret-ref': unknown revision or path not in the working tree.",
+      "GIT_REF_UNAVAILABLE",
+    ],
+    ["fatal: bad object secret-object", "GIT_OBJECT_UNAVAILABLE"],
+    [
+      "fatal: Unable to create '/private/index.lock': Read-only file system",
+      "GIT_READ_ONLY_FILESYSTEM",
+    ],
+    [
+      "fatal: cannot open /private/config: Operation not permitted",
+      "GIT_OPERATION_NOT_PERMITTED",
+    ],
+    ["fatal: bad config line 2 in file /private/config", "GIT_CONFIG_INVALID"],
+  ]) {
+    const handle = createSupervisorHandler({
+      run: (cmd, args) =>
+        cmd.endsWith("journalctl") &&
+        args[1] === "kmj-codebridge-private-pr337-ci.service"
+          ? journal
+          : "LoadState=loaded\nActiveState=inactive\nSubState=dead\n",
+      lstat: () => {
+        throw new Error("fixture");
+      },
+    });
+    const result = await handle({ op: "update_status" });
+    assert.equal(result.response.privatePr337Diagnostic, expected);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /private-sha|secret-ref|secret-object|\/private/,
+    );
+  }
+});
