@@ -174,6 +174,15 @@ function fixedUpdateMarkers(run, unit) {
     "TRUST_ROOT",
     "TRUST_BASE",
     "TRUST_LOCK",
+    "REF_ROOT",
+    "REF_REMOTES",
+    "REF_ORIGIN",
+    "REF_FIX_PARENT",
+    "REF_WEBSITE",
+    "REF_PACKED",
+    "OBJECT_ROOT",
+    "OBJECT_PACK",
+    "OBJECT_INFO",
   ]) {
     for (const [field, values] of [
       [
@@ -249,6 +258,8 @@ function fixedUpdateMarkers(run, unit) {
       [
         "KIND",
         [
+          "OBJECT_READ_FAILED",
+          "REVISION_UNAVAILABLE",
           "KEY_PERMISSIONS",
           "PUBLICKEY_DENIED",
           "HOSTKEY_VERIFICATION_FAILED",
@@ -265,6 +276,41 @@ function fixedUpdateMarkers(run, unit) {
         `AUTO_UPDATE_PRIVATE_${label}_REF_FAILURE_${field}`,
         new Set(values),
       );
+  for (const label of [
+    "REF_ROOT",
+    "REF_REMOTES",
+    "REF_ORIGIN",
+    "REF_FIX_PARENT",
+    "REF_WEBSITE",
+    "REF_PACKED",
+    "OBJECT_ROOT",
+    "OBJECT_PACK",
+    "OBJECT_INFO",
+  ])
+    for (const field of ["ACCESS", "WRITE_ACCESS"])
+      gitMetadataFields.set(
+        `AUTO_UPDATE_PRIVATE_CI_${label}_${field}`,
+        new Set([
+          "ALLOWED",
+          "DENIED",
+          "SYMLINK",
+          "OTHER_TYPE",
+          "MISSING",
+          "PERMISSION_DENIED",
+          "OTHER_ERROR",
+          "BLOCKED_DIRECTORY",
+        ]),
+      );
+  for (const label of ["REF_WEBSITE", "REF_PACKED"])
+    for (const field of ["NLINK", "SIZE"])
+      gitMetadataFields.set(
+        `AUTO_UPDATE_PRIVATE_CI_${label}_${field}`,
+        new Set(["VALID", "INVALID"]),
+      );
+  gitMetadataFields.set(
+    "AUTO_UPDATE_PRIVATE_CI_REF_ACCESS_PROBE",
+    new Set(["UNAVAILABLE"]),
+  );
   const refSteps = new Set([
     "PROJECT_METADATA",
     "PROJECT_LSTAT_READ",
@@ -346,7 +392,7 @@ function fixedUpdateMarkers(run, unit) {
   let lines;
   try {
     lines = String(
-      run(JOURNALCTL, ["-u", unit, "-n", "120", "--no-pager", "--output=cat"]),
+      run(JOURNALCTL, ["-u", unit, "-n", "200", "--no-pager", "--output=cat"]),
     ).split(/\r?\n/);
   } catch {
     return [];
@@ -372,7 +418,7 @@ function fixedUpdateMarkers(run, unit) {
           ownerSteps.has(value))
       );
     })
-    .slice(-64);
+    .slice(-128);
 }
 
 // Classify only hardcoded PR337 CI journal events. Do not return stderr,
