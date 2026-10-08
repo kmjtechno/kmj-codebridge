@@ -122,8 +122,131 @@ NODE
   fi
 }
 
+# One fixed, user-authorized owner CI attempt per installed verifier and source.
+# This recovery uses the installed unit; no caller command, SHA or path is read.
+retry_fixed_private_pr322_ci() {
+  /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I - <<'PY'
+import hashlib, json, os, re, stat, subprocess, tempfile
+
+BASE = "/var/lib/kmj-codebridge-ci"
+DIRECTORY = BASE + "/evidence"
+MARKER = DIRECTORY + "/pr322-auto-update-scheduled.json"
+RUNTIME = "/opt/kmj-codebridge-agent"
+PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
+UNIT = "kmj-codebridge-private-pr322-ci.service"
+FRAGMENT = "/etc/systemd/system/" + UNIT
+EXPECTED = "8ebbb6f1999309875b6f6b0c6d25c21847fff3ff"
+ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
+
+def directory(path, private=False):
+    meta = os.lstat(path)
+    if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022 or (private and meta.st_mode & 0o077):
+        raise ValueError("untrusted directory")
+
+def read_root(path, limit, private=False):
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+    try:
+        meta = os.fstat(fd)
+        if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1 or meta.st_mode & 0o022 or not 0 < meta.st_size <= limit:
+            raise ValueError("untrusted file")
+        if private and stat.S_IMODE(meta.st_mode) != 0o600:
+            raise ValueError("untrusted marker")
+        data = os.read(fd, limit + 1)
+        after = os.fstat(fd)
+        if len(data) != meta.st_size or after.st_size != meta.st_size or after.st_mtime_ns != meta.st_mtime_ns or after.st_ctime_ns != meta.st_ctime_ns:
+            raise ValueError("changed file")
+        return data
+    finally:
+        os.close(fd)
+
+def run(args):
+    return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
+
+def idle():
+    for unit in [UNIT, "kmj-codebridge-private-pr337-ci.service"]:
+        result = run(["/usr/bin/systemctl", "show", unit, "--property=LoadState", "--property=ActiveState", "--property=FragmentPath", "--property=DropInPaths", "--no-pager"])
+        fields = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
+        if result.returncode or fields.get("LoadState") != "loaded" or fields.get("ActiveState") not in ["inactive", "failed"] or fields.get("DropInPaths"):
+            return False
+        if unit == UNIT and fields.get("FragmentPath") != FRAGMENT:
+            return False
+    return True
+
+temporary = None
+try:
+    directory(BASE)
+    directory(DIRECTORY, private=True)
+    directory(RUNTIME)
+    directory(RUNTIME + "/scripts")
+    unit_bytes = read_root(FRAGMENT, 65536)
+    unit = unit_bytes.decode("utf8")
+    directives = [(key.strip(), value.strip()) for line in unit.splitlines() if "=" in line for key, value in [line.strip().split("=", 1)]]
+    descriptions = [value for key, value in directives if key == "Description"]
+    execution = [(key, value) for key, value in directives if key.startswith("Exec")]
+    if descriptions != ["KMJ CodeBridge private PR322 CI"] or execution != [("ExecStart", "/bin/bash " + RUNTIME + "/scripts/ci-main-platform-pr-fixed.sh")]:
+        raise ValueError("untrusted unit")
+    worker = read_root(RUNTIME + "/scripts/ci-main-platform-pr-worker.sh", 524288)
+    files = {"ci-main-platform-pr-worker.sh": hashlib.sha256(worker).hexdigest()}
+    for script in ["ci-main-platform-pr-fixed.sh", "ci-main-platform-pr.sh"]:
+        files[script] = hashlib.sha256(read_root(RUNTIME + "/scripts/" + script, 524288)).hexdigest()
+    control = run(["/usr/bin/git", "-c", "safe.directory=" + RUNTIME, "-C", RUNTIME, "rev-parse", "--verify", "HEAD"])
+    if control.returncode or not re.fullmatch("[a-f0-9]{40}", control.stdout.strip()):
+        raise ValueError("untrusted control revision")
+    verifier = hashlib.sha256(json.dumps({"control_sha": control.stdout.strip(), "unit_sha256": hashlib.sha256(unit_bytes).hexdigest(), "files": files}, sort_keys=True).encode("utf8")).hexdigest()
+    source = run(["/usr/bin/git", "-c", "safe.directory=" + PROJECT, "-C", PROJECT, "rev-parse", "--verify", "refs/remotes/origin/feat/codebridge-owner-tier"])
+    if source.returncode or source.stdout.strip() != EXPECTED:
+        raise ValueError("fixed source moved")
+    record = {"schema": 1, "worker_sha256": files["ci-main-platform-pr-worker.sh"], "verifier_sha256": verifier, "source_sha": EXPECTED}
+    if os.path.lexists(MARKER):
+        previous = json.loads(read_root(MARKER, 512, private=True))
+        if set(previous) != set(record) or previous.get("schema") != 1 or not re.fullmatch("[a-f0-9]{64}", previous.get("worker_sha256", "")) or not re.fullmatch("[a-f0-9]{40}", previous.get("source_sha", "")) or not re.fullmatch("[a-f0-9]{64}", previous.get("verifier_sha256", "")):
+            raise ValueError("invalid marker")
+        if previous == record:
+            print("AUTO_UPDATE_PRIVATE_PR322_CI_ALREADY_SCHEDULED")
+            raise SystemExit(0)
+    if not idle():
+        print("AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY")
+        raise SystemExit(0)
+    lock = os.lstat(BASE + "/.ci.lock")
+    if not stat.S_ISREG(lock.st_mode) or lock.st_uid != 0 or lock.st_nlink != 1 or lock.st_mode & 0o077:
+        raise ValueError("untrusted shared lock")
+    # Probe and release before starting: holding it would make the preparer fail.
+    if run(["/usr/bin/flock", "-n", BASE + "/.ci.lock", "/bin/true"]).returncode:
+        print("AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY")
+        raise SystemExit(0)
+    fd, temporary = tempfile.mkstemp(prefix=".pr322-auto-update-", dir=DIRECTORY)
+    with os.fdopen(fd, "wb") as output:
+        os.fchmod(output.fileno(), 0o600)
+        if os.fstat(output.fileno()).st_uid != 0:
+            raise ValueError("untrusted marker owner")
+        output.write((json.dumps(record, sort_keys=True) + "\n").encode("utf8"))
+        output.flush()
+        os.fsync(output.fileno())
+    if run(["/usr/bin/systemctl", "start", "--no-block", UNIT]).returncode:
+        print("AUTO_UPDATE_PRIVATE_PR322_CI_START_FAILED")
+        raise SystemExit(0)
+    os.replace(temporary, MARKER)
+    temporary = None
+    directory_fd = os.open(DIRECTORY, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(directory_fd)
+    finally:
+        os.close(directory_fd)
+    print("AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=1")
+except Exception:
+    print("AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED")
+finally:
+    if temporary is not None:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            pass
+PY
+}
+
 if [[ "$current" == "$remote" ]]; then
   retry_skipped_main_platform_refresh
+  retry_fixed_private_pr322_ci
   echo "AUTO_UPDATE_CURRENT=$current"
   exit 0
 fi
