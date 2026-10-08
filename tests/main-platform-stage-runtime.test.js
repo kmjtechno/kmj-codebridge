@@ -44,7 +44,11 @@ function dispose(root) {
   fs.rmSync(root, { recursive: true, force: true });
 }
 
-test("bounded readonly stage reuses exact immutable Git revision", () => {
+test("bounded readonly stage reuses exact immutable Git revision", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX owner/mode checks are verified on Linux CI");
+    return;
+  }
   const { root, source, destination, sha } = fixture();
   try {
     const stage = stageRuntime({ source, destination, requireRoot: false });
@@ -64,7 +68,11 @@ test("bounded readonly stage reuses exact immutable Git revision", () => {
   }
 });
 
-test("refuses uncommitted changes rather than staging dirty source", () => {
+test("refuses uncommitted changes rather than staging dirty source", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX owner/mode checks are verified on Linux CI");
+    return;
+  }
   const { root, source, destination } = fixture();
   try {
     fs.appendFileSync(path.join(source, "src/cli.js"), "// modified\n");
@@ -77,7 +85,11 @@ test("refuses uncommitted changes rather than staging dirty source", () => {
   }
 });
 
-test("refuses source revision that differs from origin/main", () => {
+test("refuses source revision that differs from origin/main", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX owner/mode checks are verified on Linux CI");
+    return;
+  }
   const { root, source, destination } = fixture();
   try {
     git(source, "-c", "user.name=Test", "-c", "user.email=test@example.test",
@@ -91,7 +103,11 @@ test("refuses source revision that differs from origin/main", () => {
   }
 });
 
-test("refuses writable or corrupted reused stage", () => {
+test("refuses writable or corrupted reused stage", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX owner/mode checks are verified on Linux CI");
+    return;
+  }
   const { root, source, destination } = fixture();
   try {
     const stage = stageRuntime({ source, destination, requireRoot: false });
