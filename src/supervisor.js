@@ -215,7 +215,7 @@ function fixedMainPlatformMarkers(run) {
     return [];
   }
   return text
-    .split(/\\r?\\n/)
+    .split(/\r?\n/)
     .map((line) => allowed.get(line.trim()))
     .filter(Boolean)
     .slice(-24);
