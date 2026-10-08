@@ -227,11 +227,19 @@ if (fs.existsSync(dir)) {
 }
 NODE
 
-# Ensure the actual service identity can traverse Node and read the runtime.
-# Root's -x check does not detect permission-denied parent directories.
-if ! runuser -u "$SERVICE_USER" -- test -x "$NODE" ||
-   ! runuser -u "$SERVICE_USER" -- test -r "$RUNTIME/src/cli.js" ||
-   ! runuser -u "$SERVICE_USER" -- test -x "$RUNTIME"; then
+# Validate under the *actual* approved systemd service identity.
+# The root refresh oneshot has NoNewPrivileges/RestrictSUIDSGID, so runuser/PAM
+# cannot change UID there even when the runtime is safely world-readable.
+# Ask PID 1 to start an isolated, short-lived user-scoped probe instead:
+# neither the runtime nor the refresh sandbox gains extra permissions.
+# Positional arguments avoid interpolating paths into executable shell text.
+if ! systemd-run --quiet --wait --collect --pipe \
+  -p "User=$SERVICE_USER" -p "Group=$SERVICE_USER" \
+  -p NoNewPrivileges=true -p RestrictSUIDSGID=true \
+  -p ProtectSystem=strict -p PrivateTmp=true \
+  -p RestrictAddressFamilies=AF_UNIX \
+  /bin/sh -c 'test -x "$1" && test -r "$2" && test -x "$3"' \
+  sh "$NODE" "$RUNTIME/src/cli.js" "$RUNTIME"; then
   echo 'MAIN_PLATFORM_RUNTIME_NOT_ACCESSIBLE_TO_SERVICE_USER' >&2
   exit 5
 fi
