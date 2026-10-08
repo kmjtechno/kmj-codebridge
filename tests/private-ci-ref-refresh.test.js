@@ -37,6 +37,14 @@ def fixture_lstat(p):
         if os.environ.get('PROJECT_RACE') and project_reads > 1: result.st_ino=2
         return result
     result=fixture_stat(p)
+    if os.environ.get('PROOF_COMBINED'):
+        if p=='/srv/kmj-codebridge-projects': result.st_uid=1001; result.st_gid=1001
+        if p=='/srv': result.st_mode |= 0o020
+        if p=='/': result.st_mode=stat.S_IFLNK|0o755
+        if p=='/var/lib/kmj-codebridge-ci': raise FileNotFoundError(2,'private ancestor error')
+    if os.environ.get('PROOF_LOCK_INVALID') and p.endswith('/.ci.lock'): result.st_nlink=2
+    if os.environ.get('PROOF_LOCK_PUBLIC') and p.endswith('/.ci.lock'): result.st_mode |= 0o004
+    if os.environ.get('PROOF_LOCK_FIFO') and p.endswith('/.ci.lock'): result.st_mode=stat.S_IFIFO|0o600
     if p.endswith('/.git') or p.endswith('/.git/config'):
         label='GIT' if p.endswith('/.git') else 'CONFIG'
         if os.environ.get(label+'_MISSING'): raise FileNotFoundError(2, 'private error')
@@ -50,10 +58,10 @@ def fixture_lstat(p):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 9
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 9
 os.close=lambda *a: None
 os.stat=lambda p, **kw: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/'+p)
-os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
+os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
     global project_mode
     assert fd in [10,11,12] and locked
@@ -237,6 +245,41 @@ subprocess.run=stub
   ]);
   assert.match(closed.stdout, /AUTO_UPDATE_PRIVATE_CI_GIT_METADATA_HARDENED=1/);
   assert.match(closed.stdout, /PR337_REF_REFRESHED=1/);
+  const batch = run({
+    SERVICE_OWNER: "1",
+    PROOF_COMBINED: "1",
+    GROUP_OTHER: "1",
+    WRITE_USER: "different",
+  });
+  assert.equal(batch.status, 0, batch.stderr);
+  for (const marker of [
+    "TRUST_PROJECT_PARENT_OWNER=MATCHES_PROJECT",
+    "TRUST_SRV_MODE=GROUP_WRITE",
+    "TRUST_ROOT_TYPE=SYMLINK",
+    "TRUST_BASE_READ=MISSING",
+    "TRUST_LOCK_READ=BLOCKED_BASE",
+    "TRUST_GROUP=OTHER_MEMBERS",
+    "TRUST_WRITER_LOAD=LOADED",
+    "TRUST_WRITER_UID=DIFFERS",
+  ])
+    assert.ok(
+      batch.stdout.includes("AUTO_UPDATE_PRIVATE_CI_" + marker),
+      marker,
+    );
+  assert.doesNotMatch(batch.stdout, /CHMOD=|UPDATED=|private ancestor error/);
+  assert.match(
+    fs.readFileSync("scripts/one-click-main-platform.sh", "utf8"),
+    /install -d -m 0755 -o "\$SERVICE_USER" -g "\$SERVICE_USER" "\$\(dirname "\$TARGET"\)"/,
+  );
+  const invalidLock = run({ PROOF_LOCK_INVALID: "1" });
+  assert.match(invalidLock.stdout, /TRUST_LOCK_NLINK=INVALID/);
+  assert.doesNotMatch(invalidLock.stdout, /UPDATED=|CHMOD=/);
+  const publicLock = run({ PROOF_LOCK_PUBLIC: "1" });
+  assert.match(publicLock.stdout, /TRUST_LOCK_PRIVATE_MODE=INVALID/);
+  assert.doesNotMatch(publicLock.stdout, /UPDATED=|CHMOD=/);
+  const fifoLock = run({ PROOF_LOCK_FIFO: "1" });
+  assert.match(fifoLock.stdout, /TRUST_LOCK_TYPE=OTHER/);
+  assert.doesNotMatch(fifoLock.stdout, /UPDATED=|CHMOD=/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
