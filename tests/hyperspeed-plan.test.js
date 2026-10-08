@@ -8,7 +8,7 @@ const task = (id, overrides = {}) => ({
   estimateMinutes: 12,
   priority: 50,
   dependsOn: [],
-  paths: [id + "/"],
+  paths: [id],
   dataClass: "private",
   ...overrides,
 });
@@ -145,6 +145,15 @@ test("fails closed on CPU/resource block", () => {
   });
   assert.equal(result.authorizedSlots, 0);
   assert.equal(result.blocked.a, "LICENSE_OR_RESOURCE_BLOCKED");
+});
+
+test("rejects aliases that would bypass file-scope mutual exclusion", () => {
+  for (const path of [".", "src/", "src//main.js", "src/./main.js"]) {
+    assert.throws(
+      () => plan([task("a", { paths: [path] })], []),
+      /INVALID_HYPERSPEED_PLAN/,
+    );
+  }
 });
 
 test("rejects duplicate ids, missing dependencies, cycles and unsafe scopes", () => {
