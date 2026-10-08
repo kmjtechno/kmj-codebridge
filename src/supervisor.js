@@ -200,6 +200,19 @@ function fixedMainPlatformMarkers(run) {
     ["config_identity=PASS", "CONFIG_IDENTITY_PASS"],
     ["gateway_health=PASS", "GATEWAY_HEALTH_PASS"],
     ["credential_introspection=PASS", "CREDENTIAL_INTROSPECTION_PASS"],
+    [
+      "MAIN_PLATFORM_RUNTIME_NOT_ACCESSIBLE_TO_SERVICE_USER",
+      "RUNTIME_PERMISSION_DENIED",
+    ],
+    [
+      "MAIN_PLATFORM_RESTART_EFFECTIVE_UNIT_CONFLICT",
+      "EFFECTIVE_UNIT_CONFLICT",
+    ],
+    ["MAIN_PLATFORM_RESTART_ACTIVE_JOB", "RESTART_DEFERRED_ACTIVE_JOB"],
+    [
+      "MAIN_PLATFORM_RESTART_FAILED_ROLLBACK_ATTEMPTED",
+      "RESTART_ROLLBACK_ATTEMPTED",
+    ],
   ]);
   let text;
   try {
