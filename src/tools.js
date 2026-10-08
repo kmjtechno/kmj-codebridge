@@ -10,6 +10,7 @@ import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { selectSkillPacks } from "./skill-packs.js";
+import { planHyperSpeed } from "./hyperspeed-plan.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -598,6 +599,51 @@ export const definitions = {
     input: {
       ...scoped,
       limit: z.number().int().min(1).max(100).default(20),
+    },
+    access: "read",
+  },
+  hyperspeed_plan: {
+    title: "HyperSpeed free agent wave planner",
+    description:
+      "Model a bounded DAG of up to 64 logical agent tasks, constrained by actual licensed CodeBridge slots, file locks, dependency order and caller-supplied free model pools. Zero inference or execution. Provider quotas remain unverified until connected and authenticated.",
+    input: {
+      ...scoped,
+      allowLocal: z.boolean().default(false),
+      tasks: z
+        .array(
+          z
+            .object({
+              id: identifier,
+              kind: z.enum(["research", "code", "test", "review", "docs"]),
+              dependsOn: z.array(identifier).max(64).default([]),
+              paths: z.array(z.string().min(1).max(200)).max(32).default(["*"]),
+              estimateMinutes: z.number().int().min(1).max(240).default(30),
+              priority: z.number().int().min(0).max(100).default(50),
+              dataClass: z.enum(["public", "private"]).default("private"),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(64),
+      pools: z
+        .array(
+          z
+            .object({
+              id: identifier,
+              kinds: z
+                .array(z.enum(["research", "code", "test", "review", "docs"]))
+                .max(5),
+              enabled: z.boolean(),
+              mode: z.enum(["cloud", "local"]),
+              canProcessPrivateCode: z.boolean(),
+              quotaVerified: z.boolean().default(false),
+              remainingRequests: z.number().int().min(0).max(1000000),
+              requestsPerMinute: z.number().int().min(1).max(100000),
+              unitCostUsd: z.number().min(0).max(100),
+            })
+            .strict(),
+        )
+        .max(12),
     },
     access: "read",
   },
@@ -1351,6 +1397,19 @@ export function createDispatcher(
     if (name === "audit_tail") {
       if (!audit) fail("AUDIT_UNAVAILABLE");
       return audit.tail(p.id, a.limit);
+    }
+    if (name === "hyperspeed_plan") {
+      const capacity = runner.capacity(p.files.root);
+      return {
+        device: config.id,
+        project: p.id,
+        ...planHyperSpeed({
+          tasks: a.tasks,
+          pools: a.pools,
+          capacity,
+          allowLocal: a.allowLocal,
+        }),
+      };
     }
     if (name === "execution_capacity")
       return {
