@@ -786,6 +786,129 @@ fi
 rm -rf "$ROLLBACK_CODE"
 rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_ROLLBACK_SERVICE" "$ROLLBACK_STABLE_UPDATE_CONFIG"
 
+# Only the fixed already-enrolled Main Platform VPS gets this native CI unit.
+# The unit is installed disabled; CodeBridge's existing supervisor socket is
+# the bounded start/status interface. No GitHub Actions runner is installed.
+install_private_pr322_ci_unit() {
+  local project=/srv/kmj-codebridge-projects/kmj-main-platform
+  local service=kmj-codebridge-private-pr322-ci.service
+  local target=/etc/systemd/system/$service
+  [[ -d "$project/.git" && ! -L "$project/.git" ]] || return 0
+  [[ -f "$INSTALL_DIR/scripts/ci-main-platform-pr-fixed.sh" &&
+     -f "$INSTALL_DIR/scripts/ci-main-platform-pr.sh" &&
+     -f "$INSTALL_DIR/scripts/ci-main-platform-pr-worker.sh" ]] || return 0
+  if ! getent passwd kmjci >/dev/null; then
+    useradd --system --user-group --no-create-home --shell /usr/sbin/nologin kmjci
+  fi
+  [[ "$(getent passwd kmjci | cut -d: -f7)" == /usr/sbin/nologin ]] ||
+    { echo 'PRIVATE_CI_IDENTITY_UNSAFE' >&2; return 1; }
+  if [[ -L "$target" || ( -e "$target" && ! -f "$target" ) ]]; then
+    echo 'PRIVATE_CI_UNIT_UNSAFE' >&2
+    return 1
+  fi
+  if [[ -f "$target" ]] && ! grep -q '^Description=KMJ CodeBridge private PR322 CI
+[Unit]
+Description=KMJ CodeBridge guarded development auto-update
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=CODEBRIDGE_AUTO_UPDATE_MODE=$AUTO_UPDATE_MODE
+Environment=CODEBRIDGE_INSTALL_DIR=$INSTALL_DIR
+Environment=CODEBRIDGE_CONFIG=$CONFIG
+ExecStart=/bin/bash $INSTALL_DIR/scripts/auto-update-development.sh
+Nice=10
+IOSchedulingClass=idle
+EOF
+
+cat >"$AUTO_UPDATE_TIMER_FILE" <<'EOF'
+[Unit]
+Description=Check for KMJ CodeBridge development updates
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+RandomizedDelaySec=10min
+Persistent=true
+Unit=kmj-codebridge-auto-update.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+systemctl daemon-reload
+case "$AUTO_UPDATE_MODE" in
+  development)
+    systemctl disable --now "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
+    systemctl enable --now "$AUTO_UPDATE_TIMER" >/dev/null
+    ;;
+  stable|beta)
+    systemctl disable --now "$AUTO_UPDATE_TIMER" >/dev/null 2>&1 || true
+    systemctl enable --now "$STABLE_UPDATE_TIMER" >/dev/null
+    ;;
+  off)
+    systemctl disable --now "$AUTO_UPDATE_TIMER" >/dev/null 2>&1 || true
+    systemctl disable --now "$STABLE_UPDATE_TIMER" >/dev/null 2>&1 || true
+    ;;
+esac
+
+echo "KMJ CodeBridge is installed, enrolled and running."
+echo "Device: $DEVICE"
+echo "Project: $PROJECT"
+echo "Service: systemctl status $SERVICE --no-pager"
+echo "Supervisor: socket-activated at $SUPERVISOR_SOCKET_PATH and idle when unused."
+echo "Auto-update mode: $AUTO_UPDATE_MODE"
+echo "Development auto-update timer: $AUTO_UPDATE_TIMER"
+echo "Signed stable update timer: $STABLE_UPDATE_TIMER"
+echo "No inbound VPS port or GitHub Actions runner is required."
+ "$target"; then
+    echo 'PRIVATE_CI_UNIT_OWNERSHIP_CONFLICT' >&2
+    return 1
+  fi
+  install -d -m 0711 -o root -g root /var/lib/kmj-codebridge-ci
+  install -d -m 0711 -o root -g root /var/lib/kmj-codebridge-ci/jobs
+  install -d -m 0700 -o root -g root /var/lib/kmj-codebridge-ci/evidence
+  cat >"$target" <<CI_UNIT
+[Unit]
+Description=KMJ CodeBridge private PR322 CI
+ConditionPathIsDirectory=/srv/kmj-codebridge-projects/kmj-main-platform/.git
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=$INSTALL_DIR
+ExecStart=/bin/bash $INSTALL_DIR/scripts/ci-main-platform-pr-fixed.sh
+NoNewPrivileges=true
+PrivateNetwork=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+RestrictAddressFamilies=AF_UNIX
+RestrictSUIDSGID=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+CapabilityBoundingSet=
+ReadWritePaths=/var/lib/kmj-codebridge-ci
+InaccessiblePaths=/etc/kmj-codebridge-main-platform /var/lib/kmj-codebridge-kmj-main-platform
+MemoryMax=14G
+TasksMax=600
+RuntimeMaxSec=20min
+UMask=0077
+CI_UNIT
+  chown root:root "$target"
+  chmod 0644 "$target"
+  systemctl daemon-reload
+  echo "PRIVATE_CI_NATIVE_UNIT_INSTALLED=1"
+}
+
+if ! install_private_pr322_ci_unit; then
+  echo 'PRIVATE_CI_INSTALL_DEFERRED' >&2
+fi
+
 cat >"$AUTO_UPDATE_SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge guarded development auto-update
