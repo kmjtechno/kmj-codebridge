@@ -182,7 +182,7 @@ test("cached stage refuses changed lockfile hash or malformed manifest", (t) => 
     const stage = stageRuntime({ source, destination, requireRoot: false });
     const lockfile = path.join(stage.directory, "package-lock.json");
     fs.chmodSync(lockfile, 0o644);
-    fs.writeFileSync(lockfile, "{\"changed\":true}\n");
+    fs.writeFileSync(lockfile, '{"changed":true}\n');
     fs.chmodSync(lockfile, 0o444);
     assert.throws(
       () => stageRuntime({ source, destination, requireRoot: false }),
