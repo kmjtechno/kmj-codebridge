@@ -9,8 +9,8 @@ TARGET="${CODEBRIDGE_PROJECT_ROOT:-/srv/kmj-codebridge-projects/kmj-main-platfor
 STATE="${CODEBRIDGE_STATE_DIR:-/var/lib/kmj-codebridge-main-platform}"
 KEY_DIR="$STATE/repository"
 KEY="$KEY_DIR/deploy_ed25519"
-SETUP_REVISION='09f4cb5942140af58ea36ed5894074bea752b6a5'
-SETUP_SHA256='c62396fcc0eb17ee4d1e4c6072137bb1533cbffe5c36fafff3bdaa8e413c36fa'
+SETUP_REVISION='84951aba6c4e8876c20f24d24c2eb97d64b84d33'
+SETUP_SHA256='bafb9170e7a52a38e9c34baa42c909e6aca2c6bb4417c605d30330e362aa5f0d'
 
 if id kmjrunner >/dev/null 2>&1; then
   SERVICE_USER=kmjrunner

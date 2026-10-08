@@ -10,6 +10,7 @@ const refresh = fs.readFileSync(
   "utf8",
 );
 const installer = fs.readFileSync("scripts/install-vps.sh", "utf8");
+const setup = fs.readFileSync("scripts/setup-main-platform-agent.sh", "utf8");
 
 test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => {
   if (process.platform !== "win32") {
@@ -72,6 +73,29 @@ test("installer provisions a rollback-safe fixed Main Platform refresh unit", ()
     /ReadWritePaths=\/etc\/kmj-codebridge-main-platform \/etc\/systemd\/system \/var\/lib\/kmj-codebridge-kmj-main-platform \/srv\/kmj-codebridge-projects\/kmj-main-platform/,
   );
   assert.match(installer, /ROLLBACK_MAIN_PLATFORM_REFRESH/);
+});
+
+test("existing Main Platform agent requires a bounded job-safe restart and rollback", (t) => {
+  if (process.platform !== "win32") {
+    const checked = spawnSync(
+      "bash",
+      ["-n", "scripts/setup-main-platform-agent.sh"],
+      { encoding: "utf8" },
+    );
+    assert.equal(checked.status, 0, checked.stderr);
+  } else {
+    t.diagnostic("Bash parser verified by Linux CI");
+  }
+  assert.ok(setup.includes("MAIN_PLATFORM_RESTART_ACTIVE_JOB"));
+  assert.ok(setup.includes("MAIN_PLATFORM_RESTART_JOURNAL_UNSAFE"));
+  assert.ok(setup.includes("MAIN_PLATFORM_RESTART_STATE_MISMATCH"));
+  assert.ok(setup.includes("MAIN_PLATFORM_RESTART_ARCHIVE_UNSAFE"));
+  assert.ok(setup.includes('systemctl restart "$SERVICE"'));
+  assert.ok(setup.includes('systemctl enable "$SERVICE"'));
+  assert.ok(setup.includes("UNIT_BACKUP"));
+  assert.ok(setup.includes("MAIN_PLATFORM_RESTART_FAILED_ROLLBACK_ATTEMPTED"));
+  assert.ok(setup.includes("MAIN_PLATFORM_AGENT_RESTARTED=1"));
+  assert.doesNotMatch(setup, /systemctl enable --now "\$SERVICE"/);
 });
 
 test("Supervisor can start only the fixed Main Platform refresh unit", async () => {
