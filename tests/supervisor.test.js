@@ -1261,7 +1261,10 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
         "FORMAT_START_FAILED",
       ],
       ["error: Linting could not start\n/private/secret", "LINT_START_FAILED"],
-      ["Found 0 errors and 0 warnings in 10 files", "COMMAND_FAILED_UNCLASSIFIED"],
+      [
+        "Found 0 errors and 0 warnings in 10 files",
+        "COMMAND_FAILED_UNCLASSIFIED",
+      ],
       [
         "Found 0 warnings and 2 errors.\nsecret=NEVER_RETURN",
         "LINT_ISSUES_REPORTED",
