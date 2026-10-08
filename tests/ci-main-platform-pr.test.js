@@ -490,6 +490,9 @@ test("trusted CI evidence writers record only fixed worker failure categories an
           log,
           String(code),
           manifest,
+          "b".repeat(40),
+          "c".repeat(40),
+          "d".repeat(64),
         ]);
         const record = JSON.parse(fs.readFileSync(manifest, "utf8"));
         assert.equal(record.failure_kind, failure, filename);

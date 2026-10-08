@@ -12,7 +12,7 @@ repo=/srv/kmj-codebridge-projects/kmj-main-platform
 git_read() {
   /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 \
     GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 \
-    GIT_CONFIG_NOSYSTEM=1 GIT_NO_REPLACE_OBJECTS=1 \
+    GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1 \
     /usr/bin/git -c safe.directory="$repo" -C "$repo" "$@"
 }
 control=/opt/kmj-codebridge-agent
@@ -53,8 +53,17 @@ mkdir -p "$job/src/.codebridge-contract/src"
 git_read archive --format=tar "$sha" |
   tar -x --no-same-owner --no-same-permissions -C "$job/src"
 # Detached .git HEAD is a nonproduction fixture for the staging header test.
-mkdir "$job/src/.git"
+# A new credential-free Git repository contains only object history reachable
+# from the reviewed head and baseline, needed by the existing triple-dot diff.
+base_sha="$(git_read rev-parse --verify HEAD)"
+[[ "$base_sha" =~ ^[a-f0-9]{40}$ ]] || { echo CI_BASE_SHA_INVALID >&2; exit 3; }
+printf '%s\n' "$sha" "$base_sha" | git_read pack-objects --revs --stdout > "$job/history.pack"
+/usr/bin/env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null /usr/bin/git init -q --template= "$job/src"
+/usr/bin/env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null /usr/bin/git -C "$job/src" index-pack --stdin < "$job/history.pack" >/dev/null
+rm -- "$job/history.pack"
 printf '%s\n' "$sha" > "$job/src/.git/HEAD"
+/usr/bin/env -i PATH=/usr/bin:/bin GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null /usr/bin/git -C "$job/src" read-tree "$sha"
+printf '%s\n' "$base_sha" > "$job/src/.ci-base-sha"
 cp -a --no-preserve=ownership,timestamps "$repo/apps/platform/vendor" "$job/src/apps/platform/vendor"
 cp -a --no-preserve=ownership,timestamps "$repo/apps/platform/node_modules" "$job/src/apps/platform/node_modules"
 for package in "$job/src"/packages/domain-*; do
@@ -63,9 +72,16 @@ for package in "$job/src"/packages/domain-*; do
   target="$job/src/apps/platform/vendor/kmjtechno/$name"
   [[ ! -d "$target/src" ]] || cp -a --no-preserve=ownership,timestamps "$package/src/." "$target/src/"
 done
-cp "$control/src/license.js" "$job/src/.codebridge-contract/src/license.js"
-cp "$control/src/errors.js" "$job/src/.codebridge-contract/src/errors.js"
-cp "$control/package.json" "$job/src/.codebridge-contract/package.json"
+# Copy the exact immutable consumer objects, not mutable installed files.
+control_git() {
+  /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 GIT_TERMINAL_PROMPT=0 GIT_NO_LAZY_FETCH=1 GIT_OPTIONAL_LOCKS=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_NO_REPLACE_OBJECTS=1 /usr/bin/git -c safe.directory="$control" -C "$control" "$@"
+}
+consumer_sha="$(control_git rev-parse --verify HEAD)"
+[[ "$consumer_sha" =~ ^[a-f0-9]{40}$ ]] || { echo CI_CONSUMER_SHA_INVALID >&2; exit 3; }
+for file in src/license.js src/errors.js package.json; do
+  control_git show "$consumer_sha:$file" > "$job/src/.codebridge-contract/$file"
+done
+consumer_license_sha256="$(sha256sum "$job/src/.codebridge-contract/src/license.js" | cut -d' ' -f1)"
 cp "$worker" "$job/worker.sh"
 chown -R kmjci:kmjci "$job"
 log="$base/evidence/$sha-$(date -u +%Y%m%dT%H%M%SZ).log"
@@ -89,15 +105,21 @@ code=$?
 set -e
 chmod 0600 "$log"
 # Trusted parent writes append-only SHA-bound result (never from PR code).
-python3 - "$sha" "$log" "$code" "$manifest" <<'PY'
+python3 - "$sha" "$log" "$code" "$manifest" "$base_sha" "$consumer_sha" "$consumer_license_sha256" <<'PY'
 import hashlib, json, pathlib, re, sys, time
-sha, log, code, output = sys.argv[1:]
+sha, log, code, output, base_sha, consumer_sha, consumer_license_sha256 = sys.argv[1:]
 b = pathlib.Path(log).read_bytes()
 lines = b.decode("utf-8", errors="replace").splitlines()
 gates = {
-    "fmt_lint", "frontend_build", "typescript", "php_format", "php_tests",
+    "php_key_generate", "php_migrations", "php_syntax", "platform_runtime", "license_runtime", "fmt_lint", "frontend_build", "typescript", "php_format", "php_tests",
     "activation_proof", "renewal", "node_lease_interop", "postgres_concurrency",
+    "php_config_clear", "php_static_analysis", "foundation_python_runtime", "foundation_compile", "foundation_workers", "foundation_browser_qa", "foundation_policy", "foundation_backup", "foundation_architecture", "foundation_delivery", "foundation_public_surface", "foundation_free_router", "foundation_contracts", "rust_format", "rust_tests", "kslp_contract", "foundation_module_architecture", "foundation_runtime", "lease_encoder_syntax",
 }
+runtime_versions = {}
+for line in lines:
+    match = re.fullmatch(r"KMJ_CI_RUNTIME_(PHP|NODE_PLATFORM|NODE_CONSUMER|PYTHON|CARGO|POSTGRES)=(UNAVAILABLE|[0-9]+\.[0-9]+(?:\.[0-9]+)?(?:-[A-Za-z0-9.-]+)?)", line)
+    if match and len(match[2]) <= 64:
+        runtime_versions[match[1]] = match[2]
 passed = []
 failed_gate = None
 for line in lines:
@@ -108,7 +130,8 @@ for line in lines:
     elif line.startswith("KMJ_CI_GATE_PASS="):
         label = line.split("=", 1)[1]
         if label in gates:
-            passed.append(label)
+            if label not in passed:
+                passed.append(label)
             if label == failed_gate:
                 failed_gate = None
 failure_kind = None
@@ -125,11 +148,12 @@ else:
     failed_gate = None
 record = {
     "schema": 1, "repo": "kmjtechno/kmj-main-platform", "pr": 322,
-    "sha": sha, "runner": "kmj-codebridge-private-vps-v1",
+    "sha": sha, "base_sha": base_sha, "consumer_sha": consumer_sha,
+    "consumer_license_sha256": consumer_license_sha256, "runner": "kmj-codebridge-private-vps-v1",
     "github_actions": "NOT_RUN", "windows": "NOT_RUN",
     "signed_production": False, "exit_code": int(code),
     "linux_result": "PASS" if int(code) == 0 else "FAIL",
-    "gate_markers": passed, "log_sha256": hashlib.sha256(b).hexdigest(),
+    "gate_markers": passed, "runtime_versions": runtime_versions, "log_sha256": hashlib.sha256(b).hexdigest(),
     "failure_kind": failure_kind, "failed_gate": failed_gate,
     "ended_epoch": int(time.time()),
 }
