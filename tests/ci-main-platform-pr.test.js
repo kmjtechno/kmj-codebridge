@@ -192,4 +192,9 @@ test("PR337 service is independent of PR322 and hardened", () => {
     assert.ok(websiteUnit.includes(item), item);
   }
   assert.doesNotMatch(websiteUnit, /systemctl\s+enable|WantedBy=/);
+  assert.match(
+    websiteUnit,
+    /systemctl start --no-block kmj-codebridge-private-pr337-ci\.service/,
+  );
+  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_START_ACCEPTED=1/);
 });
