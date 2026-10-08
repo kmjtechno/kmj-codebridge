@@ -171,6 +171,15 @@ test("PR337 service is independent of PR322 and hardened", () => {
   assert.match(websiteUnit, /kmj-codebridge-private-pr337-ci\.service/);
   assert.match(websiteUnit, /ci-main-platform-pr337-fixed\.sh/);
   assert.match(websiteUnit, /ci-main-platform-pr337\.sh/);
+  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_ORIGIN_MISMATCH/);
+  assert.match(websiteUnit, /PRIVATE_WEBSITE_CI_REF_REFRESH_FAILED/);
+  assert.match(websiteUnit, /timeout 45s git/);
+  assert.ok(
+    websiteUnit.includes(
+      "refs/heads/fix/public-marketing-standalone-nav-20261008:" +
+        "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
+    ),
+  );
   for (const item of [
     "Type=oneshot",
     "PrivateNetwork=true",
