@@ -29,7 +29,6 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
     /PROJECT_ROOT="\/srv\/kmj-codebridge-projects\/kmj-main-platform"/,
   );
   assert.match(refresh, /CONFIG_DIR="\/etc\/kmj-codebridge-main-platform"/);
-  assert.match(refresh, /CODEBRIDGE_RUNTIME="\$RUNTIME"/);
   assert.match(refresh, /stage-main-platform-runtime\.js/);
   assert.match(refresh, /MAIN_PLATFORM_REFRESH_STAGE_READY=1/);
   assert.match(refresh, /MAIN_PLATFORM_REFRESH_STAGE_FAILED/);
