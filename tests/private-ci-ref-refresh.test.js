@@ -92,8 +92,8 @@ pwd.getpwall=lambda: [SimpleNamespace(pw_uid=(1001 if os.environ.get('SERVICE_OW
 pwd.getpwnam=lambda name: SimpleNamespace(pw_uid=0 if name=='root' else 1001 if name=='kmjrunner' else 1002)
 refs={}
 old='e'*40
-owner_sha='8ebbb6f1999309875b6f6b0c6d25c21847fff3ff'
-website='70a5efb9a43103cd17be15d056e166cb19813efe'
+owner_sha='d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764'
+website='25950caa017fcb70d87564f3a817d6280a841cae'
 def stub(args, **kw):
     if args[0]=='/usr/bin/systemctl':
         assert args==['/usr/bin/systemctl','show','kmj-codebridge-kmj-main-platform.service','--property=LoadState','--property=User','--no-pager']
@@ -354,10 +354,10 @@ subprocess.run=stub
   assert.equal(success.status, 0, success.stderr);
   assert.match(
     success.stdout,
-    /UPDATED=refs\/remotes\/origin\/feat\/codebridge-owner-tier=8ebbb6/,
+    /UPDATED=refs\/remotes\/origin\/feat\/codebridge-owner-tier=d1b6f2/,
   );
   assert.match(
     success.stdout,
-    /UPDATED=refs\/remotes\/origin\/fix\/public-marketing-standalone-nav-20261008=70a5ef/,
+    /UPDATED=refs\/remotes\/origin\/fix\/public-marketing-standalone-nav-20261008=25950c/,
   );
 });

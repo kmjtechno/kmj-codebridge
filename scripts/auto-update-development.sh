@@ -131,8 +131,8 @@ import fcntl, grp, os, pwd, re, stat, subprocess
 PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
 BASE = "/var/lib/kmj-codebridge-ci"
 TARGETS = [
-    ("PR322", "feat/codebridge-owner-tier", "8ebbb6f1999309875b6f6b0c6d25c21847fff3ff"),
-    ("PR337", "fix/public-marketing-standalone-nav-20261008", "70a5efb9a43103cd17be15d056e166cb19813efe"),
+    ("PR322", "feat/codebridge-owner-tier", "d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764"),
+    ("PR337", "fix/public-marketing-standalone-nav-20261008", "25950caa017fcb70d87564f3a817d6280a841cae"),
 ]
 ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.com/kmjtechno/kmj-main-platform.git", "https://github.com/kmjtechno/kmj-main-platform.git"}
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
@@ -453,8 +453,8 @@ DIRECTORY = BASE + "/evidence"
 RUNTIME = "/opt/kmj-codebridge-agent"
 PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
 TARGETS = [
-    ("337", "70a5efb9a43103cd17be15d056e166cb19813efe", "fix/public-marketing-standalone-nav-20261008", "ci-main-platform-pr337-fixed.sh", "ci-main-platform-pr337.sh"),
-    ("322", "8ebbb6f1999309875b6f6b0c6d25c21847fff3ff", "feat/codebridge-owner-tier", "ci-main-platform-pr-fixed.sh", "ci-main-platform-pr.sh"),
+    ("337", "25950caa017fcb70d87564f3a817d6280a841cae", "fix/public-marketing-standalone-nav-20261008", "ci-main-platform-pr337-fixed.sh", "ci-main-platform-pr337.sh"),
+    ("322", "d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764", "feat/codebridge-owner-tier", "ci-main-platform-pr-fixed.sh", "ci-main-platform-pr.sh"),
 ]
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
 

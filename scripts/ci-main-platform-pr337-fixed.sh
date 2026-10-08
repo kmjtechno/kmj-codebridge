@@ -13,6 +13,6 @@ if ! sha="$(/usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 GIT_TERMINAL_PROMPT=
   exit 3
 fi
 [[ "$sha" =~ ^[a-f0-9]{40}$ ]] || { echo KMJ_CI_FIXED_REVISION_INVALID >&2; exit 3; }
-[[ "$sha" == 70a5efb9a43103cd17be15d056e166cb19813efe ]] || { echo KMJ_CI_FIXED_SHA_MISMATCH >&2; exit 3; }
+[[ "$sha" == 25950caa017fcb70d87564f3a817d6280a841cae ]] || { echo KMJ_CI_FIXED_SHA_MISMATCH >&2; exit 3; }
 # No checkout mutations or fetch; exact pinned ref is checked in privileged preparer.
 exec /bin/bash /opt/kmj-codebridge-agent/scripts/ci-main-platform-pr337.sh "$sha"

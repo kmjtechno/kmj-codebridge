@@ -79,7 +79,7 @@ base_source_sha=$(git_read rev-parse --verify HEAD)
 # Both reviewed candidates must use the existing dependency lock and manifest.
 for file in Cargo.lock Cargo.toml; do
   git_read show "$base_source_sha:services/license-core/$file" > "$work/core/$file"
-  for sha in 70a5efb9a43103cd17be15d056e166cb19813efe 8ebbb6f1999309875b6f6b0c6d25c21847fff3ff; do
+  for sha in 25950caa017fcb70d87564f3a817d6280a841cae d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764; do
     [[ $(git_read show "$sha:services/license-core/$file" | sha256sum | cut -d' ' -f1) == "$(sha256sum "$work/core/$file" | cut -d' ' -f1)" ]] || { echo CI_PREREQUISITES_LOCK_CONFLICT >&2; exit 3; }
   done
 done
