@@ -255,7 +255,9 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
     mainPlatformRefreshMarkers: [],
   });
   assert.deepEqual(
-    calls.filter((entry) => entry[0].endsWith("systemctl")).map((entry) => entry[1][1]),
+    calls
+      .filter((entry) => entry[0].endsWith("systemctl"))
+      .map((entry) => entry[1][1]),
     [
       "kmj-codebridge-auto-update.timer",
       "kmj-codebridge-auto-update.service",
