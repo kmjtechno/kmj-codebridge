@@ -135,6 +135,56 @@ function fixedUnitStatus(run, unit, properties) {
   }
 }
 
+// Only expose explicitly allowlisted non-sensitive updater outcome markers.
+function fixedUpdateMarkers(run, unit) {
+  const commits = new Set([
+    "AUTO_UPDATE_CURRENT",
+    "AUTO_UPDATE_FROM",
+    "AUTO_UPDATE_TO",
+    "AUTO_UPDATE_APPLIED",
+  ]);
+  const flags = new Set([
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULED",
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_SCHEDULE_FAILED",
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED",
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_FAILED",
+    "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED",
+  ]);
+  const bare = new Set([
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
+    "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_NODE_UNAVAILABLE",
+    "MAIN_PLATFORM_REFRESH_REQUIRES_EXISTING_ENROLLMENT",
+    "MAIN_PLATFORM_REFRESH_PROJECT_MISSING",
+    "MAIN_PLATFORM_REFRESH_RUNTIME_INVALID",
+    "MAIN_PLATFORM_REFRESH_SERVICE_USER_MISSING",
+    "MAIN_PLATFORM_REFRESH_SERVICE_USER_INVALID",
+    "MAIN_PLATFORM_REFRESH_UNSAFE_CONFIG",
+    "MAIN_PLATFORM_REFRESH_NODE_MISSING",
+  ]);
+  let lines;
+  try {
+    lines = String(
+      run(JOURNALCTL, ["-u", unit, "-n", "120", "--no-pager", "--output=cat"]),
+    ).split(/\r?\n/);
+  } catch {
+    return [];
+  }
+  return lines
+    .map((line) => line.trim())
+    .filter((line) => {
+      if (bare.has(line)) return true;
+      const split = line.indexOf("=");
+      if (split < 1 || line.indexOf("=", split + 1) !== -1) return false;
+      const key = line.slice(0, split);
+      const value = line.slice(split + 1);
+      return (
+        (commits.has(key) && /^[a-f0-9]{40}$/.test(value)) ||
+        (flags.has(key) && value === "1")
+      );
+    })
+    .slice(-24);
+}
+
 function defaultRun(command, args, options = {}) {
   return execFileSync(command, args, {
     encoding: "utf8",
@@ -413,6 +463,11 @@ export function createSupervisorHandler({
           service,
           mainPlatformRefresh,
           mainPlatformPrerequisites,
+          updateMarkers: fixedUpdateMarkers(run, UPDATE_SERVICE),
+          mainPlatformRefreshMarkers: fixedUpdateMarkers(
+            run,
+            MAIN_PLATFORM_REFRESH_SERVICE,
+          ),
         },
       };
     }
