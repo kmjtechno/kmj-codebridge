@@ -37,7 +37,7 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
     refresh,
     /CODEBRIDGE_RUNTIME="\$STAGED_RUNTIME"/,
   );
-  assert.match(refresh, /\[a-f0-9\]\{40\}/);
+  assert.ok(refresh.includes("[a-f0-9]{40}"));
 
   assert.match(refresh, /bash "\$SETUP"/);
   assert.doesNotMatch(refresh, /enroll-device\.js/);
