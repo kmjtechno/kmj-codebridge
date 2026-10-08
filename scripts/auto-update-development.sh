@@ -126,7 +126,7 @@ NODE
 # Never execute a service-owned SSH command as the privileged updater.
 refresh_fixed_private_ci_refs() {
   /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I - <<'PY'
-import fcntl, os, pwd, re, stat, subprocess
+import fcntl, grp, os, pwd, re, stat, subprocess
 
 PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
 BASE = "/var/lib/kmj-codebridge-ci"
@@ -137,7 +137,7 @@ TARGETS = [
 ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.com/kmjtechno/kmj-main-platform.git", "https://github.com/kmjtechno/kmj-main-platform.git"}
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
 lock_fd = None
-project_fd = None
+harden_fds = []
 step = "PROJECT_LSTAT_READ"
 try:
     try:
@@ -228,7 +228,7 @@ try:
         if meta is None:
             raise ValueError("repository metadata unavailable")
         regular = path.endswith("/config")
-        if (not stat.S_ISREG(meta.st_mode) if regular else not stat.S_ISDIR(meta.st_mode)) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o022 or (regular and (meta.st_nlink != 1 or not 0 < meta.st_size <= 65536)):
+        if (not stat.S_ISREG(meta.st_mode) if regular else not stat.S_ISDIR(meta.st_mode)) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o002 or (regular and (meta.st_nlink != 1 or not 0 < meta.st_size <= 65536)):
             raise ValueError("repository metadata")
         repository_metadata.append((path, meta))
     # Root execution requires a root-owned path all the way to the filesystem.
@@ -255,6 +255,15 @@ try:
     except BlockingIOError:
         print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_BUSY")
         raise SystemExit(0)
+    entries = [(PROJECT, project), *repository_metadata]
+    needs_hardening = any(meta.st_mode & 0o020 for _, meta in entries)
+    if needs_hardening:
+        step = "PROJECT_GROUP_EXCLUSIVITY"
+        group = grp.getgrgid(owner.pw_gid)
+        members = {account.pw_uid for account in pwd.getpwall() if account.pw_gid == owner.pw_gid}
+        members.update(pwd.getpwnam(name).pw_uid for name in group.gr_mem)
+        if owner.pw_uid not in members or members - {0, owner.pw_uid}:
+            raise ValueError("other group writer")
     ENV["HOME"] = owner.pw_dir
     def git(*args):
         return subprocess.run(["/usr/bin/git", "-c", "safe.directory=" + PROJECT, "-c", "core.hooksPath=/dev/null", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "-C", PROJECT, *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=45, env=ENV, user=owner.pw_uid, group=owner.pw_gid, extra_groups=[])
@@ -265,7 +274,7 @@ try:
     step = "ORIGIN_ALLOWLIST"
     if remote.stdout.strip() not in ORIGINS:
         raise ValueError("origin")
-    if project.st_mode & 0o020:
+    if needs_hardening:
         step = "PROJECT_WRITE_AUTHORITY_READ"
         authority = subprocess.run(["/usr/bin/systemctl", "show", "kmj-codebridge-kmj-main-platform.service", "--property=LoadState", "--property=User", "--no-pager"], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
         fields = dict(line.split("=", 1) for line in authority.stdout.splitlines() if "=" in line)
@@ -284,26 +293,33 @@ try:
         if writer_uid != owner.pw_uid:
             raise ValueError("write authority differs")
         step = "PROJECT_HARDEN_IDENTITY"
-        project_fd = os.open(PROJECT, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
         def identity(meta):
-            return (meta.st_dev, meta.st_ino, meta.st_uid, meta.st_gid, meta.st_mode)
-        if identity(os.fstat(project_fd)) != identity(project) or identity(os.lstat(PROJECT)) != identity(project):
-            raise ValueError("project changed")
-        for path, previous in repository_metadata:
+            return (meta.st_dev, meta.st_ino, meta.st_uid, meta.st_gid, meta.st_mode, meta.st_nlink, meta.st_size, meta.st_mtime_ns, meta.st_ctime_ns)
+        for index, (path, previous) in enumerate(entries):
+            if index < 2:
+                fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+            else:
+                fd = os.open("config", os.O_RDONLY | os.O_NOFOLLOW, dir_fd=harden_fds[1])
+            harden_fds.append(fd)
+            if identity(os.fstat(fd)) != identity(previous):
+                raise ValueError("metadata descriptor changed")
+        # Validate all three paths before changing even one permission bit.
+        for path, previous in entries:
             if identity(os.lstat(path)) != identity(previous):
-                raise ValueError("repository metadata changed")
+                raise ValueError("metadata path changed")
         step = "PROJECT_HARDEN_MODE"
-        mode = stat.S_IMODE(project.st_mode) & ~0o020
-        os.fchmod(project_fd, mode)
-        after = os.fstat(project_fd)
-        current = os.lstat(PROJECT)
-        expected_identity = (project.st_dev, project.st_ino, project.st_uid, project.st_gid, stat.S_IFDIR | mode)
-        if identity(after) != expected_identity or identity(current) != expected_identity:
-            raise ValueError("project hardening changed")
-        for path, previous in repository_metadata:
-            if identity(os.lstat(path)) != identity(previous):
-                raise ValueError("repository metadata changed")
-        print("AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1")
+        for (_, previous), fd in zip(entries, harden_fds):
+            if previous.st_mode & 0o020:
+                os.fchmod(fd, stat.S_IMODE(previous.st_mode) & ~0o020)
+        for (path, previous), fd in zip(entries, harden_fds):
+            expected = identity(previous)[:-1]
+            expected = (*expected[:4], previous.st_mode & ~0o020, *expected[5:])
+            if identity(os.fstat(fd))[:-1] != expected or identity(os.lstat(path))[:-1] != expected:
+                raise ValueError("metadata hardening changed")
+        if project.st_mode & 0o020:
+            print("AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1")
+        if git_directory.st_mode & 0o020 or git_config.st_mode & 0o020:
+            print("AUTO_UPDATE_PRIVATE_CI_GIT_METADATA_HARDENED=1")
     for label, branch, expected in TARGETS:
         prefix = "AUTO_UPDATE_PRIVATE_" + label + "_REF_"
         tracking = "refs/remotes/origin/" + branch
@@ -348,8 +364,8 @@ except Exception:
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED")
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=" + step)
 finally:
-    if project_fd is not None:
-        os.close(project_fd)
+    for fd in reversed(harden_fds):
+        os.close(fd)
     if lock_fd is not None:
         os.close(lock_fd)
 PY
