@@ -1696,6 +1696,11 @@ test("fixed Git metadata markers expose only classes for both protected entries"
     "AUTO_UPDATE_PRIVATE_CI_OBJECT_ROOT_ACCESS=DENIED",
     "AUTO_UPDATE_PRIVATE_CI_OBJECT_PACK_WRITE_ACCESS=DENIED",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=OBJECT_READ_FAILED",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_TARGET=WEBSITE_REFLOG",
+    "AUTO_UPDATE_PRIVATE_CI_REF_LOG_FIX_READ=OK",
+    "AUTO_UPDATE_PRIVATE_CI_REF_LOG_FIX_OWNER=ROOT",
+    "AUTO_UPDATE_PRIVATE_CI_REF_LOG_FIX_ACCESS=DENIED",
+    "AUTO_UPDATE_PRIVATE_CI_REF_LOG_FIX_WRITE_ACCESS=DENIED",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=REVISION_UNAVAILABLE",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_STAGE=FETCH",
     "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_EXIT=EXIT_128",
@@ -1717,6 +1722,8 @@ test("fixed Git metadata markers expose only classes for both protected entries"
             ...expected,
             "AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIRED=secret",
             "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=REF_METADATA_SECRET",
+            "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_TARGET=/private/key",
+            "AUTO_UPDATE_PRIVATE_CI_REF_LOG_UNKNOWN_READ=OK",
             "AUTO_UPDATE_PRIVATE_CI_REF_UNKNOWN_ACCESS=ALLOWED",
             "AUTO_UPDATE_PRIVATE_CI_REF_WEBSITE_ACCESS=/private/key",
             "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=/private/key",
@@ -1750,4 +1757,61 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       (marker) => marker === "AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE",
     ),
   );
+});
+
+test("full fixed fetch access proof survives the bounded journal tail", async () => {
+  const expected = [
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_STAGE=FETCH",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_EXIT=EXIT_1",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=GIT_PERMISSION_DENIED",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_TARGET=WEBSITE_REFLOG",
+    ...[
+      "REF_ROOT",
+      "REF_TEMP_ROOT",
+      "REF_TEMP_PR337",
+      "REF_TEMP_PR322",
+      "REF_LOG_ROOT",
+      "REF_LOG_REFS",
+      "REF_LOG_REMOTES",
+      "REF_LOG_ORIGIN",
+      "REF_LOG_FIX",
+      "REF_LOG_WEBSITE",
+      "REF_LOG_TEMP_ROOT",
+      "REF_LOG_TEMP_PR337",
+      "REF_LOG_TEMP_PR322",
+    ].flatMap((label) => [
+      `AUTO_UPDATE_PRIVATE_CI_${label}_READ=OK`,
+      `AUTO_UPDATE_PRIVATE_CI_${label}_OWNER=ROOT`,
+      `AUTO_UPDATE_PRIVATE_CI_${label}_GID=MATCHES_PRIMARY`,
+      `AUTO_UPDATE_PRIVATE_CI_${label}_TYPE=DIRECTORY`,
+      `AUTO_UPDATE_PRIVATE_CI_${label}_MODE=NONWRITE`,
+      `AUTO_UPDATE_PRIVATE_CI_${label}_ACCESS=DENIED`,
+      `AUTO_UPDATE_PRIVATE_CI_${label}_WRITE_ACCESS=DENIED`,
+    ]),
+    "AUTO_UPDATE_PRIVATE_CI_REF_LOG_WEBSITE_NLINK=VALID",
+    "AUTO_UPDATE_PRIVATE_CI_REF_LOG_WEBSITE_SIZE=VALID",
+    "AUTO_UPDATE_PRIVATE_PR337_CI_DEFERRED_UNTRUSTED",
+    "AUTO_UPDATE_CURRENT=" + "a".repeat(40),
+  ];
+  const handle = createSupervisorHandler({
+    run: (command, args) =>
+      command.endsWith("journalctl") &&
+      args[1] === "kmj-codebridge-auto-update.service"
+        ? [
+            ...Array(50).fill("AUTO_UPDATE_PRIVATE_CI_TRUST_GROUP=EXCLUSIVE"),
+            ...expected,
+            "AUTO_UPDATE_PRIVATE_CI_REF_LOG_WEBSITE_ACCESS=/private/key",
+          ].join("\n")
+        : "LoadState=loaded\nActiveState=inactive\n",
+    lstat: () => {
+      throw new Error("fixture");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.equal(result.response.updateMarkers.length, 128);
+  assert.deepEqual(
+    result.response.updateMarkers.slice(-expected.length),
+    expected,
+  );
+  assert.doesNotMatch(JSON.stringify(result), /\/private\/key/);
 });

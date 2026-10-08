@@ -184,6 +184,18 @@ function fixedUpdateMarkers(run, unit) {
     "OBJECT_ROOT",
     "OBJECT_PACK",
     "OBJECT_INFO",
+    "REF_TEMP_ROOT",
+    "REF_TEMP_PR337",
+    "REF_TEMP_PR322",
+    "REF_LOG_ROOT",
+    "REF_LOG_REFS",
+    "REF_LOG_REMOTES",
+    "REF_LOG_ORIGIN",
+    "REF_LOG_FIX",
+    "REF_LOG_WEBSITE",
+    "REF_LOG_TEMP_ROOT",
+    "REF_LOG_TEMP_PR337",
+    "REF_LOG_TEMP_PR322",
   ]) {
     for (const [field, values] of [
       [
@@ -257,6 +269,16 @@ function fixedUpdateMarkers(run, unit) {
         ],
       ],
       [
+        "TARGET",
+        [
+          "WEBSITE_REFLOG",
+          "TEMPORARY_REFLOG",
+          "TEMPORARY_REF",
+          "OBJECT_STORAGE",
+          "UNCLASSIFIED",
+        ],
+      ],
+      [
         "KIND",
         [
           "OBJECT_READ_FAILED",
@@ -287,6 +309,18 @@ function fixedUpdateMarkers(run, unit) {
     "OBJECT_ROOT",
     "OBJECT_PACK",
     "OBJECT_INFO",
+    "REF_TEMP_ROOT",
+    "REF_TEMP_PR337",
+    "REF_TEMP_PR322",
+    "REF_LOG_ROOT",
+    "REF_LOG_REFS",
+    "REF_LOG_REMOTES",
+    "REF_LOG_ORIGIN",
+    "REF_LOG_FIX",
+    "REF_LOG_WEBSITE",
+    "REF_LOG_TEMP_ROOT",
+    "REF_LOG_TEMP_PR337",
+    "REF_LOG_TEMP_PR322",
   ])
     for (const field of ["ACCESS", "WRITE_ACCESS"])
       gitMetadataFields.set(
@@ -302,7 +336,15 @@ function fixedUpdateMarkers(run, unit) {
           "BLOCKED_DIRECTORY",
         ]),
       );
-  for (const label of ["REF_WEBSITE", "REF_PACKED"])
+  for (const label of [
+    "REF_WEBSITE",
+    "REF_PACKED",
+    "REF_TEMP_PR337",
+    "REF_TEMP_PR322",
+    "REF_LOG_WEBSITE",
+    "REF_LOG_TEMP_PR337",
+    "REF_LOG_TEMP_PR322",
+  ])
     for (const field of ["NLINK", "SIZE"])
       gitMetadataFields.set(
         `AUTO_UPDATE_PRIVATE_CI_${label}_${field}`,
