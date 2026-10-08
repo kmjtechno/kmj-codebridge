@@ -36,7 +36,10 @@ for file in apps/platform/composer.lock apps/platform/package-lock.json; do
 done
 echo KMJ_CI_PREP_STAGE=LOCKS_VERIFIED
 # Disallow tracked Git symlinks before root-owned archive extraction.
-if git_read ls-tree -r "$sha" | grep -q '^120000 '; then
+# Consume the whole tree: grep -q can close early, causing Git SIGPIPE and
+# making this conditional false under pipefail even when a link was found.
+tree_listing="$(git_read ls-tree -r "$sha")" || { echo CI_TREE_READ_FAILED >&2; exit 3; }
+if awk '$1 == "120000" { found=1 } END { exit !found }' <<< "$tree_listing"; then
   echo CI_UNSAFE_TRACKED_SYMLINK >&2; exit 3
 fi
 install -d -o root -g root -m 0711 "$base" "$base/jobs"
