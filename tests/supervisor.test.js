@@ -1688,6 +1688,9 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       `AUTO_UPDATE_PRIVATE_CI_${entry}_ACCESS=DENIED`,
       `AUTO_UPDATE_PRIVATE_CI_${entry}_WRITE_ACCESS=DENIED`,
     ]),
+    "AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIRED=1",
+    "AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIR_INCOMPLETE",
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=REF_METADATA_CONTENT",
     "AUTO_UPDATE_PRIVATE_CI_REF_WEBSITE_NLINK=VALID",
     "AUTO_UPDATE_PRIVATE_CI_REF_PACKED_SIZE=VALID",
     "AUTO_UPDATE_PRIVATE_CI_OBJECT_ROOT_ACCESS=DENIED",
@@ -1712,6 +1715,8 @@ test("fixed Git metadata markers expose only classes for both protected entries"
       args[1] === "kmj-codebridge-auto-update.service"
         ? [
             ...expected,
+            "AUTO_UPDATE_PRIVATE_PR337_REF_METADATA_REPAIRED=secret",
+            "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=REF_METADATA_SECRET",
             "AUTO_UPDATE_PRIVATE_CI_REF_UNKNOWN_ACCESS=ALLOWED",
             "AUTO_UPDATE_PRIVATE_CI_REF_WEBSITE_ACCESS=/private/key",
             "AUTO_UPDATE_PRIVATE_PR337_REF_FAILURE_KIND=/private/key",
