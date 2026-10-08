@@ -271,7 +271,10 @@ test("installer only provisions disabled fixed native CI on the actual Main Plat
   assert.match(script, /kmj-codebridge-private-pr322-ci\.service/);
   assert.match(script, /-d "\$project\/\.git"/);
   assert.match(script, /\/srv\/kmj-codebridge-projects\/kmj-main-platform/);
-  assert.match(script, /useradd --system --user-group --no-create-home --shell \/usr\/sbin\/nologin kmjci/);
+  assert.match(
+    script,
+    /useradd --system --user-group --no-create-home --shell \/usr\/sbin\/nologin kmjci/,
+  );
   assert.match(script, /PRIVATE_CI_UNIT_OWNERSHIP_CONFLICT/);
   assert.match(script, /NoNewPrivileges=true/);
   assert.match(script, /PrivateNetwork=true/);
@@ -279,8 +282,14 @@ test("installer only provisions disabled fixed native CI on the actual Main Plat
   assert.match(script, /RestrictAddressFamilies=AF_UNIX/);
   assert.match(script, /InaccessiblePaths=\/etc\/kmj-codebridge-main-platform/);
   assert.match(script, /ReadWritePaths=\/var\/lib\/kmj-codebridge-ci/);
-  assert.match(script, /ExecStart=\/bin\/bash \$INSTALL_DIR\/scripts\/ci-main-platform-pr-fixed\.sh/);
-  assert.doesNotMatch(script, /systemctl enable --now kmj-codebridge-private-pr322-ci\.service/);
+  assert.match(
+    script,
+    /ExecStart=\/bin\/bash \$INSTALL_DIR\/scripts\/ci-main-platform-pr-fixed\.sh/,
+  );
+  assert.doesNotMatch(
+    script,
+    /systemctl enable --now kmj-codebridge-private-pr322-ci\.service/,
+  );
 });
 
 test("fixed private CI entry cannot accept a user-selected revision or command", () => {
