@@ -40,8 +40,10 @@ function validate(tasks, pools) {
           scope.length <= 200 &&
           (scope === "*" ||
             (/^[A-Za-z0-9_.\/-]+$/.test(scope) &&
-              !scope.split("/").includes("..") &&
-              !scope.startsWith("/"))),
+              !scope.startsWith("/") &&
+              !scope.endsWith("/") &&
+              !scope.includes("//") &&
+              !scope.split("/").some((part) => part === "." || part === ".."))),
       );
     }
   }
