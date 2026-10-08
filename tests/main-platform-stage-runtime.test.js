@@ -158,7 +158,7 @@ test("rejects invalid Node agent syntax before publishing any stage", (t) => {
   }
   const { root, source, destination } = fixture();
   try {
-    fs.writeFileSync(path.join(source, "src/cli.js"), "export default ===;\n");
+    fs.writeFileSync(path.join(source, "src/cli.js"), "const invalid = ;\n");
     git(source, "add", "src/cli.js");
     git(
       source,
