@@ -346,7 +346,10 @@ test("only exact non-secret updater markers are exposed", async () => {
   assert.deepEqual(result.response.mainPlatformRefreshMarkers, [
     "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED=1",
   ]);
-  assert.doesNotMatch(JSON.stringify(result.response), /secret_should_not_appear|private|Bearer/);
+  assert.doesNotMatch(
+    JSON.stringify(result.response),
+    /secret_should_not_appear|private|Bearer/,
+  );
 });
 
 test("auto-update trigger acknowledges before starting only the hardcoded unit", async () => {
