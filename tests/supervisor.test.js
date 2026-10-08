@@ -627,6 +627,7 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
       "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
+      "/var/lib/kmj-codebridge-ci/prerequisites/status.json",
     ].sort(),
   );
   await assert.rejects(
