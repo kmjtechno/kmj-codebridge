@@ -269,7 +269,10 @@ test("installer provisions fixed bounded stable rollback service", () => {
 test("installer provisions fixed disabled CI only on Main Platform", () => {
   assert.match(script, /install-private-pr322-ci-unit\.sh/);
   assert.match(script, /PRIVATE_CI_INSTALL_DEFERRED/);
-  const unit = fs.readFileSync("scripts/install-private-pr322-ci-unit.sh", "utf8");
+  const unit = fs.readFileSync(
+    "scripts/install-private-pr322-ci-unit.sh",
+    "utf8",
+  );
   assert.match(unit, /kmj-codebridge-private-pr322-ci\.service/);
   assert.match(unit, /-d "\$project\/\.git"/);
   assert.match(unit, /\/srv\/kmj-codebridge-projects\/kmj-main-platform/);
