@@ -32,6 +32,14 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
   assert.match(refresh, /bash "\$SETUP"/);
   assert.doesNotMatch(refresh, /enroll-device\.js/);
   assert.doesNotMatch(refresh, /CODEBRIDGE_AGENT_TOKEN/);
+  assert.match(refresh, /MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED/);
+  assert.match(refresh, /MAIN_PLATFORM_REFRESH_LEGACY_UNSAFE/);
+  assert.match(refresh, /O_EXCL/);
+  assert.match(refresh, /O_NOFOLLOW/);
+  assert.match(refresh, /fs\.realpathSync\(c\.projects\[0\]\.root\)/);
+  assert.match(refresh, /c\.stateDir !== process\.env\.STATE_DIR/);
+  assert.doesNotMatch(refresh, /rm -rf "\$LEGACY_CONFIG"/);
+
 });
 
 test("installer provisions a rollback-safe fixed Main Platform refresh unit", () => {
@@ -41,7 +49,11 @@ test("installer provisions a rollback-safe fixed Main Platform refresh unit", ()
   );
   assert.match(
     installer,
-    /ConditionPathExists=\/etc\/kmj-codebridge-main-platform\/agent\.json/,
+    /ConditionPathExists=\|\/etc\/kmj-codebridge-main-platform\/agent\.json/,
+  );
+  assert.match(
+    installer,
+    /ConditionPathExists=\|\/etc\/kmj-codebridge\/agents\/kmj-main-platform\.json/,
   );
   assert.match(
     installer,
