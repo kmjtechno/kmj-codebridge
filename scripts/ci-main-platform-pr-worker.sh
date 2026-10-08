@@ -81,6 +81,9 @@ touch database/database.sqlite
 gate php_key_generate php artisan key:generate --force
 gate php_migrations php artisan migrate --force
 gate php_syntax php_syntax
+if [[ -f scripts/check-public-layout.mjs ]]; then
+  gate public_layout node scripts/check-public-layout.mjs
+fi
 gate fmt_lint npm run check
 gate frontend_build npm run build
 gate typescript npm run types:check
