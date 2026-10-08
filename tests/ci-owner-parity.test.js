@@ -162,7 +162,7 @@ test("owner trusted preparation leaves source read-only and worker unprivileged"
   assert.match(script, /-p User=kmjci -p Group=kmjci/);
   assert.doesNotMatch(unit, /systemctl (?:start|enable)/);
   const copyLines = script.split("\n").filter((line) => line.includes("cp -a"));
-  assert.equal(copyLines.length, 3);
+  assert.equal(copyLines.length, 4);
   for (const line of copyLines)
     assert.ok(line.includes("--no-preserve=ownership,timestamps"));
 });

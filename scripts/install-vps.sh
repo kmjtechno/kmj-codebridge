@@ -786,6 +786,14 @@ fi
 rm -rf "$ROLLBACK_CODE"
 rm -f "$ROLLBACK_CONFIG" "$ROLLBACK_SERVICE" "$ROLLBACK_SUPERVISOR_SERVICE" "$ROLLBACK_SUPERVISOR_SOCKET"   "$ROLLBACK_STABLE_UPDATE_SERVICE" "$ROLLBACK_STABLE_UPDATE_TIMER" "$ROLLBACK_STABLE_ROLLBACK_SERVICE" "$ROLLBACK_STABLE_UPDATE_CONFIG"
 
+# Provision fixed reviewed CI-only dependencies on the existing private VPS.
+# No production cluster/service configuration or database mutation is performed.
+if [[ -d /srv/kmj-codebridge-projects/kmj-main-platform/.git && -f "$INSTALL_DIR/scripts/install-native-ci-prerequisites.sh" ]]; then
+  if ! /bin/bash "$INSTALL_DIR/scripts/install-native-ci-prerequisites.sh"; then
+    echo "PRIVATE_CI_PREREQUISITES_DEFERRED" >&2
+  fi
+fi
+
 # Provision only the fixed private PR322 CI unit on an existing Main Platform VPS.
 # A failure leaves CodeBridge running but never silently treats CI as installed.
 if [[ -f "$INSTALL_DIR/scripts/install-private-pr322-ci-unit.sh" ]]; then
