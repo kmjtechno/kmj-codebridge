@@ -119,7 +119,8 @@ function verifyReusedStage(source, final, sha, pkg, uid) {
     const tracked = execFileSync("git", ["-C", source, "ls-files", "-z"], {
       timeout: 30000,
       maxBuffer: 8 * 1024 * 1024,
-    }).toString("utf8")
+    })
+      .toString("utf8")
       .split("\0")
       .filter(Boolean);
     if (
