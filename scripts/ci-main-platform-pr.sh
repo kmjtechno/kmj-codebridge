@@ -124,6 +124,19 @@ for file in src/license.js src/errors.js package.json; do
   control_git show "$consumer_sha:$file" > "$job/src/.codebridge-contract/$file"
 done
 consumer_license_sha256="$(sha256sum "$job/src/.codebridge-contract/src/license.js" | cut -d' ' -f1)"
+# Only a cache sealed against this exact committed Cargo lock enters the job.
+rust_prefix=/opt/kmj-codebridge-ci-prerequisites/versions/rust1.90.0-pg17.10-v1
+if [[ -e "$rust_prefix" || -L "$rust_prefix" ]]; then
+  (worker="$control/scripts/validate-native-ci-cache.py"; check_trusted_worker) || { echo CI_TRUSTED_CACHE_VALIDATOR_INVALID >&2; exit 3; }
+  /usr/bin/python3 -I "$control/scripts/validate-native-ci-cache.py" runtime "$rust_prefix"
+  cargo_lock="$job/src/services/license-core/Cargo.lock"
+  cargo_digest="$(sha256sum "$cargo_lock" | cut -d' ' -f1)"
+  cargo_cache="$base/prerequisites/cargo/$cargo_digest"
+  /usr/bin/python3 -I "$control/scripts/validate-native-ci-cache.py" verify "$cargo_cache" "$cargo_lock"
+  [[ ! -e "$job/src/.ci-cargo" && ! -L "$job/src/.ci-cargo" ]] || { echo CI_CARGO_CACHE_TARGET_CONFLICT >&2; exit 3; }
+  mkdir "$job/src/.ci-cargo"
+  cp -a --no-preserve=ownership,timestamps "$cargo_cache/registry" "$job/src/.ci-cargo/registry"
+fi
 chown -R kmjci:kmjci "$job"
 log="$base/evidence/$sha-$(date -u +%Y%m%dT%H%M%SZ).log"
 manifest="$(dirname "$log")/$(basename "$log" .log).json"

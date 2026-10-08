@@ -163,6 +163,18 @@ function fixedUpdateMarkers(run, unit) {
     "AUTO_UPDATE_PRIVATE_PR322_REF_REFRESHED",
     "AUTO_UPDATE_PRIVATE_PR337_REF_REFRESHED",
   ]);
+  const refSteps = new Set([
+    "PROJECT_METADATA",
+    "PROJECT_ACCOUNT",
+    "GIT_DIRECTORY",
+    "GIT_CONFIG",
+    "PROJECT_PARENTS",
+    "CI_DIRECTORY",
+    "CI_LOCK",
+    "ORIGIN_READ",
+    "ORIGIN_ALLOWLIST",
+    "REF_CLEANUP",
+  ]);
   const ownerSteps = new Set([
     "BASE_DIRECTORY",
     "EVIDENCE_DIRECTORY",
@@ -232,6 +244,8 @@ function fixedUpdateMarkers(run, unit) {
       return (
         (commits.has(key) && /^[a-f0-9]{40}$/.test(value)) ||
         (flags.has(key) && value === "1") ||
+        (key === "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP" &&
+          refSteps.has(value)) ||
         ([
           "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP",
           "AUTO_UPDATE_PRIVATE_PR337_CI_UNTRUSTED_STEP",
@@ -814,6 +828,37 @@ function privateCiWorkerLogDiagnostic(lstat, readdir, readLog, record) {
   return undefined;
 }
 
+function nativeCiPrerequisiteStatus(lstat, readFile) {
+  try {
+    const filename = "/var/lib/kmj-codebridge-ci/prerequisites/status.json";
+    const meta = lstat(filename);
+    if (
+      !meta.isFile() ||
+      meta.isSymbolicLink() ||
+      meta.uid !== 0 ||
+      meta.nlink !== 1 ||
+      (meta.mode & 0o077) !== 0 ||
+      meta.size <= 0 ||
+      meta.size > 512
+    )
+      return null;
+    const record = JSON.parse(readFile(filename));
+    if (
+      record.schema !== 1 ||
+      !["INSTALLING", "READY", "FAILED"].includes(record.state) ||
+      typeof record.missingTool !== "string" ||
+      !["", "CC", "MAKE", "BISON", "FLEX", "PG_VIRTUALENV"].includes(
+        record.missingTool,
+      ) ||
+      (record.state !== "FAILED" && record.missingTool !== "")
+    )
+      return null;
+    return { state: record.state, missingTool: record.missingTool || null };
+  } catch {
+    return null;
+  }
+}
+
 function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
   try {
     const meta = lstat(filename);
@@ -1241,6 +1286,7 @@ export function createSupervisorHandler({
           service,
           mainPlatformRefresh,
           mainPlatformAgent,
+          nativeCiPrerequisites: nativeCiPrerequisiteStatus(lstat, readFile),
           privatePr322Ci: fixedUnitStatus(run, PRIVATE_PR322_CI_SERVICE, [
             "ActiveState",
             "SubState",

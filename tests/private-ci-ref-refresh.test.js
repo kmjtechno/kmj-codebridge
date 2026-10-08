@@ -33,7 +33,7 @@ def stub(args, **kw):
     assert 'core.hooksPath=/dev/null' in args and 'maintenance.auto=false' in args and 'gc.auto=0' in args
     a=args[args.index('-C')+2:]
     result=''; rc=0
-    if a[:3]==['remote','get-url','origin']: result=os.environ.get('ORIGIN','git@github.com:kmjtechno/kmj-main-platform.git')
+    if a[:3]==['remote','get-url','origin']: result=os.environ.get('ORIGIN','git@github.com:kmjtechno/kmj-main-platform.git'); rc=int(os.environ.get('ORIGIN_EXIT','0'))
     elif a[0]=='rev-parse':
         ref=a[-1]
         result=refs.get(ref, old)
@@ -72,6 +72,21 @@ subprocess.run=stub
   ]) {
     const result = run(env);
     assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /UPDATED=|secret|evil/);
+  }
+  for (const [env, step] of [
+    [{ UNSAFE_CONFIG: "1" }, "GIT_CONFIG"],
+    [{ UNTRUSTED_OWNER: "1" }, "PROJECT_ACCOUNT"],
+    [{ ORIGIN_EXIT: "128" }, "ORIGIN_READ"],
+    [{ ORIGIN: "https://secret@evil.invalid/repo" }, "ORIGIN_ALLOWLIST"],
+  ]) {
+    const result = run(env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(
+      result.stdout.includes(
+        `AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=${step}`,
+      ),
+    );
     assert.doesNotMatch(result.stdout, /UPDATED=|secret|evil/);
   }
   const failedFetch = run({ FETCH_FAIL: "1" });

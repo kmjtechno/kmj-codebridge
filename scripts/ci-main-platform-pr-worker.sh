@@ -11,6 +11,10 @@ if [[ "$src" != /var/lib/kmj-codebridge-ci/jobs/*/src ]]; then
   echo "CI_WORKER_UNTRUSTED_WORKSPACE" >&2
   exit 2
 fi
+# CI-only root-owned Rust installation; no rustup/user config inheritance.
+if [[ -x /opt/kmj-codebridge-ci-prerequisites/versions/rust1.90.0-pg17.10-v1/rust/bin/cargo ]]; then
+  export PATH="/opt/kmj-codebridge-ci-prerequisites/versions/rust1.90.0-pg17.10-v1/rust/bin:$PATH"
+fi
 # Emit fixed preflight versions before any project code or gate executes.
 platform_path="$PATH"
 # Hosted platform assertions require Node 22; the separate license consumer

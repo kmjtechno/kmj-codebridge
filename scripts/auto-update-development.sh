@@ -137,19 +137,23 @@ TARGETS = [
 ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.com/kmjtechno/kmj-main-platform.git", "https://github.com/kmjtechno/kmj-main-platform.git"}
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
 lock_fd = None
+step = "PROJECT_METADATA"
 try:
     project = os.lstat(PROJECT)
     if not stat.S_ISDIR(project.st_mode) or project.st_mode & 0o022:
         raise ValueError("project")
+    step = "PROJECT_ACCOUNT"
     owner = pwd.getpwuid(project.st_uid)
     if owner.pw_name not in {"root", "kmjrunner", "kmjprod", "kmjstage"} or project.st_gid != owner.pw_gid:
         raise ValueError("owner")
     for path in [PROJECT + "/.git", PROJECT + "/.git/config"]:
+        step = "GIT_CONFIG" if path.endswith("/config") else "GIT_DIRECTORY"
         meta = os.lstat(path)
         regular = path.endswith("/config")
         if (not stat.S_ISREG(meta.st_mode) if regular else not stat.S_ISDIR(meta.st_mode)) or meta.st_uid != owner.pw_uid or meta.st_gid != owner.pw_gid or meta.st_mode & 0o022 or (regular and (meta.st_nlink != 1 or not 0 < meta.st_size <= 65536)):
             raise ValueError("repository metadata")
     # Root execution requires a root-owned path all the way to the filesystem.
+    step = "PROJECT_PARENTS"
     parent = os.path.dirname(PROJECT)
     while True:
         meta = os.lstat(parent)
@@ -158,9 +162,11 @@ try:
         if parent == "/":
             break
         parent = os.path.dirname(parent)
+    step = "CI_DIRECTORY"
     meta = os.lstat(BASE)
     if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
         raise ValueError("CI directory")
+    step = "CI_LOCK"
     lock_fd = os.open(BASE + "/.ci.lock", os.O_RDONLY | os.O_NOFOLLOW)
     meta = os.fstat(lock_fd)
     if not stat.S_ISREG(meta.st_mode) or meta.st_uid != 0 or meta.st_nlink != 1 or meta.st_mode & 0o077:
@@ -173,8 +179,12 @@ try:
     ENV["HOME"] = owner.pw_dir
     def git(*args):
         return subprocess.run(["/usr/bin/git", "-c", "safe.directory=" + PROJECT, "-c", "core.hooksPath=/dev/null", "-c", "maintenance.auto=false", "-c", "gc.auto=0", "-C", PROJECT, *args], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=45, env=ENV, user=owner.pw_uid, group=owner.pw_gid, extra_groups=[])
+    step = "ORIGIN_READ"
     remote = git("remote", "get-url", "origin")
-    if remote.returncode or remote.stdout.strip() not in ORIGINS:
+    if remote.returncode:
+        raise ValueError("origin read")
+    step = "ORIGIN_ALLOWLIST"
+    if remote.stdout.strip() not in ORIGINS:
         raise ValueError("origin")
     for label, branch, expected in TARGETS:
         prefix = "AUTO_UPDATE_PRIVATE_" + label + "_REF_"
@@ -209,6 +219,7 @@ try:
         except Exception:
             print(prefix + "REFRESH_FAILED")
         finally:
+            step = "REF_CLEANUP"
             if attempted and fetched is None:
                 cleanup = git("rev-parse", "--verify", temporary)
                 if cleanup.returncode == 0 and re.fullmatch("[a-f0-9]{40}", cleanup.stdout.strip()):
@@ -217,6 +228,7 @@ try:
                 git("update-ref", "-d", temporary, fetched)
 except Exception:
     print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED")
+    print("AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=" + step)
 finally:
     if lock_fd is not None:
         os.close(lock_fd)
@@ -378,8 +390,36 @@ for label, EXPECTED, branch, wrapper, preparer in TARGETS:
 PY
 }
 
+# Recover only this fixed installer after approved refs are refreshed. Caller
+# environment, arbitrary script paths and general command execution are excluded.
+retry_fixed_native_ci_prerequisites() {
+  if ! /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I - <<'PREREQUISITE_META'
+import os,stat
+path="/opt/kmj-codebridge-agent/scripts/install-native-ci-prerequisites.sh"
+try:
+    m=os.lstat(path)
+    if not stat.S_ISREG(m.st_mode) or m.st_uid != 0 or m.st_nlink != 1 or m.st_mode & 0o6022: raise ValueError()
+    path=os.path.dirname(path)
+    while True:
+        m=os.lstat(path)
+        if not stat.S_ISDIR(m.st_mode) or m.st_uid != 0 or m.st_mode & 0o022: raise ValueError()
+        if path == '/': break
+        path=os.path.dirname(path)
+except (OSError, ValueError):
+    raise SystemExit(3)
+PREREQUISITE_META
+  then
+    echo AUTO_UPDATE_NATIVE_CI_PREREQUISITES_UNTRUSTED
+    return 0
+  fi
+  if ! /usr/bin/env -i PATH=/usr/bin:/bin:/usr/sbin:/sbin LANG=C.UTF-8 /bin/bash /opt/kmj-codebridge-agent/scripts/install-native-ci-prerequisites.sh; then
+    echo AUTO_UPDATE_NATIVE_CI_PREREQUISITES_DEFERRED
+  fi
+}
+
 if [[ "$current" == "$remote" ]]; then
   refresh_fixed_private_ci_refs
+  retry_fixed_native_ci_prerequisites
   retry_skipped_main_platform_refresh
   retry_fixed_private_ci
   echo "AUTO_UPDATE_CURRENT=$current"

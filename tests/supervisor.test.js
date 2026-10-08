@@ -410,6 +410,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
     },
     privatePr322Evidence: null,
     privatePr337Evidence: null,
+    nativeCiPrerequisites: null,
     privatePr337Diagnostic: "NO_CLASSIFIED_ERROR",
     privatePr337GitSignals: {
       permissionDenied: false,
@@ -626,6 +627,7 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
       "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
+      "/var/lib/kmj-codebridge-ci/prerequisites/status.json",
     ].sort(),
   );
   await assert.rejects(
@@ -1566,6 +1568,8 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
     "AUTO_UPDATE_PRIVATE_PR337_REF_CURRENT",
     "AUTO_UPDATE_PRIVATE_PR322_REF_REFRESH_FAILED",
     "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_DEFERRED_UNTRUSTED",
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=GIT_CONFIG",
+    "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=ORIGIN_READ",
     "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=SOURCE_REF_READ",
     "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=SOURCE_REF_MISMATCH",
     "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=WORKER_FILE",
@@ -1585,6 +1589,8 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
             "AUTO_UPDATE_PRIVATE_PR322_CI_UNTRUSTED_STEP=SOURCE_REF_READ=secret",
             "AUTO_UPDATE_PRIVATE_PR322_REF_REFRESHED=secret",
             "AUTO_UPDATE_PRIVATE_PR337_REF_CURRENT=/private/secret",
+            "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=/private/secret",
+            "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=UNKNOWN",
             "credential=secret",
           ].join("\n")
         : "LoadState=loaded\nActiveState=inactive\n",
