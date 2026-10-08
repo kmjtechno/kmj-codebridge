@@ -278,6 +278,22 @@ WantedBy=multi-user.target
 EOF_UNIT
 
 systemctl daemon-reload
+# Release drop-ins can silently override ExecStart and WorkingDirectory.
+# Verify the *effective* configuration before touching the running process.
+effective_runtime="$(systemctl show "$SERVICE" -p WorkingDirectory --value)"
+effective_exec="$(systemctl show "$SERVICE" -p ExecStart --value)"
+expected_argv="argv[]=$NODE $RUNTIME/src/cli.js agent $CONFIG ;"
+if [[ "$effective_runtime" != "$RUNTIME" || "$effective_exec" != *"$expected_argv"* ]]; then
+  echo 'MAIN_PLATFORM_RESTART_EFFECTIVE_UNIT_CONFLICT' >&2
+  if [[ -n "$UNIT_BACKUP" ]]; then
+    cp "$UNIT_BACKUP" "$SERVICE_FILE"
+    rm -f "$UNIT_BACKUP"
+  else
+    rm -f "$SERVICE_FILE"
+  fi
+  systemctl daemon-reload
+  exit 6
+fi
 systemctl enable "$SERVICE" >/dev/null
 
 # enable --now does not replace an already running v0.2.x agent.
