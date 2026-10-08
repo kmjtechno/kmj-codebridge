@@ -1560,6 +1560,7 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
     "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_BUSY",
     "AUTO_UPDATE_PRIVATE_PR322_CI_START_FAILED",
     "AUTO_UPDATE_PRIVATE_PR322_CI_DEFERRED_UNTRUSTED",
+    "AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1",
     "AUTO_UPDATE_PRIVATE_PR322_CI_SCHEDULED=1",
     "AUTO_UPDATE_PRIVATE_PR337_CI_SCHEDULED=1",
     "AUTO_UPDATE_PRIVATE_PR337_CI_ALREADY_SCHEDULED",
@@ -1594,6 +1595,7 @@ test("owner CI scheduler status exposes only fixed updater outcomes", async () =
             "AUTO_UPDATE_PRIVATE_PR337_REF_CURRENT=/private/secret",
             "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=/private/secret",
             "AUTO_UPDATE_PRIVATE_CI_REF_REFRESH_UNTRUSTED_STEP=UNKNOWN",
+            "AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=secret",
             "credential=secret",
           ].join("\n")
         : "LoadState=loaded\nActiveState=inactive\n",

@@ -16,8 +16,12 @@ from types import SimpleNamespace
 class Meta:
     st_uid=0; st_gid=0; st_nlink=1; st_size=64
     st_mode=stat.S_IFDIR | 0o755
-fixture_stat=lambda p: SimpleNamespace(st_uid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_gid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_nlink=1, st_size=64, st_mode=(stat.S_IFREG|0o666 if os.environ.get('UNSAFE_CONFIG') and p.endswith('/config') else stat.S_IFREG|0o600 if p.endswith('/config') or p.endswith('/.ci.lock') else stat.S_IFDIR|0o755))
+fixture_stat=lambda p: SimpleNamespace(st_uid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_gid=(1001 if os.environ.get('SERVICE_OWNER') and '/kmj-main-platform' in p else 0), st_dev=1, st_ino=1, st_nlink=1, st_size=64, st_mode=(stat.S_IFREG|0o666 if os.environ.get('UNSAFE_CONFIG') and p.endswith('/config') else stat.S_IFREG|0o600 if p.endswith('/config') or p.endswith('/.ci.lock') else stat.S_IFDIR|0o755))
+project_mode = None
+project_reads = 0
+locked = False
 def fixture_lstat(p):
+    global project_reads
     if p == '/srv/kmj-codebridge-projects/kmj-main-platform':
         error=os.environ.get('PROJECT_ERROR')
         if error=='missing': raise FileNotFoundError(2, 'private error')
@@ -26,20 +30,38 @@ def fixture_lstat(p):
         result=fixture_stat(p)
         kind=os.environ.get('PROJECT_TYPE')
         if kind: result.st_mode=(stat.S_IFLNK if kind=='link' else stat.S_IFREG)|0o755
-        result.st_mode |= int(os.environ.get('PROJECT_WRITE', '0'), 8)
+        result.st_mode |= int(os.environ.get('PROJECT_WRITE', '0'), 8) | int(os.environ.get('PROJECT_SPECIAL','0'),8)
+        if project_mode is not None: result.st_mode = project_mode
+        project_reads += 1
+        if os.environ.get('PROJECT_RACE') and project_reads > 1: result.st_ino=2
         return result
     return fixture_stat(p)
 os.lstat=fixture_lstat
-os.open=lambda *a, **k: 9
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 9
 os.close=lambda *a: None
-os.fstat=lambda *a: SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
+os.fstat=lambda fd: fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else SimpleNamespace(st_uid=0, st_gid=0, st_nlink=1, st_mode=stat.S_IFREG|0o600)
+def chmod(fd, mode):
+    global project_mode
+    assert fd==10 and locked
+    assert mode==(0o755 | int(os.environ.get('PROJECT_SPECIAL','0'),8))
+    project_mode=stat.S_IFDIR|mode
+    print('CHMOD=GROUP_WRITE_REMOVED')
+os.fchmod=chmod
 pwd.getpwuid=lambda uid: SimpleNamespace(pw_name='untrusted' if os.environ.get('UNTRUSTED_OWNER') else 'kmjrunner' if uid else 'root', pw_uid=uid, pw_gid=uid, pw_dir='/home/kmjrunner' if uid else '/root')
-fcntl.flock=lambda *a: (_ for _ in ()).throw(BlockingIOError()) if os.environ.get('BUSY') else None
+def lock(*a):
+    global locked
+    if os.environ.get('BUSY'): raise BlockingIOError()
+    locked=True
+fcntl.flock=lock
+pwd.getpwnam=lambda name: SimpleNamespace(pw_uid=0 if name=='root' else 1001 if name=='kmjrunner' else 1002)
 refs={}
 old='e'*40
 owner_sha='8ebbb6f1999309875b6f6b0c6d25c21847fff3ff'
 website='70a5efb9a43103cd17be15d056e166cb19813efe'
 def stub(args, **kw):
+    if args[0]=='/usr/bin/systemctl':
+        assert args==['/usr/bin/systemctl','show','kmj-codebridge-kmj-main-platform.service','--property=LoadState','--property=User','--no-pager']
+        return SimpleNamespace(returncode=0,stdout='LoadState='+os.environ.get('WRITE_LOAD','loaded')+'\\nUser='+os.environ.get('WRITE_USER','root')+'\\n')
     assert kw['user']==(1001 if os.environ.get('SERVICE_OWNER') else 0) and kw['group']==kw['user'] and kw['extra_groups']==[]
     assert kw['env']['GIT_CONFIG_GLOBAL']=='/dev/null'
     assert kw['stderr']==subprocess.DEVNULL
@@ -52,6 +74,7 @@ def stub(args, **kw):
         result=refs.get(ref, old)
     elif a[0]=='show-ref': rc=0 if os.environ.get('TEMP_EXISTS') else 1
     elif a[0]=='fetch':
+        if os.environ.get('PROJECT_WRITE')=='020': assert project_mode is not None and not project_mode & 0o022
         assert '--no-tags' in a and '--no-recurse-submodules' in a and '--no-write-fetch-head' in a
         assert a[-2]=='origin' and '+' not in a[-1]
         src,dst=a[-1].split(':'); refs[dst]=os.environ.get('FETCHED',owner_sha if 'owner-tier' in src else website); rc=int(os.environ.get('FETCH_FAIL','0'))
@@ -108,7 +131,6 @@ subprocess.run=stub
     [{ PROJECT_ERROR: "other" }, "PROJECT_LSTAT_OTHER_ERROR"],
     [{ PROJECT_TYPE: "link" }, "PROJECT_DIRECTORY_SYMLINK"],
     [{ PROJECT_TYPE: "file" }, "PROJECT_DIRECTORY_OTHER_TYPE"],
-    [{ PROJECT_WRITE: "020" }, "PROJECT_MODE_GROUP_WRITE"],
     [{ PROJECT_WRITE: "002" }, "PROJECT_MODE_WORLD_WRITE"],
     [{ PROJECT_WRITE: "022" }, "PROJECT_MODE_GROUP_AND_WORLD_WRITE"],
   ]) {
@@ -121,6 +143,27 @@ subprocess.run=stub
     );
     assert.doesNotMatch(result.stdout, /UPDATED=|private error/);
   }
+  for (const env of [
+    { PROJECT_WRITE: "020", UNSAFE_CONFIG: "1" },
+    { PROJECT_WRITE: "020", UNTRUSTED_OWNER: "1" },
+    { PROJECT_WRITE: "022" },
+    { PROJECT_WRITE: "020", BUSY: "1" },
+    { PROJECT_WRITE: "020", PROJECT_RACE: "1" },
+  ]) {
+    const result = run(env);
+    assert.equal(result.status, 0, result.stderr);
+    assert.doesNotMatch(result.stdout, /CHMOD=|UPDATED=/);
+  }
+  const hardened = run({
+    PROJECT_WRITE: "020",
+    SERVICE_OWNER: "1",
+    WRITE_USER: "kmjrunner",
+    PROJECT_SPECIAL: "2000",
+  });
+  assert.equal(hardened.status, 0, hardened.stderr);
+  assert.match(hardened.stdout, /CHMOD=GROUP_WRITE_REMOVED/);
+  assert.match(hardened.stdout, /AUTO_UPDATE_PRIVATE_CI_PROJECT_HARDENED=1/);
+  assert.match(hardened.stdout, /PR322_REF_REFRESHED=1/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
   assert.match(
