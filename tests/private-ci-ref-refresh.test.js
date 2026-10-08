@@ -40,8 +40,8 @@ def fixture_lstat(p):
     result=fixture_stat(p)
     if p.endswith('/packed-refs') or p.endswith('/public-marketing-standalone-nav-20261008'): result.st_mode=stat.S_IFREG|0o600
     if p in ref_owners: result.st_uid=result.st_gid=ref_owners[p]
-    if os.environ.get('REF_PRIVATE') and p not in ref_owners and (p.endswith('/refs/remotes/origin/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
-        result.st_uid=0; result.st_gid=0
+    if os.environ.get('REF_PRIVATE') and (p.endswith('/refs/remotes/origin/fix') or p.endswith('/public-marketing-standalone-nav-20261008')):
+        if p not in ref_owners: result.st_uid=0; result.st_gid=0
         if p.endswith('/refs/remotes/origin/fix'): result.st_mode=stat.S_IFDIR|0o700
     if p.endswith('/refs/remotes/origin/fix') and os.environ.get('REF_LINK'): result.st_mode=stat.S_IFLNK|0o755
     if p=='/srv/kmj-codebridge-projects':
