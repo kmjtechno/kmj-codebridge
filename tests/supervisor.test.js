@@ -137,9 +137,9 @@ test("private CI rejects symlink and insecure evidence", async () => {
       },
     });
     assert.equal(
-    (await handle({ op: "private_pr322_ci_status" })).response.last,
-    null,
-  );
+      (await handle({ op: "private_pr322_ci_status" })).response.last,
+      null,
+    );
   }
 });
 
