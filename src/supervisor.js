@@ -373,8 +373,10 @@ export function createSupervisorHandler({
       const safeFixedPath = (fixedPath, directory = false) => {
         try {
           const info = lstat(fixedPath);
-          return !info.isSymbolicLink() &&
-            (directory ? info.isDirectory() : info.isFile() && info.nlink === 1);
+          return (
+            !info.isSymbolicLink() &&
+            (directory ? info.isDirectory() : info.isFile() && info.nlink === 1)
+          );
         } catch {
           return false;
         }
