@@ -153,12 +153,14 @@ function fixedUpdateMarkers(run, unit) {
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_SCHEDULED",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_RECOVERY_FAILED",
     "MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED",
+    "PRIVATE_CI_NATIVE_UNIT_INSTALLED",
   ]);
   const bare = new Set([
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_NODE_UNAVAILABLE",
     "AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE",
     "AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE",
+    "PRIVATE_CI_INSTALL_DEFERRED",
     "MAIN_PLATFORM_REFRESH_REQUIRES_EXISTING_ENROLLMENT",
     "MAIN_PLATFORM_REFRESH_PROJECT_MISSING",
     "MAIN_PLATFORM_REFRESH_RUNTIME_INVALID",
@@ -572,6 +574,12 @@ export function createSupervisorHandler({
           service,
           mainPlatformRefresh,
           mainPlatformAgent,
+          privatePr322Ci: fixedUnitStatus(run, PRIVATE_PR322_CI_SERVICE, [
+            "ActiveState",
+            "SubState",
+            "Result",
+            "ExecMainStatus",
+          ]),
           mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
           mainPlatformEvidence: fixedMainPlatformMarkers(run),

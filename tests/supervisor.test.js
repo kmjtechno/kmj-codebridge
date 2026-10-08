@@ -388,6 +388,13 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       nRestarts: "unknown",
       execMainStartTimestamp: "unknown",
     },
+    privatePr322Ci: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+    },
     mainPlatformEffectiveUnit: {
       installed: true,
       runtimeKind: "unknown",
@@ -415,6 +422,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-auto-update.service",
       "kmj-codebridge-kmj-main-platform.service",
       "kmj-codebridge-main-platform-refresh.service",
+      "kmj-codebridge-private-pr322-ci.service",
       "kmj-codebridge-kmj-main-platform.service",
     ],
   );
@@ -626,7 +634,7 @@ test("only exact non-secret updater markers are exposed", async () => {
   ]);
   assert.doesNotMatch(
     JSON.stringify(result.response),
-    /secret_should_not_appear|private|Bearer/,
+    /secret_should_not_appear|tenant_id=private|\/etc\/private|Bearer/,
   );
 });
 
