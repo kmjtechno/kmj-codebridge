@@ -39,7 +39,10 @@ test("CI exact-SHA validation rejects malformed inputs without side effects", (t
 test("CI preparation is pinned to one private PR and trusted immutable revision", () => {
   assert.match(script, /refs\/remotes\/origin\/feat\/codebridge-owner-tier/);
   assert.match(script, /sha="\$1"/);
-  assert.match(script, /rev-parse refs\/remotes\/origin\/feat\/codebridge-owner-tier/);
+  assert.match(
+    script,
+    /rev-parse refs\/remotes\/origin\/feat\/codebridge-owner-tier/,
+  );
   assert.match(script, /cat-file -t "\$sha"/);
   assert.match(script, /status --porcelain/);
   assert.match(script, /composer\.lock apps\/platform\/package-lock\.json/);
