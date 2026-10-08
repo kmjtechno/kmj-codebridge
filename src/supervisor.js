@@ -259,6 +259,56 @@ function fixedWebsiteCiDiagnostic(run) {
   return "NO_CLASSIFIED_ERROR";
 }
 
+// Read only the fixed CI source. Never fetch, print stderr, inspect credentials,
+// or accept a caller-controlled Git revision, repository or filesystem path.
+function fixedWebsiteCiSource(run) {
+  const repo = "/srv/kmj-codebridge-projects/kmj-main-platform";
+  const git = (...args) =>
+    run("/usr/bin/git", ["-c", `safe.directory=${repo}`, "-C", repo, ...args], {
+      env: {
+        PATH: "/usr/sbin:/usr/bin:/sbin:/bin",
+        LANG: "C.UTF-8",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_NO_LAZY_FETCH: "1",
+        GIT_OPTIONAL_LOCKS: "0",
+      },
+    });
+  const revision = (ref) => {
+    try {
+      const value = String(git("rev-parse", "--verify", ref)).trim();
+      return /^[a-f0-9]{40}$/.test(value) ? value : null;
+    } catch {
+      return null;
+    }
+  };
+  const locks = (sha) => {
+    if (!sha) return null;
+    return Object.fromEntries(
+      [
+        ["composer", "apps/platform/composer.lock"],
+        ["npm", "apps/platform/package-lock.json"],
+      ].map(([name, file]) => {
+        try {
+          git("cat-file", "-e", `${sha}:${file}`);
+          return [name, true];
+        } catch {
+          return [name, false];
+        }
+      }),
+    );
+  };
+  const headSha = revision("HEAD");
+  const refSha = revision(
+    "refs/remotes/origin/fix/public-marketing-standalone-nav-20261008",
+  );
+  return {
+    headSha,
+    refSha,
+    headLocks: locks(headSha),
+    refLocks: locks(refSha),
+  };
+}
+
 function fixedMainPlatformMarkers(run) {
   const allowed = new Map([
     [
@@ -710,6 +760,7 @@ export function createSupervisorHandler({
             PRIVATE_PR337_CI_EVIDENCE,
           ),
           privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
+          privatePr337Source: fixedWebsiteCiSource(run),
           mainPlatformEffectiveUnit: fixedMainPlatformEffectiveUnit(run),
           mainPlatformPrerequisites,
           mainPlatformEvidence: fixedMainPlatformMarkers(run),
