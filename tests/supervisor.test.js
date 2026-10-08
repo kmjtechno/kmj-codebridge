@@ -246,11 +246,20 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       execMainStartTimestamp: "unknown",
       execMainExitTimestamp: "unknown",
     },
+    mainPlatformAgent: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      mainPID: "unknown",
+      nRestarts: "unknown",
+      execMainStartTimestamp: "unknown",
+    },
     mainPlatformPrerequisites: {
       currentConfig: false,
       legacyConfig: false,
       projectGit: false,
     },
+    mainPlatformEvidence: [],
     updateMarkers: [],
     mainPlatformRefreshMarkers: [],
   });
@@ -261,12 +270,48 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
     [
       "kmj-codebridge-auto-update.timer",
       "kmj-codebridge-auto-update.service",
+      "kmj-codebridge-kmj-main-platform.service",
       "kmj-codebridge-main-platform-refresh.service",
     ],
   );
   await assert.rejects(
     handle({ op: "update_status", branch: "main" }),
     /INVALID_SUPERVISOR_REQUEST/,
+  );
+});
+
+test("Main Platform evidence returns allowlisted outcomes and no secret log text", async () => {
+  const handle = createSupervisorHandler({
+    run: (command, args) => {
+      if (command.endsWith("journalctl")) {
+        return [
+          "Existing Main Platform agent config verified.",
+          "KMJ Main Platform CodeBridge project agent is active.",
+          "token=DO_NOT_EXPOSE",
+          "credential=DO_NOT_EXPOSE",
+          "MAIN_PLATFORM_AGENT_GATEWAY_VERIFIED",
+          "device_id=private",
+          "credential_introspection=PASS",
+        ].join("\n");
+      }
+      return "LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=123\nNRestarts=0\n";
+    },
+    lstat: () => {
+      throw new Error("not present");
+    },
+  });
+  const result = await handle({ op: "update_status" });
+  assert.deepEqual(result.response.mainPlatformEvidence, [
+    "EXISTING_CONFIG_VERIFIED",
+    "SERVICE_ACTIVE_CONFIRMED",
+    "GATEWAY_VERIFIED",
+    "CREDENTIAL_INTROSPECTION_PASS",
+  ]);
+  assert.equal(result.response.mainPlatformAgent.mainPID, "123");
+  assert.equal(result.response.mainPlatformAgent.nRestarts, "0");
+  assert.equal(
+    JSON.stringify(result.response).includes("DO_NOT_EXPOSE"),
+    false,
   );
 });
 
