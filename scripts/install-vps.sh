@@ -206,6 +206,19 @@ else
   rm -rf "$TMP"
   NODE="$NODE_DIR/bin/node"
 fi
+# The Node.js distribution is public runtime code, not enrollment state.
+# Root's umask may create its parent as 0700; that prevents the separate
+# Main Platform service identity from executing the same pinned binary.
+# Grant traversal only (never directory listing) when this is a real
+# root-owned Node distribution. Never follow a symlink or chmod configs.
+if [[ -d "$NODE_DIR" && -x "$NODE_DIR/bin/node" ]]; then
+  if [[ -L "$NODE_DIR" || "$(stat -c '%u' "$NODE_DIR")" != "0" ]]; then
+    echo 'CODEBRIDGE_NODE_DIR_UNSAFE' >&2
+    exit 2
+  fi
+  chmod 0711 "$NODE_DIR"
+fi
+
 NPM="$(dirname "$NODE")/npm"
 [[ -x "$NPM" ]] || NPM="$(command -v npm)"
 
