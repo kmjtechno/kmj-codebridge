@@ -416,3 +416,88 @@ test("trusted PR337 preparation has file setup capabilities while PR worker has 
   assert.match(websiteSource, /-p User=kmjci -p Group=kmjci/);
   assert.match(websiteSource, /-p "InaccessiblePaths=\/srv/);
 });
+
+test("trusted CI evidence writers record only fixed worker failure categories and gates", (t) => {
+  if (process.platform === "win32") return t.skip("Python POSIX CI writer");
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-worker-evidence-"));
+  try {
+    for (const filename of [
+      "ci-main-platform-pr.sh",
+      "ci-main-platform-pr337.sh",
+    ]) {
+      const content = fs.readFileSync(
+        path.join(root, "scripts", filename),
+        "utf8",
+      );
+      const writer = content.match(/<<'PY'\n([\s\S]*?)\nPY/)[1];
+      for (const [logText, code, failure, gate] of [
+        [
+          "KMJ_CI_GATE_BEGIN=NEVER_RETURN\nKMJ_CI_GATE_PASS=NEVER_RETURN\nsh: 1: vp: not found",
+          0,
+          null,
+          null,
+        ],
+        [
+          "KMJ_CI_GATE_BEGIN=fmt_lint\nsh: 1: vp: not found\nsecret=NEVER_RETURN",
+          1,
+          "VP_NOT_FOUND",
+          "fmt_lint",
+        ],
+        [
+          "KMJ_CI_GATE_BEGIN=frontend_build\n/bin/bash: vp: command not found",
+          127,
+          "VP_NOT_FOUND",
+          "frontend_build",
+        ],
+        [
+          "Failed to start transient service unit: secret=NEVER_RETURN",
+          1,
+          "WORKER_SANDBOX_START_FAILED",
+          null,
+        ],
+        [
+          "KMJ_CI_GATE_BEGIN=node_lease_interop\nKMJ_CI_GATE_PASS=node_lease_interop\nKMJ_CI_PG_REQUIRED_UNAVAILABLE",
+          42,
+          "PG_UNAVAILABLE",
+          "postgres_concurrency",
+        ],
+        [
+          "KMJ_CI_GATE_BEGIN=php_tests\ncommand error\nKMJ_CI_GATE_BEGIN=NEVER_RETURN",
+          1,
+          "COMMAND_FAILED_UNCLASSIFIED",
+          "php_tests",
+        ],
+        [
+          "KMJ_CI_GATE_BEGIN=fmt_lint\nKMJ_CI_GATE_PASS=fmt_lint",
+          0,
+          null,
+          null,
+        ],
+        [
+          "KMJ_CI_GATE_BEGIN=fmt_lint\nKMJ_CI_GATE_PASS=fmt_lint\nunknown failure",
+          1,
+          "COMMAND_FAILED_UNCLASSIFIED",
+          null,
+        ],
+      ]) {
+        const log = path.join(temp, "worker.log"),
+          manifest = path.join(temp, "manifest.json");
+        fs.writeFileSync(log, logText);
+        execFileSync("python3", [
+          "-c",
+          writer,
+          "a".repeat(40),
+          log,
+          String(code),
+          manifest,
+        ]);
+        const record = JSON.parse(fs.readFileSync(manifest, "utf8"));
+        assert.equal(record.failure_kind, failure, filename);
+        assert.equal(record.failed_gate, gate, filename);
+        assert.doesNotMatch(JSON.stringify(record), /NEVER_RETURN|secret=/);
+      }
+    }
+  } finally {
+    fs.rmSync(temp, { recursive: true, force: true });
+  }
+});

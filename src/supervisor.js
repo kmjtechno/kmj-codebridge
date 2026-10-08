@@ -596,8 +596,40 @@ function privateCiEvidence(lstat, readFile, pr, filename) {
       !/^[a-f0-9]{64}$/.test(record.log_sha256)
     )
       return null;
+    const gates = new Set([
+      "fmt_lint",
+      "frontend_build",
+      "typescript",
+      "php_format",
+      "php_tests",
+      "activation_proof",
+      "renewal",
+      "node_lease_interop",
+      "postgres_concurrency",
+    ]);
+    const failures = new Set([
+      "VP_NOT_FOUND",
+      "WORKER_SANDBOX_START_FAILED",
+      "PG_UNAVAILABLE",
+      "COMMAND_FAILED_UNCLASSIFIED",
+    ]);
+    if (
+      (record.failed_gate !== undefined &&
+        record.failed_gate !== null &&
+        !gates.has(record.failed_gate)) ||
+      (record.failure_kind !== undefined &&
+        record.failure_kind !== null &&
+        !failures.has(record.failure_kind))
+    )
+      return null;
     return {
       testedSha: record.sha,
+      ...(record.failed_gate !== undefined
+        ? { failedGate: record.failed_gate }
+        : {}),
+      ...(record.failure_kind !== undefined
+        ? { failureKind: record.failure_kind }
+        : {}),
       linuxResult: record.linux_result,
       exitCode: record.exit_code,
       logSha256: record.log_sha256,
@@ -943,47 +975,12 @@ export function createSupervisorHandler({
         "ExecMainStartTimestamp",
         "ExecMainExitTimestamp",
       ]);
-      let last = null;
-      try {
-        const meta = lstat(PRIVATE_PR322_CI_EVIDENCE);
-        if (
-          meta.isFile() &&
-          !meta.isSymbolicLink() &&
-          meta.uid === 0 &&
-          meta.nlink === 1 &&
-          (meta.mode & 0o077) === 0 &&
-          meta.size > 0 &&
-          meta.size <= 4096
-        ) {
-          const record = JSON.parse(readFile(PRIVATE_PR322_CI_EVIDENCE));
-          if (
-            record.schema === 1 &&
-            record.repo === "kmjtechno/kmj-main-platform" &&
-            record.pr === 322 &&
-            /^[a-f0-9]{40}$/.test(record.sha) &&
-            ["PASS", "FAIL"].includes(record.linux_result) &&
-            Number.isInteger(record.exit_code) &&
-            record.exit_code >= 0 &&
-            record.exit_code <= 255 &&
-            record.github_actions === "NOT_RUN" &&
-            record.windows === "NOT_RUN" &&
-            record.signed_production === false &&
-            /^[a-f0-9]{64}$/.test(record.log_sha256)
-          ) {
-            last = {
-              testedSha: record.sha,
-              linuxResult: record.linux_result,
-              exitCode: record.exit_code,
-              logSha256: record.log_sha256,
-              githubActions: "NOT_RUN",
-              windows: "NOT_RUN",
-              signedProduction: false,
-            };
-          }
-        }
-      } catch {
-        // Missing/untrusted evidence cannot be represented as success.
-      }
+      const last = privateCiEvidence(
+        lstat,
+        readFile,
+        322,
+        PRIVATE_PR322_CI_EVIDENCE,
+      );
       return { response: { service, last } };
     }
 
@@ -1008,47 +1005,12 @@ export function createSupervisorHandler({
         "Result",
         "ExecMainStatus",
       ]);
-      let last = null;
-      try {
-        const meta = lstat(PRIVATE_PR337_CI_EVIDENCE);
-        if (
-          meta.isFile() &&
-          !meta.isSymbolicLink() &&
-          meta.uid === 0 &&
-          meta.nlink === 1 &&
-          (meta.mode & 0o077) === 0 &&
-          meta.size > 0 &&
-          meta.size <= 4096
-        ) {
-          const record = JSON.parse(readFile(PRIVATE_PR337_CI_EVIDENCE));
-          if (
-            record.schema === 1 &&
-            record.repo === "kmjtechno/kmj-main-platform" &&
-            record.pr === 337 &&
-            /^[a-f0-9]{40}$/.test(record.sha) &&
-            ["PASS", "FAIL"].includes(record.linux_result) &&
-            Number.isInteger(record.exit_code) &&
-            record.exit_code >= 0 &&
-            record.exit_code <= 255 &&
-            record.github_actions === "NOT_RUN" &&
-            record.windows === "NOT_RUN" &&
-            record.signed_production === false &&
-            /^[a-f0-9]{64}$/.test(record.log_sha256)
-          ) {
-            last = {
-              testedSha: record.sha,
-              linuxResult: record.linux_result,
-              exitCode: record.exit_code,
-              logSha256: record.log_sha256,
-              githubActions: "NOT_RUN",
-              windows: "NOT_RUN",
-              signedProduction: false,
-            };
-          }
-        }
-      } catch {
-        // Missing/untrusted evidence cannot be represented as success.
-      }
+      const last = privateCiEvidence(
+        lstat,
+        readFile,
+        337,
+        PRIVATE_PR337_CI_EVIDENCE,
+      );
       return { response: { service, last } };
     }
 

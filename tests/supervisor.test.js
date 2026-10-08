@@ -1144,3 +1144,48 @@ test("website CI classifies preparation tool failures without exposing private p
     assert.doesNotMatch(JSON.stringify(result), /\/private|secret|\/srv/);
   }
 });
+
+test("native CI exposes validated optional worker failure evidence", async () => {
+  for (const pr of [322, 337]) {
+    const evidence = {
+      schema: 1,
+      repo: "kmjtechno/kmj-main-platform",
+      pr,
+      sha: "a".repeat(40),
+      linux_result: "FAIL",
+      exit_code: 1,
+      github_actions: "NOT_RUN",
+      windows: "NOT_RUN",
+      signed_production: false,
+      log_sha256: "b".repeat(64),
+      failure_kind: "VP_NOT_FOUND",
+      failed_gate: "fmt_lint",
+    };
+    const handle = createSupervisorHandler({
+      run: () => "LoadState=loaded\n",
+      lstat: () => ({
+        isFile: () => true,
+        isSymbolicLink: () => false,
+        uid: 0,
+        nlink: 1,
+        mode: 0o100600,
+        size: 400,
+      }),
+      readFile: () => JSON.stringify(evidence),
+    });
+    const result = await handle({ op: `private_pr${pr}_ci_status` });
+    assert.equal(result.response.last.failureKind, "VP_NOT_FOUND");
+    assert.equal(result.response.last.failedGate, "fmt_lint");
+    evidence.failed_gate = "secret-ref";
+    assert.equal(
+      (await handle({ op: `private_pr${pr}_ci_status` })).response.last,
+      null,
+    );
+    evidence.failed_gate = null;
+    evidence.failure_kind = "secret-token";
+    assert.equal(
+      (await handle({ op: `private_pr${pr}_ci_status` })).response.last,
+      null,
+    );
+  }
+});
