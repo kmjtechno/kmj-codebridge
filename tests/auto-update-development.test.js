@@ -94,3 +94,59 @@ test("VPS installer provisions a bounded auto-update timer", () => {
   assert.match(installer, /CODEBRIDGE_AUTO_UPDATE_MODE:-development/);
   assert.match(installer, /systemctl enable --now "\$AUTO_UPDATE_TIMER"/);
 });
+
+test("protected fixed-unit overrides are reported and never silently bypassed", (t) => {
+  assert.match(script, /main_platform_refresh_allowed\(\)/);
+  assert.match(script, /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE/);
+  assert.match(script, /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/);
+  assert.match(script, /main_platform_refresh_allowed; then/);
+  assert.match(script, /99-kmj-release\\.conf/);
+  assert.match(script, /zz-kmj-codebridge-development-canary\\.conf/);
+  assert.match(script, /30-readiness-runtime\\.conf/);
+  if (process.platform === "win32") {
+    t.skip("systemd shell mock is covered by Linux CI");
+    return;
+  }
+  const start = script.indexOf("main_platform_refresh_allowed() {");
+  const end = script.indexOf("\n}\n\n", start);
+  assert.ok(start >= 0 && end > start);
+  const fn = script.slice(start, end + 2);
+  const mock = `
+systemctl() {
+  case "$*" in
+    *"-p LoadState --value"*) printf '%s\\n' "$UNIT_LOADED" ;;
+    *"-p DropInPaths --value"*) printf '%s\\n' "$UNIT_DROPINS" ;;
+    *"-p WorkingDirectory --value"*) printf '%s\\n' "$UNIT_WORKDIR" ;;
+    *) return 1 ;;
+  esac
+}
+main_platform_refresh_allowed
+`;
+  const check = (loaded, dropins, workdir) =>
+    spawnSync("bash", ["-c", fn + mock], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        UNIT_LOADED: loaded,
+        UNIT_DROPINS: dropins,
+        UNIT_WORKDIR: workdir,
+      },
+    });
+  const staged = "/opt/kmj-codebridge-main-platform-stage/" + "a".repeat(40);
+  const clean = check("loaded", "", staged);
+  assert.equal(clean.status, 0, clean.stderr);
+  for (const [dropins, workdir] of [
+    ["/etc/systemd/system/example/99-kmj-release.conf", staged],
+    ["/etc/systemd/system/example/zz-kmj-codebridge-development-canary.conf", staged],
+    ["/etc/systemd/system/example/30-readiness-runtime.conf", staged],
+    ["", "/opt/kmj-codebridge-main-platform-agent-cb64119277ef"],
+    ["", "/opt/kmj-codebridge-releases/abc123def456"],
+  ]) {
+    const blocked = check("loaded", dropins, workdir);
+    assert.equal(blocked.status, 1, blocked.stderr);
+    assert.match(blocked.stdout, /AUTO_UPDATE_MAIN_PLATFORM_REFRESH_DEFERRED_PROTECTED_OVERRIDE/);
+  }
+  const unverified = check("not-found", "", staged);
+  assert.equal(unverified.status, 1);
+  assert.match(unverified.stderr, /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/);
+});
