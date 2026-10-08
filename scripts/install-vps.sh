@@ -515,10 +515,9 @@ cat >"$MAIN_PLATFORM_REFRESH_SERVICE_FILE" <<EOF
 Description=KMJ CodeBridge fixed Main Platform agent refresh
 After=network-online.target
 Wants=network-online.target
-# One of the existing enrolled-agent configs must be present; repository is always required.
-ConditionPathExists=|/etc/kmj-codebridge-main-platform/agent.json
-ConditionPathExists=|/etc/kmj-codebridge/agents/kmj-main-platform.json
-ConditionPathExists=/srv/kmj-codebridge-projects/kmj-main-platform/.git
+# All file, credential and project preconditions are verified by the fixed
+# refresh wrapper before any mutation. Do not silently skip this oneshot:
+# a failed validation must return a real nonzero exit for operator diagnosis.
 
 [Service]
 Type=oneshot

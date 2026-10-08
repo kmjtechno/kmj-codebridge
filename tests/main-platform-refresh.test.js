@@ -32,6 +32,10 @@ test("Main Platform refresh wrapper is fixed to an existing enrollment", (t) => 
   assert.match(refresh, /bash "\$SETUP"/);
   assert.doesNotMatch(refresh, /enroll-device\.js/);
   assert.doesNotMatch(refresh, /CODEBRIDGE_AGENT_TOKEN/);
+  assert.match(refresh, /MAIN_PLATFORM_REFRESH_PROJECT_MISSING/);
+  assert.match(refresh, /MAIN_PLATFORM_REFRESH_RUNTIME_INVALID/);
+  assert.match(refresh, /MAIN_PLATFORM_REFRESH_REQUIRES_EXISTING_ENROLLMENT/);
+  assert.match(refresh, /MAIN_PLATFORM_REFRESH_UNSAFE_CONFIG/);
   assert.match(refresh, /MAIN_PLATFORM_REFRESH_LEGACY_CONFIG_MIGRATED/);
   assert.match(refresh, /MAIN_PLATFORM_REFRESH_LEGACY_UNSAFE/);
   assert.match(refresh, /O_EXCL/);
@@ -46,15 +50,15 @@ test("installer provisions a rollback-safe fixed Main Platform refresh unit", ()
     installer,
     /MAIN_PLATFORM_REFRESH_SERVICE="kmj-codebridge-main-platform-refresh\.service"/,
   );
-  assert.match(
+  assert.doesNotMatch(
     installer,
     /ConditionPathExists=\|\/etc\/kmj-codebridge-main-platform\/agent\.json/,
   );
-  assert.match(
+  assert.doesNotMatch(
     installer,
     /ConditionPathExists=\|\/etc\/kmj-codebridge\/agents\/kmj-main-platform\.json/,
   );
-  assert.match(
+  assert.doesNotMatch(
     installer,
     /ConditionPathExists=\/srv\/kmj-codebridge-projects\/kmj-main-platform\/\.git/,
   );
