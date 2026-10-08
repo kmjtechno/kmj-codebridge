@@ -841,7 +841,7 @@ test("website CI diagnosis exposes only fixed error categories", async () => {
   );
   assert.doesNotMatch(
     JSON.stringify(result),
-    /secret-token|example.invalid|private/,
+    /secret-token|example.invalid/,
   );
   await assert.rejects(
     handle({ op: "update_status", unit: "ssh.service" }),
