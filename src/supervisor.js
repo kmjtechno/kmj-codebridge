@@ -180,6 +180,9 @@ function fixedUpdateMarkers(run, unit) {
     "REF_FIX_PARENT",
     "REF_WEBSITE",
     "REF_PACKED",
+    "OBJECT_ROOT",
+    "OBJECT_PACK",
+    "OBJECT_INFO",
   ]) {
     for (const [field, values] of [
       [
@@ -255,6 +258,7 @@ function fixedUpdateMarkers(run, unit) {
       [
         "KIND",
         [
+          "OBJECT_READ_FAILED",
           "REVISION_UNAVAILABLE",
           "KEY_PERMISSIONS",
           "PUBLICKEY_DENIED",
@@ -279,6 +283,9 @@ function fixedUpdateMarkers(run, unit) {
     "REF_FIX_PARENT",
     "REF_WEBSITE",
     "REF_PACKED",
+    "OBJECT_ROOT",
+    "OBJECT_PACK",
+    "OBJECT_INFO",
   ])
     for (const field of ["ACCESS", "WRITE_ACCESS"])
       gitMetadataFields.set(

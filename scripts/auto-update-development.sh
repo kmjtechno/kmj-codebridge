@@ -396,6 +396,9 @@ try:
             ("REF_FIX_PARENT", PROJECT + "/.git/refs/remotes/origin/fix"),
             ("REF_WEBSITE", PROJECT + "/.git/refs/remotes/origin/fix/public-marketing-standalone-nav-20261008"),
             ("REF_PACKED", PROJECT + "/.git/packed-refs"),
+            ("OBJECT_ROOT", PROJECT + "/.git/objects"),
+            ("OBJECT_PACK", PROJECT + "/.git/objects/pack"),
+            ("OBJECT_INFO", PROJECT + "/.git/objects/info"),
         ]
         proof_fds = []
         root_fd = None
@@ -408,9 +411,10 @@ try:
         except OSError:
             root_fd = None
         parent_fd = root_fd
+        objects_fd = None
         try:
             for label, path in paths:
-                current = root_fd if label == "REF_PACKED" else parent_fd
+                current = root_fd if label in {"REF_PACKED", "OBJECT_ROOT"} else objects_fd if label in {"OBJECT_PACK", "OBJECT_INFO"} else parent_fd
                 if current is None:
                     print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=BLOCKED_DIRECTORY")
                     continue
@@ -419,8 +423,11 @@ try:
                 if label in {"REF_WEBSITE", "REF_PACKED"} and meta is not None:
                     print("AUTO_UPDATE_PRIVATE_CI_" + label + "_NLINK=" + ("VALID" if meta.st_nlink == 1 else "INVALID"))
                     print("AUTO_UPDATE_PRIVATE_CI_" + label + "_SIZE=" + ("VALID" if 0 < meta.st_size <= 8388608 else "INVALID"))
-                if label not in {"REF_WEBSITE", "REF_PACKED"}:
-                    parent_fd = None
+                if label not in {"REF_WEBSITE", "REF_PACKED", "OBJECT_PACK", "OBJECT_INFO"}:
+                    if label == "OBJECT_ROOT":
+                        objects_fd = None
+                    else:
+                        parent_fd = None
                     if meta is not None and stat.S_ISDIR(meta.st_mode):
                         try:
                             next_fd = os.open(component, os.O_PATH | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=current)
@@ -428,7 +435,10 @@ try:
                             held = os.fstat(next_fd)
                             identity = lambda value: (value.st_dev, value.st_ino, value.st_uid, value.st_gid, value.st_mode)
                             if identity(held) == identity(meta):
-                                parent_fd = next_fd
+                                if label == "OBJECT_ROOT":
+                                    objects_fd = next_fd
+                                else:
+                                    parent_fd = next_fd
                             else:
                                 print("AUTO_UPDATE_PRIVATE_CI_" + label + "_READ=CHANGED")
                         except OSError:
@@ -445,10 +455,11 @@ try:
 except OSError:
     pass
 parent=root
+objects=None
 try:
     for label,path in paths:
         component=path.rsplit('/',1)[-1]
-        current=root if label=='REF_PACKED' else parent
+        current=root if label in ['REF_PACKED','OBJECT_ROOT'] else objects if label in ['OBJECT_PACK','OBJECT_INFO'] else parent
         access=write='BLOCKED_DIRECTORY'
         if current is not None:
             try:
@@ -461,21 +472,25 @@ try:
                     write='ALLOWED' if os.access(component,os.W_OK,dir_fd=current,follow_symlinks=False) else 'DENIED'
                 else:
                     access=write='OTHER_TYPE'
-                if label not in ['REF_WEBSITE','REF_PACKED']:
+                if label not in ['REF_WEBSITE','REF_PACKED','OBJECT_PACK','OBJECT_INFO']:
+                    descriptor=None
                     if stat.S_ISDIR(meta.st_mode):
-                        parent=os.open(component,os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=current)
-                        fds.append(parent)
-                    else:
-                        parent=None
+                        descriptor=os.open(component,os.O_PATH|os.O_DIRECTORY|os.O_NOFOLLOW,dir_fd=current)
+                        fds.append(descriptor)
+                    if label=='OBJECT_ROOT': objects=descriptor
+                    else: parent=descriptor
             except FileNotFoundError:
                 access=write='MISSING'
-                if label!='REF_PACKED': parent=None
+                if label=='OBJECT_ROOT': objects=None
+                elif label not in ['REF_PACKED','OBJECT_PACK','OBJECT_INFO']: parent=None
             except PermissionError:
                 access=write='PERMISSION_DENIED'
-                if label!='REF_PACKED': parent=None
+                if label=='OBJECT_ROOT': objects=None
+                elif label not in ['REF_PACKED','OBJECT_PACK','OBJECT_INFO']: parent=None
             except OSError:
                 access=write='OTHER_ERROR'
-                if label!='REF_PACKED': parent=None
+                if label=='OBJECT_ROOT': objects=None
+                elif label not in ['REF_PACKED','OBJECT_PACK','OBJECT_INFO']: parent=None
         print(label+'_ACCESS='+access)
         print(label+'_WRITE_ACCESS='+write)
 finally:
@@ -507,6 +522,7 @@ finally:
             error = (getattr(response, "stderr", "") or "")[:4096].lower()
             kind = "UNCLASSIFIED"
             for category, patterns in [
+                ("OBJECT_READ_FAILED", ["bad object", "unable to read", "failed to read object"]),
                 ("REVISION_UNAVAILABLE", ["needed a single revision", "unknown revision or path not in the working tree"]),
                 ("KEY_PERMISSIONS", ["are too open", "bad owner or permissions", "bad permissions"]),
                 ("PUBLICKEY_DENIED", ["permission denied (publickey"]),

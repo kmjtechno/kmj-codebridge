@@ -72,9 +72,9 @@ def fixture_lstat(p):
         if os.environ.get(label+'_UID_RACE') and project_reads>1: result.st_uid=1002
     return result
 os.lstat=fixture_lstat
-os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23}.get(p,9)
+os.open=lambda p, *a, **k: 10 if p == '/srv/kmj-codebridge-projects/kmj-main-platform' else 11 if p.endswith('/.git') else 12 if p=='config' else 13 if p=='/var/lib/kmj-codebridge-ci' else 14 if p=='/srv/kmj-codebridge-projects' else 15 if p=='/srv' else 16 if p=='/' else {'refs':20,'remotes':21,'origin':22,'fix':23,'objects':24}.get(p,9)
 os.close=lambda *a: None
-ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix'}
+ref_paths={20:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs',21:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes',22:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin',23:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/refs/remotes/origin/fix',24:'/srv/kmj-codebridge-projects/kmj-main-platform/.git/objects'}
 os.stat=lambda p, **kw: fixture_lstat(ref_paths.get(kw.get('dir_fd'),'/srv/kmj-codebridge-projects/kmj-main-platform/.git')+'/'+p)
 os.fstat=lambda fd: fixture_lstat(ref_paths[fd]) if fd in ref_paths else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform') if fd==10 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git') if fd==11 else fixture_lstat('/srv/kmj-codebridge-projects/kmj-main-platform/.git/config') if fd==12 else fixture_lstat('/var/lib/kmj-codebridge-ci') if fd==13 else fixture_lstat('/srv/kmj-codebridge-projects') if fd==14 else fixture_lstat('/srv') if fd==15 else fixture_lstat('/') if fd==16 else fixture_lstat('/var/lib/kmj-codebridge-ci/.ci.lock')
 def chmod(fd, mode):
@@ -406,6 +406,9 @@ subprocess.run=stub
   assert.match(linkedRef.stdout, /REF_FIX_PARENT_TYPE=SYMLINK/);
   assert.match(linkedRef.stdout, /REF_WEBSITE_READ=BLOCKED_DIRECTORY/);
   assert.match(linkedRef.stdout, /REF_PACKED_READ=OK/);
+  assert.match(linkedRef.stdout, /OBJECT_ROOT_READ=OK/);
+  assert.match(linkedRef.stdout, /OBJECT_PACK_READ=OK/);
+  assert.match(linkedRef.stdout, /OBJECT_INFO_READ=OK/);
   assert.doesNotMatch(linkedRef.stdout, /REF_WEBSITE_READ=OK|UPDATED=|CHMOD=/);
   const failedFetch = run({ FETCH_FAIL: "1" });
   assert.equal(failedFetch.status, 0, failedFetch.stderr);
