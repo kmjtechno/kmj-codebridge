@@ -66,7 +66,80 @@ try {
         Protect-File $enrollment
         $grant = Get-Content -LiteralPath $enrollment -Raw | ConvertFrom-Json
         $gateway = [string]$grant.gateway
-        if ($gateway -notmatch '^https://[^/?#]+/?$') { throw 'Approved enrollment did not return HTTPS agent gateway origin.' }
+        # The Main Platform enrollment API may omit 'gateway' (legacy contract).
+        # Match the verified default in scripts/install-vps.sh; never use /mcp.
+        if ([string]::IsNullOrWhiteSpace($gateway)) {
+            $gateway = 'https://kmj-codebridge-gateway.onrender.com'
+            Status 'INFO' 'Enrollment omitted gateway; using the canonical published CodeBridge agent origin.'
+        }
+        if ($gateway -notmatch '^https://[A-Za-z0-9.-]+(?::443)?/?
+        if ($grant.agent.id -ne $deviceId -or @($grant.projects | Where-Object { $_.id -eq $projectId }).Count -ne 1) { throw 'Enrollment device/project binding mismatch.' }
+        foreach ($p in @('read', 'write', 'execute')) {
+            if ($grant.permissions -notcontains $p) { throw 'Enrollment does not include required permission grant.' }
+        }
+        $cfg = @{
+            gateway = $gateway.TrimEnd('/') + '/'
+            token = [string]$grant.agent.token
+            id = [string]$grant.agent.id
+            tenant = [string]$grant.agent.tenant
+            stateDir = $state
+            projects = @(@{
+                id = $projectId
+                root = $project
+                writable = $true
+                gates = @{
+                    check = @{ command = 'node'; args = @('scripts/check.js'); timeoutMs = 120000 }
+                    p720_ai_tests = @{ command = 'node'; args = @('--test', 'tests/p720-ai-check.test.js'); timeoutMs = 120000 }
+                    scan_secrets = @{ command = 'node'; args = @('scripts/scan-secrets.js'); timeoutMs = 120000 }
+                }
+            })
+            license = @{ mode = 'free' }
+        }
+        [IO.File]::WriteAllText($configFile, ($cfg | ConvertTo-Json -Depth 12), (New-Object Text.UTF8Encoding($false)))
+        Protect-File $configFile
+        Status 'PASS' 'Scoped agent credentials stored in private D: folder.'
+    } else {
+        Protect-File $configFile
+        $existing = Get-Content -LiteralPath $configFile -Raw | ConvertFrom-Json
+        if ($existing.id -ne $deviceId -or @($existing.projects).Count -ne 1 -or $existing.projects[0].id -ne $projectId -or $existing.projects[0].root -ne $project) {
+            throw 'Existing config differs from expected project scope; refusing overwrite.'
+        }
+        Status 'PASS' 'Existing scoped credential reused.'
+    }
+    $connection = Join-Path $state 'connection.json'
+    $started = [DateTime]::UtcNow
+    $p = Start-Process -FilePath $node -ArgumentList @('src/cli.js', 'agent', $configFile) -WorkingDirectory $project -WindowStyle Hidden -RedirectStandardOutput (Join-Path $logFolder 'p720-agent-out.log') -RedirectStandardError (Join-Path $logFolder 'p720-agent-err.log') -PassThru
+    Status 'INFO' ('Agent started PID ' + $p.Id)
+    $online = $false
+    for ($i = 0; $i -lt 20; $i++) {
+        Start-Sleep -Seconds 2
+        $p.Refresh()
+        if ($p.HasExited) { throw 'Agent stopped; see p720-agent-err.log (do not upload private config).' }
+        if (Test-Path -LiteralPath $connection) {
+            try {
+                $stamp = [DateTime]::Parse((Get-Content -LiteralPath $connection -Raw | ConvertFrom-Json).connectedAt).ToUniversalTime()
+                if ($stamp -ge $started.AddSeconds(-2)) { $online = $true; break }
+            } catch { }
+        }
+    }
+    if ($online) { Status 'PASS' 'Gateway heartbeat connected; account grant must still be checked.' }
+    else { Status 'WARN' 'Agent running but gateway heartbeat not verified yet.' }
+    Status 'NEXT' 'Ask CodeBridge connection_overview to confirm account grants for this P720.'
+    Status 'NEXT' 'Upload only P720-CODEBRIDGE-STATUS.txt; never agent.json or enrollment.json.'
+} catch {
+    if (Test-Path -LiteralPath $statusFile) { Status 'BLOCKED' ([string]$_.Exception.Message) }
+    else { Write-Host ('BLOCKED: ' + $_.Exception.Message) }
+    exit 2
+}
+) { throw 'Approved enrollment gateway must be a canonical HTTPS origin.' }
+        $gateway = $gateway.TrimEnd('/')
+        try {
+            $health = Invoke-WebRequest -Uri ($gateway + '/healthz') -Method Get -TimeoutSec 15 -MaximumRedirection 0 -UseBasicParsing
+            if ([int]$health.StatusCode -ne 200) { throw 'Unhealthy gateway response.' }
+        } catch {
+            throw 'Approved CodeBridge agent gateway health check failed; retained existing enrollment for retry.'
+        }
+        Status 'PASS' 'Official CodeBridge agent gateway is reachable over HTTPS.'
         if ($grant.agent.id -ne $deviceId -or @($grant.projects | Where-Object { $_.id -eq $projectId }).Count -ne 1) { throw 'Enrollment device/project binding mismatch.' }
         foreach ($p in @('read', 'write', 'execute')) {
             if ($grant.permissions -notcontains $p) { throw 'Enrollment does not include required permission grant.' }
