@@ -4,18 +4,18 @@ GitHub support is implemented **inside the authenticated CodeBridge gateway**, n
 
 ## Native capabilities
 
-| Capability | MCP operation | Safety guarantee |
-| --- | --- | --- |
-| Repository metadata | `github_repository` | Configured allowlisted repositories only |
-| Pull request queue | `github_pull_requests` | Up to 30 PR summaries with head SHA, drafts and branches |
-| Pull request details and changed files | `github_pull_request`, `github_pull_request_files` | Bounded file count and diff patches |
-| Exact-head CI verdict | `github_pull_request_ci` | Reads current PR head, check runs and workflow runs; missing, queued or truncated evidence never returns green |
-| Actions runs, jobs, redacted logs | `github_actions_runs`, `github_actions_run_jobs`, `github_actions_job_log` | Size limits and secret masking |
-| Issues and conversation | `github_issue`, `github_issue_comments` | Bounded text and comment pages |
-| New issues and comments | `github_create_issue`, `github_comment_issue` | Authenticated explicit write grant |
-| Create branch / new file | `github_create_branch`, `github_create_file` | Exact source commit for branch; create-only file on non-default branch |
-| Update existing file / open PR | `github_update_file`, `github_create_pull_request` | Exact previous blob SHA for overwrite; GitHub branch/repository permissions |
-| Safe merge | `github_merge_pull_request` | Exact PR head and completed-success check runs; GitHub branch protection applies |
+| Capability                             | MCP operation                                                              | Safety guarantee                                                                                               |
+| -------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Repository metadata                    | `github_repository`                                                        | Configured allowlisted repositories only                                                                       |
+| Pull request queue                     | `github_pull_requests`                                                     | Up to 30 PR summaries with head SHA, drafts and branches                                                       |
+| Pull request details and changed files | `github_pull_request`, `github_pull_request_files`                         | Bounded file count and diff patches                                                                            |
+| Exact-head CI verdict                  | `github_pull_request_ci`                                                   | Reads current PR head, check runs and workflow runs; missing, queued or truncated evidence never returns green |
+| Actions runs, jobs, redacted logs      | `github_actions_runs`, `github_actions_run_jobs`, `github_actions_job_log` | Size limits and secret masking                                                                                 |
+| Issues and conversation                | `github_issue`, `github_issue_comments`                                    | Bounded text and comment pages                                                                                 |
+| New issues and comments                | `github_create_issue`, `github_comment_issue`                              | Authenticated explicit write grant                                                                             |
+| Create branch / new file               | `github_create_branch`, `github_create_file`                               | Exact source commit for branch; create-only file on non-default branch                                         |
+| Update existing file / open PR         | `github_update_file`, `github_create_pull_request`                         | Exact previous blob SHA for overwrite; GitHub branch/repository permissions                                    |
+| Safe merge                             | `github_merge_pull_request`                                                | Exact PR head and completed-success check runs; GitHub branch protection applies                               |
 
 The read-only CI verdict `green` requires at least one check run **and** one workflow run for the current exact PR head, a fully observed result set (no more than 100 per type), and all observed statuses completed with conclusions success. If evidence is absent or paginated beyond that limit, the result is `unverified`; queued checks yield `pending`; failed checks yield `failed`. This is **not** permission to merge a draft, bypass branch protection or claim hardware acceptance. GitHub-hosted workflows requiring a disconnected self-hosted runner remain pending; local P720 CodeBridge CTest success cannot spoof GitHub CI.
 
