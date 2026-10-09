@@ -107,21 +107,24 @@ test("P720 verifier rejects invalid network ports", async () => {
 test("P720 verifier diagnoses thinking-only output without false PASS", async () => {
   const model = "qwen3:4b";
   const base = fakeOllama(model);
-  const result = await inspectP720Target({ port: 11436, model }, async (url, opts) => {
-    if (new URL(url).pathname === "/api/generate") {
-      return {
-        ok: true,
-        json: async () => ({
-          done: true,
-          response: "",
-          thinking: "reasoning text",
-          eval_count: 48,
-          eval_duration: 1000000000,
-        }),
-      };
-    }
-    return base(url, opts);
-  });
+  const result = await inspectP720Target(
+    { port: 11436, model },
+    async (url, opts) => {
+      if (new URL(url).pathname === "/api/generate") {
+        return {
+          ok: true,
+          json: async () => ({
+            done: true,
+            response: "",
+            thinking: "reasoning text",
+            eval_count: 48,
+            eval_duration: 1000000000,
+          }),
+        };
+      }
+      return base(url, opts);
+    },
+  );
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.reason, "THINKING_ONLY_NO_VISIBLE_TEXT");
   assert.equal(result.evalTokens, 48);
