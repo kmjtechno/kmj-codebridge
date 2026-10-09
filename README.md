@@ -115,21 +115,58 @@ The device agent must be online, authorized for the tenant, and configured for t
 
 ## What you can do
 
-| Tool family                                          | Examples                                                   | Safety boundary                                      |
-| ---------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------- |
-| Discover                                             | `list_devices`, `inspect_project`, `connection_doctor`     | Tenant/project scoped                                |
-| Read                                                 | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                        |
-| Edit                                                 | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                |
-| Verify                                               | `run_quality_gate`                                         | Only administrator-configured executable + arguments |
-| Structured workflows                                 | `run_project_command`, command presets                     | Fixed admin-approved profiles; no generic shell      |
-| Repository intelligence                              | `repo_intelligence`, `context_pack`, fast read batching    | Bounded local metadata/context; no hosted-AI upload  |
-| Workflow guidance                                    | `skill_recommendations`, mission/autopilot tools           | Deterministic bounded workflow metadata/state        |
-| Jobs                                                 | `get_job_status`, `cancel_job`                             | Durable bounded job state                            |
+| Tool family                                          | Examples                                                   | Safety boundary                                            |
+| ---------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
+| Discover                                             | `list_devices`, `inspect_project`, `connection_doctor`     | Tenant/project scoped                                      |
+| Read                                                 | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                              |
+| Project integrity                                    | `project_integrity_manifest`, `git_index_probe`            | Bounded hashes, explicit partial coverage; no index writes |
+| Edit                                                 | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                      |
+| Verify                                               | `run_quality_gate`                                         | Only administrator-configured executable + arguments       |
+| Structured workflows                                 | `run_project_command`, command presets                     | Fixed admin-approved profiles; no generic shell            |
+| Repository intelligence                              | `repo_intelligence`, `context_pack`, fast read batching    | Bounded local metadata/context; no hosted-AI upload        |
+| Workflow guidance                                    | `skill_recommendations`, mission/autopilot tools           | Deterministic bounded workflow metadata/state              |
+| Jobs                                                 | `get_job_status`, `cancel_job`                             | Durable bounded job state                                  |
 | `github_repository`, `github_pull_request*`          | Server-side GitHub repository and PR inspection            |
 | `github_actions_*`                                   | Bounded/redacted GitHub Actions runs, jobs and logs        |
 | `github_create_branch`, `github_create_pull_request` | Allowlisted GitHub write operations via server credential  |
 
 No generic “run any shell command” MCP tool is exposed.
+
+## One CodeBridge: Desktop Commander-class development operations
+
+CodeBridge is the **primary** KMJ project gateway. It implements Commander-style
+operations _natively_ through the existing outbound agent and the same tenant,
+device, project and license policy—**no separate Desktop Commander service,
+MCP connector or unrestricted remote shell is required for these tools**.
+
+| Capability                         | Working CodeBridge interface                                                                                            | Boundary                                                                                                                      |
+| ---------------------------------- | ----------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Browse folders and discover stacks | `list_directory`, `project_tree`, `project_environment`, `workspace_home`                                               | Approved root, depth and entry caps; no symlink traversal                                                                     |
+| Inspect and search                 | `project_file_info`, `read_file_range`, `read_files_batch`, `search_code`, `context_pack`                               | Bounded text and redaction; protected paths denied                                                                            |
+| Safely edit/organize files         | `preview_file`, `edit_file`, `write_files_atomic`, `create_project_directory`, `move_project_file`, `copy_project_file` | Write grant, exact hashes, no arbitrary overwrite                                                                             |
+| Compare many file fingerprints     | `project_integrity_manifest`                                                                                            | Up to 60 text files, max 1 MiB hashed per request, SHA-256 only, explicit partial scan; **new in repository—deploy required** |
+| Diagnose unusual Git status        | `git_status`, `git_log`, `git_index_probe`                                                                              | Read-only Git index/blob identities; no reset, no diff hooks                                                                  |
+| Controlled builds and jobs         | `run_quality_gate`, `run_project_command`, `get_job_status`, `cancel_job`                                               | Pre-approved commands, capped resources, job journal                                                                          |
+| Diagnostics and recovery planning  | `connection_doctor`, `supervisor_device_status`, `execution_capacity`, `checkpoint_restore_plan`                        | No arbitrary process kill, sudo, host directory or direct restoration                                                         |
+| AI orchestration                   | `verification_plan`, `mission_compile`, `autopilot_status`, `context_pack`                                              | Bounded task metadata; a queued task is **not** an autonomous coding worker                                                   |
+
+**More than parity:** `project_integrity_manifest` computes a deterministic,
+bounded set of SHA-256 fingerprints for approved UTF-8 files without returning
+their bodies. Oversized/binary files get an explicit `too_large` or `non_text`
+status, never a fabricated hash. `truncated: true` / `coverage: partial`
+means there are unscanned entries; a manifest digest is **not** an attestation
+of an entire repository, its Git commit, or passing tests.
+
+**Still planned or deliberately restricted:** privileged operations require a
+Main Platform-backed approval, checkpoint restore is planning-only, GUI/video
+screen streaming and native desktop UX are not implemented, and arbitrary
+machine-wide process lists/kills or caller-supplied shell commands are **not
+supported**. This avoids silently weakening project isolation to imitate
+a general-purpose administrator tool.
+
+See the [Commander convergence status and safety matrix](docs/COMMANDER-CONVERGENCE.md).
+Actual availability depends on both the deployed gateway and each enrolled
+device agent version; a GitHub merge alone does not update remote devices.
 
 ## Check connections without reconnecting
 
