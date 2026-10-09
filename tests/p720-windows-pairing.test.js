@@ -67,7 +67,10 @@ test("P720 standalone launcher fetches trusted main without destructive reset", 
 
 test("P720 uses authenticated VPS routes instead of legacy Render gateway", () => {
   assert.match(source, /Confirm-VpsGateway/);
-  assert.match(source, /Invoke-WebRequest -Uri 'https:\/\/kmjtechno\.com\/agent\/health'/);
+  assert.match(
+    source,
+    /Invoke-WebRequest -Uri 'https:\/\/kmjtechno\.com\/agent\/health'/,
+  );
   assert.match(source, /-ne 401/);
   assert.match(source, /-MaximumRedirection 0 -UseBasicParsing/);
   assert.match(source, /'https:\/\/kmj-codebridge-gateway\.onrender\.com'/);
@@ -82,9 +85,18 @@ test("P720 migrates private credentials atomically, stopping scoped agent only",
   assert.match(source, /Stop-ScopedAgent/);
   assert.match(source, /\.CommandLine\.Contains\(\$configFile\)/);
   assert.match(source, /Multiple P720 agent processes found/);
-  assert.match(source, /Copy-Item -LiteralPath \$configFile -Destination \$backup/);
+  assert.match(
+    source,
+    /Copy-Item -LiteralPath \$configFile -Destination \$backup/,
+  );
   assert.match(source, /Protect-File \$backup/);
-  assert.match(source, /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/);
+  assert.match(
+    source,
+    /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/,
+  );
   assert.match(source, /p720_inference = @\{ command = 'node'/);
-  assert.doesNotMatch(source, /Stop-Process -Name|taskkill \/IM|git reset --hard/);
+  assert.doesNotMatch(
+    source,
+    /Stop-Process -Name|taskkill \/IM|git reset --hard/,
+  );
 });
