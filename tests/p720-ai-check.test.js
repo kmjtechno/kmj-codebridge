@@ -20,6 +20,7 @@ function fakeOllama(model, { vram = 4000000000, available = true } = {}) {
       const request = JSON.parse(options.body);
       assert.equal(request.model, model);
       assert.equal(request.stream, false);
+      assert.equal(request.think, false);
       value = {
         done: true,
         response: "function add(a, b) { return a + b; }",
@@ -101,4 +102,30 @@ test("P720 verifier rejects invalid network ports", async () => {
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.reason, "ENDPOINT_OR_INFERENCE_FAILED");
   assert.equal(result.error, "INVALID_LOCAL_PORT");
+});
+
+test("P720 verifier diagnoses thinking-only output without false PASS", async () => {
+  const model = "qwen3:4b";
+  const base = fakeOllama(model);
+  const result = await inspectP720Target(
+    { port: 11436, model },
+    async (url, opts) => {
+      if (new URL(url).pathname === "/api/generate") {
+        return {
+          ok: true,
+          json: async () => ({
+            done: true,
+            response: "",
+            thinking: "reasoning text",
+            eval_count: 48,
+            eval_duration: 1000000000,
+          }),
+        };
+      }
+      return base(url, opts);
+    },
+  );
+  assert.equal(result.status, "BLOCKED");
+  assert.equal(result.reason, "THINKING_ONLY_NO_VISIBLE_TEXT");
+  assert.equal(result.evalTokens, 48);
 });
