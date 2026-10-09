@@ -15,7 +15,10 @@ function fixture(t) {
   fs.mkdirSync(path.join(root, ".ssh"));
   fs.writeFileSync(path.join(root, "README.md"), "visible\n");
   fs.writeFileSync(path.join(root, "src", "main.ts"), "line1\r\nline2\r\n");
-  fs.writeFileSync(path.join(root, "src", "binary.bin"), Buffer.from([0, 1, 2]));
+  fs.writeFileSync(
+    path.join(root, "src", "binary.bin"),
+    Buffer.from([0, 1, 2]),
+  );
   fs.writeFileSync(path.join(root, "src", "big.txt"), "x".repeat(262145));
   fs.writeFileSync(path.join(root, ".env"), "token=secret\n");
   fs.writeFileSync(path.join(root, "node_modules", "hidden.js"), "private");
@@ -51,8 +54,14 @@ test("manifest hashes readable files with exact original byte hashes, no content
 test("manifest explicitly distinguishes oversized and non-text files", (t) => {
   const { files } = fixture(t);
   const r = files.integrityManifest("src", 0, 40);
-  assert.equal(r.entries.find((e) => e.path === "src/big.txt").status, "too_large");
-  assert.equal(r.entries.find((e) => e.path === "src/binary.bin").status, "non_text");
+  assert.equal(
+    r.entries.find((e) => e.path === "src/big.txt").status,
+    "too_large",
+  );
+  assert.equal(
+    r.entries.find((e) => e.path === "src/binary.bin").status,
+    "non_text",
+  );
   assert.equal(r.entries.find((e) => e.path === "src/binary.bin").sha256, null);
   assert.equal(r.entries.find((e) => e.path === "src/big.txt").sha256, null);
 });
@@ -63,8 +72,14 @@ test("manifest truncation never pretends to be a full repository verification", 
   assert.equal(r.files, 1);
   assert.equal(r.truncated, true);
   assert.equal(r.coverage, "partial");
-  assert.throws(() => files.integrityManifest("", 6, 20), /INVALID_MANIFEST_LIMIT/);
-  assert.throws(() => files.integrityManifest("", 1, 61), /INVALID_MANIFEST_LIMIT/);
+  assert.throws(
+    () => files.integrityManifest("", 6, 20),
+    /INVALID_MANIFEST_LIMIT/,
+  );
+  assert.throws(
+    () => files.integrityManifest("", 1, 61),
+    /INVALID_MANIFEST_LIMIT/,
+  );
   assert.throws(() => files.integrityManifest("../", 1, 5), /INVALID_PATH/);
   assert.throws(() => files.integrityManifest(".ssh", 1, 5), /INVALID_PATH/);
 });
@@ -101,11 +116,15 @@ test("manifest requires read grant, respects device/project tenant scope", async
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("project_integrity_manifest", { ...scoped, device: "d2" }, ["read"]),
+    dispatch("project_integrity_manifest", { ...scoped, device: "d2" }, [
+      "read",
+    ]),
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("project_integrity_manifest", { ...scoped, project: "p2" }, ["read"]),
+    dispatch("project_integrity_manifest", { ...scoped, project: "p2" }, [
+      "read",
+    ]),
     /PROJECT_NOT_FOUND/,
   );
 });
