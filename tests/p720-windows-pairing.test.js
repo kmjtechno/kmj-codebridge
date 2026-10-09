@@ -64,3 +64,14 @@ test("P720 standalone launcher fetches trusted main without destructive reset", 
     /git reset --hard|git clean -fd|gh auth token/,
   );
 });
+
+test("P720 reuses approved legacy enrollment with verified production gateway", () => {
+  assert.match(source, /IsNullOrWhiteSpace\(\$gateway\)/);
+  assert.match(source, /https:\/\/kmj-codebridge-gateway\.onrender\.com/);
+  assert.match(source, /Invoke-WebRequest -Uri \(\$gateway \+ '\/healthz'\)/);
+  assert.match(source, /-MaximumRedirection 0 -UseBasicParsing/);
+  assert.match(source, /retained existing enrollment for retry/);
+  assert.match(source, /Approved enrollment gateway must be a canonical HTTPS origin/);
+  assert.match(source, /if \(!\(Test-Path -LiteralPath \$enrollment\)\)/);
+  assert.doesNotMatch(source, /https:\/\/kmjtechno\.com\/mcp\/agent/);
+});
