@@ -232,6 +232,38 @@ The package contains the MCP resource URL and no user credential. Directory
 review/approval remains an external publishing step and must not be confused
 with a working private/developer connection.
 
+## One-click Windows VS Code / GitHub Copilot setup
+
+For the standard Windows VS Code user profile, download
+[`install-vscode-copilot.cmd`](../scripts/install-vscode-copilot.cmd) from this
+repository and double-click it. The installer is a **single self-contained
+file**; it does not download scripts, install npm wrappers, or require
+administrator elevation.
+
+The installer:
+
+- Migrates the existing `kmj-codebridge` entry from the old `mcp-remote`
+  stdio wrapper to native Streamable HTTP at
+  `https://kmjtechno.com/mcp`.
+- Preserves other MCP servers and JSON fields; refuses malformed JSON or
+  symlinked configuration files rather than overwriting them.
+- Makes a timestamped copy of the old configuration if it changes, then opens
+  `%APPDATA%\\Code\\User\\mcp.json` in VS Code.
+- Is safe to run repeatedly. It never stores credentials or bypasses OAuth
+  approval.
+
+When VS Code opens, select **Start** above the CodeBridge entry or run
+**MCP: List Servers → kmj-codebridge → Start**. Complete KMJ OAuth in the
+browser when asked. In Copilot Agent mode, select the registered CodeBridge
+MCP tool `list_devices`; do not test with `curl` because a raw HTTP
+request does not carry VS Code's OAuth session.
+
+**Limits:** A configuration change and tool discovery are not proof of
+authentication. The user must approve the browser sign-in, and authorized
+device agents must be online before project operations succeed. For Copilot CLI
+outside VS Code, use its separate `~/.copilot/mcp-config.json` format rather
+than duplicating the same server across both client configuration stores.
+
 ## Universal IDE and CLI configuration generator
 
 All generated hosted-client configs are credential-free. OAuth happens in the
