@@ -19,9 +19,7 @@ function fixture(t) {
   return { root, base, files: new ProjectFiles(root) };
 }
 
-test(
-  "tail uses full raw-file hash and returns only the requested recent lines",
-  (t) => {
+test("tail returns bounded recent lines and exact file hash", (t) => {
   const { files } = fixture(t);
   const r = files.readTail("progress.log", 2);
   assert.equal(r.content, "fourth\nfifth");
@@ -47,9 +45,7 @@ test("tail supports one long line without returning unbounded data", (t) => {
   assert.throws(() => files.readTail("long.log", 0), /INVALID_TAIL_LIMIT/);
 });
 
-test(
-  "tail rejects private files, escapes, links and files over the ordinary read cap",
-  (t) => {
+test("tail rejects private files, links and oversized reads", (t) => {
   const { files, root } = fixture(t);
   assert.throws(() => files.readTail(".env", 2), /PATH_DENIED/);
   assert.throws(() => files.readTail("../outside", 2), /INVALID_PATH/);
@@ -67,9 +63,7 @@ test(
   assert.throws(() => files.readTail("huge.log", 2), /FILE_TOO_LARGE/);
 });
 
-test(
-  "tail redacts secrets at MCP boundary and inherits read-only grant",
-  async (t) => {
+test("tail redacts secrets and enforces read authorization", async (t) => {
   const { root, base } = fixture(t);
   const dispatch = createDispatcher(
     {
