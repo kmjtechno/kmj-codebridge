@@ -18,14 +18,14 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | ---------------------------------------- | -------------------------------------------------------------------------------------------- | --------------------------- |
 | Remote probe / host diagnostics          | Supervisor-backed bounded device resource status                                             | Native                      |
 | Recursive file explorer                  | Bounded project_tree with denylisted paths and symlink rejection                             | Native                      |
-| One-click Workspace Home                 | One bounded MCP read for project environment, safe tree, gates and recent sessions           | Implementing                |
+| One-click Workspace Home                 | One bounded MCP read for project environment, safe tree, gates and recent sessions           | Native; verified in tests   |
 | File metadata                            | Project_file_info returns approved file size and modification time                           | Native                      |
 | Process / session listing                | List persisted CodeBridge project jobs, no machine-global process enumeration                | Native                      |
 | File read and multi-read                 | Scoped read_file, read_file_range and read_files_batch with redaction                        | Native                      |
 | File write and edit                      | Hashed preconditions, preview and atomic multi-file updates                                  | Native                      |
 | Full-text search                         | Bounded project search_code and repository map                                               | Native                      |
 | File move / rename                       | Controlled within-root operation with hash guards and audit                                  | Native                      |
-| File copy / duplication                  | Hash-verified bounded copy to a previously nonexistent authorized destination                | Implementing                |
+| File copy / duplication                  | Hash-verified bounded copy to a previously nonexistent authorized destination                | Native; verified in tests   |
 | Create directory                         | Controlled within-root operation with policy and audit                                       | Native                      |
 | Arbitrary process listing or kill        | Restricted to CodeBridge-managed jobs only                                                   | Restricted                  |
 | Project inspect / stack discovery        | Structured project environment detection                                                     | Native                      |
@@ -39,13 +39,40 @@ No convergence feature may add an unrestricted AI shell, caller-controlled root 
 | Approval gate                            | Main Platform approval records for privileged/destructive actions                            | Next                        |
 | Hash-chained audit evidence              | Append-only per-device/project evidence ledger                                               | Native                      |
 | Resource-aware scheduler                 | CPU/RAM/disk/load-aware concurrency and backpressure                                         | Native                      |
-| Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Implementing                |
+| Smart test selection                     | Stack-aware targeted verification before full release gates                                  | Native; verify per project  |
 | Checkpoint / rollback                    | Private bounded file snapshots and read-only recovery planning; restore needs approval       | Implementing                |
 | Controlled privileged broker             | Narrow supervisor operations with explicit policy + approval                                 | Planned                     |
 | Desktop notifications / mobile approvals | Main Platform + optional native companion UX                                                 | Planned                     |
 | Native Tauri desktop shell               | Optional CodeBridge operator client, not a second backend                                    | Planned                     |
 | SSH saved profiles                       | Replaced by CodeBridge device enrollment; secrets stay outside browser/MCP                   | Replaced                    |
 | Raw remote shell                         | Not adopted                                                                                  | Rejected                    |
+
+## Project integrity manifest (new)
+
+The `project_integrity_manifest` MCP read tool is implemented in the
+CodeBridge source and guarded by the same `ProjectFiles` root, hardlink,
+symlink, path-denylist and read entitlement as `read_file`. It produces a
+deterministic SHA-256 digest of a **bounded manifest** (not a whole-repository
+Git commit hash), and the raw-byte SHA-256 for each permitted UTF-8 file.
+
+- Default: two directory levels, 40 files. Hard cap: five levels, 60 files.
+- Traversal examines at most 200 directory entries and excludes build caches,
+  package caches and known private/credential paths.
+- Never hashes more than 1 MiB of approved text per request. Any larger or
+  non-text file is listed with a null hash and an explicit status; it is not
+  falsely reported as verified.
+- Any hard-link or symlink policy violation rejects the request; no writes,
+  Git commands, shell, network calls or project code execution occur.
+- `truncated: true` and `coverage: partial` explicitly indicate that the
+  manifest did not enumerate everything. Concurrent modifications across
+  multiple files are not an atomic Git snapshot.
+
+The new tool helps Claude and ChatGPT compare multi-file working copies
+without repeatedly transferring entire source contents. It is useful for
+review/checkpoint evidence and detecting accidental changes **after** checking
+the appropriate exact hashes. Source merge and agent deployment are separate:
+do not advertise this tool as available to an older connected device merely
+because the GitHub PR is merged.
 
 ## Commander Diagnostics slice
 
