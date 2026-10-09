@@ -11,6 +11,7 @@ const installer = path.resolve(
 );
 const source = fs.readFileSync(installer, "utf8");
 
+// prettier-ignore
 test("one-click Copilot setup is standalone and preserves OAuth consent", () => {
   assert.match(source, /KMJ_CODEBRIDGE_COPILOT_POWERSHELL_V1/);
   assert.match(source, /https:\/\/kmjtechno\.com\/mcp/);
@@ -36,6 +37,7 @@ function install(appData) {
   });
 }
 
+// prettier-ignore
 test(
   "Windows installer migrates stdio, keeps other servers and is repeatable",
   { skip: process.platform !== "win32" },
