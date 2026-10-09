@@ -18,7 +18,10 @@ test("one-click Copilot setup is standalone and preserves OAuth consent", () => 
   assert.match(source, /Code\\User\\mcp\.json/);
   assert.match(source, /OAuth in the browser when requested/);
   assert.match(source, /\[IO\.File\]::Replace\(\$tmp, \$path, \$backup/);
-  assert.doesNotMatch(source, /mcp-remote|npm install|npx\.cmd|access.token/i);
+  assert.doesNotMatch(
+    source,
+    /mcp-remote|npm install|npx\.cmd|access.token/i,
+  );
 });
 
 function install(appData) {
@@ -68,7 +71,10 @@ test(
       .readdirSync(folder)
       .filter((entry) => entry.includes(".kmj-backup-"));
     assert.equal(backups.length, 1);
-    assert.equal(fs.readFileSync(path.join(folder, backups[0]), "utf8"), original);
+    assert.equal(
+      fs.readFileSync(path.join(folder, backups[0]), "utf8"),
+      original,
+    );
 
     const second = install(dir);
     assert.equal(second.status, 0, second.stderr + second.stdout);
