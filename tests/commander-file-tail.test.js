@@ -51,10 +51,7 @@ test("tail rejects private files, links and oversized reads", (t) => {
   assert.throws(() => files.readTail("../outside", 2), /INVALID_PATH/);
   fs.symlinkSync("progress.log", path.join(root, "alias.log"));
   assert.throws(() => files.readTail("alias.log", 2), /SYMLINK_DENIED/);
-  fs.linkSync(
-    path.join(root, "progress.log"),
-    path.join(root, "hardlink.log"),
-  );
+  fs.linkSync(path.join(root, "progress.log"), path.join(root, "hardlink.log"));
   assert.throws(
     () => files.readTail("hardlink.log", 2),
     /HARDLINK_DENIED|NOT_REGULAR_FILE/,
