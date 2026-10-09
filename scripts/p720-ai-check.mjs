@@ -47,17 +47,25 @@ export async function inspectP720Target(target, fetchImpl = fetch) {
         model,
         prompt: "Write a JavaScript function that adds two integers.",
         stream: false,
+        think: false,
         keep_alive: "30s",
         options: { num_ctx: 2048, num_predict: 48, temperature: 0 },
       }),
     });
     if (
       generated.done !== true ||
-      !String(generated.response ?? "").trim() ||
       !(Number(generated.eval_count) > 0) ||
       !(Number(generated.eval_duration) > 0)
     ) {
       record.reason = "GENERATION_NOT_VERIFIED";
+      return record;
+    }
+    const visibleText = String(generated.response ?? "").trim();
+    if (!visibleText) {
+      record.reason = String(generated.thinking ?? "").trim()
+        ? "THINKING_ONLY_NO_VISIBLE_TEXT"
+        : "EMPTY_GENERATION";
+      record.evalTokens = Number(generated.eval_count);
       return record;
     }
 
