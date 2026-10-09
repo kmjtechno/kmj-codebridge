@@ -154,8 +154,8 @@ try {
                 writable = $true
                 gates = @{
                     cinecore_configure = @{ command = 'cmake'; args = $configure; timeoutMs = 240000 }
-                    cinecore_build = @{ command = 'cmake'; args = @('--build', 'build/p720', '--config', 'Release', '--parallel', '12'); timeoutMs = 1800000 }
-                    cinecore_ctest = @{ command = 'ctest'; args = @('--test-dir', 'build/p720', '-C', 'Release', '--output-on-failure'); timeoutMs = 1200000 }
+                    cinecore_build = @{ command = 'cmake'; args = @('--build', 'build/p720', '--config', 'Release', '--parallel', '12'); timeoutMs = 300000 }
+                    cinecore_ctest = @{ command = 'ctest'; args = @('--test-dir', 'build/p720', '-C', 'Release', '--output-on-failure'); timeoutMs = 300000 }
                 }
             })
             license = @{ mode = 'free' }
