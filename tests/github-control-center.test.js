@@ -28,11 +28,24 @@ test("one call lists bounded PR metadata without exposing credentials", async (t
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, opts) => {
     calls.push({ url: String(url), auth: opts.headers.authorization });
-    return resp([{ number: 28, title: "Qt runtime", state: "open", draft: false,
-      head: { sha: SHA, ref: "fix/qt" }, base: { ref: "main" },
-      updated_at: "2026-10-09T00:00:00Z", html_url: "https://github.com/kmjtechno/kmj-cinecore/pull/28" }]);
+    return resp([
+      {
+        number: 28,
+        title: "Qt runtime",
+        state: "open",
+        draft: false,
+        head: { sha: SHA, ref: "fix/qt" },
+        base: { ref: "main" },
+        updated_at: "2026-10-09T00:00:00Z",
+        html_url: "https://github.com/kmjtechno/kmj-cinecore/pull/28",
+      },
+    ]);
   });
-  const result = await bridge(t)("github_pull_requests", { repository, state: "open", limit: 1 });
+  const result = await bridge(t)("github_pull_requests", {
+    repository,
+    state: "open",
+    limit: 1,
+  });
   assert.equal(result.pullRequests[0].head, SHA);
   assert.equal(result.pullRequests[0].number, 28);
   assert.equal(result.possiblyMore, true);
@@ -46,24 +59,39 @@ test("CI returns green only with complete exact-head checks AND workflow evidenc
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = pathOf(url);
     requests.push(String(url));
-    if (p.endsWith("/pulls/30")) return resp({
-      state: "open", draft: true, head: { sha: SHA },
-    });
-    if (p.endsWith("/check-runs")) return resp({
-      total_count: 2,
-      check_runs: [
-        { name: "ubuntu", status: "completed", conclusion: "success" },
-        { name: "windows", status: "completed", conclusion: "success" },
-      ],
-    });
-    if (p.endsWith("/actions/runs")) return resp({
-      total_count: 1,
-      workflow_runs: [{ id: 17, name: "CineCore CI", status: "completed",
-        conclusion: "success", head_sha: SHA }],
-    });
+    if (p.endsWith("/pulls/30"))
+      return resp({
+        state: "open",
+        draft: true,
+        head: { sha: SHA },
+      });
+    if (p.endsWith("/check-runs"))
+      return resp({
+        total_count: 2,
+        check_runs: [
+          { name: "ubuntu", status: "completed", conclusion: "success" },
+          { name: "windows", status: "completed", conclusion: "success" },
+        ],
+      });
+    if (p.endsWith("/actions/runs"))
+      return resp({
+        total_count: 1,
+        workflow_runs: [
+          {
+            id: 17,
+            name: "CineCore CI",
+            status: "completed",
+            conclusion: "success",
+            head_sha: SHA,
+          },
+        ],
+      });
     throw Error("Unexpected endpoint");
   });
-  const value = await bridge(t)("github_pull_request_ci", { repository, number: 30 });
+  const value = await bridge(t)("github_pull_request_ci", {
+    repository,
+    number: 30,
+  });
   assert.equal(value.head, SHA);
   assert.equal(value.draft, true);
   assert.equal(value.verdict, "green");
@@ -78,29 +106,49 @@ test("CI refuses false green for queued, failed, missing or truncated evidence",
   let state = "pending";
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = pathOf(url);
-    if (p.endsWith("/pulls/28")) return resp({
-      state: "open", head: { sha: SHA }, draft: false,
-    });
-    if (p.endsWith("/check-runs")) return resp({
-      total_count: state === "missing" ? 0 : state === "truncated" ? 101 : 1,
-      check_runs: [{ name: "Windows", status: "completed", conclusion: "success" }],
-    });
-    if (p.endsWith("/actions/runs")) return resp({
-      total_count: state === "missing" ? 0 : 1,
-      workflow_runs: state === "missing" ? [] : [{
-        id: 22, name: "CI", status: state === "pending" ? "queued" : "completed",
-        conclusion: state === "failed" ? "failure" : "success", head_sha: SHA,
-      }],
-    });
+    if (p.endsWith("/pulls/28"))
+      return resp({
+        state: "open",
+        head: { sha: SHA },
+        draft: false,
+      });
+    if (p.endsWith("/check-runs"))
+      return resp({
+        total_count: state === "missing" ? 0 : state === "truncated" ? 101 : 1,
+        check_runs: [
+          { name: "Windows", status: "completed", conclusion: "success" },
+        ],
+      });
+    if (p.endsWith("/actions/runs"))
+      return resp({
+        total_count: state === "missing" ? 0 : 1,
+        workflow_runs:
+          state === "missing"
+            ? []
+            : [
+                {
+                  id: 22,
+                  name: "CI",
+                  status: state === "pending" ? "queued" : "completed",
+                  conclusion: state === "failed" ? "failure" : "success",
+                  head_sha: SHA,
+                },
+              ],
+      });
     throw Error("Unexpected endpoint");
   });
   const dispatch = bridge(t);
   for (const [scenario, expected] of [
-    ["pending", "pending"], ["failed", "failed"],
-    ["missing", "unverified"], ["truncated", "unverified"],
+    ["pending", "pending"],
+    ["failed", "failed"],
+    ["missing", "unverified"],
+    ["truncated", "unverified"],
   ]) {
     state = scenario;
-    const r = await dispatch("github_pull_request_ci", { repository, number: 28 });
+    const r = await dispatch("github_pull_request_ci", {
+      repository,
+      number: 28,
+    });
     assert.equal(r.verdict, expected, scenario);
     assert.equal(r.verifiedComplete, false);
   }
@@ -109,22 +157,33 @@ test("CI refuses false green for queued, failed, missing or truncated evidence",
 test("issue read and bounded comment pages use repository allowlist", async (t) => {
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = String(url);
-    if (p.includes("/issues/22/comments")) return resp([
-      { id: 10, body: "Status updated", user: { login: "reviewer" },
-        created_at: "2026-10-09T10:00:00Z" },
-    ]);
-    if (p.endsWith("/issues/22")) return resp({
-      number: 22, title: "Motion QA", body: "Hardware remains pending",
-      state: "open", updated_at: "2026-10-09T10:00:00Z",
-      labels: [{ name: "P0" }, { name: "blocked" }],
-      html_url: "https://github.com/kmjtechno/kmj-cinecore/issues/22",
-    });
+    if (p.includes("/issues/22/comments"))
+      return resp([
+        {
+          id: 10,
+          body: "Status updated",
+          user: { login: "reviewer" },
+          created_at: "2026-10-09T10:00:00Z",
+        },
+      ]);
+    if (p.endsWith("/issues/22"))
+      return resp({
+        number: 22,
+        title: "Motion QA",
+        body: "Hardware remains pending",
+        state: "open",
+        updated_at: "2026-10-09T10:00:00Z",
+        labels: [{ name: "P0" }, { name: "blocked" }],
+        html_url: "https://github.com/kmjtechno/kmj-cinecore/issues/22",
+      });
     throw Error("Unexpected endpoint");
   });
   const dispatch = bridge(t);
   const issue = await dispatch("github_issue", { repository, number: 22 });
   const comments = await dispatch("github_issue_comments", {
-    repository, number: 22, limit: 20,
+    repository,
+    number: 22,
+    limit: 20,
   });
   assert.deepEqual(issue.labels, ["P0", "blocked"]);
   assert.equal(comments.comments[0].author, "reviewer");
@@ -139,45 +198,74 @@ test("write operations use fixed GitHub API endpoints and never return the token
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const p = pathOf(url);
     writes.push({ url: p, options });
-    if (p.endsWith("/repos/kmjtechno/kmj-cinecore/")) return resp({
-      full_name: repository, default_branch: "main",
-    });
-    if (p.endsWith("/contents/docs/new.md")) return resp({
-      content: { path: "docs/new.md", sha: "c".repeat(40) },
-      commit: { sha: "d".repeat(40) },
-    });
-    if (p.endsWith("/issues/22/comments")) return resp({
-      id: 99, html_url: "https://github.com/kmjtechno/kmj-cinecore/issues/22#issuecomment-99",
-    });
-    if (p.endsWith("/issues")) return resp({
-      number: 32, state: "open", html_url: "https://github.com/kmjtechno/kmj-cinecore/issues/32",
-    }, 201);
+    if (p.endsWith("/repos/kmjtechno/kmj-cinecore/"))
+      return resp({
+        full_name: repository,
+        default_branch: "main",
+      });
+    if (p.endsWith("/contents/docs/new.md"))
+      return resp({
+        content: { path: "docs/new.md", sha: "c".repeat(40) },
+        commit: { sha: "d".repeat(40) },
+      });
+    if (p.endsWith("/issues/22/comments"))
+      return resp({
+        id: 99,
+        html_url:
+          "https://github.com/kmjtechno/kmj-cinecore/issues/22#issuecomment-99",
+      });
+    if (p.endsWith("/issues"))
+      return resp(
+        {
+          number: 32,
+          state: "open",
+          html_url: "https://github.com/kmjtechno/kmj-cinecore/issues/32",
+        },
+        201,
+      );
     throw Error("Unexpected endpoint " + p);
   });
   const dispatch = bridge(t);
   const issue = await dispatch("github_create_issue", {
-    repository, title: "Need acceptance", body: "QA",
+    repository,
+    title: "Need acceptance",
+    body: "QA",
   });
   const comment = await dispatch("github_comment_issue", {
-    repository, number: 22, body: "Test evidence pending",
+    repository,
+    number: 22,
+    body: "Test evidence pending",
   });
   const created = await dispatch("github_create_file", {
-    repository, path: "docs/new.md", branch: "feat/new",
-    content: "Verified document\n", message: "docs: new",
+    repository,
+    path: "docs/new.md",
+    branch: "feat/new",
+    content: "Verified document\n",
+    message: "docs: new",
   });
   assert.equal(issue.number, 32);
   assert.equal(comment.id, 99);
   assert.equal(created.commit_sha, "d".repeat(40));
-  const body = JSON.parse(writes.find((x) => x.url.endsWith("/contents/docs/new.md")).options.body);
+  const body = JSON.parse(
+    writes.find((x) => x.url.endsWith("/contents/docs/new.md")).options.body,
+  );
   assert.equal(body.sha, undefined);
-  assert.equal(Buffer.from(body.content, "base64").toString("utf8"), "Verified document\n");
+  assert.equal(
+    Buffer.from(body.content, "base64").toString("utf8"),
+    "Verified document\n",
+  );
   assert.equal(body.branch, "feat/new");
-  assert.ok(!JSON.stringify({ issue, comment, created }).includes("x".repeat(20)));
+  assert.ok(
+    !JSON.stringify({ issue, comment, created }).includes("x".repeat(20)),
+  );
   const previousWrites = writes.length;
   await assert.rejects(
     dispatch("github_create_file", {
-      repository, path: "docs/no.md", branch: "main",
-      content: "no", message: "no",
+      repository,
+      path: "docs/no.md",
+      branch: "main",
+      content: "no",
+      message: "no",
     }),
     /GITHUB_DEFAULT_BRANCH_WRITE_DENIED/,
   );
