@@ -169,6 +169,15 @@ See the [Commander convergence status and safety matrix](docs/COMMANDER-CONVERGE
 Actual availability depends on both the deployed gateway and each enrolled
 device agent version; a GitHub merge alone does not update remote devices.
 
+For the already-approved Windows P720 CineCore worker, use the staged, idle-only
+[`START-P720-CINECORE-SAFE-REFRESH.cmd`](scripts/START-P720-CINECORE-SAFE-REFRESH.cmd)
+after its CI is verified. It requires a clean CodeBridge `main` checkout,
+runs local checks before switching, preserves the existing device enrollment
+and can restart the previous runtime if the new authenticated heartbeat fails.
+It must not run during active development jobs or physical motion operations.
+See [P720 CineCore instructions](docs/P720-CINECORE-CLAUDE-PAIRING.md).
+
+
 ## Check connections without reconnecting
 
 For a new or offline device, ask ChatGPT or Claude: **"KMJ CodeBridge, check my connections and tell me what to fix."**
