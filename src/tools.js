@@ -2014,8 +2014,13 @@ export function createDispatcher(
       }
       const entries = indexed.split("\0").filter(Boolean);
       if (entries.length !== 1) fail("GIT_INDEX_PROBE_NOT_SINGLE_TRACKED_FILE");
-      const fields = entries[0].match(/^(100644|100755) ([a-f0-9]{40,64}) 0\t(.+)$/);
-      if (!fields || fields[3].replaceAll("\\", "/") !== a.path.replaceAll("\\", "/"))
+      const fields = entries[0].match(
+        /^(100644|100755) ([a-f0-9]{40,64}) 0\t(.+)$/,
+      );
+      if (
+        !fields ||
+        fields[3].replaceAll("\\", "/") !== a.path.replaceAll("\\", "/")
+      )
         fail("GIT_INDEX_PROBE_INVALID_ENTRY");
       const blobHash = (contents) => {
         const buffer = Buffer.from(contents, "utf8");
@@ -2025,7 +2030,9 @@ export function createDispatcher(
           .digest("hex");
       };
       const worktreeRawBlob = blobHash(snapshot.content);
-      const normalizedLfBlob = blobHash(snapshot.content.replace(/\r\n/g, "\n"));
+      const normalizedLfBlob = blobHash(
+        snapshot.content.replace(/\r\n/g, "\n"),
+      );
       return {
         path: a.path,
         indexBlob: fields[2],
