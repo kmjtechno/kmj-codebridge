@@ -524,6 +524,7 @@ export const FAST_READ_TOOLS = [
   "search_code",
   "skill_recommendations",
   "read_file",
+  "read_file_tail",
   "read_file_range",
   "read_files_batch",
   "autopilot_status",
@@ -929,6 +930,16 @@ export const definitions = {
     description:
       "Read a bounded UTF-8 project file and its SHA-256 precondition.",
     input: file,
+    access: "read",
+  },
+  read_file_tail: {
+    title: "Read recent project file lines",
+    description:
+      "Return only the last 1–200 lines of one approved UTF-8 project file, bounded to 8192 characters and redacted; never run a shell, follow links or expose unrelated host files.",
+    input: {
+      ...file,
+      maxLines: z.number().int().min(1).max(200).default(40),
+    },
     access: "read",
   },
   read_file_range: {
@@ -1805,6 +1816,11 @@ export function createDispatcher(
         content: redact(r.content),
         redacted: redact(r.content) !== r.content,
       };
+    }
+    if (name === "read_file_tail") {
+      const r = p.files.readTail(a.path, a.maxLines);
+      const content = redact(r.content);
+      return { ...r, content, redacted: content !== r.content };
     }
     if (name === "read_file_range") {
       const r = p.files.readRange(a.path, a.startLine, a.maxLines);
