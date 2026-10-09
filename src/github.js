@@ -351,20 +351,12 @@ export function createGitHubBridge(config) {
 
     if (name === "github_pull_request_ci") {
       // Always bind both CI queries to the PR's current, exact head.
-      const pull = await request(
-        "GET",
-        a.repository,
-        `pulls/${a.number}`,
-      );
+      const pull = await request("GET", a.repository, `pulls/${a.number}`);
       const head = pull.head?.sha;
       if (typeof head !== "string" || !/^[a-f0-9]{40}$/i.test(head))
         fail("GITHUB_RESPONSE_INVALID");
       const [checkResult, workflowResult] = await Promise.all([
-        request(
-          "GET",
-          a.repository,
-          `commits/${head}/check-runs?per_page=100`,
-        ),
+        request("GET", a.repository, `commits/${head}/check-runs?per_page=100`),
         request(
           "GET",
           a.repository,
@@ -491,8 +483,10 @@ export function createGitHubBridge(config) {
       // Never permit an arbitrary single-step write to a protected default
       // branch. Existing file overwrites fail at GitHub without a blob SHA.
       const metadata = await request("GET", a.repository, "");
-      if (typeof metadata.default_branch !== "string" ||
-          !branchName.safeParse(metadata.default_branch).success)
+      if (
+        typeof metadata.default_branch !== "string" ||
+        !branchName.safeParse(metadata.default_branch).success
+      )
         fail("GITHUB_DEFAULT_BRANCH_UNVERIFIED");
       if (a.branch === metadata.default_branch)
         fail("GITHUB_DEFAULT_BRANCH_WRITE_DENIED");
