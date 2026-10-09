@@ -478,6 +478,29 @@ export class ProjectFiles {
       fs.closeSync(fd);
     }
   }
+  readTail(relative, maxLines = 40) {
+    if (!Number.isInteger(maxLines) || maxLines < 1 || maxLines > 200)
+      fail("INVALID_TAIL_LIMIT");
+    // Reuse standard ProjectFiles.read: 256 KiB maximum, UTF-8 only,
+    // no symlinks, hardlinks, protected paths, or out-of-root reads.
+    const file = this.read(relative);
+    const lines = file.content.split("\n");
+    const first = Math.max(0, lines.length - maxLines);
+    const selected = lines.slice(first).join("\n");
+    // Bound caller-visible content even if one line is extremely long.
+    // Gateway redacts recognized secret bindings before delivery.
+    const contentTruncated = selected.length > 8192;
+    return {
+      path: relative,
+      content: contentTruncated ? selected.slice(-8192) : selected,
+      sha256: file.sha256,
+      bytes: file.bytes,
+      startLine: first + 1,
+      totalLines: lines.length,
+      linesReturned: lines.length - first,
+      contentTruncated,
+    };
+  }
   readRange(relative, startLine = 1, maxLines = 200) {
     if (
       !Number.isInteger(startLine) ||
