@@ -26,6 +26,77 @@ const issueNumber = z.number().int().min(1);
 const runId = z.number().int().min(1);
 
 export const githubDefinitions = {
+  github_pull_requests: {
+    title: "List GitHub pull requests",
+    description:
+      "Read a bounded open/closed PR queue with exact head SHA, draft state and review context for an allowlisted repository.",
+    input: {
+      repository: repoName,
+      state: z.enum(["open", "closed", "all"]).default("open"),
+      limit: z.number().int().min(1).max(30).default(20),
+    },
+    access: "read",
+  },
+  github_pull_request_ci: {
+    title: "PR head GitHub CI evidence",
+    description:
+      "Read check runs and workflow runs for the exact current PR head in one operation. Pending, missing and truncated evidence is never described as green.",
+    input: { repository: repoName, number: issueNumber },
+    access: "read",
+  },
+  github_issue: {
+    title: "Read GitHub issue",
+    description:
+      "Read an allowed repository issue with bounded text, labels and state.",
+    input: { repository: repoName, number: issueNumber },
+    access: "read",
+  },
+  github_issue_comments: {
+    title: "Read GitHub issue comments",
+    description:
+      "Read a bounded first page of issue or PR conversation comments, without exposing GitHub credentials.",
+    input: {
+      repository: repoName,
+      number: issueNumber,
+      limit: z.number().int().min(1).max(30).default(20),
+    },
+    access: "read",
+  },
+  github_create_issue: {
+    title: "Create GitHub issue",
+    description:
+      "Open one issue in an allowlisted repository, using the centrally held GitHub credential.",
+    input: {
+      repository: repoName,
+      title: z.string().min(1).max(256),
+      body: z.string().max(12000).default(""),
+    },
+    access: "write",
+  },
+  github_comment_issue: {
+    title: "Comment on GitHub issue or PR",
+    description:
+      "Post a bounded comment to an allowlisted issue or pull request; no arbitrary GitHub API access.",
+    input: {
+      repository: repoName,
+      number: issueNumber,
+      body: z.string().min(1).max(12000),
+    },
+    access: "write",
+  },
+  github_create_file: {
+    title: "Create file in a GitHub feature branch",
+    description:
+      "Create a new UTF-8 file only on an existing non-default feature branch in an allowlisted repository, never overwrite an existing blob.",
+    input: {
+      repository: repoName,
+      path: contentPath,
+      branch: branchName,
+      content: z.string().max(262144),
+      message: z.string().min(1).max(256),
+    },
+    access: "write",
+  },
   github_repository: {
     title: "GitHub repository",
     description:
@@ -247,6 +318,196 @@ export function createGitHubBridge(config) {
     const definition = githubDefinitions[name];
     if (!definition) fail("UNKNOWN_TOOL");
     const a = z.object(definition.input).strict().parse(input);
+
+    if (name === "github_pull_requests") {
+      const params = new URLSearchParams({
+        state: a.state,
+        per_page: String(a.limit),
+      });
+      const data = await request(
+        "GET",
+        a.repository,
+        `pulls?${params}`,
+        undefined,
+        `pull-list:${params}`,
+      );
+      if (!Array.isArray(data)) fail("GITHUB_RESPONSE_INVALID");
+      return {
+        state: a.state,
+        pullRequests: data.slice(0, a.limit).map((pull) => ({
+          number: pull.number,
+          title: bounded(pull.title ?? "", 512).text,
+          state: pull.state,
+          draft: pull.draft === true,
+          head: pull.head?.sha ?? null,
+          head_ref: pull.head?.ref ?? null,
+          base_ref: pull.base?.ref ?? null,
+          updated_at: pull.updated_at ?? null,
+          url: pull.html_url ?? null,
+        })),
+        possiblyMore: data.length >= a.limit,
+      };
+    }
+
+    if (name === "github_pull_request_ci") {
+      // Always bind both CI queries to the PR's current, exact head.
+      const pull = await request(
+        "GET",
+        a.repository,
+        `pulls/${a.number}`,
+      );
+      const head = pull.head?.sha;
+      if (typeof head !== "string" || !/^[a-f0-9]{40}$/i.test(head))
+        fail("GITHUB_RESPONSE_INVALID");
+      const [checkResult, workflowResult] = await Promise.all([
+        request(
+          "GET",
+          a.repository,
+          `commits/${head}/check-runs?per_page=100`,
+        ),
+        request(
+          "GET",
+          a.repository,
+          `actions/runs?head_sha=${head}&per_page=100`,
+        ),
+      ]);
+      const checks = checkResult.check_runs;
+      const runs = workflowResult.workflow_runs;
+      if (!Array.isArray(checks) || !Array.isArray(runs))
+        fail("GITHUB_RESPONSE_INVALID");
+      const checksComplete =
+        Number.isInteger(checkResult.total_count) &&
+        checkResult.total_count > 0 &&
+        checkResult.total_count <= 100 &&
+        checks.length === checkResult.total_count;
+      const workflowsComplete =
+        Number.isInteger(workflowResult.total_count) &&
+        workflowResult.total_count > 0 &&
+        workflowResult.total_count <= 100 &&
+        runs.length === workflowResult.total_count;
+      const pending = [...checks, ...runs].some(
+        (entry) => entry.status !== "completed",
+      );
+      const failed = [...checks, ...runs].some(
+        (entry) =>
+          entry.status === "completed" && entry.conclusion !== "success",
+      );
+      const fullyObserved = checksComplete && workflowsComplete;
+      const verdict = !fullyObserved
+        ? "unverified"
+        : pending
+          ? "pending"
+          : failed
+            ? "failed"
+            : "green";
+      return {
+        number: a.number,
+        head,
+        state: pull.state,
+        draft: pull.draft === true,
+        verdict,
+        verifiedComplete: verdict === "green",
+        evidenceComplete: fullyObserved,
+        checks: checks.slice(0, 100).map((check) => ({
+          name: check.name,
+          status: check.status,
+          conclusion: check.conclusion,
+        })),
+        workflows: runs.slice(0, 100).map((run) => ({
+          id: run.id,
+          name: run.name,
+          status: run.status,
+          conclusion: run.conclusion,
+          head_sha: run.head_sha,
+        })),
+        limits: {
+          checkTotal: checkResult.total_count ?? null,
+          workflowTotal: workflowResult.total_count ?? null,
+        },
+      };
+    }
+
+    if (name === "github_issue") {
+      const issue = await request(
+        "GET",
+        a.repository,
+        `issues/${a.number}`,
+        undefined,
+        `issue:${a.number}`,
+      );
+      return {
+        number: issue.number,
+        title: bounded(issue.title ?? "", 512).text,
+        body: bounded(issue.body ?? "", 8000),
+        state: issue.state,
+        labels: (issue.labels ?? []).slice(0, 30).map((label) => label.name),
+        updated_at: issue.updated_at,
+        url: issue.html_url,
+        isPullRequest: Boolean(issue.pull_request),
+      };
+    }
+
+    if (name === "github_issue_comments") {
+      const comments = await request(
+        "GET",
+        a.repository,
+        `issues/${a.number}/comments?per_page=${a.limit}`,
+        undefined,
+        `comments:${a.number}:${a.limit}`,
+      );
+      if (!Array.isArray(comments)) fail("GITHUB_RESPONSE_INVALID");
+      return {
+        number: a.number,
+        comments: comments.slice(0, a.limit).map((comment) => ({
+          id: comment.id,
+          author: comment.user?.login ?? null,
+          body: bounded(comment.body ?? "", 6000),
+          created_at: comment.created_at,
+        })),
+        possiblyMore: comments.length >= a.limit,
+      };
+    }
+
+    if (name === "github_create_issue") {
+      const issue = await request("POST", a.repository, "issues", {
+        title: a.title,
+        body: a.body,
+      });
+      return { number: issue.number, state: issue.state, url: issue.html_url };
+    }
+
+    if (name === "github_comment_issue") {
+      const comment = await request(
+        "POST",
+        a.repository,
+        `issues/${a.number}/comments`,
+        { body: a.body },
+      );
+      return { id: comment.id, url: comment.html_url };
+    }
+
+    if (name === "github_create_file") {
+      // Never permit an arbitrary single-step write to a protected default
+      // branch. Existing file overwrites fail at GitHub without a blob SHA.
+      const metadata = await request("GET", a.repository, "");
+      if (a.branch === metadata.default_branch)
+        fail("GITHUB_DEFAULT_BRANCH_WRITE_DENIED");
+      const result = await request(
+        "PUT",
+        a.repository,
+        `contents/${safeContentPath(a.path)}`,
+        {
+          message: a.message,
+          content: Buffer.from(a.content, "utf8").toString("base64"),
+          branch: a.branch,
+        },
+      );
+      return {
+        path: result.content?.path,
+        content_sha: result.content?.sha,
+        commit_sha: result.commit?.sha,
+      };
+    }
 
     if (name === "github_repository") {
       const data = await request("GET", a.repository, "", undefined, "repo");
