@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
+import os from "node:os";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -92,11 +93,60 @@ test("P720 migrates private credentials atomically, stopping scoped agent only",
   assert.match(source, /Protect-File \$backup/);
   assert.match(
     source,
-    /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/,
+    /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$swapBackup\)/,
   );
   assert.match(source, /p720_inference = @\{ command = 'node'/);
   assert.doesNotMatch(
     source,
     /Stop-Process -Name|taskkill \/IM|git reset --hard/,
   );
+});
+
+test("P720 validates and clears only its own interrupted migration temp", () => {
+  assert.match(
+    source,
+    /Stale private migration file differs from approved scope/,
+  );
+  assert.match(source, /\$stale\.token -cne \[string\]\$existing\.token/);
+  assert.match(source, /Remove-Item -LiteralPath \$tempConfig -Force/);
+  assert.match(source, /\$swapBackup = \$configFile \+ '\.swap-'/);
+  assert.match(source, /Protect-File \$swapBackup/);
+  assert.doesNotMatch(
+    source,
+    /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/,
+  );
+});
+
+test("Native Windows NTFS File.Replace preserves original in explicit backup", (t) => {
+  if (process.platform !== "win32") {
+    t.skip("Native Windows NTFS test runs in Windows GitHub CI.");
+    return;
+  }
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-p720-ntfs-"));
+  const current = path.join(directory, "agent.json");
+  const replacement = path.join(directory, "agent.json.migrate");
+  const backup = path.join(directory, "agent.json.swap-backup.bak");
+  try {
+    fs.writeFileSync(current, '{"gateway":"previous"}');
+    fs.writeFileSync(replacement, '{"gateway":"vps"}');
+    const psString = (s) => "'" + s.replaceAll("'", "''") + "'";
+    const command =
+      "[IO.File]::Replace(" +
+      [replacement, current, backup].map(psString).join(",") +
+      ")";
+    const r = spawnSync("powershell.exe", ["-NoProfile", "-Command", command], {
+      encoding: "utf8",
+      timeout: 15000,
+    });
+    assert.equal(r.status, 0, r.stderr || r.stdout);
+    assert.deepEqual(JSON.parse(fs.readFileSync(current, "utf8")), {
+      gateway: "vps",
+    });
+    assert.deepEqual(JSON.parse(fs.readFileSync(backup, "utf8")), {
+      gateway: "previous",
+    });
+    assert.equal(fs.existsSync(replacement), false);
+  } finally {
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
 });
