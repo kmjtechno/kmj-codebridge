@@ -32,7 +32,6 @@ Missing MSVC, Qt6 or CMake remains a BLOCKED build prerequisite; enrollment does
 
 Claude must read CineCore `AGENTS.md`, `CLAUDE.md`, the YAML roadmap, latest handoff, QA issues and test matrix before changing code. Preserve D3D12, LEFT/RIGHT stereo, real-time safety, no fabricated readiness, and locked KMJ branding. Work on a feature branch and report actual CI/hardware test evidence.
 
-
 ## P720 staged one-click CodeBridge runtime refresh
 
 On the authorized Windows P720, launch `scripts/START-P720-CINECORE-SAFE-REFRESH.cmd`. It safely fetches and fast-forwards only a **clean** trusted CodeBridge `main` checkout on D:, then runs `scripts/p720-guarded-cinecore-refresh.ps1`. It never resets or overwrites the separate `kmj-cinecore` checkout or Claude edits.
