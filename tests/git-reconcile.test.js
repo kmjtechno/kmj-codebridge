@@ -122,7 +122,10 @@ test("git_index_probe reports CRLF-vs-index without mutating the checkout", asyn
   assert.equal(result.hasCrLf, true);
   assert.equal(result.indexChanged, false);
   assert.equal(git(root, ["status", "--porcelain"]), before);
-  assert.equal(fs.readFileSync(path.join(root, "tracked.txt"), "utf8"), "initial\r\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "tracked.txt"), "utf8"),
+    "initial\r\n",
+  );
 });
 
 test("git_index_probe refuses untracked file and escapes", async (t) => {
@@ -133,7 +136,9 @@ test("git_index_probe refuses untracked file and escapes", async (t) => {
     /GIT_INDEX_PROBE_NOT_SINGLE_TRACKED_FILE/,
   );
   await assert.rejects(
-    dispatch("git_index_probe", { ...scope, path: "../project/tracked.txt" }, ["read"]),
+    dispatch("git_index_probe", { ...scope, path: "../project/tracked.txt" }, [
+      "read",
+    ]),
     /OUTSIDE|DENIED|INVALID|PATH|TRAVERSAL|FORBIDDEN/,
   );
 });
