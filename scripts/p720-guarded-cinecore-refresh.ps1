@@ -27,7 +27,7 @@ function Git([string[]]$argsList) {
 function Check-Idle {
     $dir = Join-Path $state 'jobs'
     if (!(Test-Path -LiteralPath $dir)) { throw 'Job journal absent, idle state cannot be proven.' }
-    foreach ($f in @(Get-ChildItem -LiteralPath $dir -File -Filter '*.json')) {
+    foreach ($f in @(Get-ChildItem -LiteralPath $dir -File -Force -Filter '*.json')) {
         if ($f.Length -gt 131072 -or ($f.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
             throw 'Untrusted job journal entry; refusing restart.'
         }
@@ -83,7 +83,7 @@ function Wait-Connected([object]$process, [datetime]$since) {
         try {
             $record = Get-Content -LiteralPath $signal -Raw | ConvertFrom-Json
             $stamp = [datetime]::Parse([string]$record.observedAt).ToUniversalTime()
-            if ($record.status -eq 'connected' -and $stamp -ge $since.AddSeconds(-2)) {
+            if ($record.status -eq 'connected' -and $stamp -gt $since) {
                 return $true
             }
         } catch { }
@@ -121,10 +121,6 @@ try {
         if ([string]$prev.revision -cnotmatch '^[a-f0-9]{40}$') { throw 'Saved runtime marker corrupt.' }
         $old = Join-Path $store ('revision-' + [string]$prev.revision)
         if (!(Test-Path -LiteralPath (Join-Path $old 'src\cli.js'))) { throw 'Previous runtime missing.' }
-        if ([string]$prev.revision -ceq $revision) {
-            Status 'PASS' 'Requested runtime revision already activated; no process interrupted.'
-            exit 0
-        }
     }
     if (Test-Path -LiteralPath $dest) {
         if ((Get-Item -LiteralPath $dest).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Staged runtime linked.' }
