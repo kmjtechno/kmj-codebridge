@@ -20,7 +20,10 @@ test("CineCore pairing uses distinct approved device, tenant and project", () =>
   assert.match(source, /'private\\p720-cinecore'/);
   assert.match(source, /'enrollment\.json'/);
   assert.match(source, /'kmj-codebridge'/);
-  assert.match(source, /CineCore pairing identity\/project grant did not match exactly/);
+  assert.match(
+    source,
+    /CineCore pairing identity\/project grant did not match exactly/,
+  );
   assert.ok(source.includes("@($grant.projects).Count -ne 1"));
   assert.match(source, /'read', 'write', 'execute'/);
   assert.match(source, /license = @\{ mode = 'free' \}/);
@@ -29,12 +32,21 @@ test("CineCore pairing uses distinct approved device, tenant and project", () =>
 test("CineCore gateway fails closed and never forwards token to unknown host", () => {
   assert.match(source, /Test-VpsGateway/);
   assert.match(source, /https:\/\/kmjtechno\.com\/agent\/health/);
-  assert.match(source, /Status 'PASS' 'VPS agent gateway HTTPS\/authentication probe HTTP 401\.'/);
-  assert.match(source, /Unexpected enrollment gateway; refusing forwarding of device token/);
+  assert.match(
+    source,
+    /Status 'PASS' 'VPS agent gateway HTTPS\/authentication probe HTTP 401\.'/,
+  );
+  assert.match(
+    source,
+    /Unexpected enrollment gateway; refusing forwarding of device token/,
+  );
   assert.match(source, /gateway = 'https:\/\/kmjtechno\.com\/'/);
   assert.match(source, /Protect-Folder \$private/);
   assert.match(source, /Protect-File \$config/);
-  assert.doesNotMatch(source, /git reset --hard|gh auth token|taskkill\s+\/F|OPENAI_API_KEY/);
+  assert.doesNotMatch(
+    source,
+    /git reset --hard|gh auth token|taskkill\s+\/F|OPENAI_API_KEY/,
+  );
 });
 
 test("CineCore build gates are fixed-argument and project-scoped", () => {
@@ -51,9 +63,15 @@ test("CineCore build gates are fixed-argument and project-scoped", () => {
 test("Claude Code registration is project-local, OAuth, no static credential", () => {
   assert.match(source, /Configure-ClaudeMcp/);
   assert.match(source, /Push-Location -LiteralPath \$cinecore/);
-  assert.match(source, /mcp add --transport http --scope local kmj-codebridge-cinecore https:\/\/kmjtechno\.com\/mcp/);
+  assert.match(
+    source,
+    /mcp add --transport http --scope local kmj-codebridge-cinecore https:\/\/kmjtechno\.com\/mcp/,
+  );
   assert.match(source, /OAuth sign-in still required/);
-  assert.doesNotMatch(source, /claude mcp add.*--header|claude.*--dangerously-skip-permissions/);
+  assert.doesNotMatch(
+    source,
+    /claude mcp add.*--header|claude.*--dangerously-skip-permissions/,
+  );
 });
 
 test("CineCore standalone launcher fetches clean CodeBridge main only", () => {
