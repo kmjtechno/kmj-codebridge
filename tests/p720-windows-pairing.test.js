@@ -59,5 +59,8 @@ test("P720 standalone launcher fetches trusted main without destructive reset", 
   assert.match(bootstrap, /Untrusted Git remote/);
   assert.match(bootstrap, /Dirty checkout: no reset attempted/);
   assert.match(bootstrap, /setup-p720-codebridge\.ps1/);
-  assert.doesNotMatch(bootstrap, /git reset --hard|git clean -fd|gh auth token/);
+  assert.doesNotMatch(
+    bootstrap,
+    /git reset --hard|git clean -fd|gh auth token/,
+  );
 });
