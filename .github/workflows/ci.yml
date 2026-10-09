@@ -24,8 +24,8 @@ jobs:
       - name: Print exact formatting diff on failed checks
         if: failure()
         run: |
-          npx prettier --write src/hyperspeed-plan.js tests/hyperspeed-plan.test.js docs/HYPERSPEED.md
-          git diff -- src/hyperspeed-plan.js tests/hyperspeed-plan.test.js docs/HYPERSPEED.md
+          npx prettier --write src/hyperspeed-plan.js tests/hyperspeed-plan.test.js docs/HYPERSPEED.md tests/commander-file-tail.test.js
+          git diff -- src/hyperspeed-plan.js tests/hyperspeed-plan.test.js docs/HYPERSPEED.md tests/commander-file-tail.test.js
       - run: npm test
       - run: npm run package:runtime
       - uses: actions/upload-artifact@v4
