@@ -107,9 +107,22 @@ jobs:
               -H 'Accept: application/json, text/event-stream' \
               --data "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{}}}" \
               https://kmjtechno.com/mcp)"
-            test "$status" = "401"
-            grep -iq '^www-authenticate:.*resource_metadata' "$headers"
-            grep -q "scope=\"codebridge:$scope\"" "$headers"
-            grep -q '"UNAUTHORIZED"' "$body"
+            challenge=missing
+            if grep -iq '^www-authenticate:.*resource_metadata' "$headers"; then
+              challenge=present
+            fi
+            scope_status=missing
+            if grep -q "scope=\"codebridge:$scope\"" "$headers"; then
+              scope_status=present
+            fi
+            denied_body=missing
+            if grep -q '"UNAUTHORIZED"' "$body"; then
+              denied_body=present
+            fi
+            echo "OAuth smoke $tool: http=$status challenge=$challenge scope=$scope_status denied_body=$denied_body"
+            if [[ "$status" != "401" || "$challenge" != "present" || "$scope_status" != "present" || "$denied_body" != "present" ]]; then
+              echo "::error title=Live MCP OAuth mismatch::Expected HTTP 401 and scoped WWW-Authenticate from https://kmjtechno.com/mcp"
+              exit 1
+            fi
             echo "PASS: $tool without OAuth -> HTTP 401 with codebridge:$scope challenge"
           done
