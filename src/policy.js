@@ -154,8 +154,14 @@ export class ProjectFiles {
     return { path: relative, entries, truncated, maxDepth, maxEntries };
   }
   integrityManifest(relative = "", maxDepth = 2, maxFiles = 40) {
-    if (!Number.isInteger(maxDepth) || maxDepth < 0 || maxDepth > 5 ||
-        !Number.isInteger(maxFiles) || maxFiles < 1 || maxFiles > 60)
+    if (
+      !Number.isInteger(maxDepth) ||
+      maxDepth < 0 ||
+      maxDepth > 5 ||
+      !Number.isInteger(maxFiles) ||
+      maxFiles < 1 ||
+      maxFiles > 60
+    )
       fail("INVALID_MANIFEST_LIMIT");
 
     // Share the ordinary project explorer's denylist and no-symlink policy.
@@ -176,24 +182,44 @@ export class ProjectFiles {
       // All returned digests are from the same guarded ProjectFiles.read
       // path as ordinary MCP reads. Never return source content.
       if (info.bytes > MAX_FILE_BYTES || bytesHashed + info.bytes > 1048576) {
-        entries.push({ path: item.path, bytes: info.bytes, status: "too_large", sha256: null });
+        entries.push({
+          path: item.path,
+          bytes: info.bytes,
+          status: "too_large",
+          sha256: null,
+        });
         continue;
       }
       try {
         const read = this.read(item.path);
-        entries.push({ path: item.path, bytes: read.bytes, status: "hashed", sha256: read.sha256 });
+        entries.push({
+          path: item.path,
+          bytes: read.bytes,
+          status: "hashed",
+          sha256: read.sha256,
+        });
         bytesHashed += read.bytes;
       } catch (error) {
-        if (error?.message !== "BINARY_FILE" && error?.message !== "FILE_TOO_LARGE")
+        if (
+          error?.message !== "BINARY_FILE" &&
+          error?.message !== "FILE_TOO_LARGE"
+        )
           throw error;
-        entries.push({ path: item.path, bytes: info.bytes, status: "non_text", sha256: null });
+        entries.push({
+          path: item.path,
+          bytes: info.bytes,
+          status: "non_text",
+          sha256: null,
+        });
       }
     }
 
     // This digest represents the bounded *manifest*, not the whole project
     // when traversal is truncated. It is neither a Git commit nor an
     // attestation that all files were tested or unchanged.
-    const snapshotSha256 = hash(JSON.stringify({ path: relative, entries, truncated }));
+    const snapshotSha256 = hash(
+      JSON.stringify({ path: relative, entries, truncated }),
+    );
     return {
       path: relative,
       entries,
