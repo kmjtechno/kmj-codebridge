@@ -90,3 +90,26 @@ jobs:
           test "$status" = "401"
           grep -iq '^www-authenticate:.*resource_metadata' "$headers"
           grep -q '"UNAUTHORIZED"' "$body"
+
+      - name: Verify protected MCP tools trigger browser OAuth
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          trap 'rm -f "$headers" "$body"' EXIT
+          for spec in 'list_devices:read' 'write_file:write'; do
+            tool="${spec%%:*}"
+            scope="${spec#*:}"
+            status="$(curl --silent --show-error --max-time 20 \
+              -D "$headers" -o "$body" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H 'Accept: application/json, text/event-stream' \
+              --data "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{}}}" \
+              https://kmjtechno.com/mcp)"
+            test "$status" = "401"
+            grep -iq '^www-authenticate:.*resource_metadata' "$headers"
+            grep -q "scope=\"codebridge:$scope\"" "$headers"
+            grep -q '"UNAUTHORIZED"' "$body"
+            echo "PASS: $tool without OAuth -> HTTP 401 with codebridge:$scope challenge"
+          done
