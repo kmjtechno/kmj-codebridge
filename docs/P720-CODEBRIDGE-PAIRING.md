@@ -24,8 +24,12 @@ The initial agent runs only for the current Windows session; this is intentional
 
 See [enrollment contract](ENROLLMENT.md) and [P720 AI readiness](P720-TEMPORARY-WORKER.md).
 
-## Legacy enrollment gateway repair
+## October 9 VPS gateway correction
 
-Some deployed Main Platform enrollment responses omit the optional `gateway` field. The first Windows bootstrap erroneously rejected those **already approved** credentials. The repaired Windows helper applies the same documented default as `scripts/install-vps.sh` (`https://kmj-codebridge-gateway.onrender.com`) only when the redeemed gateway field is missing; it verifies a canonical HTTPS origin and `/healthz` without redirects before writing the scoped agent config. A returned non-empty but invalid gateway is **never** silently replaced.
+The October 9 P720 report confirmed that an already approved Windows agent had an authenticated heartbeat, but CodeBridge account diagnostics could not see its project. The reason was a **split gateway**: the old Windows fallback sent agent requests to an external Render instance while the official `https://kmjtechno.com/mcp` endpoint terminates at the owner's VPS gateway.
 
-**On an affected P720:** rerun the existing downloaded `START-KMJ-P720-ONECLICK.cmd`. Its clean fast-forward checkout retrieves the repair, reuses the local private `enrollment.json` and does not request another pairing when that file exists. Do not upload or edit the private token file. Confirm account authorization through `connection_overview`; an agent heartbeat alone is not sufficient.
+The VPS Nginx reverse proxy now forwards **only** three exact paths to the authenticated local CodeBridge gateway: `/agent/health`, `/agent/poll`, and `/agent/result`. Public smoke confirmed HTTP 401 without authentication for all three routes; homepage HTTP 200 and MCP GET HTTP 405 were preserved. Existing Nginx configuration was backed up, tested, and reloaded with a failed-first-attempt rollback. This is **routing evidence**, not yet P720 grant evidence.
+
+The Windows helper now verifies that a POST to `https://kmjtechno.com/agent/health` without credentials produces HTTP 401. On a previously enrolled P720, it validates the single project scope, checks the stored gateway against only the known old and new origins, stops **only** the agent using this exact private config, stores an ACL-restricted private backup, and atomically migrates the same credential to `https://kmjtechno.com/`. The existing approved token is never printed or exported. It then starts a fresh agent process, checks a fresh connection heartbeat, and reports status. New pairings use the same production VPS gateway.
+
+Rerun the existing downloaded `START-KMJ-P720-ONECLICK.cmd`; it updates only a clean `main` checkout using `git merge --ff-only`. If the P720 device still is not visible in account diagnostics, stop and investigate the account/tenant grant rather than making up access. Do not upload `agent.json`, `enrollment.json`, or private config backups.
