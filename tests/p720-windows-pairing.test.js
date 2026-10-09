@@ -65,16 +65,26 @@ test("P720 standalone launcher fetches trusted main without destructive reset", 
   );
 });
 
-test("P720 reuses approved legacy enrollment with verified production gateway", () => {
-  assert.match(source, /IsNullOrWhiteSpace\(\$gateway\)/);
-  assert.match(source, /https:\/\/kmj-codebridge-gateway\.onrender\.com/);
-  assert.match(source, /Invoke-WebRequest -Uri \(\$gateway \+ '\/healthz'\)/);
+test("P720 uses authenticated VPS routes instead of legacy Render gateway", () => {
+  assert.match(source, /Confirm-VpsGateway/);
+  assert.match(source, /Invoke-WebRequest -Uri 'https:\/\/kmjtechno\.com\/agent\/health'/);
+  assert.match(source, /-ne 401/);
   assert.match(source, /-MaximumRedirection 0 -UseBasicParsing/);
-  assert.match(source, /retained existing enrollment for retry/);
-  assert.match(
-    source,
-    /Approved enrollment gateway must be a canonical HTTPS origin/,
-  );
+  assert.match(source, /'https:\/\/kmj-codebridge-gateway\.onrender\.com'/);
+  assert.match(source, /\$gateway = 'https:\/\/kmjtechno\.com'/);
+  assert.match(source, /Unexpected stored gateway origin; refusing migration/);
   assert.match(source, /if \(!\(Test-Path -LiteralPath \$enrollment\)\)/);
   assert.doesNotMatch(source, /https:\/\/kmjtechno\.com\/mcp\/agent/);
+});
+
+test("P720 migrates private credentials atomically, stopping scoped agent only", () => {
+  assert.match(source, /Find-ScopedAgent/);
+  assert.match(source, /Stop-ScopedAgent/);
+  assert.match(source, /\.CommandLine\.Contains\(\$configFile\)/);
+  assert.match(source, /Multiple P720 agent processes found/);
+  assert.match(source, /Copy-Item -LiteralPath \$configFile -Destination \$backup/);
+  assert.match(source, /Protect-File \$backup/);
+  assert.match(source, /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/);
+  assert.match(source, /p720_inference = @\{ command = 'node'/);
+  assert.doesNotMatch(source, /Stop-Process -Name|taskkill \/IM|git reset --hard/);
 });
