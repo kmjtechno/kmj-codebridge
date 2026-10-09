@@ -234,21 +234,52 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
         params: { name: "list_devices", arguments: {} },
       }),
     });
-    assert.equal(denied.status, 200);
-    const deniedResult = await denied.json();
-    assert.equal(deniedResult.result.isError, true);
+    assert.equal(denied.status, 401);
+    assert.deepEqual(await denied.json(), { error: "UNAUTHORIZED" });
+    const challenge = denied.headers.get("www-authenticate");
+    assert.match(challenge, /resource_metadata=/);
+    assert.match(challenge, /scope="codebridge:read"/);
+    assert.match(challenge, /error="invalid_token"/);
+    assert.match(challenge, /error_description=/);
+    assert.equal(denied.headers.get("cache-control"), "no-store");
+    // Expired, malformed, or otherwise invalid credentials must trigger
+    // a fresh OAuth login at the transport boundary, not a 200 tool error.
+    const invalid = await fetch(gateway.url + "/mcp", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer bad",
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 100,
+        method: "tools/call",
+        params: { name: "list_devices", arguments: {} },
+      }),
+    });
+    assert.equal(invalid.status, 401);
+    assert.match(invalid.headers.get("www-authenticate"), /codebridge:read/);
+
+    const writeChallenge = await fetch(gateway.url + "/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 101,
+        method: "tools/call",
+        params: { name: "write_file", arguments: {} },
+      }),
+    });
+    assert.equal(writeChallenge.status, 401);
     assert.match(
-      deniedResult.result._meta["mcp/www_authenticate"][0],
-      /resource_metadata=/,
+      writeChallenge.headers.get("www-authenticate"),
+      /scope="codebridge:write"/,
     );
-    assert.match(
-      deniedResult.result._meta["mcp/www_authenticate"][0],
-      /error="invalid_token"/,
-    );
-    assert.match(
-      deniedResult.result._meta["mcp/www_authenticate"][0],
-      /error_description=/,
-    );
+
     const allowed = await fetch(gateway.url + "/mcp", {
       method: "POST",
       headers: {

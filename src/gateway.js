@@ -615,14 +615,27 @@ export async function startGateway(rawConfig) {
         "tools/list",
         "ping",
       ].includes(data?.method);
-      const oauthToolChallenge =
-        Boolean(config.oauth) && data?.method === "tools/call";
       const user = verifyOAuth
         ? await verifyOAuth(req.headers.authorization)
         : identify(req, config.users);
-      if (!user && !publicDiscovery && !oauthToolChallenge) {
-        if (config.oauth)
-          res.setHeader("WWW-Authenticate", oauthChallenge(config.oauth));
+      if (!user && !publicDiscovery) {
+        if (config.oauth) {
+          // HTTP authorization failures must be transport-level responses.
+          // Tool-result challenges alone are invisible to IDE OAuth clients.
+          const requestedTool =
+            data?.method === "tools/call" &&
+            typeof data?.params?.name === "string"
+              ? allDefinitions[data.params.name]
+              : null;
+          const scope = requestedTool
+            ? `codebridge:${requestedTool.access}`
+            : undefined;
+          res.setHeader(
+            "WWW-Authenticate",
+            oauthChallenge(config.oauth, scope) +
+              ', error="invalid_token", error_description="Sign in to KMJ CodeBridge to continue"',
+          );
+        }
         json(res, 401, { error: "UNAUTHORIZED" });
         return;
       }

@@ -247,13 +247,10 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
         params: { name: "list_devices", arguments: {} },
       }),
     });
-    assert.equal(denied.status, 200);
-    const deniedResult = JSON.parse(denied.body);
-    assert.equal(deniedResult.result.isError, true);
-    assert.match(
-      deniedResult.result._meta["mcp/www_authenticate"][0],
-      /resource_metadata/,
-    );
+    assert.equal(denied.status, 401);
+    assert.deepEqual(JSON.parse(denied.body), { error: "UNAUTHORIZED" });
+    assert.match(denied.headers.get("www-authenticate"), /resource_metadata/);
+    assert.match(denied.headers.get("www-authenticate"), /codebridge:read/);
     const badHost = await fetch(url + "/healthz");
     assert.equal(badHost.status, 403);
   } finally {
