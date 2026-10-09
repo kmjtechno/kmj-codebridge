@@ -252,7 +252,7 @@ export function createGitHubBridge(config) {
 
     const base = new URL(config.apiBase);
     const url = new URL(
-      `repos/${safePath(repository)}/${suffix.replace(/^\//, "")}`,
+      `repos/${safePath(repository)}${suffix ? "/" + suffix.replace(/^\//, "") : ""}`,
       base,
     );
     if (url.origin !== base.origin) fail("GITHUB_ENDPOINT_INVALID");
@@ -294,7 +294,7 @@ export function createGitHubBridge(config) {
     verifyRepo(repository);
     const base = new URL(config.apiBase);
     const url = new URL(
-      `repos/${safePath(repository)}/${suffix.replace(/^\//, "")}`,
+      `repos/${safePath(repository)}${suffix ? "/" + suffix.replace(/^\//, "") : ""}`,
       base,
     );
     const headers = {

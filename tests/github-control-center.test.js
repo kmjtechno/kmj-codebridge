@@ -198,7 +198,7 @@ test("write operations use fixed GitHub API endpoints and never return the token
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const p = pathOf(url);
     writes.push({ url: p, options });
-    if (p.endsWith("/repos/kmjtechno/kmj-cinecore/"))
+    if (p.endsWith("/repos/kmjtechno/kmj-cinecore"))
       return resp({
         full_name: repository,
         default_branch: "main",
