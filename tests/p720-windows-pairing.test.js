@@ -24,7 +24,10 @@ test("P720 pairing stays one-project, free, HTTPS and user scoped", () => {
   assert.match(source, /Browser pairing failed or expired/);
   assert.match(source, /Unexpected repository origin/);
   assert.match(source, /no files reset or overwritten/i);
-  assert.doesNotMatch(source, /gh auth token|GITHUB_TOKEN|OPENAI_API_KEY|setx |git reset --hard|npm audit fix/);
+  assert.doesNotMatch(
+    source,
+    /gh auth token|GITHUB_TOKEN|OPENAI_API_KEY|setx |git reset --hard|npm audit fix/,
+  );
   assert.match(launcher, /setup-p720-codebridge\.ps1/);
   assert.match(launcher, /%~dp0/);
 });
@@ -35,7 +38,8 @@ test("P720 Windows PowerShell source parses without execution", (t) => {
     return;
   }
   const escaped = psPath.replaceAll("'", "''");
-  const cmd = "$tokens=$null;$errs=$null;[System.Management.Automation.Language.Parser]::ParseFile('" +
+  const cmd =
+    "$tokens=$null;$errs=$null;[System.Management.Automation.Language.Parser]::ParseFile('" +
     escaped +
     "',[ref]$tokens,[ref]$errs) | Out-Null; if($errs.Count -gt 0){ $errs | ForEach-Object {Write-Error $_.Message}; exit 2 }";
   const result = spawnSync("powershell.exe", ["-NoProfile", "-Command", cmd], {
