@@ -288,22 +288,33 @@ test("public-read mode cannot issue any of the new GitHub write operations", asy
 test("CI remains unverified when GitHub returns another commit's workflow", async (t) => {
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = pathOf(url);
-    if (p.endsWith("/pulls/28")) return resp({ state: "open", head: { sha: SHA } });
-    if (p.endsWith("/check-runs")) return resp({
-      total_count: 1,
-      check_runs: [{ name: "build", status: "completed", conclusion: "success" }],
-    });
-    if (p.endsWith("/actions/runs")) return resp({
-      total_count: 1,
-      workflow_runs: [{
-        id: 78, name: "CI", status: "completed",
-        conclusion: "success", head_sha: "b".repeat(40),
-      }],
-    });
+    if (p.endsWith("/pulls/28"))
+      return resp({ state: "open", head: { sha: SHA } });
+    if (p.endsWith("/check-runs"))
+      return resp({
+        total_count: 1,
+        check_runs: [
+          { name: "build", status: "completed", conclusion: "success" },
+        ],
+      });
+    if (p.endsWith("/actions/runs"))
+      return resp({
+        total_count: 1,
+        workflow_runs: [
+          {
+            id: 78,
+            name: "CI",
+            status: "completed",
+            conclusion: "success",
+            head_sha: "b".repeat(40),
+          },
+        ],
+      });
     throw Error("Unexpected endpoint");
   });
   const value = await bridge(t)("github_pull_request_ci", {
-    repository, number: 28,
+    repository,
+    number: 28,
   });
   assert.equal(value.verdict, "unverified");
   assert.equal(value.verifiedComplete, false);
@@ -317,8 +328,11 @@ test("feature file creation refuses unknown default-branch metadata", async (t) 
   });
   await assert.rejects(
     bridge(t)("github_create_file", {
-      repository, path: "docs/new.md", branch: "feat/new",
-      content: "safe\n", message: "docs: new",
+      repository,
+      path: "docs/new.md",
+      branch: "feat/new",
+      content: "safe\n",
+      message: "docs: new",
     }),
     /GITHUB_DEFAULT_BRANCH_UNVERIFIED/,
   );
