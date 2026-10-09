@@ -153,6 +153,28 @@ registrations.
 Claude Desktop's legacy local `claude_desktop_config.json` is not the path for
 this hosted Streamable HTTP service.
 
+## IDE OAuth sign-in troubleshooting
+
+With the native Streamable HTTP setup at `https://kmjtechno.com/mcp`,
+CodeBridge intentionally permits `initialize` and `tools/list` so clients can
+discover its scoped tools without receiving credentials. Calling a protected
+tool without a valid bearer token returns **HTTP 401** with a
+`WWW-Authenticate: Bearer` challenge containing the protected-resource
+metadata URL and least-privilege tool scope. A compliant MCP client can then
+open KMJ Main Platform OAuth, obtain user consent, and retry the call.
+
+Discovering tools or a server marked "Running" is **not** proof of a signed-in
+account. In VS Code / Copilot Agent mode, invoke `list_devices` using the
+registered MCP tool interface, **not** a raw `curl`, terminal, or plain HTTP
+request: those have no client OAuth token. The first browser approval remains
+user-controlled. If `401` persists after consent, inspect the client MCP OAuth
+session and server output; never copy credentials into `mcp.json`.
+
+The gateway keeps per-tool security metadata for clients that support OAuth
+step-up, and still fails closed for invalid audience, expired tokens, missing
+scopes, and unapproved tenant or project grants. This contract must pass
+both generic MCP and hosted-client regression tests before deployment.
+
 ## OAuth expectations
 
 The hosted flow uses:
