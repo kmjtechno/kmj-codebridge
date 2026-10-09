@@ -31,3 +31,16 @@ Claude account subscription/API usage is separate from free CodeBridge operation
 Missing MSVC, Qt6 or CMake remains a BLOCKED build prerequisite; enrollment does not secretly install them. No GitHub self-hosted runner is added.
 
 Claude must read CineCore `AGENTS.md`, `CLAUDE.md`, the YAML roadmap, latest handoff, QA issues and test matrix before changing code. Preserve D3D12, LEFT/RIGHT stereo, real-time safety, no fabricated readiness, and locked KMJ branding. Work on a feature branch and report actual CI/hardware test evidence.
+
+
+## P720 staged one-click CodeBridge runtime refresh
+
+On the authorized Windows P720, launch `scripts/START-P720-CINECORE-SAFE-REFRESH.cmd`. It safely fetches and fast-forwards only a **clean** trusted CodeBridge `main` checkout on D:, then runs `scripts/p720-guarded-cinecore-refresh.ps1`. It never resets or overwrites the separate `kmj-cinecore` checkout or Claude edits.
+
+The refresher validates the existing **single-project** CineCore token, device, tenant and project scope locally, without printing credentials. It stages the exact CodeBridge Git commit under `D:\KMJ-HyperSpeed\runtime\codebridge-cinecore\revision-<sha>` while the old worker keeps running. The staged runtime runs pinned `npm ci --ignore-scripts`, `npm run check` and `npm test` before any restart; no paid AI/API is used.
+
+Only if the CodeBridge job journal has **no running or queued tasks**, the process command line and Node executable match this CineCore config, and the private `agent.lock` PID agrees, does the script stop precisely that agent. Two idle checks are required. Native Windows `Stop-Process` is not a graceful drain, and a narrow check-to-stop race remains; run this only during an idle development window, never during physical motion operation or while Claude is sending work.
+
+A fresh authenticated `connected` heartbeat is required after startup within 45 seconds. If it fails, the script attempts a scoped stop and starts the previous unchanged runtime, requiring another fresh heartbeat. An ambiguous state returns BLOCKED rather than force-resetting anything.
+
+Safe report: `D:\KMJ-HyperSpeed\P720-CINECORE-SAFE-REFRESH-RESULT.txt`. Never share private `agent.json`, `enrollment.json`, `state`, lock, or any token. This is a **development** refresh, not signed-stable release deployment. Windows CI tests its syntax/policy; successful actual P720 refresh must be verified separately. The gateway MCP tool catalog needs independent deployment before newly added tools appear to remote clients.
