@@ -74,6 +74,24 @@ the appropriate exact hashes. Source merge and agent deployment are separate:
 do not advertise this tool as available to an older connected device merely
 because the GitHub PR is merged.
 
+## Recent-file tail without a remote shell
+
+`read_file_tail` is an outbound-agent, project-scoped read of the **last**
+lines of an already-approved UTF-8 file, designed for Claude/ChatGPT log and
+test-report inspection without caller-controlled `tail`, PowerShell, or a
+general-purpose terminal. It accepts one safe relative path and 1–200 lines
+(default 40), enforces the standard CodeBridge 256 KiB source-file cap,
+restricts return content to 8,192 characters, retains the original full-file
+SHA-256, and redacts recognized secret bindings before it reaches an AI client.
+An oversized file, protected pathname, binary file, hardlink, symlink, or
+path traversal fails closed. `contentTruncated` reports long-line truncation.
+It requires the same read grant as the ordinary `read_file` tool.
+
+This is **not streaming/screen scraping**; persistent job output still comes
+from bounded CodeBridge job journals. An agent with an older version must
+upgrade before this tool is available. Neither tool changes any machine-wide
+environment, launches a process, or touches production.
+
 ## Commander Diagnostics slice
 
 The first convergence slice adds:
