@@ -6,7 +6,11 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const scriptPath = path.join(root, "scripts", "p720-guarded-cinecore-refresh.ps1");
+const scriptPath = path.join(
+  root,
+  "scripts",
+  "p720-guarded-cinecore-refresh.ps1",
+);
 const script = fs.readFileSync(scriptPath, "utf8");
 const launcher = fs.readFileSync(
   path.join(root, "scripts", "START-P720-CINECORE-SAFE-REFRESH.cmd"),
@@ -34,7 +38,10 @@ test("Scope, entitlement, private credential and pinned preflight are preserved"
   assert.ok(script.includes("ci --ignore-scripts --no-audit --no-fund"));
   assert.ok(script.includes("npm.cmd --prefix $dest run check"));
   assert.ok(script.includes("npm.cmd --prefix $dest test"));
-  assert.doesNotMatch(script + launcher, /enroll-device|OPENAI_API_KEY|ANTHROPIC_API_KEY|--dangerously-skip-permissions/i);
+  assert.doesNotMatch(
+    script + launcher,
+    /enroll-device|OPENAI_API_KEY|ANTHROPIC_API_KEY|--dangerously-skip-permissions/i,
+  );
 });
 
 test("Exact PID, owned private lock and idle journal are checked before stop", () => {
@@ -49,13 +56,18 @@ test("Exact PID, owned private lock and idle journal are checked before stop", (
   assert.match(script, /connection-status\.json/);
   assert.match(script, /observedAt/);
   assert.ok(script.includes("Start-Owned $old $node 'p720-cinecore-rollback'"));
-  assert.doesNotMatch(script + launcher, /Stop-Process -Name|taskkill|Stop-Service|systemctl/);
+  assert.doesNotMatch(
+    script + launcher,
+    /Stop-Process -Name|taskkill|Stop-Service|systemctl/,
+  );
 });
 
 test("Safe report, explicit user action and no token output", () => {
   assert.ok(script.includes("P720-CINECORE-SAFE-REFRESH-RESULT.txt"));
   assert.ok(launcher.includes("P720-CINECORE-SAFE-REFRESH-RESULT.txt"));
-  assert.ok(launcher.includes("powershell.exe -NoProfile -ExecutionPolicy Bypass"));
+  assert.ok(
+    launcher.includes("powershell.exe -NoProfile -ExecutionPolicy Bypass"),
+  );
   assert.ok(script.includes("Status 'BLOCKED'"));
   assert.ok(script.includes("Status 'PASS'"));
   assert.doesNotMatch(script, /Status .*cfg\.token|Write-Host .*cfg\.token/);
@@ -73,9 +85,13 @@ test("Windows PowerShell 5.1 parses refresh script without executing it", (t) =>
     quoted +
     ",[ref]$tokens,[ref]$errors)|Out-Null;" +
     "if($errors.Count -gt 0){$errors|ForEach-Object{Write-Error $_.Message};exit 2}";
-  const result = spawnSync("powershell.exe", ["-NoProfile", "-Command", command], {
-    encoding: "utf8",
-    timeout: 15000,
-  });
+  const result = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-Command", command],
+    {
+      encoding: "utf8",
+      timeout: 15000,
+    },
+  );
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
