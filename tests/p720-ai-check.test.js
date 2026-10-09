@@ -50,10 +50,13 @@ test("P720 verifier never pulls a missing model", async () => {
   const model = "qwen3:4b";
   const calls = [];
   const fake = fakeOllama(model, { available: false });
-  const result = await inspectP720Target({ port: 11436, model }, async (...args) => {
-    calls.push(new URL(args[0]).pathname);
-    return fake(...args);
-  });
+  const result = await inspectP720Target(
+    { port: 11436, model },
+    async (...args) => {
+      calls.push(new URL(args[0]).pathname);
+      return fake(...args);
+    },
+  );
   assert.equal(result.reason, "MODEL_NOT_INSTALLED");
   assert.deepEqual(calls, ["/api/version", "/api/tags"]);
 });
