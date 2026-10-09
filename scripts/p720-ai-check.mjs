@@ -63,12 +63,17 @@ export async function inspectP720Target(target, fetchImpl = fetch) {
 
     record.evalTokens = Number(generated.eval_count);
     record.tokensPerSecond = Number(
-      ((record.evalTokens * 1000000000) / Number(generated.eval_duration)).toFixed(2),
+      (
+        (record.evalTokens * 1000000000) /
+        Number(generated.eval_duration)
+      ).toFixed(2),
     );
 
     const running = await jsonRequest(fetchImpl, port, "/api/ps");
     const loaded = Array.isArray(running.models)
-      ? running.models.find((item) => item.name === model || item.model === model)
+      ? running.models.find(
+          (item) => item.name === model || item.model === model,
+        )
       : null;
     const vramBytes = loaded ? Number(loaded.size_vram) : NaN;
     record.gpuOffloadBytes = Number.isFinite(vramBytes) ? vramBytes : null;
@@ -98,14 +103,16 @@ export async function inspectP720Fleet(
   return {
     device: "P720",
     mode: "readiness-only",
-    note:
-      "GPU offload bytes do not prove which physical GPU executed a model. No model downloads, deployments, merges or paid APIs are used.",
+    note: "GPU offload bytes do not prove which physical GPU executed a model. No model downloads, deployments, merges or paid APIs are used.",
     results,
     allPassed: results.every((result) => result.status === "PASS"),
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   const report = await inspectP720Fleet();
   console.log(JSON.stringify(report, null, 2));
   process.exitCode = report.allPassed ? 0 : 2;
