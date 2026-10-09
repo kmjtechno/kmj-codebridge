@@ -48,3 +48,16 @@ test("P720 Windows PowerShell source parses without execution", (t) => {
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+test("P720 standalone launcher fetches trusted main without destructive reset", () => {
+  const bootstrap = fs.readFileSync(
+    path.join(root, "scripts", "START-P720-ONECLICK.cmd"),
+    "utf8",
+  );
+  assert.match(bootstrap, /fetch origin main/);
+  assert.match(bootstrap, /merge --ff-only origin\/main/);
+  assert.match(bootstrap, /Untrusted Git remote/);
+  assert.match(bootstrap, /Dirty checkout: no reset attempted/);
+  assert.match(bootstrap, /setup-p720-codebridge\.ps1/);
+  assert.doesNotMatch(bootstrap, /git reset --hard|git clean -fd|gh auth token/);
+});
