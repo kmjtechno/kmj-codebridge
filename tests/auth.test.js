@@ -247,7 +247,7 @@ test("gateway advertises metadata and fails closed without valid OAuth", async (
     const invalid = await fetch(gateway.url + "/mcp", {
       method: "POST",
       headers: {
-        authorization: "Bearer definitely-not-a-valid-token",
+        authorization: "Bearer bad",
         "content-type": "application/json",
         accept: "application/json, text/event-stream",
       },
