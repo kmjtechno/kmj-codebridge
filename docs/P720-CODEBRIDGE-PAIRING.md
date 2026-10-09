@@ -23,3 +23,9 @@ The initial agent runs only for the current Windows session; this is intentional
 - When finished with this temporary workstation, revoke its **device grant** in KMJ Main Platform and then securely remove its local credentials. Merely closing the process does not revoke a token.
 
 See [enrollment contract](ENROLLMENT.md) and [P720 AI readiness](P720-TEMPORARY-WORKER.md).
+
+## Legacy enrollment gateway repair
+
+Some deployed Main Platform enrollment responses omit the optional `gateway` field. The first Windows bootstrap erroneously rejected those **already approved** credentials. The repaired Windows helper applies the same documented default as `scripts/install-vps.sh` (`https://kmj-codebridge-gateway.onrender.com`) only when the redeemed gateway field is missing; it verifies a canonical HTTPS origin and `/healthz` without redirects before writing the scoped agent config. A returned non-empty but invalid gateway is **never** silently replaced.
+
+**On an affected P720:** rerun the existing downloaded `START-KMJ-P720-ONECLICK.cmd`. Its clean fast-forward checkout retrieves the repair, reuses the local private `enrollment.json` and does not request another pairing when that file exists. Do not upload or edit the private token file. Confirm account authorization through `connection_overview`; an agent heartbeat alone is not sufficient.

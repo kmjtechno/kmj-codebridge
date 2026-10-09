@@ -66,7 +66,21 @@ try {
         Protect-File $enrollment
         $grant = Get-Content -LiteralPath $enrollment -Raw | ConvertFrom-Json
         $gateway = [string]$grant.gateway
-        if ($gateway -notmatch '^https://[^/?#]+/?$') { throw 'Approved enrollment did not return HTTPS agent gateway origin.' }
+        # The Main Platform enrollment API may omit 'gateway' (legacy contract).
+        # Match the verified default in scripts/install-vps.sh; never use /mcp.
+        if ([string]::IsNullOrWhiteSpace($gateway)) {
+            $gateway = 'https://kmj-codebridge-gateway.onrender.com'
+            Status 'INFO' 'Enrollment omitted gateway; using the canonical published CodeBridge agent origin.'
+        }
+        if ($gateway -notmatch '^https://[A-Za-z0-9.-]+(?::443)?/?$') { throw 'Approved enrollment gateway must be a canonical HTTPS origin.' }
+        $gateway = $gateway.TrimEnd('/')
+        try {
+            $health = Invoke-WebRequest -Uri ($gateway + '/healthz') -Method Get -TimeoutSec 15 -MaximumRedirection 0 -UseBasicParsing
+            if ([int]$health.StatusCode -ne 200) { throw 'Unhealthy gateway response.' }
+        } catch {
+            throw 'Approved CodeBridge agent gateway health check failed; retained existing enrollment for retry.'
+        }
+        Status 'PASS' 'Official CodeBridge agent gateway is reachable over HTTPS.'
         if ($grant.agent.id -ne $deviceId -or @($grant.projects | Where-Object { $_.id -eq $projectId }).Count -ne 1) { throw 'Enrollment device/project binding mismatch.' }
         foreach ($p in @('read', 'write', 'execute')) {
             if ($grant.permissions -notcontains $p) { throw 'Enrollment does not include required permission grant.' }
