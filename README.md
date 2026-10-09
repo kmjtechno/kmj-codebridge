@@ -115,20 +115,29 @@ The device agent must be online, authorized for the tenant, and configured for t
 
 ## What you can do
 
-| Tool family                                          | Examples                                                   | Safety boundary                                            |
-| ---------------------------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------- |
-| Discover                                             | `list_devices`, `inspect_project`, `connection_doctor`     | Tenant/project scoped                                      |
-| Read                                                 | `read_file`, `list_directory`, `search_code`, `git_status` | Bounded output + project root                              |
-| Project integrity                                    | `project_integrity_manifest`, `git_index_probe`            | Bounded hashes, explicit partial coverage; no index writes |
-| Edit                                                 | `edit_file`, `write_file`, `preview_file`                  | Expected-hash / exact-fragment checks                      |
-| Verify                                               | `run_quality_gate`                                         | Only administrator-configured executable + arguments       |
-| Structured workflows                                 | `run_project_command`, command presets                     | Fixed admin-approved profiles; no generic shell            |
-| Repository intelligence                              | `repo_intelligence`, `context_pack`, fast read batching    | Bounded local metadata/context; no hosted-AI upload        |
-| Workflow guidance                                    | `skill_recommendations`, mission/autopilot tools           | Deterministic bounded workflow metadata/state              |
-| Jobs                                                 | `get_job_status`, `cancel_job`                             | Durable bounded job state                                  |
-| `github_repository`, `github_pull_request*`          | Server-side GitHub repository and PR inspection            |
-| `github_actions_*`                                   | Bounded/redacted GitHub Actions runs, jobs and logs        |
-| `github_create_branch`, `github_create_pull_request` | Allowlisted GitHub write operations via server credential  |
+| Tool family                           | Examples                                                                                                                  | Safety boundary                                                                     |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Discover                              | `list_devices`, `inspect_project`, `connection_doctor`                                                                    | Tenant/project scoped                                                               |
+| Read                                  | `read_file`, `list_directory`, `search_code`, `git_status`                                                                | Bounded output + project root                                                       |
+| Project integrity                     | `project_integrity_manifest`, `git_index_probe`                                                                           | Bounded hashes, explicit partial coverage; no index writes                          |
+| Edit                                  | `edit_file`, `write_file`, `preview_file`                                                                                 | Expected-hash / exact-fragment checks                                               |
+| Verify                                | `run_quality_gate`                                                                                                        | Only administrator-configured executable + arguments                                |
+| Structured workflows                  | `run_project_command`, command presets                                                                                    | Fixed admin-approved profiles; no generic shell                                     |
+| Repository intelligence               | `repo_intelligence`, `context_pack`, fast read batching                                                                   | Bounded local metadata/context; no hosted-AI upload                                 |
+| Workflow guidance                     | `skill_recommendations`, mission/autopilot tools                                                                          | Deterministic bounded workflow metadata/state                                       |
+| Jobs                                  | `get_job_status`, `cancel_job`                                                                                            | Durable bounded job state                                                           |
+| Native GitHub read                    | `github_pull_requests`, `github_pull_request`, `github_issue`                                                             | Allowlisted repositories; bounded metadata and credentials kept server-side         |
+| GitHub CI control center              | `github_pull_request_ci`, `github_actions_*`                                                                              | Exact PR head, separate queued/failed/unverified from green                         |
+| GitHub branch, issue and PR workflows | `github_create_branch`, `github_create_issue`, `github_comment_issue`, `github_create_file`, `github_create_pull_request` | Write grant, feature-branch restrictions, GitHub auth and repository policy         |
+| Safe GitHub PR merge                  | `github_merge_pull_request`                                                                                               | Head SHA precondition and completed-success checks; branch protection still applies |
+
+**Built-in GitHub integration:** With an administrator-configured gateway
+`github` allowlist and a server-held GitHub credential (or explicitly public
+read-only mode), CodeBridge provides native GitHub PR queues, exact-head CI
+evidence, issue conversations, safe feature-branch commits and reviewable PR
+operations. See [GitHub Control Center](docs/GITHUB-CONTROL-CENTER.md) for
+credentials, limitations and feature coverage. **Source merge does not
+automatically enable the live VPS gateway or install a new P720 agent.**
 
 No generic “run any shell command” MCP tool is exposed.
 
