@@ -103,12 +103,18 @@ test("P720 migrates private credentials atomically, stopping scoped agent only",
 });
 
 test("P720 validates and clears only its own interrupted migration temp", () => {
-  assert.match(source, /Stale private migration file differs from approved scope/);
+  assert.match(
+    source,
+    /Stale private migration file differs from approved scope/,
+  );
   assert.match(source, /\$stale\.token -cne \[string\]\$existing\.token/);
   assert.match(source, /Remove-Item -LiteralPath \$tempConfig -Force/);
   assert.match(source, /\$swapBackup = \$configFile \+ '\.swap-'/);
   assert.match(source, /Protect-File \$swapBackup/);
-  assert.doesNotMatch(source, /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/);
+  assert.doesNotMatch(
+    source,
+    /\[IO\.File\]::Replace\(\$tempConfig, \$configFile, \$null\)/,
+  );
 });
 
 test("Native Windows NTFS File.Replace preserves original in explicit backup", (t) => {
