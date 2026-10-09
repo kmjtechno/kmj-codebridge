@@ -509,6 +509,7 @@ export const FAST_READ_TOOLS = [
   "workspace_home",
   "list_directory",
   "project_tree",
+  "project_integrity_manifest",
   "project_file_info",
   "checkpoint_restore_plan",
   "list_project_jobs",
@@ -729,6 +730,18 @@ export const definitions = {
       path: z.string().max(1024).default(""),
       maxDepth: z.number().int().min(0).max(5).default(3),
       maxEntries: z.number().int().min(1).max(200).default(100),
+    },
+    access: "read",
+  },
+  project_integrity_manifest: {
+    title: "Project file integrity manifest",
+    description:
+      "Read a deterministic bounded summary of approved text file SHA-256 hashes, byte counts, and coverage without transferring source contents, touching Git index, or executing project code. Partial scans are explicitly marked.",
+    input: {
+      ...scoped,
+      path: z.string().max(1024).default(""),
+      maxDepth: z.number().int().min(0).max(5).default(2),
+      maxFiles: z.number().int().min(1).max(60).default(40),
     },
     access: "read",
   },
@@ -1533,6 +1546,8 @@ export function createDispatcher(
     if (name === "list_directory") return p.files.list(a.path);
     if (name === "project_tree")
       return p.files.tree(a.path, a.maxDepth, a.maxEntries);
+    if (name === "project_integrity_manifest")
+      return p.files.integrityManifest(a.path, a.maxDepth, a.maxFiles);
     if (name === "project_file_info") return p.files.fileInfo(a.path);
     if (name === "checkpoint_create") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
