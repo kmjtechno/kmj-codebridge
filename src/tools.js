@@ -519,6 +519,7 @@ export const FAST_READ_TOOLS = [
   "git_diff",
   "git_log",
   "git_show",
+  "git_index_probe",
   "search_code",
   "skill_recommendations",
   "read_file",
@@ -884,6 +885,13 @@ export const definitions = {
       ...scoped,
       commit: z.string().regex(/^[a-f0-9]{7,40}$/i),
     },
+    access: "read",
+  },
+  git_index_probe: {
+    title: "Inspect Git index/worktree EOL mismatch",
+    description:
+      "Read only Git's staged blob identity and a bounded authorized UTF-8 file's raw/LF-normalized blob SHA-1 hashes. Diagnose modified files after an atomic content restore without changing Git index, files, or running diff helpers.",
+    input: file,
     access: "read",
   },
   git_reconcile_main: {
@@ -1953,6 +1961,90 @@ export function createDispatcher(
           fail("SENSITIVE_CONTENT_PROTECTED");
       }
       return p.files.writeBatch(a.changes);
+    }
+    if (name === "git_index_probe") {
+      // Inspect, never refresh the index or alter a source file. In
+      // particular do not invoke user-defined diff/smudge/clean helpers.
+      // The project file policy guards traversal, sensitive files and size.
+      const snapshot = p.files.read(a.path);
+      const gitDir = path.join(p.files.root, ".git");
+      let gitStat;
+      try {
+        gitStat = fs.lstatSync(gitDir);
+      } catch {
+        fail("GIT_ROOT_OUTSIDE_PROJECT");
+      }
+      if (!gitStat.isDirectory() || gitStat.isSymbolicLink())
+        fail("GIT_ROOT_OUTSIDE_PROJECT");
+      const gitEnv = {
+        PATH: process.env.PATH ?? "",
+        SystemRoot: process.env.SystemRoot ?? "",
+        GIT_CONFIG_NOSYSTEM: "1",
+        GIT_CONFIG_GLOBAL: process.platform === "win32" ? "NUL" : "/dev/null",
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_OPTIONAL_LOCKS: "0",
+      };
+      let indexed;
+      try {
+        indexed = execFileSync(
+          "git",
+          [
+            "--no-optional-locks",
+            "-c",
+            "core.fsmonitor=false",
+            "-c",
+            "core.untrackedCache=false",
+            "ls-files",
+            "--stage",
+            "-z",
+            "--",
+            a.path,
+          ],
+          {
+            cwd: p.files.root,
+            encoding: "utf8",
+            maxBuffer: 8192,
+            timeout: 5000,
+            env: gitEnv,
+            stdio: ["ignore", "pipe", "pipe"],
+          },
+        );
+      } catch {
+        fail("GIT_INDEX_PROBE_FAILED");
+      }
+      const entries = indexed.split("\0").filter(Boolean);
+      if (entries.length !== 1) fail("GIT_INDEX_PROBE_NOT_SINGLE_TRACKED_FILE");
+      const fields = entries[0].match(
+        /^(100644|100755) ([a-f0-9]{40,64}) 0\t(.+)$/,
+      );
+      if (
+        !fields ||
+        fields[3].replaceAll("\\", "/") !== a.path.replaceAll("\\", "/")
+      )
+        fail("GIT_INDEX_PROBE_INVALID_ENTRY");
+      const blobHash = (contents) => {
+        const buffer = Buffer.from(contents, "utf8");
+        return createHash(fields[2].length === 64 ? "sha256" : "sha1")
+          .update(Buffer.from(`blob ${buffer.length}\0`, "utf8"))
+          .update(buffer)
+          .digest("hex");
+      };
+      const worktreeRawBlob = blobHash(snapshot.content);
+      const normalizedLfBlob = blobHash(
+        snapshot.content.replace(/\r\n/g, "\n"),
+      );
+      return {
+        path: a.path,
+        indexBlob: fields[2],
+        indexMode: fields[1],
+        rawBlob: worktreeRawBlob,
+        normalizedLfBlob,
+        rawEqualsIndex: fields[2] === worktreeRawBlob,
+        lfNormalizedEqualsIndex: fields[2] === normalizedLfBlob,
+        hasCrLf: snapshot.content.includes("\r\n"),
+        worktreeSha256: snapshot.sha256,
+        indexChanged: false,
+      };
     }
     if (name === "git_reconcile_main") {
       if (!p.writable) fail("READ_ONLY_PROJECT");

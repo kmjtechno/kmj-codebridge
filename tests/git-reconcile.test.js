@@ -104,3 +104,53 @@ test("git_reconcile_main refuses any untracked file", async (t) => {
     "do not delete\n",
   );
 });
+
+test("git_index_probe reports CRLF-vs-index without mutating the checkout", async (t) => {
+  const { root, dispatch, scope } = fixture(t);
+  git(root, ["config", "core.autocrlf", "false"]);
+  fs.writeFileSync(path.join(root, "tracked.txt"), "initial\r\n");
+  const before = git(root, ["status", "--porcelain"]);
+  const result = await dispatch(
+    "git_index_probe",
+    { ...scope, path: "tracked.txt" },
+    ["read"],
+  );
+  assert.equal(result.path, "tracked.txt");
+  assert.match(result.indexBlob, /^[a-f0-9]{40}$/);
+  assert.equal(result.rawEqualsIndex, false);
+  assert.equal(result.lfNormalizedEqualsIndex, true);
+  assert.equal(result.hasCrLf, true);
+  assert.equal(result.indexChanged, false);
+  assert.equal(git(root, ["status", "--porcelain"]), before);
+  assert.equal(
+    fs.readFileSync(path.join(root, "tracked.txt"), "utf8"),
+    "initial\r\n",
+  );
+});
+
+test("git_index_probe refuses untracked file and escapes", async (t) => {
+  const { root, dispatch, scope } = fixture(t);
+  fs.writeFileSync(path.join(root, "untracked.txt"), "nothing confidential\n");
+  await assert.rejects(
+    dispatch("git_index_probe", { ...scope, path: "untracked.txt" }, ["read"]),
+    /GIT_INDEX_PROBE_NOT_SINGLE_TRACKED_FILE/,
+  );
+  await assert.rejects(
+    dispatch("git_index_probe", { ...scope, path: "../project/tracked.txt" }, [
+      "read",
+    ]),
+    /OUTSIDE|DENIED|INVALID|PATH|TRAVERSAL|FORBIDDEN/,
+  );
+});
+
+test("git_index_probe returns matching raw blob for unchanged tracked file", async (t) => {
+  const { dispatch, scope } = fixture(t);
+  const result = await dispatch(
+    "git_index_probe",
+    { ...scope, path: "tracked.txt" },
+    ["read"],
+  );
+  assert.equal(result.rawEqualsIndex, true);
+  assert.equal(result.lfNormalizedEqualsIndex, true);
+  assert.equal(result.indexBlob, result.rawBlob);
+});
