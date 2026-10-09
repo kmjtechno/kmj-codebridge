@@ -19,14 +19,19 @@ function fixture(t) {
   return { root, base, files: new ProjectFiles(root) };
 }
 
-test("tail uses full raw-file hash and returns only the requested recent lines", (t) => {
+test(
+  "tail uses full raw-file hash and returns only the requested recent lines",
+  (t) => {
   const { files } = fixture(t);
   const r = files.readTail("progress.log", 2);
   assert.equal(r.content, "fourth\nfifth");
   assert.equal(r.startLine, 4);
   assert.equal(r.totalLines, 5);
   assert.equal(r.linesReturned, 2);
-  assert.equal(r.sha256, hash("first\nsecond\nsecret=private123\nfourth\nfifth"));
+  assert.equal(
+    r.sha256,
+    hash("first\nsecond\nsecret=private123\nfourth\nfifth"),
+  );
   assert.equal(r.contentTruncated, false);
 });
 
@@ -42,19 +47,29 @@ test("tail supports one long line without returning unbounded data", (t) => {
   assert.throws(() => files.readTail("long.log", 0), /INVALID_TAIL_LIMIT/);
 });
 
-test("tail rejects private files, escapes, links and files over the ordinary read cap", (t) => {
+test(
+  "tail rejects private files, escapes, links and files over the ordinary read cap",
+  (t) => {
   const { files, root } = fixture(t);
   assert.throws(() => files.readTail(".env", 2), /PATH_DENIED/);
   assert.throws(() => files.readTail("../outside", 2), /INVALID_PATH/);
   fs.symlinkSync("progress.log", path.join(root, "alias.log"));
   assert.throws(() => files.readTail("alias.log", 2), /SYMLINK_DENIED/);
-  fs.linkSync(path.join(root, "progress.log"), path.join(root, "hardlink.log"));
-  assert.throws(() => files.readTail("hardlink.log", 2), /HARDLINK_DENIED|NOT_REGULAR_FILE/);
+  fs.linkSync(
+    path.join(root, "progress.log"),
+    path.join(root, "hardlink.log"),
+  );
+  assert.throws(
+    () => files.readTail("hardlink.log", 2),
+    /HARDLINK_DENIED|NOT_REGULAR_FILE/,
+  );
   fs.writeFileSync(path.join(root, "huge.log"), "X".repeat(262145));
   assert.throws(() => files.readTail("huge.log", 2), /FILE_TOO_LARGE/);
 });
 
-test("tail redacts secrets at MCP boundary and inherits read-only grant", async (t) => {
+test(
+  "tail redacts secrets at MCP boundary and inherits read-only grant",
+  async (t) => {
   const { root, base } = fixture(t);
   const dispatch = createDispatcher(
     {
@@ -79,11 +94,15 @@ test("tail redacts secrets at MCP boundary and inherits read-only grant", async 
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("read_file_tail", { ...scope, device: "d2", path: "progress.log" }, ["read"]),
+    dispatch("read_file_tail", { ...scope, device: "d2", path: "progress.log" }, [
+      "read",
+    ]),
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("read_file_tail", { ...scope, project: "p2", path: "progress.log" }, ["read"]),
+    dispatch("read_file_tail", { ...scope, project: "p2", path: "progress.log" }, [
+      "read",
+    ]),
     /PROJECT_NOT_FOUND/,
   );
 });
