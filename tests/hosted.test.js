@@ -115,7 +115,7 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
     const url = String(input);
     if (
       !url.startsWith(
-        "https://github-proxy.example/repos/kmjtechno/kmj-codebridge/",
+        "https://github-proxy.example/repos/kmjtechno/kmj-codebridge",
       )
     )
       throw new Error("unexpected GitHub probe URL");
