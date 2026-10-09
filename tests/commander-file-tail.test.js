@@ -87,16 +87,14 @@ test("tail redacts secrets and enforces read authorization", async (t) => {
     dispatch("read_file_tail", { ...scope, path: "progress.log" }, ["write"]),
     /ACCESS_DENIED/,
   );
+  const wrongDevice = { ...scope, device: "d2", path: "progress.log" };
+  const wrongProject = { ...scope, project: "p2", path: "progress.log" };
   await assert.rejects(
-    dispatch("read_file_tail", { ...scope, device: "d2", path: "progress.log" }, [
-      "read",
-    ]),
+    dispatch("read_file_tail", wrongDevice, ["read"]),
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("read_file_tail", { ...scope, project: "p2", path: "progress.log" }, [
-      "read",
-    ]),
+    dispatch("read_file_tail", wrongProject, ["read"]),
     /PROJECT_NOT_FOUND/,
   );
 });
