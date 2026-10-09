@@ -64,6 +64,31 @@ function Find-CineCoreAgent {
         $_.CommandLine -match 'src[\\/]cli\.js' -and $_.CommandLine -match '\bagent\b'
     })
 }
+function Configure-ClaudeMcp {
+    $claude = Get-Command claude -ErrorAction SilentlyContinue
+    if ($null -eq $claude) {
+        Status 'WARN' 'Claude Code CLI not found. Install/sign in separately, then connect the MCP using the documented command.'
+        return
+    }
+    Push-Location -LiteralPath $cinecore
+    $originalPreference = $ErrorActionPreference
+    try {
+        $ErrorActionPreference = 'Continue'
+        & $claude.Source mcp get kmj-codebridge-cinecore *> $null
+        if ($LASTEXITCODE -eq 0) {
+            Status 'PASS' 'Existing CineCore-local Claude Code MCP entry detected; inspect /mcp to authenticate.'
+        } else {
+            & $claude.Source mcp add --transport http --scope local kmj-codebridge-cinecore https://kmjtechno.com/mcp *> $null
+            if ($LASTEXITCODE -ne 0) { throw 'Claude MCP registration returned nonzero exit status.' }
+            Status 'PASS' 'Claude Code local MCP entry created for KMJ CineCore (OAuth sign-in still required).'
+        }
+    } catch {
+        Status 'WARN' 'Claude Code MCP registration needs manual user login or CLI setup; CodeBridge agent pairing is unaffected.'
+    } finally {
+        $ErrorActionPreference = $originalPreference
+        Pop-Location
+    }
+}
 try {
     if ($env:OS -ne 'Windows_NT') { throw 'Windows 10/11 required.' }
     if (!(Test-Path -LiteralPath 'D:\')) { throw 'D: workspace missing.' }
@@ -182,8 +207,9 @@ try {
     if (!(Test-Path -LiteralPath 'C:\QtReal\6.7.3\msvc2019_64') -and !$env:CMAKE_PREFIX_PATH) {
         Status 'WARN' 'Qt6 MSVC kit not detected: Release build may be blocked until installed.'
     }
+    Configure-ClaudeMcp
     Status 'NEXT' ('CodeBridge device = ' + $deviceId + '; project = ' + $projectId)
-    Status 'NEXT' 'Run CodeBridge connection_overview; then cinCore configure/build/ctest gates.'
+    Status 'NEXT' 'Run CodeBridge connection_overview; then CineCore configure/build/ctest gates.'
     Status 'NEXT' 'In Claude Code use /mcp and authorize kmj-codebridge over HTTPS.'
     Status 'NEXT' 'Upload only P720-CINECORE-AUTH-RESULT.txt; NEVER private enrollment or agent config.'
 } catch {
