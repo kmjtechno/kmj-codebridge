@@ -30,7 +30,7 @@ test("GitHub bridge keeps credential server-side, enforces allowlist and caches 
       method: options.method,
       body: options.body,
     });
-    if (String(url).endsWith("/repos/kmjtechno/kmj-codebridge/"))
+    if (String(url).endsWith("/repos/kmjtechno/kmj-codebridge"))
       return json({
         full_name: "kmjtechno/kmj-codebridge",
         default_branch: "main",
