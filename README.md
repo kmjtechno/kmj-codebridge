@@ -177,7 +177,6 @@ and can restart the previous runtime if the new authenticated heartbeat fails.
 It must not run during active development jobs or physical motion operations.
 See [P720 CineCore instructions](docs/P720-CINECORE-CLAUDE-PAIRING.md).
 
-
 ## Check connections without reconnecting
 
 For a new or offline device, ask ChatGPT or Claude: **"KMJ CodeBridge, check my connections and tell me what to fix."**
