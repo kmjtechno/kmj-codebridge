@@ -98,10 +98,10 @@ try {
     if (!(Test-Path -LiteralPath (Join-Path $repo '.git'))) { throw 'CodeBridge Git checkout missing.' }
     if ((Get-Item -LiteralPath $repo).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'CodeBridge checkout linked.' }
     if ((Get-Item -LiteralPath $store).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Runtime store linked.' }
-    if ((Git @('-C',$repo,'remote','get-url','origin')) -cnotin @('https://github.com/kmjtechno/kmj-codebridge.git','https://github.com/kmjtechno/kmj-codebridge','git@github.com:kmjtechno/kmj-codebridge.git')) { throw 'Untrusted Git origin.' }
-    if ((Git @('-C',$repo,'branch','--show-current')) -cne 'main') { throw 'CodeBridge branch is not main.' }
-    if ((Git @('-C',$repo,'status','--porcelain')) -ne '') { throw 'CodeBridge checkout has edits; refusing update.' }
-    $revision = Git @('-C',$repo,'rev-parse','HEAD')
+    if ((Git -argsList @('-C',$repo,'remote','get-url','origin')) -cnotin @('https://github.com/kmjtechno/kmj-codebridge.git','https://github.com/kmjtechno/kmj-codebridge','git@github.com:kmjtechno/kmj-codebridge.git')) { throw 'Untrusted Git origin.' }
+    if ((Git -argsList @('-C',$repo,'branch','--show-current')) -cne 'main') { throw 'CodeBridge branch is not main.' }
+    if ((Git -argsList @('-C',$repo,'status','--porcelain')) -ne '') { throw 'CodeBridge checkout has edits; refusing update.' }
+    $revision = Git -argsList @('-C',$repo,'rev-parse','HEAD')
     if ($revision -cnotmatch '^[a-f0-9]{40}$') { throw 'Bad CodeBridge commit.' }
     $cfg = Get-Content -LiteralPath $config -Raw | ConvertFrom-Json
     if ([string]$cfg.id -cne $device -or [string]$cfg.gateway -ne 'https://kmjtechno.com/' -or
@@ -128,7 +128,7 @@ try {
     }
     if (Test-Path -LiteralPath $dest) {
         if ((Get-Item -LiteralPath $dest).Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'Staged runtime linked.' }
-        if ((Git @('-C',$dest,'status','--porcelain')) -ne '') { throw 'Staged runtime has edits; refusing reuse.' }
+        if ((Git -argsList @('-C',$dest,'status','--porcelain')) -ne '') { throw 'Staged runtime has edits; refusing reuse.' }
     } else {
         Status 'INFO' 'Staging a new revision outside the running checkout.'
         & git.exe clone -q --no-hardlinks --no-checkout --single-branch --branch main $repo $dest
@@ -136,7 +136,7 @@ try {
         & git.exe -C $dest -c core.hooksPath=NUL checkout -q --detach $revision
         if ($LASTEXITCODE -ne 0) { throw 'Staged revision checkout failed.' }
     }
-    if ((Git @('-C',$dest,'rev-parse','HEAD')) -cne $revision) { throw 'Staged revision mismatch.' }
+    if ((Git -argsList @('-C',$dest,'rev-parse','HEAD')) -cne $revision) { throw 'Staged revision mismatch.' }
     & npm.cmd --prefix $dest ci --ignore-scripts --no-audit --no-fund
     if ($LASTEXITCODE -ne 0) { throw 'Pinned install failed; old agent untouched.' }
     & npm.cmd --prefix $dest run check
