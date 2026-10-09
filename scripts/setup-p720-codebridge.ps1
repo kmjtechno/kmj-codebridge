@@ -30,6 +30,36 @@ function Protect-File([string]$file) {
     & icacls.exe $file /inheritance:r /grant:r $grant | Out-Null
     if ($LASTEXITCODE -ne 0) { throw 'Private credential ACL could not be enforced.' }
 }
+function Confirm-VpsGateway {
+    try {
+        Invoke-WebRequest -Uri 'https://kmjtechno.com/agent/health' -Method Post -ContentType 'application/json' -Body '{}' -TimeoutSec 15 -MaximumRedirection 0 -UseBasicParsing | Out-Null
+        throw 'VPS agent gateway unexpectedly accepted an unauthenticated request.'
+    } catch [System.Net.WebException] {
+        if ($null -eq $_.Exception.Response -or [int]$_.Exception.Response.StatusCode -ne 401) {
+            throw 'VPS agent gateway did not return expected HTTP 401. Setup stopped safely.'
+        }
+    }
+    Status 'PASS' 'Verified VPS agent route requires authentication (HTTP 401 without token).'
+}
+function Find-ScopedAgent {
+    $matches = @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'node.exe'" | Where-Object {
+        $_.CommandLine -and $_.CommandLine.Contains($configFile) -and
+        $_.CommandLine -match 'src[\\/]cli\.js' -and $_.CommandLine -match '\bagent\b'
+    })
+    if ($matches.Count -gt 1) { throw 'Multiple P720 agent processes found; refusing automatic process changes.' }
+    return $matches
+}
+function Stop-ScopedAgent {
+    $running = @(Find-ScopedAgent)
+    if ($running.Count -eq 0) { return }
+    $pidToStop = [int]$running[0].ProcessId
+    Stop-Process -Id $pidToStop -ErrorAction Stop
+    Start-Sleep -Seconds 2
+    if (Get-Process -Id $pidToStop -ErrorAction SilentlyContinue) {
+        throw 'Existing scoped agent did not stop; refusing config update.'
+    }
+    Status 'INFO' 'Stopped only the previous scoped P720 agent before gateway migration.'
+}
 try {
     if ($env:OS -ne 'Windows_NT') { throw 'Windows-only setup.' }
     if (!(Test-Path -LiteralPath 'D:\')) { throw 'D: drive missing.' }
@@ -65,22 +95,17 @@ try {
         }
         Protect-File $enrollment
         $grant = Get-Content -LiteralPath $enrollment -Raw | ConvertFrom-Json
-        $gateway = [string]$grant.gateway
-        # The Main Platform enrollment API may omit 'gateway' (legacy contract).
-        # Match the verified default in scripts/install-vps.sh; never use /mcp.
-        if ([string]::IsNullOrWhiteSpace($gateway)) {
-            $gateway = 'https://kmj-codebridge-gateway.onrender.com'
-            Status 'INFO' 'Enrollment omitted gateway; using the canonical published CodeBridge agent origin.'
+        $returnedGateway = [string]$grant.gateway
+        # Never route the user-controlled credential to an unknown endpoint.
+        # The old optional enrollment field and Render fallback are supported only
+        # as legacy metadata. The signed-in ChatGPT gateway actually runs on VPS.
+        if (![string]::IsNullOrWhiteSpace($returnedGateway) -and
+            $returnedGateway.TrimEnd('/') -notin @('https://kmjtechno.com', 'https://kmj-codebridge-gateway.onrender.com')) {
+            throw 'Enrollment returned an unexpected agent gateway; refusing secret forwarding.'
         }
-        if ($gateway -notmatch '^https://[A-Za-z0-9.-]+(?::443)?/?$') { throw 'Approved enrollment gateway must be a canonical HTTPS origin.' }
-        $gateway = $gateway.TrimEnd('/')
-        try {
-            $health = Invoke-WebRequest -Uri ($gateway + '/healthz') -Method Get -TimeoutSec 15 -MaximumRedirection 0 -UseBasicParsing
-            if ([int]$health.StatusCode -ne 200) { throw 'Unhealthy gateway response.' }
-        } catch {
-            throw 'Approved CodeBridge agent gateway health check failed; retained existing enrollment for retry.'
-        }
-        Status 'PASS' 'Official CodeBridge agent gateway is reachable over HTTPS.'
+        Confirm-VpsGateway
+        $gateway = 'https://kmjtechno.com'
+        Status 'INFO' 'Using canonical KMJ VPS agent origin for account-visible device registration.'
         if ($grant.agent.id -ne $deviceId -or @($grant.projects | Where-Object { $_.id -eq $projectId }).Count -ne 1) { throw 'Enrollment device/project binding mismatch.' }
         foreach ($p in @('read', 'write', 'execute')) {
             if ($grant.permissions -notcontains $p) { throw 'Enrollment does not include required permission grant.' }
@@ -99,6 +124,7 @@ try {
                     check = @{ command = 'node'; args = @('scripts/check.js'); timeoutMs = 120000 }
                     p720_ai_tests = @{ command = 'node'; args = @('--test', 'tests/p720-ai-check.test.js'); timeoutMs = 120000 }
                     scan_secrets = @{ command = 'node'; args = @('scripts/scan-secrets.js'); timeoutMs = 120000 }
+                    p720_inference = @{ command = 'node'; args = @('scripts/p720-ai-check.mjs'); timeoutMs = 240000 }
                 }
             })
             license = @{ mode = 'free' }
@@ -112,7 +138,44 @@ try {
         if ($existing.id -ne $deviceId -or @($existing.projects).Count -ne 1 -or $existing.projects[0].id -ne $projectId -or $existing.projects[0].root -ne $project) {
             throw 'Existing config differs from expected project scope; refusing overwrite.'
         }
-        Status 'PASS' 'Existing scoped credential reused.'
+        if ($existing.license.mode -ne 'free' -or [string]$existing.stateDir -ne $state -or
+            [string]$existing.token -eq '' -or [string]$existing.tenant -eq '') {
+            throw 'Existing agent scope or credential invalid; refusing migration.'
+        }
+        if ([string]$existing.gateway -notin @('https://kmjtechno.com/', 'https://kmjtechno.com',
+                'https://kmj-codebridge-gateway.onrender.com/', 'https://kmj-codebridge-gateway.onrender.com')) {
+            throw 'Unexpected stored gateway origin; refusing migration.'
+        }
+        Confirm-VpsGateway
+        $running = @(Find-ScopedAgent)
+        if ([string]$existing.gateway -in @('https://kmjtechno.com/', 'https://kmjtechno.com') -and
+            $running.Count -eq 1) {
+            Status 'PASS' 'Scoped P720 agent already running against the VPS; no duplicate started.'
+            Status 'NEXT' 'Ask CodeBridge connection_overview to verify the new device grant.'
+            return
+        }
+        Stop-ScopedAgent
+        if ([string]$existing.gateway -notin @('https://kmjtechno.com/', 'https://kmjtechno.com')) {
+            $backup = $configFile + '.before-vps-routing.bak'
+            if (!(Test-Path -LiteralPath $backup)) {
+                Copy-Item -LiteralPath $configFile -Destination $backup -ErrorAction Stop
+                Protect-File $backup
+            }
+            $existing.gateway = 'https://kmjtechno.com/'
+            if ($existing.projects[0].gates.PSObject.Properties.Name -notcontains 'p720_inference') {
+                $existing.projects[0].gates | Add-Member -NotePropertyName p720_inference -NotePropertyValue @{
+                    command = 'node'; args = @('scripts/p720-ai-check.mjs'); timeoutMs = 240000
+                }
+            }
+            $tempConfig = $configFile + '.migrate'
+            if (Test-Path -LiteralPath $tempConfig) { throw 'Stale credential migration temp file; refusing overwrite.' }
+            [IO.File]::WriteAllText($tempConfig, ($existing | ConvertTo-Json -Depth 12), (New-Object Text.UTF8Encoding($false)))
+            Protect-File $tempConfig
+            [IO.File]::Replace($tempConfig, $configFile, $null)
+            Status 'PASS' 'Existing credential migrated atomically to VPS origin; private backup retained.'
+        } else {
+            Status 'PASS' 'Existing VPS-bound credential reused.'
+        }
     }
     $connection = Join-Path $state 'connection.json'
     $started = [DateTime]::UtcNow
