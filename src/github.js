@@ -384,7 +384,8 @@ export function createGitHubBridge(config) {
         Number.isInteger(workflowResult.total_count) &&
         workflowResult.total_count > 0 &&
         workflowResult.total_count <= 100 &&
-        runs.length === workflowResult.total_count;
+        runs.length === workflowResult.total_count &&
+        runs.every((run) => run.head_sha === head);
       const pending = [...checks, ...runs].some(
         (entry) => entry.status !== "completed",
       );
@@ -490,6 +491,9 @@ export function createGitHubBridge(config) {
       // Never permit an arbitrary single-step write to a protected default
       // branch. Existing file overwrites fail at GitHub without a blob SHA.
       const metadata = await request("GET", a.repository, "");
+      if (typeof metadata.default_branch !== "string" ||
+          !branchName.safeParse(metadata.default_branch).success)
+        fail("GITHUB_DEFAULT_BRANCH_UNVERIFIED");
       if (a.branch === metadata.default_branch)
         fail("GITHUB_DEFAULT_BRANCH_WRITE_DENIED");
       const result = await request(
