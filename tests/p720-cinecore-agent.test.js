@@ -21,7 +21,7 @@ test("CineCore pairing uses distinct approved device, tenant and project", () =>
   assert.match(source, /'enrollment\.json'/);
   assert.match(source, /'kmj-codebridge'/);
   assert.match(source, /CineCore pairing identity\/project grant did not match exactly/);
-  assert.match(source, /@\(\\$grant\.projects\)\.Count -ne 1/);
+  assert.ok(source.includes("@($grant.projects).Count -ne 1"));
   assert.match(source, /'read', 'write', 'execute'/);
   assert.match(source, /license = @\{ mode = 'free' \}/);
 });
