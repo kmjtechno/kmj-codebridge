@@ -168,10 +168,31 @@ try {
                 }
             }
             $tempConfig = $configFile + '.migrate'
-            if (Test-Path -LiteralPath $tempConfig) { throw 'Stale credential migration temp file; refusing overwrite.' }
+            if (Test-Path -LiteralPath $tempConfig) {
+                # The previous PowerShell/.NET File.Replace(null backup) failure left
+                # a private, not-yet-swapped temp file. Verify exact identity and
+                # secret equality before removing only that known temporary copy.
+                $stale = Get-Content -LiteralPath $tempConfig -Raw | ConvertFrom-Json
+                if ([string]$stale.id -cne [string]$existing.id -or
+                    [string]$stale.tenant -cne [string]$existing.tenant -or
+                    [string]$stale.token -cne [string]$existing.token -or
+                    [string]$stale.gateway -ne 'https://kmjtechno.com/' -or
+                    @($stale.projects).Count -ne 1 -or
+                    [string]$stale.projects[0].id -ne $projectId -or
+                    [string]$stale.projects[0].root -ne $project -or
+                    [string]$stale.stateDir -ne $state) {
+                    throw 'Stale private migration file differs from approved scope; refusing overwrite.'
+                }
+                Remove-Item -LiteralPath $tempConfig -Force -ErrorAction Stop
+                Status 'INFO' 'Verified and cleared the prior failed migration temp file.'
+            }
             [IO.File]::WriteAllText($tempConfig, ($existing | ConvertTo-Json -Depth 12), (New-Object Text.UTF8Encoding($false)))
             Protect-File $tempConfig
-            [IO.File]::Replace($tempConfig, $configFile, $null)
+            # Windows PowerShell's .NET File.Replace requires a valid backup
+            # filename. Never pass $null; keep the original secure backup intact.
+            $swapBackup = $configFile + '.swap-' + [guid]::NewGuid().ToString('N') + '.bak'
+            [IO.File]::Replace($tempConfig, $configFile, $swapBackup)
+            Protect-File $swapBackup
             Status 'PASS' 'Existing credential migrated atomically to VPS origin; private backup retained.'
         } else {
             Status 'PASS' 'Existing VPS-bound credential reused.'
