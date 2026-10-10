@@ -153,8 +153,16 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
     assert.deepEqual(JSON.parse(health.body), {
       status: "ok",
       version: VERSION,
-      capabilities: { github: true, githubReady: true },
+      capabilities: { github: true, githubReady: false },
     });
+    // Liveness must not wait for the optional GitHub dependency. Once its
+    // coalesced background probe finishes, readiness may become true.
+    await new Promise((resolve) => setImmediate(resolve));
+    const confirmed = await httpRequest(url + "/healthz", {
+      headers: { host: "bridge.example" },
+    });
+    assert.equal(confirmed.status, 200);
+    assert.equal(JSON.parse(confirmed.body).capabilities.githubReady, true);
   } finally {
     await gateway.close();
   }
