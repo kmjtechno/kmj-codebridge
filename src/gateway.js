@@ -15,6 +15,7 @@ import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-sc
 import { gatewaySchema } from "./config.js";
 import { definitions, FAST_READ_TOOLS } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
+import { createGitHubReadiness } from "./github-readiness.js";
 import { fail, publicError } from "./errors.js";
 import { VERSION } from "./version.js";
 function identify(req, records) {
@@ -110,22 +111,14 @@ export async function startGateway(rawConfig) {
   const allDefinitions = githubDispatch
     ? { ...definitions, ...enabledGitHubDefinitions }
     : definitions;
-  let githubReadiness = { checkedAt: 0, ready: false };
-  const probeGitHub = async () => {
-    if (!githubDispatch) return false;
-    const now = Date.now();
-    if (now - githubReadiness.checkedAt < 30000) return githubReadiness.ready;
-    githubReadiness = { checkedAt: now, ready: false };
-    try {
-      await githubDispatch("github_repository", {
-        repository: config.github.repositories[0],
-      });
-      githubReadiness.ready = true;
-    } catch {
-      githubReadiness.ready = false;
-    }
-    return githubReadiness.ready;
-  };
+  const probeGitHub = createGitHubReadiness(
+    githubDispatch
+      ? () =>
+          githubDispatch("github_repository", {
+            repository: config.github.repositories[0],
+          })
+      : null,
+  );
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const dynamicByToken = new Map();
   const pending = new Map(),
@@ -518,7 +511,7 @@ export async function startGateway(rawConfig) {
         return;
       }
       if (req.url === "/healthz" && req.method === "GET") {
-        const githubReady = await probeGitHub();
+        const githubReady = probeGitHub();
         json(res, 200, {
           status: "ok",
           version: VERSION,
