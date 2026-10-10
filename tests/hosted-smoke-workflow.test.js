@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 const workflow = readFileSync(".github/workflows/hosted-smoke.yml", "utf8");
-const render = workflow.split("\n  gateway:\n")[1]?.split("\n  public_oauth:\n")[0];
+const render = workflow
+  .split("\n  gateway:\n")[1]
+  ?.split("\n  public_oauth:\n")[0];
 const production = workflow.split("\n  public_oauth:\n")[1];
 
 test("hosted acceptance separates Render and production-origin failures", () => {
@@ -25,7 +27,10 @@ test("production OAuth still fails closed on missing discovery or scoped 401", (
   assert.match(production, /oauth\/jwks\.json/);
   assert.match(production, /test "\$status" = "401"/);
   assert.match(production, /www-authenticate:.*resource_metadata/);
-  assert.match(production, /for spec in 'list_devices:read' 'write_file:write'/);
+  assert.match(
+    production,
+    /for spec in 'list_devices:read' 'write_file:write'/,
+  );
   assert.match(production, /scope=\\\"codebridge:\$scope\\\"/);
   assert.match(production, /exit 1/);
 });
