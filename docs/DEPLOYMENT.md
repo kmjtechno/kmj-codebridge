@@ -122,6 +122,24 @@ Claude OAuth sessions have additionally exercised the public MCP resource. Provi
 availability, proxy/WAF behavior, and capacity must still be monitored before making
 an uptime or scale claim.
 
+## Hosted acceptance during a production VPS outage
+
+The scheduled **Hosted Deployment Smoke** workflow has two independent,
+mandatory jobs. `gateway` validates the deployed Render CodeBridge release
+version and hosted GitHub capability; `public_oauth` validates the separate
+`kmjtechno.com` production OAuth discovery and anonymous read/write challenge
+contract. Neither job depends on the other or uses `continue-on-error`.
+
+When the production VPS or its network is unreachable, `public_oauth` **must
+fail** even if `gateway` is green. This is expected incident evidence, not
+permission to waive production acceptance. A green gateway job proves only
+its stated scope; it never proves customer login, entitlement renewal, paid
+checkout, or an authenticated CodeBridge device round trip. Keep any live
+rollout blocked until both jobs pass and the actual client/device verification
+is repeated. Production recovery must retain the current database, OAuth
+signing authority, DNS and existing agents. Do not use a secondary/testing VM
+as production merely because its remote agent is online.
+
 ## Verified runtime downloads
 
 Every successful CI matrix job now builds a source-runtime `.tar.gz`, `manifest.json`
