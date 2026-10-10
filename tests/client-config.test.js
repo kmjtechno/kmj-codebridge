@@ -41,3 +41,40 @@ test("client config rejects insecure, credential-bearing and non-mcp endpoints",
     assert.notEqual(r.status, 0);
   }
 });
+
+test("VS Code and Insiders install links are native one-click and credential-free", () => {
+  for (const [format, scheme] of [
+    ["vscode-install-url", "vscode:"],
+    ["vscode-insiders-install-url", "vscode-insiders:"],
+  ]) {
+    const r = run("https://kmjtechno.com/mcp", "--format", format);
+    assert.equal(r.status, 0, r.stderr);
+    const install = new URL(r.stdout.trim());
+    assert.equal(install.protocol, scheme);
+    assert.equal(install.pathname, "mcp/install");
+    const server = JSON.parse(decodeURIComponent(install.search.slice(1)));
+    assert.deepEqual(server, {
+      name: "kmj-codebridge",
+      type: "http",
+      url: "https://kmjtechno.com/mcp",
+    });
+    assert.ok(!r.stdout.includes("Bearer"));
+  }
+});
+
+test("VS Code install URLs never embed credentials or untrusted MCP targets", () => {
+  for (const format of [
+    "vscode-install-url",
+    "vscode-insiders-install-url",
+  ]) {
+    for (const endpoint of [
+      "https://example.com/mcp?token=secret",
+      "https://user:pass@example.com/mcp",
+      "http://example.com/mcp",
+    ]) {
+      const result = run(endpoint, "--format", format);
+      assert.notEqual(result.status, 0);
+      assert.equal(result.stdout, "");
+    }
+  }
+});
