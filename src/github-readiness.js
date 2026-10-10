@@ -1,7 +1,10 @@
 // GitHub is an optional integration. Never block the core gateway liveness
 // endpoint on a remote GitHub or controller request, especially on cold starts.
 // In-flight checks are coalesced and a stale result fails closed until proven.
-export function createGitHubReadiness(probe, { now = Date.now, ttlMs = 30000 } = {}) {
+export function createGitHubReadiness(
+  probe,
+  { now = Date.now, ttlMs = 30000 } = {},
+) {
   if (!probe) return () => false;
 
   let checkedAt = null;
@@ -10,10 +13,7 @@ export function createGitHubReadiness(probe, { now = Date.now, ttlMs = 30000 } =
 
   return function githubReady() {
     const current = now();
-    if (
-      !inFlight &&
-      (checkedAt === null || current - checkedAt >= ttlMs)
-    ) {
+    if (!inFlight && (checkedAt === null || current - checkedAt >= ttlMs)) {
       checkedAt = current;
       ready = false;
       inFlight = true;
