@@ -7,6 +7,8 @@ const FORMATS = [
   "claude-json",
   "claude-cli",
   "vscode-json",
+  "vscode-install-url",
+  "vscode-insiders-install-url",
   "cursor-json",
   "windsurf-json",
   "gemini-json",
@@ -85,6 +87,21 @@ try {
         },
       });
       break;
+
+    case "vscode-install-url":
+    case "vscode-insiders-install-url": {
+      const scheme =
+        format === "vscode-insiders-install-url" ? "vscode-insiders" : "vscode";
+      // VS Code's registered URI handler requires the single server object,
+      // not a full { servers: ... } config. VS Code owns confirmation/consent.
+      const payload = JSON.stringify({
+        name: "kmj-codebridge",
+        type: "http",
+        url,
+      });
+      console.log(`${scheme}:mcp/install?${encodeURIComponent(payload)}`);
+      break;
+    }
 
     case "cursor-json":
       printJson({

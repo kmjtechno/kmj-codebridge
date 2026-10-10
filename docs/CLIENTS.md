@@ -254,6 +254,38 @@ The package contains the MCP resource URL and no user credential. Directory
 review/approval remains an external publishing step and must not be confused
 with a working private/developer connection.
 
+## Native one-click VS Code setup (Windows, macOS, Linux)
+
+VS Code supports an official MCP installation URI handler, so users can add
+CodeBridge from a browser link without editing JSON, running `npx`, or
+installing a native helper. Generate an installation link:
+
+```sh
+node scripts/client-config.js https://kmjtechno.com/mcp --format vscode-install-url
+```
+
+For VS Code Insiders:
+
+```sh
+node scripts/client-config.js https://kmjtechno.com/mcp --format vscode-insiders-install-url
+```
+
+The result is a `vscode:mcp/install?` (or `vscode-insiders:mcp/install?`)
+URI with a percent-encoded **single server object** containing only
+`name`, `type=http` and the verified HTTPS MCP endpoint. It does not contain
+credentials, install packages, or grant CodeBridge access automatically. The
+operating system must have the matching VS Code URI handler registered;
+the browser/OS may ask the user to confirm opening VS Code, and VS Code may
+ask them to trust the MCP server. KMJ browser OAuth consent is still required
+when a protected tool is called. A working install dialog is **not** evidence
+that OAuth or a remote device connection succeeded.
+
+For older VS Code builds, blocked custom URI links or environments that do
+not register the protocol handler, use the Windows setup below or the existing
+`vscode-json` configuration generator on macOS/Linux.
+
+Reference: [Microsoft's official MCP installation URL format](https://code.visualstudio.com/api/extension-guides/ai/mcp#_create-an-mcp-installation-url).
+
 ## One-click Windows VS Code / GitHub Copilot setup
 
 For the standard Windows VS Code user profile, download
