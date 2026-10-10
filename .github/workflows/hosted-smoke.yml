@@ -19,7 +19,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  smoke:
+  # Render is a separate deployed service: verify it independently of the VPS.
+  gateway:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
@@ -71,6 +72,12 @@ jobs:
             exit 1
           fi
 
+  # Production-origin failure must remain RED, without masking a healthy Render gateway.
+  # Do not add needs: gateway or continue-on-error to either acceptance gate.
+  public_oauth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
       - name: Verify public OAuth discovery and MCP protection
         shell: bash
         run: |
