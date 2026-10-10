@@ -63,10 +63,7 @@ test("VS Code and Insiders install links are native one-click and credential-fre
 });
 
 test("VS Code install URLs never embed credentials or untrusted MCP targets", () => {
-  for (const format of [
-    "vscode-install-url",
-    "vscode-insiders-install-url",
-  ]) {
+  for (const format of ["vscode-install-url", "vscode-insiders-install-url"]) {
     for (const endpoint of [
       "https://example.com/mcp?token=secret",
       "https://user:pass@example.com/mcp",
