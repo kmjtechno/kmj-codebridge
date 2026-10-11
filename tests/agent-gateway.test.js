@@ -117,6 +117,7 @@ test("existing agent config symlinks and permissive modes fail closed", () => {
   const link = path.join(dir, "link.json");
   try {
     fs.writeFileSync(file, JSON.stringify({ gateway: enrolled }), { mode: 0o644 });
+    fs.chmodSync(file, 0o644); // Make this independent of the test runner's umask.
     fs.symlinkSync(file, link);
     assert.throws(
       () => rebindExistingAgentGateway(file, "http://127.0.0.1:18787"),
