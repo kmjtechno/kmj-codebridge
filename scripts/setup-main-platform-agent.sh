@@ -184,6 +184,14 @@ const c = JSON.parse(fs.readFileSync(file, 'utf8'));
 if (!Array.isArray(c.projects) || c.projects.length !== 1) throw new Error('unexpected project count');
 if (c.projects[0].id !== projectId || fs.realpathSync(c.projects[0].root) !== fs.realpathSync(root)) throw new Error('existing config project mismatch');
 NODE
+  CONFIG="$CONFIG" LOCAL_GATEWAY="$LOCAL_GATEWAY" RUNTIME="$RUNTIME" "$NODE" --input-type=module <<'NODE'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+const { rebindExistingAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
+if (rebindExistingAgentGateway(process.env.CONFIG, process.env.LOCAL_GATEWAY)) {
+  console.log('Existing agent gateway switched to approved local loopback. Private config backup preserved.');
+}
+NODE
   echo 'Existing Main Platform agent config verified.'
 fi
 
