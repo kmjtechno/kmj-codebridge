@@ -269,3 +269,36 @@ test("thinking-only Ollama completion fails closed instead of claiming visible o
   assert.equal((await client.status()).activeRequest, false);
   assert.equal((await client.status()).cloudFallback, false);
 });
+
+test("opt-in bounded warm retention avoids repeated model unload without cloud inference", async (t) => {
+  const { port, requests } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen2.5-coder:7b" }] }];
+    return [200, { done: true, response: "safe code", eval_count: 5 }];
+  });
+  const client = createLocalModelClient({ port, warmSeconds: 30 });
+  const reply = await client.generate({
+    model: "qwen2.5-coder:7b",
+    prompt: "Suggest one safe patch",
+    maxTokens: 48,
+  });
+  assert.equal(reply.response, "safe code");
+  assert.equal(reply.modelUnloadRequested, false);
+  assert.equal(reply.modelWarmSeconds, 30);
+  assert.equal(reply.cloudFallback, false);
+  assert.equal(reply.paidInference, false);
+  const generation = requests.find((r) => r.path === "/api/generate");
+  assert.equal(generation.payload.keep_alive, "30s");
+  assert.equal(generation.payload.options.num_predict, 48);
+});
+
+test("warm retention is disabled by default and rejects invalid resource settings", () => {
+  const client = createLocalModelClient({ port: 1 });
+  assert.ok(client);
+  for (const warmSeconds of [-1, 61, 1.5, NaN, "30", Infinity]) {
+    assert.throws(
+      () => createLocalModelClient({ port: 1, warmSeconds }),
+      /LOCAL_MODEL_INVALID_WARM_SECONDS/,
+    );
+  }
+});
