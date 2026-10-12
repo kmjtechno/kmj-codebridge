@@ -10,6 +10,10 @@ const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 const STATES = new Set(["queued", "running", "waiting", ...TERMINAL]);
 const MISSION_TASK_KEY = /^[A-Za-z0-9._-]{1,64}$/;
 const AI_BUDGETS = new Set(["economical", "balanced", "maximum_assurance"]);
+const HOLDER = /^[A-Za-z0-9._:@ -]{1,96}$/;
+export const DEFAULT_LEASE_MS = 30 * 60 * 1000;
+const MIN_LEASE_MS = 60 * 1000;
+const MAX_LEASE_MS = 24 * 60 * 60 * 1000;
 
 function cleanText(value, max) {
   if (typeof value !== "string") fail("INVALID_AUTOPILOT_TEXT");
@@ -21,10 +25,22 @@ function fingerprint(value) {
 }
 
 export class AutopilotJournal {
-  constructor(dir, { maxTasks = 500, maxAttempts = 10 } = {}) {
+  constructor(
+    dir,
+    {
+      maxTasks = 500,
+      maxAttempts = 10,
+      leaseMs = DEFAULT_LEASE_MS,
+      now = Date.now,
+    } = {},
+  ) {
     this.dir = dir;
     this.maxTasks = maxTasks;
     this.maxAttempts = maxAttempts;
+    // A claim is a time-bounded lease, so a chat or worker that disconnects
+    // cannot hold a task in `running` forever. Checkpoints renew it.
+    this.leaseMs = Math.min(MAX_LEASE_MS, Math.max(MIN_LEASE_MS, leaseMs));
+    this.now = now;
     this.file = path.join(dir, "state.json");
     this.needsMigration = false;
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
@@ -34,6 +50,7 @@ export class AutopilotJournal {
     const exhausted = [];
     for (const task of this.state.tasks) {
       if (task.state !== "running") continue;
+      delete task.lease;
       task.recoveries = (task.recoveries ?? 0) + 1;
       task.updatedAt = new Date().toISOString();
       if (task.attempts >= this.maxAttempts) {
@@ -113,8 +130,58 @@ export class AutopilotJournal {
     fs.renameSync(tmp, this.file);
   }
 
+  // The lease token is a fencing token returned only to the claimant; other
+  // readers see who holds a task and until when, never the token itself.
   public(task) {
-    return structuredClone(task);
+    const { lease, ...rest } = structuredClone(task);
+    if (lease)
+      rest.lease = { holder: lease.holder, expiresAt: lease.expiresAt };
+    return rest;
+  }
+
+  leaseExpired(task, current = this.now()) {
+    return (
+      task.state === "running" &&
+      task.lease !== undefined &&
+      Date.parse(task.lease.expiresAt) <= current
+    );
+  }
+
+  // Return running tasks whose lease expired to the queue (or fail them once
+  // attempts are exhausted). Tasks claimed before leases existed have no lease
+  // and keep the previous restart-only recovery.
+  expireLeases(project) {
+    const current = this.now();
+    const exhausted = [];
+    let changed = false;
+    for (const task of this.state.tasks) {
+      if (task.project !== project || !this.leaseExpired(task, current))
+        continue;
+      delete task.lease;
+      task.recoveries = (task.recoveries ?? 0) + 1;
+      task.updatedAt = new Date(current).toISOString();
+      if (task.attempts >= this.maxAttempts) {
+        task.state = "failed";
+        task.result = `gave up after ${task.attempts} attempts`;
+        task.lastReason = "max_attempts_exceeded";
+        exhausted.push(task);
+      } else {
+        task.state = "queued";
+        task.lastReason = "lease_expired";
+      }
+      changed = true;
+    }
+    for (const task of exhausted) this.failDependents(task, "failed");
+    return changed;
+  }
+
+  // A supplied token must match the current lease: a holder whose lease
+  // expired and was re-claimed elsewhere cannot overwrite the new holder's
+  // work. Omitting the token keeps compatibility with older clients/gateways.
+  assertLease(task, leaseToken) {
+    if (leaseToken === undefined || leaseToken === null) return;
+    if (typeof leaseToken !== "string" || task.lease?.token !== leaseToken)
+      fail("AUTOPILOT_LEASE_LOST");
   }
 
   get(id, project) {
@@ -217,7 +284,13 @@ export class AutopilotJournal {
     });
   }
 
-  claim(project) {
+  claim(project, { holder } = {}) {
+    if (
+      holder !== undefined &&
+      (typeof holder !== "string" || !HOLDER.test(holder))
+    )
+      fail("INVALID_AUTOPILOT_HOLDER");
+    const expired = this.expireLeases(project);
     const candidates = this.state.tasks
       .filter((task) => task.project === project && this.isReady(task))
       .sort(
@@ -227,18 +300,30 @@ export class AutopilotJournal {
           a.id.localeCompare(b.id),
       );
     const task = candidates[0];
-    if (!task) return null;
+    if (!task) {
+      if (expired) this.persist();
+      return null;
+    }
+    const current = this.now();
     task.state = "running";
     task.attempts += 1;
-    task.updatedAt = new Date().toISOString();
+    task.updatedAt = new Date(current).toISOString();
     task.lastReason = null;
+    task.lease = {
+      token: randomUUID(),
+      holder: holder ?? null,
+      expiresAt: new Date(current + this.leaseMs).toISOString(),
+    };
     this.persist();
-    return this.public(task);
+    return { ...this.public(task), leaseToken: task.lease.token };
   }
 
-  checkpoint(id, project, { summary, next }) {
+  checkpoint(id, project, { summary, next, leaseToken }) {
     const task = this.get(id, project);
     if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
+    this.assertLease(task, leaseToken);
+    if (task.lease)
+      task.lease.expiresAt = new Date(this.now() + this.leaseMs).toISOString();
     task.checkpoint = {
       summary: cleanText(summary, 8192),
       next: cleanText(next, 8192),
@@ -249,9 +334,11 @@ export class AutopilotJournal {
     return this.public(task);
   }
 
-  wait(id, project, reason) {
+  wait(id, project, reason, leaseToken) {
     const task = this.get(id, project);
     if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
+    this.assertLease(task, leaseToken);
+    delete task.lease;
     task.state = "waiting";
     task.lastReason = cleanText(reason, 4096);
     task.updatedAt = new Date().toISOString();
@@ -269,11 +356,13 @@ export class AutopilotJournal {
     return this.public(task);
   }
 
-  complete(id, project, { state, result }) {
+  complete(id, project, { state, result, leaseToken }) {
     if (!TERMINAL.has(state)) fail("INVALID_AUTOPILOT_FINAL_STATE");
     const task = this.get(id, project);
     if (!["running", "waiting"].includes(task.state))
       fail("AUTOPILOT_TASK_NOT_ACTIVE");
+    if (task.state === "running") this.assertLease(task, leaseToken);
+    delete task.lease;
     task.state = state;
     task.result = cleanText(result, 8192);
     task.updatedAt = new Date().toISOString();

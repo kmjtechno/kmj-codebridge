@@ -8,6 +8,7 @@ KMJ CodeBridge 24×7 mode is designed as a persistent, event-driven orchestratio
 - **Active:** claim the highest-priority dependency-ready task and execute through existing bounded CodeBridge tools and configured quality gates.
 - **Blocked:** move only the blocked task to `waiting`; independent queued work remains claimable.
 - **Restart/reboot:** any task that was `running` is safely returned to `queued` with its last checkpoint preserved.
+- **Disconnected chat or worker:** a claim is a time-bounded lease; when it expires, the next claim returns the task to `queued` so another chat can continue it.
 - **Recovery:** task state is stored outside authorized project roots under the agent `stateDir`.
 - **Security:** no arbitrary shell, arbitrary service name, arbitrary path, environment dump or secret-return API is introduced.
 
@@ -48,6 +49,18 @@ These operations coordinate work only. They do not execute arbitrary commands. A
 ## Dependency behavior
 
 A queued task is claimable only when every declared dependency has succeeded. Waiting work never blocks unrelated ready work. Selection is deterministic: higher priority first, then creation time, then task id.
+
+## Claim leases (multiple chats and workers)
+
+`autopilot_claim` accepts an optional `holder` label and returns the task with a `leaseToken` and `lease: {holder, expiresAt}` (default 30 minutes, bounded 1 minute to 24 hours).
+
+- Pass `leaseToken` to `autopilot_checkpoint`, `autopilot_wait` and `autopilot_complete`. Each checkpoint renews the lease, so active long work is not reclaimed.
+- When a lease expires (the holder disconnected or stopped checkpointing), the next `autopilot_claim` for that project returns the task to `queued` with `lastReason: lease_expired`, then claims normally. `maxAttempts` still applies and exhausted tasks fail their dependents.
+- A token that no longer matches the current lease is rejected with `AUTOPILOT_LEASE_LOST`, so a holder whose lease was re-claimed by another chat cannot overwrite the new holder's checkpoint or result.
+- `autopilot_status` shows who holds a task and until when, never the token.
+- Calls without `leaseToken` keep working for older clients and gateways; they get expiry-based recovery but not stale-holder fencing.
+
+Leases coordinate work; they do not add execution capacity. Concurrency remains bounded by the signed plan and device resources.
 
 ## Restart behavior
 
