@@ -12,6 +12,41 @@
 - **Optional warm-cache performance switch:** the local agent may set `CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS=30` at launch to request that Ollama retains a model for at most 30 seconds after inference. Valid values: integer 0–60; default 0 still requests immediate unload. This is **not** enabled by a GitHub merge or from a remote chat tool. Memory remains occupied during the warm period, so the owner must compare cold/warm latency and both GPUs' actual free VRAM and revert to 0 if competing workloads degrade. No model download, extra cloud calls, or source disclosure.
 - **Existing models are not auto-downloaded.** The tool never enables remote Ollama bindings. Physical GPU identification and model unload/memory-release require independently measured live evidence.
 
+## Local-only cold vs warm benchmark — opt-in
+
+Run only on the **authorized Windows Lenovo P720** after its CodeBridge checkout has
+been safely updated from reviewed source. The benchmark does not install or
+download any model, require payment, edit agent credentials, or change Ollama
+service configuration.
+
+```powershell
+cd D:\\KMJ-HyperSpeed\\projects\\kmj-codebridge
+node scripts/p720-local-benchmark.mjs --run
+```
+
+The script uses fixed loopback ports and installed-model checks:
+Qwen2.5-Coder 7B on 11435, Qwen3 4B on 11436, and **optional**
+Qwen3 8B on 11434 only when installed. Each model runs sequentially
+with bounded generation (64 tokens), a fixed 2048-token context, no Qwen3
+thinking, and deterministic temperature 0. It measures a cold call
+(`keep_alive:0`), 30-second warm priming, and an immediate warm repeat,
+then requests unload. No automatic GPU-affinity or model quantization changes.
+
+Compare **Ollama-reported load/total/evaluation durations** and
+`size_vram` (observed offload, not GPU free memory), plus a basic JavaScript
+coding-smoke heuristic. A negative warm latency percentage means improvement
+for that local test only. Missing counters or invalid output never become a
+claimed speed gain. The check is **not** an accuracy benchmark or a physical
+two-GPU process attribution test. Re-run with and without other workloads and
+record per-adapter memory-free telemetry independently before enabling
+`CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS=30` for any running agent.
+
+Do not enable warm retention solely from an Ubuntu/Windows mocked CI PASS.
+If warm runs slow down, a model is not installed, free VRAM becomes constrained,
+or competing CineCore work degrades, leave/restore the agent variable at
+`0` and verify the existing local agent remains online. The operating
+setting remains 0 unless the local owner deliberately enables it.
+
 ## Required Claude implementation and verification order
 
 1. Check exact `main`, the P720 agent binary/runtime version, installed ChatGPT/Claude MCP tool inventory and gateway's exposed `tools/list` through _real authorized OAuth_, then compare it to `src/tools.js`. Produce a sanitized 4-column report: `defined / hosted-listed / client-visible / callable on P720` for each local-model tool.
