@@ -5,6 +5,10 @@ const MAX_TAGS_BYTES = 65536;
 const MAX_REPLY_BYTES = 131072;
 const MAX_MODEL_RESULTS = 32;
 const MODEL = /^[A-Za-z0-9._:/-]{1,96}$/;
+// Qwen3 can spend the entire bounded prediction allowance in its thinking
+// channel and return no visible text. Ask Ollama to skip reasoning for these
+// local, tool-oriented short responses without changing the user's prompt.
+const NON_THINKING_MODEL = /^qwen3(?::|$)/i;
 
 // Always use Node's direct loopback HTTP client: no proxy, DNS, redirects,
 // external host, arbitrary API URL, installed-model pull or paid fallback.
@@ -157,6 +161,9 @@ export function createLocalModelClient(options = {}) {
               model,
               prompt,
               stream: false,
+              // Qwen3's thinking tokens otherwise can exhaust the limit
+              // before any user-visible answer (e.g. qwen3:8b).
+              ...(NON_THINKING_MODEL.test(model) ? { think: false } : {}),
               keep_alive: 0,
               options: { num_predict: maxTokens },
             },
@@ -172,6 +179,10 @@ export function createLocalModelClient(options = {}) {
           !result.done
         )
           fail("LOCAL_MODEL_RESPONSE_INVALID");
+        // A done:true response with only internal thinking is not a usable
+        // output. Fail closed instead of claiming successful generation.
+        if (result.response.trim().length === 0)
+          fail("LOCAL_MODEL_NO_VISIBLE_OUTPUT");
         return {
           provider: "local-ollama",
           model,
