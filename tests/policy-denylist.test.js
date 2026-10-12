@@ -16,6 +16,8 @@ function fixture(t) {
   fs.writeFileSync(path.join(root, "api-token.txt"), "t\n");
   fs.writeFileSync(path.join(root, "githubtoken"), "t\n");
   fs.writeFileSync(path.join(root, "client_secret.json"), "{}\n");
+  fs.writeFileSync(path.join(root, "src", "githubtoken.ts"), "private\n");
+  fs.writeFileSync(path.join(root, "src", "credentialStore.js"), "private\n");
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   return new ProjectFiles(root);
 }
@@ -33,6 +35,8 @@ test("credential-named files stay protected", (t) => {
   const files = fixture(t);
   for (const name of ["api-token.txt", "githubtoken", "client_secret.json"])
     assert.throws(() => files.read(name), /PATH_DENIED/, name);
+  for (const name of ["githubtoken.ts", "credentialStore.js"])
+    assert.throws(() => files.read("src/" + name), /PATH_DENIED/, name);
   const listed = files.list().entries.map((entry) => entry.name);
   assert.ok(!listed.includes("api-token.txt"));
   assert.ok(!listed.includes("githubtoken"));
@@ -54,6 +58,12 @@ test("name rule: exact credential segments and non-source names are denied", () 
     "accesstoken.txt",
     "apiToken.json",
     "tokens",
+    "githubtoken.ts",
+    "apiToken.ts",
+    "credentialStore.js",
+    "secretStore.py",
+    "productionsecrets.ts",
+    "clientSecretManagerClient.cs",
   ])
     assert.equal(isDeniedName(name), true, name);
   for (const name of [
