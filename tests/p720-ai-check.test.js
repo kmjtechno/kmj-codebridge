@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   inspectP720Fleet,
   inspectP720Target,
+  inspectP720PhysicalGpu,
 } from "../scripts/p720-ai-check.mjs";
 
 function fakeOllama(model, { vram = 4000000000, available = true } = {}) {
@@ -128,4 +129,70 @@ test("P720 verifier diagnoses thinking-only output without false PASS", async ()
   assert.equal(result.status, "BLOCKED");
   assert.equal(result.reason, "THINKING_ONLY_NO_VISIBLE_TEXT");
   assert.equal(result.evalTokens, 48);
+});
+
+test("P720 GPU verification reads physical NVIDIA identity using fixed executable and arguments", () => {
+  const runs = [];
+  const inventory = inspectP720PhysicalGpu({
+    platform: "win32",
+    exists: (binary) => binary.endsWith("\\nvidia-smi.exe"),
+    run: (binary, args, opts) => {
+      runs.push({ binary, args });
+      assert.equal(opts.shell, false);
+      assert.equal(opts.timeout, 3500);
+      if (args[0].startsWith("--query-gpu="))
+        return "0, NVIDIA RTX A4000, 573.86, 16376, 21\n";
+      if (args[0].startsWith("--query-compute-apps="))
+        return "C:\\Program Files\\Ollama\\ollama.exe\n";
+      throw Error("unexpected request");
+    },
+  });
+  assert.equal(inventory.verification, "WINDOWS_NVIDIA_GPU_INVENTORY_VERIFIED");
+  assert.deepEqual(inventory.devices, [
+    {
+      index: 0,
+      name: "NVIDIA RTX A4000",
+      driver: "573.86",
+      memoryMiB: 16376,
+      utilizationPercent: 21,
+    },
+  ]);
+  assert.equal(inventory.ollamaComputeProcessObserved, true);
+  assert.equal(inventory.modelGpuMappingVerified, false);
+  assert.equal(runs.length, 2);
+  assert.ok(runs.every((v) => v.binary.startsWith("C:\\Windows\\System32\\")));
+});
+
+test("P720 GPU fallback reports Windows adapter identity without claiming model attribution", () => {
+  const gpu = inspectP720PhysicalGpu({
+    platform: "win32",
+    exists: (p) => p.endsWith("\\powershell.exe"),
+    run: (_bin, args) => {
+      assert.equal(args[0], "-NoProfile");
+      return JSON.stringify({
+        Name: "AMD Radeon PRO",
+        DriverVersion: "32.0.12011",
+      });
+    },
+  });
+  assert.equal(gpu.verification, "WINDOWS_DISPLAY_ADAPTER_INVENTORY_ONLY");
+  assert.equal(gpu.devices[0].name, "AMD Radeon PRO");
+  assert.equal(gpu.modelGpuMappingVerified, false);
+});
+
+test("P720 GPU verifier fails closed for unknown hardware and keeps inference independent", async () => {
+  const missing = inspectP720PhysicalGpu({
+    platform: "win32",
+    exists: () => false,
+  });
+  assert.equal(missing.verification, "GPU_IDENTITY_NOT_VERIFIED");
+  const report = await inspectP720Fleet(
+    [{ port: 11435, model: "qwen3:4b" }],
+    fakeOllama("qwen3:4b"),
+    () => missing,
+  );
+  assert.equal(report.allPassed, true);
+  assert.equal(report.gpuHardware.verification, "GPU_IDENTITY_NOT_VERIFIED");
+  assert.equal(report.results[0].gpuOffloadBytes, 4000000000);
+  assert.equal(report.gpuHardware.modelGpuMappingVerified, false);
 });
