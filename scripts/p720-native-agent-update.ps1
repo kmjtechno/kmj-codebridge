@@ -30,6 +30,15 @@ $initialStatus = $null
 $initialDigests = $null
 $exitCode = 2
 
+function AssertApprovedGateway([string]$value) {
+    # The P720 pairing script persists the canonical origin WITH a trailing
+    # slash. A slashless canonical URL is also valid. No other path, query,
+    # endpoint or legacy external origin is allowed to receive the device token.
+    if ($value -cnotin @($expectedGateway, ($expectedGateway + '/'))) {
+        throw 'AGENT_GATEWAY_NOT_APPROVED'
+    }
+}
+
 function Git([string[]]$GitArgs) {
     $result = & git.exe -C $repo @GitArgs 2>&1
     if ($LASTEXITCODE -ne 0) { throw 'GIT_OPERATION_FAILED' }
@@ -192,8 +201,8 @@ try {
     }
     $configDigest = (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
     $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
-    if ([string]$cfg.gateway -ne $expectedGateway -or
-        @($cfg.projects).Count -ne 1 -or
+    AssertApprovedGateway ([string]$cfg.gateway)
+    if (@($cfg.projects).Count -ne 1 -or
         [string]$cfg.projects[0].id -ne 'kmj-codebridge' -or
         [string]$cfg.projects[0].root -ne $repo -or
         [string]$cfg.stateDir -ne $statePath -or
