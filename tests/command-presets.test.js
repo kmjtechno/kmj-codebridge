@@ -29,6 +29,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "node-standard",
     "python-standard",
     "cargo-standard",
+    "cmake-standard",
     "go-standard",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
@@ -103,4 +104,55 @@ test("unknown command presets fail closed", () => {
       }),
     /Invalid enum value|Invalid option/,
   );
+});
+
+test("CMake profiles require explicit project opt-in and never advertise install or deploy", () => {
+  const defaultProject = agentSchema.parse(base).projects[0];
+  assert.deepEqual(defaultProject.commands, {});
+
+  const enabled = agentSchema.parse({
+    ...base,
+    projects: [{ ...base.projects[0], commandPresets: ["cmake-standard"] }],
+  }).projects[0];
+  assert.deepEqual(Object.keys(enabled.commands), [
+    "cmake_configure",
+    "cmake_build",
+    "cmake_test",
+  ]);
+  assert.deepEqual(enabled.commands.cmake_configure.variants.default.args, [
+    "-S",
+    ".",
+    "-B",
+    ".kmj-codebridge-build",
+  ]);
+  assert.deepEqual(enabled.commands.cmake_build.variants.release.args, [
+    "--build",
+    ".kmj-codebridge-build",
+    "--config",
+    "Release",
+    "--parallel",
+    "2",
+  ]);
+  assert.deepEqual(enabled.commands.cmake_test.variants.debug.args, [
+    "--test-dir",
+    ".kmj-codebridge-build",
+    "--output-on-failure",
+    "-C",
+    "Debug",
+    "--parallel",
+    "2",
+  ]);
+  for (const profile of Object.values(enabled.commands)) {
+    assert.equal(profile.category, "build");
+    assert.ok(["cmake", "ctest"].includes(profile.command));
+    assert.ok(Object.keys(profile.variants).every((name) =>
+      ["default", "debug", "release"].includes(name),
+    ));
+    for (const variant of Object.values(profile.variants)) {
+      assert.ok(variant.timeoutMs <= 300000);
+      assert.ok(!variant.args.some((x) => /[;&|]/.test(x)));
+      assert.equal(variant.args.at(-1) !== "install", true);
+    }
+  }
+  assert.equal(enabled.commands.cmake_build.variants.deploy, undefined);
 });
