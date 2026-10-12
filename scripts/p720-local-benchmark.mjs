@@ -194,7 +194,7 @@ export async function benchmarkTarget(target, request = localJson) {
       priming,
       warm,
       observedVramBytes,
-      warmLatencyChangePercent: measured
+      warmLatencyChangePercent: measured && allCodingSmokesPass
         ? Number(
             (((warm.totalMs - cold.totalMs) / cold.totalMs) * 100).toFixed(1),
           )
