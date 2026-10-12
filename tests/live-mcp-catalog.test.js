@@ -16,7 +16,9 @@ const json = (tools) =>
 
 test("read-only public MCP catalog parses standard JSON and SSE", () => {
   const plain = catalogFromResponse(json(allTools));
-  const sse = catalogFromResponse(`event: message\ndata: ${json(allTools)}\n\n`);
+  const sse = catalogFromResponse(
+    `event: message\ndata: ${json(allTools)}\n\n`,
+  );
   assert.deepEqual(plain, sse);
   assert.equal(plain.count, allTools.length);
   assert.deepEqual(plain.missing, []);
@@ -26,7 +28,10 @@ test("read-only public MCP catalog parses standard JSON and SSE", () => {
 test("absent local AI tools are an explicit failure, never a false green", () => {
   const catalog = catalogFromResponse(json([{ name: "inspect_project" }]));
   assert.deepEqual(catalog.missing, [...REQUIRED_LOCAL_TOOLS]);
-  assert.throws(() => catalogFromResponse("event: message\ndata: {}"), /CATALOG_TOOLS_LIST_NOT_RECEIVED/);
+  assert.throws(
+    () => catalogFromResponse("event: message\ndata: {}"),
+    /CATALOG_TOOLS_LIST_NOT_RECEIVED/,
+  );
   assert.throws(
     () => catalogFromResponse(json([{ name: "x" }, { name: "x" }])),
     /CATALOG_DUPLICATE_TOOL/,
