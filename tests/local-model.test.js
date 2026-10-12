@@ -269,3 +269,127 @@ test("thinking-only Ollama completion fails closed instead of claiming visible o
   assert.equal((await client.status()).activeRequest, false);
   assert.equal((await client.status()).cloudFallback, false);
 });
+
+test("opt-in bounded warm retention avoids repeated model unload without cloud inference", async (t) => {
+  const { port, requests } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen2.5-coder:7b" }] }];
+    return [200, { done: true, response: "safe code", eval_count: 5 }];
+  });
+  const client = createLocalModelClient({ port, warmSeconds: 30 });
+  const reply = await client.generate({
+    model: "qwen2.5-coder:7b",
+    prompt: "Suggest one safe patch",
+    maxTokens: 48,
+  });
+  assert.equal(reply.response, "safe code");
+  assert.equal(reply.modelUnloadRequested, false);
+  assert.equal(reply.modelWarmSeconds, 30);
+  assert.equal(reply.cloudFallback, false);
+  assert.equal(reply.paidInference, false);
+  const generation = requests.find((r) => r.path === "/api/generate");
+  assert.equal(generation.payload.keep_alive, "30s");
+  assert.equal(generation.payload.options.num_predict, 48);
+});
+
+test("warm retention is disabled by default and rejects invalid resource settings", () => {
+  const client = createLocalModelClient({ port: 1 });
+  assert.ok(client);
+  for (const warmSeconds of [-1, 61, 1.5, NaN, "30", Infinity]) {
+    assert.throws(
+      () => createLocalModelClient({ port: 1, warmSeconds }),
+      /LOCAL_MODEL_INVALID_WARM_SECONDS/,
+    );
+  }
+});
+
+test("Ollama timing metadata remains bounded, local-only and is not fabricated", async (t) => {
+  const { port } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen3:4b" }] }];
+    return [
+      200,
+      {
+        done: true,
+        response: "function add(a, b) { return a + b; }",
+        total_duration: 2500000000,
+        load_duration: 1300000000,
+        prompt_eval_duration: 200000000,
+        prompt_eval_count: 18,
+        eval_duration: 1000000000,
+        eval_count: 32,
+      },
+    ];
+  });
+  const client = createLocalModelClient({ port, warmSeconds: 30 });
+  const value = await client.generate({
+    model: "qwen3:4b",
+    prompt: "Write add(a,b)",
+    maxTokens: 64,
+  });
+  assert.deepEqual(value.timing, {
+    totalMs: 2500,
+    loadMs: 1300,
+    promptMs: 200,
+    generationMs: 1000,
+    promptTokens: 18,
+    generationTokens: 32,
+    generationTokensPerSecond: 32,
+  });
+  assert.equal(value.paidInference, false);
+  assert.equal(value.cloudFallback, false);
+  assert.equal(value.modelWarmSeconds, 30);
+});
+
+test("missing or malicious Ollama timing counters never fabricate measured speed", async (t) => {
+  const { port } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen2.5-coder:7b" }] }];
+    return [
+      200,
+      {
+        done: true,
+        response: "local",
+        total_duration: -1,
+        load_duration: "999999999",
+        eval_count: 42,
+        eval_duration: 0,
+      },
+    ];
+  });
+  const client = createLocalModelClient({ port, warmSeconds: 0 });
+  const reply = await client.generate({
+    model: "qwen2.5-coder:7b",
+    prompt: "Return local",
+  });
+  assert.deepEqual(reply.timing, {
+    totalMs: null,
+    loadMs: null,
+    promptMs: null,
+    generationMs: 0,
+    promptTokens: null,
+    generationTokens: 42,
+    generationTokensPerSecond: null,
+  });
+  assert.equal(reply.modelUnloadRequested, true);
+});
+
+test("local warm-retention environment only accepts exact integer seconds", (t) => {
+  const variable = "CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS";
+  const previous = process.env[variable];
+  t.after(() => {
+    if (previous === undefined) delete process.env[variable];
+    else process.env[variable] = previous;
+  });
+  for (const value of ["", " ", "30.0", "-1", "61", "1e1", "01 ", "abc"]) {
+    process.env[variable] = value;
+    assert.throws(
+      () => createLocalModelClient({ port: 1 }),
+      /LOCAL_MODEL_INVALID_WARM_SECONDS/,
+    );
+  }
+  process.env[variable] = "30";
+  assert.ok(createLocalModelClient({ port: 1 }));
+  process.env[variable] = "0";
+  assert.ok(createLocalModelClient({ port: 1 }));
+});

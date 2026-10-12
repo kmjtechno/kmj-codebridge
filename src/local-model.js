@@ -4,6 +4,7 @@ import { fail } from "./errors.js";
 const MAX_TAGS_BYTES = 65536;
 const MAX_REPLY_BYTES = 131072;
 const MAX_MODEL_RESULTS = 32;
+const MAX_WARM_SECONDS = 60;
 const MODEL = /^[A-Za-z0-9._:/-]{1,96}$/;
 // Qwen3 can spend the entire bounded prediction allowance in its thinking
 // channel and return no visible text. Ask Ollama to skip reasoning for these
@@ -67,9 +68,39 @@ function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
 // Fixed loopback-only ports verified on KMJ P720 plus the standard Ollama port.
 // Explicit ports are accepted only by the locally configured agent factory
 // (not supplied by an arbitrary MCP chat/tool invocation).
+// Only bounded daemon-reported counters enter diagnostic output.
+function nanosToMs(value) {
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.round(value / 1000000)
+    : null;
+}
+function boundedTokenCount(value) {
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.min(value, 1000000)
+    : null;
+}
+
 const DEFAULT_PORTS = Object.freeze([11434, 11435, 11436]);
 
 export function createLocalModelClient(options = {}) {
+  // Opt-in, owner-local warm retention avoids paying cold model-load cost
+  // between nearby requests. Default 0 preserves low idle VRAM usage.
+  const envWarmSeconds = process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS;
+  // Do not silently treat blank/decimal/space-padded environment values as 0.
+  // Only the local device owner can configure this; MCP callers cannot.
+  const warmSeconds =
+    options.warmSeconds ??
+    (envWarmSeconds === undefined
+      ? 0
+      : /^\d{1,2}$/.test(envWarmSeconds)
+        ? Number(envWarmSeconds)
+        : NaN);
+  if (
+    !Number.isInteger(warmSeconds) ||
+    warmSeconds < 0 ||
+    warmSeconds > MAX_WARM_SECONDS
+  )
+    fail("LOCAL_MODEL_INVALID_WARM_SECONDS");
   const configured = options.ports ?? [options.port ?? DEFAULT_PORTS[0]];
   const ports =
     options.ports === undefined && options.port === undefined
@@ -164,7 +195,7 @@ export function createLocalModelClient(options = {}) {
               // Qwen3's thinking tokens otherwise can exhaust the limit
               // before any user-visible answer (e.g. qwen3:8b).
               ...(NON_THINKING_MODEL.test(model) ? { think: false } : {}),
-              keep_alive: 0,
+              keep_alive: warmSeconds === 0 ? 0 : `${warmSeconds}s`,
               options: { num_predict: maxTokens },
             },
             timeoutMs: timeoutSeconds * 1000,
@@ -191,10 +222,34 @@ export function createLocalModelClient(options = {}) {
           paidInference: false,
           cloudFallback: false,
           outputIsUntrusted: true,
-          modelUnloadRequested: true,
+          modelUnloadRequested: warmSeconds === 0,
+          modelWarmSeconds: warmSeconds,
           evaluatedTokens: Number.isSafeInteger(result.eval_count)
             ? Math.min(result.eval_count, 1000000)
             : null,
+          // Ollama's nanosecond counters are measured by the local daemon,
+          // rather than synthetic server timing. Missing/invalid counters are
+          // reported as null, never guessed or called a speed improvement.
+          timing: {
+            totalMs: nanosToMs(result.total_duration),
+            loadMs: nanosToMs(result.load_duration),
+            promptMs: nanosToMs(result.prompt_eval_duration),
+            generationMs: nanosToMs(result.eval_duration),
+            promptTokens: boundedTokenCount(result.prompt_eval_count),
+            generationTokens: boundedTokenCount(result.eval_count),
+            generationTokensPerSecond:
+              Number.isSafeInteger(result.eval_count) &&
+              result.eval_count >= 0 &&
+              Number.isSafeInteger(result.eval_duration) &&
+              result.eval_duration > 0
+                ? Number(
+                    (
+                      (result.eval_count * 1000000000) /
+                      result.eval_duration
+                    ).toFixed(2),
+                  )
+                : null,
+          },
         };
       } finally {
         busy = false;
