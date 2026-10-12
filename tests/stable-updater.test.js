@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { generateKeyPairSync, sign } from "node:crypto";
 import {
+  currentNodeMajor,
   defaultStableUpdatePreflight,
   freshAuthenticatedConnection,
   readAcceptedUpdateState,
@@ -202,6 +203,7 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
     preflight: async () => true,
     now: () => (nowCall++ === 0 ? 1000 : 3000),
     sleep: async () => {},
+    nodeMajor: 24,
   });
 
   assert.deepEqual(fetches, [cfg.manifestUrl, cfg.signatureUrl]);
@@ -251,6 +253,7 @@ test("stable updater is idempotent for the exact already-current signed release"
       activated = true;
       throw new Error("must not activate current release");
     },
+    nodeMajor: 24,
   });
 
   assert.deepEqual(result, {
@@ -295,9 +298,56 @@ test("stable updater rejects channel mismatch and replay", async (t) => {
           url.endsWith(".sig") ? signed.signature : signed.rawManifest,
         ),
       createStore: () => store,
+      nodeMajor: 24,
     }),
     /UPDATE_ROLLBACK_REJECTED/,
   );
+});
+
+test("currentNodeMajor parses the running major version and rejects garbage", () => {
+  assert.equal(currentNodeMajor("24.5.1"), 24);
+  assert.equal(currentNodeMajor("24.0.0-rc.1"), 24);
+  assert.throws(
+    () => currentNodeMajor("not-a-version"),
+    /UPDATE_NODE_VERSION_INVALID/,
+  );
+  assert.throws(() => currentNodeMajor(""), /UPDATE_NODE_VERSION_INVALID/);
+});
+
+// The signed manifest's nodeMajor is a compatibility contract, not metadata:
+// activating a release this host's own interpreter cannot run would replace
+// the known-good `current` symlink with one that fails to start. This must
+// be rejected before any archive is downloaded or the release store touched.
+test("stable updater rejects a signed release when the running Node major version does not match", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-stable-nodever-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const cfg = config(root, signed.trustedKeys);
+  const store = fakeStore(root);
+  let prepared = false;
+  let activated = false;
+
+  await assert.rejects(
+    runStableUpdate(cfg, {
+      fetchBytes: async (url) =>
+        Buffer.from(
+          url.endsWith(".sig") ? signed.signature : signed.rawManifest,
+        ),
+      createStore: () => store,
+      prepare: async () => {
+        prepared = true;
+        throw new Error("must not prepare on an incompatible host");
+      },
+      activate: async () => {
+        activated = true;
+        throw new Error("must not activate on an incompatible host");
+      },
+      nodeMajor: 22,
+    }),
+    /UPDATE_NODE_INCOMPATIBLE/,
+  );
+  assert.equal(prepared, false);
+  assert.equal(activated, false);
 });
 
 test("stable updater rejects updater state that shares the agent state directory", async (t) => {

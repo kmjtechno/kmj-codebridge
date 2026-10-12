@@ -110,6 +110,25 @@ Release transitions are persisted in a bounded, atomically written history journ
 
 The update layer can download and safely extract a signed runtime archive and the orchestration core drives preflight, activation, fixed Supervisor restart, authenticated signed-runtime health checks and rollback recovery. The installer keeps the mutable development timer and signed stable/beta timer mutually exclusive. Stable/beta enablement fails closed unless manifest/signature URLs and a root-owned non-writable public-key file are supplied.
 
+## Strict runtime version compatibility
+
+A signed manifest's `nodeMajor` field is a compatibility contract, not
+advisory metadata. `runStableUpdate` checks the running agent's own Node
+major version against it immediately after signature and channel
+verification, before any archive is downloaded or the release store is
+touched. A mismatch fails closed with `UPDATE_NODE_INCOMPATIBLE`.
+
+This exists because nothing else in the pipeline would catch the mismatch:
+`npm ci`'s `engines` check is a non-fatal warning, not an error, and the
+staged release's `node_modules` are reinstalled for whatever interpreter
+happens to run the preflight — they do not change which `node` binary the
+Supervisor-managed service actually executes after activation. Without this
+check, a host running an incompatible Node major version could activate a
+release it cannot start, replacing the known-good `current` symlink with one
+that fails at every subsequent restart until someone intervenes manually.
+`runStableRollback` does not repeat this check: it only ever re-activates a
+release that was already running successfully on this exact host.
+
 ## Anti-rollback and release signing
 
 Normal remote updates require a signed `sequence` strictly greater than the highest sequence already accepted by the updater. A previously valid older release therefore cannot be replayed through the update channel. Explicit rollback remains a separate local operation that can activate only the locally recorded previous-known-good release.
