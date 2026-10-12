@@ -93,6 +93,83 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  // Explicit opt-in only. Commands run on the authorized project device and
+  // can execute CMakeLists.txt / CTest definitions from that project. They
+  // never install, publish, sign, or change an external deployment.
+  "cmake-standard": freeze({
+    cmake_configure: freeze({
+      category: "build",
+      description:
+        "Configure approved CMake project in a fixed local build directory.",
+      command: "cmake",
+      variants: freeze({
+        default: freeze({
+          args: ["-S", ".", "-B", ".kmj-codebridge-build"],
+          timeoutMs: 300000,
+        }),
+      }),
+    }),
+    cmake_build: freeze({
+      category: "build",
+      description: "Build configured CMake project with bounded parallelism.",
+      command: "cmake",
+      variants: freeze({
+        debug: freeze({
+          args: [
+            "--build",
+            ".kmj-codebridge-build",
+            "--config",
+            "Debug",
+            "--parallel",
+            "2",
+          ],
+          timeoutMs: 300000,
+        }),
+        release: freeze({
+          args: [
+            "--build",
+            ".kmj-codebridge-build",
+            "--config",
+            "Release",
+            "--parallel",
+            "2",
+          ],
+          timeoutMs: 300000,
+        }),
+      }),
+    }),
+    cmake_test: freeze({
+      category: "build",
+      description: "Run bounded CTest suite from the fixed build directory.",
+      command: "ctest",
+      variants: freeze({
+        debug: freeze({
+          args: [
+            "--test-dir",
+            ".kmj-codebridge-build",
+            "--output-on-failure",
+            "-C",
+            "Debug",
+            "--parallel",
+            "2",
+          ],
+          timeoutMs: 300000,
+        }),
+        release: freeze({
+          args: [
+            "--test-dir",
+            ".kmj-codebridge-build",
+            "--output-on-failure",
+            "-C",
+            "Release",
+            "--parallel",
+            "2",
+          ],
+          timeoutMs: 300000,
+        }),
+      }),
+    }),
+  }),
   "go-standard": freeze({
     go_verify: freeze({
       category: "build",
