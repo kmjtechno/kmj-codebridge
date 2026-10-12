@@ -17,7 +17,9 @@ export function tryFileSymlink(t, target, link) {
       throw error;
     }
     if (process.env.CI === "true") {
-      throw new Error("WINDOWS_CI_SYMLINK_PRIVILEGE_REQUIRED", { cause: error });
+      throw new Error("WINDOWS_CI_SYMLINK_PRIVILEGE_REQUIRED", {
+        cause: error,
+      });
     }
     t.diagnostic(
       "WINDOWS_SYMLINK_ASSERTION_NOT_EXECUTED: non-admin fixture creation denied; audited Windows CI must exercise this assertion",
