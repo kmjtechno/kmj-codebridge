@@ -89,6 +89,16 @@ test("dirty or committed worktree changes are never force-deleted", (t) => {
     /WORKTREE_HEAD_MISMATCH/,
   );
 });
+test("rejects starting from a nested subdirectory instead of repo root", (t) => {
+  const x = fixture(t);
+  const nested = path.join(x.repo, "nested");
+  fs.mkdirSync(nested);
+  const lanes = new WorktreeLanes(x.state);
+  assert.throws(
+    () => lanes.prepare("project1", nested, "nope", x.head),
+    /WORKTREE_SOURCE_INVALID/,
+  );
+});
 test("tool grants remain separate from customer project permissions", () => {
   assert.equal(definitions.worktree_lane_status.access, "read");
   assert.equal(definitions.worktree_lane_prepare.access, "execute");
