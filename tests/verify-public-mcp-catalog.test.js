@@ -33,10 +33,17 @@ test("public MCP catalogs accept valid JSON and streaming SSE responses", () => 
 
 test("known 101-versus-88 production drift fails closed", () => {
   const render = validNames();
-  const production = new Set([...render].filter((name) => !REQUIRED_TOOLS.includes(name)));
+  const production = new Set(
+    [...render].filter((name) => !REQUIRED_TOOLS.includes(name)),
+  );
   assert.equal(production.size, 90);
-  assert.throws(() => verifyCatalogs(render, production), /MCP_CATALOG_INCOMPLETE/);
-  const incompleteButLarge = new Set([...render].filter((name) => name !== "local_model_generate"));
+  assert.throws(
+    () => verifyCatalogs(render, production),
+    /MCP_CATALOG_INCOMPLETE/,
+  );
+  const incompleteButLarge = new Set(
+    [...render].filter((name) => name !== "local_model_generate"),
+  );
   assert.equal(incompleteButLarge.size, 102);
   assert.throws(
     () => verifyCatalogs(render, incompleteButLarge),
@@ -45,7 +52,10 @@ test("known 101-versus-88 production drift fails closed", () => {
 });
 
 test("malformed, duplicate and missing RPC catalogs never pass", () => {
-  assert.throws(() => parseToolNames('{"error":"unauthorized"}'), /MCP_CATALOG_TOOLS_MISSING/);
+  assert.throws(
+    () => parseToolNames('{"error":"unauthorized"}'),
+    /MCP_CATALOG_TOOLS_MISSING/,
+  );
   assert.throws(
     () => parseToolNames(body(["local_model_status", "local_model_status"])),
     /MCP_CATALOG_NAMES_INVALID/,
@@ -84,7 +94,10 @@ test("public discovery uses only fixed OAuth-free origins and no tools/call", as
 
 test("non-200 and oversized streamed responses fail without echoing secrets", async () => {
   await assert.rejects(
-    probeCatalog(ENDPOINTS.render, async () => new Response("private body", { status: 401 })),
+    probeCatalog(
+      ENDPOINTS.render,
+      async () => new Response("private body", { status: 401 }),
+    ),
     /MCP_CATALOG_HTTP_NOT_OK/,
   );
   await assert.rejects(
