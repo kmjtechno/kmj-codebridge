@@ -253,6 +253,17 @@ test("GitHub bridge updates exact files and merges only an exact green head", as
           { status: "completed", conclusion: "success" },
         ],
       });
+    if (value.includes(`/actions/runs?head_sha=${"a".repeat(40)}`))
+      return json({
+        total_count: 1,
+        workflow_runs: [
+          {
+            head_sha: "a".repeat(40),
+            status: "completed",
+            conclusion: "success",
+          },
+        ],
+      });
     if (value.endsWith("/pulls/9/merge"))
       return json({ merged: true, sha: "d".repeat(40), message: "merged" });
     throw new Error(`unexpected fetch ${value}`);
@@ -301,6 +312,17 @@ test("GitHub safe merge rejects moved heads and non-green checks", async (t) => 
         total_count: 1,
         check_runs: [
           {
+            status: green ? "completed" : "in_progress",
+            conclusion: green ? "success" : null,
+          },
+        ],
+      });
+    if (value.includes(`/actions/runs?head_sha=${"a".repeat(40)}`))
+      return json({
+        total_count: 1,
+        workflow_runs: [
+          {
+            head_sha: "a".repeat(40),
             status: green ? "completed" : "in_progress",
             conclusion: green ? "success" : null,
           },
