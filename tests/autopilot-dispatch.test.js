@@ -303,6 +303,7 @@ test("mission tools compile persisted DAG and map evidence", async (t) => {
       task: claimed.id,
       state: "succeeded",
       result: "verification green",
+      leaseToken: claimed.leaseToken,
     },
     permissions,
   );
