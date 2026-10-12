@@ -130,8 +130,7 @@ export async function benchmarkTarget(target, request = localJson) {
     const coldStart = await request(port, "/api/ps");
     if (!Array.isArray(coldStart?.models))
       throw Error("BENCH_BASELINE_UNAVAILABLE");
-    if (coldStart.models.length > 0)
-      throw Error("BENCH_OTHER_WORKLOAD_ACTIVE");
+    if (coldStart.models.length > 0) throw Error("BENCH_OTHER_WORKLOAD_ACTIVE");
 
     // Cold request explicitly asks Ollama to release the model afterward.
     // Warm priming and warm repeat are back-to-back within a 30s bounded TTL.
