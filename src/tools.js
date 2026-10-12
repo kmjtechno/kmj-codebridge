@@ -11,6 +11,7 @@ import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
+import { buildProjectProgress } from "./project-progress.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -504,6 +505,7 @@ export const FAST_READ_TOOLS = [
   "audit_status",
   "audit_tail",
   "execution_capacity",
+  "project_progress",
   "verification_plan",
   "project_snapshot",
   "workspace_home",
@@ -647,6 +649,16 @@ export const definitions = {
             .strict(),
         )
         .max(12),
+    },
+    access: "read",
+  },
+  project_progress: {
+    title: "Project progress and next action",
+    description:
+      "Read a project-scoped, redacted progress summary from persisted autopilot tasks and controlled job sessions. Shows precise tracked-task completion, failed jobs, next ready task, and evidence limitations without claiming whole-project or production-release readiness.",
+    input: {
+      ...scoped,
+      recentJobs: z.number().int().min(1).max(20).default(8),
     },
     access: "read",
   },
@@ -1457,6 +1469,15 @@ export function createDispatcher(
         }),
       };
     }
+    if (name === "project_progress")
+      return {
+        device: config.id,
+        project: p.id,
+        ...buildProjectProgress({
+          sessions: runner.list(p.id, a.recentJobs),
+          autopilotState: autopilot ? autopilot.status(p.id, 1) : null,
+        }),
+      };
     if (name === "execution_capacity")
       return {
         device: config.id,
