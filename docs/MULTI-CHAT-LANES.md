@@ -3,6 +3,7 @@
 **One shared CodeBridge gateway can serve multiple concurrent ChatGPT, Claude, IDE and desktop MCP sessions.** The downstream device still enforces actual signed/authorized job concurrency. Multiple chats are not multiple paid/free model credits.
 
 New scoped MCP operations:
+
 - `chat_lane_status({device,project})` — bounded active reservation status; **no lease token** is exposed.
 - `chat_lane_reserve({device,project,requestKey,paths,ttlSeconds})` — obtain a 1–60 minute expiring file/directory reservation (write entitlement required), with safe retries using the same request key.
 - `chat_lane_release({device,project,leaseToken})` — release only your reserved lane. Never use another chat's token.
@@ -10,7 +11,7 @@ New scoped MCP operations:
 
 Examples: Chat A reserves `src/api`; Chat B reserves `docs`. Both can edit their files through the same CodeBridge agent without collision. A third chat attempting to edit `src/api/app.ts` must wait or move to a different isolated worktree. This is a **project file cooperation layer**, not a permission to bypass project grants, use untrusted shell, or automatically start autonomous AI models.
 
-**Important limitations**: Git CLI jobs, external manual changes and independent IDEs not using CodeBridge are *not* locked by this layer. Stronger parallel coding requires separate disposable Git worktrees/PR branches, exact-head CI and collision reviews. The per-process agent singleton holds the durable reservation journal; arbitrary duplicated agents sharing the state directory are not supported. Status reads never grant access to another tenant's project.
+**Important limitations**: Git CLI jobs, external manual changes and independent IDEs not using CodeBridge are _not_ locked by this layer. Stronger parallel coding requires separate disposable Git worktrees/PR branches, exact-head CI and collision reviews. The per-process agent singleton holds the durable reservation journal; arbitrary duplicated agents sharing the state directory are not supported. Status reads never grant access to another tenant's project.
 
 ## Update and Claude Desktop truth
 

@@ -694,13 +694,15 @@ export const definitions = {
   },
   chat_lane_status: {
     title: "Multi-chat work lane status",
-    description: "List only this authorized project's active collaboration file reservations; never returns lease tokens or private chat content.",
+    description:
+      "List only this authorized project's active collaboration file reservations; never returns lease tokens or private chat content.",
     input: scoped,
     access: "read",
   },
   chat_lane_reserve: {
     title: "Reserve files for a chat lane",
-    description: "Reserve exact project-relative files or directories for one chat work lane with an expiring idempotent lease. Prevents conflicting CodeBridge edits without blocking unrelated chats. Not a new execution or model quota.",
+    description:
+      "Reserve exact project-relative files or directories for one chat work lane with an expiring idempotent lease. Prevents conflicting CodeBridge edits without blocking unrelated chats. Not a new execution or model quota.",
     input: {
       ...scoped,
       requestKey: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
@@ -711,7 +713,8 @@ export const definitions = {
   },
   chat_lane_release: {
     title: "Release my chat work lane",
-    description: "Release a project-scoped reservation by its opaque token. Does not terminate other chats or background jobs.",
+    description:
+      "Release a project-scoped reservation by its opaque token. Does not terminate other chats or background jobs.",
     input: { ...scoped, leaseToken: z.string().uuid() },
     access: "write",
   },
@@ -2083,7 +2086,11 @@ export function createDispatcher(
     }
     if (name === "write_files_atomic") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
-      lanes().assertWritable(p.id, a.changes.map((change) => change.path), a.leaseToken);
+      lanes().assertWritable(
+        p.id,
+        a.changes.map((change) => change.path),
+        a.leaseToken,
+      );
       for (const change of a.changes) {
         if (change.expectedHash === null) continue;
         const before = p.files.read(change.path);
