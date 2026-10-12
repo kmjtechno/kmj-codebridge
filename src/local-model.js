@@ -4,6 +4,7 @@ import { fail } from "./errors.js";
 const MAX_TAGS_BYTES = 65536;
 const MAX_REPLY_BYTES = 131072;
 const MAX_MODEL_RESULTS = 32;
+const MAX_WARM_SECONDS = 60;
 const MODEL = /^[A-Za-z0-9._:/-]{1,96}$/;
 // Qwen3 can spend the entire bounded prediction allowance in its thinking
 // channel and return no visible text. Ask Ollama to skip reasoning for these
@@ -70,6 +71,15 @@ function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
 const DEFAULT_PORTS = Object.freeze([11434, 11435, 11436]);
 
 export function createLocalModelClient(options = {}) {
+  // Opt-in, owner-local warm retention avoids paying cold model-load cost
+  // between nearby requests. Default 0 preserves low idle VRAM usage.
+  const warmSeconds =
+    options.warmSeconds ??
+    (process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS === undefined
+      ? 0
+      : Number(process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS));
+  if (!Number.isInteger(warmSeconds) || warmSeconds < 0 || warmSeconds > MAX_WARM_SECONDS)
+    fail("LOCAL_MODEL_INVALID_WARM_SECONDS");
   const configured = options.ports ?? [options.port ?? DEFAULT_PORTS[0]];
   const ports =
     options.ports === undefined && options.port === undefined
@@ -164,7 +174,7 @@ export function createLocalModelClient(options = {}) {
               // Qwen3's thinking tokens otherwise can exhaust the limit
               // before any user-visible answer (e.g. qwen3:8b).
               ...(NON_THINKING_MODEL.test(model) ? { think: false } : {}),
-              keep_alive: 0,
+              keep_alive: warmSeconds === 0 ? 0 : `${warmSeconds}s`,
               options: { num_predict: maxTokens },
             },
             timeoutMs: timeoutSeconds * 1000,
@@ -191,7 +201,8 @@ export function createLocalModelClient(options = {}) {
           paidInference: false,
           cloudFallback: false,
           outputIsUntrusted: true,
-          modelUnloadRequested: true,
+          modelUnloadRequested: warmSeconds === 0,
+          modelWarmSeconds: warmSeconds,
           evaluatedTokens: Number.isSafeInteger(result.eval_count)
             ? Math.min(result.eval_count, 1000000)
             : null,
