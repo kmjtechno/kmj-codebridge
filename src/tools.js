@@ -1427,7 +1427,16 @@ export function createDispatcher(
     ]),
   );
   let laneRegistry;
-  const lanes = () => (laneRegistry ??= new ChatLaneRegistry(config.stateDir));
+  const laneStateDir =
+    typeof config.stateDir === "string" && config.stateDir.length > 0
+      ? config.stateDir
+      : typeof runner.dir === "string" && runner.dir.length > 0
+        ? path.dirname(runner.dir)
+        : null;
+  const lanes = () => {
+    if (!laneStateDir) fail("CHAT_LANE_STATE_UNAVAILABLE");
+    return (laneRegistry ??= new ChatLaneRegistry(laneStateDir));
+  };
   let checkpointStore;
   const checkpoints = () =>
     (checkpointStore ??= new FileCheckpoints(config.stateDir));
