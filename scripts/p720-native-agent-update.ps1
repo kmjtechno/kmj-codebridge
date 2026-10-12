@@ -168,15 +168,15 @@ function StartScoped([string]$entry, [string]$workDir, [string]$label) {
         -RedirectStandardOutput $outFile -RedirectStandardError $errFile -PassThru
     return $p.Id
 }
-function ConfirmRuntime([int]$pid, [string]$entry, [datetime]$since) {
+function ConfirmRuntime([int]$processId, [string]$entry, [datetime]$since) {
     for ($try = 0; $try -lt 35; $try++) {
         Start-Sleep -Seconds 2
-        $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $pid"
+        $proc = Get-CimInstance Win32_Process -Filter "ProcessId = $processId"
         if ($null -eq $proc -or !$proc.CommandLine.Contains($entry)) {
             return $false
         }
         $scoped = @(ScopedAgents)
-        if ($scoped.Count -ne 1 -or [int]$scoped[0].ProcessId -ne $pid) {
+        if ($scoped.Count -ne 1 -or [int]$scoped[0].ProcessId -ne $processId) {
             return $false
         }
         $recordFile = Join-Path $statePath 'connection.json'
