@@ -60,6 +60,13 @@ test("parallel worktrees are isolated, detached, pinned and reusable", (t) => {
     lanes.status("project1", x.repo).lanes.map((l) => l.laneId),
     ["chatA", "chatB"],
   );
+  assert.deepEqual(
+    lanes
+      .status("project1", x.repo)
+      .lanes.map((l) => l.path)
+      .sort(),
+    [one.path, two.path].sort(),
+  );
   assert.equal(
     lanes.cleanup("project1", x.repo, "chatB", x.head).released,
     true,

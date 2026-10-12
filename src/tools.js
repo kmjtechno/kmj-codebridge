@@ -1464,11 +1464,15 @@ export const definitions = {
   run_quality_gate: {
     title: "Run quality gate",
     description:
-      "Start an administrator-configured command. It can execute project code and change files. Use a stable requestKey for retries.",
+      "Start an administrator-configured command. It can execute project code and change files. Use a stable requestKey for retries. Optional laneId runs the gate inside an already-prepared isolated worktree (worktree_lane_prepare) instead of the shared project checkout, so concurrent uncommitted work elsewhere is never touched.",
     input: {
       ...scoped,
       gate: identifier,
       requestKey: z.string().min(1).max(128),
+      laneId: z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/)
+        .optional(),
     },
     access: "execute",
   },
@@ -2653,11 +2657,19 @@ export function createDispatcher(
       const gate = p.gates[a.gate];
       if (!gate) fail("GATE_NOT_ALLOWED");
       if (!p.writable) fail("READ_ONLY_PROJECT");
+      let cwd = p.files.root;
+      if (a.laneId !== undefined) {
+        const lane = worktreeLanes()
+          .entries(p.id, p.files.root)
+          .find((row) => row.laneId === a.laneId);
+        if (!lane) fail("WORKTREE_NOT_FOUND");
+        cwd = lane.path;
+      }
       return runner.run({
         project: p.id,
-        gate: a.gate,
+        gate: a.laneId !== undefined ? `${a.gate}@${a.laneId}` : a.gate,
         key: a.requestKey,
-        cwd: p.files.root,
+        cwd,
         ...gate,
       });
     }
