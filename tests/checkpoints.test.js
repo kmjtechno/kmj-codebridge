@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { ProjectFiles } from "../src/policy.js";
@@ -107,12 +108,13 @@ test("checkpoint rejects stale hashes, reuse conflicts, known secrets and protec
       store.create("p1", "denied", ".env", source.sha256, files, () => true),
     /PATH_DENIED/,
   );
-  fs.symlinkSync("README.md", path.join(root, "shortcut"));
-  assert.throws(
-    () =>
-      store.create("p1", "link", "shortcut", source.sha256, files, () => true),
-    /SYMLINK_DENIED/,
-  );
+  if (tryFileSymlink(t, "README.md", path.join(root, "shortcut"))) {
+    assert.throws(
+      () =>
+        store.create("p1", "link", "shortcut", source.sha256, files, () => true),
+      /SYMLINK_DENIED/,
+    );
+  }
   store.create("p1", "same", "README.md", source.sha256, files, () => true);
   assert.throws(
     () =>
