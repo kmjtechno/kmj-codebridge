@@ -4,7 +4,8 @@
 param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-f0-9]{40}$')]
-    [string]$TargetSha
+    [string]$TargetSha,
+    [switch]$AllowTrackedDirtyCheckout
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -26,6 +27,7 @@ $newPid = $null
 $oldPid = $null
 $initialHead = $null
 $initialStatus = $null
+$initialDigests = $null
 $exitCode = 2
 
 function Git([string[]]$GitArgs) {
@@ -33,6 +35,58 @@ function Git([string[]]$GitArgs) {
     if ($LASTEXITCODE -ne 0) { throw 'GIT_OPERATION_FAILED' }
     return $result
 }
+
+function SnapshotTrackedChanges {
+    # Only ordinary unstaged tracked-file modifications are eligible.
+    # Stage/rename/delete/untracked/conflicted/symlink paths fail closed.
+    $rows = @(& git.exe -C $repo -c core.quotePath=false status --porcelain=v1 --untracked-files=all)
+    if ($LASTEXITCODE -ne 0) { throw 'LIVE_CHECKOUT_STATUS_FAILED' }
+    if ($rows.Count -gt 64) { throw 'LIVE_CHECKOUT_DIRTY_LIMIT' }
+    $digests = @()
+    $rootWithSlash = $repo.TrimEnd([char]92) + [IO.Path]::DirectorySeparatorChar
+    foreach ($row in $rows) {
+        if ($row.Length -lt 4 -or !$row.StartsWith(' M ')) {
+            throw 'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'
+        }
+        $relative = $row.Substring(3)
+        if ($relative.StartsWith('"') -or $relative.Contains(' -> ') -or
+            $relative.Contains([char]13) -or $relative.Contains([char]10)) {
+            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        }
+        $fullPath = [IO.Path]::GetFullPath((Join-Path $repo $relative))
+        if (!$fullPath.StartsWith($rootWithSlash,
+                [StringComparison]::OrdinalIgnoreCase)) {
+            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        }
+        if (!(Test-Path -LiteralPath $fullPath -PathType Leaf)) {
+            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        }
+        $item = Get-Item -LiteralPath $fullPath
+        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        }
+        $digest = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
+        $digests += ($relative + ':' + $digest)
+    }
+    return @{
+        Status = ($rows -join [char]10)
+        Digests = ($digests -join [char]10)
+        ModifiedCount = $rows.Count
+    }
+}
+function AssertCheckoutUnchanged {
+    $headNow = [string]((Git -GitArgs @('rev-parse', 'HEAD')) |
+        Select-Object -First 1)
+    if ($headNow -cne $initialHead) {
+        throw 'LIVE_CHECKOUT_HEAD_CHANGED'
+    }
+    $current = SnapshotTrackedChanges
+    if ($current.Status -cne $initialStatus -or
+        $current.Digests -cne $initialDigests) {
+        throw 'LIVE_CHECKOUT_BYTES_CHANGED'
+    }
+}
+
 function ScopedAgents {
     $items = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |
         Where-Object {
@@ -156,10 +210,13 @@ try {
     if ($branch.Trim() -ne 'main') { throw 'ONLY_MAIN_CHECKOUT_SUPPORTED' }
     $initialHead = [string]((Git -GitArgs @('rev-parse', 'HEAD')) |
         Select-Object -First 1)
-    $initialStatus = @(& git.exe -C $repo status --porcelain) -join [char]10
-    if ($LASTEXITCODE -ne 0 -or $initialStatus.Length -ne 0) {
+    $snapshot = SnapshotTrackedChanges
+    $initialStatus = $snapshot.Status
+    $initialDigests = $snapshot.Digests
+    if ($snapshot.ModifiedCount -gt 0 -and !$AllowTrackedDirtyCheckout) {
         throw 'LIVE_CHECKOUT_NOT_CLEAN'
     }
+    Write-Host ('TRACKED_DIRTY_FILES_PRESERVED=' + $snapshot.ModifiedCount)
     if (Test-Path -LiteralPath $release) { throw 'RELEASE_ALREADY_EXISTS' }
     $agents = @(ScopedAgents)
     if ($agents.Count -ne 1) { throw 'ONE_EXISTING_AGENT_REQUIRED' }
@@ -200,10 +257,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'RELEASE_TEST_FAILED' }
     & npm.cmd --prefix $release run scan:secrets
     if ($LASTEXITCODE -ne 0) { throw 'RELEASE_SECRET_SCAN_FAILED' }
-    if (([string]((Git -GitArgs @('rev-parse', 'HEAD')) |
-        Select-Object -First 1)) -cne $initialHead) {
-        throw 'LIVE_CHECKOUT_HEAD_CHANGED'
-    }
+    AssertCheckoutUnchanged
     AssertIdle
     $stillRunning = @(ScopedAgents)
     if ($stillRunning.Count -ne 1 -or
@@ -262,13 +316,12 @@ try {
         }
     }
     if ($initialHead) {
-        $nowHead = @(& git.exe -C $repo rev-parse HEAD 2>$null) -join ''
-        $nowStatus = @(& git.exe -C $repo status --porcelain 2>$null) -join [char]10
-        if ($nowHead -cne $initialHead -or $nowStatus -cne $initialStatus) {
+        try {
+            AssertCheckoutUnchanged
+            Write-Host 'ORIGINAL_CHECKOUT_UNCHANGED=PASS'
+        } catch {
             Write-Host 'ORIGINAL_CHECKOUT_UNCHANGED=FAIL'
             $exitCode = 2
-        } else {
-            Write-Host 'ORIGINAL_CHECKOUT_UNCHANGED=PASS'
         }
     }
 }

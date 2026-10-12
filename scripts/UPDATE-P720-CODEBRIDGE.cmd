@@ -13,8 +13,9 @@ if errorlevel 1 (
 )
 echo KMJ CodeBridge native agent update - exact SHA %SHA%
 echo Requires the single existing P720 CodeBridge agent to be idle.
+echo Tracked-only unstaged edits are fingerprinted and preserved; no checkout reset.
 echo Stages candidate first; tests it before scoped switch and rollback.
-powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0p720-native-agent-update.ps1" -TargetSha %SHA%
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%~dp0p720-native-agent-update.ps1" -TargetSha %SHA% -AllowTrackedDirtyCheckout
 set "RESULT=%ERRORLEVEL%"
 echo CODEBRIDGE_UPDATE_EXIT=%RESULT%
 pause
