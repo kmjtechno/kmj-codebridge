@@ -15,7 +15,10 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   assert.match(source, /merge-base --is-ancestor \$TargetSha \$remote/);
   assert.match(source, /merge-base --is-ancestor \$initialHead \$TargetSha/);
   assert.match(source, /'worktree', 'add', '--detach'/);
-  assert.match(source, /npm\.cmd --prefix \$release ci --include=dev --ignore-scripts/);
+  assert.match(
+    source,
+    /npm\.cmd --prefix \$release ci --include=dev --ignore-scripts/,
+  );
   assert.match(source, /npm\.cmd --prefix \$release run check/);
   assert.match(source, /npm\.cmd --prefix \$release test/);
   assert.match(source, /npm\.cmd --prefix \$release run scan:secrets/);
@@ -52,7 +55,10 @@ test("one-click native launch requires pinned known reviewed SHA and sibling scr
   assert.match(source, /%~dp0p720-native-agent-update\.ps1/);
   assert.match(source, /-NoProfile -NonInteractive/);
   assert.match(source, /CODEBRIDGE_UPDATE_EXIT/);
-  assert.doesNotMatch(source, /git\s+reset|curl|ollama pull|npm install|sc\.exe/i);
+  assert.doesNotMatch(
+    source,
+    /git\s+reset|curl|ollama pull|npm install|sc\.exe/i,
+  );
 });
 
 test(
