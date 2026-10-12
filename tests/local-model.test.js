@@ -203,3 +203,69 @@ test("invalid local model port selections fail closed before network access", ()
     );
   }
 });
+
+test("Qwen3 bounded local generation disables thinking without rewriting user prompts", async (t) => {
+  const { port, requests } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen3:8b" }] }];
+    return [200, { done: true, response: "hello", eval_count: 3 }];
+  });
+  const client = createLocalModelClient({ port });
+  const reply = await client.generate({
+    model: "qwen3:8b",
+    prompt: "Say hello",
+    maxTokens: 64,
+  });
+  assert.equal(reply.response, "hello");
+  assert.equal(reply.paidInference, false);
+  assert.equal(reply.cloudFallback, false);
+  const generation = requests.find((r) => r.path === "/api/generate");
+  assert.equal(generation.payload.think, false);
+  assert.equal(generation.payload.prompt, "Say hello");
+  assert.equal(generation.payload.options.num_predict, 64);
+  assert.equal(generation.payload.keep_alive, 0);
+});
+
+test("non-Qwen3 models retain the previous API payload and no forced thinking switch", async (t) => {
+  const { port, requests } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen2.5-coder:7b" }] }];
+    return [200, { done: true, response: "safe patch draft" }];
+  });
+  const client = createLocalModelClient({ port });
+  const reply = await client.generate({
+    model: "qwen2.5-coder:7b",
+    prompt: "Suggest one safe test",
+  });
+  assert.equal(reply.response, "safe patch draft");
+  const generation = requests.find((r) => r.path === "/api/generate");
+  assert.equal(Object.hasOwn(generation.payload, "think"), false);
+  assert.equal(generation.payload.prompt, "Suggest one safe test");
+});
+
+test("thinking-only Ollama completion fails closed instead of claiming visible output", async (t) => {
+  const { port } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen3:8b" }] }];
+    return [
+      200,
+      {
+        done: true,
+        response: " \n ",
+        thinking: "hidden reasoning",
+        eval_count: 64,
+      },
+    ];
+  });
+  const client = createLocalModelClient({ port });
+  await assert.rejects(
+    client.generate({
+      model: "qwen3:8b",
+      prompt: "Return visible text",
+      maxTokens: 64,
+    }),
+    /LOCAL_MODEL_NO_VISIBLE_OUTPUT/,
+  );
+  assert.equal((await client.status()).activeRequest, false);
+  assert.equal((await client.status()).cloudFallback, false);
+});
