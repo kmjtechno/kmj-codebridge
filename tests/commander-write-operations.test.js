@@ -80,7 +80,10 @@ test("Commander move does not follow symlinks or move hardlinked and secret path
   );
   assert.throws(() => files.moveFile(".env", "new.md", hash), /PATH_DENIED/);
   if (tryFileSymlink(t, "README.md", path.join(root, "shortcut"))) {
-    assert.throws(() => files.moveFile("shortcut", "x", hash), /SYMLINK_DENIED/);
+    assert.throws(
+      () => files.moveFile("shortcut", "x", hash),
+      /SYMLINK_DENIED/,
+    );
   }
   fs.linkSync(path.join(root, "README.md"), path.join(root, "linked"));
   assert.throws(
