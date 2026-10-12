@@ -61,7 +61,7 @@ function source(root) {
 }
 function common(root) {
   return canonical(
-    path.resolve(root, git(root, ["rev-parse", "--git-common-dir"])),
+    git(root, ["rev-parse", "--path-format=absolute", "--git-common-dir"]),
   );
 }
 function verifyLane(root, candidate) {
