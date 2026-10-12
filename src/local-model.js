@@ -18,6 +18,7 @@ function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
         method: payload === null ? "GET" : "POST",
         path: endpoint,
         timeout: timeoutMs,
+      signal: AbortSignal.timeout(timeoutMs),
         headers:
           payload === null
             ? { accept: "application/json" }
@@ -157,7 +158,7 @@ export function createLocalModelClient({ port = 11434 } = {}) {
           paidInference: false,
           cloudFallback: false,
           outputIsUntrusted: true,
-          modelUnloadedAfterRequest: true,
+          modelUnloadRequested: true,
           evaluatedTokens: Number.isSafeInteger(result.eval_count)
             ? Math.min(result.eval_count, 1000000)
             : null,
