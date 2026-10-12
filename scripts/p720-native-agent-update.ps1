@@ -24,6 +24,8 @@ $allowedOrigins = @(
 $oldStopped = $false
 $newPid = $null
 $oldPid = $null
+$initialHead = $null
+$initialStatus = $null
 $exitCode = 2
 
 function Git([string[]]$GitArgs) {
@@ -40,7 +42,7 @@ function ScopedAgents {
             $_.CommandLine -match '\bagent\b'
         })
     if ($items.Count -gt 1) { throw 'MULTIPLE_SCOPED_AGENTS' }
-    return ,$items
+    return $items
 }
 function AssertIdle {
     foreach ($area in @('jobs', 'autopilot')) {
@@ -59,7 +61,8 @@ function AssertIdle {
             } catch {
                 throw 'JOURNAL_CORRUPT'
             }
-            if ([string]$journal.state -in @('running', 'queued')) {
+            if ([string]$journal.state -eq 'running' -or
+                ($area -eq 'jobs' -and [string]$journal.state -eq 'queued')) {
                 throw 'ACTIVE_WORK_REQUIRES_DRAIN'
             }
         }
@@ -187,8 +190,9 @@ try {
         throw 'LIVE_CHECKOUT_HEAD_CHANGED'
     }
     AssertIdle
-    if (@(ScopedAgents).Count -ne 1 -or
-        [int](ScopedAgents)[0].ProcessId -ne $oldPid) {
+    $stillRunning = @(ScopedAgents)
+    if ($stillRunning.Count -ne 1 -or
+        [int]$stillRunning[0].ProcessId -ne $oldPid) {
         throw 'SCOPED_AGENT_CHANGED_DURING_STAGING'
     }
     if ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -cne
