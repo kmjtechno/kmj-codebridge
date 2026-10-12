@@ -165,8 +165,21 @@ export async function benchmarkTarget(target, request = localJson) {
     } catch {
       // No VRAM observation is not evidence of absent GPU use.
     }
-    const measured =
-      cold.totalMs !== null && warm.totalMs !== null && cold.totalMs > 0;
+    // Total latency alone can be present even when Ollama provides no
+    // generation telemetry. Refuse to claim measured performance unless
+    // all three stages have complete positive duration/token counters.
+    const measured = [cold, priming, warm].every(
+      (row) =>
+        row.totalMs !== null &&
+        row.totalMs > 0 &&
+        row.loadMs !== null &&
+        row.evalMs !== null &&
+        row.evalMs > 0 &&
+        row.generatedTokens !== null &&
+        row.generatedTokens > 0 &&
+        row.tokensPerSecond !== null &&
+        row.tokensPerSecond > 0,
+    );
     const allCodingSmokesPass =
       cold.codingSmokePass && priming.codingSmokePass && warm.codingSmokePass;
     return {
