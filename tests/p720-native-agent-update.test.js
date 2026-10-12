@@ -18,8 +18,14 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   assert.match(source, /'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'/);
   assert.match(source, /'LIVE_CHECKOUT_UNTRUSTED_PATH'/);
   assert.match(source, /'LIVE_CHECKOUT_BYTES_CHANGED'/);
-  assert.match(source, /Get-FileHash -LiteralPath \$fullPath -Algorithm SHA256/);
-  assert.match(source, /\$snapshot\.ModifiedCount -gt 0 -and !\$AllowTrackedDirtyCheckout/);
+  assert.match(
+    source,
+    /Get-FileHash -LiteralPath \$fullPath -Algorithm SHA256/,
+  );
+  assert.match(
+    source,
+    /\$snapshot\.ModifiedCount -gt 0 -and !\$AllowTrackedDirtyCheckout/,
+  );
   assert.match(source, /AssertCheckoutUnchanged\s+AssertIdle/);
   assert.match(source, /merge-base --is-ancestor \$TargetSha \$remote/);
   assert.match(source, /merge-base --is-ancestor \$initialHead \$TargetSha/);
@@ -65,7 +71,10 @@ test("one-click native launch requires pinned known reviewed SHA and sibling scr
   assert.match(source, /-NoProfile -NonInteractive/);
   assert.match(source, /CODEBRIDGE_UPDATE_EXIT/);
   assert.match(source, /-AllowTrackedDirtyCheckout/);
-  assert.match(source, /Tracked-only unstaged edits are fingerprinted and preserved/);
+  assert.match(
+    source,
+    /Tracked-only unstaged edits are fingerprinted and preserved/,
+  );
   assert.doesNotMatch(
     source,
     /git\s+reset|curl|ollama pull|npm install|sc\.exe/i,
