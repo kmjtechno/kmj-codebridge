@@ -181,8 +181,11 @@ test("after lease expiry, the new holder's claim invalidates the old holder's to
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-autopilot-expiry-"));
   const root = path.join(base, "project");
   fs.mkdirSync(root);
+  // AutopilotJournal clamps leaseMs to a 60 s minimum, so the clock must
+  // advance past that floor (not the raw value passed in) for expiry.
+  const leaseMs = 60 * 1000;
   const journal = new AutopilotJournal(path.join(base, "autopilot"), {
-    leaseMs: 1000,
+    leaseMs,
     now: () => 1_000_000,
   });
   const runner = new JobRunner(path.join(base, "jobs"));
@@ -209,7 +212,7 @@ test("after lease expiry, the new holder's claim invalidates the old holder's to
   const chatA = await expiryDispatch("autopilot_claim", scope, permissions);
   assert.equal(chatA.id, task.id);
 
-  journal.now = () => 1_000_000 + 2000; // past the 1 s lease
+  journal.now = () => 1_000_000 + leaseMs + 1000; // past the clamped lease
   const chatB = await expiryDispatch("autopilot_claim", scope, permissions);
   assert.equal(chatB.id, task.id, "the expired task is reclaimable");
   assert.notEqual(chatB.leaseToken, chatA.leaseToken);
