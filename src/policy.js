@@ -10,8 +10,59 @@ import {
 } from "./repo-intelligence.js";
 export const MAX_FILE_BYTES = 262144;
 export const hash = (text) => createHash("sha256").update(text).digest("hex");
-const denied =
-  /(^\.env($|\.)|^\.git$|^\.ssh$|^\.aws$|^\.azure$|^\.kube$|^\.npmrc$|^\.netrc$|^id_(rsa|ed25519)|credential|secret|token|\.(pem|key|p12|pfx|keystore)$)/i;
+// Always-protected names: dotfile credential stores, SSH identities and key
+// material, whatever the rest of the name says.
+const deniedAlways =
+  /(^\.env($|\.)|^\.git$|^\.ssh$|^\.aws$|^\.azure$|^\.kube$|^\.npmrc$|^\.netrc$|^id_(rsa|ed25519)|\.(pem|key|p12|pfx|keystore)$)/i;
+// A credential-like word remains protected even in a source-code extension.
+// Only narrowly reviewed source identifiers with known non-credential meaning
+// are exempt. Never infer that .ts, .js, .py or other extensions mean a file
+// is safe: githubtoken.ts and credentialStore.js can still hold credentials.
+// Filename-based protection is defense-in-depth, not a secret-content proof.
+const sensitiveWord = /credential|secret|token/i;
+const sensitiveSegment = /^(credentials?|secrets?|tokens?)$/i;
+const safeSourceIdentifiers =
+  /^(?:tst_)?designtokens?$|^tokeniz(?:er|ers|ation|ations|ing)$|^secretmanagerclient$/i;
+const safeSourceExtensions = new Set([
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cxx",
+  ".h",
+  ".hh",
+  ".hpp",
+  ".hxx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".py",
+  ".rs",
+  ".go",
+  ".java",
+  ".kt",
+  ".cs",
+  ".swift",
+  ".rb",
+  ".php",
+  ".css",
+  ".scss",
+  ".qml",
+]);
+export function isDeniedName(name) {
+  if (deniedAlways.test(name)) return true;
+  if (!sensitiveWord.test(name)) return false;
+  if (name.split(/[._\- ]+/).some((part) => sensitiveSegment.test(part)))
+    return true;
+  const extension = path.extname(name).toLowerCase();
+  const stem = name.slice(0, name.length - extension.length);
+  return !(
+    safeSourceExtensions.has(extension) && safeSourceIdentifiers.test(stem)
+  );
+}
+const denied = { test: isDeniedName };
 const skipped = new Set([
   "node_modules",
   "vendor",
