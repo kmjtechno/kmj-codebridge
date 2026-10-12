@@ -25,6 +25,24 @@ import {
   compactStatusText,
 } from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
+
+// Render sets RENDER_GIT_COMMIT on every deployed service to the exact commit
+// SHA it built and is running. It is not a secret - the same SHA is already
+// public in this repository's own Git history - but it IS attacker-shaped
+// text in a process environment, so it is validated as a real Git SHA before
+// ever reaching a response. Exposing it closes a real gap behind issue #274:
+// a stale Render deploy can silently keep serving old readiness behavior
+// while /healthz still reports the same unchanged package.json version,
+// because the version string is only bumped by hand and not on every fix.
+// A deployed commit lets callers (and the hosted-smoke workflow) tell "still
+// not ready" apart from "not ready because this instance predates the fix"
+// without needing any credential, log or private endpoint.
+const GIT_SHA = /^[0-9a-f]{7,40}$/;
+function deployedCommit() {
+  const value = process.env.RENDER_GIT_COMMIT;
+  return typeof value === "string" && GIT_SHA.test(value) ? value : null;
+}
+
 function identify(req, records) {
   const raw = req.headers.authorization;
   if (
@@ -617,6 +635,7 @@ export async function startGateway(rawConfig) {
         // One status read triggers at most one coalesced background refresh;
         // githubReadiness carries only fixed codes, never secrets or URLs.
         const githubReadiness = probeGitHub.status();
+        const commit = deployedCommit();
         json(res, 200, {
           status: "ok",
           version: VERSION,
@@ -625,6 +644,7 @@ export async function startGateway(rawConfig) {
             githubReady: githubReadiness.state === "ready",
           },
           githubReadiness,
+          ...(commit !== null ? { commit } : {}),
         });
         return;
       }

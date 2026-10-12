@@ -69,6 +69,20 @@ jobs:
             githubReadinessState: state,
             githubReadinessError: error,
           }));
+          // package.json "version" is bumped by hand, not on every fix, so a
+          // matching version never proves the live instance has the latest
+          // commit (issue #274 shipped a fix that landed with no version
+          // bump). The deployed commit SHA is an exact, unspoofable signal:
+          // on a free Render tier a deploy can legitimately lag a push by a
+          // few minutes, so this is a visible warning, not a hard failure.
+          const deployedCommit = typeof payload.commit === 'string' &&
+            /^[0-9a-f]{7,40}$/.test(payload.commit) ? payload.commit : null;
+          const pushedSha = process.env.GITHUB_SHA ?? '';
+          if (deployedCommit === null) {
+            console.log('::notice title=Hosted gateway commit unknown::healthz did not report RENDER_GIT_COMMIT (expected on a non-Render deploy; otherwise the deployed build predates this field).');
+          } else if (pushedSha && !pushedSha.startsWith(deployedCommit) && !deployedCommit.startsWith(pushedSha.slice(0, deployedCommit.length))) {
+            console.log(`::warning title=Hosted gateway may be stale::Deployed commit ${deployedCommit} does not match the current main SHA ${pushedSha}. If this persists across runs, the Render deploy is not picking up pushes.`);
+          }
           NODE
               then
                 ok=1

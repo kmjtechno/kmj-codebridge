@@ -20,6 +20,15 @@ test("hosted acceptance separates Render and production-origin failures", () => 
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
 });
 
+test("Render gateway freshness is checked against the deployed commit, not just the hand-bumped version (issue #274)", () => {
+  assert.ok(render);
+  assert.match(render, /payload\.commit/);
+  assert.match(render, /GITHUB_SHA/);
+  assert.match(render, /Hosted gateway may be stale/);
+  // A lagging free-tier deploy is a warning, never a hard CI failure.
+  assert.doesNotMatch(render, /throw new Error\(`Deployed commit/);
+});
+
 test("production OAuth still fails closed on missing discovery or scoped 401", () => {
   assert.ok(production);
   assert.match(production, /oauth-authorization-server/);

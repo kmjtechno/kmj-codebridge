@@ -203,6 +203,52 @@ test("hosted config binds platform port and all interfaces", () => {
   assert.equal(parsed.host, "0.0.0.0");
   assert.deepEqual(parsed.allowedHosts, ["bridge.example"]);
 });
+test("hosted health exposes a validated RENDER_GIT_COMMIT so a stale deploy is never silently invisible (issue #274)", async (t) => {
+  const previous = process.env.RENDER_GIT_COMMIT;
+  t.after(() => {
+    if (previous === undefined) delete process.env.RENDER_GIT_COMMIT;
+    else process.env.RENDER_GIT_COMMIT = previous;
+  });
+
+  delete process.env.RENDER_GIT_COMMIT;
+  const noCommit = await startHostedGateway(JSON.stringify(config), "0");
+  try {
+    const url = noCommit.url.replace("0.0.0.0", "127.0.0.1");
+    const health = await httpRequest(url + "/healthz", {
+      headers: { host: "bridge.example" },
+    });
+    const body = JSON.parse(health.body);
+    assert.equal(Object.hasOwn(body, "commit"), false);
+  } finally {
+    await noCommit.close();
+  }
+
+  // Render-provided, but malformed: never echoed into a public response.
+  process.env.RENDER_GIT_COMMIT = "'; DROP TABLE users; --";
+  const malformed = await startHostedGateway(JSON.stringify(config), "0");
+  try {
+    const url = malformed.url.replace("0.0.0.0", "127.0.0.1");
+    const health = await httpRequest(url + "/healthz", {
+      headers: { host: "bridge.example" },
+    });
+    assert.equal(Object.hasOwn(JSON.parse(health.body), "commit"), false);
+  } finally {
+    await malformed.close();
+  }
+
+  process.env.RENDER_GIT_COMMIT = "a".repeat(40);
+  const withCommit = await startHostedGateway(JSON.stringify(config), "0");
+  try {
+    const url = withCommit.url.replace("0.0.0.0", "127.0.0.1");
+    const health = await httpRequest(url + "/healthz", {
+      headers: { host: "bridge.example" },
+    });
+    assert.equal(JSON.parse(health.body).commit, "a".repeat(40));
+  } finally {
+    await withCommit.close();
+  }
+});
+
 test("hosted gateway serves the OpenAI domain challenge and protects MCP", async () => {
   const gateway = await startHostedGateway(JSON.stringify(config), "0");
   const url = gateway.url.replace("0.0.0.0", "127.0.0.1");
