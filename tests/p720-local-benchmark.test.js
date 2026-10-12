@@ -47,9 +47,9 @@ test("offline P720 cold versus warm benchmark reports actual Ollama counters", a
   const generate = calls.filter((call) => call.endpoint === "/api/generate");
   assert.deepEqual(
     generate.map((call) => call.payload.keep_alive),
-    [0, 0, "30s", "30s", 0],
+    [0, "30s", "30s", 0],
   );
-  assert.ok(generate.slice(1, 4).every((call) => call.payload.think === false));
+  assert.ok(generate.slice(0, 3).every((call) => call.payload.think === false));
   assert.ok(generate.every((call) => call.port === 11436));
   assert.equal(generate.at(-1).payload.prompt, "");
 });
@@ -70,6 +70,51 @@ test("absent model does not request generation or unloading", async () => {
     optional: true,
   });
   assert.deepEqual(calls, [{ port: 11434, endpoint: "/api/tags" }]);
+});
+
+test("cold benchmark cannot evict a preloaded model belonging to Claude", async () => {
+  const calls = [];
+  const result = await benchmarkTarget(
+    { port: 11435, model: "qwen2.5-coder:7b" },
+    async (_port, endpoint, body) => {
+      calls.push({ endpoint, body });
+      if (endpoint === "/api/tags")
+        return { models: [{ name: "qwen2.5-coder:7b" }] };
+      if (endpoint === "/api/ps")
+        return { models: [{ name: "qwen2.5-coder:7b", size_vram: 4600000000 }] };
+      throw Error("UNEXPECTED_GENERATE_OR_EVICTION");
+    },
+  );
+  assert.deepEqual(result, {
+    model: "qwen2.5-coder:7b",
+    port: 11435,
+    state: "BLOCKED",
+    error: "BENCH_OTHER_WORKLOAD_ACTIVE",
+  });
+  assert.deepEqual(
+    calls.map((call) => call.endpoint),
+    ["/api/tags", "/api/ps"],
+  );
+});
+
+test("uncertain baseline never requests generation or unload", async () => {
+  const calls = [];
+  const result = await benchmarkTarget(
+    { port: 11436, model: "qwen3:4b" },
+    async (_port, endpoint, body) => {
+      calls.push({ endpoint, body });
+      if (endpoint === "/api/tags")
+        return { models: [{ name: "qwen3:4b" }] };
+      if (endpoint === "/api/ps") return { unexpected: true };
+      throw Error("UNEXPECTED_GENERATE_OR_EVICTION");
+    },
+  );
+  assert.equal(result.state, "BLOCKED");
+  assert.equal(result.error, "BENCH_BASELINE_UNAVAILABLE");
+  assert.deepEqual(
+    calls.map((call) => call.endpoint),
+    ["/api/tags", "/api/ps"],
+  );
 });
 
 test("failed or thinking-only model output is never a reported speed gain", async () => {
