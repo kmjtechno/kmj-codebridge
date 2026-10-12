@@ -62,9 +62,7 @@ export function inspectP720PhysicalGpu({
             index: Number(index),
             name,
             driver,
-            memoryMiB: /^\d{1,7}$/.test(memoryMiB)
-              ? Number(memoryMiB)
-              : null,
+            memoryMiB: /^\d{1,7}$/.test(memoryMiB) ? Number(memoryMiB) : null,
             utilizationPercent: /^\d{1,3}$/.test(utilizationPercent)
               ? Math.min(100, Number(utilizationPercent))
               : null,
