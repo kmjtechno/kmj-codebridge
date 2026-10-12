@@ -87,3 +87,13 @@ test("bounded fleet summary distinguishes project grants from actual capacity", 
   assert.equal(summary.noJobsStarted, true);
   assert.equal(summary.wholeProjectCompletionPercent, null);
 });
+
+test("two granted projects on one device cannot double-count one signed slot", () => {
+  const lanes = [
+    fleetLane("same-device", "project-a", "READY", ap, capacity),
+    fleetLane("same-device", "project-b", "READY", ap, capacity),
+  ];
+  const summary = fleetSummary(lanes, 2);
+  assert.equal(summary.ready, 2);
+  assert.equal(summary.actualAvailableJobSlots, 1);
+});
