@@ -68,16 +68,33 @@ function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
 // Fixed loopback-only ports verified on KMJ P720 plus the standard Ollama port.
 // Explicit ports are accepted only by the locally configured agent factory
 // (not supplied by an arbitrary MCP chat/tool invocation).
+// Only bounded daemon-reported counters enter diagnostic output.
+function nanosToMs(value) {
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.round(value / 1000000)
+    : null;
+}
+function boundedTokenCount(value) {
+  return Number.isSafeInteger(value) && value >= 0
+    ? Math.min(value, 1000000)
+    : null;
+}
+
 const DEFAULT_PORTS = Object.freeze([11434, 11435, 11436]);
 
 export function createLocalModelClient(options = {}) {
   // Opt-in, owner-local warm retention avoids paying cold model-load cost
   // between nearby requests. Default 0 preserves low idle VRAM usage.
+  const envWarmSeconds = process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS;
+  // Do not silently treat blank/decimal/space-padded environment values as 0.
+  // Only the local device owner can configure this; MCP callers cannot.
   const warmSeconds =
     options.warmSeconds ??
-    (process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS === undefined
+    (envWarmSeconds === undefined
       ? 0
-      : Number(process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS));
+      : /^\d{1,2}$/.test(envWarmSeconds)
+        ? Number(envWarmSeconds)
+        : NaN);
   if (
     !Number.isInteger(warmSeconds) ||
     warmSeconds < 0 ||
@@ -210,6 +227,26 @@ export function createLocalModelClient(options = {}) {
           evaluatedTokens: Number.isSafeInteger(result.eval_count)
             ? Math.min(result.eval_count, 1000000)
             : null,
+          // Ollama's nanosecond counters are measured by the local daemon,
+          // rather than synthetic server timing. Missing/invalid counters are
+          // reported as null, never guessed or called a speed improvement.
+          timing: {
+            totalMs: nanosToMs(result.total_duration),
+            loadMs: nanosToMs(result.load_duration),
+            promptMs: nanosToMs(result.prompt_eval_duration),
+            generationMs: nanosToMs(result.eval_duration),
+            promptTokens: boundedTokenCount(result.prompt_eval_count),
+            generationTokens: boundedTokenCount(result.eval_count),
+            generationTokensPerSecond:
+              Number.isSafeInteger(result.eval_count) &&
+              result.eval_count >= 0 &&
+              Number.isSafeInteger(result.eval_duration) &&
+              result.eval_duration > 0
+                ? Number(
+                    ((result.eval_count * 1000000000) / result.eval_duration).toFixed(2),
+                  )
+                : null,
+          },
         };
       } finally {
         busy = false;
