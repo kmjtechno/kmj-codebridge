@@ -511,14 +511,21 @@ export async function startGateway(rawConfig) {
       ["autopilot_status", { ...scope, limit: 1 }],
       ["execution_capacity", scope],
     ];
-    const parts = await Promise.all(requests.map(async ([name, input]) => {
-      try {
-        return decodeForwardedResult(await forward(user, name, input));
-      } catch (error) {
-        return { ok: false, error: publicError(error).error };
-      }
-    }));
-    return compactWorkBrief({ ...scope, git: parts[0], autopilot: parts[1], capacity: parts[2] });
+    const parts = await Promise.all(
+      requests.map(async ([name, input]) => {
+        try {
+          return decodeForwardedResult(await forward(user, name, input));
+        } catch (error) {
+          return { ok: false, error: publicError(error).error };
+        }
+      }),
+    );
+    return compactWorkBrief({
+      ...scope,
+      git: parts[0],
+      autopilot: parts[1],
+      capacity: parts[2],
+    });
   }
 
   const fastReadTools = new Set(FAST_READ_TOOLS);
@@ -1133,7 +1140,8 @@ export async function startGateway(rawConfig) {
         {
           title: "KMJ TECHNO Project Status",
           mimeType: "text/html;profile=mcp-app",
-          description: "Lightweight branded status display, zero remote scripts.",
+          description:
+            "Lightweight branded status display, zero remote scripts.",
         },
         async (uri) => ({
           contents: [
