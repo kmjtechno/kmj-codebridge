@@ -72,7 +72,10 @@ test("native updater accepts the original approved pairing gateway slash without
   );
   assert.match(pairing, /gateway = \$gateway\.TrimEnd\('\/'\) \+ '\/'/);
   assert.match(source, /function AssertApprovedGateway/);
-  assert.match(source, /\$value -cnotin @\(\$expectedGateway, \(\$expectedGateway \+ '\/'\)\)/);
+  assert.match(
+    source,
+    /\$value -cnotin @\(\$expectedGateway, \(\$expectedGateway \+ '\/'\)\)/,
+  );
   assert.match(source, /AssertApprovedGateway \(\[string\]\$cfg\.gateway\)/);
   assert.match(source, /'AGENT_GATEWAY_NOT_APPROVED'/);
   assert.match(source, /@\(\$cfg\.projects\)\.Count -ne 1/);
