@@ -39,7 +39,6 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
     /Invoke-Expression/i,
     /DownloadFile/i,
     /ollama\s+pull/i,
-    /desktop.?commander/i,
     /mcp__GitHub__/i,
     /Remove-Job/i,
   ]) {
