@@ -105,3 +105,19 @@ test("journal persistence rejects path-like IDs before creating any file", async
   assert.throws(() => runner.persist(record("../outside")), /CORRUPT_JOURNAL/);
   assert.equal(fs.existsSync(path.join(root, "..", "outside.json")), false);
 });
+
+test("restart refuses two jobs with the same project and idempotency key", async (t) => {
+  const { root, runner } = fixture(t);
+  const first = record("first-id");
+  const second = { ...record("second-id"), fingerprint: "a".repeat(64) };
+  runner.persist(first);
+  runner.persist(second);
+  assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
+});
+
+test("restart refuses a malformed idempotency key before accepting a job", async (t) => {
+  const { root, runner } = fixture(t);
+  const invalid = { ...record("bad-key-id"), key: "" };
+  runner.persist(invalid);
+  assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
+});
