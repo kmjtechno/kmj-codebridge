@@ -18,9 +18,22 @@ $initialStatus = $null
 $exitCode = 2
 
 function Invoke-TrustedGit([string[]]$GitArguments) {
-    $output = & git.exe -C $repo @GitArguments 2>&1
-    if ($LASTEXITCODE -ne 0) { throw 'GIT_PREFLIGHT_OR_COMMAND_FAILED' }
-    return $output
+    # PowerShell 5.1 may promote successful Git stderr progress into a
+    # terminating error under Stop (especially fetch and worktree add).
+    # Keep exact numeric Git exit verification and never return stderr as
+    # a revision string, path, SHA or benchmark provenance.
+    $previousPreference = $ErrorActionPreference
+    $output = $null
+    $gitExitCode = -1
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = & git.exe -C $repo @GitArguments 2>&1
+        $gitExitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    if ($gitExitCode -ne 0) { throw 'GIT_PREFLIGHT_OR_COMMAND_FAILED' }
+    return $output | Where-Object { $_ -is [string] }
 }
 
 try {
@@ -42,13 +55,13 @@ try {
     if (Test-Path -LiteralPath $worktree) { throw 'BENCH_WORKTREE_ALREADY_EXISTS' }
 
     # Fetch objects and FETCH_HEAD only; never fast-forward the live checkout.
-    Invoke-TrustedGit -GitArguments @('fetch', '--no-tags', 'origin', 'main') | Out-Null
+    Invoke-TrustedGit -GitArguments @('fetch', '--quiet', '--no-tags', 'origin', 'main') | Out-Null
     $remoteHead = [string]((Invoke-TrustedGit -GitArguments @('rev-parse', '--verify', 'FETCH_HEAD')) | Select-Object -First 1)
     & $git.Source -C $repo merge-base --is-ancestor $pinned $remoteHead 2>$null
     if ($LASTEXITCODE -ne 0) { throw 'PINNED_SHA_NOT_IN_TRUSTED_MAIN' }
 
     New-Item -ItemType Directory -Path $benchRoot -Force | Out-Null
-    Invoke-TrustedGit -GitArguments @('worktree', 'add', '--detach', $worktree, $pinned) | Out-Null
+    Invoke-TrustedGit -GitArguments @('worktree', 'add', '--quiet', '--detach', $worktree, $pinned) | Out-Null
     $created = $true
     Write-Host ('SOURCE_EXACT_SHA=' + $pinned)
     Write-Host 'SOURCE_ISOLATED=YES'
