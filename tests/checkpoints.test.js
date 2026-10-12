@@ -111,7 +111,14 @@ test("checkpoint rejects stale hashes, reuse conflicts, known secrets and protec
   if (tryFileSymlink(t, "README.md", path.join(root, "shortcut"))) {
     assert.throws(
       () =>
-        store.create("p1", "link", "shortcut", source.sha256, files, () => true),
+        store.create(
+          "p1",
+          "link",
+          "shortcut",
+          source.sha256,
+          files,
+          () => true,
+        ),
       /SYMLINK_DENIED/,
     );
   }
