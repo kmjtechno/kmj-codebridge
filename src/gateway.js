@@ -614,14 +614,17 @@ export async function startGateway(rawConfig) {
         return;
       }
       if (req.url === "/healthz" && req.method === "GET") {
-        const githubReady = probeGitHub();
+        // One status read triggers at most one coalesced background refresh;
+        // githubReadiness carries only fixed codes, never secrets or URLs.
+        const githubReadiness = probeGitHub.status();
         json(res, 200, {
           status: "ok",
           version: VERSION,
           capabilities: {
             github: Boolean(githubDispatch),
-            githubReady,
+            githubReady: githubReadiness.state === "ready",
           },
+          githubReadiness,
         });
         return;
       }

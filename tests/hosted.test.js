@@ -154,6 +154,7 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
       status: "ok",
       version: VERSION,
       capabilities: { github: true, githubReady: false },
+      githubReadiness: { state: "checking", checking: true },
     });
     // Liveness must not wait for the optional GitHub dependency. Once its
     // coalesced background probe finishes, readiness may become true.
@@ -162,7 +163,10 @@ test("hosted health proves the configured GitHub bridge can reach an allowed rep
       headers: { host: "bridge.example" },
     });
     assert.equal(confirmed.status, 200);
-    assert.equal(JSON.parse(confirmed.body).capabilities.githubReady, true);
+    const confirmedBody = JSON.parse(confirmed.body);
+    assert.equal(confirmedBody.capabilities.githubReady, true);
+    assert.equal(confirmedBody.githubReadiness.state, "ready");
+    assert.equal(confirmedBody.githubReadiness.error, undefined);
   } finally {
     await gateway.close();
   }
@@ -211,6 +215,7 @@ test("hosted gateway serves the OpenAI domain challenge and protects MCP", async
       status: "ok",
       version: VERSION,
       capabilities: { github: false, githubReady: false },
+      githubReadiness: { state: "disabled" },
     });
     const challenge = await httpRequest(
       url + "/.well-known/openai-apps-challenge",
