@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { JobRunner } from "../src/jobs.js";
@@ -57,9 +58,10 @@ test("symlinked and hardlinked journals are rejected", (t) => {
     outside,
     JSON.stringify({ id: "linked", project: "p1", state: "succeeded" }),
   );
-  fs.symlinkSync(outside, path.join(root, "linked.json"));
-  assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
-  fs.unlinkSync(path.join(root, "linked.json"));
+  if (tryFileSymlink(t, outside, path.join(root, "linked.json"))) {
+    assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
+    fs.unlinkSync(path.join(root, "linked.json"));
+  }
   fs.linkSync(outside, path.join(root, "linked.json"));
   assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
 });
