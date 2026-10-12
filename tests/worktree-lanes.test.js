@@ -33,6 +33,7 @@ function fixture(t) {
   git(repo, "init", "-q");
   git(repo, "config", "user.name", "KMJ Test");
   git(repo, "config", "user.email", "test@example.invalid");
+  git(repo, "config", "core.autocrlf", "false");
   fs.writeFileSync(path.join(repo, "README.md"), "original\n");
   git(repo, "add", "README.md");
   git(repo, "commit", "-qm", "initial");
