@@ -2068,7 +2068,7 @@ export function createDispatcher(
       return p.files.preview(a.path, a.content, a.expectedHash);
     if (name === "write_file") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
-      lanes().assertWritable(p.id, [a.path], a.leaseToken);
+      if (laneStateDir) lanes().assertWritable(p.id, [a.path], a.leaseToken);
       if (a.expectedHash !== null) {
         const before = p.files.read(a.path);
         if (!preservesSensitiveBindings(before.content, a.content))
@@ -2078,7 +2078,7 @@ export function createDispatcher(
     }
     if (name === "edit_file") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
-      lanes().assertWritable(p.id, [a.path], a.leaseToken);
+      if (laneStateDir) lanes().assertWritable(p.id, [a.path], a.leaseToken);
       const before = p.files.read(a.path);
       if (before.sha256 !== a.expectedHash) fail("CONTENT_CONFLICT");
       const first = before.content.indexOf(a.oldText);
@@ -2095,11 +2095,12 @@ export function createDispatcher(
     }
     if (name === "write_files_atomic") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
-      lanes().assertWritable(
-        p.id,
-        a.changes.map((change) => change.path),
-        a.leaseToken,
-      );
+      if (laneStateDir)
+        lanes().assertWritable(
+          p.id,
+          a.changes.map((change) => change.path),
+          a.leaseToken,
+        );
       for (const change of a.changes) {
         if (change.expectedHash === null) continue;
         const before = p.files.read(change.path);
