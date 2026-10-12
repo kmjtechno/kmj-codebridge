@@ -95,17 +95,17 @@ The workflow is deliberately simple:
    approval. It records a **review-only proposal**; it does not apply patches,
    run arbitrary shell commands or deploy on its own.
 
-| On-device example | Suitable role | Verified P720 readiness sample |
-| --- | --- | --- |
-| `qwen3:4b` | Short, latency-sensitive bounded drafts | 53.01 generated tokens/s |
-| `qwen2.5-coder:7b` | Coding-focused bounded drafts | 33.57 generated tokens/s |
+| On-device example  | Suitable role                           | Verified P720 readiness sample |
+| ------------------ | --------------------------------------- | ------------------------------ |
+| `qwen3:4b`         | Short, latency-sensitive bounded drafts | 53.01 generated tokens/s       |
+| `qwen2.5-coder:7b` | Coding-focused bounded drafts           | 33.57 generated tokens/s       |
 
 These are **single P720 readiness measurements** (48 evaluation tokens per
 model), not sustained coding throughput, cold/warm gains, model rankings, or
 promises for other hardware. The tested agents reported GPU-offload counters,
 but these alone do not identify the physical GPU.
 
-**Privacy and cost boundary:** CodeBridge's *local inference* has no paid/cloud
+**Privacy and cost boundary:** CodeBridge's _local inference_ has no paid/cloud
 provider fallback; that does not mean the ChatGPT or Claude client itself runs
 locally. Using those hosted clients may involve their normal provider
 processing and subscription terms. On-device inference consumes local CPU,
