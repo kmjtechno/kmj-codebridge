@@ -1,0 +1,27 @@
+name: Temporary Multi Chat Prettier Capture
+on:
+  push:
+    branches:
+      - feat/multi-chat-safe-lanes-20261012
+permissions:
+  contents: read
+jobs:
+  formatting:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: |
+          npx prettier --write src/chat-lanes.js src/tools.js tests/chat-lanes.test.js docs/MULTI-CHAT-LANES.md
+          node --input-type=module -e '
+          import fs from "node:fs";
+          for (const f of ["src/chat-lanes.js", "src/tools.js", "tests/chat-lanes.test.js", "docs/MULTI-CHAT-LANES.md"]) {
+            process.stdout.write("KMJ_FORMAT_START " + f + "\n");
+            process.stdout.write(fs.readFileSync(f).toString("base64") + "\n");
+            process.stdout.write("KMJ_FORMAT_END " + f + "\n");
+          }'
