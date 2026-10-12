@@ -18,7 +18,7 @@ function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
         method: payload === null ? "GET" : "POST",
         path: endpoint,
         timeout: timeoutMs,
-      signal: AbortSignal.timeout(timeoutMs),
+        signal: AbortSignal.timeout(timeoutMs),
         headers:
           payload === null
             ? { accept: "application/json" }
