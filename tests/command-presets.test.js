@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { agentSchema } from "../src/config.js";
+import { execFileSync, spawnSync } from "node:child_process";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   COMMAND_PRESET_IDS,
   expandCommandPresets,
@@ -157,4 +161,58 @@ test("CMake profiles require explicit project opt-in and never advertise install
     }
   }
   assert.equal(enabled.commands.cmake_build.variants.deploy, undefined);
+});
+
+test("opt-in CMake profiles run actual isolated configure, build and CTest", (t) => {
+  for (const executable of ["cmake", "ctest"]) {
+    const probe = spawnSync(executable, ["--version"], {
+      shell: false,
+      timeout: 10000,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    if (probe.error || probe.status !== 0) {
+      t.skip("CMAKE_OR_CTEST_NOT_INSTALLED");
+      return;
+    }
+  }
+
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-cmake-profile-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  fs.writeFileSync(
+    path.join(root, "CMakeLists.txt"),
+    [
+      "cmake_minimum_required(VERSION 3.20)",
+      "project(KMJProfileSmoke LANGUAGES NONE)",
+      "enable_testing()",
+      "add_custom_target(kmj_smoke ALL",
+      "  COMMAND ${CMAKE_COMMAND} -E echo KMJ_BUILD_PASS)",
+      "add_test(NAME kmj_sanity",
+      "  COMMAND ${CMAKE_COMMAND} -E echo KMJ_TEST_PASS)",
+    ].join("\n"),
+  );
+
+  const commands = agentSchema.parse({
+    ...base,
+    projects: [{ ...base.projects[0], commandPresets: ["cmake-standard"] }],
+  }).projects[0].commands;
+  for (const [profile, variant] of [
+    ["cmake_configure", "default"],
+    ["cmake_build", "release"],
+    ["cmake_test", "release"],
+  ]) {
+    const configured = commands[profile];
+    const spec = configured.variants[variant];
+    const stdout = execFileSync(configured.command, spec.args, {
+      cwd: root,
+      shell: false,
+      timeout: Math.min(spec.timeoutMs, 120000),
+      windowsHide: true,
+      encoding: "utf8",
+    });
+    if (profile === "cmake_test") {
+      assert.match(stdout, /100% tests passed/i);
+      assert.match(stdout, /kmj_sanity/);
+    }
+  }
 });
