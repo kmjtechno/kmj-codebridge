@@ -101,11 +101,13 @@ export function inferenceRecord(value) {
 
 export async function benchmarkTarget(target, request = localJson) {
   const { port, model } = target;
+  let installed = false;
   try {
     const tags = await request(port, "/api/tags");
     if (!Array.isArray(tags?.models) ||
         !tags.models.some((entry) => entry?.name === model || entry?.model === model))
       return { model, port, state: "NOT_INSTALLED", optional: !!target.optional };
+    installed = true;
 
     // Cold request explicitly asks Ollama to release the model afterward.
     // Warm priming and warm repeat are back-to-back within a 30s bounded TTL.
@@ -157,12 +159,14 @@ export async function benchmarkTarget(target, request = localJson) {
   } finally {
     // Always request unload at the end, including failures. Never report
     // actual memory reclamation unless separately observed.
-    try {
-      await request(port, "/api/generate", {
-        model, prompt: "", stream: false, keep_alive: 0,
-      }, 10000);
-    } catch {
-      // Best effort, never hide the benchmark's own outcome.
+    if (installed) {
+      try {
+        await request(port, "/api/generate", {
+          model, prompt: "", stream: false, keep_alive: 0,
+        }, 10000);
+      } catch {
+        // Best effort, never hide the benchmark's own outcome.
+      }
     }
   }
 }
