@@ -175,6 +175,7 @@ test("benchmark never calls unverified timing or incorrect code a success", asyn
   assert.equal(call, 3);
   assert.equal(result.state, "INVALID_CODING_OUTPUT");
   assert.equal(result.allCodingSmokesPass, false);
+  assert.equal(result.warmLatencyChangePercent, null);
 
   const missingTiming = await benchmarkTarget(
     { port: 11435, model: "qwen2.5-coder:7b" },
@@ -188,6 +189,52 @@ test("benchmark never calls unverified timing or incorrect code a success", asyn
   );
   assert.equal(missingTiming.state, "INCOMPLETE_TIMING");
   assert.equal(missingTiming.warmLatencyChangePercent, null);
+});
+
+test("benchmark never labels absent generation counters as measured speed", async () => {
+  const result = await benchmarkTarget(
+    { port: 11436, model: "qwen3:4b" },
+    async (_port, endpoint, body) => {
+      if (endpoint === "/api/tags") return { models: [{ name: "qwen3:4b" }] };
+      if (endpoint === "/api/ps") return { models: [] };
+      if (body.prompt === "") return { done: true };
+      return {
+        done: true,
+        response: "function add(a, b) { return a + b; }",
+        total_duration: 1400000000,
+        load_duration: 300000000,
+        // Explicitly no eval_duration or eval_count.
+      };
+    },
+  );
+  assert.equal(result.state, "INCOMPLETE_TIMING");
+  assert.equal(result.allCodingSmokesPass, true);
+  assert.equal(result.warmLatencyChangePercent, null);
+  assert.equal(result.cold.tokensPerSecond, null);
+  assert.equal(result.warm.generatedTokens, null);
+});
+
+test("benchmark rejects zero-generation telemetry instead of false speed gains", async () => {
+  const result = await benchmarkTarget(
+    { port: 11435, model: "qwen2.5-coder:7b" },
+    async (_port, endpoint, body) => {
+      if (endpoint === "/api/tags")
+        return { models: [{ name: "qwen2.5-coder:7b" }] };
+      if (endpoint === "/api/ps") return { models: [] };
+      if (body.prompt === "") return { done: true };
+      return {
+        done: true,
+        response: "function add(a, b) { return a + b; }",
+        total_duration: 1800000000,
+        load_duration: 1000000000,
+        eval_count: 0,
+        eval_duration: 100000000,
+      };
+    },
+  );
+  assert.equal(result.state, "INCOMPLETE_TIMING");
+  assert.equal(result.allCodingSmokesPass, true);
+  assert.equal(result.warmLatencyChangePercent, null);
 });
 
 test(
