@@ -143,16 +143,92 @@ test("leases are per project and never touch another project's work", (t) => {
   assert.equal(other.attempts, 1);
 });
 
-test("older clients without tokens keep working", (t) => {
+// A task claimed under lease-aware code must be fenced: a missing token is
+// exactly as unsafe as a stale one (it would let any caller, not just a
+// prior holder, silently act on another holder's claimed work).
+test("a leased task rejects tokenless checkpoint, wait and complete", (t) => {
   const { journal: j } = journal(t);
   j.enqueue({ project: "p1", key: "a", objective: "do a" });
   const claimed = j.claim("p1");
-  j.checkpoint(claimed.id, "p1", { summary: "s", next: "n" });
-  j.wait(claimed.id, "p1", "approval");
+  assert.throws(
+    () => j.checkpoint(claimed.id, "p1", { summary: "s", next: "n" }),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  assert.throws(
+    () => j.wait(claimed.id, "p1", "approval"),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  assert.throws(
+    () => j.complete(claimed.id, "p1", { state: "succeeded", result: "ok" }),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  // The real holder, token in hand, still works end to end.
+  j.checkpoint(claimed.id, "p1", {
+    summary: "s",
+    next: "n",
+    leaseToken: claimed.leaseToken,
+  });
+  j.wait(claimed.id, "p1", "approval", claimed.leaseToken);
   j.resume(claimed.id, "p1");
   const again = j.claim("p1");
+  assert.throws(
+    () => j.complete(again.id, "p1", { state: "succeeded", result: "ok" }),
+    /AUTOPILOT_LEASE_LOST/,
+  );
   assert.equal(
-    j.complete(again.id, "p1", { state: "succeeded", result: "ok" }).state,
+    j.complete(again.id, "p1", {
+      state: "succeeded",
+      result: "ok",
+      leaseToken: again.leaseToken,
+    }).state,
+    "succeeded",
+  );
+});
+
+// Compatibility is for a genuinely legacy task only: one still `running`
+// from before this feature existed, with no `lease` and no `leasedEver`
+// (what a journal loaded from an older binary's state file would contain,
+// before that task is ever touched by lease-aware claim() again).
+test("a genuinely legacy running task (no lease, never claimed under this code) keeps working without a token", (t) => {
+  const { journal: j, clock } = journal(t);
+  const now = new Date(clock.now).toISOString();
+  j.state.tasks.push({
+    id: "legacy-task-1",
+    project: "p1",
+    key: "legacy",
+    objective: "pre-upgrade work",
+    priority: 0,
+    dependsOn: [],
+    fingerprint: "legacy",
+    state: "running",
+    attempts: 1,
+    recoveries: 0,
+    checkpoint: null,
+    lastReason: null,
+    result: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  j.checkpoint("legacy-task-1", "p1", { summary: "s", next: "n" });
+  j.wait("legacy-task-1", "p1", "blocked");
+  j.resume("legacy-task-1", "p1");
+
+  // The moment it is claimed by lease-aware code, it is fenced like any
+  // other task from then on.
+  const reclaimed = j.claim("p1");
+  assert.equal(reclaimed.id, "legacy-task-1");
+  assert.ok(reclaimed.leaseToken);
+  assert.throws(
+    () => j.complete(reclaimed.id, "p1", { state: "succeeded", result: "ok" }),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  assert.equal(
+    j.complete(reclaimed.id, "p1", {
+      state: "succeeded",
+      result: "ok",
+      leaseToken: reclaimed.leaseToken,
+    }).state,
     "succeeded",
   );
 });

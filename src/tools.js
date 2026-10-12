@@ -1263,6 +1263,7 @@ export const definitions = {
       maxTokens: z.number().int().min(32).max(512).default(256),
       timeoutSeconds: z.number().int().min(5).max(90).default(45),
       localProcessingApproved: z.literal(true),
+      leaseToken: z.string().uuid().optional(),
     },
     access: "execute",
   },
@@ -2147,6 +2148,9 @@ export function createDispatcher(
     if (name === "autopilot_local_draft") {
       const task = autopilot.get(a.task, p.id);
       if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
+      // Fail fast on a stale or missing lease, before spending local
+      // inference time on a proposal this caller is not allowed to save.
+      autopilot.assertLease(task, a.leaseToken);
       const existing = task.checkpoint;
       if (existing) {
         if (existing.next !== "LOCAL_DRAFT_AWAITING_REVIEW")
@@ -2182,6 +2186,7 @@ export function createDispatcher(
       const saved = autopilot.checkpoint(a.task, p.id, {
         summary: proposal,
         next: "LOCAL_DRAFT_AWAITING_REVIEW",
+        leaseToken: a.leaseToken,
       });
       return {
         device: config.id,

@@ -45,7 +45,11 @@ test("mission contract persists a dependency-aware DAG and resumes after restart
   assert.equal(mission.tasks[0].key, "inspect");
   const first = journal.claim("p1");
   assert.equal(first.objective, "Inspect current authentication architecture.");
-  journal.complete(first.id, "p1", { state: "succeeded", result: "inspected" });
+  journal.complete(first.id, "p1", {
+    state: "succeeded",
+    result: "inspected",
+    leaseToken: first.leaseToken,
+  });
 
   const reloaded = new AutopilotJournal(root);
   const resumed = reloaded.missionStatus(mission.id, "p1");
@@ -133,7 +137,11 @@ test("mission succeeds only after task success and acceptance evidence", (t) => 
     aiBudget: "maximum_assurance",
   });
   const task = journal.claim("p1");
-  journal.complete(task.id, "p1", { state: "succeeded", result: "green" });
+  journal.complete(task.id, "p1", {
+    state: "succeeded",
+    result: "green",
+    leaseToken: task.leaseToken,
+  });
   assert.equal(
     journal.missionStatus(mission.id, "p1").state,
     "evidence_pending",
@@ -199,8 +207,9 @@ test("waiting task does not block independent queued work", (t) => {
     objective: "continue independently",
     priority: 10,
   });
-  assert.equal(journal.claim("p1").id, blocked.id);
-  journal.wait(blocked.id, "p1", "owner approval required");
+  const claimed = journal.claim("p1");
+  assert.equal(claimed.id, blocked.id);
+  journal.wait(blocked.id, "p1", "owner approval required", claimed.leaseToken);
   assert.equal(journal.claim("p1").key, "ready");
 });
 
@@ -211,10 +220,11 @@ test("restart requeues running task and preserves checkpoint", (t) => {
     key: "resume",
     objective: "long autonomous task",
   });
-  journal.claim("p1");
+  const claimed = journal.claim("p1");
   journal.checkpoint(task.id, "p1", {
     summary: "phase one complete",
     next: "continue phase two",
+    leaseToken: claimed.leaseToken,
   });
 
   const reloaded = new AutopilotJournal(root);
@@ -258,8 +268,13 @@ test("dependency becomes runnable only after success", (t) => {
     priority: 100,
     dependsOn: [parent.id],
   });
-  assert.equal(journal.claim("p1").id, parent.id);
-  journal.complete(parent.id, "p1", { state: "succeeded", result: "done" });
+  const claimedParent = journal.claim("p1");
+  assert.equal(claimedParent.id, parent.id);
+  journal.complete(parent.id, "p1", {
+    state: "succeeded",
+    result: "done",
+    leaseToken: claimedParent.leaseToken,
+  });
   assert.equal(journal.claim("p1").id, child.id);
 });
 
@@ -284,8 +299,12 @@ test("bounded retention prunes only unreferenced terminal history", (t) => {
     key: "old",
     objective: "old completed work",
   });
-  journal.claim("p1");
-  journal.complete(old.id, "p1", { state: "succeeded", result: "done" });
+  const claimedOld = journal.claim("p1");
+  journal.complete(old.id, "p1", {
+    state: "succeeded",
+    result: "done",
+    leaseToken: claimedOld.leaseToken,
+  });
 
   journal.enqueue({
     project: "p1",
@@ -309,8 +328,12 @@ test("rejected enqueue never prunes or mutates existing tasks", (t) => {
   const journal = new AutopilotJournal(root, { maxTasks: 2 });
   for (const key of ["k1", "k2"]) {
     const task = journal.enqueue({ project: "p1", key, objective: "done" });
-    journal.claim("p1");
-    journal.complete(task.id, "p1", { state: "succeeded", result: "ok" });
+    const claimed = journal.claim("p1");
+    journal.complete(task.id, "p1", {
+      state: "succeeded",
+      result: "ok",
+      leaseToken: claimed.leaseToken,
+    });
   }
   const before = journal.state.tasks.length;
   assert.throws(
@@ -341,8 +364,12 @@ test("failed dependency cascades so the journal never deadlocks", (t) => {
     objective: "depends on parent",
     dependsOn: [parent.id],
   });
-  journal.claim("p1");
-  journal.complete(parent.id, "p1", { state: "failed", result: "boom" });
+  const claimedParent = journal.claim("p1");
+  journal.complete(parent.id, "p1", {
+    state: "failed",
+    result: "boom",
+    leaseToken: claimedParent.leaseToken,
+  });
   assert.equal(journal.get(child.id, "p1").state, "failed");
   assert.equal(journal.get(child.id, "p1").lastReason, "dependency_failed");
   for (let i = 0; i < 4; i++) {
@@ -351,8 +378,12 @@ test("failed dependency cascades so the journal never deadlocks", (t) => {
       key: `filler${i}`,
       objective: "terminal filler",
     });
-    journal.claim("p1");
-    journal.complete(filler.id, "p1", { state: "succeeded", result: "ok" });
+    const claimedFiller = journal.claim("p1");
+    journal.complete(filler.id, "p1", {
+      state: "succeeded",
+      result: "ok",
+      leaseToken: claimedFiller.leaseToken,
+    });
   }
   assert.ok(journal.state.tasks.length <= 2);
 });
@@ -376,8 +407,12 @@ test("dependency failure cascades transitively", (t) => {
     objective: "leaf",
     dependsOn: [second.id],
   });
-  journal.claim("p1");
-  journal.complete(first.id, "p1", { state: "failed", result: "boom" });
+  const claimedFirst = journal.claim("p1");
+  journal.complete(first.id, "p1", {
+    state: "failed",
+    result: "boom",
+    leaseToken: claimedFirst.leaseToken,
+  });
   assert.equal(journal.get(second.id, "p1").state, "failed");
   assert.equal(journal.get(third.id, "p1").state, "failed");
 });
@@ -395,8 +430,12 @@ test("successful dependency does not cascade failure", (t) => {
     objective: "waits for parent",
     dependsOn: [parent.id],
   });
-  journal.claim("p1");
-  journal.complete(parent.id, "p1", { state: "succeeded", result: "ok" });
+  const claimedParent = journal.claim("p1");
+  journal.complete(parent.id, "p1", {
+    state: "succeeded",
+    result: "ok",
+    leaseToken: claimedParent.leaseToken,
+  });
   assert.equal(journal.get(child.id, "p1").state, "queued");
   assert.equal(journal.claim("p1").id, child.id);
 });

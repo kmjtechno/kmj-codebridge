@@ -54,11 +54,10 @@ A queued task is claimable only when every declared dependency has succeeded. Wa
 
 `autopilot_claim` accepts an optional `holder` label and returns the task with a `leaseToken` and `lease: {holder, expiresAt}` (default 30 minutes, bounded 1 minute to 24 hours).
 
-- Pass `leaseToken` to `autopilot_checkpoint`, `autopilot_wait` and `autopilot_complete`. Each checkpoint renews the lease, so active long work is not reclaimed.
-- When a lease expires (the holder disconnected or stopped checkpointing), the next `autopilot_claim` for that project returns the task to `queued` with `lastReason: lease_expired`, then claims normally. `maxAttempts` still applies and exhausted tasks fail their dependents.
-- A token that no longer matches the current lease is rejected with `AUTOPILOT_LEASE_LOST`, so a holder whose lease was re-claimed by another chat cannot overwrite the new holder's checkpoint or result.
+- `autopilot_checkpoint`, `autopilot_wait` and `autopilot_complete` (and `autopilot_local_draft`'s checkpoint) **require** the matching `leaseToken` once a task has been claimed under lease-aware code. A missing or mismatched token is rejected with `AUTOPILOT_LEASE_LOST` — a missing token is exactly as unsafe as a stale one, since it would let any caller act on another holder's claimed work. Each checkpoint renews the lease, so active long work is not reclaimed.
+- When a lease expires (the holder disconnected or stopped checkpointing), the next `autopilot_claim` for that project returns the task to `queued` with `lastReason: lease_expired`, then claims normally. `maxAttempts` still applies and exhausted tasks fail their dependents. The old holder's token stops working the instant the task is reclaimed.
 - `autopilot_status` shows who holds a task and until when, never the token.
-- Calls without `leaseToken` keep working for older clients and gateways; they get expiry-based recovery but not stale-holder fencing.
+- Compatibility is preserved only for a genuinely legacy task: one still `running` from before this feature existed, which has no lease to fence. Any task claimed by lease-aware code — including after its lease expires and is reclaimed — is fenced from then on. A gateway or client that omits `leaseToken` can still claim new work and recover expired tasks, but cannot checkpoint, pause or complete anything it claimed, so upgrading both ends together is required for continued operation.
 
 Leases coordinate work; they do not add execution capacity. Concurrency remains bounded by the signed plan and device resources.
 

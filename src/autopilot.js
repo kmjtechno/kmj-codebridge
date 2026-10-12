@@ -133,7 +133,7 @@ export class AutopilotJournal {
   // The lease token is a fencing token returned only to the claimant; other
   // readers see who holds a task and until when, never the token itself.
   public(task) {
-    const { lease, ...rest } = structuredClone(task);
+    const { lease, leasedEver: _leasedEver, ...rest } = structuredClone(task);
     if (lease)
       rest.lease = { holder: lease.holder, expiresAt: lease.expiresAt };
     return rest;
@@ -175,11 +175,19 @@ export class AutopilotJournal {
     return changed;
   }
 
-  // A supplied token must match the current lease: a holder whose lease
-  // expired and was re-claimed elsewhere cannot overwrite the new holder's
-  // work. Omitting the token keeps compatibility with older clients/gateways.
+  // A task that has ever been claimed under lease-aware code must present a
+  // matching token on every running-state operation: a missing token is
+  // exactly as unsafe as a stale one, because it would let a second holder
+  // (or the original holder after its lease expired and was re-claimed)
+  // silently overwrite another holder's checkpoint or result.
+  //
+  // Compatibility is preserved only for a genuinely legacy task: one still
+  // `running` from before this feature existed, whose claim() therefore
+  // never set `leasedEver`. Such a task has no lease and no fencing to
+  // enforce; it keeps the previous (pre-lease) behavior until it next
+  // transitions through claim(), after which it is fenced like any other.
   assertLease(task, leaseToken) {
-    if (leaseToken === undefined || leaseToken === null) return;
+    if (!task.leasedEver) return;
     if (typeof leaseToken !== "string" || task.lease?.token !== leaseToken)
       fail("AUTOPILOT_LEASE_LOST");
   }
@@ -309,6 +317,10 @@ export class AutopilotJournal {
     task.attempts += 1;
     task.updatedAt = new Date(current).toISOString();
     task.lastReason = null;
+    // Persists for the life of the task (never cleared by wait/complete),
+    // so assertLease can always tell a lease-aware task from a genuinely
+    // legacy one, even after the lease itself is released.
+    task.leasedEver = true;
     task.lease = {
       token: randomUUID(),
       holder: holder ?? null,
