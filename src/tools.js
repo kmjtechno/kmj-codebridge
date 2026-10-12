@@ -14,6 +14,7 @@ import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { createLocalModelClient } from "./local-model.js";
+import { WorktreeLanes } from "./worktree-lanes.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -482,6 +483,8 @@ function commandRisk(category) {
 function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
   if (name === "run_quality_gate") return "TEST";
+  if (name === "worktree_lane_prepare") return "GIT_WRITE";
+  if (name === "worktree_lane_cleanup") return "DESTRUCTIVE";
   if (
     ["write_file", "edit_file", "write_files_atomic", "cancel_job"].includes(
       name,
@@ -510,6 +513,7 @@ export const FAST_READ_TOOLS = [
   "project_progress",
   "chat_lane_status",
   "local_model_status",
+  "worktree_lane_status",
   "verification_plan",
   "project_snapshot",
   "workspace_home",
@@ -738,6 +742,34 @@ export const definitions = {
       maxTokens: z.number().int().min(16).max(512).default(192),
       timeoutSeconds: z.number().int().min(5).max(90).default(45),
       localProcessingApproved: z.literal(true),
+    },
+    access: "execute",
+  },
+  worktree_lane_status: {
+    title: "Read isolated coding worktrees",
+    description: "List at most four detached, exact-head Git worktrees in the authorized project's private agent-state folder. No external service.",
+    input: scoped,
+    access: "read",
+  },
+  worktree_lane_prepare: {
+    title: "Prepare isolated coding worktree",
+    description: "Explicitly prepare one detached worktree from the authorized project's exact HEAD, without changing main checkout. No cloud or unrestricted shell; repository filters may execute during checkout.",
+    input: {
+      ...scoped,
+      laneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
+      expectedHead: z.string().regex(/^[a-f0-9]{40}$/),
+      approveLocalGitCheckout: z.literal(true),
+    },
+    access: "execute",
+  },
+  worktree_lane_cleanup: {
+    title: "Remove unchanged isolated coding worktree",
+    description: "Explicitly remove only the named pristine disposable worktree at the pinned HEAD; rejects tracked or untracked changes, new commits and path tricks; never force-deletes.",
+    input: {
+      ...scoped,
+      laneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
+      confirmLaneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
+      expectedHead: z.string().regex(/^[a-f0-9]{40}$/),
     },
     access: "execute",
   },
@@ -1462,6 +1494,11 @@ export function createDispatcher(
     if (!laneStateDir) fail("CHAT_LANE_STATE_UNAVAILABLE");
     return (laneRegistry ??= new ChatLaneRegistry(laneStateDir));
   };
+  let worktrees;
+  const worktreeLanes = () => {
+    if (!laneStateDir) fail("WORKTREE_STATE_UNAVAILABLE");
+    return (worktrees ??= new WorktreeLanes(laneStateDir));
+  };
   let checkpointStore;
   const checkpoints = () =>
     (checkpointStore ??= new FileCheckpoints(config.stateDir));
@@ -1505,6 +1542,28 @@ export function createDispatcher(
         connection: "connected",
         version: VERSION,
       };
+    if (name === "worktree_lane_status")
+      return { device: config.id, project: p.id, ...worktreeLanes().status(p.id, p.files.root) };
+    if (name === "worktree_lane_prepare") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      const capacity = runner.capacity(p.files.root);
+      if (capacity.blocked || capacity.effectiveMaxConcurrent < 1)
+        fail("WORKTREE_CAPACITY_BLOCKED");
+      return {
+        device: config.id,
+        project: p.id,
+        ...worktreeLanes().prepare(p.id, p.files.root, a.laneId, a.expectedHead),
+      };
+    }
+    if (name === "worktree_lane_cleanup") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      if (a.laneId !== a.confirmLaneId) fail("WORKTREE_CONFIRMATION_MISMATCH");
+      return {
+        device: config.id,
+        project: p.id,
+        ...worktreeLanes().cleanup(p.id, p.files.root, a.laneId, a.expectedHead),
+      };
+    }
     if (name === "local_model_status")
       return {
         device: config.id,
