@@ -46,22 +46,26 @@ function directory(target) {
     fail("WORKTREE_PATH_UNSAFE");
   return fs.realpathSync(target);
 }
+function canonical(target) {
+  const real = fs.realpathSync(target);
+  return process.platform === "win32" ? real.toLowerCase() : real;
+}
 function source(root) {
   const safe = directory(root);
   if (
     git(safe, ["rev-parse", "--is-bare-repository"]) !== "false" ||
-    path.resolve(git(safe, ["rev-parse", "--show-toplevel"])) !== safe
+    canonical(git(safe, ["rev-parse", "--show-toplevel"])) !== canonical(safe)
   )
     fail("WORKTREE_SOURCE_INVALID");
   return safe;
 }
 function common(root) {
-  return path.resolve(root, git(root, ["rev-parse", "--git-common-dir"]));
+  return canonical(path.resolve(root, git(root, ["rev-parse", "--git-common-dir"])));
 }
 function verifyLane(root, candidate) {
   if (
     common(root) !== common(candidate) ||
-    path.resolve(git(candidate, ["rev-parse", "--show-toplevel"])) !== candidate
+    canonical(git(candidate, ["rev-parse", "--show-toplevel"])) !== canonical(candidate)
   )
     fail("WORKTREE_SOURCE_MISMATCH");
 }
