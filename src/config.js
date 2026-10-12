@@ -217,6 +217,12 @@ export const agentSchema = z.object({
   stateDir: z.string(),
   supervisorSocket: z.literal("/run/kmj-codebridge/supervisor.sock").optional(),
   pollMs: z.number().min(10).max(5000).default(250),
+  // Bounded operator-provided durable-archive retention (docs/JOB-ARCHIVAL.md,
+  // issue #186). Purely a count cap, never age-based: an idempotency
+  // tombstone must never silently expire and risk a requestKey replaying a
+  // previously executed write. Default matches DurableJobArchive's own
+  // default so an agent that omits this field keeps today's behavior.
+  jobArchiveMaxEntries: z.number().int().min(1).max(1000000).default(100000),
   projects: z
     .array(
       z

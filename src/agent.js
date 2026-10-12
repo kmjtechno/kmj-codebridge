@@ -71,7 +71,9 @@ export async function startAgent(rawConfig) {
   let autopilot;
   let audit;
   try {
-    runner = new JobRunner(path.join(state, "jobs"));
+    runner = new JobRunner(path.join(state, "jobs"), {
+      archiveMaxEntries: c.jobArchiveMaxEntries,
+    });
     autopilot = new AutopilotJournal(path.join(state, "autopilot"));
     audit = new AuditLedger(path.join(state, "audit"));
   } catch (e) {
