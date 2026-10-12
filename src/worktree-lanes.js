@@ -97,7 +97,7 @@ export class WorktreeLanes {
         const dirty =
           git(target, ["status", "--porcelain", "--untracked-files=all"]) !==
           "";
-        return { laneId: name, head, dirty };
+        return { laneId: name, head, dirty, path: target };
       })
       .sort((a, b) => a.laneId.localeCompare(b.laneId));
   }

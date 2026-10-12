@@ -57,6 +57,11 @@ async function setup(t) {
             args: ["-e", 'console.log("PASS")'],
             timeoutMs: 2000,
           },
+          pwd: {
+            command: process.execPath,
+            args: ["-e", "console.log(process.cwd())"],
+            timeoutMs: 2000,
+          },
         },
         commands: {
           inspect_node: {
@@ -133,7 +138,7 @@ test("fast context composes legacy read tools behind one MCP call", async (t) =>
   assert.equal(result.parts.project.ok, true);
   assert.equal(result.parts.project.value.version, VERSION);
   assert.equal(result.parts.project.value.writable, true);
-  assert.deepEqual(result.parts.project.value.gates, ["unit"]);
+  assert.deepEqual(result.parts.project.value.gates, ["unit", "pwd"]);
   assert.equal(result.parts.git.ok, false);
   assert.equal(result.parts.git.error, "GIT_ROOT_OUTSIDE_PROJECT");
   assert.equal(result.parts.autopilot.ok, true);
@@ -557,7 +562,7 @@ test("project snapshot combines capabilities, directory map and git status", asy
   assert.equal(snapshot.device, "d1");
   assert.equal(snapshot.project, "p1");
   assert.equal(snapshot.writable, true);
-  assert.deepEqual(snapshot.gates, ["unit"]);
+  assert.deepEqual(snapshot.gates, ["unit", "pwd"]);
   assert.equal(snapshot.git.available, true);
   assert.match(snapshot.git.status, /hello\.txt/);
   assert.ok(snapshot.entries.some((entry) => entry.name === "src"));
@@ -1053,6 +1058,109 @@ test("real read-preview-write-test workflow verifies results", async (t) => {
   }
   assert.equal(done.state, "succeeded");
   assert.equal(done.exitCode, 0);
+});
+test("run_quality_gate with laneId runs inside the isolated worktree, never the shared checkout", async (t) => {
+  const { client, root } = await setup(t);
+  const { execFileSync } = await import("node:child_process");
+  const git = (...args) =>
+    execFileSync("git", args, { cwd: root, stdio: "pipe" }).toString();
+  execFileSync("git", ["init", "-q"], { cwd: root, stdio: "pipe" });
+  execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-qm",
+      "initial",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+  const head = git("rev-parse", "HEAD").trim();
+
+  const baseline = content(
+    await client.callTool({
+      name: "run_quality_gate",
+      arguments: { device: "d1", project: "p1", gate: "pwd", requestKey: "pwd-root" },
+    }),
+  );
+  let baseDone;
+  for (let i = 0; i < 30; i++) {
+    baseDone = content(
+      await client.callTool({
+        name: "get_job_status",
+        arguments: { device: "d1", project: "p1", job: baseline.id },
+      }),
+    );
+    if (baseDone.state !== "running") break;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.equal(
+    fs.realpathSync(baseDone.output.trim()),
+    fs.realpathSync(root),
+  );
+
+  const lane = content(
+    await client.callTool({
+      name: "worktree_lane_prepare",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        laneId: "laneA",
+        expectedHead: head,
+        approveLocalGitCheckout: true,
+      },
+    }),
+  );
+  assert.notEqual(fs.realpathSync(lane.path), fs.realpathSync(root));
+
+  const inLane = content(
+    await client.callTool({
+      name: "run_quality_gate",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        gate: "pwd",
+        requestKey: "pwd-lane",
+        laneId: "laneA",
+      },
+    }),
+  );
+  let laneDone;
+  for (let i = 0; i < 30; i++) {
+    laneDone = content(
+      await client.callTool({
+        name: "get_job_status",
+        arguments: { device: "d1", project: "p1", job: inLane.id },
+      }),
+    );
+    if (laneDone.state !== "running") break;
+    await new Promise((r) => setTimeout(r, 20));
+  }
+  assert.equal(laneDone.state, "succeeded");
+  assert.equal(
+    fs.realpathSync(laneDone.output.trim()),
+    fs.realpathSync(lane.path),
+  );
+  assert.notEqual(
+    fs.realpathSync(laneDone.output.trim()),
+    fs.realpathSync(root),
+  );
+
+  const unknownLane = await client.callTool({
+    name: "run_quality_gate",
+    arguments: {
+      device: "d1",
+      project: "p1",
+      gate: "pwd",
+      requestKey: "pwd-missing-lane",
+      laneId: "neverPrepared",
+    },
+  });
+  assert.equal(content(unknownLane).error, "WORKTREE_NOT_FOUND");
 });
 test("unauthenticated requests fail before MCP handling", async (t) => {
   const { gw } = await setup(t);
