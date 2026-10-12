@@ -184,6 +184,34 @@ test(
   },
 );
 
+test(
+  "Windows PowerShell 5 binds heartbeat processId without touching automatic PID",
+  { skip: process.platform !== "win32" },
+  () => {
+    const source = fs.readFileSync(updaterPath, "utf8");
+    const match = source.match(
+      /function ConfirmRuntime\(\[int\]\$processId, \[string\]\$entry, \[datetime\]\$since\) \{[\s\S]*?\n\}/,
+    );
+    assert.ok(match, "real heartbeat verifier must be available");
+    assert.doesNotMatch(match[0], /\$pid\b/i);
+    const code = [
+      "$ErrorActionPreference = 'Stop'",
+      "$savedPid = $PID",
+      match[0],
+      "if (ConfirmRuntime -processId 2147483000 -entry 'none' -since ([datetime]::UtcNow)) { throw 'UNEXPECTED_HEARTBEAT' }",
+      "if ($PID -ne $savedPid) { throw 'AUTOMATIC_PID_MUTATED' }",
+      "Write-Output 'RUNTIME_PID_BINDING=PASS'",
+    ].join("\n");
+    const result = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", code],
+      { shell: false, timeout: 15000, windowsHide: true, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /RUNTIME_PID_BINDING=PASS/);
+  },
+);
+
 test("one-click native launch requires pinned known reviewed SHA and sibling script", () => {
   const source = fs.readFileSync(launcherPath, "utf8");
   assert.match(source, new RegExp(PINNED));
