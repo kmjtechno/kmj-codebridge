@@ -13,6 +13,7 @@ import { selectSkillPacks } from "./skill-packs.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
+import { createLocalModelClient } from "./local-model.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -508,6 +509,7 @@ export const FAST_READ_TOOLS = [
   "execution_capacity",
   "project_progress",
   "chat_lane_status",
+  "local_model_status",
   "verification_plan",
   "project_snapshot",
   "workspace_home",
@@ -717,6 +719,27 @@ export const definitions = {
       "Release a project-scoped reservation by its opaque token. Does not terminate other chats or background jobs.",
     input: { ...scoped, leaseToken: z.string().uuid() },
     access: "write",
+  },
+  local_model_status: {
+    title: "Check offline AI model runtime",
+    description:
+      "Probe only the current device's loopback Ollama API, report bounded installed local models and readiness; never downloads models, contacts external AI providers or starts a service.",
+    input: scoped,
+    access: "read",
+  },
+  local_model_generate: {
+    title: "Generate with a locally installed offline model",
+    description:
+      "Opt-in bounded prompt to an already-running loopback Ollama model on the authorized device, with no cloud or paid fallback. The model is unloaded after generation; output is untrusted text, not executable code.",
+    input: {
+      ...scoped,
+      model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
+      prompt: z.string().min(1).max(4096),
+      maxTokens: z.number().int().min(16).max(512).default(192),
+      timeoutSeconds: z.number().int().min(5).max(90).default(45),
+      localProcessingApproved: z.literal(true),
+    },
+    access: "execute",
   },
   execution_capacity: {
     title: "Execution capacity",
@@ -1426,6 +1449,8 @@ export function createDispatcher(
       { ...p, files: new ProjectFiles(p.root) },
     ]),
   );
+  let localModel;
+  const offlineModel = () => (localModel ??= createLocalModelClient());
   let laneRegistry;
   const laneStateDir =
     typeof config.stateDir === "string" && config.stateDir.length > 0
@@ -1480,6 +1505,17 @@ export function createDispatcher(
         connection: "connected",
         version: VERSION,
       };
+    if (name === "local_model_status")
+      return { device: config.id, project: p.id, ...(await offlineModel().status()) };
+    if (name === "local_model_generate") {
+      const response = await offlineModel().generate({
+        model: a.model,
+        prompt: a.prompt,
+        maxTokens: a.maxTokens,
+        timeoutSeconds: a.timeoutSeconds,
+      });
+      return { device: config.id, project: p.id, ...response };
+    }
     if (name === "chat_lane_status")
       return { device: config.id, project: p.id, ...lanes().status(p.id) };
     if (name === "chat_lane_reserve") {
