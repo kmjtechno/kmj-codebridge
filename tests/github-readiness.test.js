@@ -195,7 +195,7 @@ test("error codes are fixed categories and never echo messages", () => {
     "GITHUB_UNREACHABLE",
   );
   assert.equal(
-    readinessErrorCode(new Error("Bearer ghp_abcdefghijklmnopqrstuvwxyz")),
+    readinessErrorCode(new Error("upstream said: leaked-private-value-7f3a")),
     "GITHUB_PROBE_FAILED",
   );
   assert.equal(
