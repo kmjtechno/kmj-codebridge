@@ -55,7 +55,7 @@ try {
     if (Test-Path -LiteralPath $worktree) { throw 'BENCH_WORKTREE_ALREADY_EXISTS' }
 
     # Fetch objects and FETCH_HEAD only; never fast-forward the live checkout.
-    Invoke-TrustedGit -GitArguments @('fetch', '--quiet', '--no-tags', 'origin', 'main') | Out-Null
+    Invoke-TrustedGit -GitArguments @('fetch', '--no-tags', 'origin', 'main') | Out-Null
     $remoteHead = [string]((Invoke-TrustedGit -GitArguments @('rev-parse', '--verify', 'FETCH_HEAD')) | Select-Object -First 1)
     & $git.Source -C $repo merge-base --is-ancestor $pinned $remoteHead 2>$null
     if ($LASTEXITCODE -ne 0) { throw 'PINNED_SHA_NOT_IN_TRUSTED_MAIN' }
