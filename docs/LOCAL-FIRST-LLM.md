@@ -60,6 +60,7 @@ to turn an AI proposal into trusted engineering work.
    The example is a **local_model_generate** argument object, not a URL,
    terminal command, credential or public no-auth request. The client must
    have an execute grant. Review the output before using it.
+
 5. Run the already configured `run_quality_gate`, test/secret scan and
    exact-head GitHub CI as applicable. Write to an **isolated feature
    worktree** with hash/HEAD preconditions; never modify an active
@@ -83,21 +84,21 @@ Other computers may have different installed models.
 
 ## Safe model selection
 
-| Model family | When to consider it | Guardrails |
-| --- | --- | --- |
-| Qwen3 4B | Short prompts, fast proposals, low-resource tasks | Explicit installed-model check; review response |
-| Qwen2.5-Coder 7B | Coding-oriented bounded drafting when ready | Check cold-load latency before larger outputs |
-| Qwen3 8B | Only when already installed and benchmarked | Higher memory pressure; no automatic pull |
+| Model family     | When to consider it                               | Guardrails                                      |
+| ---------------- | ------------------------------------------------- | ----------------------------------------------- |
+| Qwen3 4B         | Short prompts, fast proposals, low-resource tasks | Explicit installed-model check; review response |
+| Qwen2.5-Coder 7B | Coding-oriented bounded drafting when ready       | Check cold-load latency before larger outputs   |
+| Qwen3 8B         | Only when already installed and benchmarked       | Higher memory pressure; no automatic pull       |
 
 The system does **not** claim to route tasks automatically to an objectively
 best model. Choose on actual task-quality, VRAM/RAM and latency measurements.
 
 A fresh **readiness-only** test on KMJ's Lenovo P720 produced:
 
-| Observation | Qwen2.5-Coder 7B | Qwen3 4B |
-| --- | ---: | ---: |
-| Generated tokens | 48 | 48 |
-| Measured generation | 33.57 tokens/s | 53.01 tokens/s |
+| Observation                 |    Qwen2.5-Coder 7B |            Qwen3 4B |
+| --------------------------- | ------------------: | ------------------: |
+| Generated tokens            |                  48 |                  48 |
+| Measured generation         |      33.57 tokens/s |      53.01 tokens/s |
 | Ollama-reported GPU offload | 4,621,179,288 bytes | 2,874,062,929 bytes |
 
 These are limited hardware observations, **not** cold-versus-warm
@@ -109,15 +110,15 @@ call hit an 80-second timeout; the root cause is not yet confirmed.
 
 Source-defined local generation limits:
 
-| Setting | Current accepted range | Default or behavior |
-| --- | --- | --- |
-| Prompt length | 1–4,096 characters | Caller must provide a prompt |
-| Output budget | 16–512 predicted tokens | 192 |
-| Request timeout | 5–90 seconds | 45 seconds |
-| Parallel local generation | One in-flight request | `LOCAL_MODEL_BUSY` for competing requests |
-| Local retention | 0–60 seconds | `keep_alive: 0` (model unload requested) |
-| Network target | Configured loopback Ollama ports only | No DNS, remote inference, proxies or redirects |
-| Missing model | Fail closed | No model pull and no paid fallback |
+| Setting                   | Current accepted range                | Default or behavior                            |
+| ------------------------- | ------------------------------------- | ---------------------------------------------- |
+| Prompt length             | 1–4,096 characters                    | Caller must provide a prompt                   |
+| Output budget             | 16–512 predicted tokens               | 192                                            |
+| Request timeout           | 5–90 seconds                          | 45 seconds                                     |
+| Parallel local generation | One in-flight request                 | `LOCAL_MODEL_BUSY` for competing requests      |
+| Local retention           | 0–60 seconds                          | `keep_alive: 0` (model unload requested)       |
+| Network target            | Configured loopback Ollama ports only | No DNS, remote inference, proxies or redirects |
+| Missing model             | Fail closed                           | No model pull and no paid fallback             |
 
 Only the device owner can opt into warm retention using
 `CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS` (integer 0–60). It is **not**
@@ -138,13 +139,12 @@ another. No client receives implicit ownership of the other's files.
 
 1. **Claude lane:** diagnose local-model load and 7B timeout, verify
    authenticated `local_model_generate`, claim a genuine server-issued
-   Autopilot lease and produce a *review-only* draft. Keep existing
+   Autopilot lease and produce a _review-only_ draft. Keep existing
    Claude-owned files reserved.
 2. **ChatGPT lane:** own independent documentation, CI/test analysis,
    production acceptance and non-conflicting issue/PR changes.
 3. **Handoff:** record exact file ownership, task ID, SHA, tests and
-   blockers in [CodeBridge engineering coordination #295](
-   https://github.com/kmjtechno/kmj-codebridge/issues/295).
+   blockers in [CodeBridge engineering coordination #295](https://github.com/kmjtechno/kmj-codebridge/issues/295).
 4. **Never:** reset/stash/clean a dirty collaborator checkout, fabricate
    a lease token, write a draft straight into production, bypass OAuth or
    run unrestricted shell commands.
@@ -167,18 +167,18 @@ a background Claude worker.
 Treat each layer independently. Do not call the whole product
 "100% production-ready" until all required live acceptance gates pass.
 
-| Layer | Evidence to require | Latest verified scope (13 Oct 2026) |
-| --- | --- | --- |
-| Repository CI | Exact-head Linux/Windows, clients, distribution | PASS on recorded main SHA |
-| Hosted discovery | Real customer and Render MCP `tools/list` parity | PASS: 101/101 tools |
-| Public auth | Valid OAuth metadata, denial without valid grant | PASS in hosted smoke |
-| P720 inference | Authorized local generation from installed models | PASS for 7B and 4B, readiness only |
-| Local QA | P720 bounded unit suite and tracked secret scan | PASS: 6/6 tests; 287 files scanned |
-| Client catalog | Fresh same-app tool capture and authenticated call | NOT VERIFIED in a stale 88-action ChatGPT session |
-| Native GitHub write | First-party branch/edit/PR/CI/merge, scoped token | NOT VERIFIED end-to-end |
-| Full Autopilot | Claimed task through reviewed patch and verified PR | NOT VERIFIED; review-only local draft proven |
-| Reliability | Repeatable cold/warm, 7B load timeout resolved | NOT VERIFIED |
-| Scale/billing | External fault, multi-device and customer lifecycle evidence | NOT VERIFIED as general-availability proof |
+| Layer               | Evidence to require                                          | Latest verified scope (13 Oct 2026)               |
+| ------------------- | ------------------------------------------------------------ | ------------------------------------------------- |
+| Repository CI       | Exact-head Linux/Windows, clients, distribution              | PASS on recorded main SHA                         |
+| Hosted discovery    | Real customer and Render MCP `tools/list` parity             | PASS: 101/101 tools                               |
+| Public auth         | Valid OAuth metadata, denial without valid grant             | PASS in hosted smoke                              |
+| P720 inference      | Authorized local generation from installed models            | PASS for 7B and 4B, readiness only                |
+| Local QA            | P720 bounded unit suite and tracked secret scan              | PASS: 6/6 tests; 287 files scanned                |
+| Client catalog      | Fresh same-app tool capture and authenticated call           | NOT VERIFIED in a stale 88-action ChatGPT session |
+| Native GitHub write | First-party branch/edit/PR/CI/merge, scoped token            | NOT VERIFIED end-to-end                           |
+| Full Autopilot      | Claimed task through reviewed patch and verified PR          | NOT VERIFIED; review-only local draft proven      |
+| Reliability         | Repeatable cold/warm, 7B load timeout resolved               | NOT VERIFIED                                      |
+| Scale/billing       | External fault, multi-device and customer lifecycle evidence | NOT VERIFIED as general-availability proof        |
 
 **Deployment distinction:** A source merge, a 101-tool public catalog and a
 successful local-readiness gate do not by themselves prove that every device
@@ -188,16 +188,16 @@ as product completion.
 
 ## Troubleshooting
 
-| Symptom | Action |
-| --- | --- |
-| `LOCAL_MODEL_NOT_RUNNING` | Check installed Ollama process on the approved device; no cloud fallback |
-| `LOCAL_MODEL_NOT_INSTALLED` | Select a model reported by `local_model_status`; do not auto-pull |
-| `LOCAL_MODEL_BUSY` | Complete the active bounded request before trying another |
-| `LOCAL_MODEL_INFERENCE_FAILED` | Record bounded latency/resource diagnostics, not secrets; evaluate cold loading |
-| `DEVICE_TIMEOUT` | Separate MCP/agent timeouts from model loading; avoid blind repeated Autopilot checkpoints |
-| Missing MCP local tools | Refresh the **existing** client's catalog and OAuth grant; verify a real authorized `tools/call` |
-| A model produces only thinking text | Use bounded model-specific non-thinking controls and check visible response |
-| Autopilot checkpoint already exists | Respect replay protection; do not overwrite a valid task checkpoint |
+| Symptom                             | Action                                                                                           |
+| ----------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `LOCAL_MODEL_NOT_RUNNING`           | Check installed Ollama process on the approved device; no cloud fallback                         |
+| `LOCAL_MODEL_NOT_INSTALLED`         | Select a model reported by `local_model_status`; do not auto-pull                                |
+| `LOCAL_MODEL_BUSY`                  | Complete the active bounded request before trying another                                        |
+| `LOCAL_MODEL_INFERENCE_FAILED`      | Record bounded latency/resource diagnostics, not secrets; evaluate cold loading                  |
+| `DEVICE_TIMEOUT`                    | Separate MCP/agent timeouts from model loading; avoid blind repeated Autopilot checkpoints       |
+| Missing MCP local tools             | Refresh the **existing** client's catalog and OAuth grant; verify a real authorized `tools/call` |
+| A model produces only thinking text | Use bounded model-specific non-thinking controls and check visible response                      |
+| Autopilot checkpoint already exists | Respect replay protection; do not overwrite a valid task checkpoint                              |
 
 For production problems, attach **sanitized** tool name, commit SHA,
 device/project IDs where safe, PASS/FAIL, elapsed time and exact error code.
