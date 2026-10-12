@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { ProjectFiles } from "../src/policy.js";
@@ -78,8 +79,12 @@ test("Commander move does not follow symlinks or move hardlinked and secret path
     /PATH_DENIED/,
   );
   assert.throws(() => files.moveFile(".env", "new.md", hash), /PATH_DENIED/);
-  fs.symlinkSync("README.md", path.join(root, "shortcut"));
-  assert.throws(() => files.moveFile("shortcut", "x", hash), /SYMLINK_DENIED/);
+  if (tryFileSymlink(t, "README.md", path.join(root, "shortcut"))) {
+    assert.throws(
+      () => files.moveFile("shortcut", "x", hash),
+      /SYMLINK_DENIED/,
+    );
+  }
   fs.linkSync(path.join(root, "README.md"), path.join(root, "linked"));
   assert.throws(
     () => files.moveFile("README.md", "x", hash),

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { ProjectFiles, hash } from "../src/policy.js";
@@ -92,16 +93,18 @@ test("Commander copy rejects stale hashes, secret paths, symlinks and traversal"
     () => files.copyFile("README.md", "node_modules/secret", original.sha256),
     /PATH_DENIED/,
   );
-  fs.symlinkSync("README.md", path.join(root, "shortcut"));
-  assert.throws(
-    () => files.copyFile("shortcut", "docs/x", original.sha256),
-    /SYMLINK_DENIED/,
-  );
-  fs.symlinkSync("README.md", path.join(root, "destination"));
-  assert.throws(
-    () => files.copyFile("README.md", "destination", original.sha256),
-    /SYMLINK_DENIED/,
-  );
+  if (tryFileSymlink(t, "README.md", path.join(root, "shortcut"))) {
+    assert.throws(
+      () => files.copyFile("shortcut", "docs/x", original.sha256),
+      /SYMLINK_DENIED/,
+    );
+  }
+  if (tryFileSymlink(t, "README.md", path.join(root, "destination"))) {
+    assert.throws(
+      () => files.copyFile("README.md", "destination", original.sha256),
+      /SYMLINK_DENIED/,
+    );
+  }
   fs.linkSync(path.join(root, "README.md"), path.join(root, "linked.md"));
   assert.throws(
     () => files.copyFile("README.md", "docs/y", original.sha256),

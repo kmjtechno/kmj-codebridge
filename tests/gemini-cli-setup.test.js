@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
@@ -102,11 +103,12 @@ test("Gemini setup blocks invalid JSON and symlinked configuration", (t) => {
   const elsewhere = path.join(dir, "elsewhere.json");
   fs.writeFileSync(elsewhere, "{}");
   fs.unlinkSync(target);
-  fs.symlinkSync(elsewhere, target, "file");
-  const result = run(dir, "--yes");
-  assert.notEqual(result.status, 0);
-  assert.match(result.stderr, /CONFIG_UNSAFE/);
-  assert.equal(fs.readFileSync(elsewhere, "utf8"), "{}");
+  if (tryFileSymlink(t, elsewhere, target)) {
+    const result = run(dir, "--yes");
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /CONFIG_UNSAFE/);
+    assert.equal(fs.readFileSync(elsewhere, "utf8"), "{}");
+  }
 });
 
 test("Gemini setup rejects unexpected switches and conflicting modes", (t) => {

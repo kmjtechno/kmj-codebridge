@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { ProjectFiles, hash } from "../src/policy.js";
@@ -49,8 +50,9 @@ test("tail rejects private files, links and oversized reads", (t) => {
   const { files, root } = fixture(t);
   assert.throws(() => files.readTail(".env", 2), /PATH_DENIED/);
   assert.throws(() => files.readTail("../outside", 2), /INVALID_PATH/);
-  fs.symlinkSync("progress.log", path.join(root, "alias.log"));
-  assert.throws(() => files.readTail("alias.log", 2), /SYMLINK_DENIED/);
+  if (tryFileSymlink(t, "progress.log", path.join(root, "alias.log"))) {
+    assert.throws(() => files.readTail("alias.log", 2), /SYMLINK_DENIED/);
+  }
   fs.linkSync(path.join(root, "progress.log"), path.join(root, "hardlink.log"));
   assert.throws(
     () => files.readTail("hardlink.log", 2),

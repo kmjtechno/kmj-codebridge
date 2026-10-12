@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 import os from "node:os";
 import path from "node:path";
 import { ProjectFiles } from "../src/policy.js";
@@ -44,13 +45,18 @@ for (const p of [
   });
 test("rejects symlink files", (t) => {
   const { root, files } = fixture(t);
-  fs.symlinkSync(path.join(root, "hello.txt"), path.join(root, "link"));
+  if (!tryFileSymlink(t, path.join(root, "hello.txt"), path.join(root, "link")))
+    return t.skip("Windows file-symlink privilege unavailable");
   assert.throws(() => files.read("link"), /SYMLINK/);
 });
 test("rejects symlink parents", (t) => {
   const { root, files } = fixture(t);
   fs.mkdirSync(path.join(root, "dir"));
-  fs.symlinkSync(path.join(root, "dir"), path.join(root, "alias"));
+  fs.symlinkSync(
+    path.join(root, "dir"),
+    path.join(root, "alias"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
   assert.throws(() => files.write("alias/file", "x", null), /SYMLINK/);
 });
 test("preview has no side effect; stale patch cannot overwrite", (t) => {
