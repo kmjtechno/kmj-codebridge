@@ -52,11 +52,22 @@ jobs:
           if (payload.capabilities?.githubReady !== true) {
             console.log('::warning title=Hosted GitHub bridge not ready::Core CodeBridge gateway is healthy, but optional hosted GitHub access is not ready.');
           }
+          // Diagnostic metadata is fixed-state and contains no URL, token,
+          // repository or upstream response body. Restrict error codes even
+          // if a misconfigured hosted instance returns unexpected content.
+          const readiness = payload.githubReadiness ?? {};
+          const states = new Set(['ready', 'failed', 'checking', 'stale', 'disabled']);
+          const state = states.has(readiness.state) ? readiness.state : 'unknown';
+          const error = typeof readiness.error === 'string' &&
+            /^[A-Z][A-Z0-9_]{2,63}$/.test(readiness.error)
+            ? readiness.error : 'NONE';
           console.log(JSON.stringify({
             status: payload.status,
             version: payload.version,
             github: payload.capabilities.github,
             githubReady: payload.capabilities.githubReady,
+            githubReadinessState: state,
+            githubReadinessError: error,
           }));
           NODE
               then
