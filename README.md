@@ -9,7 +9,7 @@
 <h1 align="center">KMJ CodeBridge</h1>
 
 <p align="center">
-  <strong>Secure AI-to-Development Infrastructure for Authorized Systems</strong>
+  <strong>Local-LLM-First, Secure AI-to-Development Infrastructure</strong>
 </p>
 
 <p align="center">
@@ -18,7 +18,7 @@
 
 <p align="center">
   <strong
-    >Vendor-neutral MCP · Outbound device agents · Guarded writes · Controlled quality gates</strong
+    >Local AI first · Zero unexpected paid inference · Scoped devices · Verified engineering</strong
   >
 </p>
 
@@ -42,6 +42,7 @@
 
 <p align="center">
   <a href="#why-codebridge"><strong>Why CodeBridge?</strong></a> ·
+  <a href="#local-llm-first"><strong>Local LLM first</strong></a> ·
   <a href="#architecture"><strong>Architecture</strong></a> ·
   <a href="#quick-start"><strong>Quick start</strong></a> ·
   <a href="#security-boundaries"><strong>Security</strong></a> ·
@@ -63,6 +64,66 @@ CodeBridge takes a narrower approach:
 - **Fixed quality gates** — run administrator-approved checks instead of exposing arbitrary shell execution.
 - **Tenant + permission enforcement** — authorization is checked at the gateway and device layer.
 - **Open-source core** — Apache-2.0 source you can inspect, self-host and contribute to.
+
+## Local LLM first
+
+**Use installed, on-device models for bounded coding and reasoning drafts
+before choosing any separately authorized cloud workflow.** CodeBridge's
+built-in local-model tools contact **only loopback Ollama** on the authorized
+device. They never auto-download a model, send a prompt to an outside AI API,
+or silently fall back to paid inference when a local model is offline.
+
+The workflow is deliberately simple:
+
+1. **Discover:** Connect an authorized ChatGPT, Claude or other MCP client,
+   select the approved device/project and call `local_model_status`. This reads
+   available local models; it does not start Ollama.
+2. **Choose by task and available resources:** Prefer a smaller, installed
+   Qwen3 model for short bounded responses; try Qwen2.5-Coder 7B when the task
+   warrants a coding-oriented model and the workstation has capacity.
+   Measure accuracy and latency on your own prompts—there is **no claimed
+   automatic best-model router**.
+3. **Approve local inference:** Call `local_model_generate` with
+   `localProcessingApproved: true`, a chosen **installed** model, a bounded
+   prompt and a token budget. The resulting text is untrusted until reviewed.
+4. **Review and verify:** Use approved project-scoped edits, configured
+   `run_quality_gate` checks, secret scanning and exact-head CI before any PR
+   merge. Local inference does **not** grant filesystem, GitHub or deployment
+   privileges.
+5. **Autopilot drafts:** For a server-leased task, use
+   `autopilot_local_draft` with a genuine lease and explicit local-processing
+   approval. It records a **review-only proposal**; it does not apply patches,
+   run arbitrary shell commands or deploy on its own.
+
+| On-device example  | Suitable role                           | Verified P720 readiness sample |
+| ------------------ | --------------------------------------- | ------------------------------ |
+| `qwen3:4b`         | Short, latency-sensitive bounded drafts | 53.01 generated tokens/s       |
+| `qwen2.5-coder:7b` | Coding-focused bounded drafts           | 33.57 generated tokens/s       |
+
+These are **single P720 readiness measurements** (48 evaluation tokens per
+model), not sustained coding throughput, cold/warm gains, model rankings, or
+promises for other hardware. The tested agents reported GPU-offload counters,
+but these alone do not identify the physical GPU.
+
+**Privacy and cost boundary:** CodeBridge's _local inference_ has no paid/cloud
+provider fallback; that does not mean the ChatGPT or Claude client itself runs
+locally. Using those hosted clients may involve their normal provider
+processing and subscription terms. On-device inference consumes local CPU,
+GPU, memory, disk and electricity.
+
+**Resource safeguards:** The current local generator allows an explicit prompt
+of 1–4,096 characters, 16–512 predicted tokens, a 5–90 second timeout,
+one generation at a time, and installed models on approved loopback ports.
+It requests `keep_alive: 0` by default for low idle VRAM use; only a device
+owner can opt into bounded 0–60 second warm retention. Qwen3 short responses
+request non-thinking mode to avoid spending the output budget entirely on
+hidden reasoning. A missing/busy/timed-out local model reports a failure—it
+does **not** invoke a cloud API.
+
+Read the practical [Local LLM-first setup, Claude workflow and production
+acceptance guide](docs/LOCAL-FIRST-LLM.md) before using these tools.
+A published MCP `tools/list` entry is **not** proof that a previously connected
+client has refreshed its tool capture or can execute the call.
 
 ## Architecture
 
@@ -253,7 +314,7 @@ npm run agent -- /absolute/private-codebridge-config/agent.json
 
 Start with read-only tools such as project inspection, directory listing, code search, and Git status. Enable writes only after you have confirmed the intended project scope and device identity.
 
-See **[AI client setup](docs/CLIENTS.md)** for ChatGPT, Claude Code, Claude Desktop, Claude.ai and generic MCP clients.
+See **[AI client setup](docs/CLIENTS.md)** for ChatGPT, Claude Code, Claude Desktop, Claude.ai and generic MCP clients. For privacy-conscious, free/on-device drafting start with the **[Local LLM-first guide](docs/LOCAL-FIRST-LLM.md)**; Ollama is an optional local runtime and is never auto-installed by CodeBridge.
 
 ## One-command VPS enrollment
 
@@ -605,7 +666,7 @@ See:
 
 CodeBridge is under active development. The repository contains a working Streamable HTTP MCP gateway, outbound device agent, scoped file tools, guarded writes, configured quality gates, durable jobs, entitlement verification and real test coverage.
 
-Production readiness is tracked explicitly; unsupported features are not presented as shipped. See **[docs/STATUS.md](docs/STATUS.md)**.
+Production readiness is tracked explicitly; unsupported features are not presented as shipped. See **[docs/STATUS.md](docs/STATUS.md)** and the **[local-first production acceptance matrix](docs/LOCAL-FIRST-LLM.md#production-acceptance-matrix)**. Passing source CI, a successful local draft and a public MCP catalog are independent checks—not proof of an autonomous code-to-PR-to-deployment release.
 
 ## Contributing
 
