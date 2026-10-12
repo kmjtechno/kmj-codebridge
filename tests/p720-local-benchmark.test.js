@@ -16,7 +16,8 @@ test("offline P720 cold versus warm benchmark reports actual Ollama counters", a
     if (endpoint === "/api/tags") return { models: [{ name: "qwen3:4b" }] };
     if (endpoint === "/api/ps")
       return {
-        models: count === 0 ? [] : [{ name: "qwen3:4b", size_vram: 2800000000 }],
+        models:
+          count === 0 ? [] : [{ name: "qwen3:4b", size_vram: 2800000000 }],
       };
     if (payload.prompt === "") return { done: true };
     count++;
