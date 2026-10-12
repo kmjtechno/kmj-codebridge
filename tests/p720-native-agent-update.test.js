@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
 
@@ -112,6 +113,74 @@ test(
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /P720_GATEWAY_VALIDATION=PASS/);
+  },
+);
+
+test(
+  "Windows PowerShell 5 Git fetch tolerates benign stderr but rejects nonzero exit",
+  { skip: process.platform !== "win32" },
+  (t) => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "p720-git-stderr-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    const bare = path.join(temp, "remote.git");
+    const writer = path.join(temp, "writer");
+    const consumer = path.join(temp, "consumer");
+    const git = (args) => {
+      const result = spawnSync("git", args, {
+        shell: false,
+        windowsHide: true,
+        encoding: "utf8",
+        timeout: 15000,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(["init", "--bare", "-b", "main", bare]);
+    git(["init", "-b", "main", writer]);
+    const commitArgs = [
+      "-C",
+      writer,
+      "-c",
+      "user.name=CI",
+      "-c",
+      "user.email=ci@example.invalid",
+      "commit",
+      "--allow-empty",
+    ];
+    git([...commitArgs, "-m", "first"]);
+    git(["-C", writer, "remote", "add", "origin", bare]);
+    git(["-C", writer, "push", "-u", "origin", "main"]);
+    git(["clone", "--branch", "main", bare, consumer]);
+    git([...commitArgs, "-m", "second"]);
+    git(["-C", writer, "push", "origin", "main"]);
+    const expected = git(["-C", writer, "rev-parse", "HEAD"]);
+    const source = fs.readFileSync(updaterPath, "utf8");
+    const match = source.match(
+      /function Git\(\[string\[\]\]\$GitArgs\) \{[\s\S]*?\n\}/,
+    );
+    assert.ok(match, "the guarded native Git wrapper must be present");
+    const quoted = consumer.replaceAll("'", "''");
+    const command = [
+      "$ErrorActionPreference = 'Stop'",
+      `$repo = '${quoted}'`,
+      `$expected = '${expected}'`,
+      match[0],
+      "$null = Git -GitArgs @('fetch', '--no-tags', 'origin', 'main')",
+      "$fetched = [string]((Git -GitArgs @('rev-parse', '--verify', 'FETCH_HEAD')) | Select-Object -First 1)",
+      "if ($fetched -cne $expected) { throw 'FETCH_HEAD_MISMATCH' }",
+      "try { $null = Git -GitArgs @('rev-parse', '--verify', 'not-a-real-ref'); throw 'GIT_FAILURE_NOT_DETECTED' } catch {",
+      "  if ($_.Exception.Message -cne 'GIT_OPERATION_FAILED') { throw }",
+      "}",
+      "if ($ErrorActionPreference -cne 'Stop') { throw 'ERROR_PREFERENCE_CHANGED' }",
+      "Write-Output 'GIT_STDERR_EXITCODE=PASS'",
+    ].join("\n");
+    const result = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", command],
+      { shell: false, windowsHide: true, timeout: 30000, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /GIT_STDERR_EXITCODE=PASS/);
   },
 );
 

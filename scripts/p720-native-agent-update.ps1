@@ -40,9 +40,23 @@ function AssertApprovedGateway([string]$value) {
 }
 
 function Git([string[]]$GitArgs) {
-    $result = & git.exe -C $repo @GitArgs 2>&1
-    if ($LASTEXITCODE -ne 0) { throw 'GIT_OPERATION_FAILED' }
-    return $result
+    # Windows PowerShell 5 promotes native Git's successful stderr progress
+    # ("From ...", "Preparing worktree ...") to terminating errors under Stop.
+    # Only Git's numeric process exit code determines success. Never echo
+    # stderr (remote URLs or local path details) back to the caller.
+    $previousPreference = $ErrorActionPreference
+    $result = $null
+    $exitCode = -1
+    try {
+        $ErrorActionPreference = 'Continue'
+        $result = & git.exe -C $repo @GitArgs 2>&1
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousPreference
+    }
+    if ($exitCode -ne 0) { throw 'GIT_OPERATION_FAILED' }
+    # Return only native stdout for rev-parse/remote queries.
+    return $result | Where-Object { $_ -is [string] }
 }
 
 function SnapshotTrackedChanges {
@@ -244,7 +258,7 @@ try {
 
     # Fetch Git commits directly; not via ChatGPT GitHub or desktop plugins.
     # Keep the running project's main checkout unchanged.
-    Git -GitArgs @('fetch', '--no-tags', 'origin', 'main') | Out-Null
+    Git -GitArgs @('fetch', '--quiet', '--no-tags', 'origin', 'main') | Out-Null
     $remote = [string]((Git -GitArgs @('rev-parse', '--verify', 'FETCH_HEAD')) |
         Select-Object -First 1)
     & git.exe -C $repo merge-base --is-ancestor $TargetSha $remote
