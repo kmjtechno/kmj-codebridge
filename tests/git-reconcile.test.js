@@ -112,7 +112,9 @@ test("git_reconcile_main rejects unrelated local commits without overwriting the
   git(root, ["commit", "-m", "local divergence"]);
   const unrelated = git(root, ["rev-parse", "HEAD"]);
   await assert.rejects(
-    dispatch("git_reconcile_main", { ...scope, expectedRemoteHead: merged }, ["execute"]),
+    dispatch("git_reconcile_main", { ...scope, expectedRemoteHead: merged }, [
+      "execute",
+    ]),
     /GIT_RECONCILE_NON_FAST_FORWARD/,
   );
   assert.equal(git(root, ["rev-parse", "HEAD"]), unrelated);
