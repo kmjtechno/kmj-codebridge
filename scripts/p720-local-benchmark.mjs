@@ -135,7 +135,9 @@ export async function benchmarkTarget(target, request = localJson) {
     const coldStart = await request(port, "/api/ps");
     if (
       !Array.isArray(coldStart?.models) ||
-      coldStart.models.some((entry) => entry.name === model || entry.model === model)
+      coldStart.models.some(
+        (entry) => entry.name === model || entry.model === model,
+      )
     )
       throw Error("BENCH_COLD_UNLOAD_NOT_VERIFIED");
 
