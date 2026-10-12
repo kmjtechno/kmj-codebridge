@@ -1,6 +1,7 @@
 # Isolated worktree lanes for KMJ HyperSpeed
 
 Three native, project/device-scoped operations:
+
 - `worktree_lane_status({device,project})` reads max 4 private worktree identities.
 - `worktree_lane_prepare({device,project,laneId,expectedHead,approveLocalGitCheckout:true})` creates a real detached checkout at the exact authorized repository HEAD inside private agent state. No arbitrary shell, downloads or remote hosts.
 - `worktree_lane_cleanup({device,project,laneId,confirmLaneId,expectedHead})` removes a matching clean, unchanged disposable checkout; changed files or new commits block deletion. Never uses `--force`.

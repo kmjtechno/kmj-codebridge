@@ -747,13 +747,15 @@ export const definitions = {
   },
   worktree_lane_status: {
     title: "Read isolated coding worktrees",
-    description: "List at most four detached, exact-head Git worktrees in the authorized project's private agent-state folder. No external service.",
+    description:
+      "List at most four detached, exact-head Git worktrees in the authorized project's private agent-state folder. No external service.",
     input: scoped,
     access: "read",
   },
   worktree_lane_prepare: {
     title: "Prepare isolated coding worktree",
-    description: "Explicitly prepare one detached worktree from the authorized project's exact HEAD, without changing main checkout. No cloud or unrestricted shell; repository filters may execute during checkout.",
+    description:
+      "Explicitly prepare one detached worktree from the authorized project's exact HEAD, without changing main checkout. No cloud or unrestricted shell; repository filters may execute during checkout.",
     input: {
       ...scoped,
       laneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
@@ -764,7 +766,8 @@ export const definitions = {
   },
   worktree_lane_cleanup: {
     title: "Remove unchanged isolated coding worktree",
-    description: "Explicitly remove only the named pristine disposable worktree at the pinned HEAD; rejects tracked or untracked changes, new commits and path tricks; never force-deletes.",
+    description:
+      "Explicitly remove only the named pristine disposable worktree at the pinned HEAD; rejects tracked or untracked changes, new commits and path tricks; never force-deletes.",
     input: {
       ...scoped,
       laneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
@@ -1543,7 +1546,11 @@ export function createDispatcher(
         version: VERSION,
       };
     if (name === "worktree_lane_status")
-      return { device: config.id, project: p.id, ...worktreeLanes().status(p.id, p.files.root) };
+      return {
+        device: config.id,
+        project: p.id,
+        ...worktreeLanes().status(p.id, p.files.root),
+      };
     if (name === "worktree_lane_prepare") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
       const capacity = runner.capacity(p.files.root);
@@ -1552,7 +1559,12 @@ export function createDispatcher(
       return {
         device: config.id,
         project: p.id,
-        ...worktreeLanes().prepare(p.id, p.files.root, a.laneId, a.expectedHead),
+        ...worktreeLanes().prepare(
+          p.id,
+          p.files.root,
+          a.laneId,
+          a.expectedHead,
+        ),
       };
     }
     if (name === "worktree_lane_cleanup") {
@@ -1561,7 +1573,12 @@ export function createDispatcher(
       return {
         device: config.id,
         project: p.id,
-        ...worktreeLanes().cleanup(p.id, p.files.root, a.laneId, a.expectedHead),
+        ...worktreeLanes().cleanup(
+          p.id,
+          p.files.root,
+          a.laneId,
+          a.expectedHead,
+        ),
       };
     }
     if (name === "local_model_status")

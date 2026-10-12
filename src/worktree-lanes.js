@@ -10,19 +10,32 @@ const MAX_LANES = 4;
 
 function git(root, args) {
   try {
-    return execFileSync("git", ["--no-optional-locks",
-      "-c", "core.hooksPath=/dev/null", ...args], {
-      cwd: root, encoding: "utf8", timeout: 20000, maxBuffer: 65536,
-      windowsHide: true, stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
-    }).trim();
+    return execFileSync(
+      "git",
+      ["--no-optional-locks", "-c", "core.hooksPath=/dev/null", ...args],
+      {
+        cwd: root,
+        encoding: "utf8",
+        timeout: 20000,
+        maxBuffer: 65536,
+        windowsHide: true,
+        stdio: ["ignore", "pipe", "pipe"],
+        env: {
+          ...process.env,
+          GIT_TERMINAL_PROMPT: "0",
+          GIT_OPTIONAL_LOCKS: "0",
+        },
+      },
+    ).trim();
   } catch {
     fail("WORKTREE_GIT_FAILED");
   }
 }
 function exists(target) {
-  try { fs.lstatSync(target); return true; }
-  catch (error) {
+  try {
+    fs.lstatSync(target);
+    return true;
+  } catch (error) {
     if (error.code === "ENOENT") return false;
     fail("WORKTREE_PATH_UNSAFE");
   }
@@ -35,8 +48,10 @@ function directory(target) {
 }
 function source(root) {
   const safe = directory(root);
-  if (git(safe, ["rev-parse", "--is-bare-repository"]) !== "false" ||
-      path.resolve(git(safe, ["rev-parse", "--show-toplevel"])) !== safe)
+  if (
+    git(safe, ["rev-parse", "--is-bare-repository"]) !== "false" ||
+    path.resolve(git(safe, ["rev-parse", "--show-toplevel"])) !== safe
+  )
     fail("WORKTREE_SOURCE_INVALID");
   return safe;
 }
@@ -44,8 +59,10 @@ function common(root) {
   return path.resolve(root, git(root, ["rev-parse", "--git-common-dir"]));
 }
 function verifyLane(root, candidate) {
-  if (common(root) !== common(candidate) ||
-      path.resolve(git(candidate, ["rev-parse", "--show-toplevel"])) !== candidate)
+  if (
+    common(root) !== common(candidate) ||
+    path.resolve(git(candidate, ["rev-parse", "--show-toplevel"])) !== candidate
+  )
     fail("WORKTREE_SOURCE_MISMATCH");
 }
 export class WorktreeLanes {
@@ -65,18 +82,25 @@ export class WorktreeLanes {
     const parent = this.folder(project);
     const names = fs.readdirSync(parent);
     if (names.length > MAX_LANES) fail("WORKTREE_LIMIT_EXCEEDED");
-    return names.map((name) => {
-      if (!LANE.test(name)) fail("WORKTREE_PATH_UNSAFE");
-      const target = directory(path.join(parent, name));
-      verifyLane(root, target);
-      const head = git(target, ["rev-parse", "--verify", "HEAD"]);
-      const dirty = git(target, ["status", "--porcelain", "--untracked-files=all"]) !== "";
-      return { laneId: name, head, dirty };
-    }).sort((a, b) => a.laneId.localeCompare(b.laneId));
+    return names
+      .map((name) => {
+        if (!LANE.test(name)) fail("WORKTREE_PATH_UNSAFE");
+        const target = directory(path.join(parent, name));
+        verifyLane(root, target);
+        const head = git(target, ["rev-parse", "--verify", "HEAD"]);
+        const dirty =
+          git(target, ["status", "--porcelain", "--untracked-files=all"]) !==
+          "";
+        return { laneId: name, head, dirty };
+      })
+      .sort((a, b) => a.laneId.localeCompare(b.laneId));
   }
   status(project, root) {
-    return { lanes: this.entries(project, source(root)), limit: MAX_LANES,
-      noAdditionalExecutionSlots: true };
+    return {
+      lanes: this.entries(project, source(root)),
+      limit: MAX_LANES,
+      noAdditionalExecutionSlots: true,
+    };
   }
   prepare(project, root, laneId, expectedHead) {
     if (!LANE.test(laneId) || !SHA.test(expectedHead))
@@ -95,7 +119,9 @@ export class WorktreeLanes {
       fail("WORKTREE_LIMIT_EXCEEDED");
     // Fixed argv, no shell, no force and never touches source working files.
     git(repo, ["worktree", "add", "--detach", target, expectedHead]);
-    const verified = this.entries(project, repo).find((row) => row.laneId === laneId);
+    const verified = this.entries(project, repo).find(
+      (row) => row.laneId === laneId,
+    );
     if (!verified || verified.head !== expectedHead)
       fail("WORKTREE_CREATE_UNVERIFIED");
     return { ...verified, path: target, reused: false };
@@ -104,7 +130,9 @@ export class WorktreeLanes {
     if (!LANE.test(laneId) || !SHA.test(expectedHead))
       fail("WORKTREE_INPUT_INVALID");
     const repo = source(root);
-    const current = this.entries(project, repo).find((row) => row.laneId === laneId);
+    const current = this.entries(project, repo).find(
+      (row) => row.laneId === laneId,
+    );
     if (!current) fail("WORKTREE_NOT_FOUND");
     if (current.head !== expectedHead || current.dirty)
       fail("WORKTREE_HAS_UNSAVED_WORK");
