@@ -55,6 +55,7 @@ test("on-demand inference requires a local installed model and unloads it", asyn
   assert.equal(response.response, "local result");
   assert.equal(response.paidInference, false);
   assert.equal(response.outputIsUntrusted, true);
+  assert.equal(response.modelUnloadRequested, true);
   assert.equal(requests.length, 3);
   assert.deepEqual(
     requests.map((r) => r.path),
