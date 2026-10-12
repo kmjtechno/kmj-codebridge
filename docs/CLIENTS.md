@@ -381,3 +381,14 @@ not require a second filesystem, policy, licensing, or device implementation.
 Anthropic and OpenAI public directory listings are reviewed by those platforms.
 Repository packaging, local validation, and a successful private connection do
 not imply approval, ranking, or publication.
+
+## Gemini web and official desktop applications (2026)
+
+Gemini CLI and Gemini Code Assist have supported remote MCP OAuth integration.
+Consumer Gemini web **Gemini Spark** supports user-added custom MCP Connected
+Apps only for eligible US personal accounts, and Google's native Windows/macOS
+Gemini desktop apps do **not** have a universally verified custom MCP settings
+surface. There is no supported CodeBridge silent install into those vendor apps.
+
+For a current feature/eligibility matrix, safe credential-free one-click-style
+Gemini CLI setup, and web onboarding steps, see [GEMINI-CLIENTS.md](GEMINI-CLIENTS.md).
