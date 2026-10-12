@@ -12,6 +12,15 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   const source = fs.readFileSync(updaterPath, "utf8");
   assert.match(source, /ValidatePattern\('\^\[a-f0-9\]\{40\}\$'\)/);
   assert.match(source, /'UNTRUSTED_SOURCE_REMOTE'/);
+  assert.match(source, /AllowTrackedDirtyCheckout/);
+  assert.match(source, /function SnapshotTrackedChanges/);
+  assert.match(source, /function AssertCheckoutUnchanged/);
+  assert.match(source, /'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'/);
+  assert.match(source, /'LIVE_CHECKOUT_UNTRUSTED_PATH'/);
+  assert.match(source, /'LIVE_CHECKOUT_BYTES_CHANGED'/);
+  assert.match(source, /Get-FileHash -LiteralPath \$fullPath -Algorithm SHA256/);
+  assert.match(source, /\$snapshot\.ModifiedCount -gt 0 -and !\$AllowTrackedDirtyCheckout/);
+  assert.match(source, /AssertCheckoutUnchanged\s+AssertIdle/);
   assert.match(source, /merge-base --is-ancestor \$TargetSha \$remote/);
   assert.match(source, /merge-base --is-ancestor \$initialHead \$TargetSha/);
   assert.match(source, /'worktree', 'add', '--detach'/);
@@ -55,6 +64,8 @@ test("one-click native launch requires pinned known reviewed SHA and sibling scr
   assert.match(source, /%~dp0p720-native-agent-update\.ps1/);
   assert.match(source, /-NoProfile -NonInteractive/);
   assert.match(source, /CODEBRIDGE_UPDATE_EXIT/);
+  assert.match(source, /-AllowTrackedDirtyCheckout/);
+  assert.match(source, /Tracked-only unstaged edits are fingerprinted and preserved/);
   assert.doesNotMatch(
     source,
     /git\s+reset|curl|ollama pull|npm install|sc\.exe/i,
