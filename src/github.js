@@ -281,8 +281,18 @@ export function createGitHubBridge(config) {
     });
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403)
+      if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
+      if (response.status === 403) {
+        // GitHub uses HTTP 403 both for authorization denials and quota
+        // exhaustion. Inspect bounded headers only; never read an error body
+        // that may contain credential or organization details.
+        if (
+          response.headers.get("x-ratelimit-remaining") === "0" ||
+          response.headers.has("retry-after")
+        )
+          fail("GITHUB_RATE_LIMIT");
         fail("GITHUB_AUTHORIZATION_FAILED");
+      }
       if (response.status === 404) fail("GITHUB_NOT_FOUND");
       if (response.status === 409 || response.status === 422)
         fail("GITHUB_CONFLICT");
@@ -674,22 +684,46 @@ export function createGitHubBridge(config) {
         undefined,
       );
       if (pull.state !== "open") fail("GITHUB_PULL_REQUEST_NOT_OPEN");
+      if (pull.draft === true) fail("GITHUB_DRAFT_PULL_REQUEST");
       if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
 
-      const checks = await request(
-        "GET",
-        a.repository,
-        `commits/${a.expectedHeadSha}/check-runs?per_page=100`,
-        undefined,
-      );
-      const runs = checks.check_runs ?? [];
+      // The write path must be at least as strict as github_pull_request_ci:
+      // all checks AND complete exact-head workflow evidence are required.
+      // Otherwise an empty, paginated, stale or pending workflow set can
+      // incorrectly authorize a production merge.
+      const [checks, workflows] = await Promise.all([
+        request(
+          "GET",
+          a.repository,
+          `commits/${a.expectedHeadSha}/check-runs?per_page=100`,
+        ),
+        request(
+          "GET",
+          a.repository,
+          `actions/runs?head_sha=${a.expectedHeadSha}&per_page=100`,
+        ),
+      ]);
+      const runs = checks.check_runs;
+      const workflowRuns = workflows.workflow_runs;
       if (
+        !Array.isArray(runs) ||
+        !Array.isArray(workflowRuns) ||
         !Number.isInteger(checks.total_count) ||
         checks.total_count < 1 ||
         checks.total_count > 100 ||
         runs.length !== checks.total_count ||
+        !Number.isInteger(workflows.total_count) ||
+        workflows.total_count < 1 ||
+        workflows.total_count > 100 ||
+        workflowRuns.length !== workflows.total_count ||
         runs.some(
           (run) => run.status !== "completed" || run.conclusion !== "success",
+        ) ||
+        workflowRuns.some(
+          (run) =>
+            run.head_sha !== a.expectedHeadSha ||
+            run.status !== "completed" ||
+            run.conclusion !== "success",
         )
       )
         fail("GITHUB_CHECKS_NOT_GREEN");
