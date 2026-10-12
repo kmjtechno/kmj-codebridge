@@ -60,12 +60,15 @@ function source(root) {
   return safe;
 }
 function common(root) {
-  return canonical(path.resolve(root, git(root, ["rev-parse", "--git-common-dir"])));
+  return canonical(
+    path.resolve(root, git(root, ["rev-parse", "--git-common-dir"])),
+  );
 }
 function verifyLane(root, candidate) {
   if (
     common(root) !== common(candidate) ||
-    canonical(git(candidate, ["rev-parse", "--show-toplevel"])) !== canonical(candidate)
+    canonical(git(candidate, ["rev-parse", "--show-toplevel"])) !==
+      canonical(candidate)
   )
     fail("WORKTREE_SOURCE_MISMATCH");
 }
