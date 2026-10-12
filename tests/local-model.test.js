@@ -166,12 +166,20 @@ test("multiple authorized loopback Ollama ports combine installed models and rou
   assert.equal(available.available, true);
   assert.deepEqual(available.models, ["qwen2.5-coder:7b", "qwen3:4b"]);
   const draft = await client.generate({
-    model: "qwen3:4b", prompt: "plan the next test", maxTokens: 64,
+    model: "qwen3:4b",
+    prompt: "plan the next test",
+    maxTokens: 64,
   });
   assert.equal(draft.response, "reasoning result");
   assert.equal(draft.paidInference, false);
-  assert.deepEqual(first.requests.map(x => x.path).filter(x => x === "/api/generate"), []);
-  assert.equal(second.requests.filter(x => x.path === "/api/generate").length, 1);
+  assert.deepEqual(
+    first.requests.map((x) => x.path).filter((x) => x === "/api/generate"),
+    [],
+  );
+  assert.equal(
+    second.requests.filter((x) => x.path === "/api/generate").length,
+    1,
+  );
   assert.equal(second.requests.at(-1).payload.keep_alive, 0);
   await assert.rejects(
     client.generate({ model: "not-installed:1b", prompt: "test" }),
@@ -180,7 +188,18 @@ test("multiple authorized loopback Ollama ports combine installed models and rou
 });
 
 test("invalid local model port selections fail closed before network access", () => {
-  for (const ports of [[], [0], [65536], [-1], [11434, 11434], [1, 2, 3, 4], ["11435"]]) {
-    assert.throws(() => createLocalModelClient({ ports }), /LOCAL_MODEL_INVALID_PORT/);
+  for (const ports of [
+    [],
+    [0],
+    [65536],
+    [-1],
+    [11434, 11434],
+    [1, 2, 3, 4],
+    ["11435"],
+  ]) {
+    assert.throws(
+      () => createLocalModelClient({ ports }),
+      /LOCAL_MODEL_INVALID_PORT/,
+    );
   }
 });

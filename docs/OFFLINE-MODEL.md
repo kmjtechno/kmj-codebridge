@@ -12,7 +12,6 @@ Use tiny quantized models for low RAM and escalate only when needed. CPU/GPU res
 
 `npm run check && npm test` validates formatting, project permission checks and local loopback-only stub inference. CI mocks the local runtime; a passing test does **not** prove that a machine already has Ollama installed. Actual owner hardware must separately verify local inference and resource usage. This feature works without third-party CI or paid API accounts.
 
-
 ## Multiple local Ollama instances / KMJ P720
 
 An authorized P720 inference gate verified **real local generation** on 2026-10-12:

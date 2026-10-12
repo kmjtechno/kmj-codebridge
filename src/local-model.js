@@ -67,12 +67,17 @@ const DEFAULT_PORTS = Object.freeze([11434, 11435, 11436]);
 
 export function createLocalModelClient(options = {}) {
   const configured = options.ports ?? [options.port ?? DEFAULT_PORTS[0]];
-  const ports = options.ports === undefined && options.port === undefined
-    ? [...DEFAULT_PORTS]
-    : configured;
-  if (!Array.isArray(ports) || ports.length < 1 || ports.length > 3 ||
-      new Set(ports).size !== ports.length ||
-      ports.some((port) => !Number.isInteger(port) || port < 1 || port > 65535))
+  const ports =
+    options.ports === undefined && options.port === undefined
+      ? [...DEFAULT_PORTS]
+      : configured;
+  if (
+    !Array.isArray(ports) ||
+    ports.length < 1 ||
+    ports.length > 3 ||
+    new Set(ports).size !== ports.length ||
+    ports.some((port) => !Number.isInteger(port) || port < 1 || port > 65535)
+  )
     fail("LOCAL_MODEL_INVALID_PORT");
   let busy = false;
   async function tags(port) {
@@ -105,8 +110,10 @@ export function createLocalModelClient(options = {}) {
   return {
     async status() {
       const found = await discover();
-      const models = [...new Set(found.flatMap((row) => row.models))]
-        .slice(0, MAX_MODEL_RESULTS);
+      const models = [...new Set(found.flatMap((row) => row.models))].slice(
+        0,
+        MAX_MODEL_RESULTS,
+      );
       return {
         available: found.length > 0,
         provider: "local-ollama",
