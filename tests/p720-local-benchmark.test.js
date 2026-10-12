@@ -81,7 +81,9 @@ test("cold benchmark cannot evict a preloaded model belonging to Claude", async 
       if (endpoint === "/api/tags")
         return { models: [{ name: "qwen2.5-coder:7b" }] };
       if (endpoint === "/api/ps")
-        return { models: [{ name: "qwen2.5-coder:7b", size_vram: 4600000000 }] };
+        return {
+          models: [{ name: "qwen2.5-coder:7b", size_vram: 4600000000 }],
+        };
       throw Error("UNEXPECTED_GENERATE_OR_EVICTION");
     },
   );
@@ -103,8 +105,7 @@ test("uncertain baseline never requests generation or unload", async () => {
     { port: 11436, model: "qwen3:4b" },
     async (_port, endpoint, body) => {
       calls.push({ endpoint, body });
-      if (endpoint === "/api/tags")
-        return { models: [{ name: "qwen3:4b" }] };
+      if (endpoint === "/api/tags") return { models: [{ name: "qwen3:4b" }] };
       if (endpoint === "/api/ps") return { unexpected: true };
       throw Error("UNEXPECTED_GENERATE_OR_EVICTION");
     },
