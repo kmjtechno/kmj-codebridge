@@ -560,6 +560,24 @@ export const definitions = {
     input: {},
     access: "read",
   },
+  compact_work_brief: {
+    title: "Compact CodeBridge work brief",
+    description:
+      "Token-efficient project briefing: bounded Git identity, task counts, next task ID and actually available approved job slots. No raw files, logs, prompts, credentials, token-usage guarantees or unverified completion estimates.",
+    input: {
+      ...scoped,
+    },
+    access: "read",
+  },
+  render_codebridge_status: {
+    title: "Show KMJ CodeBridge branded project card",
+    description:
+      "On request, show an optional KMJ TECHNO branded read-only project status card on MCP Apps-capable clients. This only displays existing approved source branding and compact verified metadata; unsupported clients get a plain text result.",
+    input: {
+      ...scoped,
+    },
+    access: "read",
+  },
   fleet_overview: {
     title: "Fleet project progress",
     description:

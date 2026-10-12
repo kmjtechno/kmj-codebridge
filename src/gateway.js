@@ -18,6 +18,12 @@ import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { createGitHubReadiness } from "./github-readiness.js";
 import { fail, publicError } from "./errors.js";
 import { VERSION } from "./version.js";
+import {
+  KMJ_STATUS_RESOURCE_URI,
+  KMJ_STATUS_HTML,
+  compactWorkBrief,
+  compactStatusText,
+} from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
 function identify(req, records) {
   const raw = req.headers.authorization;
@@ -495,6 +501,24 @@ export async function startGateway(rawConfig) {
       generatedAt: new Date().toISOString(),
       ...fleetSummary(lanes, all.length),
     };
+  }
+
+  async function getCompactWorkBrief(user, args) {
+    authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
+    const requests = [
+      ["git_status", scope],
+      ["autopilot_status", { ...scope, limit: 1 }],
+      ["execution_capacity", scope],
+    ];
+    const parts = await Promise.all(requests.map(async ([name, input]) => {
+      try {
+        return decodeForwardedResult(await forward(user, name, input));
+      } catch (error) {
+        return { ok: false, error: publicError(error).error };
+      }
+    }));
+    return compactWorkBrief({ ...scope, git: parts[0], autopilot: parts[1], capacity: parts[2] });
   }
 
   const fastReadTools = new Set(FAST_READ_TOOLS);
@@ -1007,6 +1031,20 @@ export async function startGateway(rawConfig) {
                   ],
                 };
               }
+              if (name === "compact_work_brief") {
+                const result = await getCompactWorkBrief(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                  structuredContent: result,
+                };
+              }
+              if (name === "render_codebridge_status") {
+                const result = await getCompactWorkBrief(user, args);
+                return {
+                  content: [{ type: "text", text: compactStatusText(result) }],
+                  structuredContent: result,
+                };
+              }
               if (name === "fleet_overview") {
                 const result = await fleetOverview(user, args);
                 return {
@@ -1076,10 +1114,46 @@ export async function startGateway(rawConfig) {
                 openWorldHint:
                   name === "run_quality_gate" || name.startsWith("github_"),
               },
+              ...(name === "render_codebridge_status"
+                ? {
+                    _meta: {
+                      ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
+                      "openai/outputTemplate": KMJ_STATUS_RESOURCE_URI,
+                    },
+                  }
+                : {}),
               ...security,
             };
           }),
         }));
+
+      mcp.registerResource(
+        "KMJ CodeBridge status card",
+        KMJ_STATUS_RESOURCE_URI,
+        {
+          title: "KMJ TECHNO Project Status",
+          mimeType: "text/html;profile=mcp-app",
+          description: "Lightweight branded status display, zero remote scripts.",
+        },
+        async (uri) => ({
+          contents: [
+            {
+              uri: uri.href,
+              mimeType: "text/html;profile=mcp-app",
+              text: KMJ_STATUS_HTML,
+              _meta: {
+                ui: {
+                  prefersBorder: true,
+                  csp: {
+                    connectDomains: [],
+                    resourceDomains: ["https://raw.githubusercontent.com"],
+                  },
+                },
+              },
+            },
+          ],
+        }),
+      );
 
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
