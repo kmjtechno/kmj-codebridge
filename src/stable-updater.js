@@ -298,6 +298,28 @@ export function defaultStableUpdatePreflight(
   return true;
 }
 
+// The signed manifest's `nodeMajor` is the only compatibility contract the
+// runtime verifies before activation: it is not advisory metadata. A release
+// staged and activated on a host whose actual interpreter is a different
+// major version would not merely warn (npm's own engines check is a
+// non-fatal warning, and nothing else in this pipeline inspects the running
+// Node version) — it would replace the known-good `current` symlink with a
+// release this exact host cannot run, bricking the service until someone
+// manually intervenes. This check is deliberately cheap and runs immediately
+// after signature/channel verification, before any archive download, so an
+// incompatible host fails closed without spending bandwidth or touching the
+// release store.
+export function currentNodeMajor(rawVersion = process.versions.node) {
+  const major = Number(String(rawVersion).split(".")[0]);
+  if (!Number.isInteger(major) || major < 1)
+    fail("UPDATE_NODE_VERSION_INVALID");
+  return major;
+}
+
+function assertNodeCompatible(manifest, nodeMajor) {
+  if (manifest.nodeMajor !== nodeMajor) fail("UPDATE_NODE_INCOMPATIBLE");
+}
+
 async function fixedAgentRestart(socketPath, request = supervisorRequest) {
   const result = await request(
     socketPath,
@@ -324,6 +346,7 @@ export async function runStableUpdate(
     preflight = defaultStableUpdatePreflight,
     now = () => Date.now(),
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    nodeMajor = currentNodeMajor(),
   } = {},
 ) {
   const config = stableUpdateConfigSchema.parse(rawConfig);
@@ -359,6 +382,7 @@ export async function runStableUpdate(
     minimumSequence: -1,
   });
   if (manifest.channel !== config.channel) fail("UPDATE_CHANNEL_MISMATCH");
+  assertNodeCompatible(manifest, nodeMajor);
 
   if (manifest.sequence < minimumSequence) fail("UPDATE_ROLLBACK_REJECTED");
   if (manifest.sequence === minimumSequence) {
