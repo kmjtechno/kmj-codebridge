@@ -130,6 +130,20 @@ export class JobRunner {
           archived.state !== j.state)
       )
         fail("CORRUPT_JOB_ARCHIVE");
+      // A duplicate (project, key) journal would make replay selection
+      // dependent on filesystem enumeration order. Refuse ambiguous state.
+      if (
+        typeof j.key !== "string" ||
+        j.key.length < 1 ||
+        j.key.length > 128 ||
+        typeof j.fingerprint !== "string" ||
+        j.fingerprint.length < 1 ||
+        [...this.jobs.values()].some(
+          (known) => known.project === j.project && known.key === j.key,
+        ) ||
+        (this.archive.lookup(j.project, j.key)?.id ?? j.id) !== j.id
+      )
+        fail("CORRUPT_JOURNAL");
       if (["running", "queued"].includes(j.state)) {
         j.state = "interrupted";
         j.endedAt = new Date().toISOString();
