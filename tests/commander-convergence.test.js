@@ -22,7 +22,11 @@ function fixture(t) {
   fs.writeFileSync(path.join(root, ".env"), "token=private");
   fs.writeFileSync(path.join(root, ".ssh", "config"), "private");
   fs.writeFileSync(path.join(root, "node_modules", "library.js"), "hidden");
-  fs.symlinkSync(path.join(root, "src"), path.join(root, "shortcut"));
+  fs.symlinkSync(
+    path.join(root, "src"),
+    path.join(root, "shortcut"),
+    process.platform === "win32" ? "junction" : "dir",
+  );
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   return { base, root, files: new ProjectFiles(root) };
 }
