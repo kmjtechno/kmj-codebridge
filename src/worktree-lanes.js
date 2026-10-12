@@ -54,7 +54,7 @@ function source(root) {
   const safe = directory(root);
   if (
     git(safe, ["rev-parse", "--is-bare-repository"]) !== "false" ||
-    canonical(git(safe, ["rev-parse", "--show-toplevel"])) !== canonical(safe)
+    git(safe, ["rev-parse", "--show-prefix"]) !== ""
   )
     fail("WORKTREE_SOURCE_INVALID");
   return safe;
@@ -67,8 +67,7 @@ function common(root) {
 function verifyLane(root, candidate) {
   if (
     common(root) !== common(candidate) ||
-    canonical(git(candidate, ["rev-parse", "--show-toplevel"])) !==
-      canonical(candidate)
+    git(candidate, ["rev-parse", "--show-prefix"]) !== ""
   )
     fail("WORKTREE_SOURCE_MISMATCH");
 }
