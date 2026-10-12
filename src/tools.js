@@ -2459,16 +2459,57 @@ export function createDispatcher(
         fail("GIT_RECONCILE_CHECK_FAILED");
       }
       if (untracked) fail("GIT_RECONCILE_UNTRACKED");
+      // The index must be pristine. Never discard staged changes, even if
+      // the working tree happens to match a fetched commit.
+      const matchesRevision = (args) => {
+        try {
+          runGit(args);
+          return true;
+        } catch (error) {
+          if (error?.status === 1) return false;
+          fail("GIT_RECONCILE_CHECK_FAILED");
+        }
+      };
+      if (!matchesRevision(["diff", "--cached", "--quiet", "HEAD", "--"]))
+        fail("GIT_RECONCILE_CONTENT_MISMATCH");
+      const alreadyMatchesRemote = matchesRevision([
+        "diff",
+        "--quiet",
+        a.expectedRemoteHead,
+        "--",
+      ]);
+      const cleanCurrentHead = matchesRevision([
+        "diff",
+        "--quiet",
+        "HEAD",
+        "--",
+      ]);
+      if (!alreadyMatchesRemote && !cleanCurrentHead)
+        fail("GIT_RECONCILE_CONTENT_MISMATCH");
+      // A clean checkout is safe to fast-forward without first writing all
+      // newer tracked bytes into it. Never silently rewind or diverge.
       try {
-        runGit(["diff", "--quiet", a.expectedRemoteHead, "--"]);
+        runGit([
+          "merge-base",
+          "--is-ancestor",
+          "HEAD",
+          a.expectedRemoteHead,
+        ]);
       } catch (error) {
-        if (error?.status === 1) fail("GIT_RECONCILE_CONTENT_MISMATCH");
+        if (error?.status === 1) fail("GIT_RECONCILE_NON_FAST_FORWARD");
         fail("GIT_RECONCILE_CHECK_FAILED");
       }
       try {
-        runGit(["reset", "--hard", a.expectedRemoteHead]);
+        if (alreadyMatchesRemote) {
+          // Retain the existing hash-guarded content-reconciliation path.
+          runGit(["reset", "--hard", a.expectedRemoteHead]);
+        } else {
+          // Unlike reset --hard, ff-only merge refuses a concurrent dirty
+          // worktree; no remote divergence, rebase or forced checkout.
+          runGit(["merge", "--ff-only", a.expectedRemoteHead], 120000);
+        }
       } catch {
-        fail("GIT_RECONCILE_RESET_FAILED");
+        fail("GIT_RECONCILE_ADVANCE_FAILED");
       }
       let head;
       try {
