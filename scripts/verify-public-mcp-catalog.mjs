@@ -113,9 +113,36 @@ export function verifyCatalogs(render, production) {
   return { renderCount: render.size, productionCount: production.size };
 }
 
+export async function probeWithWarmup(
+  endpoint,
+  request = fetch,
+  pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    try {
+      return await probeCatalog(endpoint, request);
+    } catch (error) {
+      // A malformed or malicious catalog must never be retried into a PASS.
+      const fatal = new Set([
+        "MCP_CATALOG_RESPONSE_INVALID",
+        "MCP_CATALOG_NAMES_INVALID",
+        "MCP_CATALOG_TOOLS_MISSING",
+        "MCP_CATALOG_BODY_TOO_LARGE",
+        "MCP_CATALOG_ENDPOINT_DENIED",
+      ]);
+      if (fatal.has(error.message)) throw error;
+      if (attempt === 3) {
+        throw new Error("MCP_CATALOG_PROBE_UNAVAILABLE");
+      }
+      await pause(2000 * (attempt + 1));
+    }
+  }
+}
+
 async function main() {
-  const render = await probeCatalog(ENDPOINTS.render);
-  const production = await probeCatalog(ENDPOINTS.production);
+  // Free-tier Render can cold-start; retry transport errors, never schema drift.
+  const render = await probeWithWarmup(ENDPOINTS.render);
+  const production = await probeWithWarmup(ENDPOINTS.production);
   const report = verifyCatalogs(render, production);
   console.log(
     "MCP_PUBLIC_CATALOG=PASS render=" +
