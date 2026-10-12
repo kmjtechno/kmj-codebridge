@@ -49,7 +49,12 @@ function safeFile(file) {
     if (error.code === "ENOENT") return false;
     throw Error("GEMINI_CONFIG_UNSAFE");
   }
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 || stat.size > MAX_BYTES)
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    stat.size > MAX_BYTES
+  )
     throw Error("GEMINI_CONFIG_UNSAFE");
   return true;
 }
@@ -85,32 +90,41 @@ function readConfig(file) {
     (!config.mcpServers ||
       typeof config.mcpServers !== "object" ||
       Array.isArray(config.mcpServers))
-  ) throw Error("GEMINI_MCP_SERVERS_INVALID");
+  )
+    throw Error("GEMINI_MCP_SERVERS_INVALID");
   return { raw, config };
 }
 
 function main() {
   const options = parseArgs(process.argv.slice(2));
-  const home = process.platform === "win32"
-    ? (process.env.USERPROFILE || os.homedir())
-    : os.homedir();
+  const home =
+    process.platform === "win32"
+      ? process.env.USERPROFILE || os.homedir()
+      : os.homedir();
   const base = options.scope === "user" ? home : fs.realpathSync(process.cwd());
   const folder = path.join(base, ".gemini");
   const target = path.join(folder, "settings.json");
 
   const hasDir = safeDir(folder, false);
-  const { raw, config } = hasDir ? readConfig(target) : { raw: null, config: {} };
+  const { raw, config } = hasDir
+    ? readConfig(target)
+    : { raw: null, config: {} };
   const existing = config.mcpServers?.[SERVER];
   const intended = { httpUrl: options.endpoint, trust: false };
-  const matching = existing && Object.keys(existing).length === 2 &&
-    existing.httpUrl === intended.httpUrl && existing.trust === false;
+  const matching =
+    existing &&
+    Object.keys(existing).length === 2 &&
+    existing.httpUrl === intended.httpUrl &&
+    existing.trust === false;
 
   if (existing && !matching)
     throw Error("GEMINI_CODEBRIDGE_ALREADY_CONFIGURED_DIFFERENTLY");
 
   if (options.mode === "check") {
     if (!matching) throw Error("GEMINI_CODEBRIDGE_NOT_CONFIGURED");
-    console.log("GEMINI_CODEBRIDGE_CONFIGURED: remote HTTP OAuth; confirmations enabled");
+    console.log(
+      "GEMINI_CODEBRIDGE_CONFIGURED: remote HTTP OAuth; confirmations enabled",
+    );
     return;
   }
   if (matching) {
@@ -118,7 +132,9 @@ function main() {
     return;
   }
   if (options.mode === "dry-run") {
-    console.log("GEMINI_CODEBRIDGE_DRY_RUN: would add remote HTTP OAuth without credentials");
+    console.log(
+      "GEMINI_CODEBRIDGE_DRY_RUN: would add remote HTTP OAuth without credentials",
+    );
     console.log("Scope: " + options.scope);
     console.log("Apply with --yes after reviewing this scope.");
     return;
@@ -138,7 +154,10 @@ function main() {
   let backup = null;
   try {
     if (raw !== null) {
-      backup = path.join(folder, "settings.json.before-kmj-" + randomUUID() + ".bak");
+      backup = path.join(
+        folder,
+        "settings.json.before-kmj-" + randomUUID() + ".bak",
+      );
       fs.writeFileSync(backup, raw, { flag: "wx", mode: 0o600 });
     }
     fs.writeFileSync(temp, data, { flag: "wx", mode: 0o600 });
@@ -146,10 +165,18 @@ function main() {
   } finally {
     if (fs.existsSync(temp)) fs.unlinkSync(temp);
   }
-  console.log("GEMINI_CODEBRIDGE_CONFIGURED: remote HTTP OAuth; confirmations enabled");
+  console.log(
+    "GEMINI_CODEBRIDGE_CONFIGURED: remote HTTP OAuth; confirmations enabled",
+  );
   console.log("Scope: " + options.scope);
-  console.log(backup ? "Existing settings preserved in a private backup." : "New settings file created.");
-  console.log("Open Gemini CLI or Gemini Code Assist Agent mode; use /mcp, then OAuth sign-in.");
+  console.log(
+    backup
+      ? "Existing settings preserved in a private backup."
+      : "New settings file created.",
+  );
+  console.log(
+    "Open Gemini CLI or Gemini Code Assist Agent mode; use /mcp, then OAuth sign-in.",
+  );
   console.log("This does not configure the consumer Gemini web/desktop apps.");
 }
 

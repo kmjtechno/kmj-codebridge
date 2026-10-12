@@ -2,15 +2,16 @@
 
 KMJ CodeBridge uses one vendor-neutral **OAuth-protected Streamable HTTP MCP** endpoint: `https://kmjtechno.com/mcp`. Google products have different capabilities; do not treat them as interchangeable.
 
-| Google client | CodeBridge MCP path | Verified qualification |
-| --- | --- | --- |
-| Gemini CLI (Windows/macOS/Linux) | Remote MCP `httpUrl` and OAuth discovery | Officially supported by Google's Gemini CLI. CodeBridge emits `gemini-json` / `gemini-cli` templates; local setup helper added here. |
-| Gemini Code Assist VS Code Agent mode | Gemini CLI MCP settings | Google documents remote and local MCP tools; test OAuth and tool permissions on the actual installed IDE. |
-| Gemini web (gemini.google.com) | **Gemini Spark** custom Connected Apps via MCP URL | Google currently requires an eligible US user aged 18+, a personal Google Account, English, and Keep Activity. Not generally available in India; no automatic installation. |
-| Gemini official macOS desktop | Native Gemini app with Spark where eligible | Google's desktop app exists. No independent proof that desktop exposes the same general custom-app MCP addition UI; use Gemini web Connected Apps setup if eligible and verify actual desktop tool discovery. |
-| Gemini official Windows desktop | Native Gemini desktop app | Google desktop app exists, but native custom MCP tools via desktop settings are **not verified**; do not promise arbitrary MCP plugins or enablement. Use Gemini CLI or Code Assist on Windows instead. |
+| Google client                         | CodeBridge MCP path                                | Verified qualification                                                                                                                                                                                        |
+| ------------------------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gemini CLI (Windows/macOS/Linux)      | Remote MCP `httpUrl` and OAuth discovery           | Officially supported by Google's Gemini CLI. CodeBridge emits `gemini-json` / `gemini-cli` templates; local setup helper added here.                                                                          |
+| Gemini Code Assist VS Code Agent mode | Gemini CLI MCP settings                            | Google documents remote and local MCP tools; test OAuth and tool permissions on the actual installed IDE.                                                                                                     |
+| Gemini web (gemini.google.com)        | **Gemini Spark** custom Connected Apps via MCP URL | Google currently requires an eligible US user aged 18+, a personal Google Account, English, and Keep Activity. Not generally available in India; no automatic installation.                                   |
+| Gemini official macOS desktop         | Native Gemini app with Spark where eligible        | Google's desktop app exists. No independent proof that desktop exposes the same general custom-app MCP addition UI; use Gemini web Connected Apps setup if eligible and verify actual desktop tool discovery. |
+| Gemini official Windows desktop       | Native Gemini desktop app                          | Google desktop app exists, but native custom MCP tools via desktop settings are **not verified**; do not promise arbitrary MCP plugins or enablement. Use Gemini CLI or Code Assist on Windows instead.       |
 
 Google documentation (review when publishing):
+
 - https://geminicli.com/docs/tools/mcp-server/
 - https://docs.cloud.google.com/gemini/docs/codeassist/agent-mode
 - https://support.google.com/gemini/answer/17209137

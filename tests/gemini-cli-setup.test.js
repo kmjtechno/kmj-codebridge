@@ -57,7 +57,10 @@ test("Gemini CLI setup preserves existing settings, makes backup and is idempote
   const again = run(dir, "--yes");
   assert.equal(again.status, 0, again.stderr);
   assert.match(again.stdout, /ALREADY_CONFIGURED/);
-  assert.equal(fs.readdirSync(folder).filter((x) => x.endsWith(".bak")).length, 1);
+  assert.equal(
+    fs.readdirSync(folder).filter((x) => x.endsWith(".bak")).length,
+    1,
+  );
   assert.doesNotMatch(fs.readFileSync(target, "utf8"), /Bearer\s/);
 });
 
@@ -80,7 +83,8 @@ test("Gemini setup refuses to overwrite an existing CodeBridge connector", (t) =
   const folder = path.join(dir, ".gemini");
   fs.mkdirSync(folder);
   const target = path.join(folder, "settings.json");
-  const existing = '{"mcpServers":{"kmj-codebridge":{"httpUrl":"https://old.example/mcp","trust":true}}}';
+  const existing =
+    '{"mcpServers":{"kmj-codebridge":{"httpUrl":"https://old.example/mcp","trust":true}}}';
   fs.writeFileSync(target, existing);
   const result = run(dir, "--yes");
   assert.notEqual(result.status, 0);

@@ -382,7 +382,6 @@ Anthropic and OpenAI public directory listings are reviewed by those platforms.
 Repository packaging, local validation, and a successful private connection do
 not imply approval, ranking, or publication.
 
-
 ## Gemini web and official desktop applications (2026)
 
 Gemini CLI and Gemini Code Assist have supported remote MCP OAuth integration.
