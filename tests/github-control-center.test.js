@@ -342,10 +342,13 @@ test("feature file creation refuses unknown default-branch metadata", async (t) 
 test("GitHub HTTP 403 rate-limit headers are distinguished from authorization denial", async (t) => {
   let remaining = "0";
   t.mock.method(globalThis, "fetch", async () =>
-    Response.json({}, {
-      status: 403,
-      headers: remaining === "0" ? { "x-ratelimit-remaining": "0" } : {},
-    }),
+    Response.json(
+      {},
+      {
+        status: 403,
+        headers: remaining === "0" ? { "x-ratelimit-remaining": "0" } : {},
+      },
+    ),
   );
   const dispatch = bridge(t);
   await assert.rejects(
@@ -374,7 +377,10 @@ test("native GitHub merge refuses draft PR before any CI query or write", async 
     }),
     /GITHUB_DRAFT_PULL_REQUEST/,
   );
-  assert.deepEqual(calls.map((call) => call.method), ["GET"]);
+  assert.deepEqual(
+    calls.map((call) => call.method),
+    ["GET"],
+  );
 });
 
 test("native GitHub merge fails closed for missing, pending, stale, or failed workflows", async (t) => {
@@ -443,9 +449,5 @@ test("native GitHub merge fails closed for missing, pending, stale, or failed wo
     requests.filter((request) => request.method === "PUT").length,
     1,
   );
-  assert.ok(
-    requests.some((request) =>
-      request.path.endsWith("/actions/runs"),
-    ),
-  );
+  assert.ok(requests.some((request) => request.path.endsWith("/actions/runs")));
 });
