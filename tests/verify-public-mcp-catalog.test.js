@@ -5,6 +5,7 @@ import {
   REQUIRED_TOOLS,
   parseToolNames,
   probeCatalog,
+  probeWithWarmup,
   verifyCatalogs,
 } from "../scripts/verify-public-mcp-catalog.mjs";
 
@@ -107,4 +108,54 @@ test("non-200 and oversized streamed responses fail without echoing secrets", as
     ),
     /MCP_CATALOG_BODY_TOO_LARGE/,
   );
+});
+
+test("bounded cold-start transport retries never conceal malformed catalogs", async () => {
+  const pauses = [];
+  let calls = 0;
+  const mockRequest = async () => {
+    calls++;
+    if (calls === 1) return new Response("starting", { status: 503 });
+    return new Response(body(validNames()), { status: 200 });
+  };
+  const names = await probeWithWarmup(
+    ENDPOINTS.render,
+    mockRequest,
+    async (ms) => pauses.push(ms),
+  );
+  assert.equal(names.size, 103);
+  assert.equal(calls, 2);
+  assert.deepEqual(pauses, [2000]);
+
+  let malformedCalls = 0;
+  await assert.rejects(
+    probeWithWarmup(
+      ENDPOINTS.production,
+      async () => {
+        malformedCalls++;
+        return new Response("not an MCP catalog", { status: 200 });
+      },
+      async () => {
+        throw new Error("RETRY_NOT_ALLOWED");
+      },
+    ),
+    /MCP_CATALOG_TOOLS_MISSING/,
+  );
+  assert.equal(malformedCalls, 1);
+
+  let attempts = 0;
+  const boundedPauses = [];
+  await assert.rejects(
+    probeWithWarmup(
+      ENDPOINTS.render,
+      async () => {
+        attempts++;
+        return new Response("service unavailable", { status: 503 });
+      },
+      async (ms) => boundedPauses.push(ms),
+    ),
+    /MCP_CATALOG_PROBE_UNAVAILABLE/,
+  );
+  assert.equal(attempts, 4);
+  assert.deepEqual(boundedPauses, [2000, 4000, 6000]);
 });
