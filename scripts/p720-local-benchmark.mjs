@@ -124,6 +124,20 @@ export async function benchmarkTarget(target, request = localJson) {
         optional: !!target.optional,
       };
     installed = true;
+    // A previous workload may already have loaded the same model. Refuse to
+    // label a sample "cold" until Ollama confirms it was unloaded.
+    await request(
+      port,
+      "/api/generate",
+      { model, prompt: "", stream: false, keep_alive: 0 },
+      10000,
+    );
+    const coldStart = await request(port, "/api/ps");
+    if (
+      !Array.isArray(coldStart?.models) ||
+      coldStart.models.some((entry) => entry.name === model || entry.model === model)
+    )
+      throw Error("BENCH_COLD_UNLOAD_NOT_VERIFIED");
 
     // Cold request explicitly asks Ollama to release the model afterward.
     // Warm priming and warm repeat are back-to-back within a 30s bounded TTL.
@@ -159,10 +173,16 @@ export async function benchmarkTarget(target, request = localJson) {
     }
     const measured =
       cold.totalMs !== null && warm.totalMs !== null && cold.totalMs > 0;
+    const allCodingSmokesPass =
+      cold.codingSmokePass && priming.codingSmokePass && warm.codingSmokePass;
     return {
       model,
       port,
-      state: "MEASURED",
+      state: !measured
+        ? "INCOMPLETE_TIMING"
+        : allCodingSmokesPass
+          ? "MEASURED"
+          : "INVALID_CODING_OUTPUT",
       cold,
       priming,
       warm,
@@ -172,8 +192,7 @@ export async function benchmarkTarget(target, request = localJson) {
             (((warm.totalMs - cold.totalMs) / cold.totalMs) * 100).toFixed(1),
           )
         : null,
-      allCodingSmokesPass:
-        cold.codingSmokePass && priming.codingSmokePass && warm.codingSmokePass,
+      allCodingSmokesPass,
       note: "Negative latency change is faster. GPU process attribution and GPU free VRAM are not asserted.",
     };
   } catch (error) {
@@ -184,7 +203,9 @@ export async function benchmarkTarget(target, request = localJson) {
       error:
         error?.message === "BENCH_NO_VISIBLE_OUTPUT"
           ? "BENCH_NO_VISIBLE_OUTPUT"
-          : "BENCH_LOCAL_ENDPOINT_OR_INFERENCE_FAILED",
+          : error?.message === "BENCH_COLD_UNLOAD_NOT_VERIFIED"
+            ? "BENCH_COLD_UNLOAD_NOT_VERIFIED"
+            : "BENCH_LOCAL_ENDPOINT_OR_INFERENCE_FAILED",
     };
   } finally {
     // Always request unload at the end, including failures. Never report
