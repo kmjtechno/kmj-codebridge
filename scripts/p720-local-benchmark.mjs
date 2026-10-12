@@ -185,11 +185,11 @@ export async function benchmarkTarget(target, request = localJson) {
     return {
       model,
       port,
-      state: !measured
-        ? "INCOMPLETE_TIMING"
-        : allCodingSmokesPass
+      state: !allCodingSmokesPass
+        ? "INVALID_CODING_OUTPUT"
+        : measured
           ? "MEASURED"
-          : "INVALID_CODING_OUTPUT",
+          : "INCOMPLETE_TIMING",
       cold,
       priming,
       warm,
