@@ -60,11 +60,22 @@ function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
   });
 }
 
-export function createLocalModelClient({ port = 11434 } = {}) {
-  if (!Number.isInteger(port) || port < 1 || port > 65535)
+// Fixed loopback-only ports verified on KMJ P720 plus the standard Ollama port.
+// Explicit ports are accepted only by the locally configured agent factory
+// (not supplied by an arbitrary MCP chat/tool invocation).
+const DEFAULT_PORTS = Object.freeze([11434, 11435, 11436]);
+
+export function createLocalModelClient(options = {}) {
+  const configured = options.ports ?? [options.port ?? DEFAULT_PORTS[0]];
+  const ports = options.ports === undefined && options.port === undefined
+    ? [...DEFAULT_PORTS]
+    : configured;
+  if (!Array.isArray(ports) || ports.length < 1 || ports.length > 3 ||
+      new Set(ports).size !== ports.length ||
+      ports.some((port) => !Number.isInteger(port) || port < 1 || port > 65535))
     fail("LOCAL_MODEL_INVALID_PORT");
   let busy = false;
-  async function tags() {
+  async function tags(port) {
     const body = await jsonRequest({
       port,
       endpoint: "/api/tags",
@@ -77,30 +88,37 @@ export function createLocalModelClient({ port = 11434 } = {}) {
       .map((entry) => entry.name)
       .slice(0, MAX_MODEL_RESULTS);
   }
+  async function discover() {
+    // Independent local instances are probed concurrently, with a strict
+    // per-port deadline. An offline instance does not block another instance.
+    const found = await Promise.all(
+      ports.map(async (port) => {
+        try {
+          return { port, models: await tags(port) };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return found.filter(Boolean);
+  }
   return {
     async status() {
-      try {
-        return {
-          available: true,
-          provider: "local-ollama",
-          models: await tags(),
-          activeRequest: busy,
-          cloudFallback: false,
-          paidInference: false,
-          readyForOnDemandUse: true,
-        };
-      } catch {
-        return {
-          available: false,
-          provider: "local-ollama",
-          models: [],
-          activeRequest: busy,
-          cloudFallback: false,
-          paidInference: false,
-          readyForOnDemandUse: false,
-          reason: "LOCAL_MODEL_NOT_RUNNING_OR_INVALID",
-        };
-      }
+      const found = await discover();
+      const models = [...new Set(found.flatMap((row) => row.models))]
+        .slice(0, MAX_MODEL_RESULTS);
+      return {
+        available: found.length > 0,
+        provider: "local-ollama",
+        models,
+        activeRequest: busy,
+        cloudFallback: false,
+        paidInference: false,
+        readyForOnDemandUse: found.length > 0 && models.length > 0,
+        ...(found.length === 0
+          ? { reason: "LOCAL_MODEL_NOT_RUNNING_OR_INVALID" }
+          : {}),
+      };
     },
     async generate({ model, prompt, maxTokens = 192, timeoutSeconds = 45 }) {
       if (
@@ -119,17 +137,14 @@ export function createLocalModelClient({ port = 11434 } = {}) {
       if (busy) fail("LOCAL_MODEL_BUSY");
       busy = true;
       try {
-        let available;
-        try {
-          available = await tags();
-        } catch {
-          fail("LOCAL_MODEL_NOT_RUNNING");
-        }
-        if (!available.includes(model)) fail("LOCAL_MODEL_NOT_INSTALLED");
+        const found = await discover();
+        if (found.length === 0) fail("LOCAL_MODEL_NOT_RUNNING");
+        const selected = found.find((row) => row.models.includes(model));
+        if (!selected) fail("LOCAL_MODEL_NOT_INSTALLED");
         let result;
         try {
           result = await jsonRequest({
-            port,
+            port: selected.port,
             endpoint: "/api/generate",
             body: {
               model,

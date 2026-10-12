@@ -147,3 +147,40 @@ test("explicit local processing approval and read/execute scopes are enforced", 
   assert.equal(status.project, "p1");
   assert.equal(status.cloudFallback, false);
 });
+
+test("multiple authorized loopback Ollama ports combine installed models and route exact model locally", async (t) => {
+  const first = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen2.5-coder:7b" }] }];
+    return [200, { response: "coding result", done: true, eval_count: 12 }];
+  });
+  const second = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen3:4b" }] }];
+    return [200, { response: "reasoning result", done: true, eval_count: 16 }];
+  });
+  const client = createLocalModelClient({
+    ports: [first.port, 1, second.port],
+  });
+  const available = await client.status();
+  assert.equal(available.available, true);
+  assert.deepEqual(available.models, ["qwen2.5-coder:7b", "qwen3:4b"]);
+  const draft = await client.generate({
+    model: "qwen3:4b", prompt: "plan the next test", maxTokens: 64,
+  });
+  assert.equal(draft.response, "reasoning result");
+  assert.equal(draft.paidInference, false);
+  assert.deepEqual(first.requests.map(x => x.path).filter(x => x === "/api/generate"), []);
+  assert.equal(second.requests.filter(x => x.path === "/api/generate").length, 1);
+  assert.equal(second.requests.at(-1).payload.keep_alive, 0);
+  await assert.rejects(
+    client.generate({ model: "not-installed:1b", prompt: "test" }),
+    /LOCAL_MODEL_NOT_INSTALLED/,
+  );
+});
+
+test("invalid local model port selections fail closed before network access", () => {
+  for (const ports of [[], [0], [65536], [-1], [11434, 11434], [1, 2, 3, 4], ["11435"]]) {
+    assert.throws(() => createLocalModelClient({ ports }), /LOCAL_MODEL_INVALID_PORT/);
+  }
+});
