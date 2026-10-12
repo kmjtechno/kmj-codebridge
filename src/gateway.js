@@ -382,10 +382,13 @@ export async function startGateway(rawConfig) {
       fail("GATEWAY_BUSY");
     return new Promise((resolve, reject) => {
       const id = randomUUID();
-      const timer = setTimeout(() => {
-        pending.delete(id);
-        reject(Object.assign(new Error(), { code: "DEVICE_TIMEOUT" }));
-      }, forwardTimeoutMs(config.deviceTimeoutMs, name, args));
+      const timer = setTimeout(
+        () => {
+          pending.delete(id);
+          reject(Object.assign(new Error(), { code: "DEVICE_TIMEOUT" }));
+        },
+        forwardTimeoutMs(config.deviceTimeoutMs, name, args),
+      );
       pending.set(id, {
         id,
         agent: a.id,

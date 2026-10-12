@@ -12,7 +12,10 @@ import { forwardTimeoutMs } from "../src/gateway.js";
 
 test("forwardTimeoutMs leaves the configured default untouched for ordinary tools", () => {
   assert.equal(forwardTimeoutMs(15000, "git_status", {}), 15000);
-  assert.equal(forwardTimeoutMs(15000, "write_file", { timeoutSeconds: 90 }), 15000);
+  assert.equal(
+    forwardTimeoutMs(15000, "write_file", { timeoutSeconds: 90 }),
+    15000,
+  );
 });
 
 test("forwardTimeoutMs leaves the default untouched when timeoutSeconds is absent or not finite", () => {
