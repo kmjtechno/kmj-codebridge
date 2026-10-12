@@ -11,6 +11,7 @@ PROJECT_ROOT="${CODEBRIDGE_PROJECT_ROOT:-/srv/kmj-codebridge-projects/kmj-main-p
 RUNTIME="${CODEBRIDGE_RUNTIME:-/opt/kmj-codebridge-agent}"
 ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
 GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
+LOCAL_GATEWAY="${CODEBRIDGE_LOCAL_GATEWAY:-}"
 STATE_DIR="${CODEBRIDGE_STATE_DIR:-/var/lib/kmj-codebridge-$INSTANCE}"
 CONFIG_DIR="${CODEBRIDGE_CONFIG_DIR:-/etc/kmj-codebridge-main-platform}"
 CONFIG="$CONFIG_DIR/agent.json"
@@ -127,17 +128,22 @@ if [[ ! -f "$CONFIG" ]]; then
   "$NODE" "$RUNTIME/scripts/enroll-device.js"     "$ENROLLMENT_BASE" "$DEVICE" "$PROJECT_ID" "$PROJECT_ROOT" "$ENROLLMENT_RESULT"
   [[ -f "$ENROLLMENT_RESULT" ]] || { echo 'Enrollment did not produce a credential.' >&2; exit 3; }
 
-  PROJECT_ROOT="$PROJECT_ROOT" PROJECT_ID="$PROJECT_ID" STATE_DIR="$STATE_DIR" CONFIG="$CONFIG"   ENROLLMENT_RESULT="$ENROLLMENT_RESULT" SUPERVISOR_SOCKET="$SUPERVISOR_SOCKET" GATEWAY="$GATEWAY" "$NODE" --input-type=module <<'NODE'
+  PROJECT_ROOT="$PROJECT_ROOT" PROJECT_ID="$PROJECT_ID" STATE_DIR="$STATE_DIR" CONFIG="$CONFIG"   ENROLLMENT_RESULT="$ENROLLMENT_RESULT" SUPERVISOR_SOCKET="$SUPERVISOR_SOCKET" GATEWAY="$GATEWAY" LOCAL_GATEWAY="$LOCAL_GATEWAY" RUNTIME="$RUNTIME" "$NODE" --input-type=module <<'NODE'
 import fs from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 const result = JSON.parse(fs.readFileSync(process.env.ENROLLMENT_RESULT, 'utf8'));
 if (!result.agent || typeof result.agent.token !== 'string' || result.agent.token.length < 32) throw new Error('invalid enrollment result');
 if (!Array.isArray(result.projects) || !result.projects.some(p => p.id === process.env.PROJECT_ID)) throw new Error('project not approved');
 const perms = Array.isArray(result.permissions) ? result.permissions : [];
 const root = fs.realpathSync(process.env.PROJECT_ROOT);
-const gateway =
-  typeof result.gateway === 'string' && result.gateway
-    ? result.gateway
-    : process.env.GATEWAY;
+let gateway = typeof result.gateway === 'string' && result.gateway
+  ? result.gateway
+  : process.env.GATEWAY;
+if (process.env.LOCAL_GATEWAY) {
+  const { resolveAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
+  gateway = resolveAgentGateway(result.gateway, process.env.GATEWAY, process.env.LOCAL_GATEWAY);
+}
 const config = {
   gateway,
   token: result.agent.token,
@@ -182,6 +188,16 @@ const [file, root, projectId] = process.argv.slice(2);
 const c = JSON.parse(fs.readFileSync(file, 'utf8'));
 if (!Array.isArray(c.projects) || c.projects.length !== 1) throw new Error('unexpected project count');
 if (c.projects[0].id !== projectId || fs.realpathSync(c.projects[0].root) !== fs.realpathSync(root)) throw new Error('existing config project mismatch');
+NODE
+  CONFIG="$CONFIG" LOCAL_GATEWAY="$LOCAL_GATEWAY" RUNTIME="$RUNTIME" "$NODE" --input-type=module <<'NODE'
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+if (process.env.LOCAL_GATEWAY) {
+  const { rebindExistingAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
+  if (rebindExistingAgentGateway(process.env.CONFIG, process.env.LOCAL_GATEWAY)) {
+    console.log('Existing agent gateway switched to approved local loopback. Private config backup preserved.');
+  }
+}
 NODE
   echo 'Existing Main Platform agent config verified.'
 fi

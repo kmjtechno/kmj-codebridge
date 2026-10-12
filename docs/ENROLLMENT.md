@@ -191,3 +191,18 @@ together.
 
 The installer fails clearly rather than manufacturing a fake local enrollment when a
 required server route, approval, or credential exchange is unavailable.
+
+## Co-located Main Platform gateway (local-first)
+
+When the Main Platform's official ChatGPT MCP resource is `https://kmjtechno.com/mcp` and the **same** authorized machine runs its CodeBridge gateway on loopback, point the agent to that local data plane instead of an unrelated hosted gateway.
+
+Run the supported installer with an **explicit** local override:
+
+```bash
+sudo env CODEBRIDGE_LOCAL_GATEWAY=http://127.0.0.1:18787 \
+  bash scripts/setup-main-platform-agent.sh
+```
+
+The enrollment and owner approval still run through the official Main Platform. The override affects **only** the agent's gateway connection and accepts only a loopback HTTP origin with an explicit port (1024–65535); remote hosts, credentials, query strings and URL paths are rejected. Fresh enrollment preserves the granted device token and project scope. On an already-enrolled agent, the installer verifies the project root, backs up the original private configuration and changes only the gateway before the ordinary active-job safety checks and service restart. No second pairing or credential copying is required.
+
+Confirm success from ChatGPT with `connection_overview` for the exact device/project. A locally running systemd service is not proof that the ChatGPT gateway registered the device. Never change production DNS or bypass owner approval to repair device visibility. If ChatGPT still cannot see the agent, verify the MCP server's **actual configured endpoint** matches the agent's gateway deployment.
