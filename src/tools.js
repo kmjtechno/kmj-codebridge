@@ -12,6 +12,7 @@ import { VERSION } from "./version.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
+import { ChatLaneRegistry } from "./chat-lanes.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -506,6 +507,7 @@ export const FAST_READ_TOOLS = [
   "audit_tail",
   "execution_capacity",
   "project_progress",
+  "chat_lane_status",
   "verification_plan",
   "project_snapshot",
   "workspace_home",
@@ -540,6 +542,7 @@ const fastReadTool = z.enum(FAST_READ_TOOLS);
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
   ...file,
+  leaseToken: z.string().uuid().optional(),
   content: z.string().max(262144),
   expectedHash: z
     .string()
@@ -688,6 +691,29 @@ export const definitions = {
       recentJobs: z.number().int().min(1).max(20).default(8),
     },
     access: "read",
+  },
+  chat_lane_status: {
+    title: "Multi-chat work lane status",
+    description: "List only this authorized project's active collaboration file reservations; never returns lease tokens or private chat content.",
+    input: scoped,
+    access: "read",
+  },
+  chat_lane_reserve: {
+    title: "Reserve files for a chat lane",
+    description: "Reserve exact project-relative files or directories for one chat work lane with an expiring idempotent lease. Prevents conflicting CodeBridge edits without blocking unrelated chats. Not a new execution or model quota.",
+    input: {
+      ...scoped,
+      requestKey: z.string().regex(/^[A-Za-z0-9._:-]{1,128}$/),
+      paths: z.array(z.string().min(1).max(512)).min(1).max(20),
+      ttlSeconds: z.number().int().min(60).max(3600).default(900),
+    },
+    access: "write",
+  },
+  chat_lane_release: {
+    title: "Release my chat work lane",
+    description: "Release a project-scoped reservation by its opaque token. Does not terminate other chats or background jobs.",
+    input: { ...scoped, leaseToken: z.string().uuid() },
+    access: "write",
   },
   execution_capacity: {
     title: "Execution capacity",
@@ -1033,6 +1059,7 @@ export const definitions = {
       ...file,
       oldText: z.string().min(1).max(65536),
       newText: z.string().max(65536),
+      leaseToken: z.string().uuid().optional(),
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
     },
     access: "write",
@@ -1043,6 +1070,7 @@ export const definitions = {
       "Replace or create up to 50 authorized files as one transaction. Every existing file must match its expected SHA-256 or no file is changed.",
     input: {
       ...scoped,
+      leaseToken: z.string().uuid().optional(),
       changes: z
         .array(
           z.object({
@@ -1395,6 +1423,8 @@ export function createDispatcher(
       { ...p, files: new ProjectFiles(p.root) },
     ]),
   );
+  let laneRegistry;
+  const lanes = () => (laneRegistry ??= new ChatLaneRegistry(config.stateDir));
   let checkpointStore;
   const checkpoints = () =>
     (checkpointStore ??= new FileCheckpoints(config.stateDir));
@@ -1438,6 +1468,24 @@ export function createDispatcher(
         connection: "connected",
         version: VERSION,
       };
+    if (name === "chat_lane_status")
+      return { device: config.id, project: p.id, ...lanes().status(p.id) };
+    if (name === "chat_lane_reserve") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return {
+        device: config.id,
+        project: p.id,
+        ...lanes().reserve(p.id, a.requestKey, a.paths, a.ttlSeconds),
+      };
+    }
+    if (name === "chat_lane_release") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return {
+        device: config.id,
+        project: p.id,
+        ...lanes().release(p.id, a.leaseToken),
+      };
+    }
     if (name === "project_environment")
       return {
         device: config.id,
@@ -2008,6 +2056,7 @@ export function createDispatcher(
       return p.files.preview(a.path, a.content, a.expectedHash);
     if (name === "write_file") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
+      lanes().assertWritable(p.id, [a.path], a.leaseToken);
       if (a.expectedHash !== null) {
         const before = p.files.read(a.path);
         if (!preservesSensitiveBindings(before.content, a.content))
@@ -2017,6 +2066,7 @@ export function createDispatcher(
     }
     if (name === "edit_file") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
+      lanes().assertWritable(p.id, [a.path], a.leaseToken);
       const before = p.files.read(a.path);
       if (before.sha256 !== a.expectedHash) fail("CONTENT_CONFLICT");
       const first = before.content.indexOf(a.oldText);
@@ -2033,6 +2083,7 @@ export function createDispatcher(
     }
     if (name === "write_files_atomic") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
+      lanes().assertWritable(p.id, a.changes.map((change) => change.path), a.leaseToken);
       for (const change of a.changes) {
         if (change.expectedHash === null) continue;
         const before = p.files.read(change.path);
