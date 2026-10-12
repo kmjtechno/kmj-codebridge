@@ -155,7 +155,9 @@ test(
     git(["-C", writer, "push", "origin", "main"]);
     const expected = git(["-C", writer, "rev-parse", "HEAD"]);
     const source = fs.readFileSync(updaterPath, "utf8");
-    const match = source.match(/function Git\(\[string\[\]\]\$GitArgs\) \{[\s\S]*?\n\}/);
+    const match = source.match(
+      /function Git\(\[string\[\]\]\$GitArgs\) \{[\s\S]*?\n\}/,
+    );
     assert.ok(match, "the guarded native Git wrapper must be present");
     const quoted = consumer.replaceAll("'", "''");
     const command = [
