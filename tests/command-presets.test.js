@@ -145,9 +145,11 @@ test("CMake profiles require explicit project opt-in and never advertise install
   for (const profile of Object.values(enabled.commands)) {
     assert.equal(profile.category, "build");
     assert.ok(["cmake", "ctest"].includes(profile.command));
-    assert.ok(Object.keys(profile.variants).every((name) =>
-      ["default", "debug", "release"].includes(name),
-    ));
+    assert.ok(
+      Object.keys(profile.variants).every((name) =>
+        ["default", "debug", "release"].includes(name),
+      ),
+    );
     for (const variant of Object.values(profile.variants)) {
       assert.ok(variant.timeoutMs <= 300000);
       assert.ok(!variant.args.some((x) => /[;&|]/.test(x)));
