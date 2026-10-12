@@ -25,6 +25,12 @@ import {
   compactStatusText,
 } from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
+const GIT_SHA = /^[0-9a-f]{7,40}$/;
+function deployedCommit() {
+  const value = process.env.RENDER_GIT_COMMIT;
+  return typeof value === "string" && GIT_SHA.test(value) ? value : null;
+}
+
 function identify(req, records) {
   const raw = req.headers.authorization;
   if (
@@ -617,6 +623,7 @@ export async function startGateway(rawConfig) {
         // One status read triggers at most one coalesced background refresh;
         // githubReadiness carries only fixed codes, never secrets or URLs.
         const githubReadiness = probeGitHub.status();
+        const commit = deployedCommit();
         json(res, 200, {
           status: "ok",
           version: VERSION,
@@ -625,6 +632,7 @@ export async function startGateway(rawConfig) {
             githubReady: githubReadiness.state === "ready",
           },
           githubReadiness,
+          ...(commit !== null ? { commit } : {}),
         });
         return;
       }
