@@ -67,7 +67,11 @@ test("default does not weaken enrollment provider origin policy", () => {
   );
 });
 
-test("existing enrolled config rebinding preserves device token and secure rollback backup", () => {
+test("existing enrolled config rebinding preserves device token and secure rollback backup", (t) => {
+  if (process.platform === "win32") {
+    t.skip("Linux-only installer: POSIX file modes and ownership required");
+    return;
+  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-local-gateway-"));
   const file = path.join(dir, "agent.json");
   try {
@@ -108,7 +112,11 @@ test("existing enrolled config rebinding preserves device token and secure rollb
   }
 });
 
-test("existing config rejects external overrides before touching device credentials", () => {
+test("existing config rejects external overrides before touching device credentials", (t) => {
+  if (process.platform === "win32") {
+    t.skip("Linux-only installer: POSIX file modes and ownership required");
+    return;
+  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-local-gateway-"));
   const file = path.join(dir, "agent.json");
   try {
@@ -129,7 +137,11 @@ test("existing config rejects external overrides before touching device credenti
   }
 });
 
-test("existing agent config symlinks and permissive modes fail closed", () => {
+test("existing agent config symlinks and permissive modes fail closed", (t) => {
+  if (process.platform === "win32") {
+    t.skip("Linux-only installer: POSIX file modes and ownership required");
+    return;
+  }
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-local-gateway-"));
   const file = path.join(dir, "agent.json");
   const link = path.join(dir, "link.json");
