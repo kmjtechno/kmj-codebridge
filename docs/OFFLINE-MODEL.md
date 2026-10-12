@@ -11,3 +11,25 @@ Use tiny quantized models for low RAM and escalate only when needed. CPU/GPU res
 ## Validation
 
 `npm run check && npm test` validates formatting, project permission checks and local loopback-only stub inference. CI mocks the local runtime; a passing test does **not** prove that a machine already has Ollama installed. Actual owner hardware must separately verify local inference and resource usage. This feature works without third-party CI or paid API accounts.
+
+## Multiple local Ollama instances / KMJ P720
+
+An authorized P720 inference gate verified **real local generation** on 2026-10-12:
+`qwen2.5-coder:7b` on loopback port `11435` (33.33 eval tokens/s) and
+`qwen3:4b` on loopback port `11436` (44.37 eval tokens/s), both Ollama
+0.40.1, with GPU-offload telemetry (not physical GPU identity proof).
+The original local-model client checked only standard Ollama port `11434`.
+
+The agent now probes bounded loopback ports `11434`, `11435`, `11436`
+concurrently. It reads each runtime's installed model tags, only generates on
+the port that advertises the **exact requested installed model**, uses one
+model generation at a time per CodeBridge agent and unloads on completion via
+`keep_alive:0`. No external hostname, URL, DNS lookup, proxy, model pull,
+or paid fallback. Agent factories can pass a fixed `port` or bounded `ports`
+array for self-hosted installations and integration tests. Chats cannot set
+an arbitrary destination port.
+
+Multiple model runtimes **do not increase licensed concurrent task slots**;
+the owner approves the local model before prompts are processed. These source
+changes require a versioned agent upgrade; merging code does not update the
+running P720 agent.
