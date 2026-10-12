@@ -188,7 +188,12 @@ export class AutopilotJournal {
   // transitions through claim(), after which it is fenced like any other.
   assertLease(task, leaseToken) {
     if (!task.leasedEver) return;
-    if (typeof leaseToken !== "string" || task.lease?.token !== leaseToken)
+    if (
+      typeof leaseToken !== "string" ||
+      task.lease?.token !== leaseToken ||
+      !Number.isFinite(Date.parse(task.lease.expiresAt)) ||
+      Date.parse(task.lease.expiresAt) <= this.now()
+    )
       fail("AUTOPILOT_LEASE_LOST");
   }
 
@@ -374,6 +379,10 @@ export class AutopilotJournal {
     if (!["running", "waiting"].includes(task.state))
       fail("AUTOPILOT_TASK_NOT_ACTIVE");
     if (task.state === "running") this.assertLease(task, leaseToken);
+    // Once a lease-aware worker pauses, its token is released. Finishing a
+    // waiting task without resuming and claiming it would bypass fencing.
+    if (task.state === "waiting" && task.leasedEver)
+      fail("AUTOPILOT_TASK_NOT_RUNNING");
     delete task.lease;
     task.state = state;
     task.result = cleanText(result, 8192);

@@ -248,3 +248,73 @@ test("lease state survives restart recovery and holder input is bounded", (t) =>
       /INVALID_AUTOPILOT_HOLDER/,
     );
 });
+
+test("an expired holder cannot renew or finish before another worker reclaims", (t) => {
+  const { journal: j, clock } = journal(t);
+  j.enqueue({ project: "p1", key: "late", objective: "Do bounded work" });
+  const expired = j.claim("p1", { holder: "chat-old" });
+  clock.now += 10 * MINUTE;
+  assert.throws(
+    () =>
+      j.checkpoint(expired.id, "p1", {
+        summary: "unauthorized renewal",
+        next: "done",
+        leaseToken: expired.leaseToken,
+      }),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  assert.throws(
+    () => j.wait(expired.id, "p1", "pause", expired.leaseToken),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  assert.throws(
+    () =>
+      j.complete(expired.id, "p1", {
+        state: "succeeded",
+        result: "old holder finished",
+        leaseToken: expired.leaseToken,
+      }),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  const claimed = j.claim("p1", { holder: "chat-new" });
+  assert.notEqual(claimed.leaseToken, expired.leaseToken);
+  assert.equal(
+    j.complete(claimed.id, "p1", {
+      state: "succeeded",
+      result: "verified",
+      leaseToken: claimed.leaseToken,
+    }).state,
+    "succeeded",
+  );
+});
+
+test("a previously leased waiting task needs a fresh claim before completion", (t) => {
+  const { journal: j } = journal(t);
+  j.enqueue({ project: "p1", key: "approval", objective: "Wait for approval" });
+  const holder = j.claim("p1", { holder: "chat-a" });
+  j.wait(holder.id, "p1", "approval required", holder.leaseToken);
+  assert.throws(
+    () => j.complete(holder.id, "p1", { state: "succeeded", result: "bypass" }),
+    /AUTOPILOT_TASK_NOT_RUNNING/,
+  );
+  assert.throws(
+    () =>
+      j.complete(holder.id, "p1", {
+        state: "succeeded",
+        result: "stale",
+        leaseToken: holder.leaseToken,
+      }),
+    /AUTOPILOT_TASK_NOT_RUNNING/,
+  );
+  j.resume(holder.id, "p1");
+  const next = j.claim("p1", { holder: "chat-b" });
+  assert.notEqual(next.leaseToken, holder.leaseToken);
+  assert.equal(
+    j.complete(holder.id, "p1", {
+      state: "succeeded",
+      result: "approved",
+      leaseToken: next.leaseToken,
+    }).state,
+    "succeeded",
+  );
+});
