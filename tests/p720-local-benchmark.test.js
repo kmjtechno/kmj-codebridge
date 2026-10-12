@@ -194,8 +194,7 @@ test("benchmark never labels absent generation counters as measured speed", asyn
   const result = await benchmarkTarget(
     { port: 11436, model: "qwen3:4b" },
     async (_port, endpoint, body) => {
-      if (endpoint === "/api/tags")
-        return { models: [{ name: "qwen3:4b" }] };
+      if (endpoint === "/api/tags") return { models: [{ name: "qwen3:4b" }] };
       if (endpoint === "/api/ps") return { models: [] };
       if (body.prompt === "") return { done: true };
       return {
