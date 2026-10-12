@@ -65,6 +65,19 @@ export function fleetLane(
 }
 
 export function fleetSummary(lanes, totalGrants) {
+  // All projects on one agent share its licensed runner; never multiply slots
+  // by the number of separately authorized projects on that device.
+  const deviceSlots = new Map();
+  for (const lane of lanes) {
+    if (lane.availableSlots === null) continue;
+    const previous = deviceSlots.get(lane.device);
+    deviceSlots.set(
+      lane.device,
+      previous === undefined
+        ? lane.availableSlots
+        : Math.min(previous, lane.availableSlots),
+    );
+  }
   return {
     totalAuthorizedProjects: totalGrants,
     shown: lanes.length,
@@ -73,8 +86,8 @@ export function fleetSummary(lanes, totalGrants) {
     actionable: lanes.filter(
       (lane) => lane.nextAction === "CLAIM_APPROVED_READY_TASK",
     ).length,
-    actualAvailableJobSlots: lanes.reduce(
-      (sum, lane) => sum + (lane.availableSlots ?? 0),
+    actualAvailableJobSlots: [...deviceSlots.values()].reduce(
+      (sum, slots) => sum + slots,
       0,
     ),
     lanes,
