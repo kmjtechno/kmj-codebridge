@@ -94,8 +94,8 @@ test("timing parsing and loopback port allowlist fail closed", async () => {
     () => inferenceRecord({ done: true, response: "", eval_count: 33 }),
     /BENCH_NO_VISIBLE_OUTPUT/,
   );
-  await assert.rejects(
-    localJson(4444, "/api/tags"),
+  assert.throws(
+    () => localJson(4444, "/api/tags"),
     /BENCH_PORT_NOT_APPROVED/,
   );
   assert.deepEqual(
