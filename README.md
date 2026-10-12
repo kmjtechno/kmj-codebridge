@@ -141,6 +141,19 @@ automatically enable the live VPS gateway or install a new P720 agent.**
 
 No generic “run any shell command” MCP tool is exposed.
 
+### Native progress and logo diagnostics
+
+Use `project_progress` for a **single bounded status call**: existing project jobs,
+persisted autopilot task percentages and next-ready task, with no raw logs or
+unverified whole-product completion estimate. Release acceptance remains an
+independent gate decision.
+
+For logo diagnosis, run `node scripts/audit-brand-assets.js`: it verifies
+the existing canonical KMJ CodeBridge icon, cross-package bytes and manifest
+references without replacing the approved brand artwork. A PASS proves repository
+metadata only; the live ChatGPT app listing must be checked and refreshed
+separately if stale. See [Native progress and brand audit](docs/NATIVE-PROGRESS-AND-BRAND-AUDIT.md).
+
 ## One CodeBridge: Desktop Commander-class development operations
 
 CodeBridge is the **primary** KMJ project gateway. It implements Commander-style
