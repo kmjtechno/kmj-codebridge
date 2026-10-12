@@ -21,12 +21,35 @@ const deniedAlways =
 // Filename-based protection is defense-in-depth, not a secret-content proof.
 const sensitiveWord = /credential|secret|token/i;
 const sensitiveSegment = /^(credentials?|secrets?|tokens?)$/i;
-const safeSourceIdentifiers = /^(?:tst_)?designtokens?$|^tokeniz(?:er|ers|ation|ations|ing)$|^secretmanagerclient$/i;
+const safeSourceIdentifiers =
+  /^(?:tst_)?designtokens?$|^tokeniz(?:er|ers|ation|ations|ing)$|^secretmanagerclient$/i;
 const safeSourceExtensions = new Set([
-  ".c", ".cc", ".cpp", ".cxx", ".h", ".hh", ".hpp", ".hxx",
-  ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".py",
-  ".rs", ".go", ".java", ".kt", ".cs", ".swift", ".rb",
-  ".php", ".css", ".scss", ".qml",
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cxx",
+  ".h",
+  ".hh",
+  ".hpp",
+  ".hxx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".py",
+  ".rs",
+  ".go",
+  ".java",
+  ".kt",
+  ".cs",
+  ".swift",
+  ".rb",
+  ".php",
+  ".css",
+  ".scss",
+  ".qml",
 ]);
 export function isDeniedName(name) {
   if (deniedAlways.test(name)) return true;
