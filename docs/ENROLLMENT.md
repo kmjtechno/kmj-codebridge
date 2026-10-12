@@ -192,7 +192,6 @@ together.
 The installer fails clearly rather than manufacturing a fake local enrollment when a
 required server route, approval, or credential exchange is unavailable.
 
-
 ## Co-located Main Platform gateway (local-first)
 
 When the Main Platform's official ChatGPT MCP resource is `https://kmjtechno.com/mcp` and the **same** authorized machine runs its CodeBridge gateway on loopback, point the agent to that local data plane instead of an unrelated hosted gateway.
