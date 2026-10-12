@@ -3,18 +3,32 @@ import assert from "node:assert/strict";
 import { fleetLane, fleetSummary } from "../src/fleet-overview.js";
 import { definitions } from "../src/tools.js";
 
-const ap = { ok: true, value: {
-  counts: { queued: 3, waiting: 1, succeeded: 2 },
-  next: { id: "approved-task", objective: "token=never-display" },
-} };
-const capacity = { ok: true, value: {
-  blocked: false, effectiveMaxConcurrent: 1, activeJobs: 0,
-} };
+const ap = {
+  ok: true,
+  value: {
+    counts: { queued: 3, waiting: 1, succeeded: 2 },
+    next: { id: "approved-task", objective: "token=never-display" },
+  },
+};
+const capacity = {
+  ok: true,
+  value: {
+    blocked: false,
+    effectiveMaxConcurrent: 1,
+    activeJobs: 0,
+  },
+};
 
 test("fleet tool is bounded and read-only", () => {
   assert.equal(definitions.fleet_overview.access, "read");
-  assert.equal(definitions.fleet_overview.input.maxProjects.safeParse(13).success, false);
-  assert.equal(definitions.fleet_overview.input.maxProjects.safeParse(12).success, true);
+  assert.equal(
+    definitions.fleet_overview.input.maxProjects.safeParse(13).success,
+    false,
+  );
+  assert.equal(
+    definitions.fleet_overview.input.maxProjects.safeParse(12).success,
+    true,
+  );
 });
 
 test("authorized connected lane only reports real slots and scoped task IDs", () => {
@@ -36,12 +50,18 @@ test("unregistered and offline devices never receive tasks, slots, or private me
 });
 
 test("resource blocks and existing waiting dependencies are not bypassed", () => {
-  const waiting = fleetLane("d", "p", "READY",
+  const waiting = fleetLane(
+    "d",
+    "p",
+    "READY",
     { ok: true, value: { counts: { queued: 2, waiting: 1 }, next: null } },
-    capacity);
+    capacity,
+  );
   assert.equal(waiting.nextAction, "UNBLOCK_WAITING_TASKS");
-  const blocked = fleetLane("d", "p", "READY", ap,
-    { ok: true, value: { blocked: true, effectiveMaxConcurrent: 8, activeJobs: 0 } });
+  const blocked = fleetLane("d", "p", "READY", ap, {
+    ok: true,
+    value: { blocked: true, effectiveMaxConcurrent: 8, activeJobs: 0 },
+  });
   assert.equal(blocked.availableSlots, 0);
   assert.equal(blocked.nextAction, "RESOLVE_LICENSE_OR_RESOURCE_BLOCK");
 });

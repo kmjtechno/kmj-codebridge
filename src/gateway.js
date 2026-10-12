@@ -430,14 +430,21 @@ export async function startGateway(rawConfig) {
     const grants = new Map();
     const add = (device, project, tenant) => {
       const agent = agents.get(device);
-      if (agent?.tenant === tenant &&
-          !allowedProjects(user, agent)?.includes(project)) return;
+      if (
+        agent?.tenant === tenant &&
+        !allowedProjects(user, agent)?.includes(project)
+      )
+        return;
       const key = JSON.stringify([device, project]);
       if (!grants.has(key)) grants.set(key, { device, project, tenant });
     };
-    for (const membership of user.memberships?.length ? user.memberships : [user]) {
+    for (const membership of user.memberships?.length
+      ? user.memberships
+      : [user]) {
       if (!membership?.permissions?.includes("read")) continue;
-      for (const [device, projects] of Object.entries(membership.devices ?? {})) {
+      for (const [device, projects] of Object.entries(
+        membership.devices ?? {},
+      )) {
         if (!Array.isArray(projects)) continue;
         for (const project of projects) add(device, project, membership.tenant);
       }
@@ -449,35 +456,45 @@ export async function startGateway(rawConfig) {
       }
     }
     const all = [...grants.values()].sort(
-      (a, b) => a.project.localeCompare(b.project) ||
-        a.device.localeCompare(b.device),
+      (a, b) =>
+        a.project.localeCompare(b.project) || a.device.localeCompare(b.device),
     );
     const limit = args.maxProjects ?? 8;
-    const lanes = await Promise.all(all.slice(0, limit).map(async (item) => {
-      const { device, project, tenant } = item;
-      const agent = agents.get(device);
-      const registered = agent?.tenant === tenant;
-      const health = registered
-        ? connectionHealth(lastSeen.get(device), agentHealth.get(device))
-        : null;
-      const status = !registered ? "GATEWAY_REGISTRATION_MISSING"
-        : health.online ? "READY"
-          : health.connectionState === "never_seen"
-            ? "AGENT_NEVER_ONLINE" : "AGENT_OFFLINE";
-      if (status !== "READY") return fleetLane(device, project, status);
-      const results = await Promise.all([
-        ["autopilot_status", { device, project, limit: 1 }],
-        ["execution_capacity", { device, project }],
-      ].map(async ([name, input]) => {
-        try {
-          return decodeForwardedResult(await forward(user, name, input));
-        } catch (error) {
-          return { ok: false, error: publicError(error).error };
-        }
-      }));
-      return fleetLane(device, project, status, results[0], results[1]);
-    }));
-    return { generatedAt: new Date().toISOString(), ...fleetSummary(lanes, all.length) };
+    const lanes = await Promise.all(
+      all.slice(0, limit).map(async (item) => {
+        const { device, project, tenant } = item;
+        const agent = agents.get(device);
+        const registered = agent?.tenant === tenant;
+        const health = registered
+          ? connectionHealth(lastSeen.get(device), agentHealth.get(device))
+          : null;
+        const status = !registered
+          ? "GATEWAY_REGISTRATION_MISSING"
+          : health.online
+            ? "READY"
+            : health.connectionState === "never_seen"
+              ? "AGENT_NEVER_ONLINE"
+              : "AGENT_OFFLINE";
+        if (status !== "READY") return fleetLane(device, project, status);
+        const results = await Promise.all(
+          [
+            ["autopilot_status", { device, project, limit: 1 }],
+            ["execution_capacity", { device, project }],
+          ].map(async ([name, input]) => {
+            try {
+              return decodeForwardedResult(await forward(user, name, input));
+            } catch (error) {
+              return { ok: false, error: publicError(error).error };
+            }
+          }),
+        );
+        return fleetLane(device, project, status, results[0], results[1]);
+      }),
+    );
+    return {
+      generatedAt: new Date().toISOString(),
+      ...fleetSummary(lanes, all.length),
+    };
   }
 
   const fastReadTools = new Set(FAST_READ_TOOLS);
@@ -992,7 +1009,9 @@ export async function startGateway(rawConfig) {
               }
               if (name === "fleet_overview") {
                 const result = await fleetOverview(user, args);
-                return { content: [{ type: "text", text: JSON.stringify(result) }] };
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                };
               }
               if (name === "fast_context") {
                 const result = await fastContext(user, args);

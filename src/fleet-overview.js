@@ -1,7 +1,20 @@
 // Pure summaries; the gateway enforces account/device/project permissions.
-const states = ["queued", "running", "waiting", "succeeded", "failed", "cancelled"];
+const states = [
+  "queued",
+  "running",
+  "waiting",
+  "succeeded",
+  "failed",
+  "cancelled",
+];
 
-export function fleetLane(device, project, connectionStatus, autopilot, capacity) {
+export function fleetLane(
+  device,
+  project,
+  connectionStatus,
+  autopilot,
+  capacity,
+) {
   const lane = {
     device,
     project,
@@ -19,14 +32,20 @@ export function fleetLane(device, project, connectionStatus, autopilot, capacity
     lane.nextAction = "DIAGNOSE_AGENT_CAPABILITIES";
     return lane;
   }
-  const counts = Object.fromEntries(states.map((state) => [
-    state,
-    Number.isSafeInteger(autopilot.value?.counts?.[state]) &&
-    autopilot.value.counts[state] >= 0 ? autopilot.value.counts[state] : 0,
-  ]));
+  const counts = Object.fromEntries(
+    states.map((state) => [
+      state,
+      Number.isSafeInteger(autopilot.value?.counts?.[state]) &&
+      autopilot.value.counts[state] >= 0
+        ? autopilot.value.counts[state]
+        : 0,
+    ]),
+  );
   const cap = capacity.value;
-  if (!Number.isSafeInteger(cap?.effectiveMaxConcurrent) ||
-      !Number.isSafeInteger(cap?.activeJobs)) {
+  if (
+    !Number.isSafeInteger(cap?.effectiveMaxConcurrent) ||
+    !Number.isSafeInteger(cap?.activeJobs)
+  ) {
     lane.nextAction = "DIAGNOSE_CAPACITY_REPORT";
     return lane;
   }
@@ -51,10 +70,13 @@ export function fleetSummary(lanes, totalGrants) {
     shown: lanes.length,
     truncated: totalGrants > lanes.length,
     ready: lanes.filter((lane) => lane.connectionStatus === "READY").length,
-    actionable: lanes.filter((lane) =>
-      lane.nextAction === "CLAIM_APPROVED_READY_TASK").length,
-    actualAvailableJobSlots: lanes.reduce((sum, lane) =>
-      sum + (lane.availableSlots ?? 0), 0),
+    actionable: lanes.filter(
+      (lane) => lane.nextAction === "CLAIM_APPROVED_READY_TASK",
+    ).length,
+    actualAvailableJobSlots: lanes.reduce(
+      (sum, lane) => sum + (lane.availableSlots ?? 0),
+      0,
+    ),
     lanes,
     modeledOnly: false,
     noJobsStarted: true,
