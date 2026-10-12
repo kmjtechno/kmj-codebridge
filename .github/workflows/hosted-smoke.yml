@@ -6,6 +6,7 @@ on:
     paths:
       - "src/**"
       - "package.json"
+      - "scripts/verify-public-mcp-catalog.mjs"
       - ".github/workflows/hosted-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -187,3 +188,16 @@ jobs:
             fi
             echo "PASS: $tool without OAuth -> HTTP 401 with codebridge:$scope challenge"
           done
+
+  # Separate, mandatory production routing acceptance: public OAuth discovery
+  # must expose the required local/Autopilot tools on the customer domain,
+  # not only on the independently deployed Render gateway. No credentials.
+  public_mcp_catalog:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Compare live customer and Render MCP catalogs
+        run: node scripts/verify-public-mcp-catalog.mjs
