@@ -410,7 +410,7 @@ CodeBridge uses **JSON configuration as the primary interface**. Local/developer
 | -------------------- | ---------------------- | ----------------------------------------------- | ------------------------------------------------------------------------------------ |
 | `host`               | No                     | `127.0.0.1`                                     | Safe local default. Hosted mode overrides this to `0.0.0.0`.                         |
 | `port`               | No                     | `8787`                                          | Local gateway default.                                                               |
-| `deviceTimeoutMs`    | No                     | `15000`                                         | Allowed range: 100–120000 ms.                                                        |
+| `deviceTimeoutMs`    | No                     | `15000`                                         | Allowed range: 100–120000 ms. `local_model_generate`/`autopilot_local_draft` automatically extend the gateway's own wait (capped at 120000 ms) to cover their own requested `timeoutSeconds`, so a slow cold model load is not abandoned as `DEVICE_TIMEOUT` before it finishes. |
 | `pollWaitMs`         | No                     | `45000`                                         | Empty agent long-poll wait. Work is still delivered immediately by gateway wake-up.  |
 | `allowedHosts`       | No                     | `[]` locally                                    | For public hosting, explicitly list the exact public hostname; do not use wildcards. |
 | `allowedOrigins`     | No                     | `[]`                                            | Add only approved browser origins when required.                                     |
