@@ -204,7 +204,6 @@ test("invalid local model port selections fail closed before network access", ()
   }
 });
 
-
 test("Qwen3 bounded local generation disables thinking without rewriting user prompts", async (t) => {
   const { port, requests } = await mockLocalRuntime(t, async (endpoint) => {
     if (endpoint === "/api/tags")
@@ -248,7 +247,15 @@ test("thinking-only Ollama completion fails closed instead of claiming visible o
   const { port } = await mockLocalRuntime(t, async (endpoint) => {
     if (endpoint === "/api/tags")
       return [200, { models: [{ name: "qwen3:8b" }] }];
-    return [200, { done: true, response: " \n ", thinking: "hidden reasoning", eval_count: 64 }];
+    return [
+      200,
+      {
+        done: true,
+        response: " \n ",
+        thinking: "hidden reasoning",
+        eval_count: 64,
+      },
+    ];
   });
   const client = createLocalModelClient({ port });
   await assert.rejects(
