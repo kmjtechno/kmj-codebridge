@@ -61,7 +61,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'PINNED_SHA_NOT_IN_TRUSTED_MAIN' }
 
     New-Item -ItemType Directory -Path $benchRoot -Force | Out-Null
-    Invoke-TrustedGit -GitArguments @('worktree', 'add', '--quiet', '--detach', $worktree, $pinned) | Out-Null
+    Invoke-TrustedGit -GitArguments @('worktree', 'add', '--detach', $worktree, $pinned) | Out-Null
     $created = $true
     Write-Host ('SOURCE_EXACT_SHA=' + $pinned)
     Write-Host 'SOURCE_ISOLATED=YES'
