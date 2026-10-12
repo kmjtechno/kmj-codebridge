@@ -560,6 +560,15 @@ export const definitions = {
     input: {},
     access: "read",
   },
+  fleet_overview: {
+    title: "Fleet project progress",
+    description:
+      "Read a bounded cross-device status of account-authorized CodeBridge projects, their actual queue and capacity, and next action. No shell, AI execution, account-plan change, or release claim.",
+    input: {
+      maxProjects: z.number().int().min(1).max(12).default(8),
+    },
+    access: "read",
+  },
   connection_overview: {
     title: "Check my CodeBridge connections",
     description:

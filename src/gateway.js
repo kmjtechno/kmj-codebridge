@@ -18,6 +18,7 @@ import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { createGitHubReadiness } from "./github-readiness.js";
 import { fail, publicError } from "./errors.js";
 import { VERSION } from "./version.js";
+import { fleetLane, fleetSummary } from "./fleet-overview.js";
 function identify(req, records) {
   const raw = req.headers.authorization;
   if (
@@ -422,6 +423,77 @@ export async function startGateway(rawConfig) {
       device: args.device,
       project: args.project,
       parts: Object.fromEntries(settled),
+    };
+  }
+
+  async function fleetOverview(user, args) {
+    const grants = new Map();
+    const add = (device, project, tenant) => {
+      const agent = agents.get(device);
+      if (
+        agent?.tenant === tenant &&
+        !allowedProjects(user, agent)?.includes(project)
+      )
+        return;
+      const key = JSON.stringify([device, project]);
+      if (!grants.has(key)) grants.set(key, { device, project, tenant });
+    };
+    for (const membership of user.memberships?.length
+      ? user.memberships
+      : [user]) {
+      if (!membership?.permissions?.includes("read")) continue;
+      for (const [device, projects] of Object.entries(
+        membership.devices ?? {},
+      )) {
+        if (!Array.isArray(projects)) continue;
+        for (const project of projects) add(device, project, membership.tenant);
+      }
+    }
+    for (const agent of agents.values()) {
+      if (!allowedPermissions(user, agent).includes("read")) continue;
+      for (const project of allowedProjects(user, agent) ?? []) {
+        add(agent.id, project, agent.tenant);
+      }
+    }
+    const all = [...grants.values()].sort(
+      (a, b) =>
+        a.project.localeCompare(b.project) || a.device.localeCompare(b.device),
+    );
+    const limit = args.maxProjects ?? 8;
+    const lanes = await Promise.all(
+      all.slice(0, limit).map(async (item) => {
+        const { device, project, tenant } = item;
+        const agent = agents.get(device);
+        const registered = agent?.tenant === tenant;
+        const health = registered
+          ? connectionHealth(lastSeen.get(device), agentHealth.get(device))
+          : null;
+        const status = !registered
+          ? "GATEWAY_REGISTRATION_MISSING"
+          : health.online
+            ? "READY"
+            : health.connectionState === "never_seen"
+              ? "AGENT_NEVER_ONLINE"
+              : "AGENT_OFFLINE";
+        if (status !== "READY") return fleetLane(device, project, status);
+        const results = await Promise.all(
+          [
+            ["autopilot_status", { device, project, limit: 1 }],
+            ["execution_capacity", { device, project }],
+          ].map(async ([name, input]) => {
+            try {
+              return decodeForwardedResult(await forward(user, name, input));
+            } catch (error) {
+              return { ok: false, error: publicError(error).error };
+            }
+          }),
+        );
+        return fleetLane(device, project, status, results[0], results[1]);
+      }),
+    );
+    return {
+      generatedAt: new Date().toISOString(),
+      ...fleetSummary(lanes, all.length),
     };
   }
 
@@ -933,6 +1005,12 @@ export async function startGateway(rawConfig) {
                       text: JSON.stringify({ devices, account }),
                     },
                   ],
+                };
+              }
+              if (name === "fleet_overview") {
+                const result = await fleetOverview(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
               if (name === "fast_context") {
