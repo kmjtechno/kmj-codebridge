@@ -108,7 +108,8 @@ export function inferenceRecord(value) {
 
 export async function benchmarkTarget(target, request = localJson) {
   const { port, model } = target;
-  let installed = false;
+  // A benchmark may unload only a model whose cold run it owns.
+  let startedGeneration = false;
   try {
     const tags = await request(port, "/api/tags");
     if (
@@ -123,23 +124,13 @@ export async function benchmarkTarget(target, request = localJson) {
         state: "NOT_INSTALLED",
         optional: !!target.optional,
       };
-    installed = true;
-    // A previous workload may already have loaded the same model. Refuse to
-    // label a sample "cold" until Ollama confirms it was unloaded.
-    await request(
-      port,
-      "/api/generate",
-      { model, prompt: "", stream: false, keep_alive: 0 },
-      10000,
-    );
+    // Do not evict any already-loaded model: it may belong to Claude or
+    // another concurrent local workload. A verified-empty /api/ps snapshot
+    // is the only safe starting point for an opt-in cold benchmark.
     const coldStart = await request(port, "/api/ps");
-    if (
-      !Array.isArray(coldStart?.models) ||
-      coldStart.models.some(
-        (entry) => entry.name === model || entry.model === model,
-      )
-    )
-      throw Error("BENCH_COLD_UNLOAD_NOT_VERIFIED");
+    if (!Array.isArray(coldStart?.models))
+      throw Error("BENCH_BASELINE_UNAVAILABLE");
+    if (coldStart.models.length > 0) throw Error("BENCH_OTHER_WORKLOAD_ACTIVE");
 
     // Cold request explicitly asks Ollama to release the model afterward.
     // Warm priming and warm repeat are back-to-back within a 30s bounded TTL.
@@ -151,6 +142,7 @@ export async function benchmarkTarget(target, request = localJson) {
       keep_alive,
       options: { num_ctx: 2048, num_predict: 64, temperature: 0 },
     });
+    startedGeneration = true;
     const cold = inferenceRecord(
       await request(port, "/api/generate", requestBody(0)),
     );
@@ -205,14 +197,16 @@ export async function benchmarkTarget(target, request = localJson) {
       error:
         error?.message === "BENCH_NO_VISIBLE_OUTPUT"
           ? "BENCH_NO_VISIBLE_OUTPUT"
-          : error?.message === "BENCH_COLD_UNLOAD_NOT_VERIFIED"
-            ? "BENCH_COLD_UNLOAD_NOT_VERIFIED"
-            : "BENCH_LOCAL_ENDPOINT_OR_INFERENCE_FAILED",
+          : error?.message === "BENCH_BASELINE_UNAVAILABLE"
+            ? "BENCH_BASELINE_UNAVAILABLE"
+            : error?.message === "BENCH_OTHER_WORKLOAD_ACTIVE"
+              ? "BENCH_OTHER_WORKLOAD_ACTIVE"
+              : "BENCH_LOCAL_ENDPOINT_OR_INFERENCE_FAILED",
     };
   } finally {
-    // Always request unload at the end, including failures. Never report
-    // actual memory reclamation unless separately observed.
-    if (installed) {
+    // Clean up only a generation that this benchmark actually started.
+    // On preflight failure, never unload another engineer's loaded model.
+    if (startedGeneration) {
       try {
         await request(
           port,
