@@ -10,25 +10,27 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        os: [ubuntu-24.04, windows-latest]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
       - run: npm ci --ignore-scripts
       - run: npm run check
+      # Formats every path `npm run check` covers, so a failed check shows the
+      # exact diff for whichever file broke it rather than three fixed files.
       - name: Print exact formatting diff on failed checks
         if: failure()
         run: |
-          npx prettier --write src/hyperspeed-plan.js tests/hyperspeed-plan.test.js docs/HYPERSPEED.md
-          git diff -- src/hyperspeed-plan.js tests/hyperspeed-plan.test.js docs/HYPERSPEED.md
+          npm run format
+          git --no-pager diff
       - run: npm test
       - run: npm run package:runtime
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: codebridge-runtime-${{ matrix.os }}
           path: dist/runtime/
@@ -37,11 +39,11 @@ jobs:
   # CLIENTS: one MCP contract for every AI client, plus per-client packaging.
   # Deterministic protocol tests; no paid AI API calls.
   clients:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
@@ -57,7 +59,7 @@ jobs:
         run: npm run test:clients
   # DISTRIBUTION: build every client package and scan for credentials.
   distribution:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       contents: read
@@ -65,8 +67,8 @@ jobs:
       attestations: write
       artifact-metadata: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: "24"
           cache: npm
