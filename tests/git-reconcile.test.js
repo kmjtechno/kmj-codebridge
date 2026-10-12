@@ -84,7 +84,10 @@ test("git_reconcile_main safely fast-forwards a clean checkout without prewritin
     ["execute"],
   );
   assert.deepEqual(result, { reconciled: true, head: merged });
-  assert.equal(fs.readFileSync(path.join(root, "tracked.txt"), "utf8"), "merged\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "tracked.txt"), "utf8"),
+    "merged\n",
+  );
   assert.equal(git(root, ["status", "--porcelain"]), "");
 });
 
@@ -93,7 +96,9 @@ test("git_reconcile_main refuses staged changes even when target bytes match", a
   fs.writeFileSync(path.join(root, "tracked.txt"), "merged\n");
   git(root, ["add", "tracked.txt"]);
   await assert.rejects(
-    dispatch("git_reconcile_main", { ...scope, expectedRemoteHead: merged }, ["execute"]),
+    dispatch("git_reconcile_main", { ...scope, expectedRemoteHead: merged }, [
+      "execute",
+    ]),
     /GIT_RECONCILE_CONTENT_MISMATCH/,
   );
   assert.equal(git(root, ["rev-parse", "HEAD"]), initial);
@@ -111,13 +116,18 @@ test("git_reconcile_main rejects unrelated local commits without overwriting the
     /GIT_RECONCILE_NON_FAST_FORWARD/,
   );
   assert.equal(git(root, ["rev-parse", "HEAD"]), unrelated);
-  assert.equal(fs.readFileSync(path.join(root, "tracked.txt"), "utf8"), "local branch\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "tracked.txt"), "utf8"),
+    "local branch\n",
+  );
 });
 
 test("git_reconcile_main refuses stale expected remote HEAD", async (t) => {
   const { root, initial, dispatch, scope } = fixture(t);
   await assert.rejects(
-    dispatch("git_reconcile_main", { ...scope, expectedRemoteHead: initial }, ["execute"]),
+    dispatch("git_reconcile_main", { ...scope, expectedRemoteHead: initial }, [
+      "execute",
+    ]),
     /GIT_RECONCILE_REMOTE_CHANGED/,
   );
   assert.equal(git(root, ["rev-parse", "HEAD"]), initial);
