@@ -175,6 +175,7 @@ test("benchmark never calls unverified timing or incorrect code a success", asyn
   assert.equal(call, 3);
   assert.equal(result.state, "INVALID_CODING_OUTPUT");
   assert.equal(result.allCodingSmokesPass, false);
+  assert.equal(result.warmLatencyChangePercent, null);
 
   const missingTiming = await benchmarkTarget(
     { port: 11435, model: "qwen2.5-coder:7b" },
