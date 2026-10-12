@@ -43,7 +43,7 @@ function SnapshotTrackedChanges {
     if ($LASTEXITCODE -ne 0) { throw 'LIVE_CHECKOUT_STATUS_FAILED' }
     if ($rows.Count -gt 64) { throw 'LIVE_CHECKOUT_DIRTY_LIMIT' }
     $digests = @()
-    $rootWithSlash = $repo.TrimEnd('\\') + [IO.Path]::DirectorySeparatorChar
+    $rootWithSlash = $repo.TrimEnd([char]92) + [IO.Path]::DirectorySeparatorChar
     foreach ($row in $rows) {
         if ($row.Length -lt 4 -or !$row.StartsWith(' M ')) {
             throw 'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'
