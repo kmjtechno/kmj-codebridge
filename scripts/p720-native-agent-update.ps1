@@ -51,7 +51,9 @@ function AssertIdle {
         $files = @(Get-ChildItem -LiteralPath $folder -Recurse -File -Filter '*.json')
         if ($files.Count -gt 10000) { throw 'JOURNAL_LIMIT_EXCEEDED' }
         foreach ($file in $files) {
-            if ($file.Length -gt 131072 -or
+            $maxBytes = 131072
+            if ($area -eq 'autopilot') { $maxBytes = 4194304 }
+            if ($file.Length -gt $maxBytes -or
                 ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
                 throw 'JOURNAL_UNTRUSTED'
             }
@@ -61,9 +63,22 @@ function AssertIdle {
             } catch {
                 throw 'JOURNAL_CORRUPT'
             }
-            if ([string]$journal.state -eq 'running' -or
-                ($area -eq 'jobs' -and [string]$journal.state -eq 'queued')) {
-                throw 'ACTIVE_WORK_REQUIRES_DRAIN'
+            if ($area -eq 'jobs') {
+                if ($journal.PSObject.Properties.Name -notcontains 'state') {
+                    throw 'JOURNAL_STATE_MISSING'
+                }
+                if ([string]$journal.state -in @('running', 'queued')) {
+                    throw 'ACTIVE_WORK_REQUIRES_DRAIN'
+                }
+            } else {
+                if ($journal.PSObject.Properties.Name -notcontains 'tasks') {
+                    throw 'AUTOPILOT_STATE_MISSING'
+                }
+                foreach ($task in @($journal.tasks)) {
+                    if ([string]$task.state -eq 'running') {
+                        throw 'ACTIVE_AUTOPILOT_LEASE'
+                    }
+                }
             }
         }
     }
