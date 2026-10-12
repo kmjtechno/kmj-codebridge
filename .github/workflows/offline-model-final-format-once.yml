@@ -1,0 +1,26 @@
+name: Temporary Offline AI Final Format
+on:
+  push:
+    branches:
+      - feat/offline-local-model-20261012
+permissions:
+  contents: read
+jobs:
+  format:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - run: |
+          npx prettier --write src/local-model.js
+          node --input-type=module -e '
+          import fs from "node:fs";
+          const f = "src/local-model.js";
+          process.stdout.write("KMJ_FORMAT_START " + f + "\n");
+          process.stdout.write(fs.readFileSync(f).toString("base64") + "\n");
+          process.stdout.write("KMJ_FORMAT_END " + f + "\n");'
