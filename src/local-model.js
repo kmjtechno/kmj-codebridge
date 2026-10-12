@@ -78,7 +78,11 @@ export function createLocalModelClient(options = {}) {
     (process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS === undefined
       ? 0
       : Number(process.env.CODEBRIDGE_LOCAL_MODEL_WARM_SECONDS));
-  if (!Number.isInteger(warmSeconds) || warmSeconds < 0 || warmSeconds > MAX_WARM_SECONDS)
+  if (
+    !Number.isInteger(warmSeconds) ||
+    warmSeconds < 0 ||
+    warmSeconds > MAX_WARM_SECONDS
+  )
     fail("LOCAL_MODEL_INVALID_WARM_SECONDS");
   const configured = options.ports ?? [options.port ?? DEFAULT_PORTS[0]];
   const ports =
