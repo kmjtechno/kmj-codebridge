@@ -10,8 +10,56 @@ import {
 } from "./repo-intelligence.js";
 export const MAX_FILE_BYTES = 262144;
 export const hash = (text) => createHash("sha256").update(text).digest("hex");
-const denied =
-  /(^\.env($|\.)|^\.git$|^\.ssh$|^\.aws$|^\.azure$|^\.kube$|^\.npmrc$|^\.netrc$|^id_(rsa|ed25519)|credential|secret|token|\.(pem|key|p12|pfx|keystore)$)/i;
+// Always-protected names: dotfile credential stores, SSH identities and key
+// material, whatever the rest of the name says.
+const deniedAlways =
+  /(^\.env($|\.)|^\.git$|^\.ssh$|^\.aws$|^\.azure$|^\.kube$|^\.npmrc$|^\.netrc$|^id_(rsa|ed25519)|\.(pem|key|p12|pfx|keystore)$)/i;
+// Credential-like words. A name whose word segments include one of these
+// exactly (api-token.txt, client_secret.json, credentials.yaml) is always
+// protected. A name that merely CONTAINS one inside a longer word is protected
+// unless it is a source-code file: tst_designtokens.cpp, DesignTokens.h and
+// tokenizer.ts are code, not credential stores, and used to be unreadable
+// (PATH_DENIED), which hid ordinary project sources from every tool. A
+// longer non-source name (githubtoken, accesstoken.txt, a "tokens" folder)
+// stays protected.
+const sensitiveWord = /credential|secret|token/i;
+const sensitiveSegment = /^(credentials?|secrets?|tokens?)$/i;
+const sourceExtensions = new Set([
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cxx",
+  ".h",
+  ".hh",
+  ".hpp",
+  ".hxx",
+  ".js",
+  ".jsx",
+  ".mjs",
+  ".cjs",
+  ".ts",
+  ".tsx",
+  ".py",
+  ".rs",
+  ".go",
+  ".java",
+  ".kt",
+  ".cs",
+  ".swift",
+  ".rb",
+  ".php",
+  ".css",
+  ".scss",
+  ".qml",
+]);
+export function isDeniedName(name) {
+  if (deniedAlways.test(name)) return true;
+  if (!sensitiveWord.test(name)) return false;
+  if (name.split(/[._\- ]+/).some((part) => sensitiveSegment.test(part)))
+    return true;
+  return !sourceExtensions.has(path.extname(name).toLowerCase());
+}
+const denied = { test: isDeniedName };
 const skipped = new Set([
   "node_modules",
   "vendor",
