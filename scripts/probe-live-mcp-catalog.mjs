@@ -20,8 +20,7 @@ export function catalogFromResponse(raw) {
 
   const candidates = [raw];
   for (const line of raw.split(/\r?\n/)) {
-    if (line.startsWith("data:"))
-      candidates.push(line.slice(5).trim());
+    if (line.startsWith("data:")) candidates.push(line.slice(5).trim());
   }
 
   for (const candidate of candidates) {
