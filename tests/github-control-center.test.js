@@ -338,3 +338,114 @@ test("feature file creation refuses unknown default-branch metadata", async (t) 
   );
   assert.deepEqual(calls, ["GET"]);
 });
+
+test("GitHub HTTP 403 rate-limit headers are distinguished from authorization denial", async (t) => {
+  let remaining = "0";
+  t.mock.method(globalThis, "fetch", async () =>
+    Response.json({}, {
+      status: 403,
+      headers: remaining === "0" ? { "x-ratelimit-remaining": "0" } : {},
+    }),
+  );
+  const dispatch = bridge(t);
+  await assert.rejects(
+    dispatch("github_repository", { repository }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  remaining = "permission";
+  await assert.rejects(
+    dispatch("github_repository", { repository }),
+    /GITHUB_AUTHORIZATION_FAILED/,
+  );
+});
+
+test("native GitHub merge refuses draft PR before any CI query or write", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ path: pathOf(url), method: options.method });
+    return resp({ state: "open", draft: true, head: { sha: SHA } });
+  });
+  await assert.rejects(
+    bridge(t)("github_merge_pull_request", {
+      repository,
+      number: 28,
+      expectedHeadSha: SHA,
+      method: "squash",
+    }),
+    /GITHUB_DRAFT_PULL_REQUEST/,
+  );
+  assert.deepEqual(calls.map((call) => call.method), ["GET"]);
+});
+
+test("native GitHub merge fails closed for missing, pending, stale, or failed workflows", async (t) => {
+  let scenario = "missing";
+  const requests = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const path = pathOf(url);
+    requests.push({ path, method: options.method });
+    if (path.endsWith("/pulls/28"))
+      return resp({ state: "open", draft: false, head: { sha: SHA } });
+    if (path.endsWith("/check-runs"))
+      return resp({
+        total_count: 1,
+        check_runs: [
+          { name: "verify", status: "completed", conclusion: "success" },
+        ],
+      });
+    if (path.endsWith("/actions/runs"))
+      return resp({
+        total_count: scenario === "missing" ? 0 : 1,
+        workflow_runs:
+          scenario === "missing"
+            ? []
+            : [
+                {
+                  head_sha: scenario === "stale" ? "b".repeat(40) : SHA,
+                  status: scenario === "pending" ? "queued" : "completed",
+                  conclusion: scenario === "failed" ? "failure" : "success",
+                },
+              ],
+      });
+    if (path.endsWith("/pulls/28/merge"))
+      return resp({ merged: true, sha: "c".repeat(40) });
+    throw Error("Unexpected GitHub endpoint " + path);
+  });
+
+  const dispatch = bridge(t);
+  for (const candidate of ["missing", "pending", "stale", "failed"]) {
+    scenario = candidate;
+    await assert.rejects(
+      dispatch("github_merge_pull_request", {
+        repository,
+        number: 28,
+        expectedHeadSha: SHA,
+        method: "squash",
+      }),
+      /GITHUB_CHECKS_NOT_GREEN/,
+      candidate,
+    );
+  }
+  assert.equal(
+    requests.filter((request) => request.method === "PUT").length,
+    0,
+  );
+
+  scenario = "green";
+  const merged = await dispatch("github_merge_pull_request", {
+    repository,
+    number: 28,
+    expectedHeadSha: SHA,
+    method: "squash",
+  });
+  assert.equal(merged.merged, true);
+  assert.equal(merged.sha, "c".repeat(40));
+  assert.equal(
+    requests.filter((request) => request.method === "PUT").length,
+    1,
+  );
+  assert.ok(
+    requests.some((request) =>
+      request.path.endsWith("/actions/runs"),
+    ),
+  );
+});
