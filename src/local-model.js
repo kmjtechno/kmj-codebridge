@@ -11,44 +11,48 @@ const MODEL = /^[A-Za-z0-9._:/-]{1,96}$/;
 function jsonRequest({ port, endpoint, body, timeoutMs, maxBytes }) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? null : JSON.stringify(body);
-    const req = http.request({
-      hostname: "127.0.0.1",
-      port,
-      method: payload === null ? "GET" : "POST",
-      path: endpoint,
-      timeout: timeoutMs,
-      headers: payload === null
-        ? { accept: "application/json" }
-        : {
-            accept: "application/json",
-            "content-type": "application/json",
-            "content-length": Buffer.byteLength(payload),
-          },
-    }, (res) => {
-      if (res.statusCode !== 200) {
-        res.resume();
-        reject(new Error("LOCAL_MODEL_HTTP_ERROR"));
-        return;
-      }
-      const parts = [];
-      let bytes = 0;
-      res.on("data", (chunk) => {
-        bytes += chunk.length;
-        if (bytes > maxBytes) {
-          req.destroy(new Error("LOCAL_MODEL_RESPONSE_TOO_LARGE"));
+    const req = http.request(
+      {
+        hostname: "127.0.0.1",
+        port,
+        method: payload === null ? "GET" : "POST",
+        path: endpoint,
+        timeout: timeoutMs,
+        headers:
+          payload === null
+            ? { accept: "application/json" }
+            : {
+                accept: "application/json",
+                "content-type": "application/json",
+                "content-length": Buffer.byteLength(payload),
+              },
+      },
+      (res) => {
+        if (res.statusCode !== 200) {
+          res.resume();
+          reject(new Error("LOCAL_MODEL_HTTP_ERROR"));
           return;
         }
-        parts.push(chunk);
-      });
-      res.on("end", () => {
-        try {
-          resolve(JSON.parse(Buffer.concat(parts).toString("utf8")));
-        } catch {
-          reject(new Error("LOCAL_MODEL_RESPONSE_INVALID"));
-        }
-      });
-      res.on("error", reject);
-    });
+        const parts = [];
+        let bytes = 0;
+        res.on("data", (chunk) => {
+          bytes += chunk.length;
+          if (bytes > maxBytes) {
+            req.destroy(new Error("LOCAL_MODEL_RESPONSE_TOO_LARGE"));
+            return;
+          }
+          parts.push(chunk);
+        });
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(parts).toString("utf8")));
+          } catch {
+            reject(new Error("LOCAL_MODEL_RESPONSE_INVALID"));
+          }
+        });
+        res.on("error", reject);
+      },
+    );
     req.on("timeout", () => req.destroy(new Error("LOCAL_MODEL_TIMEOUT")));
     req.on("error", reject);
     req.end(payload ?? undefined);
@@ -98,11 +102,18 @@ export function createLocalModelClient({ port = 11434 } = {}) {
       }
     },
     async generate({ model, prompt, maxTokens = 192, timeoutSeconds = 45 }) {
-      if (!MODEL.test(model) || typeof prompt !== "string" ||
-        prompt.length < 1 || prompt.length > 4096 ||
-        !Number.isInteger(maxTokens) || maxTokens < 16 ||
-        maxTokens > 512 || !Number.isInteger(timeoutSeconds) ||
-        timeoutSeconds < 5 || timeoutSeconds > 90)
+      if (
+        !MODEL.test(model) ||
+        typeof prompt !== "string" ||
+        prompt.length < 1 ||
+        prompt.length > 4096 ||
+        !Number.isInteger(maxTokens) ||
+        maxTokens < 16 ||
+        maxTokens > 512 ||
+        !Number.isInteger(timeoutSeconds) ||
+        timeoutSeconds < 5 ||
+        timeoutSeconds > 90
+      )
         fail("LOCAL_MODEL_REQUEST_INVALID");
       if (busy) fail("LOCAL_MODEL_BUSY");
       busy = true;
@@ -132,8 +143,11 @@ export function createLocalModelClient({ port = 11434 } = {}) {
         } catch {
           fail("LOCAL_MODEL_INFERENCE_FAILED");
         }
-        if (typeof result?.response !== "string" ||
-          typeof result?.done !== "boolean" || !result.done)
+        if (
+          typeof result?.response !== "string" ||
+          typeof result?.done !== "boolean" ||
+          !result.done
+        )
           fail("LOCAL_MODEL_RESPONSE_INVALID");
         return {
           provider: "local-ollama",

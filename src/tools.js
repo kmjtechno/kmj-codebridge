@@ -1506,7 +1506,11 @@ export function createDispatcher(
         version: VERSION,
       };
     if (name === "local_model_status")
-      return { device: config.id, project: p.id, ...(await offlineModel().status()) };
+      return {
+        device: config.id,
+        project: p.id,
+        ...(await offlineModel().status()),
+      };
     if (name === "local_model_generate") {
       const response = await offlineModel().generate({
         model: a.model,

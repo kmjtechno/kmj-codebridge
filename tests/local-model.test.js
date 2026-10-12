@@ -2,7 +2,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createLocalModelClient } from "../src/local-model.js";
-import { createDispatcher, definitions, FAST_READ_TOOLS } from "../src/tools.js";
+import {
+  createDispatcher,
+  definitions,
+  FAST_READ_TOOLS,
+} from "../src/tools.js";
 import { JobRunner } from "../src/jobs.js";
 import fs from "node:fs";
 import os from "node:os";
@@ -52,8 +56,10 @@ test("on-demand inference requires a local installed model and unloads it", asyn
   assert.equal(response.paidInference, false);
   assert.equal(response.outputIsUntrusted, true);
   assert.equal(requests.length, 3);
-  assert.deepEqual(requests.map((r) => r.path),
-    ["/api/tags", "/api/tags", "/api/generate"]);
+  assert.deepEqual(
+    requests.map((r) => r.path),
+    ["/api/tags", "/api/tags", "/api/generate"],
+  );
   assert.equal(requests[2].payload.keep_alive, 0);
   assert.equal(requests[2].payload.stream, false);
   assert.equal(requests[2].payload.options.num_predict, 64);
@@ -61,14 +67,19 @@ test("on-demand inference requires a local installed model and unloads it", asyn
 });
 
 test("rejects missing models, oversized prompts and fake responses", async (t) => {
-  const { port, requests } = await mockLocalRuntime(t, async () =>
-    [200, { models: [{ name: "available:1b" }] }]);
+  const { port, requests } = await mockLocalRuntime(t, async () => [
+    200,
+    { models: [{ name: "available:1b" }] },
+  ]);
   const client = createLocalModelClient({ port });
   await assert.rejects(
     client.generate({ model: "missing:1b", prompt: "x" }),
     /LOCAL_MODEL_NOT_INSTALLED/,
   );
-  assert.deepEqual(requests.map((r) => r.path), ["/api/tags"]);
+  assert.deepEqual(
+    requests.map((r) => r.path),
+    ["/api/tags"],
+  );
   await assert.rejects(
     client.generate({ model: "available:1b", prompt: "x".repeat(4097) }),
     /LOCAL_MODEL_REQUEST_INVALID/,
@@ -82,29 +93,54 @@ test("explicit local processing approval and read/execute scopes are enforced", 
   fs.mkdirSync(projectRoot);
   const runner = new JobRunner(path.join(root, "jobs"));
   t.after(async () => runner.close());
-  const dispatch = createDispatcher({
-    id: "device1", stateDir: path.join(root, "state"),
-    projects: [{ id: "p1", root: projectRoot, writable: true,
-      gates: {}, commands: {} }],
-  }, runner, () => ({ features: ["read", "execute"],
-    limits: { concurrent_jobs: 1 } }));
+  const dispatch = createDispatcher(
+    {
+      id: "device1",
+      stateDir: path.join(root, "state"),
+      projects: [
+        {
+          id: "p1",
+          root: projectRoot,
+          writable: true,
+          gates: {},
+          commands: {},
+        },
+      ],
+    },
+    runner,
+    () => ({ features: ["read", "execute"], limits: { concurrent_jobs: 1 } }),
+  );
   const scope = { device: "device1", project: "p1" };
   assert.equal(definitions.local_model_generate.access, "execute");
   assert.ok(FAST_READ_TOOLS.includes("local_model_status"));
   await assert.rejects(
-    dispatch("local_model_generate", {
-      ...scope, model: "tiny:1b", prompt: "hello",
-    }, ["execute"]),
+    dispatch(
+      "local_model_generate",
+      {
+        ...scope,
+        model: "tiny:1b",
+        prompt: "hello",
+      },
+      ["execute"],
+    ),
     /invalid_type|invalid_literal|invalid_union|Invalid literal value/i,
   );
   await assert.rejects(
-    dispatch("local_model_generate", {
-      ...scope, model: "tiny:1b", prompt: "hello",
-      localProcessingApproved: true,
-    }, ["read"]), /ACCESS_DENIED/,
+    dispatch(
+      "local_model_generate",
+      {
+        ...scope,
+        model: "tiny:1b",
+        prompt: "hello",
+        localProcessingApproved: true,
+      },
+      ["read"],
+    ),
+    /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("local_model_status", scope, ["execute"]), /ACCESS_DENIED/,
+    dispatch("local_model_status", scope, ["execute"]),
+    /ACCESS_DENIED/,
   );
   const status = await dispatch("local_model_status", scope, ["read"]);
   assert.equal(status.project, "p1");
