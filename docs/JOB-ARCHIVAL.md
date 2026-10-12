@@ -10,7 +10,7 @@ Archived records live in the same private _agent state root_, under job-archive/
 
 Do not export the archive key to ChatGPT or GitHub. HMAC detection protects against inadvertent record modification and a file-only attacker without the key; it cannot provide nonrepudiation against a privileged attacker who compromises the same host and its key. Preserve the state-root backup and key together using approved encrypted backup procedures.
 
-**Idempotency tombstones do not expire automatically.** Silently forgetting an old requestKey could rerun a previously completed write or deployment. The archive has a bounded default maximum of 100,000 records and supports a bounded operator-provided archiveMaxEntries setting (1–1,000,000). When it fills, new archival fails closed (JOB_ARCHIVE_FULL). Removing tombstones must be a separately designed, explicitly authorized, audited procedure that can prove a requestKey can no longer be retried. No automatic age-based deletion is implemented.
+**Idempotency tombstones do not expire automatically.** Silently forgetting an old requestKey could rerun a previously completed write or deployment. The archive has a bounded default maximum of 100,000 records and supports a bounded operator-provided setting (1–1,000,000): set `jobArchiveMaxEntries` in the agent's own config (validated by `agentSchema`, wired through to the `JobRunner`/`DurableJobArchive` it constructs). When it fills, new archival fails closed (JOB_ARCHIVE_FULL). Removing tombstones must be a separately designed, explicitly authorized, audited procedure that can prove a requestKey can no longer be retried. No automatic age-based deletion is implemented.
 
 ## Crash durability and recovery
 

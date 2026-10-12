@@ -216,3 +216,15 @@ test("opt-in CMake profiles run actual isolated configure, build and CTest", (t)
     }
   }
 });
+
+test("jobArchiveMaxEntries defaults to the archive's own default and stays bounded (issue #186)", () => {
+  const defaulted = agentSchema.parse(base);
+  assert.equal(defaulted.jobArchiveMaxEntries, 100000);
+  const configured = agentSchema.parse({ ...base, jobArchiveMaxEntries: 7 });
+  assert.equal(configured.jobArchiveMaxEntries, 7);
+  for (const bad of [0, -1, 1.5, 1000001, "100000"]) {
+    assert.throws(() =>
+      agentSchema.parse({ ...base, jobArchiveMaxEntries: bad }),
+    );
+  }
+});

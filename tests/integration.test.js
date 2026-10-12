@@ -1461,6 +1461,58 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
   ]);
 });
 
+test("agent-configured jobArchiveMaxEntries actually bounds the live job archive (issue #186)", async (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-archive-cfg-"));
+  const root = path.join(dir, "project");
+  fs.mkdirSync(root);
+  const gw = await startGateway({
+    host: "127.0.0.1",
+    port: 0,
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: digest(userToken),
+        devices: { d1: ["p1"] },
+        permissions: ["read", "write", "execute"],
+      },
+    ],
+    agents: [{ id: "d1", tenant: "t1", tokenHash: digest(agentToken) }],
+  });
+  const agent = await startAgent({
+    gateway: gw.url,
+    token: agentToken,
+    id: "d1",
+    tenant: "t1",
+    stateDir: path.join(dir, "state"),
+    pollMs: 10,
+    jobArchiveMaxEntries: 7,
+    projects: [{ id: "p1", root, writable: true, gates: {}, commands: {} }],
+    license: { mode: "free" },
+  });
+  const client = new Client({ name: "test", version: "1.0" });
+  const transport = new StreamableHTTPClientTransport(new URL("/mcp", gw.url), {
+    requestInit: { headers: { Authorization: `Bearer ${userToken}` } },
+  });
+  await client.connect(transport);
+  t.after(async () => {
+    await client.close();
+    await agent.close();
+    await gw.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+  const capacity = content(
+    await client.callTool({
+      name: "execution_capacity",
+      arguments: { device: "d1", project: "p1" },
+    }),
+  );
+  // Proves src/agent.js actually wires agentSchema's jobArchiveMaxEntries
+  // into the JobRunner it constructs, not just that the schema parses it.
+  assert.equal(capacity.archiveLimit, 7);
+  assert.equal(capacity.archiveUsed, 0);
+  assert.equal(capacity.archiveRemaining, 7);
+});
 test("gateway configuration rejects a local/loopback icon URL", async () => {
   const { gatewaySchema } = await import("../src/config.js");
   assert.throws(() =>
