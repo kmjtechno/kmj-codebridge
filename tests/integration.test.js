@@ -1084,7 +1084,12 @@ test("run_quality_gate with laneId runs inside the isolated worktree, never the 
   const baseline = content(
     await client.callTool({
       name: "run_quality_gate",
-      arguments: { device: "d1", project: "p1", gate: "pwd", requestKey: "pwd-root" },
+      arguments: {
+        device: "d1",
+        project: "p1",
+        gate: "pwd",
+        requestKey: "pwd-root",
+      },
     }),
   );
   let baseDone;
@@ -1098,10 +1103,7 @@ test("run_quality_gate with laneId runs inside the isolated worktree, never the 
     if (baseDone.state !== "running") break;
     await new Promise((r) => setTimeout(r, 20));
   }
-  assert.equal(
-    fs.realpathSync(baseDone.output.trim()),
-    fs.realpathSync(root),
-  );
+  assert.equal(fs.realpathSync(baseDone.output.trim()), fs.realpathSync(root));
 
   const lane = content(
     await client.callTool({
