@@ -1,0 +1,63 @@
+name: Local Model MCP Catalog Acceptance
+
+on:
+  pull_request:
+    paths:
+      - "scripts/probe-live-mcp-catalog.mjs"
+      - "tests/live-mcp-catalog.test.js"
+      - ".github/workflows/local-model-mcp-catalog.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    name: Render public MCP tool catalog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Verify fixed-target parser and no-auth policy
+        run: node --test tests/live-mcp-catalog.test.js
+      - name: Confirm real deployed Render tool catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if node scripts/probe-live-mcp-catalog.mjs render; then
+              exit 0
+            fi
+            echo "Render catalog probe attempt ${attempt} failed"
+            sleep 8
+          done
+          exit 1
+
+  production:
+    name: Public domain MCP tool catalog
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Confirm real KMJ public tool catalog
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if node scripts/probe-live-mcp-catalog.mjs production; then
+              exit 0
+            fi
+            echo "Public catalog probe attempt ${attempt} failed"
+            sleep 8
+          done
+          exit 1
