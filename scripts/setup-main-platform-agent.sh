@@ -132,13 +132,18 @@ if [[ ! -f "$CONFIG" ]]; then
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-const { resolveAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
 const result = JSON.parse(fs.readFileSync(process.env.ENROLLMENT_RESULT, 'utf8'));
 if (!result.agent || typeof result.agent.token !== 'string' || result.agent.token.length < 32) throw new Error('invalid enrollment result');
 if (!Array.isArray(result.projects) || !result.projects.some(p => p.id === process.env.PROJECT_ID)) throw new Error('project not approved');
 const perms = Array.isArray(result.permissions) ? result.permissions : [];
 const root = fs.realpathSync(process.env.PROJECT_ROOT);
-const gateway = resolveAgentGateway(result.gateway, process.env.GATEWAY, process.env.LOCAL_GATEWAY);
+let gateway = typeof result.gateway === 'string' && result.gateway
+  ? result.gateway
+  : process.env.GATEWAY;
+if (process.env.LOCAL_GATEWAY) {
+  const { resolveAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
+  gateway = resolveAgentGateway(result.gateway, process.env.GATEWAY, process.env.LOCAL_GATEWAY);
+}
 const config = {
   gateway,
   token: result.agent.token,
@@ -187,9 +192,11 @@ NODE
   CONFIG="$CONFIG" LOCAL_GATEWAY="$LOCAL_GATEWAY" RUNTIME="$RUNTIME" "$NODE" --input-type=module <<'NODE'
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-const { rebindExistingAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
-if (rebindExistingAgentGateway(process.env.CONFIG, process.env.LOCAL_GATEWAY)) {
-  console.log('Existing agent gateway switched to approved local loopback. Private config backup preserved.');
+if (process.env.LOCAL_GATEWAY) {
+  const { rebindExistingAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
+  if (rebindExistingAgentGateway(process.env.CONFIG, process.env.LOCAL_GATEWAY)) {
+    console.log('Existing agent gateway switched to approved local loopback. Private config backup preserved.');
+  }
 }
 NODE
   echo 'Existing Main Platform agent config verified.'
