@@ -34,21 +34,21 @@ try {
     if ($LASTEXITCODE -ne 0 -or $versionText -notmatch '^v(\d+)\.' -or [int]$Matches[1] -lt 24) {
         throw 'NODE24_REQUIRED'
     }
-    $origin = [string]((Invoke-TrustedGit @('remote', 'get-url', 'origin')) | Select-Object -First 1)
+    $origin = [string]((Invoke-TrustedGit -GitArguments @('remote', 'get-url', 'origin')) | Select-Object -First 1)
     if ($allowedOrigins -cnotcontains $origin.Trim()) { throw 'UNTRUSTED_GITHUB_ORIGIN' }
-    $initialHead = [string]((Invoke-TrustedGit @('rev-parse', 'HEAD')) | Select-Object -First 1)
+    $initialHead = [string]((Invoke-TrustedGit -GitArguments @('rev-parse', 'HEAD')) | Select-Object -First 1)
     $initialStatus = @(& $git.Source -C $repo status --porcelain 2>$null) -join [char]10
     if ($LASTEXITCODE -ne 0) { throw 'GIT_STATUS_UNAVAILABLE' }
     if (Test-Path -LiteralPath $worktree) { throw 'BENCH_WORKTREE_ALREADY_EXISTS' }
 
     # Fetch objects and FETCH_HEAD only; never fast-forward the live checkout.
-    Invoke-TrustedGit @('fetch', '--no-tags', 'origin', 'main') | Out-Null
-    $remoteHead = [string]((Invoke-TrustedGit @('rev-parse', '--verify', 'FETCH_HEAD')) | Select-Object -First 1)
+    Invoke-TrustedGit -GitArguments @('fetch', '--no-tags', 'origin', 'main') | Out-Null
+    $remoteHead = [string]((Invoke-TrustedGit -GitArguments @('rev-parse', '--verify', 'FETCH_HEAD')) | Select-Object -First 1)
     & $git.Source -C $repo merge-base --is-ancestor $pinned $remoteHead 2>$null
     if ($LASTEXITCODE -ne 0) { throw 'PINNED_SHA_NOT_IN_TRUSTED_MAIN' }
 
     New-Item -ItemType Directory -Path $benchRoot -Force | Out-Null
-    Invoke-TrustedGit @('worktree', 'add', '--detach', $worktree, $pinned) | Out-Null
+    Invoke-TrustedGit -GitArguments @('worktree', 'add', '--detach', $worktree, $pinned) | Out-Null
     $created = $true
     Write-Host ('SOURCE_EXACT_SHA=' + $pinned)
     Write-Host 'SOURCE_ISOLATED=YES'
