@@ -139,8 +139,7 @@ export class JobRunner {
             j.key.length < 1 ||
             j.key.length > 128)) ||
         (j.fingerprint !== undefined &&
-          (typeof j.fingerprint !== "string" ||
-            j.fingerprint.length < 1)) ||
+          (typeof j.fingerprint !== "string" || j.fingerprint.length < 1)) ||
         (typeof j.key === "string" &&
           ([...this.jobs.values()].some(
             (known) => known.project === j.project && known.key === j.key,
