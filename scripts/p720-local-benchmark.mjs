@@ -194,11 +194,12 @@ export async function benchmarkTarget(target, request = localJson) {
       priming,
       warm,
       observedVramBytes,
-      warmLatencyChangePercent: measured && allCodingSmokesPass
-        ? Number(
-            (((warm.totalMs - cold.totalMs) / cold.totalMs) * 100).toFixed(1),
-          )
-        : null,
+      warmLatencyChangePercent:
+        measured && allCodingSmokesPass
+          ? Number(
+              (((warm.totalMs - cold.totalMs) / cold.totalMs) * 100).toFixed(1),
+            )
+          : null,
       allCodingSmokesPass,
       note: "Negative latency change is faster. GPU process attribution and GPU free VRAM are not asserted.",
     };
