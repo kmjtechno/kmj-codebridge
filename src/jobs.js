@@ -139,16 +139,76 @@ export class JobRunner {
     }
   }
   persist(j) {
-    const target = path.join(this.dir, j.id + ".json"),
-      tmp = target + ".tmp";
-    const fd = fs.openSync(tmp, "w", 0o600);
+    // Prevent a pre-existing journal symlink/hardlink or a fixed-name
+    // temporary-file symlink from redirecting durable job metadata writes.
+    if (!/^[a-zA-Z0-9-]+$/.test(j.id ?? "")) fail("CORRUPT_JOURNAL");
+    const target = path.join(this.dir, j.id + ".json");
+    const tmp = path.join(this.dir, "." + j.id + "." + randomUUID() + ".tmp");
+    const checkTarget = () => {
+      let stat;
+      try {
+        stat = fs.lstatSync(target);
+      } catch (error) {
+        if (error?.code === "ENOENT") return null;
+        throw error;
+      }
+      if (!stat.isFile() || stat.nlink !== 1 || stat.size > 131072)
+        fail("CORRUPT_JOURNAL");
+      return stat;
+    };
+    const previous = checkTarget();
+    let created = false;
     try {
-      fs.writeFileSync(fd, JSON.stringify(j));
-      fs.fsyncSync(fd);
+      const fd = fs.openSync(
+        tmp,
+        fs.constants.O_WRONLY |
+          fs.constants.O_CREAT |
+          fs.constants.O_EXCL |
+          (fs.constants.O_NOFOLLOW || 0),
+        0o600,
+      );
+      created = true;
+      try {
+        const bytes = JSON.stringify(j);
+        if (Buffer.byteLength(bytes) > 131072) fail("CORRUPT_JOURNAL");
+        fs.writeFileSync(fd, bytes);
+        fs.fsyncSync(fd);
+      } finally {
+        fs.closeSync(fd);
+      }
+      const current = checkTarget();
+      if (
+        (previous === null) !== (current === null) ||
+        (previous &&
+          (current.ino !== previous.ino || current.dev !== previous.dev))
+      )
+        fail("CORRUPT_JOURNAL");
+      fs.renameSync(tmp, target);
+      created = false;
+      // Renamed journal records must survive a host power loss; on Windows
+      // Node cannot fsync directory handles, so only file fsync is available.
+      if (process.platform !== "win32") {
+        const dirfd = fs.openSync(
+          this.dir,
+          fs.constants.O_RDONLY |
+            (fs.constants.O_DIRECTORY || 0) |
+            (fs.constants.O_NOFOLLOW || 0),
+        );
+        try {
+          fs.fsyncSync(dirfd);
+        } finally {
+          fs.closeSync(dirfd);
+        }
+      }
     } finally {
-      fs.closeSync(fd);
+      if (created) {
+        try {
+          fs.unlinkSync(tmp);
+        } catch (error) {
+          if (error?.code !== "ENOENT") throw error;
+        }
+      }
     }
-    fs.renameSync(tmp, target);
   }
   compactJournal() {
     const capacity = this.capacity();
