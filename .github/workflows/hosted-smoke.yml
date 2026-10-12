@@ -83,6 +83,49 @@ jobs:
             exit 1
           fi
 
+  # Optional GitHub integration must have its own truthful gate. On a free
+  # sleeping Render instance the first /healthz read starts a background probe
+  # and legitimately reports "checking". Give it a bounded warm-up window,
+  # rather than misreporting a cold start as a broken GitHub credential.
+  github_bridge:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - name: Verify hosted GitHub readiness after bounded warm-up
+        shell: bash
+        run: |
+          set -euo pipefail
+          body="$(mktemp)"
+          trap 'rm -f "$body"' EXIT
+          for attempt in 1 2 3 4 5; do
+            if curl --fail --silent --show-error --max-time 25 \
+              https://kmj-codebridge-gateway.onrender.com/healthz -o "$body"; then
+              if FILE="$body" node --input-type=module - <<'NODE'
+          import fs from 'node:fs';
+          const payload = JSON.parse(fs.readFileSync(process.env.FILE, 'utf8'));
+          const report = payload.githubReadiness ?? {};
+          const states = new Set(['ready', 'checking', 'stale', 'failed', 'disabled']);
+          const state = states.has(report.state) ? report.state : 'unknown';
+          const error = typeof report.error === 'string' &&
+            /^[A-Z][A-Z0-9_]{2,63}$/.test(report.error) ? report.error : 'NONE';
+          const ready = payload.status === 'ok' &&
+            payload.capabilities?.github === true &&
+            payload.capabilities?.githubReady === true &&
+            state === 'ready';
+          console.log(JSON.stringify({ githubBridgeReady: ready, state, error }));
+          if (!ready) process.exit(1);
+          NODE
+              then
+                echo 'PASS: hosted GitHub bridge ready on an actual fresh HTTP probe'
+                exit 0
+              fi
+            fi
+            echo "GitHub bridge cold-start retry $attempt/5"
+            sleep $((attempt * 2))
+          done
+          echo '::error title=Hosted GitHub bridge unavailable::Readiness remained false after the bounded warm-up window; inspect fixed error category without exposing credentials.'
+          exit 1
+
   # Production-origin failure must remain RED, without masking a healthy Render gateway.
   # Do not add needs: gateway or continue-on-error to either acceptance gate.
   public_oauth:
