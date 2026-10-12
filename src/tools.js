@@ -1246,6 +1246,20 @@ export const definitions = {
     input: scoped,
     access: "write",
   },
+  autopilot_local_draft: {
+    title: "Draft Autopilot task with local AI and checkpoint",
+    description:
+      "Generate one bounded, review-only proposal for an already claimed Autopilot task using an installed loopback local model. Persist a safe checkpoint for retries; no shell, file writes, external models, paid inference or automatic deployment.",
+    input: {
+      ...scoped,
+      task: z.string().uuid(),
+      model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
+      maxTokens: z.number().int().min(32).max(512).default(256),
+      timeoutSeconds: z.number().int().min(5).max(90).default(45),
+      localProcessingApproved: z.literal(true),
+    },
+    access: "execute",
+  },
   autopilot_checkpoint: {
     title: "Checkpoint autopilot task",
     description:
@@ -1477,6 +1491,7 @@ export function createDispatcher(
   autopilot = null,
   supervisor = null,
   audit = null,
+  localModelFactory = createLocalModelClient,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -1485,7 +1500,7 @@ export function createDispatcher(
     ]),
   );
   let localModel;
-  const offlineModel = () => (localModel ??= createLocalModelClient());
+  const offlineModel = () => (localModel ??= localModelFactory());
   let laneRegistry;
   const laneStateDir =
     typeof config.stateDir === "string" && config.stateDir.length > 0
@@ -2119,6 +2134,58 @@ export function createDispatcher(
         dependsOn: a.dependsOn,
       });
     if (name === "autopilot_claim") return autopilot.claim(p.id);
+    if (name === "autopilot_local_draft") {
+      const task = autopilot.get(a.task, p.id);
+      if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
+      const existing = task.checkpoint;
+      if (existing) {
+        if (existing.next !== "LOCAL_DRAFT_AWAITING_REVIEW")
+          fail("AUTOPILOT_CHECKPOINT_EXISTS");
+        return {
+          device: config.id,
+          project: p.id,
+          task: task.id,
+          proposal: existing.summary,
+          checkpointAt: existing.at,
+          reused: true,
+          writesApplied: false,
+          paidInference: false,
+          reviewRequired: true,
+        };
+      }
+      const prompt = [
+        "KMJ CodeBridge OFFLINE TASK DRAFT. You are generating UNTRUSTED advice.",
+        "Do not claim to have run commands, tests or edits.",
+        "Do not request credentials or publish private code.",
+        "Return concise implementation steps and a test plan for human/AI review.",
+        "TASK:",
+        task.objective.slice(0, 3000),
+      ].join("\n");
+      const generated = await offlineModel().generate({
+        model: a.model,
+        prompt,
+        maxTokens: a.maxTokens,
+        timeoutSeconds: a.timeoutSeconds,
+      });
+      const proposal = redact(generated.response ?? "").slice(0, 4096);
+      if (!proposal.trim()) fail("AUTOPILOT_LOCAL_DRAFT_EMPTY");
+      const saved = autopilot.checkpoint(a.task, p.id, {
+        summary: proposal,
+        next: "LOCAL_DRAFT_AWAITING_REVIEW",
+      });
+      return {
+        device: config.id,
+        project: p.id,
+        task: saved.id,
+        proposal: saved.checkpoint.summary,
+        checkpointAt: saved.checkpoint.at,
+        reused: false,
+        writesApplied: false,
+        paidInference: false,
+        reviewRequired: true,
+        next: "Use guarded CodeBridge edits and configured quality gates before completion",
+      };
+    }
     if (name === "autopilot_checkpoint")
       return autopilot.checkpoint(a.task, p.id, {
         summary: a.summary,
