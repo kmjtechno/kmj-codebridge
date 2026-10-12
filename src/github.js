@@ -227,7 +227,13 @@ function bounded(value, max = 65536) {
 export function createGitHubBridge(config) {
   if (!config) return null;
   const publicReadOnly = config.publicReadOnly === true;
-  const token = config.tokenEnv ? process.env[config.tokenEnv] : undefined;
+  // Public-read-only mode must never attach private credentials, even if
+  // a legacy config accidentally specifies tokenEnv. Private mode preserves
+  // its required server-held token and strict authorization failures.
+  const token =
+    !publicReadOnly && config.tokenEnv
+      ? process.env[config.tokenEnv]
+      : undefined;
   if (!publicReadOnly && (typeof token !== "string" || token.length < 20))
     fail("GITHUB_CREDENTIAL_MISSING");
   if (

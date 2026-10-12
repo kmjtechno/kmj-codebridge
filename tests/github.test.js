@@ -370,6 +370,51 @@ test("GitHub bridge supports credential-free reads only for explicitly public mo
   );
 });
 
+test("GitHub explicit public-read-only mode never transmits a configured legacy token", async (t) => {
+  const envName = "CODEBRIDGE_TEST_PUBLIC_MODE_SECRET";
+  process.env[envName] = "secret-value-not-for-public-requests";
+  t.after(() => delete process.env[envName]);
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({
+      url: String(url),
+      method: options.method,
+      authorization: options.headers.authorization,
+    });
+    return json({
+      full_name: "kmjtechno/kmj-codebridge",
+      default_branch: "main",
+      private: false,
+      archived: false,
+      visibility: "public",
+      updated_at: "2026-10-12T00:00:00Z",
+    });
+  });
+  const dispatch = createGitHubBridge({
+    apiBase: "https://api.github.com/",
+    tokenEnv: envName,
+    publicReadOnly: true,
+    repositories: ["kmjtechno/kmj-codebridge"],
+    cacheSeconds: 30,
+  });
+  const result = await dispatch("github_repository", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(result.private, false);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].authorization, undefined);
+  assert.equal(calls[0].method, "GET");
+  await assert.rejects(
+    dispatch("github_create_branch", {
+      repository: "kmjtechno/kmj-codebridge",
+      branch: "never-write",
+      sha: "a".repeat(40),
+    }),
+    /GITHUB_WRITE_DISABLED/,
+  );
+  assert.equal(calls.length, 1);
+});
+
 test("GitHub bridge fails closed when configured credential is missing", () => {
   delete process.env.CODEBRIDGE_MISSING_GITHUB_TOKEN;
   assert.throws(
