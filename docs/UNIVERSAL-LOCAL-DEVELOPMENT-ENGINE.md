@@ -52,6 +52,7 @@ Authorized local agent(s), per-OS capabilities
 ### Capability and command profile manifest (proposed, schema-design task)
 
 Add versioned types/schema, backward compatible with current gates:
+
 - Device capabilities: `os`, `arch`, toolchain id/version/path fingerprint, CI runtime support, graphical session/consent, available storage and resource budgets, signing capability **presence only** (never private key data), build targets.
 - Project command profile: `profileId`, `projectGrantId`, `toolchain`, `kind` (`configure|build|unit-test|integration-test|gui-test|package|sign|deploy|rollback`), vetted executable ID, fixed or allowlisted argument slots, allowed worktree root, environment allowlist, max duration/resources/output/artifacts, approval risk class, audit retention. Reject shell metacharacter passthrough, path escapes, binary replacement, secret-file access, symlink traversal, and arbitrary URLs for artifact publishing.
 - Job receipt: immutable `jobId`, tenant/device/project, request/lease ID, profile version/hash, Git SHA, timestamps, state, exit code/reason, measured resources, log truncation flag, bounded redacted artifacts and SHA-256 digests. Client retry with same request key is idempotent; cancellation and device disconnect are observable.
@@ -59,18 +60,18 @@ Add versioned types/schema, backward compatible with current gates:
 
 ### First-class development targets (implement progressively)
 
-| Target | Example profiles | Acceptance evidence |
-| --- | --- | --- |
-| JS/TS/web SaaS | Node, npm/pnpm, Vite, Playwright | isolated unit/e2e, deterministic web smoke |
-| Python | venv/uv/pip, pytest, lint, packaging | offline/fail-closed dependency guard, wheel hash |
-| Windows C++/Qt/CMake | CMake presets, MSVC/Ninja, CTest, Qt deployment | real Windows binary, process launch, GUI screenshot receipt |
-| .NET | dotnet restore/build/test/publish | test report and signed/hash manifest |
-| Containers/Linux | Docker/Podman, gcc/clang | image digest, isolated container test |
-| Android | JDK, Gradle, Android SDK | emulator/device test evidence, APK/AAB hash |
-| Unity/Godot/Unreal | installed engine toolchains | engine-version-bound builds and headless/interactive tests |
-| AI/ML | Python/CUDA/PyTorch, model runtime | measured latency, resource envelope, no unapproved model downloads |
-| Industrial/cinema | CineCore/motion/calibration toolchains | safety-gated HIL, physical interlock and operator approval |
-| iOS/macOS | macOS build worker + Xcode | real device/simulator evidence, signing with operator-owned credentials |
+| Target               | Example profiles                                | Acceptance evidence                                                     |
+| -------------------- | ----------------------------------------------- | ----------------------------------------------------------------------- |
+| JS/TS/web SaaS       | Node, npm/pnpm, Vite, Playwright                | isolated unit/e2e, deterministic web smoke                              |
+| Python               | venv/uv/pip, pytest, lint, packaging            | offline/fail-closed dependency guard, wheel hash                        |
+| Windows C++/Qt/CMake | CMake presets, MSVC/Ninja, CTest, Qt deployment | real Windows binary, process launch, GUI screenshot receipt             |
+| .NET                 | dotnet restore/build/test/publish               | test report and signed/hash manifest                                    |
+| Containers/Linux     | Docker/Podman, gcc/clang                        | image digest, isolated container test                                   |
+| Android              | JDK, Gradle, Android SDK                        | emulator/device test evidence, APK/AAB hash                             |
+| Unity/Godot/Unreal   | installed engine toolchains                     | engine-version-bound builds and headless/interactive tests              |
+| AI/ML                | Python/CUDA/PyTorch, model runtime              | measured latency, resource envelope, no unapproved model downloads      |
+| Industrial/cinema    | CineCore/motion/calibration toolchains          | safety-gated HIL, physical interlock and operator approval              |
+| iOS/macOS            | macOS build worker + Xcode                      | real device/simulator evidence, signing with operator-owned credentials |
 
 User-selected project profiles should not auto-install proprietary SDKs or require cloud resources without approval.
 
@@ -103,4 +104,4 @@ Start with M0 and M1 in small reviewable PRs against the **latest** main. Prefer
 
 Coordinate separate Main Platform integration (#379/#380/#381) via focused API/schema PRs; leave their current PR branches intact. Do not declare production-ready until a verified end-to-end build → GUI/live test → artifact → release approval → staging smoke → rollback demonstration is available.
 
-**Owner intent:** local PC should be able to produce almost any software that its hardware/OS/toolchains legitimately support, commanded by any *compatible* AI chat, with minimal user interaction, maximum safety and high-quality results; no forced paid dependency.
+**Owner intent:** local PC should be able to produce almost any software that its hardware/OS/toolchains legitimately support, commanded by any _compatible_ AI chat, with minimal user interaction, maximum safety and high-quality results; no forced paid dependency.
