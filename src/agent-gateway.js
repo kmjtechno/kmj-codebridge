@@ -9,7 +9,11 @@ import path from "node:path";
  * HTTPS while its agent safely talks to the SAME process over loopback.
  * The override must be an explicitly selected HTTP loopback origin.
  */
-export function resolveAgentGateway(enrollmentGateway, configuredGateway, localOverride = "") {
+export function resolveAgentGateway(
+  enrollmentGateway,
+  configuredGateway,
+  localOverride = "",
+) {
   const defaultGateway =
     typeof enrollmentGateway === "string" && enrollmentGateway.trim()
       ? enrollmentGateway
@@ -65,7 +69,11 @@ export function rebindExistingAgentGateway(configPath, localOverride) {
   }
   const original = fs.readFileSync(configPath, "utf8");
   const config = JSON.parse(original);
-  const next = resolveAgentGateway(config.gateway, config.gateway, localOverride);
+  const next = resolveAgentGateway(
+    config.gateway,
+    config.gateway,
+    localOverride,
+  );
   if (config.gateway === next) return false;
 
   const dir = path.dirname(configPath);
