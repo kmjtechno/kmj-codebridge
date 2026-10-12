@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   TARGETS,
   nanosToMs,
@@ -139,3 +143,75 @@ test("benchmark never calls unverified timing or incorrect code a success", asyn
   assert.equal(missingTiming.state, "INCOMPLETE_TIMING");
   assert.equal(missingTiming.warmLatencyChangePercent, null);
 });
+
+test(
+  "P720 isolated benchmark Git wrapper handles real Windows progress stderr",
+  { skip: process.platform !== "win32" },
+  (t) => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "p720-bench-git-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    const bare = path.join(temp, "remote.git");
+    const writer = path.join(temp, "writer");
+    const consumer = path.join(temp, "consumer");
+    const git = (args) => {
+      const result = spawnSync("git", args, {
+        shell: false,
+        windowsHide: true,
+        timeout: 15000,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(["init", "--bare", "-b", "main", bare]);
+    git(["init", "-b", "main", writer]);
+    const commitArgs = [
+      "-C",
+      writer,
+      "-c",
+      "user.name=CI",
+      "-c",
+      "user.email=ci@example.invalid",
+      "commit",
+      "--allow-empty",
+    ];
+    git([...commitArgs, "-m", "initial"]);
+    git(["-C", writer, "remote", "add", "origin", bare]);
+    git(["-C", writer, "push", "-u", "origin", "main"]);
+    git(["clone", "--branch", "main", bare, consumer]);
+    git([...commitArgs, "-m", "second"]);
+    git(["-C", writer, "push", "origin", "main"]);
+
+    const source = fs.readFileSync(
+      path.resolve("scripts/p720-isolated-benchmark.ps1"),
+      "utf8",
+    );
+    const match = source.match(
+      /function Invoke-TrustedGit\(\[string\[\]\]\$GitArguments\) \{[\s\S]*?\n\}/,
+    );
+    assert.ok(match, "the audited benchmark Git wrapper must exist");
+    const escapedRepo = consumer.replaceAll("'", "''");
+    const expected = git(["-C", writer, "rev-parse", "HEAD"]);
+    const code = [
+      "$ErrorActionPreference = 'Stop'",
+      `$repo = '${escapedRepo}'`,
+      `$expected = '${expected}'`,
+      match[0],
+      "$null = Invoke-TrustedGit -GitArguments @('fetch', '--no-tags', 'origin', 'main')",
+      "$actual = [string]((Invoke-TrustedGit -GitArguments @('rev-parse', '--verify', 'FETCH_HEAD')) | Select-Object -First 1)",
+      "if ($actual -cne $expected) { throw 'FETCH_HEAD_MISMATCH' }",
+      "try { $null = Invoke-TrustedGit -GitArguments @('rev-parse', '--verify', 'nonexistent-ref'); throw 'NONZERO_EXIT_ACCEPTED' } catch {",
+      "  if ($_.Exception.Message -cne 'GIT_PREFLIGHT_OR_COMMAND_FAILED') { throw }",
+      "}",
+      "if ($ErrorActionPreference -cne 'Stop') { throw 'ERROR_PREFERENCE_NOT_RESTORED' }",
+      "Write-Output 'BENCH_GIT_STDERR_HANDLED=PASS'",
+    ].join("\n");
+    const result = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", code],
+      { shell: false, windowsHide: true, timeout: 30000, encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /BENCH_GIT_STDERR_HANDLED=PASS/);
+  },
+);
