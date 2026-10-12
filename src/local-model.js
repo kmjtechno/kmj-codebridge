@@ -243,7 +243,10 @@ export function createLocalModelClient(options = {}) {
               Number.isSafeInteger(result.eval_duration) &&
               result.eval_duration > 0
                 ? Number(
-                    ((result.eval_count * 1000000000) / result.eval_duration).toFixed(2),
+                    (
+                      (result.eval_count * 1000000000) /
+                      result.eval_duration
+                    ).toFixed(2),
                   )
                 : null,
           },
