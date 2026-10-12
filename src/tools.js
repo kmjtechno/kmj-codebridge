@@ -2489,12 +2489,7 @@ export function createDispatcher(
       // A clean checkout is safe to fast-forward without first writing all
       // newer tracked bytes into it. Never silently rewind or diverge.
       try {
-        runGit([
-          "merge-base",
-          "--is-ancestor",
-          "HEAD",
-          a.expectedRemoteHead,
-        ]);
+        runGit(["merge-base", "--is-ancestor", "HEAD", a.expectedRemoteHead]);
       } catch (error) {
         if (error?.status === 1) fail("GIT_RECONCILE_NON_FAST_FORWARD");
         fail("GIT_RECONCILE_CHECK_FAILED");
