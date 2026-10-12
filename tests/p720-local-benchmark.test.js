@@ -13,8 +13,7 @@ test("offline P720 cold versus warm benchmark reports actual Ollama counters", a
   let count = 0;
   const fake = async (port, endpoint, payload) => {
     calls.push({ port, endpoint, payload });
-    if (endpoint === "/api/tags")
-      return { models: [{ name: "qwen3:4b" }] };
+    if (endpoint === "/api/tags") return { models: [{ name: "qwen3:4b" }] };
     if (endpoint === "/api/ps")
       return { models: [{ name: "qwen3:4b", size_vram: 2800000000 }] };
     if (payload.prompt === "") return { done: true };
@@ -38,9 +37,7 @@ test("offline P720 cold versus warm benchmark reports actual Ollama counters", a
   assert.equal(result.warmLatencyChangePercent, -70);
   assert.equal(result.allCodingSmokesPass, true);
   assert.equal(result.observedVramBytes, 2800000000);
-  const generate = calls.filter(
-    (call) => call.endpoint === "/api/generate",
-  );
+  const generate = calls.filter((call) => call.endpoint === "/api/generate");
   assert.deepEqual(
     generate.map((call) => call.payload.keep_alive),
     [0, "30s", "30s", 0],
@@ -94,10 +91,7 @@ test("timing parsing and loopback port allowlist fail closed", async () => {
     () => inferenceRecord({ done: true, response: "", eval_count: 33 }),
     /BENCH_NO_VISIBLE_OUTPUT/,
   );
-  assert.throws(
-    () => localJson(4444, "/api/tags"),
-    /BENCH_PORT_NOT_APPROVED/,
-  );
+  assert.throws(() => localJson(4444, "/api/tags"), /BENCH_PORT_NOT_APPROVED/);
   assert.deepEqual(
     TARGETS.map((t) => t.port),
     [11435, 11436, 11434],
