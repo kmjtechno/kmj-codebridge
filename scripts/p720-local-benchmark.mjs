@@ -13,8 +13,7 @@ export const TARGETS = Object.freeze([
   // 8B runs only if already present on the standard P720 local instance.
   { port: 11434, model: "qwen3:8b", optional: true },
 ]);
-const PROMPT =
-  "Write only JavaScript: function add(a, b) that returns a + b.";
+const PROMPT = "Write only JavaScript: function add(a, b) that returns a + b.";
 const MAX_BYTES = 131072;
 
 export function localJson(port, endpoint, body, timeoutMs = 90000) {
@@ -30,13 +29,14 @@ export function localJson(port, endpoint, body, timeoutMs = 90000) {
         method: payload === null ? "GET" : "POST",
         timeout: timeoutMs,
         signal: AbortSignal.timeout(timeoutMs),
-        headers: payload === null
-          ? { accept: "application/json" }
-          : {
-              accept: "application/json",
-              "content-type": "application/json",
-              "content-length": Buffer.byteLength(payload),
-            },
+        headers:
+          payload === null
+            ? { accept: "application/json" }
+            : {
+                accept: "application/json",
+                "content-type": "application/json",
+                "content-length": Buffer.byteLength(payload),
+              },
       },
       (res) => {
         if (res.statusCode !== 200) {
@@ -76,8 +76,12 @@ export function nanosToMs(value) {
 }
 
 export function inferenceRecord(value) {
-  if (!value || value.done !== true ||
-      typeof value.response !== "string" || !value.response.trim())
+  if (
+    !value ||
+    value.done !== true ||
+    typeof value.response !== "string" ||
+    !value.response.trim()
+  )
     throw Error("BENCH_NO_VISIBLE_OUTPUT");
   const count = value.eval_count;
   const duration = value.eval_duration;
@@ -89,13 +93,16 @@ export function inferenceRecord(value) {
     promptMs: nanosToMs(value.prompt_eval_duration),
     evalMs: nanosToMs(duration),
     tokensPerSecond:
-      Number.isSafeInteger(count) && count >= 0 &&
-      Number.isSafeInteger(duration) && duration > 0
-        ? Number((count * 1e9 / duration).toFixed(2))
+      Number.isSafeInteger(count) &&
+      count >= 0 &&
+      Number.isSafeInteger(duration) &&
+      duration > 0
+        ? Number(((count * 1e9) / duration).toFixed(2))
         : null,
-    generatedTokens: Number.isSafeInteger(count) && count >= 0
-      ? Math.min(count, 1000000)
-      : null,
+    generatedTokens:
+      Number.isSafeInteger(count) && count >= 0
+        ? Math.min(count, 1000000)
+        : null,
   };
 }
 
@@ -104,15 +111,26 @@ export async function benchmarkTarget(target, request = localJson) {
   let installed = false;
   try {
     const tags = await request(port, "/api/tags");
-    if (!Array.isArray(tags?.models) ||
-        !tags.models.some((entry) => entry?.name === model || entry?.model === model))
-      return { model, port, state: "NOT_INSTALLED", optional: !!target.optional };
+    if (
+      !Array.isArray(tags?.models) ||
+      !tags.models.some(
+        (entry) => entry?.name === model || entry?.model === model,
+      )
+    )
+      return {
+        model,
+        port,
+        state: "NOT_INSTALLED",
+        optional: !!target.optional,
+      };
     installed = true;
 
     // Cold request explicitly asks Ollama to release the model afterward.
     // Warm priming and warm repeat are back-to-back within a 30s bounded TTL.
     const requestBody = (keep_alive) => ({
-      model, prompt: PROMPT, stream: false,
+      model,
+      prompt: PROMPT,
+      stream: false,
       ...(model.startsWith("qwen3:") ? { think: false } : {}),
       keep_alive,
       options: { num_ctx: 2048, num_predict: 64, temperature: 0 },
@@ -130,7 +148,9 @@ export async function benchmarkTarget(target, request = localJson) {
     try {
       const running = await request(port, "/api/ps");
       const entry = Array.isArray(running?.models)
-        ? running.models.find((item) => item.name === model || item.model === model)
+        ? running.models.find(
+            (item) => item.name === model || item.model === model,
+          )
         : null;
       if (Number.isSafeInteger(entry?.size_vram) && entry.size_vram >= 0)
         observedVramBytes = entry.size_vram;
@@ -140,10 +160,17 @@ export async function benchmarkTarget(target, request = localJson) {
     const measured =
       cold.totalMs !== null && warm.totalMs !== null && cold.totalMs > 0;
     return {
-      model, port, state: "MEASURED",
-      cold, priming, warm, observedVramBytes,
+      model,
+      port,
+      state: "MEASURED",
+      cold,
+      priming,
+      warm,
+      observedVramBytes,
       warmLatencyChangePercent: measured
-        ? Number((((warm.totalMs - cold.totalMs) / cold.totalMs) * 100).toFixed(1))
+        ? Number(
+            (((warm.totalMs - cold.totalMs) / cold.totalMs) * 100).toFixed(1),
+          )
         : null,
       allCodingSmokesPass:
         cold.codingSmokePass && priming.codingSmokePass && warm.codingSmokePass,
@@ -151,19 +178,30 @@ export async function benchmarkTarget(target, request = localJson) {
     };
   } catch (error) {
     return {
-      model, port, state: "BLOCKED",
-      error: error?.message === "BENCH_NO_VISIBLE_OUTPUT"
-        ? "BENCH_NO_VISIBLE_OUTPUT"
-        : "BENCH_LOCAL_ENDPOINT_OR_INFERENCE_FAILED",
+      model,
+      port,
+      state: "BLOCKED",
+      error:
+        error?.message === "BENCH_NO_VISIBLE_OUTPUT"
+          ? "BENCH_NO_VISIBLE_OUTPUT"
+          : "BENCH_LOCAL_ENDPOINT_OR_INFERENCE_FAILED",
     };
   } finally {
     // Always request unload at the end, including failures. Never report
     // actual memory reclamation unless separately observed.
     if (installed) {
       try {
-        await request(port, "/api/generate", {
-          model, prompt: "", stream: false, keep_alive: 0,
-        }, 10000);
+        await request(
+          port,
+          "/api/generate",
+          {
+            model,
+            prompt: "",
+            stream: false,
+            keep_alive: 0,
+          },
+          10000,
+        );
       } catch {
         // Best effort, never hide the benchmark's own outcome.
       }
@@ -188,16 +226,24 @@ export async function benchmarkFleet(request = localJson) {
   };
 }
 
-if (process.argv[1] &&
-    import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   if (process.argv.length !== 3 || process.argv[2] !== "--run") {
-    console.error("Run only on authorized P720: node scripts/p720-local-benchmark.mjs --run");
+    console.error(
+      "Run only on authorized P720: node scripts/p720-local-benchmark.mjs --run",
+    );
     process.exitCode = 2;
   } else {
     const result = await benchmarkFleet();
     console.log(JSON.stringify(result, null, 2));
     process.exitCode = result.results?.every(
-      (row) => row.state === "MEASURED" || (row.optional && row.state === "NOT_INSTALLED")
-    ) ? 0 : 2;
+      (row) =>
+        row.state === "MEASURED" ||
+        (row.optional && row.state === "NOT_INSTALLED"),
+    )
+      ? 0
+      : 2;
   }
 }
