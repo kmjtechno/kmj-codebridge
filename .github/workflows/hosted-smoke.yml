@@ -21,10 +21,10 @@ concurrency:
 jobs:
   # Render is a separate deployed service: verify it independently of the VPS.
   gateway:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           persist-credentials: false
 
@@ -75,7 +75,7 @@ jobs:
   # Production-origin failure must remain RED, without masking a healthy Render gateway.
   # Do not add needs: gateway or continue-on-error to either acceptance gate.
   public_oauth:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Verify public OAuth discovery and MCP protection

@@ -11,7 +11,7 @@ const production = workflow.split("\n  public_oauth:\n")[1];
 test("hosted acceptance separates Render and production-origin failures", () => {
   assert.ok(render, "a distinct Render gateway job is required");
   assert.ok(production, "a distinct public OAuth job is required");
-  assert.match(render, /actions\/checkout@v4/);
+  assert.match(render, /actions\/checkout@v5/);
   assert.match(render, /kmj-codebridge-gateway\.onrender\.com\/healthz/);
   assert.match(render, /payload\.version !== process\.env\.EXPECTED/);
   assert.match(render, /payload\.capabilities\?\.github !== true/);
