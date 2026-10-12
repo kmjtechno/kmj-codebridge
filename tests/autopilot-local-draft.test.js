@@ -61,9 +61,15 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
     key: "feature-a",
     objective: "Feature A",
   });
-  assert.equal(autopilot.claim("project1").id, queued.id);
+  const claimed = autopilot.claim("project1");
+  assert.equal(claimed.id, queued.id);
   assert.equal(definitions.autopilot_local_draft.access, "execute");
-  const payload = { ...scope, task: queued.id, model: "tiny:1b" };
+  const payload = {
+    ...scope,
+    task: queued.id,
+    model: "tiny:1b",
+    leaseToken: claimed.leaseToken,
+  };
   await assert.rejects(
     dispatch("autopilot_local_draft", payload, ["execute"]),
     /invalid_type|invalid_literal|Invalid literal value/i,
@@ -119,7 +125,7 @@ test("unavailable local inference never checkpoints, edits files or charges a cl
     key: "x",
     objective: "Test only",
   });
-  autopilot.claim("project1");
+  const claimed = autopilot.claim("project1");
   await assert.rejects(
     dispatch(
       "autopilot_local_draft",
@@ -128,6 +134,7 @@ test("unavailable local inference never checkpoints, edits files or charges a cl
         task: queued.id,
         model: "tiny:1b",
         localProcessingApproved: true,
+        leaseToken: claimed.leaseToken,
       },
       ["execute"],
     ),
@@ -159,11 +166,13 @@ test("finished, unclaimed or pre-checkpointed tasks never run a second model", a
     dispatch("autopilot_local_draft", payload, ["execute"]),
     /AUTOPILOT_TASK_NOT_RUNNING/,
   );
-  autopilot.claim("project1");
+  const claimed = autopilot.claim("project1");
   autopilot.checkpoint(queued.id, "project1", {
     summary: "Owner checkpoint",
     next: "Review",
+    leaseToken: claimed.leaseToken,
   });
+  payload.leaseToken = claimed.leaseToken;
   await assert.rejects(
     dispatch("autopilot_local_draft", payload, ["execute"]),
     /AUTOPILOT_CHECKPOINT_EXISTS/,

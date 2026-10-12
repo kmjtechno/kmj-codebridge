@@ -8,6 +8,7 @@ KMJ CodeBridge 24×7 mode is designed as a persistent, event-driven orchestratio
 - **Active:** claim the highest-priority dependency-ready task and execute through existing bounded CodeBridge tools and configured quality gates.
 - **Blocked:** move only the blocked task to `waiting`; independent queued work remains claimable.
 - **Restart/reboot:** any task that was `running` is safely returned to `queued` with its last checkpoint preserved.
+- **Disconnected chat or worker:** a claim is a time-bounded lease; when it expires, the next claim returns the task to `queued` so another chat can continue it.
 - **Recovery:** task state is stored outside authorized project roots under the agent `stateDir`.
 - **Security:** no arbitrary shell, arbitrary service name, arbitrary path, environment dump or secret-return API is introduced.
 
@@ -48,6 +49,17 @@ These operations coordinate work only. They do not execute arbitrary commands. A
 ## Dependency behavior
 
 A queued task is claimable only when every declared dependency has succeeded. Waiting work never blocks unrelated ready work. Selection is deterministic: higher priority first, then creation time, then task id.
+
+## Claim leases (multiple chats and workers)
+
+`autopilot_claim` accepts an optional `holder` label and returns the task with a `leaseToken` and `lease: {holder, expiresAt}` (default 30 minutes, bounded 1 minute to 24 hours).
+
+- `autopilot_checkpoint`, `autopilot_wait` and `autopilot_complete` (and `autopilot_local_draft`'s checkpoint) **require** the matching `leaseToken` once a task has been claimed under lease-aware code. A missing or mismatched token is rejected with `AUTOPILOT_LEASE_LOST` — a missing token is exactly as unsafe as a stale one, since it would let any caller act on another holder's claimed work. Each checkpoint renews the lease, so active long work is not reclaimed.
+- When a lease expires (the holder disconnected or stopped checkpointing), the next `autopilot_claim` for that project returns the task to `queued` with `lastReason: lease_expired`, then claims normally. `maxAttempts` still applies and exhausted tasks fail their dependents. The old holder's token stops working the instant the task is reclaimed.
+- `autopilot_status` shows who holds a task and until when, never the token.
+- Compatibility is preserved only for a genuinely legacy task: one still `running` from before this feature existed, which has no lease to fence. Any task claimed by lease-aware code — including after its lease expires and is reclaimed — is fenced from then on. A gateway or client that omits `leaseToken` can still claim new work and recover expired tasks, but cannot checkpoint, pause or complete anything it claimed, so upgrading both ends together is required for continued operation.
+
+Leases coordinate work; they do not add execution capacity. Concurrency remains bounded by the signed plan and device resources.
 
 ## Restart behavior
 

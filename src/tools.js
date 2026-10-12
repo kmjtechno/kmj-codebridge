@@ -1242,8 +1242,14 @@ export const definitions = {
   autopilot_claim: {
     title: "Claim next autopilot task",
     description:
-      "Claim the highest-priority dependency-ready task without blocking on unrelated waiting work.",
-    input: scoped,
+      "Claim the highest-priority dependency-ready task as a time-bounded lease. Returns leaseToken: pass it to checkpoint/wait/complete (checkpoints renew the lease). Expired leases return to the queue so a disconnected chat cannot hold work forever.",
+    input: {
+      ...scoped,
+      holder: z
+        .string()
+        .regex(/^[A-Za-z0-9._:@ -]{1,96}$/)
+        .optional(),
+    },
     access: "write",
   },
   autopilot_local_draft: {
@@ -1257,6 +1263,7 @@ export const definitions = {
       maxTokens: z.number().int().min(32).max(512).default(256),
       timeoutSeconds: z.number().int().min(5).max(90).default(45),
       localProcessingApproved: z.literal(true),
+      leaseToken: z.string().uuid().optional(),
     },
     access: "execute",
   },
@@ -1269,6 +1276,7 @@ export const definitions = {
       task: identifier,
       summary: z.string().max(8192),
       next: z.string().max(8192),
+      leaseToken: z.string().uuid().optional(),
     },
     access: "write",
   },
@@ -1280,6 +1288,7 @@ export const definitions = {
       ...scoped,
       task: identifier,
       reason: z.string().min(1).max(4096),
+      leaseToken: z.string().uuid().optional(),
     },
     access: "write",
   },
@@ -1299,6 +1308,7 @@ export const definitions = {
       task: identifier,
       state: z.enum(["succeeded", "failed", "cancelled"]),
       result: z.string().max(8192),
+      leaseToken: z.string().uuid().optional(),
     },
     access: "write",
   },
@@ -2133,10 +2143,14 @@ export function createDispatcher(
         priority: a.priority,
         dependsOn: a.dependsOn,
       });
-    if (name === "autopilot_claim") return autopilot.claim(p.id);
+    if (name === "autopilot_claim")
+      return autopilot.claim(p.id, { holder: a.holder });
     if (name === "autopilot_local_draft") {
       const task = autopilot.get(a.task, p.id);
       if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
+      // Fail fast on a stale or missing lease, before spending local
+      // inference time on a proposal this caller is not allowed to save.
+      autopilot.assertLease(task, a.leaseToken);
       const existing = task.checkpoint;
       if (existing) {
         if (existing.next !== "LOCAL_DRAFT_AWAITING_REVIEW")
@@ -2172,6 +2186,7 @@ export function createDispatcher(
       const saved = autopilot.checkpoint(a.task, p.id, {
         summary: proposal,
         next: "LOCAL_DRAFT_AWAITING_REVIEW",
+        leaseToken: a.leaseToken,
       });
       return {
         device: config.id,
@@ -2190,14 +2205,16 @@ export function createDispatcher(
       return autopilot.checkpoint(a.task, p.id, {
         summary: a.summary,
         next: a.next,
+        leaseToken: a.leaseToken,
       });
     if (name === "autopilot_wait")
-      return autopilot.wait(a.task, p.id, a.reason);
+      return autopilot.wait(a.task, p.id, a.reason, a.leaseToken);
     if (name === "autopilot_resume") return autopilot.resume(a.task, p.id);
     if (name === "autopilot_complete")
       return autopilot.complete(a.task, p.id, {
         state: a.state,
         result: a.result,
+        leaseToken: a.leaseToken,
       });
     if (name.startsWith("supervisor_") && !supervisor)
       fail("SUPERVISOR_UNAVAILABLE");
