@@ -189,28 +189,34 @@ test("Claude and ChatGPT MCP clients see claim holder schema and receive fenced 
     assert.equal(complete.inputSchema.properties.leaseToken.type, "string");
   }
 
-  const queued = body(await claude.callTool({
-    name: "autopilot_enqueue",
-    arguments: {
-      ...scoped,
-      key: "mcp-claim-contract",
-      objective: "prove client-visible token fencing",
-      dependsOn: [],
-    },
-  }));
-  const claimed = body(await claude.callTool({
-    name: "autopilot_claim",
-    arguments: { ...scoped, holder: "Claude Code/P720 #1" },
-  }));
+  const queued = body(
+    await claude.callTool({
+      name: "autopilot_enqueue",
+      arguments: {
+        ...scoped,
+        key: "mcp-claim-contract",
+        objective: "prove client-visible token fencing",
+        dependsOn: [],
+      },
+    }),
+  );
+  const claimed = body(
+    await claude.callTool({
+      name: "autopilot_claim",
+      arguments: { ...scoped, holder: "Claude Code/P720 #1" },
+    }),
+  );
   assert.equal(claimed.id, queued.id);
   assert.equal(claimed.state, "running");
   assert.equal(claimed.lease.holder, "Claude Code/P720 #1");
   assert.match(claimed.leaseToken, /^[a-f0-9-]{36}$/i);
 
-  const status = body(await chatgpt.callTool({
-    name: "autopilot_status",
-    arguments: { ...scoped, limit: 2 },
-  }));
+  const status = body(
+    await chatgpt.callTool({
+      name: "autopilot_status",
+      arguments: { ...scoped, limit: 2 },
+    }),
+  );
   assert.ok(!JSON.stringify(status).includes(claimed.leaseToken));
 
   const refused = await chatgpt.callTool({
@@ -225,16 +231,18 @@ test("Claude and ChatGPT MCP clients see claim holder schema and receive fenced 
   assert.equal(refused.isError, true);
   assert.equal(body(refused).error, "AUTOPILOT_LEASE_LOST");
 
-  const done = body(await claude.callTool({
-    name: "autopilot_complete",
-    arguments: {
-      ...scoped,
-      task: queued.id,
-      state: "succeeded",
-      result: "fenced completion verified",
-      leaseToken: claimed.leaseToken,
-    },
-  }));
+  const done = body(
+    await claude.callTool({
+      name: "autopilot_complete",
+      arguments: {
+        ...scoped,
+        task: queued.id,
+        state: "succeeded",
+        result: "fenced completion verified",
+        leaseToken: claimed.leaseToken,
+      },
+    }),
+  );
   assert.equal(done.state, "succeeded");
 });
 
