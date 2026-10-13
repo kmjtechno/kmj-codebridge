@@ -19,7 +19,7 @@ The broker must independently enforce **tenant/project approval**, model
 identity, actual documented **free pricing for that exact model/tier**,
 private-code consent, request budget and a hard zero-spend mode.
 A provider simply declaring \`free_tier="plan"\` is NOT sufficient evidence
-that *every* discovered model/request is free. The default remains
+that _every_ discovered model/request is free. The default remains
 zero provider calls. Unknown free allowance is **unknown**, not unlimited.
 
 ## What the measurements mean
@@ -31,7 +31,7 @@ zero provider calls. Unknown free allowance is **unknown**, not unlimited.
   can have independent limits and RFC3339 reset times. These are rate
   windows, not unspent subscription credits or Anthropic API balance.
 - **OpenRouter \`/api/v1/key\`:** \`free_model_daily_requests.remaining\`
-  is a verified remaining count *when present*; \`limit_remaining\` is a
+  is a verified remaining count _when present_; \`limit_remaining\` is a
   **key spending cap**, NEVER "free credits remaining". Each selected
   model must independently be marked free by its current pricing/capability
   metadata. OpenRouter account credit totals may require a separate
