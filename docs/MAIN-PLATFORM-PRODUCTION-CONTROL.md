@@ -37,12 +37,12 @@ Owner must review which CodeBridge users receive `execute` for production.
 
 Only after reviewing this source on an authorized KMJ-elite console, as root,
 run the checked-in installer (do not run a network-fetched `curl | bash`
-one-liner):
+one-liner).
 
-```bash
-cd /path/to/verified/kmj-codebridge-checkout
-sudo bash scripts/production/install-main-platform-control.sh
-```
+Do **not** run the installer from a development checkout (for example
+`/srv/kmj-codebridge-projects/kmj-codebridge`). It refuses any source outside a
+root-owned, non-writable archive extraction under `/root` or `/tmp`, and it needs
+`KMJ_APPROVED_CODEBRIDGE_SHA`. Use the pinned-archive procedure in the runbook below.
 
 It only installs the **fixed inactive** unit and fixed root-owned script;
 it cannot deploy by itself and does not create fake approvals or backups.
@@ -80,10 +80,35 @@ its permissions must remain protected.
 **Owner bootstrap invocation** from the pinned archive must supply the
 approved commit ID to the root installer, for example:
 
+### Runbook: pinned-archive bootstrap (owner, as root on KMJ-elite)
+
 ```bash
-KMJ_APPROVED_CODEBRIDGE_SHA="<exact-reviewed-Git-SHA>" \\
-  bash scripts/production/install-main-platform-control.sh
+sudo -i
+# 1. A root-only working directory (the installer rejects a group/world-writable parent).
+install -d -m 0700 /root/kmj-approved && cd /root/kmj-approved
+
+# 2. The exact commit you reviewed, as a full 40-character SHA. Use the current reviewed
+#    main commit; do not reuse an old value.
+SHA="<exact-reviewed-40-character-sha>"
+
+# 3. Download that commit's archive and record its checksum. Compare the checksum with a
+#    second, independent download (for example from your own computer) before continuing.
+curl -fsSLo codebridge.tar.gz "https://github.com/kmjtechno/kmj-codebridge/archive/${SHA}.tar.gz"
+sha256sum codebridge.tar.gz
+
+# 4. Extract as root and force root ownership regardless of what the archive records.
+tar --no-same-owner --no-same-permissions -xzf codebridge.tar.gz
+cd "kmj-codebridge-${SHA}"
+
+# 5. Run the installer from this root-owned extraction, passing the same approved SHA.
+KMJ_APPROVED_CODEBRIDGE_SHA="${SHA}" bash scripts/production/install-main-platform-control.sh
 ```
+
+The installer only verifies that the extraction is root-owned and non-writable and that
+`KMJ_APPROVED_CODEBRIDGE_SHA` has the right shape; the SHA is the owner's approval label and is
+not recomputed from the files. That is why step 3 (independent checksum comparison) matters.
+Success prints `SUPERVISOR_STAGE_READY=1` and the staged runtime path. Afterwards, from the
+connected device, verify `supervisor_project_status` before using any other supervisor tool.
 
 No runtime staging or privileged service operation is initiated by
 CodeBridge chat tools until this first trusted root action succeeds. It resolves the existing agent location from the effective systemd `WorkingDirectory` instead of guessing: accepted layouts include the observed unprivileged
