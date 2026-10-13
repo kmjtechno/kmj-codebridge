@@ -115,8 +115,14 @@ test("legacy Main Platform supervisor bootstrap is fixed, root-gated and preserv
   assert.match(bootstrap, /NoNewPrivileges=true/);
   assert.match(bootstrap, /RestrictAddressFamilies=AF_UNIX/);
   assert.match(bootstrap, /SUPERVISOR_SOCKET_ACTIVE=1/);
-  assert.doesNotMatch(bootstrap, /curl |wget |git clone|git pull|eval |bash -c/);
-  assert.doesNotMatch(bootstrap, /systemctl restart .*AGENT|enroll-device|systemctl start kmj-main-platform-production-release/);
+  assert.doesNotMatch(
+    bootstrap,
+    /curl |wget |git clone|git pull|eval |bash -c/,
+  );
+  assert.doesNotMatch(
+    bootstrap,
+    /systemctl restart .*AGENT|enroll-device|systemctl start kmj-main-platform-production-release/,
+  );
 });
 
 test(
