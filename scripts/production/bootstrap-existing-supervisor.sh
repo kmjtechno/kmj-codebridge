@@ -44,6 +44,17 @@ for checked in "$RUNTIME" "$RUNTIME/src" "$RUNTIME/src/cli.js" \
     fail "SUPERVISOR_BOOTSTRAP_RUNTIME_WRITABLE"
 done
 
+# Imports under a root supervisor are trusted code, not ordinary project
+# files. Verify the complete installed runtime cannot be edited by the
+# unprivileged agent, including indirect imported packages.
+unsafe="$(find "$RUNTIME" -xdev \\( -type f -o -type d \\) \\( ! -user root -o -perm /022 \\) -print -quit)"
+[[ -z "$unsafe" ]] || fail "SUPERVISOR_BOOTSTRAP_RUNTIME_TREE_WRITABLE"
+while IFS= read -r -d '' link; do
+  target="$(readlink -f "$link" || true)"
+  [[ "$target" == "$RUNTIME/"* ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_RUNTIME_EXTERNAL_SYMLINK"
+done < <(find "$RUNTIME" -xdev -type l -print0)
+
 AGENT_USER="$(systemctl show "$AGENT_UNIT" --property=User --value)"
 case "$AGENT_USER" in
   kmjrunner|kmjprod|kmjstage) ;;
@@ -56,6 +67,8 @@ id "$AGENT_USER" >/dev/null 2>&1 ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_USER_MISSING"
 getent group "$AGENT_GROUP" >/dev/null ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_GROUP_MISSING"
+[[ "$AGENT_GROUP" =~ ^[a-z_][a-z0-9_-]*$ ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_GROUP_INVALID"
 
 # Effective unit identity must match the fixed pre-existing enrollment.
 EFFECTIVE_EXEC="$(systemctl show "$AGENT_UNIT" --property=ExecStart --value)"
