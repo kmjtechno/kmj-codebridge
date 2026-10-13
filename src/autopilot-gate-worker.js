@@ -117,12 +117,7 @@ export class AutopilotGateWorker {
       const spec = parseAutopilotGateTask(claimed.key, allowed);
       const gate = project.gates[spec.gate];
       const pause = (reason) =>
-        this.journal.wait(
-          claimed.id,
-          project.id,
-          reason,
-          claimed.leaseToken,
-        );
+        this.journal.wait(claimed.id, project.id, reason, claimed.leaseToken);
 
       if (!gate) {
         pause("APPROVED_GATE_NOT_CONFIGURED");
@@ -163,8 +158,15 @@ export class AutopilotGateWorker {
 
 // A real on-device bounded worker loop. Disabled by default unless explicitly
 // enabled by the administrator for an approved project's known gate ids.
-export function startAutopilotGateWorker(options, { intervalMs = 10_000 } = {}) {
-  if (!Number.isInteger(intervalMs) || intervalMs < 1_000 || intervalMs > 60_000)
+export function startAutopilotGateWorker(
+  options,
+  { intervalMs = 10_000 } = {},
+) {
+  if (
+    !Number.isInteger(intervalMs) ||
+    intervalMs < 1_000 ||
+    intervalMs > 60_000
+  )
     throw new Error("AUTOPILOT_GATE_INTERVAL_INVALID");
   const worker = new AutopilotGateWorker(options);
   // Default installations create no worker timer or extra background activity.
