@@ -86,9 +86,17 @@ export function bootstrapSupervisorStatus({
   } catch {}
   const helperTrusted = trustedPath(lstat);
   const socketVerified =
-    agentLoaded && serviceLoaded && socketLoaded && socketActive && socketPresent;
+    agentLoaded &&
+    serviceLoaded &&
+    socketLoaded &&
+    socketActive &&
+    socketPresent;
   const eligible =
-    agentLoaded && serviceLoaded && socketLoaded && helperTrusted && !socketVerified;
+    agentLoaded &&
+    serviceLoaded &&
+    socketLoaded &&
+    helperTrusted &&
+    !socketVerified;
   return {
     eligible,
     socketVerified,
@@ -112,16 +120,12 @@ export function bootstrapSupervisorStatus({
   };
 }
 
-export function requestBootstrapSupervisor(
-  confirmation,
-  dependencies = {},
-) {
+export function requestBootstrapSupervisor(confirmation, dependencies = {}) {
   if (confirmation !== "START_APPROVED_CODEBRIDGE_SUPERVISOR")
     fail("BOOTSTRAP_CONFIRMATION_REQUIRED");
   const before = bootstrapSupervisorStatus(dependencies);
   if (!before.eligible) {
-    if (before.socketVerified)
-      return { accepted: false, ...before };
+    if (before.socketVerified) return { accepted: false, ...before };
     fail(before.reason);
   }
   const invoke = dependencies.invoke ?? execFileSync;
