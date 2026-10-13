@@ -5,7 +5,13 @@ const DRAFT_TASK = /^auto-draft:[A-Za-z0-9._-]{1,100}$/;
 // This worker produces review-only, untrusted proposals. It does not apply
 // patches, run commands, publish code, mark tasks done or contact cloud APIs.
 export class LocalAutopilotDraftWorker {
-  constructor({ projects, journal, licenseProvider, localModel, runner = null }) {
+  constructor({
+    projects,
+    journal,
+    licenseProvider,
+    localModel,
+    runner = null,
+  }) {
     this.projects = projects.filter(
       (p) => p.writable && p.autopilotLocalWorker?.enabled === true,
     );
