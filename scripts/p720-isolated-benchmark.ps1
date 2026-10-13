@@ -4,9 +4,9 @@
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $repo = 'D:\KMJ-HyperSpeed\projects\kmj-codebridge'
-$pinned = '4730f2c619d5e39777cad62a83444e39837412c1'
+$pinned = 'fc52a3be61c30542ad6991a87bd223a1443cae11'
 $benchRoot = 'D:\KMJ-HyperSpeed\bench'
-$worktree = Join-Path $benchRoot 'codebridge-pr304-4730f2c'
+$worktree = Join-Path $benchRoot 'codebridge-bench-fc52a3b'
 $allowedOrigins = @(
     'https://github.com/kmjtechno/kmj-codebridge',
     'https://github.com/kmjtechno/kmj-codebridge.git',
