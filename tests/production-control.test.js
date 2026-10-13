@@ -97,3 +97,43 @@ test("supervisor sees only the KMJ production home under a read-only bind", () =
   assert.match(install, /20-main-platform-production-readonly\.conf/);
   assert.doesNotMatch(install, /systemctl restart kmj-codebridge-supervisor/);
 });
+
+test("legacy Main Platform supervisor bootstrap is fixed, root-gated and preserves enrollment", () => {
+  const bootstrap = fs.readFileSync(
+    "scripts/production/bootstrap-existing-supervisor.sh",
+    "utf8",
+  );
+  assert.match(install, /bootstrap-existing-supervisor\.sh/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_REQUIRES_ROOT/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_WRONG_HOST/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_AGENT_EXEC_MISMATCH/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_RUNTIME_TREE_WRITABLE/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_CONFIG_PERMISSIONS_UNSAFE/);
+  assert.match(bootstrap, /SocketMode=0600/);
+  assert.match(bootstrap, /User=root/);
+  assert.match(bootstrap, /BindReadOnlyPaths=\/home\/kmjprod/);
+  assert.match(bootstrap, /NoNewPrivileges=true/);
+  assert.match(bootstrap, /RestrictAddressFamilies=AF_UNIX/);
+  assert.match(bootstrap, /SUPERVISOR_SOCKET_ACTIVE=1/);
+  assert.doesNotMatch(
+    bootstrap,
+    /curl |wget |git clone|git pull|eval |bash -c/,
+  );
+  assert.doesNotMatch(
+    bootstrap,
+    /systemctl restart .*AGENT|enroll-device|systemctl start kmj-main-platform-production-release/,
+  );
+});
+
+test(
+  "legacy supervisor socket bootstrap parses on Linux",
+  { skip: process.platform === "win32" },
+  () => {
+    const run = spawnSync(
+      "bash",
+      ["-n", "scripts/production/bootstrap-existing-supervisor.sh"],
+      { encoding: "utf8" },
+    );
+    assert.equal(run.status, 0, run.stderr);
+  },
+);
