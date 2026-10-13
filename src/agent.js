@@ -123,6 +123,7 @@ export async function startAgent(rawConfig) {
     : null;
   let localModelClient;
   const localModel = () => (localModelClient ??= createLocalModelClient());
+  let workerHandles = null;
   const dispatch = createDispatcher(
     c,
     runner,
@@ -131,6 +132,7 @@ export async function startAgent(rawConfig) {
     supervisor,
     audit,
     localModel,
+    () => workerHandles,
   );
   const gateWorker = startAutopilotGateWorker({
     projects: c.projects,
@@ -159,6 +161,15 @@ export async function startAgent(rawConfig) {
   });
   const controller = new AbortController();
   let stopped = false;
+  workerHandles = {
+    gate: gateWorker.enabledProjects,
+    repair: repairWorker.enabledProjects,
+    githubCiWatch: ciWatchWorker.enabledProjects,
+    localDraft: localDraftWorker.enabledProjects,
+    get agentRunning() {
+      return !stopped;
+    },
+  };
   const connectionState = path.join(state, "connection.json");
   const runtimeIdentity = () => {
     const identity = { version: VERSION, release: null };
