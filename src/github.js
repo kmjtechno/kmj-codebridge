@@ -225,6 +225,7 @@ export const githubDefinitions = {
       body: z.string().max(20000).optional(),
       base: branchName.optional(),
       state: z.enum(["open", "closed"]).optional(),
+      expectedHeadSha: commitSha.optional(),
     },
     access: "write",
   },
@@ -963,6 +964,18 @@ export function createGitHubBridge(config) {
         if (a[field] !== undefined) changes[field] = a[field];
       if (Object.keys(changes).length === 0)
         fail("GITHUB_PULL_REQUEST_NO_CHANGES");
+      // An optional optimistic-concurrency fence protects concurrent AI PR lanes.
+      // Preserve legacy updates when no expected head is supplied.
+      if (a.expectedHeadSha) {
+        const pull = await request(
+          "GET",
+          a.repository,
+          `pulls/${a.number}`,
+          undefined,
+        );
+        if (pull.state !== "open") fail("GITHUB_PULL_REQUEST_NOT_OPEN");
+        if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
+      }
       const data = await request(
         "PATCH",
         a.repository,
