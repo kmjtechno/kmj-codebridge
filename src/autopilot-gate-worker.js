@@ -127,7 +127,6 @@ export class AutopilotGateWorker {
         continue; // fail closed on expired license or low resources
       }
 
-      const allowed = project.autopilotGateWorker.gates;
       const claimed = this.journal.claim(project.id, {
         holder: "autopilot-gate-worker",
         eligible: (task) => Boolean(parseAutopilotGateTask(task.key, allowed)),
