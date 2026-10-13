@@ -47,7 +47,7 @@ done
 # Imports under a root supervisor are trusted code, not ordinary project
 # files. Verify the complete installed runtime cannot be edited by the
 # unprivileged agent, including indirect imported packages.
-unsafe="$(find "$RUNTIME" -xdev \\( -type f -o -type d \\) \\( ! -user root -o -perm /022 \\) -print -quit)"
+unsafe="$(find "$RUNTIME" -xdev \( -type f -o -type d \) \( ! -user root -o -perm /022 \) -print -quit)"
 [[ -z "$unsafe" ]] || fail "SUPERVISOR_BOOTSTRAP_RUNTIME_TREE_WRITABLE"
 while IFS= read -r -d '' link; do
   target="$(readlink -f "$link" || true)"
