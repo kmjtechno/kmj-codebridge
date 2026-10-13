@@ -316,6 +316,39 @@ test("project status derives the root from the fixed agent config", async () => 
   assert.deepEqual(seen, [root, root, `${root}/.git`]);
 });
 
+test("main platform project status reads only its fixed enrollment config", async () => {
+  const root = "/srv/kmj-codebridge-projects/kmj-main-platform";
+  const reads = [];
+  const handle = createSupervisorHandler({
+    readFile: (file) => {
+      reads.push(file);
+      assert.equal(file, "/etc/kmj-codebridge-main-platform/agent.json");
+      return JSON.stringify({
+        gateway: "https://kmjtechno.com",
+        token: "x".repeat(48),
+        id: "d1",
+        tenant: "t1",
+        stateDir: "/var/lib/kmj-codebridge-main-platform",
+        projects: [{ id: "kmj-main-platform", root }],
+        license: { mode: "free" },
+      });
+    },
+    exists: (target) => target === root || target === `${root}/.git`,
+    stat: () => ({ isDirectory: () => true }),
+  });
+  const result = await handle({
+    op: "project_status",
+    projectId: "kmj-main-platform",
+  });
+  assert.deepEqual(result.response, {
+    projectId: "kmj-main-platform",
+    present: true,
+    directory: true,
+    gitCheckout: true,
+  });
+  assert.deepEqual(reads, ["/etc/kmj-codebridge-main-platform/agent.json"]);
+});
+
 test("project status rejects traversal and arbitrary path inputs", async () => {
   const handle = createSupervisorHandler();
   for (const request of [

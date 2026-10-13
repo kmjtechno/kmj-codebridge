@@ -615,6 +615,13 @@ export class JobRunner {
       })),
     };
   }
+  // Cheap state probe for waiters: same scoping as get(), but no deep copy of the job record.
+  peekState(id, project) {
+    this.drain();
+    const j = this.jobs.get(id) ?? this.archive.get(id);
+    if (!j || j.project !== project) fail("JOB_NOT_FOUND");
+    return j.state;
+  }
   get(id, project) {
     this.drain();
     const j = this.jobs.get(id) ?? this.archive.get(id);

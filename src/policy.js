@@ -1056,9 +1056,35 @@ export class ProjectFiles {
     };
   }
 
-  search(query) {
+  search(query, options = {}) {
     if (typeof query !== "string" || !query || query.length > 200)
       fail("INVALID_QUERY");
+    const {
+      maxResults = 100,
+      pathPrefix = "",
+      caseSensitive = true,
+      extensions = null,
+    } = options ?? {};
+    if (!Number.isInteger(maxResults) || maxResults < 1 || maxResults > 100)
+      fail("INVALID_SEARCH_LIMIT");
+    if (typeof caseSensitive !== "boolean") fail("INVALID_SEARCH_OPTION");
+    if (
+      extensions !== null &&
+      (!Array.isArray(extensions) ||
+        extensions.length < 1 ||
+        extensions.length > 10 ||
+        extensions.some(
+          (e) => typeof e !== "string" || !/^\.[A-Za-z0-9]{1,10}$/.test(e),
+        ))
+    )
+      fail("INVALID_SEARCH_EXTENSIONS");
+    // A scoped search starts in an existing, policy-checked directory; list() rejects
+    // traversal, absolute paths, symlinks and denied names exactly like list_directory.
+    if (pathPrefix !== "") this.list(pathPrefix);
+    const wanted = extensions
+      ? new Set(extensions.map((e) => e.toLowerCase()))
+      : null;
+    const needle = caseSensitive ? query : query.toLowerCase();
     const matches = [];
     let visited = 0,
       bytes = 0,
@@ -1073,7 +1099,7 @@ export class ProjectFiles {
       })) {
         if (
           ++visited > 2000 ||
-          matches.length >= 100 ||
+          matches.length >= maxResults ||
           bytes >= 8 * 1024 * 1024
         ) {
           truncated = true;
@@ -1092,6 +1118,8 @@ export class ProjectFiles {
           continue;
         }
         if (!item.isFile()) continue;
+        if (wanted && !wanted.has(path.extname(item.name).toLowerCase()))
+          continue;
         let file;
         try {
           file = this.read(rel);
@@ -1100,13 +1128,13 @@ export class ProjectFiles {
         }
         bytes += file.bytes;
         for (const [index, line] of file.content.split("\n").entries()) {
-          if (line.includes(query)) {
+          if ((caseSensitive ? line : line.toLowerCase()).includes(needle)) {
             matches.push({
               path: rel,
               line: index + 1,
               text: line.slice(0, 500),
             });
-            if (matches.length >= 100) {
+            if (matches.length >= maxResults) {
               truncated = true;
               break;
             }
@@ -1114,7 +1142,7 @@ export class ProjectFiles {
         }
       }
     };
-    walk("", 0);
+    walk(pathPrefix, 0);
     return { matches, truncated };
   }
 }

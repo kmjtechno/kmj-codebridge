@@ -253,3 +253,18 @@ unfinished until the remaining features are verified and deployed.
 - Normal diagnostics and project discovery require no terminal commands.
 - Safe work remains autonomous and fast.
 - Higher-risk operations gain stronger policy, approval, and evidence instead of broader shell access.
+
+## Fewer round trips: job wait/tail and scoped search
+
+Two read-only options remove the most common polling and noise from AI sessions, without adding a shell or any new authority:
+
+- `get_job_status` accepts `waitMs` (0–10000). A queued or running job is re-read every 250 ms until it finishes or the wait ends, so one call can replace dozens of polls. It returns as soon as the job reaches a final state and never waits longer than `waitMs`. `tailChars` (0–8192) returns only the end of the already bounded, redacted log and reports `outputTailOnly` and the full `outputChars`. The stay-under-the-gateway-timeout limit is deliberate: keep `waitMs` at or below 10 000 ms.
+- `search_code` accepts `pathPrefix` (an existing project directory, validated exactly like `list_directory`), `extensions` (for example `[".js"]`), `caseSensitive` and `maxResults` (1–100). Secret files, symlinks, hardlinks, build/cache folders and path traversal stay excluded; results are still redacted.
+
+Omitting every option behaves exactly as before. An agent that predates this change ignores the new fields only if its schema is older than the gateway's, so upgrade the device agent before relying on them.
+
+## GitHub plugin parity (native, no external plugin)
+
+Already native: repository, pull request list/detail/files/CI, issue read/create/comment, pull-request reviews and inline review comments (read), review COMMENT / REQUEST_CHANGES and review replies, pull-request update (title, body, base, open/closed), commit list, branch and file create/update (protected default branch blocked), pull request create and guarded merge, Actions runs/jobs/logs, and the private-repository connection doctor. Approving a pull request is deliberately not offered: it stays a human decision.
+
+Not yet native (candidate slices, each needs a GIT_WRITE or higher risk class, the existing allowlist and audit): draft ↔ ready conversion (needs GraphQL), labels, workflow re-run, releases read, commit detail/search. None is claimed as available until implemented, tested and deployed to the agent and gateway.

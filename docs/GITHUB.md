@@ -45,6 +45,8 @@ Read scope:
 - `github_actions_runs`
 - `github_actions_run_jobs`
 - `github_actions_job_log`
+- `github_pull_request_reviews` (reviews and inline review comments, bounded and redacted)
+- `github_commits` (SHA, first message line, author, date)
 
 Write scope:
 
@@ -52,6 +54,9 @@ Write scope:
 - `github_update_file`
 - `github_create_pull_request`
 - `github_merge_pull_request`
+- `github_update_pull_request` (title, body, base, open/closed only; optional `expectedHeadSha` re-reads the pull request right before the change and refuses a moved head or a non-open pull request; closing needs `confirmClose: true`; never merges or approves)
+- `github_review_pull_request` (COMMENT or REQUEST_CHANGES only; optional exact head guard; approval stays human)
+- `github_reply_review_comment`
 
 Repository access is additionally restricted by the configured repository allowlist.
 Read requests are cached briefly to reduce GitHub API traffic. Write operations clear

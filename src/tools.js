@@ -4,6 +4,7 @@ import { z } from "zod";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
+import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
 import { fail } from "./errors.js";
@@ -624,6 +625,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  free_first_audit: {
+    title: "Free-first spend audit",
+    description:
+      "Read-only advisory scan of the project's CI configuration (GitHub workflows, CircleCI) for settings that may consume paid minutes or metered services, each with a legal free alternative. Reads repository configuration text only; never executes anything, contacts a provider or reads any provider secret store. Findings never echo repository lines (only fixed text, parsed tokens or allow-listed values) and output redaction is best-effort, because committed workflow text could itself contain a literal secret.",
+    input: scoped,
+    access: "read",
+  },
   policy_catalog: {
     title: "CodeBridge policy catalog",
     description:
@@ -1052,8 +1060,19 @@ export const definitions = {
   search_code: {
     title: "Search code",
     description:
-      "Search literal text in allowed project files with bounded results.",
-    input: { ...scoped, query: z.string().min(1).max(200) },
+      'Search literal text in allowed project files with bounded results. Optional pathPrefix (an existing project directory), extensions (for example [".js"]), caseSensitive and maxResults (1-100) narrow the search; the same path, symlink and secret-file rules apply.',
+    input: {
+      ...scoped,
+      query: z.string().min(1).max(200),
+      pathPrefix: z.string().min(1).max(1024).optional(),
+      extensions: z
+        .array(z.string().regex(/^\.[A-Za-z0-9]{1,10}$/))
+        .min(1)
+        .max(10)
+        .optional(),
+      caseSensitive: z.boolean().optional(),
+      maxResults: z.number().int().min(1).max(100).optional(),
+    },
     access: "read",
   },
   read_file: {
@@ -1501,8 +1520,13 @@ export const definitions = {
   get_job_status: {
     title: "Get job status",
     description:
-      "Read a job result and bounded redacted logs within the authorized project.",
-    input: { ...scoped, job: identifier },
+      "Read a job result and bounded redacted logs within the authorized project. Optional waitMs (0-10000) waits for a queued or running job to finish before answering, so one call replaces many polls; optional tailChars (0-8192) returns only the end of the log.",
+    input: {
+      ...scoped,
+      job: identifier,
+      waitMs: z.number().int().min(0).max(10000).optional(),
+      tailChars: z.number().int().min(0).max(8192).optional(),
+    },
     access: "read",
   },
   cancel_job: {
@@ -1520,6 +1544,8 @@ export const definitions = {
     access: "read",
   },
 };
+const MAX_JOB_WAITERS = 16;
+
 export function createDispatcher(
   config,
   runner,
@@ -1556,6 +1582,7 @@ export function createDispatcher(
   let checkpointStore;
   const checkpoints = () =>
     (checkpointStore ??= new FileCheckpoints(config.stateDir));
+  let jobWaiters = 0;
   const dispatchCore = async function dispatchCore(name, input, permissions) {
     const definition = definitions[name];
     if (!definition || name === "list_devices") fail("UNKNOWN_TOOL");
@@ -1674,6 +1701,45 @@ export function createDispatcher(
         project: p.id,
         ...detectProjectEnvironment(p.files),
       };
+    if (name === "free_first_audit") {
+      const wanted = [];
+      try {
+        for (const entry of p.files.list(".github/workflows").entries)
+          if (entry.type === "file" && /\.ya?ml$/i.test(entry.name))
+            wanted.push(`.github/workflows/${entry.name}`);
+      } catch {
+        // No workflow directory is a valid state.
+      }
+      wanted.sort();
+      const considered = wanted.slice(0, 40);
+      wanted.push(".circleci/config.yml", ".circleci/config.yaml");
+      const files = [];
+      const skippedFiles = [];
+      for (const rel of [
+        ...considered,
+        ".circleci/config.yml",
+        ".circleci/config.yaml",
+      ]) {
+        try {
+          files.push({ path: rel, content: p.files.read(rel).content });
+        } catch {
+          if (rel.startsWith(".github/")) skippedFiles.push(rel);
+        }
+      }
+      const audit = auditFreeFirst(files);
+      return {
+        device: config.id,
+        project: p.id,
+        ...audit,
+        findings: audit.findings.map((f) => ({
+          ...f,
+          evidence: redact(f.evidence),
+        })),
+        skippedFiles,
+        workflowFilesTruncated:
+          wanted.filter((w) => w.startsWith(".github/")).length > 40,
+      };
+    }
     if (name === "policy_catalog")
       return {
         device: config.id,
@@ -2124,7 +2190,12 @@ export function createDispatcher(
       return { files, count: files.length };
     }
     if (name === "search_code") {
-      const r = p.files.search(a.query);
+      const r = p.files.search(a.query, {
+        maxResults: a.maxResults,
+        pathPrefix: a.pathPrefix,
+        caseSensitive: a.caseSensitive,
+        extensions: a.extensions,
+      });
       return {
         ...r,
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
@@ -2735,7 +2806,45 @@ export function createDispatcher(
         ...gate,
       });
     }
-    if (name === "get_job_status") return runner.get(a.job, p.id);
+    if (name === "get_job_status") {
+      let state = runner.peekState(a.job, p.id);
+      // At most MAX_JOB_WAITERS calls wait at once; beyond that the call answers immediately
+      // (never an error), so a burst of long waits cannot pile up timers or CPU on the agent.
+      if (
+        a.waitMs > 0 &&
+        ["queued", "running"].includes(state) &&
+        jobWaiters < MAX_JOB_WAITERS
+      ) {
+        jobWaiters += 1;
+        try {
+          const deadline = Date.now() + a.waitMs;
+          while (["queued", "running"].includes(state)) {
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) break;
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.min(250, remaining)),
+            );
+            state = runner.peekState(a.job, p.id);
+          }
+        } finally {
+          jobWaiters -= 1;
+        }
+      }
+      let job = runner.get(a.job, p.id);
+      if (
+        a.tailChars !== undefined &&
+        typeof job.output === "string" &&
+        job.output.length > a.tailChars
+      ) {
+        job = {
+          ...job,
+          output: job.output.slice(job.output.length - a.tailChars),
+          outputChars: job.output.length,
+          outputTailOnly: true,
+        };
+      }
+      return job;
+    }
     if (name === "cancel_job") return runner.cancel(a.job, p.id);
     fail("UNKNOWN_TOOL");
   };
