@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createGitHubReadiness,
+  githubReadinessOptions,
   readinessErrorCode,
 } from "../src/github-readiness.js";
 import { CodeBridgeError } from "../src/errors.js";
@@ -33,6 +34,35 @@ function manualTimers() {
     },
   };
 }
+
+test("unauthenticated public GitHub readiness avoids exhausting hourly API quota", async () => {
+  const publicPolicy = githubReadinessOptions({ publicReadOnly: true });
+  assert.deepEqual(publicPolicy, { ttlMs: 300000, graceMs: 30000 });
+  assert.deepEqual(githubReadinessOptions({ publicReadOnly: false }), {});
+  assert.deepEqual(githubReadinessOptions(undefined), {});
+
+  let now = 1000;
+  let probes = 0;
+  const ready = createGitHubReadiness(
+    () => {
+      probes++;
+      return Promise.resolve({});
+    },
+    { now: () => now, ...publicPolicy, ...manualTimers() },
+  );
+  assert.equal(ready(), false);
+  await drain();
+  assert.equal(ready(), true);
+  assert.equal(probes, 1);
+  now += 30000;
+  assert.equal(ready(), true);
+  await drain();
+  assert.equal(probes, 1, "30-second health checks must not call GitHub again");
+  now += 270000;
+  assert.equal(ready(), true, "grace permits an in-flight bounded refresh");
+  await drain();
+  assert.equal(probes, 2, "one refresh per five minutes, not every 30 seconds");
+});
 
 test("an optional slow upstream never blocks liveness or starts parallel probes", async () => {
   let calls = 0;

@@ -15,7 +15,10 @@ import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-sc
 import { gatewaySchema } from "./config.js";
 import { definitions, FAST_READ_TOOLS } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
-import { createGitHubReadiness } from "./github-readiness.js";
+import {
+  createGitHubReadiness,
+  githubReadinessOptions,
+} from "./github-readiness.js";
 import { fail, publicError } from "./errors.js";
 import { VERSION } from "./version.js";
 import {
@@ -159,6 +162,7 @@ export async function startGateway(rawConfig) {
             repository: config.github.repositories[0],
           })
       : null,
+    githubReadinessOptions(config.github),
   );
   const agents = new Map(config.agents.map((a) => [a.id, a]));
   const dynamicByToken = new Map();

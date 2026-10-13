@@ -25,6 +25,13 @@ export function readinessErrorCode(error) {
   return "GITHUB_PROBE_FAILED";
 }
 
+// Public GitHub reads share a small unauthenticated hourly budget.
+// Sample only public-read-only health checks at a bounded lower cadence.
+// Do NOT extend actual PR/CI data-cache freshness or relax fail-closed errors.
+export function githubReadinessOptions(github) {
+  return github?.publicReadOnly ? { ttlMs: 300000, graceMs: 30000 } : {};
+}
+
 export function createGitHubReadiness(
   probe,
   {
