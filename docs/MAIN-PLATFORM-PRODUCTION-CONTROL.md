@@ -23,7 +23,7 @@ not by itself create a VPS command channel.
   operator-installed unit status and Nginx/PHP health. No credentials, paths,
   shell output or file contents.
 - `supervisor_main_platform_production_activate(device, project,
-  approvedSha, expectedCurrentRelease, confirmation)`: explicit execute-only,
+approvedSha, expectedCurrentRelease, confirmation)`: explicit execute-only,
   owner-approved activation. `confirmation` must equal
   `ACTIVATE_APPROVED_PRODUCTION_RELEASE`. Input must match the root-owned
   protected approval file and live old pointer. **Accepted does not mean
@@ -111,7 +111,7 @@ customer UI acceptance.
 
 ## Release gate and limitations
 
-- The operator-installed protected unit and target release are *not*
+- The operator-installed protected unit and target release are _not_
   currently deployed by this PR; do not claim remote command access is
   operational until the supervisor socket and real authenticated MCP
   tool catalog have been verified.
