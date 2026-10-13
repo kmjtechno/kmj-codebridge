@@ -25,7 +25,14 @@ function git(dir, ...args) {
 
 function fixture(t, overrides = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-isolated-fix-"));
-  t.after(() => fs.rmSync(base, { recursive: true, force: true, maxRetries: 4, retryDelay: 50 }));
+  t.after(() =>
+    fs.rmSync(base, {
+      recursive: true,
+      force: true,
+      maxRetries: 4,
+      retryDelay: 50,
+    }),
+  );
   const root = path.join(base, "repo");
   const state = path.join(base, "state");
   fs.mkdirSync(root);
@@ -46,10 +53,19 @@ function fixture(t, overrides = {}) {
   const starts = [];
   const runner = {
     maxConcurrent: 1,
-    capacity: () => ({ blocked: Boolean(overrides.pressure), constrained: false, activeJobs: 0 }),
+    capacity: () => ({
+      blocked: Boolean(overrides.pressure),
+      constrained: false,
+      activeJobs: 0,
+    }),
     run: (args) => {
       const id = "job-" + (starts.length + 1);
-      const record = { id, project: args.project, state: "running", exitCode: null };
+      const record = {
+        id,
+        project: args.project,
+        state: "running",
+        exitCode: null,
+      };
       jobs.set(id, record);
       starts.push(args);
       return record;
@@ -82,8 +98,25 @@ function fixture(t, overrides = {}) {
     }),
   });
   const enqueue = (key = `auto-repair:format:${head}`) =>
-    journal.enqueue({ project: "repo", key, objective: "Format only src using approved gate" });
-  return { base, root, head, state, journal, lanes, worker, runner, project, jobs, starts, enqueue };
+    journal.enqueue({
+      project: "repo",
+      key,
+      objective: "Format only src using approved gate",
+    });
+  return {
+    base,
+    root,
+    head,
+    state,
+    journal,
+    lanes,
+    worker,
+    runner,
+    project,
+    jobs,
+    starts,
+    enqueue,
+  };
 }
 
 test("bounded task keys are eligible only for known recipes and exact SHAs", () => {
@@ -92,10 +125,22 @@ test("bounded task keys are eligible only for known recipes and exact SHAs", () 
     parseRepairTask(`auto-repair:format:${sha}`, { format: {} }),
     { recipe: "format", expectedHead: sha },
   );
-  assert.equal(parseRepairTask("auto-repair:format:main", { format: {} }), null);
-  assert.equal(parseRepairTask(`auto-repair:unknown:${sha}`, { format: {} }), null);
-  assert.equal(canQueueAutopilotGate(`auto-repair:format:${sha}`, ["write"]), false);
-  assert.equal(canQueueAutopilotGate(`auto-repair:format:${sha}`, ["write", "execute"]), true);
+  assert.equal(
+    parseRepairTask("auto-repair:format:main", { format: {} }),
+    null,
+  );
+  assert.equal(
+    parseRepairTask(`auto-repair:unknown:${sha}`, { format: {} }),
+    null,
+  );
+  assert.equal(
+    canQueueAutopilotGate(`auto-repair:format:${sha}`, ["write"]),
+    false,
+  );
+  assert.equal(
+    canQueueAutopilotGate(`auto-repair:format:${sha}`, ["write", "execute"]),
+    true,
+  );
 });
 
 test("24x7 worker prepares clean isolated lane without modifying dirty original", (t) => {
@@ -109,7 +154,10 @@ test("24x7 worker prepares clean isolated lane without modifying dirty original"
   assert.notEqual(f.starts[0].cwd, f.root);
   assert.equal(fs.readFileSync(preserved, "utf8"), "preserve");
   assert.equal(f.journal.get(task.id, "repo").state, "running");
-  assert.equal(f.journal.get(task.id, "repo").checkpoint.next, "REPAIR_MUTATION_MAY_HAVE_STARTED");
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.next,
+    "REPAIR_MUTATION_MAY_HAVE_STARTED",
+  );
 });
 
 test("approved edit runs a verification gate and preserves a review-only patch", (t) => {
@@ -132,7 +180,10 @@ test("approved edit runs a verification gate and preserves a review-only patch",
   assert.equal(result.lastReason, "VERIFIED_PATCH_AWAITING_REVIEW");
   assert.equal(result.checkpoint.next, "VERIFIED_PATCH_AWAITING_REVIEW");
   assert.match(result.checkpoint.summary, /format.js/);
-  assert.equal(fs.readFileSync(path.join(f.root, "src", "format.js"), "utf8"), "const x=1;\n");
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "format.js"), "utf8"),
+    "const x=1;\n",
+  );
   assert.equal(f.starts.length, 2);
   f.worker.tick();
   assert.equal(f.starts.length, 2, "no duplicate execution after waiting");
@@ -149,7 +200,10 @@ test("disallowed touched paths never run follow-up verification", (t) => {
   f.worker.tick();
   assert.equal(f.starts.length, 1);
   assert.equal(f.journal.get(task.id, "repo").state, "waiting");
-  assert.equal(f.journal.get(task.id, "repo").lastReason, "ISOLATED_REPAIR_UNSAFE_OR_EMPTY_PATCH");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_REPAIR_UNSAFE_OR_EMPTY_PATCH",
+  );
 });
 
 test("untracked files and empty fixes never claim success", (t) => {
@@ -174,21 +228,30 @@ test("failed fixing command does not run tests or loop forever", (t) => {
   f.worker.tick();
   f.worker.tick();
   assert.equal(f.starts.length, 1);
-  assert.equal(f.journal.get(task.id, "repo").lastReason, "ISOLATED_FIX_FAILED_REVIEW_REQUIRED");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_FIX_FAILED_REVIEW_REQUIRED",
+  );
 });
 
 test("failed verification never becomes a successful patch candidate", (t) => {
   const f = fixture(t);
   const task = f.enqueue();
   f.worker.tick();
-  fs.writeFileSync(path.join(f.starts[0].cwd, "src", "format.js"), "const x = 1;\n");
+  fs.writeFileSync(
+    path.join(f.starts[0].cwd, "src", "format.js"),
+    "const x = 1;\n",
+  );
   f.jobs.get("job-1").state = "succeeded";
   f.jobs.get("job-1").exitCode = 0;
   f.worker.tick();
   f.jobs.get("job-2").state = "failed";
   f.jobs.get("job-2").exitCode = 1;
   f.worker.tick();
-  assert.equal(f.journal.get(task.id, "repo").lastReason, "ISOLATED_VERIFY_FAILED_REVIEW_REQUIRED");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_VERIFY_FAILED_REVIEW_REQUIRED",
+  );
 });
 
 test("stale SHA, insufficient resources and absent execution rights fail closed", (t) => {
@@ -219,12 +282,18 @@ test("restart with previous mutation checkpoint never repeats a fix", (t) => {
     journal: recovered,
     lanes: f.lanes,
     runner: f.runner,
-    licenseProvider: () => ({ features: ["execute"], limits: { concurrent_jobs: 1 } }),
+    licenseProvider: () => ({
+      features: ["execute"],
+      limits: { concurrent_jobs: 1 },
+    }),
   });
   worker.tick();
   assert.equal(f.starts.length, 1);
   assert.equal(recovered.get(task.id, "repo").state, "waiting");
-  assert.equal(recovered.get(task.id, "repo").lastReason, "PREVIOUS_ISOLATED_REPAIR_REQUIRES_REVIEW");
+  assert.equal(
+    recovered.get(task.id, "repo").lastReason,
+    "PREVIOUS_ISOLATED_REPAIR_REQUIRES_REVIEW",
+  );
 });
 
 test("unconfigured worker creates no background activity", async () => {
