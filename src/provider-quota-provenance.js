@@ -16,7 +16,11 @@ function header(headers, key) {
   let value = null;
   if (headers && typeof headers.get === "function") {
     value = headers.get(key);
-  } else if (headers && typeof headers === "object" && !Array.isArray(headers)) {
+  } else if (
+    headers &&
+    typeof headers === "object" &&
+    !Array.isArray(headers)
+  ) {
     const match = Object.entries(headers).find(
       ([name]) => name.toLowerCase() === key,
     );
@@ -40,12 +44,10 @@ function asCount(value) {
 }
 
 function parseDeadline(value, nowMs) {
-  if (typeof value !== "string" || value.length > MAX_HEADER_CHARS)
-    return null;
+  if (typeof value !== "string" || value.length > MAX_HEADER_CHARS) return null;
   // Groq/OpenAI-compatible relative windows (1h2m3.5s, 7.66s).
-  const relative = /^(?:(\d{1,7})h)?(?:(\d{1,7})m)?(?:(\d{1,7}(?:\.\d{1,3})?)s)?$/.exec(
-    value,
-  );
+  const relative =
+    /^(?:(\d{1,7})h)?(?:(\d{1,7})m)?(?:(\d{1,7}(?:\.\d{1,3})?)s)?$/.exec(value);
   if (relative && relative[0].length > 0 && relative.slice(1).some(Boolean)) {
     const ms =
       Number(relative[1] ?? 0) * 3600000 +
@@ -57,9 +59,7 @@ function parseDeadline(value, nowMs) {
   }
   // Anthropic RFC3339 timestamps. Require an explicit timezone.
   if (
-    /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(
-      value,
-    )
+    /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d+)?(?:Z|[+-]\d\d:\d\d)$/.test(value)
   ) {
     const at = Date.parse(value);
     return Number.isFinite(at) && at > nowMs && at - nowMs <= MAX_RESET_MS
@@ -85,9 +85,7 @@ function retryAfter(headers, nowMs) {
 }
 
 function credit(value) {
-  return typeof value === "number" &&
-    Number.isFinite(value) &&
-    value >= 0
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
     ? value
     : null;
 }
@@ -134,7 +132,9 @@ export function observeProviderQuota({
     !Number.isSafeInteger(observedAt) ||
     observedAt < 0 ||
     (statusCode !== null &&
-      (!Number.isInteger(statusCode) || statusCode < 100 || statusCode > 599)) ||
+      (!Number.isInteger(statusCode) ||
+        statusCode < 100 ||
+        statusCode > 599)) ||
     (source === "openrouter-key" && provider !== "openrouter")
   )
     throw new Error("INVALID_QUOTA_OBSERVATION");
@@ -193,8 +193,7 @@ export function observeProviderQuota({
             observedAt,
           )
         : null,
-      retryAfterMs:
-        statusCode === 429 ? retryAfter(headers, observedAt) : null,
+      retryAfterMs: statusCode === 429 ? retryAfter(headers, observedAt) : null,
     },
     // Key spend-cap and API request/tokens MUST NOT be displayed as
     // remaining free credits. Free-model allowance is a separate quantity.
