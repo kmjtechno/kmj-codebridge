@@ -66,6 +66,37 @@ as `current`, `stale` or `unknown` against the commit under test, because an
 identical tool catalog does not prove an identical gateway (for example, a
 per-tool timeout fix changes behavior without changing tool names).
 
+### Guarded gateway cutover controller (operator-run, root on the gateway host)
+
+`scripts/gateway-cutover.mjs` implements the checklist below for the VPS gateway
+that serves the customer-domain `/mcp` and `/agent/`. It is **dry-run by default**
+and only talks to systemd, loopback and the public MCP endpoint.
+
+```sh
+# 1. Preflight only. Changes nothing; prints FROM_COMMIT and the baseline.
+sudo node scripts/gateway-cutover.mjs --target-sha <40-hex-sha>
+
+# 2. Apply, only after confirming no job is in flight.
+sudo node scripts/gateway-cutover.mjs --target-sha <40-hex-sha> \
+  --apply --confirm-no-active-jobs
+```
+
+The target must already be staged at `/opt/kmj-codebridge-candidates/<sha>`: clean,
+at exactly that commit, with `npm ci` done and `check`/`test`/`scan:secrets` passed.
+The controller refuses an unexpected host or service user, a non-private config, a
+candidate that rejects the live config, or a stale lock. It backs up the unit and
+previous drop-in, writes only the systemd drop-in (with
+`CODEBRIDGE_SOURCE_COMMIT=<sha>`), restarts once, and requires the direct,
+local-Nginx and public URLs to each serve the full tool catalog **and report
+exactly the target commit**. On any failure it restores the previous drop-in,
+restarts and verifies the rollback; `ROLLBACK=FAIL_MANUAL_RECOVERY_REQUIRED` means
+the service did not recover and needs a human. Pending gateway jobs are in memory,
+so a restart drops them; that is why `--confirm-no-active-jobs` is mandatory.
+
+It is tested against a fake host (apply, rollback, refusals), **not yet against the
+real server**. Have it reviewed, run the dry run first, and treat the first real
+run as the rollback rehearsal's missing evidence.
+
 ### Guarded gateway cutover checklist (operator-run)
 
 Use this for any change to the production gateway that serves the customer-domain
