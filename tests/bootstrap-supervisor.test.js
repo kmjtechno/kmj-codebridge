@@ -4,11 +4,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
-import { bootstrapSupervisorStatus, requestBootstrapSupervisor } from "../src/bootstrap-supervisor.js";
+import {
+  bootstrapSupervisorStatus,
+  requestBootstrapSupervisor,
+} from "../src/bootstrap-supervisor.js";
 import { createDispatcher, definitions } from "../src/tools.js";
 import { JobRunner } from "../src/jobs.js";
 
-const ROOT = "/usr/local/libexec/kmj-codebridge/activate-supervisor-socket-approved";
+const ROOT =
+  "/usr/local/libexec/kmj-codebridge/activate-supervisor-socket-approved";
 const isRootDir = () => ({
   isDirectory: () => true,
   isSymbolicLink: () => false,
@@ -67,8 +71,12 @@ function fake(override = {}) {
 test("fixed-host bootstrap diagnostics never run elsewhere", () => {
   const f = fake({
     platform: "win32",
-    run: () => { throw new Error("must never execute"); },
-    lstat: () => { throw new Error("must never read"); },
+    run: () => {
+      throw new Error("must never execute");
+    },
+    lstat: () => {
+      throw new Error("must never read");
+    },
   });
   const result = bootstrapSupervisorStatus(f.args);
   assert.equal(result.eligible, false);
@@ -106,14 +114,17 @@ test("strict root ownership, symlinks and modes are not delegated", () => {
           throw new Error("ENOENT");
         return isRootDir();
       },
-      invoke: () => { throw new Error("must not execute"); },
+      invoke: () => {
+        throw new Error("must not execute");
+      },
     });
     assert.equal(bootstrapSupervisorStatus(f.args).eligible, false);
     assert.throws(
-      () => requestBootstrapSupervisor(
-        "START_APPROVED_CODEBRIDGE_SUPERVISOR",
-        f.args,
-      ),
+      () =>
+        requestBootstrapSupervisor(
+          "START_APPROVED_CODEBRIDGE_SUPERVISOR",
+          f.args,
+        ),
       /BOOTSTRAP_OPERATOR_HELPER_NOT_PROVISIONED/,
     );
   }
@@ -137,17 +148,20 @@ test("activation is one exact passwordless sudo invocation and verifies socket",
 
 test("activation cannot be used without confirmation or owner sudo setup", () => {
   const f = fake({
-    invoke: () => { throw new Error("permission denied"); },
+    invoke: () => {
+      throw new Error("permission denied");
+    },
   });
   assert.throws(
     () => requestBootstrapSupervisor("yes", f.args),
     /BOOTSTRAP_CONFIRMATION_REQUIRED/,
   );
   assert.throws(
-    () => requestBootstrapSupervisor(
-      "START_APPROVED_CODEBRIDGE_SUPERVISOR",
-      f.args,
-    ),
+    () =>
+      requestBootstrapSupervisor(
+        "START_APPROVED_CODEBRIDGE_SUPERVISOR",
+        f.args,
+      ),
     /BOOTSTRAP_OPERATOR_AUTH_REQUIRED/,
   );
 });
@@ -177,50 +191,69 @@ test("one-click bootstrap accepts no shell/path/host override in MCP schema", as
   const scoped = { device: "device1", project: "kmj-main-platform" };
   assert.equal(definitions.bootstrap_supervisor_status.access, "read");
   assert.equal(definitions.bootstrap_supervisor_start.access, "execute");
-  const status = await dispatch("bootstrap_supervisor_status", scoped, ["read"]);
+  const status = await dispatch("bootstrap_supervisor_status", scoped, [
+    "read",
+  ]);
   assert.equal(status.reason, "BOOTSTRAP_FIXED_HOST_ONLY");
   await assert.rejects(
-    dispatch("bootstrap_supervisor_start", {
-      ...scoped,
-      confirmation: "START_APPROVED_CODEBRIDGE_SUPERVISOR",
-    }, ["read"]),
+    dispatch(
+      "bootstrap_supervisor_start",
+      {
+        ...scoped,
+        confirmation: "START_APPROVED_CODEBRIDGE_SUPERVISOR",
+      },
+      ["read"],
+    ),
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("bootstrap_supervisor_start", {
-      ...scoped,
-      confirmation: "START_APPROVED_CODEBRIDGE_SUPERVISOR",
-      command: "/bin/bash",
-    }, ["execute"]),
+    dispatch(
+      "bootstrap_supervisor_start",
+      {
+        ...scoped,
+        confirmation: "START_APPROVED_CODEBRIDGE_SUPERVISOR",
+        command: "/bin/bash",
+      },
+      ["execute"],
+    ),
   );
   await assert.rejects(
-    dispatch("bootstrap_supervisor_status", {
-      ...scoped, project: "p2",
-    }, ["read"]),
+    dispatch(
+      "bootstrap_supervisor_status",
+      {
+        ...scoped,
+        project: "p2",
+      },
+      ["read"],
+    ),
     /BOOTSTRAP_PROJECT_DENIED/,
   );
 });
 
-test("fixed root bootstrap helper passes shell syntax check on Linux", {
-  skip: process.platform === "win32",
-}, () => {
-  const result = spawnSync(
-    "bash",
-    ["-n", "scripts/production/activate-supervisor-socket-approved.sh"],
-    { encoding: "utf8" },
-  );
-  assert.equal(result.status, 0, result.stderr);
-  const source = fs.readFileSync(
-    "scripts/production/activate-supervisor-socket-approved.sh",
-    "utf8",
-  );
-  assert.match(source, /SUPERVISOR_START_STAGE_NOT_PINNED/);
-  assert.match(source, /SUPERVISOR_START_RUNTIME_WRITABLE/);
-  assert.doesNotMatch(source, /curl |wget |git pull|eval |\/bin\/bash -c/);
-  const installer = fs.readFileSync(
-    "scripts/production/install-main-platform-control.sh",
-    "utf8",
-  );
-  assert.match(installer, /SUPERVISOR_FIXED_HELPER_INSTALLED_NO_SUDO_GRANT/);
-  assert.doesNotMatch(installer, /\/etc\/sudoers\.d/);
-});
+test(
+  "fixed root bootstrap helper passes shell syntax check on Linux",
+  {
+    skip: process.platform === "win32",
+  },
+  () => {
+    const result = spawnSync(
+      "bash",
+      ["-n", "scripts/production/activate-supervisor-socket-approved.sh"],
+      { encoding: "utf8" },
+    );
+    assert.equal(result.status, 0, result.stderr);
+    const source = fs.readFileSync(
+      "scripts/production/activate-supervisor-socket-approved.sh",
+      "utf8",
+    );
+    assert.match(source, /SUPERVISOR_START_STAGE_NOT_PINNED/);
+    assert.match(source, /SUPERVISOR_START_RUNTIME_WRITABLE/);
+    assert.doesNotMatch(source, /curl |wget |git pull|eval |\/bin\/bash -c/);
+    const installer = fs.readFileSync(
+      "scripts/production/install-main-platform-control.sh",
+      "utf8",
+    );
+    assert.match(installer, /SUPERVISOR_FIXED_HELPER_INSTALLED_NO_SUDO_GRANT/);
+    assert.doesNotMatch(installer, /\/etc\/sudoers\.d/);
+  },
+);
