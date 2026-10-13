@@ -102,11 +102,15 @@ evidence it has run or been accepted.
 
 ## F. Glama — SUBMIT & CLAIM REQUIRED
 
-Use https://glama.ai/mcp/servers → **Add MCP Server**, supplying the
-GitHub repository and canonical remote URL. `glama.json` declares
-the connected GitHub maintainer account; Glama requires a GitHub
-claim/verification to associate an organization-hosted repository.
-Run its health/security validation and confirm discoverability.
+**Existing public listing already located:**
+https://glama.ai/mcp/servers/kmjtechno/kmj-codebridge/schema
+
+Glama recognizes the GitHub repository but its listing currently presents a
+**Claim** action and has not confirmed tools in its schema snapshot. Do NOT
+submit a duplicate entry. Use the Claim action, sign in as the authorized
+GitHub maintainer and let Glama validate the root `glama.json` metadata.
+Then configure/verify the canonical remote OAuth connector and inspect
+actual available tools. Being indexed does not prove live tool access.
 
 ## G. Other catalogs (MCP.so, PulseMCP, clients)
 
