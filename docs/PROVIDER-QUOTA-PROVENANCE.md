@@ -3,35 +3,35 @@
 This standalone module is **zero-dependency** and does not make HTTP
 requests, store keys, decide pricing, or claim cloud requests are free.
 
-\`src/provider-quota-provenance.js\` exposes:
+`src/provider-quota-provenance.js` exposes:
 
-- \`observeProviderQuota({ provider, headers, statusCode, observedAt })\`:
+- `observeProviderQuota({ provider, headers, statusCode, observedAt })`:
   normalize **trusted** response headers for Groq, Anthropic, OpenRouter
   and generic OpenAI-compatible providers.
-- \`observeProviderQuota({ provider: "openrouter", source: "openrouter-key",
-  body, observedAt })\`: interpret **authenticated** OpenRouter
-  \`GET /api/v1/key\` data; no direct API call occurs inside this module.
-- \`quotaPressure(observation, { inputTokens, maxOutputTokens,
-  requestHeadroom, tokenHeadroom })\`: a **switch suggestion**, NOT
+- `observeProviderQuota({ provider: "openrouter", source: "openrouter-key",
+  body, observedAt })`: interpret **authenticated** OpenRouter
+  `GET /api/v1/key` data; no direct API call occurs inside this module.
+- `quotaPressure(observation, { inputTokens, maxOutputTokens,
+  requestHeadroom, tokenHeadroom })`: a **switch suggestion**, NOT
   authorization to send inference or to charge a paid model.
 
 The broker must independently enforce **tenant/project approval**, model
 identity, actual documented **free pricing for that exact model/tier**,
 private-code consent, request budget and a hard zero-spend mode.
-A provider simply declaring \`free_tier="plan"\` is NOT sufficient evidence
+A provider simply declaring `free_tier="plan"` is NOT sufficient evidence
 that _every_ discovered model/request is free. The default remains
 zero provider calls. Unknown free allowance is **unknown**, not unlimited.
 
 ## What the measurements mean
 
-- **Groq:** \`x-ratelimit-remaining-requests\` is requests per day,
-  \`x-ratelimit-remaining-tokens\` is tokens per minute. Neither is a
+- **Groq:** `x-ratelimit-remaining-requests` is requests per day,
+  `x-ratelimit-remaining-tokens` is tokens per minute. Neither is a
   balance or an invoice. Reset duration headers are parsed separately.
 - **Anthropic:** requests, combined tokens, input tokens and output tokens
   can have independent limits and RFC3339 reset times. These are rate
   windows, not unspent subscription credits or Anthropic API balance.
-- **OpenRouter \`/api/v1/key\`:** \`free_model_daily_requests.remaining\`
-  is a verified remaining count _when present_; \`limit_remaining\` is a
+- **OpenRouter `/api/v1/key`:** `free_model_daily_requests.remaining`
+  is a verified remaining count _when present_; `limit_remaining` is a
   **key spending cap**, NEVER "free credits remaining". Each selected
   model must independently be marked free by its current pricing/capability
   metadata. OpenRouter account credit totals may require a separate
@@ -39,14 +39,14 @@ zero provider calls. Unknown free allowance is **unknown**, not unlimited.
 - **Unknown:** No compatible signal means that no balance or free quota
   can be asserted. Do not automatically enable a paid provider.
 
-Provenance values \`verified\` and \`unknown\` refer exclusively to a
+Provenance values `verified` and `unknown` refer exclusively to a
 valid numeric field from an authenticated provider response. They do
 **not** certify that a key, user, provider or model may run billable
 inference for free.
 
 ## Integration contract with Claude's Main Platform AI Providers PR
 
-Claude owns \`kmjtechno/kmj-main-platform\` PR #404 (PHP + TSX dashboard).
+Claude owns `kmjtechno/kmj-main-platform` PR #404 (PHP + TSX dashboard).
 Keep this CodeBridge parsing module and its tests in a separate PR to
 avoid overlapping edits. The main-platform broker may independently
 implement compatible provider-specific parsing, or send safe structured
