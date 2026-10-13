@@ -1,0 +1,172 @@
+#!/usr/bin/env bash
+# Bootstrap only the missing CodeBridge supervisor socket and fixed root service
+# for an existing authorized Main Platform agent. Never re-enroll or deploy.
+set -Eeuo pipefail
+umask 077
+
+fail() { printf '%s\n' "$1" >&2; exit 1; }
+[[ "${EUID:-$(id -u)}" == 0 ]] || fail "SUPERVISOR_BOOTSTRAP_REQUIRES_ROOT"
+[[ "$(hostname)" == "KMJ-elite" ]] || fail "SUPERVISOR_BOOTSTRAP_WRONG_HOST"
+
+AGENT_UNIT="kmj-codebridge-kmj-main-platform.service"
+SOCKET_UNIT="kmj-codebridge-supervisor.socket"
+SERVICE_UNIT="kmj-codebridge-supervisor.service"
+AGENT_CONFIG="/etc/kmj-codebridge-main-platform/agent.json"
+SOCKET="/run/kmj-codebridge/supervisor.sock"
+RUNTIME="/opt/kmj-codebridge-agent"
+if [[ -x /opt/kmj-codebridge-node/bin/node ]]; then
+  NODE="/opt/kmj-codebridge-node/bin/node"
+else
+  NODE="/usr/bin/node"
+fi
+
+[[ "$(systemctl show "$AGENT_UNIT" --property=LoadState --value)" == "loaded" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_UNIT_MISSING"
+[[ -d "$RUNTIME" && ! -L "$RUNTIME" && -f "$RUNTIME/src/cli.js" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_RUNTIME_NOT_VERIFIED"
+[[ -x "$NODE" && -r "$AGENT_CONFIG" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_RUNTIME_OR_CONFIG_MISSING"
+[[ -f "$RUNTIME/src/supervisor.js" && -f "$RUNTIME/src/tools.js" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_RUNTIME_UNSUPPORTED"
+
+# No privileged Node process may load writable code owned by an agent.
+for checked in "$RUNTIME" "$RUNTIME/src" "$RUNTIME/src/cli.js" \
+  "$RUNTIME/src/supervisor.js" "$RUNTIME/src/tools.js" \
+  "$RUNTIME/package.json" "$RUNTIME/node_modules"; do
+  [[ -e "$checked" && ! -L "$checked" ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_RUNTIME_PATH_UNSAFE"
+  owner="$(stat -c '%u' "$checked")"
+  mode="$(stat -c '%a' "$checked")"
+  [[ "$owner" == 0 ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_RUNTIME_NOT_ROOT_OWNED"
+  # octal group/world write bits, including a sticky directory, are forbidden.
+  (( (8#$mode & 8#22) == 0 )) ||
+    fail "SUPERVISOR_BOOTSTRAP_RUNTIME_WRITABLE"
+done
+
+# Imports under a root supervisor are trusted code, not ordinary project
+# files. Verify the complete installed runtime cannot be edited by the
+# unprivileged agent, including indirect imported packages.
+unsafe="$(find "$RUNTIME" -xdev \( -type f -o -type d \) \( ! -user root -o -perm /022 \) -print -quit)"
+[[ -z "$unsafe" ]] || fail "SUPERVISOR_BOOTSTRAP_RUNTIME_TREE_WRITABLE"
+while IFS= read -r -d '' link; do
+  target="$(readlink -f "$link" || true)"
+  [[ "$target" == "$RUNTIME/"* ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_RUNTIME_EXTERNAL_SYMLINK"
+done < <(find "$RUNTIME" -xdev -type l -print0)
+
+AGENT_USER="$(systemctl show "$AGENT_UNIT" --property=User --value)"
+case "$AGENT_USER" in
+  kmjrunner|kmjprod|kmjstage) ;;
+  *) fail "SUPERVISOR_BOOTSTRAP_AGENT_USER_UNAUTHORIZED" ;;
+esac
+AGENT_GROUP="$(systemctl show "$AGENT_UNIT" --property=Group --value)"
+[[ -n "$AGENT_GROUP" ]] || AGENT_GROUP="$(id -gn "$AGENT_USER")"
+[[ -n "$AGENT_GROUP" ]] || fail "SUPERVISOR_BOOTSTRAP_AGENT_GROUP_MISSING"
+id "$AGENT_USER" >/dev/null 2>&1 ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_USER_MISSING"
+getent group "$AGENT_GROUP" >/dev/null ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_GROUP_MISSING"
+[[ "$AGENT_GROUP" =~ ^[a-z_][a-z0-9_-]*$ ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_GROUP_INVALID"
+
+# Effective unit identity must match the fixed pre-existing enrollment.
+EFFECTIVE_EXEC="$(systemctl show "$AGENT_UNIT" --property=ExecStart --value)"
+[[ "$EFFECTIVE_EXEC" == *"argv[]=$NODE $RUNTIME/src/cli.js agent $AGENT_CONFIG ;"* ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_EXEC_MISMATCH"
+# Installer owns the private agent config as the registered service user
+# (0600), not necessarily root. Never follow a config symlink.
+[[ ! -L "$AGENT_CONFIG" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_CONFIG_SYMLINK_UNSAFE"
+config_owner="$(stat -c '%U' "$AGENT_CONFIG")"
+config_mode="$(stat -c '%a' "$AGENT_CONFIG")"
+[[ "$config_owner" == "$AGENT_USER" || "$config_owner" == root ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_CONFIG_OWNER_MISMATCH"
+(( (8#$config_mode & 8#77) == 0 )) ||
+  fail "SUPERVISOR_BOOTSTRAP_CONFIG_PERMISSIONS_UNSAFE"
+python3 - "$AGENT_CONFIG" "$SOCKET" <<'PY' ||
+  fail "SUPERVISOR_BOOTSTRAP_AGENT_SOCKET_MISMATCH"
+import json, sys
+data = json.load(open(sys.argv[1], encoding="utf-8"))
+assert data.get("supervisorSocket") == sys.argv[2]
+assert any(p.get("id") == "kmj-main-platform" for p in data.get("projects", []))
+PY
+
+SOCKET_FILE="/etc/systemd/system/$SOCKET_UNIT"
+SERVICE_FILE="/etc/systemd/system/$SERVICE_UNIT"
+socket_load="$(systemctl show "$SOCKET_UNIT" --property=LoadState --value)"
+service_load="$(systemctl show "$SERVICE_UNIT" --property=LoadState --value)"
+case "$socket_load" in loaded|not-found) ;; *) fail "SUPERVISOR_BOOTSTRAP_SOCKET_UNIT_INVALID";; esac
+case "$service_load" in loaded|not-found) ;; *) fail "SUPERVISOR_BOOTSTRAP_SERVICE_UNIT_INVALID";; esac
+
+if [[ "$socket_load" == "not-found" ]]; then
+  [[ ! -e "$SOCKET_FILE" && ! -L "$SOCKET_FILE" ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_SOCKET_FILE_CONFLICT"
+  tmp="$(mktemp /etc/systemd/system/.codebridge-socket.XXXXXX)"
+  cat >"$tmp" <<EOF
+[Unit]
+Description=KMJ CodeBridge restricted supervisor socket
+
+[Socket]
+ListenStream=$SOCKET
+SocketUser=$AGENT_USER
+SocketGroup=$AGENT_GROUP
+SocketMode=0600
+DirectoryMode=0711
+RemoveOnStop=true
+Service=$SERVICE_UNIT
+
+[Install]
+WantedBy=sockets.target
+EOF
+  chmod 0644 "$tmp"
+  mv -n "$tmp" "$SOCKET_FILE"
+fi
+
+if [[ "$service_load" == "not-found" ]]; then
+  [[ ! -e "$SERVICE_FILE" && ! -L "$SERVICE_FILE" ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_SERVICE_FILE_CONFLICT"
+  tmp="$(mktemp /etc/systemd/system/.codebridge-service.XXXXXX)"
+  cat >"$tmp" <<EOF
+[Unit]
+Description=KMJ CodeBridge restricted, socket-activated supervisor
+Requires=$SOCKET_UNIT
+After=$SOCKET_UNIT
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=$RUNTIME
+ExecStart=$NODE $RUNTIME/src/cli.js supervisor
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=tmpfs
+BindReadOnlyPaths=/home/kmjprod
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
+EOF
+  chmod 0644 "$tmp"
+  mv -n "$tmp" "$SERVICE_FILE"
+fi
+
+# A configured drop-in may be intentionally present; never overwrite it.
+systemctl daemon-reload
+[[ "$(systemctl show "$SOCKET_UNIT" --property=LoadState --value)" == "loaded" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_SOCKET_NOT_LOADED"
+[[ "$(systemctl show "$SERVICE_UNIT" --property=LoadState --value)" == "loaded" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_SERVICE_NOT_LOADED"
+systemctl enable --now "$SOCKET_UNIT" >/dev/null
+systemctl is-active --quiet "$SOCKET_UNIT" ||
+  fail "SUPERVISOR_BOOTSTRAP_SOCKET_NOT_ACTIVE"
+[[ -S "$SOCKET" ]] || fail "SUPERVISOR_BOOTSTRAP_SOCKET_FILE_MISSING"
+printf 'SUPERVISOR_SOCKET_ACTIVE=1\n'
+printf 'SUPERVISOR_AGENT_USER=%s\n' "$AGENT_USER"
+printf 'SUPERVISOR_SERVICE_SOCKET_ACTIVATED=1\n'
+printf 'SUPERVISOR_AGENT_NOT_RESTARTED=1\n'
