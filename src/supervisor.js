@@ -1412,8 +1412,7 @@ export function createSupervisorHandler({
       )
         return null;
       const raw = readFile(MAIN_PLATFORM_PRODUCTION_APPROVAL);
-      if (typeof raw !== "string" || Buffer.byteLength(raw) > 4096)
-        return null;
+      if (typeof raw !== "string" || Buffer.byteLength(raw) > 4096) return null;
       const data = JSON.parse(raw);
       if (
         !data ||
@@ -1452,9 +1451,7 @@ export function createSupervisorHandler({
       ["ActiveState", "SubState", "Result", "ExecMainStatus"],
     );
     const nginx = fixedUnitStatus(run, "nginx.service", ["ActiveState"]);
-    const phpFpm = fixedUnitStatus(run, "php8.4-fpm.service", [
-      "ActiveState",
-    ]);
+    const phpFpm = fixedUnitStatus(run, "php8.4-fpm.service", ["ActiveState"]);
     return {
       currentRelease,
       approvedSha: approval?.approvedSha ?? null,
@@ -1744,8 +1741,7 @@ export function createSupervisorHandler({
       )
         fail("INVALID_SUPERVISOR_REQUEST");
       const state = productionReleaseState();
-      if (!state.approvalReady)
-        fail("SUPERVISOR_PRODUCTION_APPROVAL_MISSING");
+      if (!state.approvalReady) fail("SUPERVISOR_PRODUCTION_APPROVAL_MISSING");
       if (
         state.approvedSha !== request.approvedSha ||
         state.expectedCurrentRelease !== request.expectedCurrentRelease ||
