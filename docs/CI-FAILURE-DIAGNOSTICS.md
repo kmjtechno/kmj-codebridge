@@ -6,9 +6,9 @@ command, provider plugin or paid service. Existing GitHub Actions log tools rema
 
 ## Official API contract
 
-CircleCI documents \`GET https://circleci.com/api/v1.1/project/github/ORG/REPO/JOB\`
-with a \`Circle-Token\` header. The response includes \`vcs_revision\`, \`build_num\`,
-\`steps[].actions[].status\`, \`exit_code\` and a short-lived \`output_url\`.
+CircleCI documents `GET https://circleci.com/api/v1.1/project/github/ORG/REPO/JOB`
+with a `Circle-Token` header. The response includes `vcs_revision`, `build_num`,
+`steps[].actions[].status`, `exit_code` and a short-lived `output_url`.
 The output URL may be a presigned storage URL; **never copy it to chat, logs,
 GitHub issues or a browser**. CodeBridge fetches it without a credential,
 rejects redirects and returns only bounded redacted diagnostic lines.
@@ -18,9 +18,9 @@ https://circleci.com/docs/guides/orchestrate/analyze-pipelines-during-an-inciden
 
 ## Safe opt-in — owner-controlled gateway only
 
-Under the existing gateway \`github\` configuration, add:
+Under the existing gateway `github` configuration, add:
 
-\`\`\`json
+```json
 {
   "circleci": {
     "tokenEnv": "KMJ_CODEBRIDGE_CIRCLECI_TOKEN",
@@ -28,9 +28,9 @@ Under the existing gateway \`github\` configuration, add:
     "outputHosts": ["<exact trusted public host from CircleCI presigned logs>"]
   }
 }
-\`\`\`
+```
 
-This is an additional member of \`github\`, NOT a root-level gateway setting.
+This is an additional member of `github`, NOT a root-level gateway setting.
 A GitHub repository allowlist does **not** automatically grant CircleCI access;
 the CircleCI repository must be separately allowlisted. The operator must verify
 the exact public hostname from CircleCI, enter it in the protected server config
@@ -40,7 +40,7 @@ arbitrary client URLs, localhost, IP literals, redirects or token in an MCP resp
 The API token is **not** requested in chat and must not be hardcoded in Git,
 CI config, CLI history, dashboard frontend, MCP arguments or a user file.
 Store it server-side using the existing protected credential-management process.
-Set only the environment variable named by \`tokenEnv\` and reload the gateway
+Set only the environment variable named by `tokenEnv` and reload the gateway
 through its established signed/guarded deployment procedure after security review.
 
 Without explicit CircleCI configuration, no tool is registered and no external
@@ -50,15 +50,16 @@ and an authorized live MCP request are mandatory.
 
 ## Use
 
-Tool: \`ci_status_failure_log\` with:
-- \`repository\`: exact allowlisted \`kmjtechno/kmj-main-platform\`
-- \`jobNumber\`: integer CircleCI job number, e.g. \`263\`
-- \`expectedHeadSha\`: exact **full 40-character** SHA from the PR head
+Tool: `ci_status_failure_log` with:
 
-The server checks \`build_num\` and \`vcs_revision\` before reading output, selects
+- `repository`: exact allowlisted `kmjtechno/kmj-main-platform`
+- `jobNumber`: integer CircleCI job number, e.g. `263`
+- `expectedHeadSha`: exact **full 40-character** SHA from the PR head
+
+The server checks `build_num` and `vcs_revision` before reading output, selects
 up to three failed steps, reads output from preapproved HTTPS hosts only, and
 returns limited, redacted lines, exit status and a deterministic category such
-as \`PHP_STATIC_ANALYSIS\`, \`PHP_FORMATTING\` or \`TYPESCRIPT\`.
+as `PHP_STATIC_ANALYSIS`, `PHP_FORMATTING` or `TYPESCRIPT`.
 A missing log, failed request, oversized log, unapproved host or unknown
 root cause is **NOT_AVAILABLE / OUTPUT_UNAVAILABLE**, never PASS.
 
@@ -89,4 +90,4 @@ is not a substitute for collecting actual failing log output.
 
 **Status after merging:** code available. The tool is usable only after the
 guarded gateway build/rollout, scoped server token, exact host config, and live
-authorized smoke test are VERIFIED. Never label merely merging source \`LIVE\`.
+authorized smoke test are VERIFIED. Never label merely merging source `LIVE`.
