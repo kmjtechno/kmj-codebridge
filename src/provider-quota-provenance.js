@@ -95,23 +95,10 @@ function readOpenRouterKey(body) {
   // free-model eligibility, balance, or zero-cost inference.
   const data = body?.data;
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const daily = data.free_model_daily_requests;
-  const freeDaily =
-    daily &&
-    typeof daily === "object" &&
-    !Array.isArray(daily) &&
-    asCount(daily.remaining) !== null &&
-    asCount(daily.limit) !== null &&
-    asCount(daily.used) !== null &&
-    daily.remaining <= daily.limit
-      ? {
-          remaining: daily.remaining,
-          limit: daily.limit,
-          used: daily.used,
-        }
-      : null;
+  // Official GET /api/v1/key documents spend-cap metadata and an account
+  // free-tier flag; it does NOT document free-model daily remaining requests.
+  // Ignore any undocumented extra fields rather than treating them as quota.
   return {
-    freeDailyRequests: freeDaily,
     keySpendCapRemaining: credit(data.limit_remaining),
     isFreeTierAccount:
       typeof data.is_free_tier === "boolean" ? data.is_free_tier : null,
@@ -197,7 +184,7 @@ export function observeProviderQuota({
     },
     // Key spend-cap and API request/tokens MUST NOT be displayed as
     // remaining free credits. Free-model allowance is a separate quantity.
-    freeDailyRequests: key?.freeDailyRequests ?? null,
+    freeDailyRequests: null,
     keySpendCapRemaining: key?.keySpendCapRemaining ?? null,
     isFreeTierAccount: key?.isFreeTierAccount ?? null,
     freeCreditsRemaining: null,
@@ -237,12 +224,7 @@ export function quotaPressure(
       quota.outputTokensRemaining,
       maxOutputTokens + tokenHeadroom,
     ],
-    [
-      "FREE_DAILY_REQUESTS_LOW",
-      observation.freeDailyRequests?.remaining ?? null,
-      requestHeadroom,
-    ],
-  ];
+   ];
   for (const [reason, remainingValue, threshold] of checks) {
     if (remainingValue !== null && remainingValue < threshold)
       return {
@@ -251,7 +233,7 @@ export function quotaPressure(
         evidence: "verified",
       };
   }
-  if (quota.provenance === "unknown" && !observation.freeDailyRequests)
+  if (quota.provenance === "unknown")
     return {
       switchSuggested: false,
       reason: "QUOTA_UNKNOWN",
