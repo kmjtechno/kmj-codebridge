@@ -1051,8 +1051,19 @@ export const definitions = {
   search_code: {
     title: "Search code",
     description:
-      "Search literal text in allowed project files with bounded results.",
-    input: { ...scoped, query: z.string().min(1).max(200) },
+      'Search literal text in allowed project files with bounded results. Optional pathPrefix (an existing project directory), extensions (for example [".js"]), caseSensitive and maxResults (1-100) narrow the search; the same path, symlink and secret-file rules apply.',
+    input: {
+      ...scoped,
+      query: z.string().min(1).max(200),
+      pathPrefix: z.string().min(1).max(1024).optional(),
+      extensions: z
+        .array(z.string().regex(/^\.[A-Za-z0-9]{1,10}$/))
+        .min(1)
+        .max(10)
+        .optional(),
+      caseSensitive: z.boolean().optional(),
+      maxResults: z.number().int().min(1).max(100).optional(),
+    },
     access: "read",
   },
   read_file: {
@@ -1500,8 +1511,13 @@ export const definitions = {
   get_job_status: {
     title: "Get job status",
     description:
-      "Read a job result and bounded redacted logs within the authorized project.",
-    input: { ...scoped, job: identifier },
+      "Read a job result and bounded redacted logs within the authorized project. Optional waitMs (0-10000) waits for a queued or running job to finish before answering, so one call replaces many polls; optional tailChars (0-8192) returns only the end of the log.",
+    input: {
+      ...scoped,
+      job: identifier,
+      waitMs: z.number().int().min(0).max(10000).optional(),
+      tailChars: z.number().int().min(0).max(8192).optional(),
+    },
     access: "read",
   },
   cancel_job: {
@@ -2123,7 +2139,12 @@ export function createDispatcher(
       return { files, count: files.length };
     }
     if (name === "search_code") {
-      const r = p.files.search(a.query);
+      const r = p.files.search(a.query, {
+        maxResults: a.maxResults,
+        pathPrefix: a.pathPrefix,
+        caseSensitive: a.caseSensitive,
+        extensions: a.extensions,
+      });
       return {
         ...r,
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
@@ -2732,7 +2753,31 @@ export function createDispatcher(
         ...gate,
       });
     }
-    if (name === "get_job_status") return runner.get(a.job, p.id);
+    if (name === "get_job_status") {
+      let job = runner.get(a.job, p.id);
+      const deadline = Date.now() + (a.waitMs ?? 0);
+      while (["queued", "running"].includes(job.state)) {
+        const remaining = deadline - Date.now();
+        if (remaining <= 0) break;
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(250, remaining)),
+        );
+        job = runner.get(a.job, p.id);
+      }
+      if (
+        a.tailChars !== undefined &&
+        typeof job.output === "string" &&
+        job.output.length > a.tailChars
+      ) {
+        job = {
+          ...job,
+          output: job.output.slice(job.output.length - a.tailChars),
+          outputChars: job.output.length,
+          outputTailOnly: true,
+        };
+      }
+      return job;
+    }
     if (name === "cancel_job") return runner.cancel(a.job, p.id);
     fail("UNKNOWN_TOOL");
   };
