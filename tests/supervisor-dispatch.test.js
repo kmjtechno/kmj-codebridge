@@ -159,10 +159,14 @@ test("production release inventory is read-only, activation is execute and proje
     confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
   });
   await assert.rejects(
-    dispatch("supervisor_main_platform_production_activate", {
-      ...valid,
-      project: "other",
-    }, ["execute"]),
+    dispatch(
+      "supervisor_main_platform_production_activate",
+      {
+        ...valid,
+        project: "other",
+      },
+      ["execute"],
+    ),
     /PROJECT_NOT_FOUND/,
   );
   assert.equal(calls.length, 2);
