@@ -139,7 +139,10 @@ export class ModelFailoverPolicy {
           status.remainingRequests = null;
           status.resetRequestsAt = null;
         }
-        if (status.resetTokensAt !== null && this.now() >= status.resetTokensAt) {
+        if (
+          status.resetTokensAt !== null &&
+          this.now() >= status.resetTokensAt
+        ) {
           status.remainingTokens = null;
           status.resetTokensAt = null;
         }
@@ -154,7 +157,10 @@ export class ModelFailoverPolicy {
         if (status.remainingRequests !== null && status.remainingRequests < 1)
           return false;
         // Reserve capacity for the full bounded request.
-        if (status.remainingTokens !== null && status.remainingTokens < required)
+        if (
+          status.remainingTokens !== null &&
+          status.remainingTokens < required
+        )
           return false;
         return true;
       })
