@@ -105,7 +105,8 @@ export class AutopilotGateWorker {
                   this.journal.enqueue({
                     project: project.id,
                     key: `auto-repair:${candidate[0]}:${current.expectedHead}`,
-                    objective: "Auto-repair after approved quality gate failure; isolated deterministic recipe only",
+                    objective:
+                      "Auto-repair after approved quality gate failure; isolated deterministic recipe only",
                     priority: 0,
                   });
                 } catch {
