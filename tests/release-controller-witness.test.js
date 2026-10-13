@@ -35,20 +35,25 @@ print(json.dumps({
 }))
 `;
 
-test("a real 64-character SHA-256 backup witness is accepted and tampering is refused", (t) => {
-  const run = spawnSync("python3", ["-I", "-c", HARNESS], {
-    encoding: "utf8",
-    env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
-  });
-  if (run.error) {
-    t.skip("python3 unavailable");
-    return;
-  }
-  assert.equal(run.status, 0, run.stderr);
-  assert.deepEqual(JSON.parse(run.stdout), {
-    real_sha256: "OK",
-    wrong_digest: "BACKUP_CHECKSUM_MISMATCH",
-    git_length_value: "BACKUP_WITNESS_MISMATCH",
-    not_hex: "BACKUP_WITNESS_MISMATCH",
-  });
-});
+// The controller is a Linux-only root service (it imports fcntl), so this runs on POSIX CI.
+test(
+  "a real 64-character SHA-256 backup witness is accepted and tampering is refused",
+  { skip: process.platform === "win32" && "POSIX-only release controller" },
+  (t) => {
+    const run = spawnSync("python3", ["-I", "-c", HARNESS], {
+      encoding: "utf8",
+      env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
+    });
+    if (run.error) {
+      t.skip("python3 unavailable");
+      return;
+    }
+    assert.equal(run.status, 0, run.stderr);
+    assert.deepEqual(JSON.parse(run.stdout), {
+      real_sha256: "OK",
+      wrong_digest: "BACKUP_CHECKSUM_MISMATCH",
+      git_length_value: "BACKUP_WITNESS_MISMATCH",
+      not_hex: "BACKUP_WITNESS_MISMATCH",
+    });
+  },
+);
