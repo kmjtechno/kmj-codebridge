@@ -66,6 +66,78 @@ as `current`, `stale` or `unknown` against the commit under test, because an
 identical tool catalog does not prove an identical gateway (for example, a
 per-tool timeout fix changes behavior without changing tool names).
 
+### Guarded gateway cutover controller (operator-run, root on the gateway host)
+
+`scripts/gateway-cutover.mjs` implements the checklist below for the VPS gateway
+that serves the customer-domain `/mcp` and `/agent/`. It is **dry-run by default**
+and only talks to systemd, loopback and the public MCP endpoint.
+
+```sh
+# 1. Preflight only. Changes nothing; prints FROM_COMMIT and the baseline.
+sudo node scripts/gateway-cutover.mjs --target-sha <40-hex-sha>
+
+# 2. Apply, only after confirming no job is in flight.
+sudo node scripts/gateway-cutover.mjs --target-sha <40-hex-sha> \
+  --apply --confirm-no-active-jobs
+```
+
+The target must already be staged at `/opt/kmj-codebridge-candidates/<sha>`: clean,
+at exactly that commit, with `npm ci` already done. **`npm ci` is an operator
+prerequisite** (it needs the network), but the controller does not take the
+operator's word for the rest: in the dry run too, it runs `npm run check`,
+`npm test` and `npm run scan:secrets` in the candidate **as the unprivileged service
+user** and refuses (`CANDIDATE_GATE_FAILED:<gate>`) if any fails, or
+(`CANDIDATE_DIRTY_AFTER_GATES`) if they leave the tree dirty. Missing dependencies
+make those gates fail. `PREFLIGHT=PASS` therefore means those gates passed on this
+host, as this user, just now (`CANDIDATE_GATES=PASS_…`); a dry run takes as long as
+the test suite.
+
+The controller also refuses an unexpected host or service user, a non-private
+config, a candidate that rejects the live config, or a stale lock. It backs up the
+unit and previous drop-in, writes only the systemd drop-in (with
+`CODEBRIDGE_SOURCE_COMMIT=<sha>`), restarts once, and requires the direct,
+local-Nginx and public URLs to each serve the full tool catalog **and report
+exactly the target commit**. On any failure it restores the previous drop-in,
+restarts, and **proves the original code is back** (an active process, running from
+the original directory, whose Git `HEAD` is the original commit, serving at least
+the original catalog and, when the original gateway reported one, the same
+`serverInfo.commit`); only then does it print `ROLLBACK=PASS`. A healthy-looking
+catalog alone never counts. `ROLLBACK=FAIL_MANUAL_RECOVERY_REQUIRED` means the
+original code was not verified back and needs a human. Pending gateway jobs are in
+memory, so a restart drops them; that is why `--confirm-no-active-jobs` is
+mandatory.
+
+**Root-run safety semantics.** Run it with `sudo` (the controller refuses to run
+as anyone else). Every `git` query runs **as the unprivileged service user**, never
+as root, because those repositories belong to the account that serves network
+traffic and repo-controlled Git config must not execute with root privileges.
+The lock (`/run/lock/kmj-codebridge-gateway-cutover.lock`) is created exclusively
+and records the holder's PID: `CUTOVER_LOCKED` means another run is active, while
+`CUTOVER_LOCK_STALE` means a run died and left it. A stale lock is **never**
+removed automatically, because that run may have left the service in an unknown
+state: check `systemctl status`, the drop-in and the newest directory under
+`/var/backups/kmj-codebridge/`, then delete the lock by hand. Backup directories
+are created exclusively (an existing one is never overwritten) and are owner-only,
+including the copied unit file, which may carry secrets in `Environment=`. A
+dropped SSH session (SIGHUP) is ignored during `--apply`, and SIGINT/SIGTERM lead
+to the same verified rollback as any other failure. If the failure happens before
+the restart, the rollback restores the drop-in without restarting the service (no
+outage for nothing) and still proves the original is serving.
+
+It replaces the drop-in wholesale, so it **refuses** (`DROPIN_UNRECOGNIZED`) if the
+existing drop-in contains anything other than the lines this controller or the
+earlier one-time utility wrote (`[Service]`, `WorkingDirectory=`,
+`Environment=CODEBRIDGE_SOURCE_COMMIT=`, `ExecStart=`); add such settings
+elsewhere. The restart briefly disconnects every device agent. The controller has
+no agent credentials, so a successful run prints
+`AGENT_RECONNECT=NOT_VERIFIED_USE_AUTHENTICATED_CLIENT`: confirm afterwards with an
+authenticated client (`list_devices`, then `inspect_project` on each device).
+
+It is tested against a fake host (apply, rollback, refusals), **not yet against the
+real server**. Have it reviewed, run the dry run first, and treat the first real
+run as the rollback rehearsal's missing evidence.
+
+
 ### Guarded gateway cutover checklist (operator-run)
 
 Use this for any change to the production gateway that serves the customer-domain
