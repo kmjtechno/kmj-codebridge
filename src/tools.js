@@ -4,6 +4,7 @@ import { z } from "zod";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
+import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
 import { fail } from "./errors.js";
@@ -620,6 +621,13 @@ export const definitions = {
     title: "Detect project environment",
     description:
       "Detect bounded project stacks, common frameworks, package managers, and top-level manifests without executing project code.",
+    input: scoped,
+    access: "read",
+  },
+  free_first_audit: {
+    title: "Free-first spend audit",
+    description:
+      "Read-only advisory scan of the project's CI configuration (GitHub workflows, CircleCI) for settings that may consume paid minutes or metered services, each with a legal free alternative. Reads configuration text only; never executes anything, contacts a provider or sees secret values.",
     input: scoped,
     access: "read",
   },
@@ -1689,6 +1697,45 @@ export function createDispatcher(
         project: p.id,
         ...detectProjectEnvironment(p.files),
       };
+    if (name === "free_first_audit") {
+      const wanted = [];
+      try {
+        for (const entry of p.files.list(".github/workflows").entries)
+          if (entry.type === "file" && /\.ya?ml$/i.test(entry.name))
+            wanted.push(`.github/workflows/${entry.name}`);
+      } catch {
+        // No workflow directory is a valid state.
+      }
+      wanted.sort();
+      const considered = wanted.slice(0, 40);
+      wanted.push(".circleci/config.yml", ".circleci/config.yaml");
+      const files = [];
+      const skippedFiles = [];
+      for (const rel of [
+        ...considered,
+        ".circleci/config.yml",
+        ".circleci/config.yaml",
+      ]) {
+        try {
+          files.push({ path: rel, content: p.files.read(rel).content });
+        } catch {
+          if (rel.startsWith(".github/")) skippedFiles.push(rel);
+        }
+      }
+      const audit = auditFreeFirst(files);
+      return {
+        device: config.id,
+        project: p.id,
+        ...audit,
+        findings: audit.findings.map((f) => ({
+          ...f,
+          evidence: redact(f.evidence),
+        })),
+        skippedFiles,
+        workflowFilesTruncated:
+          wanted.filter((w) => w.startsWith(".github/")).length > 40,
+      };
+    }
     if (name === "policy_catalog")
       return {
         device: config.id,
