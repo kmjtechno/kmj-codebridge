@@ -299,7 +299,9 @@ export class AutopilotJournal {
     });
   }
 
-  claim(project, { holder } = {}) {
+  claim(project, { holder, eligible = null } = {}) {
+    if (eligible !== null && typeof eligible !== "function")
+      fail("INVALID_AUTOPILOT_FILTER");
     if (
       holder !== undefined &&
       (typeof holder !== "string" || !HOLDER.test(holder))
@@ -307,7 +309,12 @@ export class AutopilotJournal {
       fail("INVALID_AUTOPILOT_HOLDER");
     const expired = this.expireLeases(project);
     const candidates = this.state.tasks
-      .filter((task) => task.project === project && this.isReady(task))
+      .filter(
+        (task) =>
+          task.project === project &&
+          this.isReady(task) &&
+          (eligible === null || eligible(this.public(task))),
+      )
       .sort(
         (a, b) =>
           b.priority - a.priority ||
