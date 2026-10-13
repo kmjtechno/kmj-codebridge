@@ -144,10 +144,7 @@ export class GitHubCiWatchWorker {
           const recipes = project.autopilotRepairWorker.recipes;
           if (!Object.hasOwn(recipes, config.recipe)) continue;
           const actual = this.identity(project.root);
-          if (
-            !SHA.test(actual.head) ||
-            actual.branch !== config.branch
-          )
+          if (!SHA.test(actual.head) || actual.branch !== config.branch)
             continue;
           const token = config.tokenEnv
             ? process.env[config.tokenEnv]
@@ -189,15 +186,8 @@ export class GitHubCiWatchWorker {
   }
 }
 
-export function startGitHubCiWatchWorker(
-  options,
-  { intervalMs = 30000 } = {},
-) {
-  if (
-    !Number.isInteger(intervalMs) ||
-    intervalMs < 1000 ||
-    intervalMs > 60000
-  )
+export function startGitHubCiWatchWorker(options, { intervalMs = 30000 } = {}) {
+  if (!Number.isInteger(intervalMs) || intervalMs < 1000 || intervalMs > 60000)
     throw new Error("CI_WATCH_INTERVAL_INVALID");
   const worker = new GitHubCiWatchWorker(options);
   if (!worker.projects.length)
