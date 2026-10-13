@@ -24,6 +24,7 @@ APPROVAL = Path("/etc/kmj-codebridge/main-platform-production-release.json")
 BACKUP_ROOT = Path("/var/backups/kmj-platform")
 LOCK = Path("/run/lock/kmj-main-platform-production-release.lock")
 SHA_PATTERN = re.compile(r"^[a-f0-9]{40}$")
+SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 RELEASE_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]{3,100}$")
 ORIGIN = "https://kmjtechno.com"
 SERVICE_USER = "kmjprod"
@@ -125,7 +126,7 @@ def verify_backup(sha, old_release):
         record["approvedSha"] != sha
         or record["currentRelease"] != old_release
         or not isinstance(record["backupSha256"], str)
-        or SHA_PATTERN.fullmatch(record["backupSha256"]) is None
+        or SHA256_PATTERN.fullmatch(record["backupSha256"]) is None
     ):
         stop("BACKUP_WITNESS_MISMATCH")
     backup = BACKUP_ROOT / ("pre-deploy-" + sha[:12] + ".tar.gz")
