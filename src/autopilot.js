@@ -717,7 +717,8 @@ export class AutopilotJournal {
       )[0];
     return {
       counts,
-      expiredRunningLeases: tasks.filter((task) => this.leaseExpired(task)).length,
+      expiredRunningLeases: tasks.filter((task) => this.leaseExpired(task))
+        .length,
       next: next ? this.public(next) : null,
       tasks: tasks
         .slice(0, Math.max(1, Math.min(limit, 100)))
