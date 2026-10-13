@@ -238,6 +238,8 @@ test("GitHub bridge updates exact files and merges only an exact green head", as
   t.mock.method(globalThis, "fetch", async (url, options) => {
     const value = String(url);
     calls.push({ url: value, method: options.method, body: options.body });
+    if (value.endsWith("/repos/kmjtechno/kmj-codebridge"))
+      return json({ default_branch: "main" });
     if (value.endsWith("/contents/src/a.js"))
       return json({
         content: { path: "src/a.js", sha: "b".repeat(40) },
@@ -279,7 +281,9 @@ test("GitHub bridge updates exact files and merges only an exact green head", as
     message: "fix: exact file",
   });
   assert.equal(updated.content_sha, "b".repeat(40));
-  const updateBody = JSON.parse(calls[0].body);
+  const updateBody = JSON.parse(
+    calls.find((call) => call.method === "PUT" && call.url.endsWith("/contents/src/a.js")).body,
+  );
   assert.equal(
     Buffer.from(updateBody.content, "base64").toString("utf8"),
     "const ok = true;\n",
@@ -298,6 +302,55 @@ test("GitHub bridge updates exact files and merges only an exact green head", as
   const mergeBody = JSON.parse(calls.at(-1).body);
   assert.equal(mergeBody.sha, "a".repeat(40));
   assert.equal(mergeBody.merge_method, "squash");
+});
+
+test("GitHub update file rejects direct writes to default branch even with valid blob SHA", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ url: String(url), method: options.method });
+    if (String(url).endsWith("/repos/kmjtechno/kmj-codebridge"))
+      return json({ default_branch: "main" });
+    throw Error("UNEXPECTED_GITHUB_MUTATION");
+  });
+  const dispatch = writableBridge(t);
+  await assert.rejects(
+    dispatch("github_update_file", {
+      repository: "kmjtechno/kmj-codebridge",
+      path: "src/secure.js",
+      branch: "main",
+      sha: "a".repeat(40),
+      content: "unsafe mutation",
+      message: "fix: should never hit default branch",
+    }),
+    /GITHUB_DEFAULT_BRANCH_WRITE_DENIED/,
+  );
+  assert.deepEqual(
+    calls.map((call) => call.method),
+    ["GET"],
+    "a valid blob SHA must not bypass protected default-branch rules",
+  );
+});
+
+test("GitHub update file fails closed without verified default branch metadata", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({ url: String(url), method: options.method });
+    return json({ default_branch: "../unsafe" });
+  });
+  const dispatch = writableBridge(t);
+  await assert.rejects(
+    dispatch("github_update_file", {
+      repository: "kmjtechno/kmj-codebridge",
+      path: "src/secure.js",
+      branch: "feature",
+      sha: "a".repeat(40),
+      content: "new code",
+      message: "fix: verify branch metadata",
+    }),
+    /GITHUB_DEFAULT_BRANCH_UNVERIFIED/,
+  );
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].method, "GET");
 });
 
 test("GitHub safe merge rejects moved heads and non-green checks", async (t) => {
