@@ -11,7 +11,8 @@ export function canQueueAutopilotGate(key, permissions) {
   return (
     typeof key === "string" &&
     Array.isArray(permissions) &&
-    (!key.startsWith("auto-gate:") || permissions.includes("execute"))
+    ((!key.startsWith("auto-gate:") && !key.startsWith("auto-draft:")) ||
+      permissions.includes("execute"))
   );
 }
 
@@ -109,6 +110,13 @@ export class AutopilotGateWorker {
         continue;
       }
 
+      const allowed = project.autopilotGateWorker.gates;
+      if (
+        !this.journal.hasReady(project.id, (task) =>
+          Boolean(parseAutopilotGateTask(task.key, allowed)),
+        )
+      )
+        continue;
       let entitlement;
       try {
         entitlement = this.licenseProvider();
@@ -119,7 +127,6 @@ export class AutopilotGateWorker {
         continue; // fail closed on expired license or low resources
       }
 
-      const allowed = project.autopilotGateWorker.gates;
       const claimed = this.journal.claim(project.id, {
         holder: "autopilot-gate-worker",
         eligible: (task) => Boolean(parseAutopilotGateTask(task.key, allowed)),

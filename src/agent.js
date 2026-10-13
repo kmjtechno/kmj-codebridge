@@ -7,6 +7,8 @@ import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
+import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
+import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
 import { supervisorRequest } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
@@ -116,6 +118,8 @@ export async function startAgent(rawConfig) {
         request: (request) => supervisorRequest(c.supervisorSocket, request),
       }
     : null;
+  let localModelClient;
+  const localModel = () => (localModelClient ??= createLocalModelClient());
   const dispatch = createDispatcher(
     c,
     runner,
@@ -123,12 +127,20 @@ export async function startAgent(rawConfig) {
     autopilot,
     supervisor,
     audit,
+    localModel,
   );
   const gateWorker = startAutopilotGateWorker({
     projects: c.projects,
     journal: autopilot,
     runner,
     licenseProvider,
+  });
+  const localDraftWorker = startLocalAutopilotDraftWorker({
+    projects: c.projects,
+    journal: autopilot,
+    licenseProvider,
+    localModel,
+    runner,
   });
   const controller = new AbortController();
   let stopped = false;
@@ -298,6 +310,7 @@ export async function startAgent(rawConfig) {
       controller.abort();
       await loop;
       await gateWorker.close();
+      await localDraftWorker.close();
       await runner.close();
       releaseAgentLock(agentLock);
     },
