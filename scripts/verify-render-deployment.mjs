@@ -84,7 +84,14 @@ export async function verifyDeployedGateway(
         "DEPLOYED_GATEWAY_UNHEALTHY",
         "DEPLOYED_HEALTH_HTTP_UNAVAILABLE",
       ]);
-      if (!retriable.has(error.message)) {
+      // Fetch may reject before an HTTP response when a free-tier Render
+      // instance is sleeping. Retry only known transport/timeout failures;
+      // never soften malformed JSON, oversized responses or a bad SHA.
+      const transientNetwork =
+        error instanceof TypeError ||
+        error?.name === "TimeoutError" ||
+        error?.name === "AbortError";
+      if (!retriable.has(error.message) && !transientNetwork) {
         const known = new Set([
           "EXPECTED_COMMIT_INVALID",
           "DEPLOYED_HEALTH_BODY_MISSING",
@@ -94,7 +101,12 @@ export async function verifyDeployedGateway(
         if (known.has(error.message)) throw error;
         throw new Error("DEPLOYED_HEALTH_REQUEST_FAILED");
       }
-      if (attempt === 5) throw error;
+      if (attempt === 5) {
+        if (transientNetwork) {
+          throw new Error("DEPLOYED_HEALTH_REQUEST_FAILED");
+        }
+        throw error;
+      }
       await pause((attempt + 1) * 3000);
     }
   }
