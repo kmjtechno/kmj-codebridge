@@ -272,6 +272,7 @@ export const agentSchema = z.object({
                     .object({
                       fixGate: id,
                       verifyGate: id,
+                      triggerGate: id.optional(),
                       paths: z
                         .array(
                           z
