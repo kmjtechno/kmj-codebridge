@@ -180,6 +180,10 @@ test("tool invocation returns structured results through the device agent", asyn
   );
   assert.equal(info.device, "d1");
   assert.deepEqual(info.gates, ["unit"]);
+  // The agent reports the source revision it actually runs, or null.
+  assert.ok(Object.hasOwn(info, "runtimeRevision"));
+  if (info.runtimeRevision !== null)
+    assert.match(info.runtimeRevision.commit, /^[a-f0-9]{40}$/);
   const file = body(
     await client.callTool({
       name: "read_file",

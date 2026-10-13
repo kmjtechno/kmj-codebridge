@@ -9,6 +9,7 @@ import { FileCheckpoints } from "./checkpoints.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
+import { runtimeRevision } from "./runtime-revision.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
@@ -500,6 +501,8 @@ function approvalRequired(risk) {
 }
 
 const scoped = { device: identifier, project: identifier };
+// Same lane id grammar as src/worktree-lanes.js.
+const laneIdentifier = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/);
 const supervisorService = z.enum(["agent", "gateway"]);
 const contextBudget = z.enum(["small", "medium", "deep"]);
 export const FAST_READ_TOOLS = [
@@ -1452,12 +1455,13 @@ export const definitions = {
   run_project_command: {
     title: "Run project command",
     description:
-      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted.",
+      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. Optional laneId runs the profile inside an already-prepared isolated worktree (worktree_lane_prepare) instead of the shared project checkout.",
     input: {
       ...scoped,
       command: identifier,
       variant: identifier,
       requestKey: z.string().min(1).max(128),
+      laneId: laneIdentifier.optional(),
     },
     access: "execute",
   },
@@ -1469,10 +1473,7 @@ export const definitions = {
       ...scoped,
       gate: identifier,
       requestKey: z.string().min(1).max(128),
-      laneId: z
-        .string()
-        .regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/)
-        .optional(),
+      laneId: laneIdentifier.optional(),
     },
     access: "execute",
   },
@@ -1573,6 +1574,9 @@ export function createDispatcher(
         })),
         connection: "connected",
         version: VERSION,
+        // Commit of the code this agent process runs (null when unknown). A
+        // "git-branch" source is a checkout and may carry uncommitted edits.
+        runtimeRevision: runtimeRevision(),
       };
     if (name === "worktree_lane_status")
       return {
@@ -2637,6 +2641,18 @@ export function createDispatcher(
           variants: Object.keys(profile.variants),
         })),
       };
+    // An optional laneId resolves only to a worktree this project already
+    // prepared; the job label records the lane so receipts show where it ran.
+    const laneCwd = (laneId) => {
+      if (laneId === undefined) return p.files.root;
+      const lane = worktreeLanes()
+        .entries(p.id, p.files.root)
+        .find((row) => row.laneId === laneId);
+      if (!lane) fail("WORKTREE_NOT_FOUND");
+      return lane.path;
+    };
+    const laneLabel = (label, laneId) =>
+      laneId !== undefined ? `${label}@${laneId}` : label;
     if (name === "run_project_command") {
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
@@ -2645,9 +2661,12 @@ export function createDispatcher(
         fail("READ_ONLY_PROJECT");
       return runner.run({
         project: p.id,
-        gate: `command:${a.command}:${a.variant}:${profile.category}`,
+        gate: laneLabel(
+          `command:${a.command}:${a.variant}:${profile.category}`,
+          a.laneId,
+        ),
         key: a.requestKey,
-        cwd: p.files.root,
+        cwd: laneCwd(a.laneId),
         command: profile.command,
         args: variant.args,
         timeoutMs: variant.timeoutMs,
@@ -2657,19 +2676,11 @@ export function createDispatcher(
       const gate = p.gates[a.gate];
       if (!gate) fail("GATE_NOT_ALLOWED");
       if (!p.writable) fail("READ_ONLY_PROJECT");
-      let cwd = p.files.root;
-      if (a.laneId !== undefined) {
-        const lane = worktreeLanes()
-          .entries(p.id, p.files.root)
-          .find((row) => row.laneId === a.laneId);
-        if (!lane) fail("WORKTREE_NOT_FOUND");
-        cwd = lane.path;
-      }
       return runner.run({
         project: p.id,
-        gate: a.laneId !== undefined ? `${a.gate}@${a.laneId}` : a.gate,
+        gate: laneLabel(a.gate, a.laneId),
         key: a.requestKey,
-        cwd,
+        cwd: laneCwd(a.laneId),
         ...gate,
       });
     }

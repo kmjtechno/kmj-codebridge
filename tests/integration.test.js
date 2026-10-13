@@ -80,7 +80,7 @@ async function setup(t) {
               default: {
                 args: [
                   "-e",
-                  'console.log("BUILD_OK"); console.log("token=supersecret")',
+                  'console.log("BUILD_OK"); console.log("cwd=" + process.cwd()); console.log("token=supersecret")',
                 ],
                 timeoutMs: 2000,
               },
@@ -1163,6 +1163,91 @@ test("run_quality_gate with laneId runs inside the isolated worktree, never the 
     },
   });
   assert.equal(content(unknownLane).error, "WORKTREE_NOT_FOUND");
+});
+test("run_project_command with laneId runs the exact profile inside the isolated worktree", async (t) => {
+  const { client, root } = await setup(t);
+  const { execFileSync } = await import("node:child_process");
+  execFileSync("git", ["init", "-q"], { cwd: root, stdio: "pipe" });
+  execFileSync("git", ["add", "hello.txt"], { cwd: root, stdio: "pipe" });
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.com",
+      "commit",
+      "-qm",
+      "initial",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+  const head = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root })
+    .toString()
+    .trim();
+  const finish = async (job) => {
+    let done = job;
+    for (let i = 0; i < 40 && done.state === "running"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      done = content(
+        await client.callTool({
+          name: "get_job_status",
+          arguments: { device: "d1", project: "p1", job: job.id },
+        }),
+      );
+    }
+    return done;
+  };
+  const cwdOf = (output) =>
+    fs.realpathSync(/^cwd=(.+)$/m.exec(output)[1].trim());
+
+  const lane = content(
+    await client.callTool({
+      name: "worktree_lane_prepare",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        laneId: "buildLane",
+        expectedHead: head,
+        approveLocalGitCheckout: true,
+      },
+    }),
+  );
+  const run = (requestKey, laneId) =>
+    client.callTool({
+      name: "run_project_command",
+      arguments: {
+        device: "d1",
+        project: "p1",
+        command: "build_echo",
+        variant: "default",
+        requestKey,
+        ...(laneId !== undefined ? { laneId } : {}),
+      },
+    });
+
+  const shared = await finish(content(await run("cmd-root")));
+  assert.equal(shared.gate, "command:build_echo:default:build");
+  assert.equal(cwdOf(shared.output), fs.realpathSync(root));
+
+  const started = content(await run("cmd-lane", "buildLane"));
+  assert.equal(started.gate, "command:build_echo:default:build@buildLane");
+  const inLane = await finish(started);
+  assert.equal(inLane.state, "succeeded");
+  assert.equal(cwdOf(inLane.output), fs.realpathSync(lane.path));
+  assert.notEqual(cwdOf(inLane.output), fs.realpathSync(root));
+  assert.match(inLane.output, /token=\[REDACTED\]/);
+
+  // Retries stay idempotent per requestKey inside the lane.
+  assert.equal(content(await run("cmd-lane", "buildLane")).id, started.id);
+
+  const missing = await run("cmd-missing-lane", "neverPrepared");
+  assert.equal(missing.isError, true);
+  assert.equal(content(missing).error, "WORKTREE_NOT_FOUND");
+
+  // A lane id can never smuggle a path or traversal into the job cwd.
+  const traversal = await run("cmd-traversal", "../outside");
+  assert.equal(traversal.isError, true);
 });
 test("unauthenticated requests fail before MCP handling", async (t) => {
   const { gw } = await setup(t);
