@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { AutopilotJournal } from "../src/autopilot.js";
 import {
   AutopilotGateWorker,
+  canQueueAutopilotGate,
   parseAutopilotGateTask,
   verifyCleanGateCheckout,
 } from "../src/autopilot-gate-worker.js";
@@ -90,6 +91,13 @@ function fixture(t, overrides = {}) {
     count: () => runCount,
   };
 }
+
+test("write-only callers cannot enqueue unattended gate execution", () => {
+  const gate = "auto-gate:fast:" + "f".repeat(40);
+  assert.equal(canQueueAutopilotGate(gate, ["write"]), false);
+  assert.equal(canQueueAutopilotGate(gate, ["read", "write", "execute"]), true);
+  assert.equal(canQueueAutopilotGate("ordinary-roadmap-task", ["write"]), true);
+});
 
 test("only exact allowlisted gate + 40-character head is executable", () => {
   const sha = "f".repeat(40);
