@@ -110,6 +110,13 @@ export class AutopilotGateWorker {
         continue;
       }
 
+      const allowed = project.autopilotGateWorker.gates;
+      if (
+        !this.journal.hasReady(project.id, (task) =>
+          Boolean(parseAutopilotGateTask(task.key, allowed)),
+        )
+      )
+        continue;
       let entitlement;
       try {
         entitlement = this.licenseProvider();
