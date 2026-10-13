@@ -39,10 +39,19 @@ test("socket handoff is idle-only, rollback-safe, and not a production deploymen
   ])
     assert.ok(script.includes(required), required);
   assert.match(script, /systemd\/system\/\$UNIT\.d/);
-  assert.doesNotMatch(
-    script,
-    /git pull|curl |wget |\beval\b|sudoers|reboot|daemon-reexec|systemctl\s+restart|/home/kmjprod/current/,
-  );
+  for (const fragment of [
+    "git pull",
+    "curl ",
+    "wget ",
+    "eval ",
+    "sudoers",
+    "reboot",
+    "daemon-reexec",
+    "systemctl restart",
+    "/home/kmjprod/current",
+  ]) {
+    assert.ok(!script.includes(fragment), fragment);
+  }
 });
 
 test(
