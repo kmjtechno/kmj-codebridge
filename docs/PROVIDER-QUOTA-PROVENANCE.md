@@ -8,11 +8,9 @@ requests, store keys, decide pricing, or claim cloud requests are free.
 - `observeProviderQuota({ provider, headers, statusCode, observedAt })`:
   normalize **trusted** response headers for Groq, Anthropic, OpenRouter
   and generic OpenAI-compatible providers.
-- `observeProviderQuota({ provider: "openrouter", source: "openrouter-key",
-  body, observedAt })`: interpret **authenticated** OpenRouter
+- `observeProviderQuota()` with `source: "openrouter-key"`: interpret **authenticated** OpenRouter
   `GET /api/v1/key` data; no direct API call occurs inside this module.
-- `quotaPressure(observation, { inputTokens, maxOutputTokens,
-  requestHeadroom, tokenHeadroom })`: a **switch suggestion**, NOT
+- `quotaPressure()`: a **switch suggestion**, NOT
   authorization to send inference or to charge a paid model.
 
 The broker must independently enforce **tenant/project approval**, model
