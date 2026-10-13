@@ -12,7 +12,7 @@ safe() {
   mode="$(stat -Lc %a "$file")"; (( (8#$mode & 8#22) == 0 )) || return 1
   [[ "$("$file" -p 'process.versions.node.split(".")[0]' 2>/dev/null)" == 24 ]]
 }
-for dir in /opt /opt/kmj-codebridge-node /opt/kmj-codebridge-node/bin; do
+for dir in /opt /opt/kmj-codebridge-node /opt/kmj-codebridge-node/bin /opt/kmj-codebridge-node/lib /opt/kmj-codebridge-node/lib/node_modules; do
   if [[ -e "$dir" || -L "$dir" ]]; then
     [[ -d "$dir" && ! -L "$dir" && "$(stat -c %u "$dir")" == 0 ]] || fail UNSAFE_NODE_PARENT
     mode="$(stat -c %a "$dir")"; (( (8#$mode & 8#22) == 0 )) || fail WRITABLE_NODE_PARENT
