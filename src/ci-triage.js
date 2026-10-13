@@ -108,7 +108,8 @@ export function safeCiStepName(value) {
   if (
     value.length > 120 ||
     SECRET_INDICATOR.test(value) ||
-    UNSAFE_URL.test(value)
+    UNSAFE_URL.test(value) ||
+    EMAIL.test(value)
   )
     return "REDACTED_STEP";
   return redact(value)
