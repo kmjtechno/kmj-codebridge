@@ -301,6 +301,11 @@ export class AutopilotJournal {
 
   hasReady(project, eligible) {
     if (typeof eligible !== "function") fail("INVALID_AUTOPILOT_FILTER");
+    // A worker first calls hasReady() and only calls claim() if it is true.
+    // Recover expired leases here too: otherwise a lone expired running task
+    // never becomes ready and the unattended worker can remain idle forever.
+    // Existing checkpoint/fencing safeguards still prevent mutation replay.
+    if (this.expireLeases(project)) this.persist();
     return this.state.tasks.some(
       (task) =>
         task.project === project &&
@@ -712,6 +717,7 @@ export class AutopilotJournal {
       )[0];
     return {
       counts,
+      expiredRunningLeases: tasks.filter((task) => this.leaseExpired(task)).length,
       next: next ? this.public(next) : null,
       tasks: tasks
         .slice(0, Math.max(1, Math.min(limit, 100)))
