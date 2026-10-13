@@ -54,6 +54,18 @@ executing the full installer. Re-running the command is the supported repair/upd
 entry point; the installer preserves a valid device configuration and rolls back a
 replacement runtime if startup/connectivity verification fails.
 
+### Deployed-commit marker
+
+Render injects `RENDER_GIT_COMMIT`. Any other gateway deployment, including the VPS
+gateway that serves the customer-domain `/mcp`, should set
+`CODEBRIDGE_SOURCE_COMMIT` to the exact deployed source SHA (lowercase hex, 7–40
+characters). The validated value is returned by `/healthz` and as
+`serverInfo.commit` in the public MCP `initialize` response; malformed values are
+never echoed. `scripts/verify-public-mcp-catalog.mjs` reports each origin's commit
+as `current`, `stale` or `unknown` against the commit under test, because an
+identical tool catalog does not prove an identical gateway (for example, a
+per-tool timeout fix changes behavior without changing tool names).
+
 The installer does not accept or require a permanent token in the URL or command.
 On first install it requests a short-lived S256 verifier-bound enrollment, displays
 the approval URL/code and waits for the Main Platform response. On success it writes

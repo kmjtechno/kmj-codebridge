@@ -29,9 +29,15 @@ import {
 } from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
-function deployedCommit() {
-  const value = process.env.RENDER_GIT_COMMIT;
-  return typeof value === "string" && GIT_SHA.test(value) ? value : null;
+// Render injects RENDER_GIT_COMMIT. Non-Render deploys (e.g. the VPS gateway
+// behind the customer-domain /mcp) set CODEBRIDGE_SOURCE_COMMIT at deploy time,
+// so a gateway publishing an unchanged tool catalog from an older commit is
+// visible rather than assumed current. Malformed values are never echoed.
+export function deployedCommit(env = process.env) {
+  for (const value of [env.RENDER_GIT_COMMIT, env.CODEBRIDGE_SOURCE_COMMIT]) {
+    if (typeof value === "string" && GIT_SHA.test(value)) return value;
+  }
+  return null;
 }
 
 function identify(req, records) {
@@ -793,6 +799,7 @@ export async function startGateway(rawConfig) {
           return;
         }
       }
+      const serverCommit = deployedCommit();
       const mcp = new McpServer({
         name: "kmj-codebridge",
         title: "KMJ CodeBridge",
@@ -800,6 +807,9 @@ export async function startGateway(rawConfig) {
         description:
           "Secure, project-scoped AI coding across authorized computers and VPSs through one MCP bridge.",
         websiteUrl: "https://kmjtechno.com",
+        // Same validated public deploy marker as /healthz; initialize is public
+        // discovery, so origins that only route /mcp can still be verified.
+        ...(serverCommit !== null ? { commit: serverCommit } : {}),
         // Standard MCP `Implementation.icons` (spec 2025-11-25 / SEP-973).
         // Omitted entirely unless the operator configures a real, publicly
         // reachable HTTPS icon URL via `iconUrl` — never a fabricated or
