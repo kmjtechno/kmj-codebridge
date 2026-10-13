@@ -86,7 +86,7 @@ token** and is subject to the GitHub unauthenticated API rate limit.
 
 ## Why the fail-closed checks matter
 
-- Watching a PR often involves a *synthetic merge SHA*, not the PR's own
+- Watching a PR often involves a _synthetic merge SHA_, not the PR's own
   exact head. This version intentionally supports only a matching
   `push` event on a locally checked-out named branch. It does not treat
   arbitrary PR failures as authorized repair tasks.
