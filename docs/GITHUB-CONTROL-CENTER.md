@@ -6,6 +6,7 @@ GitHub support is implemented **inside the authenticated CodeBridge gateway**, n
 
 | Capability                             | MCP operation                                                              | Safety guarantee                                                                                               |
 | -------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| Credential-safe repository preflight   | `github_connection_doctor`                                                 | Exact allowlist, fresh read probe, bounded auth/rate-limit signals; never exposes server token or equates read with write | 
 | Repository metadata                    | `github_repository`                                                        | Configured allowlisted repositories only                                                                       |
 | Pull request queue                     | `github_pull_requests`                                                     | Up to 30 PR summaries with head SHA, drafts and branches                                                       |
 | Pull request details and changed files | `github_pull_request`, `github_pull_request_files`                         | Bounded file count and diff patches                                                                            |
@@ -22,6 +23,45 @@ The read-only CI verdict `green` requires at least one check run **and** one wor
 ### Why this is faster
 
 A single `github_pull_request_ci` request retrieves PR head metadata, all first-page check runs and all first-page Actions workflow runs, preventing separate manual requests and accidental mixing of checks from different SHAs. `github_pull_requests` brings up to 30 PR summaries in one request. Small read operations are cached for up to the configured short interval; write operations invalidate the cache.
+
+## Native CodeBridge-only CineCore workflow (without external plugins)
+
+On the authenticated CodeBridge client use `connection_overview` and
+`inspect_project({device: "kmj-p720-cinecore-desktop-k3ahhem", project: "kmj-cinecore"})`
+first. The existing Windows project gates are `cinecore_configure`,
+`cinecore_build` and `cinecore_ctest`. Their presence means authorized
+commands exist, **not** that a current source snapshot has passed.
+
+Next run:
+
+`github_connection_doctor({repository: "kmjtechno/kmj-cinecore"})`
+
+- `repository_not_allowed`: gateway operator must approve the exact private
+  repository in the protected allowlist. No wildcard and no automatic addition.
+- `authorization_failed`: the gateway-held credential is rejected by GitHub;
+  repair an installation/token with access to that private repository out of
+  band, not in chats or source.
+- `not_found_or_not_granted`: verify repository visibility and the GitHub
+  App installation's exact repository scope.
+- `rate_limited`: wait for quota restoration rather than silently switching
+  to another identity.
+- `read_ready`: a live read is verified. **Writes are not verified** and
+  remain subject to independent access policy, branch review and exact-head
+  CI evidence.
+
+This tool intentionally makes no writes, never lists the global allowlist,
+never returns the token/environment-variable name, and does not fall back
+to external GitHub plugins or anonymous access to private repositories.
+
+Use `project_snapshot`, `git_status`, `repo_map`, `read_files_batch` and
+the project's allowlisted configure/build/CTest gates for local development
+without either Desktop Commander or the external GitHub plugin.
+Review and preserve any dirty tracked/untracked CineCore camera/HAL/CI files.
+Only use an isolated worktree for potentially conflicting development.
+Once native GitHub read and write authorizations are separately proven, use
+CodeBridge's bounded branch, PR and exact-head CI tools. Until then report
+the native blocker; an independently connected GitHub client does **not**
+prove CodeBridge native capability.
 
 ## Configuring the gateway safely
 
