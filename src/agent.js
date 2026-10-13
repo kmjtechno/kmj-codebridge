@@ -7,6 +7,8 @@ import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
+import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
+import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
@@ -134,6 +136,13 @@ export async function startAgent(rawConfig) {
     journal: autopilot,
     runner,
     licenseProvider,
+  });
+  const repairWorker = startIsolatedRepairWorker({
+    projects: c.projects,
+    journal: autopilot,
+    runner,
+    licenseProvider,
+    lanes: new WorktreeLanes(state),
   });
   const localDraftWorker = startLocalAutopilotDraftWorker({
     projects: c.projects,
@@ -311,6 +320,7 @@ export async function startAgent(rawConfig) {
       await loop;
       await gateWorker.close();
       await localDraftWorker.close();
+      await repairWorker.close();
       await runner.close();
       releaseAgentLock(agentLock);
     },
