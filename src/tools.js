@@ -18,6 +18,7 @@ import { ChatLaneRegistry } from "./chat-lanes.js";
 import { createLocalModelClient } from "./local-model.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
+import { reviewRepairCandidate } from "./autopilot-repair-review.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -1250,6 +1251,17 @@ export const definitions = {
     },
     access: "read",
   },
+  autopilot_repair_candidate: {
+    title: "Review SHA-verified isolated repair candidate",
+    description:
+      "Read only: verify a previously completed repair gate checkpoint, exact detached worktree, safe allowed file diff, SHA-256 and redacted optional preview. Never applies, commits, publishes or deploys a patch.",
+    input: {
+      ...scoped,
+      task: identifier,
+      includePatch: z.boolean().default(false),
+    },
+    access: "read",
+  },
   autopilot_enqueue: {
     title: "Enqueue autopilot task",
     description:
@@ -2235,6 +2247,14 @@ export function createDispatcher(
     if (name.startsWith("autopilot_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
     if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
+    if (name === "autopilot_repair_candidate")
+      return reviewRepairCandidate({
+        project: p,
+        journal: autopilot,
+        lanes: worktreeLanes(),
+        taskId: a.task,
+        includePatch: a.includePatch,
+      });
     if (name === "autopilot_enqueue") {
       if (!canQueueAutopilotGate(a.key, permissions)) fail("ACCESS_DENIED");
       return autopilot.enqueue({

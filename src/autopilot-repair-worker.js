@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
@@ -83,7 +84,14 @@ export function verifyRepairCandidate(root, allowedPaths) {
   }
   const diff = git(
     root,
-    ["diff", "--binary", "--no-ext-diff", "--no-color", "HEAD"],
+    [
+      "diff",
+      "--binary",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "HEAD",
+    ],
     MAX_PATCH_BYTES + 4096,
   );
   if (
@@ -92,7 +100,11 @@ export function verifyRepairCandidate(root, allowedPaths) {
     diff.includes(Buffer.from("GIT binary patch"))
   )
     return null;
-  return { files, bytes: diff.length };
+  return {
+    files,
+    bytes: diff.length,
+    sha256: createHash("sha256").update(diff).digest("hex"),
+  };
 }
 
 export class IsolatedRepairWorker {
@@ -188,6 +200,8 @@ export class IsolatedRepairWorker {
               expectedHead: existing.expectedHead,
               files: patch.files,
               patchBytes: patch.bytes,
+              patchSha256: patch.sha256,
+              verificationJobId: existing.jobId,
               // Don't expose an unbounded patch or silently publish it.
             }),
             next: "VERIFIED_PATCH_AWAITING_REVIEW",
