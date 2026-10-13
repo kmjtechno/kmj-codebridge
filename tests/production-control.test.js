@@ -107,6 +107,13 @@ test("legacy Main Platform supervisor bootstrap is fixed, root-gated and preserv
   assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_REQUIRES_ROOT/);
   assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_WRONG_HOST/);
   assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_AGENT_EXEC_MISMATCH/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_RUNTIME_PATH_UNAPPROVED/);
+  assert.match(bootstrap, /property=WorkingDirectory/);
+  assert.match(bootstrap, /kmj-codebridge-main-platform-stage\/\[a-f0-9\]/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_STAGE_SHA_MISMATCH/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_NODE_TARGET_UNSAFE/);
+  assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_NODE_OWNER_UNSAFE/);
+  assert.match(bootstrap, /property=ExecStart/);
   assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_RUNTIME_TREE_WRITABLE/);
   assert.match(bootstrap, /SUPERVISOR_BOOTSTRAP_CONFIG_PERMISSIONS_UNSAFE/);
   assert.match(bootstrap, /SocketMode=0600/);
