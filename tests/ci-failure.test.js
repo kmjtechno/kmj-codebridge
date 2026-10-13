@@ -77,7 +77,10 @@ test("read-only CircleCI diagnostics are bound to repository and exact SHA", asy
   assert.match(result.steps[0].lines[0], /PHPStan Error: property mismatch/);
   assert.equal(result.steps[0].diagnosis.suggestedGateRole, "type");
   assert.equal(result.steps[0].diagnosis.rootCauseVerified, false);
-  assert.equal(result.steps[0].diagnosis.automaticFix, "DISABLED_UNTIL_ISOLATED_REVIEWED_PATCH_AND_GATES");
+  assert.equal(
+    result.steps[0].diagnosis.automaticFix,
+    "DISABLED_UNTIL_ISOLATED_REVIEWED_PATCH_AND_GATES",
+  );
   const serialized = JSON.stringify(result);
   assert.ok(!serialized.includes("secret-information"));
   assert.ok(!serialized.includes("private-presigned-secret"));
