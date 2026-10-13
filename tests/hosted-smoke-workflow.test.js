@@ -50,3 +50,16 @@ test("scheduled and on-push deployment surveillance stays enabled", () => {
   assert.match(workflow, /- "\.github\/workflows\/hosted-smoke\.yml"/);
   assert.match(workflow, /cancel-in-progress: true/);
 });
+
+test("release acceptance refuses stale Render deployed SHA independently of health", () => {
+  const parity = workflow.split("\n  deployment_parity:\n")[1];
+  assert.ok(parity, "a strict deployment parity job is required");
+  assert.match(parity, /actions\/checkout@v5/);
+  assert.match(parity, /node scripts\/verify-render-deployment\.mjs/);
+  assert.doesNotMatch(parity, /continue-on-error:\s*true/);
+  assert.doesNotMatch(parity, /needs:\s*gateway/);
+  assert.match(
+    workflow,
+    /- "scripts\/verify-render-deployment\.mjs"/,
+  );
+});
