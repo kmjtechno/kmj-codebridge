@@ -1,6 +1,6 @@
 # KMJ CodeBridge — Local Autopilot Draft Worker
 
-This is a **default-off**, on-device, low-cost autonomous *drafting* slice.
+This is a **default-off**, on-device, low-cost autonomous _drafting_ slice.
 It uses the existing installed loopback Ollama model and Autopilot journal.
 It neither completes coding tasks nor edits source or performs deployment.
 
@@ -51,7 +51,7 @@ Queue with existing authorized `autopilot_enqueue` (write+execute scope):
 
 Observe `autopilot_status` after the worker starts. A successful draft
 shows `waiting` + `LOCAL_DRAFT_AWAITING_REVIEW` and a checkpoint with
-`next: LOCAL_DRAFT_AWAITING_REVIEW`. This is evidence of a *proposal*,
+`next: LOCAL_DRAFT_AWAITING_REVIEW`. This is evidence of a _proposal_,
 **not a verified implementation**.
 
 ## Remaining work before end-to-end autonomous development
