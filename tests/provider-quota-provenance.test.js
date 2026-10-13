@@ -102,14 +102,11 @@ test("OpenRouter key free daily requests are separate from paid spending cap", (
   assert.equal(obs.freeCreditsRemaining, null);
   assert.equal(obs.rateLimit.provenance, "unknown");
   assert.equal(JSON.stringify(obs).includes("SECRET-KEY-LABEL"), false);
-  assert.deepEqual(
-    quotaPressure(obs, { ...task, requestHeadroom: 3 }),
-    {
-      switchSuggested: true,
-      reason: "FREE_DAILY_REQUESTS_LOW",
-      evidence: "verified",
-    },
-  );
+  assert.deepEqual(quotaPressure(obs, { ...task, requestHeadroom: 3 }), {
+    switchSuggested: true,
+    reason: "FREE_DAILY_REQUESTS_LOW",
+    evidence: "verified",
+  });
 });
 
 test("absent OpenRouter key fields never imply unlimited or a free balance", () => {
