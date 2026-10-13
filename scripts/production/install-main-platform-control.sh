@@ -21,6 +21,7 @@ fi
 test -f "$SOURCE/activate-main-platform-approved.py"
 test -f "$SOURCE/kmj-main-platform-production-release.service"
 test -f "$SOURCE/kmj-codebridge-supervisor-prod-readonly.conf"
+test -f "$SOURCE/bootstrap-existing-supervisor.sh"
 python3 -m py_compile "$SOURCE/activate-main-platform-approved.py"
 test -d /home/kmjprod/releases
 test -L /home/kmjprod/current
@@ -46,11 +47,11 @@ if systemctl cat "$SUPERVISOR_UNIT" >/dev/null 2>&1; then
 fi
 systemctl daemon-reload
 systemctl show kmj-main-platform-production-release.service -p LoadState -p ActiveState --no-pager
-# Enable existing CodeBridge supervisor socket if already installed.
-# Never alter its enrollment, OAuth credential or authorized project root.
-if systemctl cat kmj-codebridge-supervisor.socket >/dev/null 2>&1; then
-  systemctl enable --now kmj-codebridge-supervisor.socket
-fi
+# On legacy Main Platform-only installs, the socket and supervisor unit
+# never existed. The bounded bootstrap derives both only from the registered
+# existing agent service, verifies its runtime and owner, then creates the
+# missing fixed units. It does not restart or re-enroll the agent.
+bash "$SOURCE/bootstrap-existing-supervisor.sh"
 echo "PRODUCTION_CONTROL_INSTALLED_NO_DEPLOY=1"
 if [[ ! -S /run/kmj-codebridge/supervisor.sock ]]; then
   echo "SUPERVISOR_SOCKET_NOT_READY: verify CodeBridge agent config and approved supervisor installation."
