@@ -167,6 +167,9 @@ export function startAutopilotGateWorker(options, { intervalMs = 10_000 } = {}) 
   if (!Number.isInteger(intervalMs) || intervalMs < 1_000 || intervalMs > 60_000)
     throw new Error("AUTOPILOT_GATE_INTERVAL_INVALID");
   const worker = new AutopilotGateWorker(options);
+  // Default installations create no worker timer or extra background activity.
+  if (worker.projects.length === 0)
+    return { enabledProjects: [], close: async () => {} };
   const controller = new AbortController();
   const loop = (async () => {
     while (!controller.signal.aborted) {
