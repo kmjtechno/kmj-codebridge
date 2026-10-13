@@ -84,7 +84,9 @@ test("archived jobs retain request-key idempotency through restart", async (t) =
 test("queued and running work cannot be compacted", async (t) => {
   const { root, runner } = fixture(t, { journalLimit: 2, maxConcurrent: 2 });
   const active = runner.run(
-    request(root, "active", "p1", "setTimeout(()=>{},1200)"),
+    // Must outlive slow process spawns (Windows CI needs ~1s per job); the test
+    // cancels it explicitly, so a long sleep is never waited out.
+    request(root, "active", "p1", "setTimeout(()=>{},30000)"),
   );
   const terminal = runner.run(request(root, "terminal"));
   await finish(runner, terminal.id);
