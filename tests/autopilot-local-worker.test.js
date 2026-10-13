@@ -49,6 +49,9 @@ function fixture(t, options = {}) {
     projects: [project],
     journal,
     localModel: () => model,
+    runner: options.pressure
+      ? { capacity: () => ({ blocked: true, constrained: true }) }
+      : null,
     licenseProvider: () => ({
       features: options.noExecute ? ["read", "write"] : ["execute"],
     }),
@@ -95,6 +98,15 @@ test("offline local model preserves task in queued state", async (t) => {
   const task = f.enqueue();
   await f.worker.tick();
   assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.calls(), 0);
+});
+
+test("resource pressure prevents inference and preserves ready task", async (t) => {
+  const f = fixture(t, { pressure: true });
+  const task = f.enqueue();
+  await f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.statusCalls(), 0);
   assert.equal(f.calls(), 0);
 });
 
