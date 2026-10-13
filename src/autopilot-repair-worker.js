@@ -5,7 +5,13 @@ import { setTimeout as delay } from "node:timers/promises";
 import { WorktreeLanes } from "./worktree-lanes.js";
 
 const TASK = /^auto-repair:([A-Za-z0-9_-]{1,40}):([a-f0-9]{40})$/;
-const TERMINAL = new Set(["succeeded", "failed", "cancelled", "timed_out", "interrupted"]);
+const TERMINAL = new Set([
+  "succeeded",
+  "failed",
+  "cancelled",
+  "timed_out",
+  "interrupted",
+]);
 const MAX_PATCH_BYTES = 96 * 1024;
 
 export function parseRepairTask(key, recipes) {
@@ -26,7 +32,11 @@ function git(root, args, maxBuffer = 131072) {
       timeout: 10000,
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
+      env: {
+        ...process.env,
+        GIT_TERMINAL_PROMPT: "0",
+        GIT_OPTIONAL_LOCKS: "0",
+      },
     },
   );
 }
@@ -35,7 +45,12 @@ function git(root, args, maxBuffer = 131072) {
 // allowlisted files. Deny newly-created files, deletions, renames, symlinks,
 // submodule/binary changes and oversized patches. No checkout is modified here.
 export function verifyRepairCandidate(root, allowedPaths) {
-  const status = git(root, ["status", "--porcelain", "-z", "--untracked-files=all"]);
+  const status = git(root, [
+    "status",
+    "--porcelain",
+    "-z",
+    "--untracked-files=all",
+  ]);
   if (!status.length || status.length > 32768) return null;
   const records = status.toString("utf8").split("\0").filter(Boolean);
   if (records.length > 20) return null;
@@ -48,21 +63,34 @@ export function verifyRepairCandidate(root, allowedPaths) {
       !file ||
       file.startsWith("/") ||
       file.includes("\\") ||
-      file.split("/").some((segment) => !segment || segment === "." || segment === "..") ||
+      file
+        .split("/")
+        .some((segment) => !segment || segment === "." || segment === "..") ||
       !allowedPaths.some((allowed) =>
         allowed.endsWith("/") ? file.startsWith(allowed) : file === allowed,
       )
-    ) return null;
+    )
+      return null;
     const location = path.join(root, ...file.split("/"));
     const stat = fs.lstatSync(location);
     if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1)
       return null;
-    const mode = git(root, ["ls-files", "--stage", "--", file]).toString("utf8").split(" ")[0];
+    const mode = git(root, ["ls-files", "--stage", "--", file])
+      .toString("utf8")
+      .split(" ")[0];
     if (!["100644", "100755"].includes(mode)) return null;
     files.push(file);
   }
-  const diff = git(root, ["diff", "--binary", "--no-ext-diff", "--no-color", "HEAD"], MAX_PATCH_BYTES + 4096);
-  if (diff.length === 0 || diff.length > MAX_PATCH_BYTES || diff.includes(Buffer.from("GIT binary patch")))
+  const diff = git(
+    root,
+    ["diff", "--binary", "--no-ext-diff", "--no-color", "HEAD"],
+    MAX_PATCH_BYTES + 4096,
+  );
+  if (
+    diff.length === 0 ||
+    diff.length > MAX_PATCH_BYTES ||
+    diff.includes(Buffer.from("GIT binary patch"))
+  )
     return null;
   return { files, bytes: diff.length };
 }
@@ -101,11 +129,19 @@ export class IsolatedRepairWorker {
           continue;
         }
         this.active.delete(project.id);
-        const wait = (reason) => this.journal.wait(
-          existing.taskId, project.id, reason, existing.leaseToken,
-        );
+        const wait = (reason) =>
+          this.journal.wait(
+            existing.taskId,
+            project.id,
+            reason,
+            existing.leaseToken,
+          );
         if (job.state !== "succeeded" || job.exitCode !== 0) {
-          wait(existing.phase === "fix" ? "ISOLATED_FIX_FAILED_REVIEW_REQUIRED" : "ISOLATED_VERIFY_FAILED_REVIEW_REQUIRED");
+          wait(
+            existing.phase === "fix"
+              ? "ISOLATED_FIX_FAILED_REVIEW_REQUIRED"
+              : "ISOLATED_VERIFY_FAILED_REVIEW_REQUIRED",
+          );
           continue;
         }
         const recipe = project.autopilotRepairWorker.recipes[existing.recipe];
@@ -163,9 +199,12 @@ export class IsolatedRepairWorker {
       }
 
       const recipes = project.autopilotRepairWorker.recipes;
-      if (!this.journal.hasReady(
-        project.id, (task) => Boolean(parseRepairTask(task.key, recipes)),
-      )) continue;
+      if (
+        !this.journal.hasReady(project.id, (task) =>
+          Boolean(parseRepairTask(task.key, recipes)),
+        )
+      )
+        continue;
       try {
         const entitlement = this.licenseProvider();
         if (!entitlement.features.includes("execute")) continue;
@@ -178,12 +217,12 @@ export class IsolatedRepairWorker {
       }
       const task = this.journal.claim(project.id, {
         holder: "isolated-repair-worker",
-        eligible: (candidate) => Boolean(parseRepairTask(candidate.key, recipes)),
+        eligible: (candidate) =>
+          Boolean(parseRepairTask(candidate.key, recipes)),
       });
       if (!task) continue;
-      const pause = (reason) => this.journal.wait(
-        task.id, project.id, reason, task.leaseToken,
-      );
+      const pause = (reason) =>
+        this.journal.wait(task.id, project.id, reason, task.leaseToken);
       // On restart, never repeat potentially mutating a prior recipe.
       if (task.checkpoint) {
         pause("PREVIOUS_ISOLATED_REPAIR_REQUIRES_REVIEW");
@@ -202,7 +241,10 @@ export class IsolatedRepairWorker {
       const laneId = "repair_" + task.id.replaceAll("-", "");
       try {
         const lane = this.lanes.prepare(
-          project.id, project.root, laneId, parsed.expectedHead,
+          project.id,
+          project.root,
+          laneId,
+          parsed.expectedHead,
         );
         if (lane.dirty || lane.reused) {
           pause("ISOLATED_REPAIR_LANE_NOT_FRESH");
@@ -245,11 +287,7 @@ export function startIsolatedRepairWorker(
   options,
   { intervalMs = 10000 } = {},
 ) {
-  if (
-    !Number.isInteger(intervalMs) ||
-    intervalMs < 1000 ||
-    intervalMs > 60000
-  )
+  if (!Number.isInteger(intervalMs) || intervalMs < 1000 || intervalMs > 60000)
     throw new Error("AUTOPILOT_REPAIR_INTERVAL_INVALID");
   const worker = new IsolatedRepairWorker(options);
   if (!worker.projects.length)
