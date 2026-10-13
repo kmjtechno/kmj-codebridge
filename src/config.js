@@ -239,6 +239,13 @@ export const agentSchema = z.object({
               }),
             )
             .default({}),
+          autopilotGateWorker: z
+            .object({
+              enabled: z.boolean().default(false),
+              gates: z.array(id).min(1).max(16),
+            })
+            .strict()
+            .optional(),
           commandPresets: z
             .array(z.enum(COMMAND_PRESET_IDS))
             .max(COMMAND_PRESET_IDS.length)
