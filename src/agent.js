@@ -140,6 +140,7 @@ export async function startAgent(rawConfig) {
     journal: autopilot,
     licenseProvider,
     localModel,
+    runner,
   });
   const controller = new AbortController();
   let stopped = false;
