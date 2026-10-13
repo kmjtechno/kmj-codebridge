@@ -187,6 +187,8 @@ export class AutopilotGateWorker {
         this.active.set(project.id, {
           taskId: claimed.id,
           jobId: job.id,
+          gate: spec.gate,
+          expectedHead: spec.expectedHead,
           leaseToken: claimed.leaseToken,
         });
       } catch {
