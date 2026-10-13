@@ -13,19 +13,69 @@ SOCKET_UNIT="kmj-codebridge-supervisor.socket"
 SERVICE_UNIT="kmj-codebridge-supervisor.service"
 AGENT_CONFIG="/etc/kmj-codebridge-main-platform/agent.json"
 SOCKET="/run/kmj-codebridge/supervisor.sock"
-RUNTIME="/opt/kmj-codebridge-agent"
-if [[ -x /opt/kmj-codebridge-node/bin/node ]]; then
-  NODE="/opt/kmj-codebridge-node/bin/node"
-else
-  NODE="/usr/bin/node"
-fi
-
 [[ "$(systemctl show "$AGENT_UNIT" --property=LoadState --value)" == "loaded" ]] ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_UNIT_MISSING"
+
+# The existing registered Main Platform agent may run directly from the
+# original root-only runtime OR from the root-owned immutable SHA stage
+# produced by refresh-main-platform-agent.sh. Never trust an env/CLI supplied
+# runtime path; select only the *effective* systemd WorkingDirectory.
+RUNTIME="$(systemctl show "$AGENT_UNIT" --property=WorkingDirectory --value)"
+if [[ "$RUNTIME" == "/opt/kmj-codebridge-agent" ]]; then
+  :
+elif [[ "$RUNTIME" =~ ^/opt/kmj-codebridge-main-platform-stage/[a-f0-9]{40}$ ]]; then
+  STAGE_ROOT="/opt/kmj-codebridge-main-platform-stage"
+  [[ -d "$STAGE_ROOT" && ! -L "$STAGE_ROOT" ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_STAGE_ROOT_UNSAFE"
+  [[ "$(stat -c '%u' "$STAGE_ROOT")" == 0 ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_STAGE_ROOT_UNSAFE"
+  stage_mode="$(stat -c '%a' "$STAGE_ROOT")"
+  (( (8#$stage_mode & 8#22) == 0 )) ||
+    fail "SUPERVISOR_BOOTSTRAP_STAGE_ROOT_UNSAFE"
+  [[ -f "$RUNTIME/.stage.json" && ! -L "$RUNTIME/.stage.json" ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_STAGE_MANIFEST_MISSING"
+  # This is a locator consistency check, NOT a signed release assertion.
+  python3 - "$RUNTIME/.stage.json" "${RUNTIME##*/}" <<'PY' || fail "SUPERVISOR_BOOTSTRAP_STAGE_SHA_MISMATCH"
+import json, sys
+from pathlib import Path
+manifest = Path(sys.argv[1])
+if manifest.stat().st_size > 4096:
+    raise SystemExit(1)
+data = json.loads(manifest.read_text(encoding="utf-8"))
+if not isinstance(data, dict) or data.get("sha") != sys.argv[2]:
+    raise SystemExit(1)
+PY
+else
+  fail "SUPERVISOR_BOOTSTRAP_RUNTIME_PATH_UNAPPROVED"
+fi
 [[ -d "$RUNTIME" && ! -L "$RUNTIME" && -f "$RUNTIME/src/cli.js" ]] ||
   fail "SUPERVISOR_BOOTSTRAP_RUNTIME_NOT_VERIFIED"
-[[ -x "$NODE" && -r "$AGENT_CONFIG" ]] ||
+[[ -r "$AGENT_CONFIG" ]] ||
   fail "SUPERVISOR_BOOTSTRAP_RUNTIME_OR_CONFIG_MISSING"
+
+# Bind the privileged supervisor to exactly the Node executable and agent
+# CLI shown in the *effective* existing unit, never a caller-chosen executable.
+EFFECTIVE_EXEC="$(systemctl show "$AGENT_UNIT" --property=ExecStart --value)"
+NODE=""
+for candidate_node in /opt/kmj-codebridge-node/bin/node /usr/bin/node; do
+  if [[ "$EFFECTIVE_EXEC" == *"argv[]=$candidate_node $RUNTIME/src/cli.js agent $AGENT_CONFIG ;"* &&
+        -x "$candidate_node" ]]; then
+    NODE="$candidate_node"
+    break
+  fi
+done
+[[ -n "$NODE" ]] || fail "SUPERVISOR_BOOTSTRAP_AGENT_EXEC_MISMATCH"
+# Refuse writable or redirected interpreters, even if their path is approved.
+resolved_node="$(readlink -e "$NODE")"
+[[ "$resolved_node" == "/usr/bin/node" ||
+   "$resolved_node" == "/usr/bin/nodejs" ||
+   "$resolved_node" == /opt/kmj-codebridge-node/* ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_NODE_TARGET_UNSAFE"
+[[ "$(stat -Lc '%u' "$NODE")" == 0 ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_NODE_OWNER_UNSAFE"
+node_mode="$(stat -Lc '%a' "$NODE")"
+(( (8#$node_mode & 8#22) == 0 )) ||
+  fail "SUPERVISOR_BOOTSTRAP_NODE_WRITABLE"
 [[ -f "$RUNTIME/src/supervisor.js" && -f "$RUNTIME/src/tools.js" ]] ||
   fail "SUPERVISOR_BOOTSTRAP_RUNTIME_UNSUPPORTED"
 
@@ -71,7 +121,6 @@ getent group "$AGENT_GROUP" >/dev/null ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_GROUP_INVALID"
 
 # Effective unit identity must match the fixed pre-existing enrollment.
-EFFECTIVE_EXEC="$(systemctl show "$AGENT_UNIT" --property=ExecStart --value)"
 [[ "$EFFECTIVE_EXEC" == *"argv[]=$NODE $RUNTIME/src/cli.js agent $AGENT_CONFIG ;"* ]] ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_EXEC_MISMATCH"
 # Installer owns the private agent config as the registered service user

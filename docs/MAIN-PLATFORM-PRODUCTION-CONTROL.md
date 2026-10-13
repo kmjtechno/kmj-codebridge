@@ -61,7 +61,16 @@ It provisions a missing _restricted_ systemd supervisor socket and root
 service only for the existing, trusted Main Platform agent installation. The
 bootstrap checks the fixed KMJ-elite hostname, registered service user, exact
 agent ExecStart/runtime, protected 0600 enrollment configuration, root-only
-runtime source tree, and fixed /run/kmj-codebridge/supervisor.sock. It refuses
+runtime source tree, and fixed /run/kmj-codebridge/supervisor.sock. It resolves
+the runtime from the existing effective systemd `WorkingDirectory` instead
+of guessing `/opt/kmj-codebridge-agent`: the only accepted layouts are that
+original path and the existing root-owned immutable
+`/opt/kmj-codebridge-main-platform-stage/<40-character SHA>` created by the
+guarded Main Platform refresh flow. For staged agents it validates the fixed
+stage directory, immutable manifest identity and all root-owned imported
+code/dependencies. The Node executable must match the existing unit's exact
+`ExecStart` and an allowlisted root-owned interpreter target; unknown,
+writable, symlink-escaped or caller-provided runtimes are refused. It refuses
 unknown agent identities, writable imported packages or injected service
 paths. It never restarts the agent, re-enrolls it, downloads code, changes
 stored tokens/OAuth settings or deploys the website. Where the socket unit
