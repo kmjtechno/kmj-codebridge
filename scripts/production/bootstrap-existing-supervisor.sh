@@ -61,8 +61,16 @@ getent group "$AGENT_GROUP" >/dev/null ||
 EFFECTIVE_EXEC="$(systemctl show "$AGENT_UNIT" --property=ExecStart --value)"
 [[ "$EFFECTIVE_EXEC" == *"argv[]=$NODE $RUNTIME/src/cli.js agent $AGENT_CONFIG ;"* ]] ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_EXEC_MISMATCH"
-[[ "$(stat -c '%u' "$AGENT_CONFIG")" == 0 ]] ||
-  fail "SUPERVISOR_BOOTSTRAP_CONFIG_NOT_ROOT_OWNED"
+# Installer owns the private agent config as the registered service user
+# (0600), not necessarily root. Never follow a config symlink.
+[[ ! -L "$AGENT_CONFIG" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_CONFIG_SYMLINK_UNSAFE"
+config_owner="$(stat -c '%U' "$AGENT_CONFIG")"
+config_mode="$(stat -c '%a' "$AGENT_CONFIG")"
+[[ "$config_owner" == "$AGENT_USER" || "$config_owner" == root ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_CONFIG_OWNER_MISMATCH"
+(( (8#$config_mode & 8#77) == 0 )) ||
+  fail "SUPERVISOR_BOOTSTRAP_CONFIG_PERMISSIONS_UNSAFE"
 python3 - "$AGENT_CONFIG" "$SOCKET" <<'PY' ||
   fail "SUPERVISOR_BOOTSTRAP_AGENT_SOCKET_MISMATCH"
 import json, sys
