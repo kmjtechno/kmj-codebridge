@@ -17,7 +17,7 @@ function make(
     exitCode = 1,
     outputUrl = OUTPUT,
     revision = SHA,
-    lines = "PHPStan Error: line 17 token=secret-information\nUnexpected error",
+    lines = "PHPStan Error: property mismatch\nAuthorization: Bearer secret-information\nUnexpected error",
     metaStatus = 200,
     outputStatus = 200,
     repositories = ["kmjtechno/kmj-main-platform"],
@@ -74,7 +74,10 @@ test("read-only CircleCI diagnostics are bound to repository and exact SHA", asy
   assert.equal(result.steps.length, 1);
   assert.equal(result.steps[0].category, "PHP_STATIC_ANALYSIS");
   assert.equal(result.steps[0].evidence, "REDACTED_OUTPUT");
-  assert.match(result.steps[0].lines[0], /token=\[REDACTED\]/);
+  assert.match(result.steps[0].lines[0], /PHPStan Error: property mismatch/);
+  assert.equal(result.steps[0].diagnosis.suggestedGateRole, "type");
+  assert.equal(result.steps[0].diagnosis.rootCauseVerified, false);
+  assert.equal(result.steps[0].diagnosis.automaticFix, "DISABLED_UNTIL_ISOLATED_REVIEWED_PATCH_AND_GATES");
   const serialized = JSON.stringify(result);
   assert.ok(!serialized.includes("secret-information"));
   assert.ok(!serialized.includes("private-presigned-secret"));
