@@ -237,6 +237,22 @@ test("benchmark rejects zero-generation telemetry instead of false speed gains",
   assert.equal(result.warmLatencyChangePercent, null);
 });
 
+test("one-click P720 isolated benchmark pins the reviewed non-interfering release", () => {
+  const source = fs.readFileSync(
+    path.resolve("scripts/p720-isolated-benchmark.ps1"),
+    "utf8",
+  );
+  assert.match(
+    source,
+    /^\$pinned = 'fc52a3be61c30542ad6991a87bd223a1443cae11'$/m,
+  );
+  assert.match(source, /codebridge-bench-fc52a3b/);
+  assert.match(source, /PINNED_SHA_NOT_IN_TRUSTED_MAIN/);
+  assert.match(source, /LIVE_WORKTREE_UNCHANGED=PASS/);
+  assert.match(source, /AGENT_AND_ENROLLMENT_UNCHANGED=YES/);
+  assert.match(source, /p720-local-benchmark\.mjs/);
+});
+
 test(
   "P720 isolated benchmark Git wrapper handles real Windows progress stderr",
   { skip: process.platform !== "win32" },
