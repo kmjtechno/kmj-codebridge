@@ -317,7 +317,7 @@ test("branding, license and policies are present in every client package", () =>
   assert.equal(i.logo, "./assets/icon.png");
   assert.equal(i.composerIcon, "./assets/icon.png");
   assert.match(i.brandColor, /^#[0-9A-F]{6}$/);
-  assert.equal(i.websiteURL, "https://kmjtechno.com/products/kmj-codebridge");
+  assert.equal(i.websiteURL, "https://kmjtechno.com");
   assert.equal(
     i.privacyPolicyURL,
     "https://kmjtechno.com/products/kmj-codebridge/privacy",
