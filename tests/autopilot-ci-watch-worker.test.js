@@ -109,7 +109,9 @@ function fixture(t, overrides = {}) {
     journal,
     calls,
     project,
-    advance: (ms = 900000) => { clock += ms; },
+    advance: (ms = 900000) => {
+      clock += ms;
+    },
   };
 }
 
@@ -126,7 +128,11 @@ test("failed exact-head GitHub Actions job queues a durable single repair task",
   f.advance();
   await f.worker.tick();
   assert.equal(f.calls.length, 4);
-  assert.equal(f.journal.state.tasks.length, 1, "no duplicate per SHA and recipe");
+  assert.equal(
+    f.journal.state.tasks.length,
+    1,
+    "no duplicate per SHA and recipe",
+  );
 });
 
 test("incomplete, successful, unrelated, stale or non-push runs are never executable evidence", async (t) => {
