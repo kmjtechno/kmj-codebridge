@@ -102,10 +102,14 @@ function auditGitHubWorkflow(file, content, findings) {
           timeout: false,
           runsOn: false,
           selfHosted: false,
+          matrix: false,
+          maxParallel: false,
         };
         jobs.push(job);
       } else if (job) {
         if (/^ {4}timeout-minutes:/.test(line)) job.timeout = true;
+        if (/^ {6}matrix:/.test(line)) job.matrix = true;
+        if (/^ {6}max-parallel:/.test(line)) job.maxParallel = true;
         const runsOn = /^ {4}runs-on:\s*(.+?)\s*$/.exec(line);
         if (runsOn) {
           job.runsOn = true;
@@ -152,6 +156,21 @@ function auditGitHubWorkflow(file, content, findings) {
         f.severity = "info";
         f.message = `${f.message} All jobs use a self-hosted runner, so no hosted minutes are consumed, but your own machine does the work each time.`;
       }
+
+  for (const j of jobs)
+    if (j.runsOn && j.matrix && !j.maxParallel)
+      add(findings, {
+        id: "MATRIX_NO_MAX_PARALLEL",
+        severity: "low",
+        file,
+        line: j.line,
+        message: j.selfHosted
+          ? `Job "${j.id}" fans out a matrix with no max-parallel, so every combination can run at once on your own machine and saturate it.`
+          : `Job "${j.id}" fans out a matrix with no max-parallel, so every combination can start at once and multiply the minutes used.`,
+        freeAlternative:
+          "Add strategy.max-parallel (1–2 on a self-hosted runner) and trim matrix entries you do not need.",
+        evidence: `${j.id}: strategy.matrix`,
+      });
 
   for (const j of jobs)
     if (j.runsOn && !j.timeout)

@@ -132,6 +132,20 @@ test("a frequent schedule on self-hosted runners is information, not a spend ris
   );
 });
 
+test("an unbounded matrix is flagged, a bounded one is not", () => {
+  const job = (extra) =>
+    auditFreeFirst([
+      wf(
+        "m.yml",
+        `on:\n  pull_request:\nconcurrency:\n  group: x\n  cancel-in-progress: true\njobs:\n  t:\n    runs-on: self-hosted\n    timeout-minutes: 5\n    strategy:\n${extra}      matrix:\n        os: [a, b, c]\n`,
+      ),
+    ]).findings.filter((f) => f.id === "MATRIX_NO_MAX_PARALLEL");
+  const open = job("");
+  assert.equal(open.length, 1);
+  assert.match(open[0].message, /your own machine/);
+  assert.equal(job("      max-parallel: 1\n").length, 0);
+});
+
 test("concurrency without cancel-in-progress is reported once", () => {
   const r = auditFreeFirst([
     wf(

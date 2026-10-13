@@ -24,15 +24,16 @@ KMJ CodeBridge is designed so that real engineering work can run on **hardware y
 
 The read-only MCP tool `free_first_audit` scans the project's CI configuration (`.github/workflows/*.yml`, `.circleci/config.yml`) and reports settings that **may** consume paid minutes or metered services, each with a legal free alternative. It reads configuration text only: it executes nothing, contacts no provider and never sees secret values (workflow files contain secret _names_).
 
-| Finding                                                 | Why it matters                                                                  | Free alternative                                                           |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `HOSTED_RUNNER` (macOS high, Windows medium, Linux low) | Hosted runners draw on included minutes in private repositories                 | Self-hosted runner or an approved local CodeBridge gate                    |
-| `FREQUENT_SCHEDULE`                                     | A polling schedule keeps running when nothing changed (`*/15` is 96 runs a day) | Trigger on push/pull request, lengthen the interval, or poll locally       |
-| `NO_TIMEOUT`                                            | A hung job can run for hours before the platform default stops it               | Add `timeout-minutes` sized to the normal runtime                          |
-| `NO_CONCURRENCY` / `NO_CANCEL_IN_PROGRESS`              | Superseded commits keep running to completion                                   | Concurrency group with `cancel-in-progress: true` for CI (not for deploys) |
-| `PAID_SERVICE_CREDENTIAL`                               | A credential name for a metered or paid API is referenced                       | Local model or offline test double; paid calls opt-in with a budget cap    |
-| `PREMIUM_RESOURCE_CLASS` / `PREMIUM_EXECUTOR`           | Larger, macOS or GPU executors may not be in a free plan                        | `small` / `medium`, or build on your own hardware                          |
-| `SELF_HOSTED` (info)                                    | Confirms a job uses your own runner (no hosted minutes)                         | Keep it off untrusted pull-request code                                    |
+| Finding                                                 | Why it matters                                                                                        | Free alternative                                                                  |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `HOSTED_RUNNER` (macOS high, Windows medium, Linux low) | Hosted runners draw on included minutes in private repositories                                       | Self-hosted runner or an approved local CodeBridge gate                           |
+| `FREQUENT_SCHEDULE`                                     | A polling schedule keeps running when nothing changed (`*/15` is 96 runs a day)                       | Trigger on push/pull request, lengthen the interval, or poll locally              |
+| `NO_TIMEOUT`                                            | A hung job can run for hours before the platform default stops it                                     | Add `timeout-minutes` sized to the normal runtime                                 |
+| `MATRIX_NO_MAX_PARALLEL`                                | A matrix starts every combination at once: it saturates your own machine or multiplies hosted minutes | Add `strategy.max-parallel` (1–2 on a self-hosted runner) and drop unused entries |
+| `NO_CONCURRENCY` / `NO_CANCEL_IN_PROGRESS`              | Superseded commits keep running to completion                                                         | Concurrency group with `cancel-in-progress: true` for CI (not for deploys)        |
+| `PAID_SERVICE_CREDENTIAL`                               | A credential name for a metered or paid API is referenced                                             | Local model or offline test double; paid calls opt-in with a budget cap           |
+| `PREMIUM_RESOURCE_CLASS` / `PREMIUM_EXECUTOR`           | Larger, macOS or GPU executors may not be in a free plan                                              | `small` / `medium`, or build on your own hardware                                 |
+| `SELF_HOSTED` (info)                                    | Confirms a job uses your own runner (no hosted minutes)                                               | Keep it off untrusted pull-request code                                           |
 
 A schedule whose jobs all run on a self-hosted runner is reported as information, not as a spend risk, because it uses no hosted minutes (it still loads your machine).
 
@@ -44,3 +45,25 @@ Limits, stated plainly: the audit is a line-based scan, not a full YAML or expre
 - Cancel superseded runs, set job timeouts, scope triggers with path filters and cache dependencies by lockfile.
 - Prefer one meaningful job over many that each repeat the same install.
 - Review `free_first_audit` after any workflow change.
+
+## Keep your own servers lightly loaded
+
+Free-first moves work onto machines you own, so those machines must stay healthy.
+
+- **Built-in guards.** Each device runs one CodeBridge job at a time by default (`configuredMaxConcurrent: 1`) with a bounded queue (64). `execution_capacity` reports load per CPU, free memory and free disk, and the agent holds back new work when memory is under 10% free, load per CPU is above 1.5, or free disk/memory fall under the minimum thresholds. Read it before starting heavy work.
+- **Snapshot, not a guarantee.** A read-only `execution_capacity` check on 2026-10-13 showed the Main Platform server (16 CPUs) at load 0.03 with about 94% memory and roughly 1 TB disk free, and the P720 (24 CPUs) at load 0 with about 55% memory and 500 GB disk free. Re-check before relying on it.
+- **A self-hosted runner runs one job at a time per runner process.** Do not start several runner processes on a machine that also serves production traffic, and avoid unbounded matrices (`MATRIX_NO_MAX_PARALLEL`).
+- **Optional limits (owner-applied, tune the numbers).** A systemd drop-in for the runner service keeps CI from starving other work, for example:
+
+  ```ini
+  # /etc/systemd/system/actions.runner.<name>.service.d/limits.conf
+  [Service]
+  Nice=10
+  IOSchedulingClass=idle
+  CPUQuota=800%
+  MemoryMax=12G
+  ```
+
+  then `systemctl daemon-reload` and restart the runner service. Restarting a service is a privileged owner action; CodeBridge does not do it for you.
+
+- **Never share a CI machine with production secrets or data.** Test against disposable databases and ephemeral keys.
