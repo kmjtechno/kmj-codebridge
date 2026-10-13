@@ -36,7 +36,7 @@ repair. Respect free-only policies and GitHub/CircleCI quotas.
 5. Apply a reviewed bounded patch, run gate checks, open PR and verify exact
    head CI. Only a permitted verified build can be promoted to staging/live.
 
-This is *source implementation*. The gateway version must be deployed and
+This is _source implementation_. The gateway version must be deployed and
 its protected CircleCI token and output-host allowlist installed before
 claiming CircleCI diagnostic MCP functionality is live.
 
