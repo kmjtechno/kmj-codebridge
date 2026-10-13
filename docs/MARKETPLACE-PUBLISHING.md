@@ -9,6 +9,7 @@ reviewer screenshot or repository.
 ## A. Self-hosted Claude plugin marketplace — repository AVAILABLE
 
 This repository already contains:
+
 - `.claude-plugin/marketplace.json`
 - `claude-plugin/.claude-plugin/plugin.json`
 - `claude-plugin/.mcp.json`
@@ -21,6 +22,7 @@ repository, **not** the `/mcp` server endpoint. Select/install the
 `kmj-codebridge` entry from the `kmj-techno` marketplace.
 
 **Claude Code CLI:**
+
 ```sh
 claude plugin marketplace add kmjtechno/kmj-codebridge
 claude plugin install kmj-codebridge@kmj-techno
