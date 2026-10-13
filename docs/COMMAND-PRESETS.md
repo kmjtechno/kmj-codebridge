@@ -10,6 +10,7 @@ Supported presets:
 - `python-standard` — requirements install plus pytest and compile verification.
 - `cargo-standard` — locked check/build/test/clippy/format-check plus formatter.
 - `go-standard` — test/vet/build plus formatter.
+- `cmake-standard` — configure into the fixed `.kmj-codebridge-build` directory, Debug/Release build and CTest with bounded parallelism. It never installs, publishes or signs.
 
 Example:
 
@@ -27,3 +28,13 @@ Example:
 Presets are opt-in. They do not inspect package metadata, execute automatically, or turn repository scripts into new permissions. An explicit administrator command with the same profile ID overrides the preset. Runtime execution remains project-root confined, bounded by the job runner, cancellable, redacted, audited, and subject to the existing risk policy.
 
 No preset exposes `sh`, `bash`, PowerShell, `cmd`, or a generic terminal. Repository scripts can still execute project code when the administrator explicitly enables the relevant preset/profile, so untrusted repositories should remain read-only or use stricter isolation.
+
+## Isolated worktree execution
+
+`run_project_command` and `run_quality_gate` accept an optional `laneId`. When set, the
+exact profile runs inside a worktree that `worktree_lane_prepare` already created for
+that project and pinned to an expected `HEAD`, rather than the shared checkout. An
+unknown lane fails with `WORKTREE_NOT_FOUND`; the lane id follows the same strict
+grammar as the lane tools, so it cannot carry a path. The job label records the lane
+(for example `command:cmake_build:release:build@ci-lane`) so receipts show where a
+build ran. Use a lane on any device whose shared checkout holds uncommitted work.
