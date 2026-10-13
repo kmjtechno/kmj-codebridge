@@ -17,16 +17,23 @@ test("CI triage recognizes PHPStan and recommends only the approved type gate", 
   assert.equal(r.rootCauseVerified, false);
   assert.match(r.nextAction, /isolated branch/);
   assert.match(r.fingerprint, /^[0-9a-f]{16}$/);
-  assert.equal(r.automaticFix, "DISABLED_UNTIL_ISOLATED_REVIEWED_PATCH_AND_GATES");
+  assert.equal(
+    r.automaticFix,
+    "DISABLED_UNTIL_ISOLATED_REVIEWED_PATCH_AND_GATES",
+  );
 });
 
 test("same failure has stable fingerprint and independent errors differ", () => {
-  const source = { lines: ["error TS2339: property missing"], evidence: "REDACTED_OUTPUT" };
+  const source = {
+    lines: ["error TS2339: property missing"],
+    evidence: "REDACTED_OUTPUT",
+  };
   const first = triageCiFailure(source);
   assert.deepEqual(first, triageCiFailure(source));
   assert.notEqual(
     first.fingerprint,
-    triageCiFailure({ ...source, lines: ["error TS2322: wrong type"] }).fingerprint,
+    triageCiFailure({ ...source, lines: ["error TS2322: wrong type"] })
+      .fingerprint,
   );
 });
 
@@ -58,8 +65,14 @@ test("credential, URL and email error lines are dropped", () => {
     "TypeScript error TS2339",
   ]);
   assert.ok(!JSON.stringify(lines).includes("secret"));
-  assert.equal(safeCiStepName("Authorization: token-sensitive"), "REDACTED_STEP");
-  assert.equal(safeCiStepName("https://signed.example/?signature=abc"), "REDACTED_STEP");
+  assert.equal(
+    safeCiStepName("Authorization: token-sensitive"),
+    "REDACTED_STEP",
+  );
+  assert.equal(
+    safeCiStepName("https://signed.example/?signature=abc"),
+    "REDACTED_STEP",
+  );
 });
 
 test("dedupe and line bounds prevent noisy error floods", () => {
