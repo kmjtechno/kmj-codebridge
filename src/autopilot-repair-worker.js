@@ -84,7 +84,14 @@ export function verifyRepairCandidate(root, allowedPaths) {
   }
   const diff = git(
     root,
-    ["diff", "--binary", "--no-ext-diff", "--no-textconv", "--no-color", "HEAD"],
+    [
+      "diff",
+      "--binary",
+      "--no-ext-diff",
+      "--no-textconv",
+      "--no-color",
+      "HEAD",
+    ],
     MAX_PATCH_BYTES + 4096,
   );
   if (
