@@ -37,7 +37,11 @@ function manualTimers() {
 
 test("unauthenticated public GitHub readiness avoids exhausting hourly API quota", async () => {
   const publicPolicy = githubReadinessOptions({ publicReadOnly: true });
-  assert.deepEqual(publicPolicy, { ttlMs: 300000, graceMs: 30000 });
+  assert.deepEqual(publicPolicy, {
+    ttlMs: 300000,
+    graceMs: 30000,
+    rateLimitCooldownMs: 3600000,
+  });
   assert.deepEqual(githubReadinessOptions({ publicReadOnly: false }), {});
   assert.deepEqual(githubReadinessOptions(undefined), {});
 
@@ -62,6 +66,43 @@ test("unauthenticated public GitHub readiness avoids exhausting hourly API quota
   assert.equal(ready(), true, "grace permits an in-flight bounded refresh");
   await drain();
   assert.equal(probes, 2, "one refresh per five minutes, not every 30 seconds");
+});
+
+test("anonymous GitHub quota failure cools down without false readiness", async () => {
+  let clock = 1000;
+  let calls = 0;
+  const ready = createGitHubReadiness(
+    () => {
+      calls++;
+      return calls === 1
+        ? Promise.reject(new CodeBridgeError("GITHUB_RATE_LIMIT"))
+        : Promise.resolve({});
+    },
+    {
+      now: () => clock,
+      ...githubReadinessOptions({ publicReadOnly: true }),
+      ...manualTimers(),
+    },
+  );
+  assert.equal(ready(), false);
+  await drain();
+  assert.equal(ready(), false);
+  assert.equal(ready.status().state, "failed");
+  assert.equal(ready.status().error, "GITHUB_RATE_LIMIT");
+  clock += 300000;
+  assert.equal(ready(), false);
+  await drain();
+  assert.equal(calls, 1, "do not retry quota exhaustion every five minutes");
+  clock += 3299000;
+  assert.equal(ready(), false);
+  await drain();
+  assert.equal(calls, 1, "quota cooldown must not claim healthy state");
+  clock += 1000;
+  assert.equal(ready(), false, "recovery still requires a fresh probe");
+  await drain();
+  assert.equal(calls, 2);
+  assert.equal(ready(), true, "genuine successful probe restores readiness");
+  assert.equal(ready.status().state, "ready");
 });
 
 test("an optional slow upstream never blocks liveness or starts parallel probes", async () => {
