@@ -11,6 +11,8 @@ unattended engineering, **not** arbitrary AI coding or automatic merge.
   project administrator's existing gate command. No extra runtime dependency,
   paid inference, cloud account or runner service.
 - Only writable projects and explicit allowed gate IDs are eligible.
+- Enqueueing an `auto-gate:` task requires **both write and execute** rights.
+  A write-only client cannot schedule unattended execution.
 - The task must use `auto-gate:GATE:COMMIT` with a full 40-character Git
   commit SHA matching the locally checked-out HEAD.
 - No uncommitted changes, untracked files or changed HEAD are permitted
