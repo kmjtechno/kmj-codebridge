@@ -161,8 +161,7 @@ test("update_pull_request sends only the supplied fields and refuses empty or un
 
 test("update_pull_request fences stale PR heads before PATCH", async (t) => {
   const calls = mockFetch(t, (c) => {
-    if (c.method === "GET")
-      return json({ state: "open", head: { sha: head } });
+    if (c.method === "GET") return json({ state: "open", head: { sha: head } });
     return json({
       number: 7,
       title: "Bounded edit",
@@ -183,7 +182,10 @@ test("update_pull_request fences stale PR heads before PATCH", async (t) => {
     }),
     /GITHUB_HEAD_MOVED/,
   );
-  assert.deepEqual(calls.map((c) => c.method), ["GET"]);
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["GET"],
+  );
 
   const ok = await dispatch("github_update_pull_request", {
     repository,
@@ -192,7 +194,10 @@ test("update_pull_request fences stale PR heads before PATCH", async (t) => {
     expectedHeadSha: head,
   });
   assert.equal(ok.head, head);
-  assert.deepEqual(calls.map((c) => c.method), ["GET", "GET", "PATCH"]);
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["GET", "GET", "PATCH"],
+  );
   assert.deepEqual(calls.at(-1).body, { title: "Bounded edit" });
 });
 
@@ -210,7 +215,10 @@ test("update_pull_request fails closed on non-open PR with expected head", async
     }),
     /GITHUB_PULL_REQUEST_NOT_OPEN/,
   );
-  assert.deepEqual(calls.map((c) => c.method), ["GET"]);
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["GET"],
+  );
 });
 
 test("review_pull_request cannot approve and honours the expected head", async (t) => {
