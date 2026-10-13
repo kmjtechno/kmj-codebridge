@@ -2,16 +2,11 @@ import { z } from "zod";
 import { readJsonLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
+import { sanitizeCiLog, triageCiFailure } from "./ci-triage.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const sha = z.string().regex(/^[a-f0-9]{40}$/i);
 const MAX_DIAGNOSTICS = 3;
-const MAX_LOG_CHARS = 1024 * 96;
-const BAD_SECRET =
-  /(?:\b(?:password|secret|token|api[_-]?key|authorization)\b\s*[=:]\s*|Bearer\s+)[^\s,;]+/gi;
-const CI_LINE =
-  /(?:error|fatal|fail(?:ed|ure)?|exception|undefined|cannot|not found|typeerror|syntaxerror|✖|×|E\d{3,5})/i;
-
 export const ciFailureDefinitions = {
   ci_status_failure_log: {
     title: "CircleCI failure diagnostics (read-only)",
@@ -46,46 +41,9 @@ function checkedOutputUrl(value, hosts) {
   return url;
 }
 
-function sanitizedLines(value, max = 18) {
-  if (typeof value !== "string") return { lines: [], truncated: false };
-  // Strip escape sequences and control characters; never return provider
-  // signed URLs, auth headers or credential-like assignments.
-  const text = value
-    .replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")
-    .replace(/[\x00-\x08\x0b-\x1f\x7f]/g, "");
-  const lines = text.split("\n");
-  const matches = [];
-  for (const line of lines) {
-    const cleaned = redact(line).replace(BAD_SECRET, (match) =>
-      match.replace(/(Bearer\\s+|[=:]\\s*)[^\\s,;]+$/i, "$1[REDACTED]"),
-    );
-    if (!CI_LINE.test(cleaned)) continue;
-    // Long error lines can carry tokens, URLs and serialized env data.
-    // Avoid copying arbitrary long lines into an MCP response.
-    if (cleaned.length > 400) continue;
-    if (/https?:\/\/\S+\?\S+/.test(cleaned)) continue;
-    matches.push(cleaned.trim());
-    if (matches.length >= max) break;
-  }
-  return {
-    lines: matches,
-    truncated: lines.length > max || value.length > MAX_LOG_CHARS,
-  };
-}
-
+// Kept for consumers of the older diagnostic classifier API.
 export function classifyCiFailure(lines) {
-  const text = lines.join(" ");
-  if (/phpstan|larastan|property .*does not exist|expects .* given/i.test(text))
-    return "PHP_STATIC_ANALYSIS";
-  if (/pint|php_cs_fixer|code style|formatting/i.test(text))
-    return "PHP_FORMATTING";
-  if (/typescript|ts\d{4}|tsc\b|typecheck/i.test(text)) return "TYPESCRIPT";
-  if (/phpunit|assertionfailed|tests: .*failed/i.test(text)) return "PHP_TEST";
-  if (/prettier|eslint|oxlint|oxfmt/i.test(text)) return "JS_FORMAT_OR_LINT";
-  if (/permission denied|unauthorized|403 forbidden/i.test(text))
-    return "AUTHORIZATION";
-  if (/rate.limit|429|quota exceeded/i.test(text)) return "RATE_LIMIT";
-  return "UNCLASSIFIED";
+  return triageCiFailure({ lines, evidence: "REDACTED_OUTPUT" }).category;
 }
 
 export function createCiFailureReader(config, fetchImpl = fetch) {
@@ -161,7 +119,7 @@ export function createCiFailureReader(config, fetchImpl = fetch) {
           if (output.ok) {
             const blocks = await readJsonLimited(output.body, 98304);
             if (Array.isArray(blocks)) {
-              const selected = sanitizedLines(
+              const selected = sanitizeCiLog(
                 blocks
                   .slice(0, 128)
                   .map((part) => part?.message ?? "")
@@ -179,12 +137,18 @@ export function createCiFailureReader(config, fetchImpl = fetch) {
       } else if (action.output_url) {
         evidence = "OUTPUT_HOST_NOT_APPROVED";
       }
+      const diagnostic = triageCiFailure({
+        lines,
+        stepName: String(stepName ?? ""),
+        evidence,
+      });
       result.push({
         step: stepIndex,
         name: redact(String(stepName ?? "")).slice(0, 120),
         exitCode: Number.isInteger(action.exit_code) ? action.exit_code : null,
         evidence,
-        category: classifyCiFailure(lines),
+        category: diagnostic.category,
+        diagnosis: diagnostic,
         lines,
         truncated,
       });
