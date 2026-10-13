@@ -7,8 +7,10 @@ const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const sha = z.string().regex(/^[a-f0-9]{40}$/i);
 const MAX_DIAGNOSTICS = 3;
 const MAX_LOG_CHARS = 1024 * 96;
-const BAD_SECRET = /(?:\b(?:password|secret|token|api[_-]?key|authorization)\b\s*[=:]\s*|Bearer\s+)[^\s,;]+/gi;
-const CI_LINE = /(?:error|fatal|fail(?:ed|ure)?|exception|undefined|cannot|not found|typeerror|syntaxerror|✖|×|E\d{3,5})/i;
+const BAD_SECRET =
+  /(?:\b(?:password|secret|token|api[_-]?key|authorization)\b\s*[=:]\s*|Bearer\s+)[^\s,;]+/gi;
+const CI_LINE =
+  /(?:error|fatal|fail(?:ed|ure)?|exception|undefined|cannot|not found|typeerror|syntaxerror|✖|×|E\d{3,5})/i;
 
 export const ciFailureDefinitions = {
   ci_status_failure_log: {
@@ -36,7 +38,7 @@ function checkedOutputUrl(value, hosts) {
     url.protocol !== "https:" ||
     url.username ||
     url.password ||
-    url.port && url.port !== "443" ||
+    (url.port && url.port !== "443") ||
     url.hash ||
     !hosts.includes(url.hostname.toLowerCase())
   )
@@ -77,16 +79,12 @@ export function classifyCiFailure(lines) {
     return "PHP_STATIC_ANALYSIS";
   if (/pint|php_cs_fixer|code style|formatting/i.test(text))
     return "PHP_FORMATTING";
-  if (/typescript|ts\d{4}|tsc\b|typecheck/i.test(text))
-    return "TYPESCRIPT";
-  if (/phpunit|assertionfailed|tests: .*failed/i.test(text))
-    return "PHP_TEST";
-  if (/prettier|eslint|oxlint|oxfmt/i.test(text))
-    return "JS_FORMAT_OR_LINT";
+  if (/typescript|ts\d{4}|tsc\b|typecheck/i.test(text)) return "TYPESCRIPT";
+  if (/phpunit|assertionfailed|tests: .*failed/i.test(text)) return "PHP_TEST";
+  if (/prettier|eslint|oxlint|oxfmt/i.test(text)) return "JS_FORMAT_OR_LINT";
   if (/permission denied|unauthorized|403 forbidden/i.test(text))
     return "AUTHORIZATION";
-  if (/rate.limit|429|quota exceeded/i.test(text))
-    return "RATE_LIMIT";
+  if (/rate.limit|429|quota exceeded/i.test(text)) return "RATE_LIMIT";
   return "UNCLASSIFIED";
 }
 
@@ -125,8 +123,7 @@ export function createCiFailureReader(config, fetchImpl = fetch) {
       fail("CIRCLECI_METADATA_UNAVAILABLE");
     }
     const job = await readJsonLimited(response.body, 131072);
-    if (job.vcs_revision !== a.expectedHeadSha)
-      fail("CIRCLECI_HEAD_MISMATCH");
+    if (job.vcs_revision !== a.expectedHeadSha) fail("CIRCLECI_HEAD_MISMATCH");
     if (job.build_num !== a.jobNumber || !Array.isArray(job.steps))
       fail("CIRCLECI_METADATA_INVALID");
 
@@ -137,8 +134,8 @@ export function createCiFailureReader(config, fetchImpl = fetch) {
               (action) =>
                 action &&
                 (action.status === "failed" ||
-                  Number.isInteger(action.exit_code) &&
-                    action.exit_code !== 0),
+                  (Number.isInteger(action.exit_code) &&
+                    action.exit_code !== 0)),
             )
             .map((action) => ({ action, stepIndex, name: step.name }))
         : [],
@@ -185,9 +182,7 @@ export function createCiFailureReader(config, fetchImpl = fetch) {
       result.push({
         step: stepIndex,
         name: redact(String(stepName ?? "")).slice(0, 120),
-        exitCode: Number.isInteger(action.exit_code)
-          ? action.exit_code
-          : null,
+        exitCode: Number.isInteger(action.exit_code) ? action.exit_code : null,
         evidence,
         category: classifyCiFailure(lines),
         lines,
