@@ -511,7 +511,10 @@ test("native GitHub doctor distinguishes allowlist, auth, rate limit and private
   let responseStatus = 200;
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    calls.push({ url: String(url), authorization: options.headers.authorization });
+    calls.push({
+      url: String(url),
+      authorization: options.headers.authorization,
+    });
     if (responseStatus !== 200) {
       return json({}, responseStatus);
     }
@@ -527,14 +530,22 @@ test("native GitHub doctor distinguishes allowlist, auth, rate limit and private
     repository: "other/private-cinecore",
   });
   assert.equal(denied.status, "repository_not_allowed");
-  assert.equal(calls.length, 0, "unapproved repositories never trigger GitHub requests");
+  assert.equal(
+    calls.length,
+    0,
+    "unapproved repositories never trigger GitHub requests",
+  );
 
   const ready = await dispatch("github_connection_doctor", {
     repository: "kmjtechno/kmj-codebridge",
   });
   assert.equal(ready.status, "read_ready");
   assert.equal(ready.privateRepository, true);
-  assert.equal(ready.writeVerified, false, "a read probe cannot authorize writes");
+  assert.equal(
+    ready.writeVerified,
+    false,
+    "a read probe cannot authorize writes",
+  );
 
   responseStatus = 401;
   const rejected = await dispatch("github_connection_doctor", {
@@ -561,9 +572,23 @@ test("native GitHub doctor distinguishes allowlist, auth, rate limit and private
   });
   assert.equal(absent.status, "not_found_or_not_granted");
 
-  assert.equal(calls.length, 5, "doctor checks live GitHub state on each allowed call");
-  for (const result of [denied, ready, rejected, forbidden, throttled, absent]) {
-    assert.doesNotMatch(JSON.stringify(result), /[j]{20}|CODEBRIDGE_TEST_GITHUB_TOKEN/);
+  assert.equal(
+    calls.length,
+    5,
+    "doctor checks live GitHub state on each allowed call",
+  );
+  for (const result of [
+    denied,
+    ready,
+    rejected,
+    forbidden,
+    throttled,
+    absent,
+  ]) {
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /[j]{20}|CODEBRIDGE_TEST_GITHUB_TOKEN/,
+    );
   }
 });
 
@@ -592,4 +617,3 @@ test("public read-only native GitHub doctor sends no credential and never implie
   assert.equal(result.writeVerified, false);
   assert.deepEqual(calls, [undefined]);
 });
-
