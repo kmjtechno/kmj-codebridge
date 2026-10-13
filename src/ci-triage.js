@@ -7,8 +7,7 @@ const DIAGNOSTIC =
   /(?:\berror\b|\bfatal\b|\bfail(?:ed|ure)?\b|exception|undefined|cannot|not found|does not exist|failed asserting|expects .* given|typeerror|syntaxerror|✖|×|\bTS\d{4}\b|\bE\d{3,5}\b)/i;
 const SECRET_INDICATOR =
   /\b(?:authorization|bearer|basic|cookie|set-cookie|password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|session[_-]?id)\b/i;
-const KEY_VALUE =
-  /\b(?:token|secret|password|api[_-]?key)\s*[=:]\s*[^\s,;]+/i;
+const KEY_VALUE = /\b(?:token|secret|password|api[_-]?key)\s*[=:]\s*[^\s,;]+/i;
 const UNSAFE_URL = /https?:\/\/\S+/i;
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
 const MAX_TEXT = 96 * 1024;
@@ -106,19 +105,31 @@ const RULES = [
 
 export function safeCiStepName(value) {
   if (typeof value !== "string") return "REDACTED_STEP";
-  if (value.length > 120 || SECRET_INDICATOR.test(value) || UNSAFE_URL.test(value))
+  if (
+    value.length > 120 ||
+    SECRET_INDICATOR.test(value) ||
+    UNSAFE_URL.test(value)
+  )
     return "REDACTED_STEP";
-  return redact(value).replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 120);
+  return redact(value)
+    .replace(/[\x00-\x1f\x7f]/g, "")
+    .trim()
+    .slice(0, 120);
 }
 
-export function triageCiFailure({ lines = [], stepName = "", evidence = "UNKNOWN" } = {}) {
+export function triageCiFailure({
+  lines = [],
+  stepName = "",
+  evidence = "UNKNOWN",
+} = {}) {
   if (!Array.isArray(lines) || lines.some((line) => typeof line !== "string"))
     throw new Error("INVALID_CI_DIAGNOSTICS");
   const safeLines = sanitizeCiLog(lines.join("\n")).lines;
   const cleanStep = safeCiStepName(stepName);
   const text = [cleanStep, ...safeLines].join(" ");
   const matched = RULES.find(({ pattern }) => pattern.test(text));
-  const verifiedExcerpt = safeLines.length > 0 && evidence === "REDACTED_OUTPUT";
+  const verifiedExcerpt =
+    safeLines.length > 0 && evidence === "REDACTED_OUTPUT";
   const category = matched?.code ?? "UNCLASSIFIED";
   const key = createHash("sha256")
     .update(JSON.stringify([category, safeLines]))
@@ -129,11 +140,11 @@ export function triageCiFailure({ lines = [], stepName = "", evidence = "UNKNOWN
     fingerprint: key,
     evidence: verifiedExcerpt ? "REDACTED_OUTPUT" : "INSUFFICIENT",
     rootCauseVerified: false,
-    suggestedGateRole: verifiedExcerpt ? matched?.gate ?? null : null,
+    suggestedGateRole: verifiedExcerpt ? (matched?.gate ?? null) : null,
     nextAction: !verifiedExcerpt
       ? "RETRIEVE_EXACT_FAILED_STEP_DIAGNOSTICS"
-      : matched?.suggestion ??
-        "Inspect the bounded error excerpt and reproduce with an existing authorized quality gate.",
+      : (matched?.suggestion ??
+        "Inspect the bounded error excerpt and reproduce with an existing authorized quality gate."),
     automaticFix: "DISABLED_UNTIL_ISOLATED_REVIEWED_PATCH_AND_GATES",
   };
 }
