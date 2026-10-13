@@ -13,12 +13,19 @@ SOURCE="$(cd -- "$(dirname -- "$0")/../.." && pwd -P)"
 # Before invoking Git as root, refuse untrusted, writable or symlinked source.
 [[ "$SOURCE" == /root/* && -d "$SOURCE" && ! -L "$SOURCE" ]] ||
   fail SOURCE_LOCATION_UNTRUSTED
-for dir in /root "$(dirname "$SOURCE")" "$SOURCE" "$SOURCE/.git"; do
+dir="$SOURCE"
+while :; do
   [[ -d "$dir" && ! -L "$dir" && "$(stat -c %u "$dir")" == 0 ]] ||
     fail SOURCE_OWNER_UNTRUSTED
   mode="$(stat -c %a "$dir")"
   (( (8#$mode & 8#22) == 0 )) || fail SOURCE_WRITABLE
+  [[ "$dir" == /root ]] && break
+  dir="$(dirname "$dir")"
 done
+[[ -d "$SOURCE/.git" && ! -L "$SOURCE/.git" &&
+   "$(stat -c %u "$SOURCE/.git")" == 0 ]] || fail GIT_METADATA_UNTRUSTED
+mode="$(stat -c %a "$SOURCE/.git")"
+(( (8#$mode & 8#22) == 0 )) || fail GIT_METADATA_WRITABLE
 # Disable hook/fsmonitor/environment injection for read-only provenance checks.
 git_safe() {
   GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 \
