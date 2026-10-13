@@ -1,0 +1,51 @@
+name: Publish KMJ CodeBridge to official MCP Registry
+
+# Only an owner-initiated release; never publish simply because a PR merged.
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: "Type PUBLISH_KMJ_CODEBRIDGE after live gateway/OAuth smoke verification"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  registry:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'PUBLISH_KMJ_CODEBRIDGE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Configure this GitHub Environment with owner reviewer approval first.
+    environment: mcp-registry-publish
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Checkout approved main
+        uses: actions/checkout@v4
+
+      - name: Verify repository metadata and release contract
+        run: |
+          node -e 'const s=require("./server.json"); const p=require("./package.json"); if(s.version!==p.version || s.name!=="io.github.kmjtechno/kmj-codebridge" || s.remotes.length!==1 || s.remotes[0].url!=="https://kmjtechno.com/mcp") process.exit(1)'
+
+      - name: Install pinned official MCP Publisher
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 2 \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.0/mcp-publisher_linux_amd64.tar.gz \
+            -o "$RUNNER_TEMP/mcp-publisher.tar.gz"
+          mkdir -p "$RUNNER_TEMP/mcp-publisher"
+          tar -xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP/mcp-publisher" mcp-publisher
+          chmod 755 "$RUNNER_TEMP/mcp-publisher/mcp-publisher"
+          echo "$RUNNER_TEMP/mcp-publisher" >> "$GITHUB_PATH"
+
+      - name: Validate official MCP Registry manifest
+        run: mcp-publisher validate server.json
+
+      - name: Authenticate under repository owner with short-lived GitHub OIDC
+        run: mcp-publisher login github-oidc
+
+      - name: Publish exactly the approved remote server metadata
+        run: mcp-publisher publish server.json
