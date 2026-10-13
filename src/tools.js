@@ -2268,7 +2268,8 @@ export function createDispatcher(
         project: p.id,
         runtimeVersion: VERSION,
         processAvailable: source !== null && source.agentRunning === true,
-        evidence: source === null ? "NOT_INSTRUMENTED" : "ACTIVE_AGENT_WORKER_HANDLES",
+        evidence:
+          source === null ? "NOT_INSTRUMENTED" : "ACTIVE_AGENT_WORKER_HANDLES",
         workers: {
           gate: {
             configured: p.autopilotGateWorker?.enabled === true,
