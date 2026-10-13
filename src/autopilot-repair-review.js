@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import {
@@ -106,7 +107,9 @@ export function reviewRepairCandidate({
       !refreshed ||
       refreshed.sha256 !== evidence.patchSha256 ||
       refreshed.bytes !== evidence.patchBytes ||
-      Buffer.byteLength(raw) !== evidence.patchBytes
+      Buffer.byteLength(raw) !== evidence.patchBytes ||
+      createHash("sha256").update(Buffer.from(raw)).digest("hex") !==
+        evidence.patchSha256
     )
       fail("AUTOPILOT_REPAIR_PATCH_CHANGED");
     preview = redact(raw).slice(0, MAX_PREVIEW_CHARS);
