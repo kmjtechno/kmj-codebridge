@@ -35,8 +35,7 @@ elif [[ "$RUNTIME" =~ ^/opt/kmj-codebridge-main-platform-stage/[a-f0-9]{40}$ ]];
   [[ -f "$RUNTIME/.stage.json" && ! -L "$RUNTIME/.stage.json" ]] ||
     fail "SUPERVISOR_BOOTSTRAP_STAGE_MANIFEST_MISSING"
   # This is a locator consistency check, NOT a signed release assertion.
-  python3 - "$RUNTIME/.stage.json" "${RUNTIME##*/}" <<'PY' ||
-    fail "SUPERVISOR_BOOTSTRAP_STAGE_SHA_MISMATCH"
+  python3 - "$RUNTIME/.stage.json" "${RUNTIME##*/}" <<'PY' || fail "SUPERVISOR_BOOTSTRAP_STAGE_SHA_MISMATCH"
 import json, sys
 from pathlib import Path
 manifest = Path(sys.argv[1])
