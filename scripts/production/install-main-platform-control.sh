@@ -34,7 +34,7 @@ test -x /usr/bin/python3
 # checkout. Build an immutable, root-owned Node bundle from this fixed pinned
 # operator-reviewed archive without executing its dependency install scripts.
 STAGE_OUTPUT="$(bash "$SOURCE/stage-supervisor-root-runtime.sh")"
-SUPERVISOR_RUNTIME="$(printf '%s\\n' "$STAGE_OUTPUT" | sed -n 's/^SUPERVISOR_STAGE_RUNTIME=//p')"
+SUPERVISOR_RUNTIME="$(printf '%s\n' "$STAGE_OUTPUT" | sed -n 's/^SUPERVISOR_STAGE_RUNTIME=//p')"
 [[ "$SUPERVISOR_RUNTIME" =~ ^/opt/kmj-codebridge-supervisor-stage/[a-f0-9]{40}$ ]] ||
   { echo "SUPERVISOR_STAGE_INVALID" >&2; exit 1; }
 
