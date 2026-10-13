@@ -224,7 +224,7 @@ export function quotaPressure(
       quota.outputTokensRemaining,
       maxOutputTokens + tokenHeadroom,
     ],
-   ];
+  ];
   for (const [reason, remainingValue, threshold] of checks) {
     if (remainingValue !== null && remainingValue < threshold)
       return {
