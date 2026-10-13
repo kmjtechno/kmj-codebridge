@@ -282,7 +282,10 @@ test("GitHub bridge updates exact files and merges only an exact green head", as
   });
   assert.equal(updated.content_sha, "b".repeat(40));
   const updateBody = JSON.parse(
-    calls.find((call) => call.method === "PUT" && call.url.endsWith("/contents/src/a.js")).body,
+    calls.find(
+      (call) =>
+        call.method === "PUT" && call.url.endsWith("/contents/src/a.js"),
+    ).body,
   );
   assert.equal(
     Buffer.from(updateBody.content, "base64").toString("utf8"),
