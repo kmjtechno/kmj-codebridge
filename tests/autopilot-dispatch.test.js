@@ -7,7 +7,7 @@ import { AutopilotJournal } from "../src/autopilot.js";
 import { JobRunner } from "../src/jobs.js";
 import { createDispatcher } from "../src/tools.js";
 
-function setup(t) {
+function setup(t, onJournal = null) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-autopilot-dispatch-"));
   const root = path.join(base, "project");
   const state = path.join(base, "state");
@@ -15,6 +15,7 @@ function setup(t) {
   fs.mkdirSync(state);
   const runner = new JobRunner(path.join(state, "jobs"));
   const autopilot = new AutopilotJournal(path.join(state, "autopilot"));
+  if (onJournal) onJournal(autopilot);
   const config = {
     id: "d1",
     stateDir: state,
@@ -87,6 +88,67 @@ test("autopilot tools persist, claim, checkpoint and continue independent work",
 
   const next = await dispatch("autopilot_claim", scope, permissions);
   assert.equal(next.key, "independent");
+});
+
+test("named Claude-style holder returns a usable fencing token and never leaks it through status", async (t) => {
+  const dispatch = setup(t);
+  const task = await dispatch(
+    "autopilot_enqueue",
+    {
+      ...scope,
+      key: "named-holder",
+      objective: "review guarded source edits",
+      dependsOn: [],
+    },
+    permissions,
+  );
+  const holder = "Claude Code/P720 #session-1";
+  const claimed = await dispatch(
+    "autopilot_claim",
+    { ...scope, holder },
+    permissions,
+  );
+  assert.equal(claimed.id, task.id);
+  assert.equal(claimed.state, "running");
+  assert.equal(claimed.lease.holder, holder);
+  assert.match(claimed.leaseToken, /^[0-9a-f-]{36}$/);
+  const snapshot = await dispatch("autopilot_status", scope, ["read"]);
+  assert.equal(snapshot.tasks[0].lease.holder, holder);
+  assert.ok(!JSON.stringify(snapshot).includes(claimed.leaseToken));
+  await assert.rejects(
+    dispatch(
+      "autopilot_complete",
+      { ...scope, task: task.id, state: "succeeded", result: "not fenced" },
+      permissions,
+    ),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  const result = await dispatch(
+    "autopilot_complete",
+    {
+      ...scope,
+      task: task.id,
+      state: "succeeded",
+      result: "verified",
+      leaseToken: claimed.leaseToken,
+    },
+    permissions,
+  );
+  assert.equal(result.state, "succeeded");
+});
+
+test("claimed task without a fencing token is rejected rather than presented as success", async (t) => {
+  const dispatch = setup(t, (journal) => {
+    journal.claim = () => ({
+      id: "legacy-bug",
+      state: "running",
+      lease: { holder: "claude", expiresAt: "2026-10-14T00:00:00.000Z" },
+    });
+  });
+  await assert.rejects(
+    dispatch("autopilot_claim", { ...scope, holder: "claude" }, permissions),
+    /AUTOPILOT_CLAIM_CONTRACT_INVALID/,
+  );
 });
 
 // Cross-chat ownership regression: once a task is claimed under

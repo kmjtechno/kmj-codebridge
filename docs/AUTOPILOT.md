@@ -59,6 +59,27 @@ A queued task is claimable only when every declared dependency has succeeded. Wa
 - `autopilot_status` shows who holds a task and until when, never the token.
 - Compatibility is preserved only for a genuinely legacy task: one still `running` from before this feature existed, which has no lease to fence. Any task claimed by lease-aware code — including after its lease expires and is reclaimed — is fenced from then on. A gateway or client that omits `leaseToken` can still claim new work and recover expired tasks, but cannot checkpoint, pause or complete anything it claimed, so upgrading both ends together is required for continued operation.
 
+## Claim troubleshooting and mixed-version clients
+
+A worker may omit `holder`, or supply a **1–96 character human-readable**
+label containing letters, numbers, spaces, dots, underscores, colons, at signs,
+hyphens, slashes or hashes (for example `Claude Code/P720 #1`). It is a
+diagnostic label, not a credential or filesystem path.
+
+A successful claim for a runnable task **must** return both `state: "running"`
+and a fresh UUID `leaseToken`. If the result is `null`, no dependency-ready
+task was claimable; this is not a successful lease. If a client reports an
+internal error only with `holder` or gives a running task without a token,
+**stop before checkpoint/wait/complete**. Check the agent's reported version
+and deployed source SHA against the release, then test the same bounded holder
+in a fresh authorized session. Never forge a token, omit fencing, mark the task
+succeeded as a workaround, or expose returned lease tokens in logs/issues.
+
+The claim dispatcher fails closed with `AUTOPILOT_CLAIM_CONTRACT_INVALID`
+if an attached journal returns a running task without a valid fencing token
+or with a mismatched holder. This is a source-level guard; an older installed
+agent must be upgraded and verified separately before it can provide it.
+
 Leases coordinate work; they do not add execution capacity. Concurrency remains bounded by the signed plan and device resources.
 
 ## Restart behavior
