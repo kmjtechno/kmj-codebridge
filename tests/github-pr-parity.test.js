@@ -159,6 +159,60 @@ test("update_pull_request sends only the supplied fields and refuses empty or un
   assert.equal(calls.length, 1);
 });
 
+test("update_pull_request fences stale PR heads before PATCH", async (t) => {
+  const calls = mockFetch(t, (c) => {
+    if (c.method === "GET")
+      return json({ state: "open", head: { sha: head } });
+    return json({
+      number: 7,
+      title: "Bounded edit",
+      state: "open",
+      draft: true,
+      base: { ref: "main" },
+      head: { sha: head },
+      html_url: "https://github.com/x/y/pull/7",
+    });
+  });
+  const dispatch = bridge(t);
+  await assert.rejects(
+    dispatch("github_update_pull_request", {
+      repository,
+      number: 7,
+      title: "stale edit",
+      expectedHeadSha: "b".repeat(40),
+    }),
+    /GITHUB_HEAD_MOVED/,
+  );
+  assert.deepEqual(calls.map((c) => c.method), ["GET"]);
+
+  const ok = await dispatch("github_update_pull_request", {
+    repository,
+    number: 7,
+    title: "Bounded edit",
+    expectedHeadSha: head,
+  });
+  assert.equal(ok.head, head);
+  assert.deepEqual(calls.map((c) => c.method), ["GET", "GET", "PATCH"]);
+  assert.deepEqual(calls.at(-1).body, { title: "Bounded edit" });
+});
+
+test("update_pull_request fails closed on non-open PR with expected head", async (t) => {
+  const calls = mockFetch(t, () =>
+    json({ state: "closed", head: { sha: head } }),
+  );
+  const dispatch = bridge(t);
+  await assert.rejects(
+    dispatch("github_update_pull_request", {
+      repository,
+      number: 7,
+      base: "main",
+      expectedHeadSha: head,
+    }),
+    /GITHUB_PULL_REQUEST_NOT_OPEN/,
+  );
+  assert.deepEqual(calls.map((c) => c.method), ["GET"]);
+});
+
 test("review_pull_request cannot approve and honours the expected head", async (t) => {
   const calls = mockFetch(t, (c) => {
     if (c.method === "GET") return json({ state: "open", head: { sha: head } });
