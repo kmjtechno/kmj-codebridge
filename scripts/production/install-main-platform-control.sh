@@ -22,12 +22,21 @@ test -f "$SOURCE/activate-main-platform-approved.py"
 test -f "$SOURCE/kmj-main-platform-production-release.service"
 test -f "$SOURCE/kmj-codebridge-supervisor-prod-readonly.conf"
 test -f "$SOURCE/bootstrap-existing-supervisor.sh"
+test -f "$SOURCE/stage-supervisor-root-runtime.sh"
 python3 -m py_compile "$SOURCE/activate-main-platform-approved.py"
 test -d /home/kmjprod/releases
 test -L /home/kmjprod/current
 test ! -L /home/kmjprod
 test -x /usr/bin/systemctl
 test -x /usr/bin/python3
+
+# Root supervisor cannot import the existing kmjcode-writable development
+# checkout. Build an immutable, root-owned Node bundle from this fixed pinned
+# operator-reviewed archive without executing its dependency install scripts.
+STAGE_OUTPUT="$(bash "$SOURCE/stage-supervisor-root-runtime.sh")"
+SUPERVISOR_RUNTIME="$(printf '%s\n' "$STAGE_OUTPUT" | sed -n 's/^SUPERVISOR_STAGE_RUNTIME=//p')"
+[[ "$SUPERVISOR_RUNTIME" =~ ^/opt/kmj-codebridge-supervisor-stage/[a-f0-9]{40}$ ]] ||
+  { echo "SUPERVISOR_STAGE_INVALID" >&2; exit 1; }
 
 BIN="/usr/local/libexec/kmj-codebridge"
 UNIT="/etc/systemd/system/kmj-main-platform-production-release.service"
@@ -51,7 +60,9 @@ systemctl show kmj-main-platform-production-release.service -p LoadState -p Acti
 # never existed. The bounded bootstrap derives both only from the registered
 # existing agent service, verifies its runtime and owner, then creates the
 # missing fixed units. It does not restart or re-enroll the agent.
-bash "$SOURCE/bootstrap-existing-supervisor.sh"
+KMJ_SUPERVISOR_RUNTIME="$SUPERVISOR_RUNTIME" \
+  KMJ_APPROVED_CODEBRIDGE_SHA="${KMJ_APPROVED_CODEBRIDGE_SHA:-}" \
+  bash "$SOURCE/bootstrap-existing-supervisor.sh"
 echo "PRODUCTION_CONTROL_INSTALLED_NO_DEPLOY=1"
 if [[ ! -S /run/kmj-codebridge/supervisor.sock ]]; then
   echo "SUPERVISOR_SOCKET_NOT_READY: verify CodeBridge agent config and approved supervisor installation."

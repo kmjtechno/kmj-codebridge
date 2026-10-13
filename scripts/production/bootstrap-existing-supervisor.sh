@@ -21,7 +21,12 @@ SOCKET="/run/kmj-codebridge/supervisor.sock"
 # produced by refresh-main-platform-agent.sh. Never trust an env/CLI supplied
 # runtime path; select only the *effective* systemd WorkingDirectory.
 RUNTIME="$(systemctl show "$AGENT_UNIT" --property=WorkingDirectory --value)"
-if [[ "$RUNTIME" == "/opt/kmj-codebridge-agent" ]]; then
+if [[ "$RUNTIME" == "/srv/kmj-codebridge-projects/kmj-codebridge" ]]; then
+  # This observed, kmjcode-writable development checkout is allowed only
+  # as the existing *unprivileged agent*. Never execute it in a root service.
+  [[ -d "$RUNTIME" && ! -L "$RUNTIME" ]] ||
+    fail "SUPERVISOR_BOOTSTRAP_AGENT_RUNTIME_UNSAFE"
+elif [[ "$RUNTIME" == "/opt/kmj-codebridge-agent" ]]; then
   :
 elif [[ "$RUNTIME" =~ ^/opt/kmj-codebridge-main-platform-stage/[a-f0-9]{40}$ ]]; then
   STAGE_ROOT="/opt/kmj-codebridge-main-platform-stage"
@@ -79,10 +84,19 @@ node_mode="$(stat -Lc '%a' "$NODE")"
 [[ -f "$RUNTIME/src/supervisor.js" && -f "$RUNTIME/src/tools.js" ]] ||
   fail "SUPERVISOR_BOOTSTRAP_RUNTIME_UNSUPPORTED"
 
-# No privileged Node process may load writable code owned by an agent.
-for checked in "$RUNTIME" "$RUNTIME/src" "$RUNTIME/src/cli.js" \
-  "$RUNTIME/src/supervisor.js" "$RUNTIME/src/tools.js" \
-  "$RUNTIME/package.json" "$RUNTIME/node_modules"; do
+# Root-supervisor code ALWAYS comes from an independently staged, root-owned
+# immutable bundle. The original /srv agent checkout remains owned by kmjcode.
+SUPERVISOR_RUNTIME="${KMJ_SUPERVISOR_RUNTIME:-}"
+[[ "$SUPERVISOR_RUNTIME" =~ ^/opt/kmj-codebridge-supervisor-stage/[a-f0-9]{40}$ &&
+   -d "$SUPERVISOR_RUNTIME" && ! -L "$SUPERVISOR_RUNTIME" &&
+   -f "$SUPERVISOR_RUNTIME/.supervisor-stage" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_ROOT_STAGE_MISSING"
+[[ "${SUPERVISOR_RUNTIME##*/}" == "${KMJ_APPROVED_CODEBRIDGE_SHA:-}" ]] ||
+  fail "SUPERVISOR_BOOTSTRAP_ROOT_STAGE_SHA_MISMATCH"
+for checked in "$SUPERVISOR_RUNTIME" "$SUPERVISOR_RUNTIME/src" "$SUPERVISOR_RUNTIME/src/cli.js" \
+  "$SUPERVISOR_RUNTIME/src/supervisor.js" "$SUPERVISOR_RUNTIME/src/tools.js" \
+  "$SUPERVISOR_RUNTIME/package.json" "$SUPERVISOR_RUNTIME/node_modules" \
+  "$SUPERVISOR_RUNTIME/.supervisor-stage"; do
   [[ -e "$checked" && ! -L "$checked" ]] ||
     fail "SUPERVISOR_BOOTSTRAP_RUNTIME_PATH_UNSAFE"
   owner="$(stat -c '%u' "$checked")"
@@ -97,17 +111,21 @@ done
 # Imports under a root supervisor are trusted code, not ordinary project
 # files. Verify the complete installed runtime cannot be edited by the
 # unprivileged agent, including indirect imported packages.
-unsafe="$(find "$RUNTIME" -xdev \( -type f -o -type d \) \( ! -user root -o -perm /022 \) -print -quit)"
+unsafe="$(find "$SUPERVISOR_RUNTIME" -xdev \( -type f -o -type d \) \( ! -user root -o -perm /022 \) -print -quit)"
 [[ -z "$unsafe" ]] || fail "SUPERVISOR_BOOTSTRAP_RUNTIME_TREE_WRITABLE"
 while IFS= read -r -d '' link; do
   target="$(readlink -f "$link" || true)"
-  [[ "$target" == "$RUNTIME/"* ]] ||
+  [[ "$target" == "$SUPERVISOR_RUNTIME/"* ]] ||
     fail "SUPERVISOR_BOOTSTRAP_RUNTIME_EXTERNAL_SYMLINK"
-done < <(find "$RUNTIME" -xdev -type l -print0)
+done < <(find "$SUPERVISOR_RUNTIME" -xdev -type l -print0)
 
 AGENT_USER="$(systemctl show "$AGENT_UNIT" --property=User --value)"
 case "$AGENT_USER" in
   kmjrunner|kmjprod|kmjstage) ;;
+  kmjcode)
+    [[ "$RUNTIME" == "/srv/kmj-codebridge-projects/kmj-codebridge" ]] ||
+      fail "SUPERVISOR_BOOTSTRAP_AGENT_USER_RUNTIME_MISMATCH"
+    ;;
   *) fail "SUPERVISOR_BOOTSTRAP_AGENT_USER_UNAUTHORIZED" ;;
 esac
 AGENT_GROUP="$(systemctl show "$AGENT_UNIT" --property=Group --value)"
@@ -186,8 +204,8 @@ After=$SOCKET_UNIT
 Type=simple
 User=root
 Group=root
-WorkingDirectory=$RUNTIME
-ExecStart=$NODE $RUNTIME/src/cli.js supervisor
+WorkingDirectory=$SUPERVISOR_RUNTIME
+ExecStart=$NODE $SUPERVISOR_RUNTIME/src/cli.js supervisor
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
