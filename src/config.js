@@ -102,6 +102,20 @@ export const gatewaySchema = z
           .min(1)
           .max(100),
         cacheSeconds: z.number().int().min(5).max(300).default(30),
+        circleci: z
+          .object({
+            tokenEnv: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+            repositories: z
+              .array(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/))
+              .min(1)
+              .max(25),
+            outputHosts: z
+              .array(z.string().regex(/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/))
+              .min(1)
+              .max(15),
+          })
+          .strict()
+          .optional(),
       })
       .superRefine((github, ctx) => {
         if (!github.publicReadOnly && !github.tokenEnv) {
