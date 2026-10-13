@@ -137,7 +137,6 @@ It is tested against a fake host (apply, rollback, refusals), **not yet against 
 real server**. Have it reviewed, run the dry run first, and treat the first real
 run as the rollback rehearsal's missing evidence.
 
-
 ### Guarded gateway cutover checklist (operator-run)
 
 Use this for any change to the production gateway that serves the customer-domain
