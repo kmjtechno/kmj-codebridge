@@ -173,3 +173,27 @@ test("observed zero quota recovers after provider-reported reset window", () => 
     freeCloud.id,
   );
 });
+
+test("a partial response cannot erase an observed future reset window", () => {
+  let now = 3_000_000;
+  const policy = new ModelFailoverPolicy([freeCloud], { now: () => now });
+  policy.observe(freeCloud.id, {
+    statusCode: 200,
+    headers: {
+      "x-ratelimit-remaining-requests": "0",
+      "x-ratelimit-reset-requests": "1m20s",
+    },
+  });
+  policy.observe(freeCloud.id, {
+    statusCode: 200,
+    headers: { "x-ratelimit-remaining-tokens": "1000" },
+  });
+  assert.equal(policy.select({ ...task, cloudApproved: true }).modelId, null);
+  now += 79_000;
+  assert.equal(policy.select({ ...task, cloudApproved: true }).modelId, null);
+  now += 1_000;
+  assert.equal(
+    policy.select({ ...task, cloudApproved: true }).modelId,
+    freeCloud.id,
+  );
+});
