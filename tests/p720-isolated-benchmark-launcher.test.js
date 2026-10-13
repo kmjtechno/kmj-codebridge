@@ -6,7 +6,7 @@ import { spawnSync } from "node:child_process";
 
 const ps = path.resolve("scripts/p720-isolated-benchmark.ps1");
 const cmd = path.resolve("scripts/RUN-P720-LOCAL-HYPERSPEED.cmd");
-const PINNED = "4730f2c619d5e39777cad62a83444e39837412c1";
+const PINNED = "fc52a3be61c30542ad6991a87bd223a1443cae11";
 
 test("isolated P720 benchmark leaves running agent and main checkout untouched", () => {
   const source = fs.readFileSync(ps, "utf8");
