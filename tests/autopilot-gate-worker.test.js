@@ -224,3 +224,47 @@ test("journal can claim eligible gate behind higher-priority general task", (t) 
   assert.equal(task.id, approved.id);
   assert.ok(task.leaseToken);
 });
+
+test("owner-approved failed gate enqueues exactly one SHA-pinned isolated repair", (t) => {
+  const f = fixture(t);
+  f.p.autopilotRepairWorker = {
+    enabled: true,
+    recipes: {
+      format: {
+        triggerGate: "fast",
+        fixGate: "formatter",
+        verifyGate: "fast",
+        paths: ["src/"],
+      },
+    },
+  };
+  const task = f.enqueue();
+  f.worker.tick();
+  f.jobs.get("job-1").state = "failed";
+  f.jobs.get("job-1").exitCode = 1;
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  const repair = f.journal.state.tasks.filter(
+    (item) => item.key === `auto-repair:format:${f.head}`,
+  );
+  assert.equal(repair.length, 1);
+  assert.equal(repair[0].state, "queued");
+  f.worker.tick();
+  assert.equal(
+    f.journal.state.tasks.filter(
+      (item) => item.key === `auto-repair:format:${f.head}`,
+    ).length,
+    1,
+  );
+});
+
+test("failed gate cannot schedule repairs unless explicitly configured", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  f.jobs.get("job-1").state = "failed";
+  f.jobs.get("job-1").exitCode = 1;
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(f.journal.state.tasks.length, 1);
+});
