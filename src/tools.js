@@ -1250,7 +1250,7 @@ export const definitions = {
       ...scoped,
       holder: z
         .string()
-        .regex(/^[A-Za-z0-9._:@/# -]{1,96}$/)
+        .regex(/^[A-Za-z0-9._:@\/# -]{1,96}$/)
         .optional(),
     },
     access: "write",
