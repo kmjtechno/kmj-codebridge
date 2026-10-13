@@ -4,6 +4,7 @@ import {
   ENDPOINTS,
   REQUIRED_TOOLS,
   compareDeployedCommit,
+  failedCommitAssertions,
   parseServerCommit,
   parseToolNames,
   probeCatalog,
@@ -234,4 +235,40 @@ test("commit probe uses fixed origins, public initialize only and no credentials
   );
   const unavailable = async () => new Response("", { status: 503 });
   assert.equal(await probeServerCommit(ENDPOINTS.render, unavailable), null);
+});
+
+test("strict post-cutover assertion needs every origin on the exact expected commit", () => {
+  const want = "e83167161da9c742bfe92317b56f32758eded48b";
+  assert.deepEqual(
+    failedCommitAssertions(want, { render: want, production: want }),
+    [],
+  );
+  // A short deployed prefix of the expected commit is accepted.
+  assert.deepEqual(
+    failedCommitAssertions(want, { render: "e831671", production: want }),
+    [],
+  );
+  // Stale, unknown and unrelated commits all fail; unknown proves nothing.
+  assert.deepEqual(
+    failedCommitAssertions(want, {
+      render: "055fd88ebfd56125abbe2bcec8f99819ed54ae80",
+      production: null,
+    }),
+    ["render", "production"],
+  );
+  assert.deepEqual(
+    failedCommitAssertions(want, { render: want, production: "055fd88" }),
+    ["production"],
+  );
+  // The expectation itself must be a full lowercase SHA.
+  for (const bad of [
+    "",
+    "main",
+    "E83167161DA9C742BFE92317B56F32758EDED48B",
+    "e831671",
+  ])
+    assert.throws(
+      () => failedCommitAssertions(bad, { render: want }),
+      /MCP_EXPECTED_COMMIT_INVALID/,
+    );
 });

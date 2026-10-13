@@ -66,6 +66,34 @@ as `current`, `stale` or `unknown` against the commit under test, because an
 identical tool catalog does not prove an identical gateway (for example, a
 per-tool timeout fix changes behavior without changing tool names).
 
+### Guarded gateway cutover checklist (operator-run)
+
+Use this for any change to the production gateway that serves the customer-domain
+`/mcp` and `/agent/` (the same listener serves both, so never move only one):
+
+1. **Pin** the exact source SHA to deploy. It must already be on `main` with green
+   CI at that exact commit. Never deploy a branch tip or a floating ref.
+2. **Back up** the running release and its configuration (without printing secrets),
+   and record the old commit so the rollback target is known.
+3. **Stage and test** the candidate beside the running one (`npm ci`, `npm run check`,
+   `npm test`, `npm run scan:secrets`) before touching the live listener.
+4. **Cut over** with `CODEBRIDGE_SOURCE_COMMIT` set to the pinned SHA, preserving the
+   listener port, OAuth configuration and device enrollments. Do not change DNS,
+   OAuth issuers or agent credentials.
+5. **Assert the result.** From any machine with outbound HTTPS:
+
+   ```sh
+   EXPECT_DEPLOYED_COMMIT=<40-hex-sha> node scripts/verify-public-mcp-catalog.mjs
+   ```
+
+   It exits non-zero unless the Render and customer-domain gateways both serve a
+   complete tool catalog and report exactly that commit in `serverInfo.commit`
+   (`MCP_DEPLOYED_COMMIT_ASSERT=PASS`). An origin that reports no commit counts as
+   a failure, because it proves nothing.
+
+6. **Roll back** to the recorded old release if the assertion or any health check
+   fails, then re-run the assertion against the old SHA.
+
 The installer does not accept or require a permanent token in the URL or command.
 On first install it requests a short-lived S256 verifier-bound enrollment, displays
 the approval URL/code and waits for the Main Platform response. On success it writes
