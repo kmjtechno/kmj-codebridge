@@ -19,7 +19,9 @@ function fixture(t, overrides = {}) {
     root,
     journal,
     now,
-    advance: (ms = 60001) => { clock += ms; },
+    advance: (ms = 60001) => {
+      clock += ms;
+    },
   };
 }
 
@@ -64,11 +66,12 @@ test("hasReady requeues the only expired running task instead of permanently idl
   assert.equal(fresh.attempts, 2);
   assert.equal(fresh.checkpoint.next, "REVIEW_ON_RESTART");
   assert.throws(
-    () => restarted.checkpoint(task.id, "p1", {
-      summary: "stale holder",
-      next: "overwrite",
-      leaseToken: owned.leaseToken,
-    }),
+    () =>
+      restarted.checkpoint(task.id, "p1", {
+        summary: "stale holder",
+        next: "overwrite",
+        leaseToken: owned.leaseToken,
+      }),
     /AUTOPILOT_LEASE_LOST/,
   );
 });
@@ -81,7 +84,10 @@ test("unexpired leases remain active and are not falsely reclaimed", (t) => {
     objective: "Normal running task",
   });
   f.journal.claim("p1", { holder: "worker" });
-  assert.equal(f.journal.hasReady("p1", () => true), false);
+  assert.equal(
+    f.journal.hasReady("p1", () => true),
+    false,
+  );
   assert.equal(f.journal.get(task.id, "p1").state, "running");
   assert.equal(f.journal.status("p1").expiredRunningLeases, 0);
 });
@@ -101,11 +107,20 @@ test("expired and exhausted task fails closed and stops dependents", (t) => {
   });
   f.journal.claim("p1", { holder: "worker" });
   f.advance();
-  assert.equal(f.journal.hasReady("p1", () => true), false);
+  assert.equal(
+    f.journal.hasReady("p1", () => true),
+    false,
+  );
   assert.equal(f.journal.get(task.id, "p1").state, "failed");
   assert.equal(f.journal.get(dependent.id, "p1").state, "failed");
-  assert.equal(f.journal.get(task.id, "p1").lastReason, "max_attempts_exceeded");
-  assert.equal(f.journal.hasReady("p1", () => true), false);
+  assert.equal(
+    f.journal.get(task.id, "p1").lastReason,
+    "max_attempts_exceeded",
+  );
+  assert.equal(
+    f.journal.hasReady("p1", () => true),
+    false,
+  );
   assert.equal(f.journal.get(task.id, "p1").recoveries, 1);
 });
 
@@ -118,8 +133,14 @@ test("one project's expired lease cannot be reclaimed from another project", (t)
   });
   f.journal.claim("p1", { holder: "worker" });
   f.advance();
-  assert.equal(f.journal.hasReady("p2", () => true), false);
+  assert.equal(
+    f.journal.hasReady("p2", () => true),
+    false,
+  );
   assert.equal(f.journal.get(first.id, "p1").state, "running");
-  assert.equal(f.journal.hasReady("p1", () => true), true);
+  assert.equal(
+    f.journal.hasReady("p1", () => true),
+    true,
+  );
   assert.equal(f.journal.get(first.id, "p1").state, "queued");
 });
