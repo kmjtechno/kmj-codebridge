@@ -58,8 +58,5 @@ test("release acceptance refuses stale Render deployed SHA independently of heal
   assert.match(parity, /node scripts\/verify-render-deployment\.mjs/);
   assert.doesNotMatch(parity, /continue-on-error:\s*true/);
   assert.doesNotMatch(parity, /needs:\s*gateway/);
-  assert.match(
-    workflow,
-    /- "scripts\/verify-render-deployment\.mjs"/,
-  );
+  assert.match(workflow, /- "scripts\/verify-render-deployment\.mjs"/);
 });
