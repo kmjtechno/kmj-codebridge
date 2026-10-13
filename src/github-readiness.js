@@ -29,7 +29,9 @@ export function readinessErrorCode(error) {
 // Sample only public-read-only health checks at a bounded lower cadence.
 // Do NOT extend actual PR/CI data-cache freshness or relax fail-closed errors.
 export function githubReadinessOptions(github) {
-  return github?.publicReadOnly ? { ttlMs: 300000, graceMs: 30000 } : {};
+  return github?.publicReadOnly
+    ? { ttlMs: 300000, graceMs: 30000, rateLimitCooldownMs: 3600000 }
+    : {};
 }
 
 export function createGitHubReadiness(
@@ -39,6 +41,7 @@ export function createGitHubReadiness(
     ttlMs = 30000,
     graceMs = ttlMs,
     timeoutMs = 15000,
+    rateLimitCooldownMs = 0,
     setTimer = setTimeout,
     clearTimer = clearTimeout,
   } = {},
@@ -54,6 +57,7 @@ export function createGitHubReadiness(
   let lastResultAt = null;
   let lastError = null;
   let inFlight = false;
+  let rateLimitedUntil = null;
 
   const withTimeout = () =>
     new Promise((resolve, reject) => {
@@ -70,7 +74,12 @@ export function createGitHubReadiness(
     });
 
   const refreshIfDue = (current) => {
-    if (inFlight || (checkedAt !== null && current - checkedAt < ttlMs)) return;
+    if (
+      inFlight ||
+      (rateLimitedUntil !== null && current < rateLimitedUntil) ||
+      (checkedAt !== null && current - checkedAt < ttlMs)
+    )
+      return;
     checkedAt = current;
     inFlight = true;
     void withTimeout()
@@ -78,10 +87,17 @@ export function createGitHubReadiness(
         () => {
           lastSuccessAt = now();
           lastError = null;
+          rateLimitedUntil = null;
         },
         (error) => {
           lastSuccessAt = null;
           lastError = readinessErrorCode(error);
+          // The anonymous quota usually resets over an hourly window.
+          // While exhausted, keep reporting FAILED; retrying every five
+          // minutes only burns requests and cannot prove a healthy bridge.
+          // This cooldown is enabled solely for public-read-only mode.
+          if (lastError === "GITHUB_RATE_LIMIT" && rateLimitCooldownMs > 0)
+            rateLimitedUntil = now() + rateLimitCooldownMs;
         },
       )
       .finally(() => {
