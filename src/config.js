@@ -265,17 +265,31 @@ export const agentSchema = z.object({
           autopilotRepairWorker: z
             .object({
               enabled: z.boolean().default(false),
-              recipes: z.record(
-                z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
-                z.object({
-                  fixGate: id,
-                  verifyGate: id,
-                  paths: z
-                    .array(z.string().regex(/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?$/))
-                    .min(1)
-                    .max(20),
-                }).strict(),
-              ).refine((recipes) => Object.keys(recipes).length > 0 && Object.keys(recipes).length <= 8),
+              recipes: z
+                .record(
+                  z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+                  z
+                    .object({
+                      fixGate: id,
+                      verifyGate: id,
+                      paths: z
+                        .array(
+                          z
+                            .string()
+                            .regex(
+                              /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?$/,
+                            ),
+                        )
+                        .min(1)
+                        .max(20),
+                    })
+                    .strict(),
+                )
+                .refine(
+                  (recipes) =>
+                    Object.keys(recipes).length > 0 &&
+                    Object.keys(recipes).length <= 8,
+                ),
             })
             .strict()
             .optional(),
