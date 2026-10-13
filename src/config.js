@@ -262,6 +262,34 @@ export const agentSchema = z.object({
             })
             .strict()
             .optional(),
+          autopilotCiWatch: z
+            .object({
+              enabled: z.boolean().default(false),
+              repository: z
+                .string()
+                .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+              branch: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+              workflow: z.string().min(1).max(120),
+              job: z.string().min(1).max(120),
+              recipe: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+              tokenEnv: z
+                .string()
+                .regex(/^[A-Z][A-Z0-9_]{2,63}$/)
+                .optional(),
+              publicReadOnly: z.boolean().default(false),
+              intervalSeconds: z.number().int().min(600).max(3600).default(900),
+            })
+            .strict()
+            .superRefine((watch, ctx) => {
+              if (Boolean(watch.tokenEnv) === watch.publicReadOnly) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message:
+                    "Choose server token OR explicit public read-only mode",
+                });
+              }
+            })
+            .optional(),
           autopilotRepairWorker: z
             .object({
               enabled: z.boolean().default(false),
@@ -339,6 +367,22 @@ export const agentSchema = z.object({
               }),
             )
             .default({}),
+        })
+        .superRefine((project, ctx) => {
+          if (
+            project.autopilotCiWatch?.enabled &&
+            (!project.writable ||
+              !project.autopilotRepairWorker?.enabled ||
+              !Object.hasOwn(
+                project.autopilotRepairWorker.recipes,
+                project.autopilotCiWatch.recipe,
+              ))
+          )
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                "CI watch needs a writable project and enabled repair recipe",
+            });
         })
         .transform((project) => ({
           ...project,
