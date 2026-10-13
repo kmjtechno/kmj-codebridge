@@ -28,6 +28,7 @@ function host(t, tweak = {}) {
     return full;
   };
   const oldRoot = dir("srv", "old");
+  const elsewhere = dir("srv", "elsewhere");
   const target = dir("opt", "candidates", NEW_SHA);
   fs.mkdirSync(path.join(target, "node_modules", "zod"), { recursive: true });
   const config = path.join(base, "gateway.json");
@@ -58,6 +59,8 @@ function host(t, tweak = {}) {
     cwd: oldRoot,
     commit: OLD_SHA,
     restarts: 0,
+    gatesRun: [],
+    gitHeadOld: OLD_SHA,
     calls: [],
     user: options.serviceUser,
     ignoreDropIn: false,
@@ -112,6 +115,19 @@ function host(t, tweak = {}) {
           state.cwd = oldRoot;
           state.commit = OLD_SHA;
         }
+        // Adversarial rollback outcomes: the service restarts and the catalog
+        // looks healthy, but the ORIGINAL code is not what comes back.
+        if (state.restarts >= 2) {
+          if (state.rollbackStaysOnTarget) {
+            state.cwd = target;
+            state.commit = NEW_SHA;
+          }
+          // Same commit as the original, but a different directory than the
+          // one that was running: only the runtime-directory check sees it.
+          if (state.rollbackElsewhere) state.cwd = elsewhere;
+          if (state.rollbackDriftedCommit) state.commit = "d".repeat(40);
+          if (state.rollbackGitDrift) state.gitHeadOld = "e".repeat(40);
+        }
         if (state.breakOnRestart) state.active = false;
         publish();
         return "";
@@ -122,10 +138,19 @@ function host(t, tweak = {}) {
     if (cmd === "git") {
       const root = argv[argv.indexOf("-C") + 1];
       if (argv.includes("status")) return state.dirty ? " M src/x.js" : "";
-      return root === target ? state.candidateHead : state.commit;
+      return root === target ? state.candidateHead : state.gitHeadOld;
     }
     if (cmd === "getent") return "kmjcode:x:1000:1000::/home/kmjcode:/bin/sh";
-    if (cmd === "runuser") return "CONFIG_VALID";
+    if (cmd === "runuser") {
+      const at = argv.indexOf("npm");
+      if (at === -1) return "CONFIG_VALID";
+      const gate = argv.slice(at).join(" ");
+      state.gatesRun.push(gate);
+      if (state.failGate && gate.includes(state.failGate))
+        throw new CutoverError("COMMAND_FAILED:runuser");
+      if (state.dirtyAfterGates) state.dirty = true;
+      return "";
+    }
     if (cmd === "curl") {
       if (!state.active) throw new CutoverError("COMMAND_FAILED:curl");
       const method = JSON.parse(input).method;
@@ -271,7 +296,13 @@ test(
   async (t) => {
     const h = host(t, { state: { ignoreCommitEnv: true } });
     // The runtime directory switches, but the gateway still reports the old commit.
-    const previous = "[Service]\nWorkingDirectory=/previous\n";
+    // A real previous drop-in pins the runtime that is running right now.
+    const previous = dropInContent({
+      target: h.oldRoot,
+      sha: OLD_SHA,
+      node: h.node,
+      config: h.config,
+    });
     fs.mkdirSync(path.dirname(h.dropIn), { recursive: true });
     fs.writeFileSync(h.dropIn, previous);
     const { ok, out } = await runCutover(
@@ -460,5 +491,100 @@ test(
     assert.equal(h.state.restarts, 0);
     assert.equal(fs.readFileSync(h.dropIn, "utf8"), edited);
     assert.equal(fs.existsSync(h.options.backupRoot), false);
+  },
+);
+
+test(
+  "candidate gates run as the service user in dry run too, and a failing or dirtying gate blocks everything",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const ok = host(t);
+    const { out } = await runCutover(ok.options, ok.deps);
+    assert.match(
+      lines(out).CANDIDATE_GATES,
+      /^PASS_CHECK_TEST_SCAN_SECRETS_AS_/,
+    );
+    assert.deepEqual(ok.state.gatesRun, [
+      "npm run check",
+      "npm test",
+      "npm run scan:secrets",
+    ]);
+    for (const [state, code] of [
+      [{ failGate: "run check" }, "CANDIDATE_GATE_FAILED:check"],
+      [{ failGate: "npm test" }, "CANDIDATE_GATE_FAILED:test"],
+      [{ failGate: "scan:secrets" }, "CANDIDATE_GATE_FAILED:scan_secrets"],
+      [{ dirtyAfterGates: true }, "CANDIDATE_DIRTY_AFTER_GATES"],
+    ]) {
+      const h = host(t, { state });
+      await assert.rejects(
+        runCutover(
+          { ...h.options, apply: true, confirmNoActiveJobs: true },
+          h.deps,
+        ),
+        (error) => error.code === code,
+        code,
+      );
+      assert.equal(h.state.restarts, 0, code);
+      assert.equal(fs.existsSync(h.dropIn), false, code);
+      assert.equal(fs.existsSync(h.options.backupRoot), false, code);
+    }
+  },
+);
+
+// Each case: the cutover fails, the service restarts with a complete, healthy
+// catalog, but the ORIGINAL code is not what is serving. Rollback must not pass.
+for (const [name, state, code] of [
+  [
+    "still running the new runtime directory",
+    { rollbackStaysOnTarget: true },
+    "ROLLBACK_WRONG_RUNTIME",
+  ],
+  [
+    "running from a different directory than the original",
+    { rollbackElsewhere: true },
+    "ROLLBACK_WRONG_RUNTIME",
+  ],
+  [
+    "wrong source commit in the restored directory",
+    { rollbackGitDrift: true },
+    "ROLLBACK_WRONG_SOURCE",
+  ],
+  [
+    "gateway reports a different commit than the baseline did",
+    { rollbackDriftedCommit: true },
+    "ROLLBACK_COMMIT_MISMATCH",
+  ],
+]) {
+  test(
+    `rollback is not reported as PASS when ${name}, even with a healthy catalog`,
+    { skip: POSIX_ONLY },
+    async (t) => {
+      const h = host(t, { state: { ignoreCommitEnv: true, ...state } });
+      const { ok, out } = await runCutover(
+        { ...h.options, apply: true, confirmNoActiveJobs: true },
+        h.deps,
+      );
+      const r = lines(out);
+      assert.equal(ok, false);
+      assert.equal(r.CUTOVER, "FAIL");
+      assert.equal(r.ROLLBACK, "FAIL_MANUAL_RECOVERY_REQUIRED", code);
+      assert.equal(r.RESULT, "FAIL");
+      assert.equal(r.ROLLBACK_ASSERT, undefined);
+    },
+  );
+}
+
+test(
+  "a verified rollback names what it proved",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { ignoreCommitEnv: true } });
+    const { out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(r.ROLLBACK, "PASS");
+    assert.equal(r.ROLLBACK_ASSERT, "PID_RUNTIME_SOURCE_CATALOG_COMMIT");
   },
 );

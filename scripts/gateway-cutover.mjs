@@ -278,6 +278,37 @@ function inspect(options, deps) {
       "DROPIN_UNRECOGNIZED",
     );
 
+  // "Clean checkout at the right SHA" does not mean "tested". Run the same
+  // gates the operator is told to run, as the unprivileged service user, and
+  // make sure they left the tree clean. npm ci is an operator prerequisite
+  // (it needs network); missing dependencies make these gates fail.
+  const asService = (argv) => [
+    "runuser",
+    "-u",
+    options.serviceUser,
+    "--",
+    "env",
+    "-i",
+    `HOME=${home}`,
+    `PATH=${path.dirname(node)}:/usr/local/bin:/usr/bin:/bin`,
+    ...argv,
+  ];
+  for (const [name, argv, timeoutMs] of [
+    ["check", ["npm", "run", "check"], 300000],
+    ["test", ["npm", "test"], 900000],
+    ["scan_secrets", ["npm", "run", "scan:secrets"], 300000],
+  ]) {
+    try {
+      deps.run(asService(argv), { cwd: target, timeoutMs });
+    } catch {
+      throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
+    }
+  }
+  check(
+    !gitIn(deps, target, "status", "--porcelain"),
+    "CANDIDATE_DIRTY_AFTER_GATES",
+  );
+
   const before = probe(deps, `http://127.0.0.1:${options.port}/mcp`, options);
   check(before.tools.size > 0, "BASELINE_CATALOG_EMPTY");
   const unitFile = show("FragmentPath");
@@ -291,6 +322,8 @@ function inspect(options, deps) {
     currentCommit,
     unitFile,
     beforeCount: before.tools.size,
+    // Older gateways (pre-#332) report no commit; then null skips that check.
+    beforeServerCommit: before.commit,
   };
 }
 
@@ -327,9 +360,27 @@ async function rollback(options, deps, ctx, dropIn, previous) {
     deps.run(["systemctl", "show", options.unit, "-p", key, "--value"]);
   for (let trial = 0; trial < 10; trial++) {
     try {
+      // A healthy-looking catalog is not proof the ORIGINAL code is back: assert
+      // the active process, its runtime directory, its source commit and, when
+      // the baseline reported one, the commit the gateway itself reports.
       check(show("ActiveState") === "active", "ROLLBACK_INACTIVE");
+      const pid = Number(show("MainPID") || "0");
+      check(pid > 0, "ROLLBACK_NO_PID");
+      const cwd = fs.realpathSync(
+        path.join(options.procRoot, String(pid), "cwd"),
+      );
+      check(cwd === fs.realpathSync(ctx.currentRoot), "ROLLBACK_WRONG_RUNTIME");
+      check(
+        gitIn(deps, cwd, "rev-parse", "HEAD") === ctx.currentCommit,
+        "ROLLBACK_WRONG_SOURCE",
+      );
       const seen = probe(deps, `http://127.0.0.1:${options.port}/mcp`, options);
       check(seen.tools.size >= ctx.beforeCount, "ROLLBACK_CATALOG_SMALLER");
+      if (ctx.beforeServerCommit !== null)
+        check(
+          seen.commit === ctx.beforeServerCommit,
+          "ROLLBACK_COMMIT_MISMATCH",
+        );
       return;
     } catch (error) {
       if (trial === 9) throw error;
@@ -346,6 +397,10 @@ export async function runCutover(options, deps = realDeps()) {
   const say = (key, value) => out.push([key, String(value)]);
   const ctx = inspect(options, deps);
   say("PREFLIGHT", "PASS");
+  say(
+    "CANDIDATE_GATES",
+    "PASS_CHECK_TEST_SCAN_SECRETS_AS_" + options.serviceUser,
+  );
   say("FROM_COMMIT", ctx.currentCommit);
   say("TARGET_SHA", options.targetSha);
   say("BASELINE_TOOLS", ctx.beforeCount);
@@ -432,6 +487,7 @@ export async function runCutover(options, deps = realDeps()) {
       say("ROLLBACK", "STARTING");
       try {
         await rollback(options, deps, ctx, dropIn, previous);
+        say("ROLLBACK_ASSERT", "PID_RUNTIME_SOURCE_CATALOG_COMMIT");
         say("ROLLBACK", "PASS");
       } catch {
         say("ROLLBACK", "FAIL_MANUAL_RECOVERY_REQUIRED");

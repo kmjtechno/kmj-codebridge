@@ -82,16 +82,30 @@ sudo node scripts/gateway-cutover.mjs --target-sha <40-hex-sha> \
 ```
 
 The target must already be staged at `/opt/kmj-codebridge-candidates/<sha>`: clean,
-at exactly that commit, with `npm ci` done and `check`/`test`/`scan:secrets` passed.
-The controller refuses an unexpected host or service user, a non-private config, a
-candidate that rejects the live config, or a stale lock. It backs up the unit and
-previous drop-in, writes only the systemd drop-in (with
+at exactly that commit, with `npm ci` already done. **`npm ci` is an operator
+prerequisite** (it needs the network), but the controller does not take the
+operator's word for the rest: in the dry run too, it runs `npm run check`,
+`npm test` and `npm run scan:secrets` in the candidate **as the unprivileged service
+user** and refuses (`CANDIDATE_GATE_FAILED:<gate>`) if any fails, or
+(`CANDIDATE_DIRTY_AFTER_GATES`) if they leave the tree dirty. Missing dependencies
+make those gates fail. `PREFLIGHT=PASS` therefore means those gates passed on this
+host, as this user, just now (`CANDIDATE_GATES=PASS_…`); a dry run takes as long as
+the test suite.
+
+The controller also refuses an unexpected host or service user, a non-private
+config, a candidate that rejects the live config, or a stale lock. It backs up the
+unit and previous drop-in, writes only the systemd drop-in (with
 `CODEBRIDGE_SOURCE_COMMIT=<sha>`), restarts once, and requires the direct,
 local-Nginx and public URLs to each serve the full tool catalog **and report
 exactly the target commit**. On any failure it restores the previous drop-in,
-restarts and verifies the rollback; `ROLLBACK=FAIL_MANUAL_RECOVERY_REQUIRED` means
-the service did not recover and needs a human. Pending gateway jobs are in memory,
-so a restart drops them; that is why `--confirm-no-active-jobs` is mandatory.
+restarts, and **proves the original code is back** (an active process, running from
+the original directory, whose Git `HEAD` is the original commit, serving at least
+the original catalog and, when the original gateway reported one, the same
+`serverInfo.commit`); only then does it print `ROLLBACK=PASS`. A healthy-looking
+catalog alone never counts. `ROLLBACK=FAIL_MANUAL_RECOVERY_REQUIRED` means the
+original code was not verified back and needs a human. Pending gateway jobs are in
+memory, so a restart drops them; that is why `--confirm-no-active-jobs` is
+mandatory.
 
 It replaces the drop-in wholesale, so it **refuses** (`DROPIN_UNRECOGNIZED`) if the
 existing drop-in contains anything other than the lines this controller or the
