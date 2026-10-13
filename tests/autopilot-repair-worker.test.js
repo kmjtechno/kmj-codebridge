@@ -205,7 +205,7 @@ test("approved edit runs a verification gate and preserves a review-only patch",
 
   // A verified worktree that changes after its gate is NOT the same review
   // candidate, even when it touches the same allowed file and byte count.
-  fs.writeFileSync(path.join(lane, "src", "format.js"), "const y = 1;\\n");
+  fs.writeFileSync(path.join(lane, "src", "format.js"), "const y = 1;\n");
   assert.throws(
     () => reviewRepairCandidate({
       project: f.project,
