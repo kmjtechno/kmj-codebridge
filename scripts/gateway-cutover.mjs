@@ -119,7 +119,8 @@ export function realDeps() {
         throw new CutoverError("COMMAND_FAILED:" + path.basename(argv[0]));
       }
     },
-    uid: () => process.getuid(),
+    platform: () => process.platform,
+    uid: () => process.getuid?.(),
     hostname: () => os.hostname(),
     now: () => Date.now(),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -170,6 +171,8 @@ function inspect(options, deps) {
   const { unit, procRoot } = options;
   const show = (key) =>
     deps.run(["systemctl", "show", unit, "-p", key, "--value"]);
+  // The gateway host is Linux/systemd; never attempt this anywhere else.
+  check(deps.platform() === "linux", "UNSUPPORTED_PLATFORM");
   check(deps.uid() === 0, "ROOT_REQUIRED");
   check(
     deps.hostname().toLowerCase() === options.expectHostname.toLowerCase(),

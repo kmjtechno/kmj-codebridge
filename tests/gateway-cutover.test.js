@@ -141,6 +141,7 @@ function host(t, tweak = {}) {
   };
   const deps = {
     run,
+    platform: () => "linux",
     uid: () => tweak.uid ?? 0,
     hostname: () => tweak.hostname ?? "KMJ-elite",
     now: () => Date.UTC(2026, 9, 13, 12, 0, 0),
@@ -148,6 +149,10 @@ function host(t, tweak = {}) {
   };
   return { options, deps, state, dropIn, target, oldRoot, base, node, config };
 }
+
+// The fake host models a Linux server (POSIX paths, symlinked /proc), so those
+// tests only run on POSIX. The Linux-only refusal below runs on every OS.
+const POSIX_ONLY = process.platform === "win32" ? "POSIX host model" : false;
 
 const lines = (out) => Object.fromEntries(out.map(([k, v]) => [k, v]));
 
@@ -171,186 +176,232 @@ test("option parsing and validation reject anything but a pinned full SHA and sa
     assert.throws(() => validateOptions({ ...good, ...bad }), CutoverError);
 });
 
-test("dry run passes preflight but changes nothing", async (t) => {
-  const h = host(t);
-  const { ok, out } = await runCutover(h.options, h.deps);
-  assert.equal(ok, true);
-  const r = lines(out);
-  assert.equal(r.PREFLIGHT, "PASS");
-  assert.equal(r.FROM_COMMIT, OLD_SHA);
-  assert.equal(r.RESULT, "DRY_RUN_OK_NOTHING_CHANGED");
-  assert.equal(h.state.restarts, 0);
-  assert.equal(fs.existsSync(h.dropIn), false);
-  assert.equal(fs.existsSync(h.options.backupRoot), false);
-  assert.equal(fs.existsSync(h.options.lockFile), false);
-});
+test(
+  "dry run passes preflight but changes nothing",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const { ok, out } = await runCutover(h.options, h.deps);
+    assert.equal(ok, true);
+    const r = lines(out);
+    assert.equal(r.PREFLIGHT, "PASS");
+    assert.equal(r.FROM_COMMIT, OLD_SHA);
+    assert.equal(r.RESULT, "DRY_RUN_OK_NOTHING_CHANGED");
+    assert.equal(h.state.restarts, 0);
+    assert.equal(fs.existsSync(h.dropIn), false);
+    assert.equal(fs.existsSync(h.options.backupRoot), false);
+    assert.equal(fs.existsSync(h.options.lockFile), false);
+  },
+);
 
-test("apply requires explicit consent that no jobs are in flight", async (t) => {
-  const h = host(t);
-  await assert.rejects(
-    runCutover({ ...h.options, apply: true }, h.deps),
-    /ACTIVE_JOBS_NOT_CONFIRMED/,
-  );
-  assert.equal(h.state.restarts, 0);
-  assert.equal(fs.existsSync(h.dropIn), false);
-});
+test(
+  "apply requires explicit consent that no jobs are in flight",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    await assert.rejects(
+      runCutover({ ...h.options, apply: true }, h.deps),
+      /ACTIVE_JOBS_NOT_CONFIRMED/,
+    );
+    assert.equal(h.state.restarts, 0);
+    assert.equal(fs.existsSync(h.dropIn), false);
+  },
+);
 
-test("successful cutover pins the runtime, backs up, restarts once and asserts the commit", async (t) => {
-  const h = host(t);
-  const previous = dropInContent({
-    target: h.oldRoot,
-    sha: OLD_SHA,
-    node: h.node,
-    config: h.config,
-  });
-  fs.mkdirSync(path.dirname(h.dropIn), { recursive: true });
-  fs.writeFileSync(h.dropIn, previous);
-  const { ok, out } = await runCutover(
-    { ...h.options, apply: true, confirmNoActiveJobs: true },
-    h.deps,
-  );
-  const r = lines(out);
-  assert.equal(ok, true);
-  assert.equal(r.RESULT, "PASS");
-  assert.equal(r.COMMIT_ASSERT, "PASS");
-  assert.equal(h.state.restarts, 1);
-  assert.equal(h.state.commit, NEW_SHA);
-  assert.equal(
-    fs.readFileSync(h.dropIn, "utf8"),
-    dropInContent({
-      target: h.target,
-      sha: NEW_SHA,
+test(
+  "successful cutover pins the runtime, backs up, restarts once and asserts the commit",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const previous = dropInContent({
+      target: h.oldRoot,
+      sha: OLD_SHA,
       node: h.node,
       config: h.config,
-    }),
-  );
-  const backup = r.BACKUP;
-  assert.equal(
-    fs.readFileSync(path.join(backup, "previous-dropin.conf"), "utf8"),
-    previous,
-  );
-  assert.ok(fs.existsSync(path.join(backup, "original.service")));
-  assert.deepEqual(
-    JSON.parse(fs.readFileSync(path.join(backup, "plan.json"))),
-    {
-      from: OLD_SHA,
-      to: NEW_SHA,
-    },
-  );
-  assert.equal(fs.statSync(backup).mode & 0o077, 0);
-  assert.equal(fs.existsSync(h.options.lockFile), false);
-  // Only systemd, git, curl and the config check were ever invoked.
-  for (const call of h.state.calls)
-    assert.match(call, /^(systemctl|git|curl|getent|runuser|\S*node )/);
-  assert.ok(!h.state.calls.some((c) => /nginx|dns|certbot/i.test(c)));
-});
+    });
+    fs.mkdirSync(path.dirname(h.dropIn), { recursive: true });
+    fs.writeFileSync(h.dropIn, previous);
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(ok, true);
+    assert.equal(r.RESULT, "PASS");
+    assert.equal(r.COMMIT_ASSERT, "PASS");
+    assert.equal(h.state.restarts, 1);
+    assert.equal(h.state.commit, NEW_SHA);
+    assert.equal(
+      fs.readFileSync(h.dropIn, "utf8"),
+      dropInContent({
+        target: h.target,
+        sha: NEW_SHA,
+        node: h.node,
+        config: h.config,
+      }),
+    );
+    const backup = r.BACKUP;
+    assert.equal(
+      fs.readFileSync(path.join(backup, "previous-dropin.conf"), "utf8"),
+      previous,
+    );
+    assert.ok(fs.existsSync(path.join(backup, "original.service")));
+    assert.deepEqual(
+      JSON.parse(fs.readFileSync(path.join(backup, "plan.json"))),
+      {
+        from: OLD_SHA,
+        to: NEW_SHA,
+      },
+    );
+    assert.equal(fs.statSync(backup).mode & 0o077, 0);
+    assert.equal(fs.existsSync(h.options.lockFile), false);
+    // Only systemd, git, curl and the config check were ever invoked.
+    for (const call of h.state.calls)
+      assert.match(call, /^(systemctl|git|curl|getent|runuser|\S*node )/);
+    assert.ok(!h.state.calls.some((c) => /nginx|dns|certbot/i.test(c)));
+  },
+);
 
-test("a failed assertion rolls back byte-for-byte and verifies the rollback", async (t) => {
-  const h = host(t, { state: { ignoreCommitEnv: true } });
-  // The runtime directory switches, but the gateway still reports the old commit.
-  const previous = "[Service]\nWorkingDirectory=/previous\n";
-  fs.mkdirSync(path.dirname(h.dropIn), { recursive: true });
-  fs.writeFileSync(h.dropIn, previous);
-  const { ok, out } = await runCutover(
-    { ...h.options, apply: true, confirmNoActiveJobs: true },
-    h.deps,
-  );
-  const r = lines(out);
-  assert.equal(ok, false);
-  assert.equal(r.CUTOVER, "FAIL");
-  assert.equal(r.FAILURE, "DIRECT_COMMIT_MISMATCH");
-  assert.equal(r.ROLLBACK, "PASS");
-  assert.equal(r.RESULT, "FAIL");
-  assert.equal(fs.readFileSync(h.dropIn, "utf8"), previous);
-  assert.equal(h.state.restarts, 2);
-  assert.equal(fs.existsSync(h.options.lockFile), false);
-});
+test(
+  "a failed assertion rolls back byte-for-byte and verifies the rollback",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { ignoreCommitEnv: true } });
+    // The runtime directory switches, but the gateway still reports the old commit.
+    const previous = "[Service]\nWorkingDirectory=/previous\n";
+    fs.mkdirSync(path.dirname(h.dropIn), { recursive: true });
+    fs.writeFileSync(h.dropIn, previous);
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(ok, false);
+    assert.equal(r.CUTOVER, "FAIL");
+    assert.equal(r.FAILURE, "DIRECT_COMMIT_MISMATCH");
+    assert.equal(r.ROLLBACK, "PASS");
+    assert.equal(r.RESULT, "FAIL");
+    assert.equal(fs.readFileSync(h.dropIn, "utf8"), previous);
+    assert.equal(h.state.restarts, 2);
+    assert.equal(fs.existsSync(h.options.lockFile), false);
+  },
+);
 
-test("rollback without a previous drop-in removes the new one", async (t) => {
-  const h = host(t, { state: { ignoreDropIn: true } });
-  const { ok, out } = await runCutover(
-    { ...h.options, apply: true, confirmNoActiveJobs: true },
-    h.deps,
-  );
-  assert.equal(ok, false);
-  // The drop-in was not applied, so the wrong runtime directory is caught first.
-  assert.equal(lines(out).FAILURE, "RUNTIME_CWD_WRONG");
-  assert.equal(lines(out).ROLLBACK, "PASS");
-  assert.equal(fs.existsSync(h.dropIn), false);
-});
+test(
+  "rollback without a previous drop-in removes the new one",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { ignoreDropIn: true } });
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    assert.equal(ok, false);
+    // The drop-in was not applied, so the wrong runtime directory is caught first.
+    assert.equal(lines(out).FAILURE, "RUNTIME_CWD_WRONG");
+    assert.equal(lines(out).ROLLBACK, "PASS");
+    assert.equal(fs.existsSync(h.dropIn), false);
+  },
+);
 
-test("a gateway that will not come back is reported as manual recovery, never as success", async (t) => {
-  const h = host(t, { state: { breakOnRestart: true } });
-  const { ok, out } = await runCutover(
-    { ...h.options, apply: true, confirmNoActiveJobs: true },
-    h.deps,
-  );
-  const r = lines(out);
-  assert.equal(ok, false);
-  assert.equal(r.FAILURE, "GATEWAY_FAILED_RESTART");
-  assert.equal(r.ROLLBACK, "FAIL_MANUAL_RECOVERY_REQUIRED");
-  assert.equal(r.RESULT, "FAIL");
-});
+test(
+  "a gateway that will not come back is reported as manual recovery, never as success",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { breakOnRestart: true } });
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(ok, false);
+    assert.equal(r.FAILURE, "GATEWAY_FAILED_RESTART");
+    assert.equal(r.ROLLBACK, "FAIL_MANUAL_RECOVERY_REQUIRED");
+    assert.equal(r.RESULT, "FAIL");
+  },
+);
 
-test("preflight refuses unsafe hosts, users, candidates and configs before any change", async (t) => {
-  const cases = [
-    [{ uid: 1000 }, "ROOT_REQUIRED"],
-    [{ hostname: "other-box" }, "UNEXPECTED_HOST"],
-    [{ configMode: 0o644 }, "CONFIG_NOT_PRIVATE"],
-    [{ state: { user: "root" } }, "WRONG_SERVICE_USER"],
-    [{ state: { dirty: true } }, "CANDIDATE_DIRTY"],
-    [{ state: { candidateHead: OLD_SHA } }, "CANDIDATE_SHA_MISMATCH"],
-    [{ state: { active: false } }, "GATEWAY_NOT_RUNNING"],
-  ];
-  for (const [tweak, code] of cases) {
-    const h = host(t, tweak);
+test(
+  "preflight refuses unsafe hosts, users, candidates and configs before any change",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const cases = [
+      [{ uid: 1000 }, "ROOT_REQUIRED"],
+      [{ hostname: "other-box" }, "UNEXPECTED_HOST"],
+      [{ configMode: 0o644 }, "CONFIG_NOT_PRIVATE"],
+      [{ state: { user: "root" } }, "WRONG_SERVICE_USER"],
+      [{ state: { dirty: true } }, "CANDIDATE_DIRTY"],
+      [{ state: { candidateHead: OLD_SHA } }, "CANDIDATE_SHA_MISMATCH"],
+      [{ state: { active: false } }, "GATEWAY_NOT_RUNNING"],
+    ];
+    for (const [tweak, code] of cases) {
+      const h = host(t, tweak);
+      await assert.rejects(
+        runCutover(
+          { ...h.options, apply: true, confirmNoActiveJobs: true },
+          h.deps,
+        ),
+        (error) => error.code === code,
+        code,
+      );
+      assert.equal(h.state.restarts, 0, code);
+      assert.equal(fs.existsSync(h.dropIn), false, code);
+    }
+    const missing = host(t);
+    fs.rmSync(path.join(missing.target, "node_modules"), { recursive: true });
+    await assert.rejects(
+      runCutover(missing.options, missing.deps),
+      /DEPENDENCIES_MISSING/,
+    );
+    const same = host(t);
+    same.state.cwd = same.target;
+    fs.rmSync(path.join(same.options.procRoot, "100"), { recursive: true });
+    fs.mkdirSync(path.join(same.options.procRoot, "100"));
+    fs.writeFileSync(
+      path.join(same.options.procRoot, "100", "cmdline"),
+      [
+        same.node,
+        path.join(same.target, "src/cli.js"),
+        "gateway",
+        same.config,
+      ].join("\0") + "\0",
+    );
+    fs.symlinkSync(same.node, path.join(same.options.procRoot, "100", "exe"));
+    fs.symlinkSync(same.target, path.join(same.options.procRoot, "100", "cwd"));
+    await assert.rejects(
+      runCutover(same.options, same.deps),
+      /ALREADY_RUNNING_TARGET/,
+    );
+  },
+);
+
+test(
+  "a leftover lock file blocks a second cutover instead of racing it",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    fs.writeFileSync(h.options.lockFile, "");
     await assert.rejects(
       runCutover(
         { ...h.options, apply: true, confirmNoActiveJobs: true },
         h.deps,
       ),
-      (error) => error.code === code,
-      code,
+      /CUTOVER_LOCKED/,
     );
-    assert.equal(h.state.restarts, 0, code);
-    assert.equal(fs.existsSync(h.dropIn), false, code);
-  }
-  const missing = host(t);
-  fs.rmSync(path.join(missing.target, "node_modules"), { recursive: true });
-  await assert.rejects(
-    runCutover(missing.options, missing.deps),
-    /DEPENDENCIES_MISSING/,
-  );
-  const same = host(t);
-  same.state.cwd = same.target;
-  fs.rmSync(path.join(same.options.procRoot, "100"), { recursive: true });
-  fs.mkdirSync(path.join(same.options.procRoot, "100"));
-  fs.writeFileSync(
-    path.join(same.options.procRoot, "100", "cmdline"),
-    [
-      same.node,
-      path.join(same.target, "src/cli.js"),
-      "gateway",
-      same.config,
-    ].join("\0") + "\0",
-  );
-  fs.symlinkSync(same.node, path.join(same.options.procRoot, "100", "exe"));
-  fs.symlinkSync(same.target, path.join(same.options.procRoot, "100", "cwd"));
-  await assert.rejects(
-    runCutover(same.options, same.deps),
-    /ALREADY_RUNNING_TARGET/,
-  );
-});
+    assert.equal(h.state.restarts, 0);
+  },
+);
 
-test("a leftover lock file blocks a second cutover instead of racing it", async (t) => {
-  const h = host(t);
-  fs.writeFileSync(h.options.lockFile, "");
+test("the controller refuses to run anywhere but Linux, on every OS", async () => {
+  const deps = {
+    platform: () => "win32",
+    uid: () => 0,
+    run() {
+      throw new Error("must not run any command");
+    },
+  };
   await assert.rejects(
-    runCutover(
-      { ...h.options, apply: true, confirmNoActiveJobs: true },
-      h.deps,
-    ),
-    /CUTOVER_LOCKED/,
+    runCutover({ ...DEFAULTS, targetSha: NEW_SHA, apply: true }, deps),
+    (error) => error.code === "UNSUPPORTED_PLATFORM",
   );
-  assert.equal(h.state.restarts, 0);
 });
