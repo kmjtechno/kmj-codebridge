@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { createDispatcher, definitions } from "../src/tools.js";
+import { AutopilotJournal } from "../src/autopilot.js";
 
 function fixture(t, workerSource) {
   const base = fs.mkdtempSync(
@@ -40,7 +41,7 @@ function fixture(t, workerSource) {
       features: ["read"],
       limits: { concurrent_jobs: 1 },
     }),
-    null,
+    new AutopilotJournal(path.join(base, "autopilot")),
     null,
     null,
     undefined,
