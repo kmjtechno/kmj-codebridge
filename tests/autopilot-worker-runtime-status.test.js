@@ -6,7 +6,9 @@ import { test } from "node:test";
 import { createDispatcher, definitions } from "../src/tools.js";
 
 function fixture(t, workerSource) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "codebridge-worker-status-"));
+  const base = fs.mkdtempSync(
+    path.join(os.tmpdir(), "codebridge-worker-status-"),
+  );
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const root = path.join(base, "project");
   fs.mkdirSync(root);
