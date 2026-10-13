@@ -17,9 +17,20 @@ function withRepo(t) {
   const git = (...args) =>
     execFileSync("git", args, { cwd: root, encoding: "utf8" }).trim();
   git("init");
-  git("-c", "user.email=ci@example.invalid", "-c", "user.name=CI", "commit", "--allow-empty", "-m", "fixture");
+  git(
+    "-c",
+    "user.email=ci@example.invalid",
+    "-c",
+    "user.name=CI",
+    "commit",
+    "--allow-empty",
+    "-m",
+    "fixture",
+  );
   const head = git("rev-parse", "HEAD");
-  const journal = new AutopilotJournal(path.join(root, "..", path.basename(root) + "-journal"));
+  const journal = new AutopilotJournal(
+    path.join(root, "..", path.basename(root) + "-journal"),
+  );
   t.after(() =>
     fs.rmSync(path.join(root, "..", path.basename(root) + "-journal"), {
       recursive: true,
@@ -70,7 +81,12 @@ function fixture(t, overrides = {}) {
     runner,
     worker,
     enqueue: (key = `auto-gate:fast:${head}`, priority = 1) =>
-      journal.enqueue({ project: "repo", key, objective: "Run approved fast gate", priority }),
+      journal.enqueue({
+        project: "repo",
+        key,
+        objective: "Run approved fast gate",
+        priority,
+      }),
     count: () => runCount,
   };
 }
@@ -82,9 +98,15 @@ test("only exact allowlisted gate + 40-character head is executable", () => {
     expectedHead: sha,
   });
   assert.equal(parseAutopilotGateTask(`auto-gate:fast:${sha}`, []), null);
-  assert.equal(parseAutopilotGateTask("mission:fix-production", ["fast"]), null);
+  assert.equal(
+    parseAutopilotGateTask("mission:fix-production", ["fast"]),
+    null,
+  );
   assert.equal(parseAutopilotGateTask("auto-gate:fast:main", ["fast"]), null);
-  assert.equal(parseAutopilotGateTask(`auto-gate:../../: ${sha}`, ["fast"]), null);
+  assert.equal(
+    parseAutopilotGateTask(`auto-gate:../../: ${sha}`, ["fast"]),
+    null,
+  );
 });
 
 test("worker ignores high-priority general AI tasks and executes only approved gate", (t) => {
@@ -116,7 +138,10 @@ test("dirty checkout pauses gate and preserves all user changes", (t) => {
   fs.writeFileSync(touched, "do not touch");
   f.worker.tick();
   assert.equal(f.journal.get(job.id, "repo").state, "waiting");
-  assert.equal(f.journal.get(job.id, "repo").lastReason, "GIT_HEAD_CHANGED_OR_WORKTREE_DIRTY");
+  assert.equal(
+    f.journal.get(job.id, "repo").lastReason,
+    "GIT_HEAD_CHANGED_OR_WORKTREE_DIRTY",
+  );
   assert.equal(f.count(), 0);
   assert.equal(fs.readFileSync(touched, "utf8"), "do not touch");
 });
@@ -132,7 +157,10 @@ test("different head can never use stale gate task", (t) => {
 
 test("no licensed execution capability means zero claims and zero runs", (t) => {
   const f = fixture(t, {
-    licenseProvider: () => ({ features: ["read"], limits: { concurrent_jobs: 1 } }),
+    licenseProvider: () => ({
+      features: ["read"],
+      limits: { concurrent_jobs: 1 },
+    }),
   });
   const job = f.enqueue();
   f.worker.tick();
@@ -165,7 +193,10 @@ test("restart-safe job idempotency key is task scoped", (t) => {
   const f = fixture(t);
   const task = f.enqueue();
   f.worker.tick();
-  assert.equal(f.journal.get(task.id, "repo").checkpoint.next, "AWAIT_JOB_RESULT");
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.next,
+    "AWAIT_JOB_RESULT",
+  );
   assert.equal(f.journal.get(task.id, "repo").attempts, 1);
 });
 
