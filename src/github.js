@@ -351,13 +351,17 @@ export function createGitHubBridge(config) {
           status: "repository_not_allowed",
           readVerified: false,
           writeVerified: false,
-          remediation: "An authorized gateway owner must approve this exact repository in the protected GitHub allowlist.",
+          remediation:
+            "An authorized gateway owner must approve this exact repository in the protected GitHub allowlist.",
         };
       try {
         // Intentionally bypass the short-lived metadata cache: an operator
         // needs a live check after repairing the private GitHub installation.
         const data = await request("GET", a.repository, "");
-        if (data.full_name !== a.repository || typeof data.private !== "boolean")
+        if (
+          data.full_name !== a.repository ||
+          typeof data.private !== "boolean"
+        )
           fail("GITHUB_RESPONSE_INVALID");
         return {
           repository: a.repository,
@@ -378,7 +382,8 @@ export function createGitHubBridge(config) {
             status: "authorization_failed",
             readVerified: false,
             writeVerified: false,
-            remediation: "An authorized gateway operator must inspect and repair the server-held GitHub App/token and repository grants without exposing the credential.",
+            remediation:
+              "An authorized gateway operator must inspect and repair the server-held GitHub App/token and repository grants without exposing the credential.",
           };
         if (code === "GITHUB_RATE_LIMIT")
           return {
@@ -386,7 +391,8 @@ export function createGitHubBridge(config) {
             status: "rate_limited",
             readVerified: false,
             writeVerified: false,
-            remediation: "Wait for the GitHub quota window or repair permitted quota usage; do not widen token privileges.",
+            remediation:
+              "Wait for the GitHub quota window or repair permitted quota usage; do not widen token privileges.",
           };
         if (code === "GITHUB_NOT_FOUND")
           return {
@@ -394,7 +400,8 @@ export function createGitHubBridge(config) {
             status: "not_found_or_not_granted",
             readVerified: false,
             writeVerified: false,
-            remediation: "Confirm the exact repository exists and the gateway GitHub installation has explicit access. Private repositories cannot use anonymous fallback.",
+            remediation:
+              "Confirm the exact repository exists and the gateway GitHub installation has explicit access. Private repositories cannot use anonymous fallback.",
           };
         throw error;
       }
