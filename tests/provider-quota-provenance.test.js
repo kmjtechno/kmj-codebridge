@@ -73,7 +73,7 @@ test("Anthropic parses verified request, input/output and RFC3339 reset", () => 
   assert.equal(obs.freeCreditsRemaining, null);
 });
 
-test("OpenRouter key free daily requests are separate from paid spending cap", () => {
+test("OpenRouter key spend cap never authorizes inferred free daily requests", () => {
   const body = {
     data: {
       label: "SECRET-KEY-LABEL",
@@ -94,18 +94,14 @@ test("OpenRouter key free daily requests are separate from paid spending cap", (
   });
   assert.equal(obs.keySpendCapRemaining, 12.5);
   assert.equal(obs.isFreeTierAccount, true);
-  assert.deepEqual(obs.freeDailyRequests, {
-    used: 48,
-    limit: 50,
-    remaining: 2,
-  });
+  assert.equal(obs.freeDailyRequests, null);
   assert.equal(obs.freeCreditsRemaining, null);
   assert.equal(obs.rateLimit.provenance, "unknown");
   assert.equal(JSON.stringify(obs).includes("SECRET-KEY-LABEL"), false);
   assert.deepEqual(quotaPressure(obs, { ...task, requestHeadroom: 3 }), {
-    switchSuggested: true,
-    reason: "FREE_DAILY_REQUESTS_LOW",
-    evidence: "verified",
+    switchSuggested: false,
+    reason: "QUOTA_UNKNOWN",
+    evidence: "unknown",
   });
 });
 
