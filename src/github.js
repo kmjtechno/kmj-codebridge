@@ -26,6 +26,13 @@ const issueNumber = z.number().int().min(1);
 const runId = z.number().int().min(1);
 
 export const githubDefinitions = {
+  github_connection_doctor: {
+    title: "Native GitHub connection doctor",
+    description:
+      "Verify exact repository allowlist and gateway-held GitHub read access without showing credentials or changing permissions. Use before project PR/CI operations so private CineCore repository authorization failures are explained, not silently retried through another plugin.",
+    input: { repository: repoName },
+    access: "read",
+  },
   github_pull_requests: {
     title: "List GitHub pull requests",
     description:
@@ -334,6 +341,64 @@ export function createGitHubBridge(config) {
     const definition = githubDefinitions[name];
     if (!definition) fail("UNKNOWN_TOOL");
     const a = z.object(definition.input).strict().parse(input);
+
+    if (name === "github_connection_doctor") {
+      // Report only the caller-supplied exact repository, never the entire
+      // allowlist, token/environment variable name or GitHub response body.
+      if (!allowed.has(a.repository))
+        return {
+          repository: a.repository,
+          status: "repository_not_allowed",
+          readVerified: false,
+          writeVerified: false,
+          remediation: "An authorized gateway owner must approve this exact repository in the protected GitHub allowlist.",
+        };
+      try {
+        // Intentionally bypass the short-lived metadata cache: an operator
+        // needs a live check after repairing the private GitHub installation.
+        const data = await request("GET", a.repository, "");
+        if (data.full_name !== a.repository || typeof data.private !== "boolean")
+          fail("GITHUB_RESPONSE_INVALID");
+        return {
+          repository: a.repository,
+          status: "read_ready",
+          readVerified: true,
+          writeVerified: false, // A read probe never proves write access.
+          privateRepository: data.private,
+          mode: publicReadOnly ? "public_read_only" : "server_credential",
+          remediation: publicReadOnly
+            ? "Private repositories and writes require an operator-approved GitHub App installation with least-privilege access."
+            : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
+        };
+      } catch (error) {
+        const code = error?.code;
+        if (code === "GITHUB_AUTHORIZATION_FAILED")
+          return {
+            repository: a.repository,
+            status: "authorization_failed",
+            readVerified: false,
+            writeVerified: false,
+            remediation: "An authorized gateway operator must inspect and repair the server-held GitHub App/token and repository grants without exposing the credential.",
+          };
+        if (code === "GITHUB_RATE_LIMIT")
+          return {
+            repository: a.repository,
+            status: "rate_limited",
+            readVerified: false,
+            writeVerified: false,
+            remediation: "Wait for the GitHub quota window or repair permitted quota usage; do not widen token privileges.",
+          };
+        if (code === "GITHUB_NOT_FOUND")
+          return {
+            repository: a.repository,
+            status: "not_found_or_not_granted",
+            readVerified: false,
+            writeVerified: false,
+            remediation: "Confirm the exact repository exists and the gateway GitHub installation has explicit access. Private repositories cannot use anonymous fallback.",
+          };
+        throw error;
+      }
+    }
 
     if (name === "github_pull_requests") {
       const params = new URLSearchParams({
