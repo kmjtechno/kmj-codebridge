@@ -151,8 +151,7 @@ config_mode="$(stat -c '%a' "$AGENT_CONFIG")"
   fail "SUPERVISOR_BOOTSTRAP_CONFIG_OWNER_MISMATCH"
 (( (8#$config_mode & 8#77) == 0 )) ||
   fail "SUPERVISOR_BOOTSTRAP_CONFIG_PERMISSIONS_UNSAFE"
-python3 - "$AGENT_CONFIG" "$SOCKET" <<'PY' ||
-  fail "SUPERVISOR_BOOTSTRAP_AGENT_SOCKET_MISMATCH"
+python3 - "$AGENT_CONFIG" "$SOCKET" <<'PY' || fail "SUPERVISOR_BOOTSTRAP_AGENT_SOCKET_MISMATCH"
 import json, sys
 data = json.load(open(sys.argv[1], encoding="utf-8"))
 assert data.get("supervisorSocket") == sys.argv[2]
