@@ -1376,9 +1376,7 @@ export const definitions = {
     input: {
       ...scoped,
       approvedSha: z.string().regex(/^[a-f0-9]{40}$/),
-      expectedCurrentRelease: z
-        .string()
-        .regex(/^[a-z0-9][a-z0-9_-]{3,100}$/),
+      expectedCurrentRelease: z.string().regex(/^[a-z0-9][a-z0-9_-]{3,100}$/),
       confirmation: z.literal("ACTIVATE_APPROVED_PRODUCTION_RELEASE"),
     },
     access: "execute",
@@ -2285,7 +2283,9 @@ export function createDispatcher(
       return await supervisor.request({ op: "device_status" });
     if (name === "supervisor_main_platform_production_status") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
-      return await supervisor.request({ op: "main_platform_production_status" });
+      return await supervisor.request({
+        op: "main_platform_production_status",
+      });
     }
     if (name === "supervisor_main_platform_production_activate") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
