@@ -12,7 +12,7 @@ const MISSION_TASK_KEY = /^[A-Za-z0-9._-]{1,64}$/;
 const AI_BUDGETS = new Set(["economical", "balanced", "maximum_assurance"]);
 // Human-readable worker/session labels may include a bounded slash or #
 // (e.g. Claude Code/P720 #1); they are metadata, never file paths or keys.
-const HOLDER = /^[A-Za-z0-9._:@/# -]{1,96}$/;
+const HOLDER = /^[A-Za-z0-9._:@\/# -]{1,96}$/;
 export const DEFAULT_LEASE_MS = 30 * 60 * 1000;
 const MIN_LEASE_MS = 60 * 1000;
 const MAX_LEASE_MS = 24 * 60 * 60 * 1000;
