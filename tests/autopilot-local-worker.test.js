@@ -60,7 +60,11 @@ function fixture(t, options = {}) {
     calls: () => calls,
     statusCalls: () => statusCalls,
     enqueue: (key = "auto-draft:feature-a") =>
-      journal.enqueue({ project: "repo", key, objective: "Implement task safely" }),
+      journal.enqueue({
+        project: "repo",
+        key,
+        objective: "Implement task safely",
+      }),
   };
 }
 
@@ -130,7 +134,10 @@ test("resumed checkpoint cannot repeat generation or overwrite proposal", async 
   f.journal.resume(task.id, "repo");
   await f.worker.tick();
   assert.equal(f.calls(), 0);
-  assert.equal(f.journal.get(task.id, "repo").checkpoint.summary, "previous immutable draft");
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.summary,
+    "previous immutable draft",
+  );
   assert.equal(f.journal.get(task.id, "repo").state, "waiting");
 });
 
