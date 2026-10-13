@@ -43,13 +43,14 @@ test("forwardTimeoutMs extends the wait for local_model_generate/autopilot_local
 });
 
 test("forwardTimeoutMs never shrinks below the configured deviceTimeoutMs default", () => {
-  // A short timeoutSeconds request must never reduce the operator's own
-  // configured gateway-wide default.
+  // A short timeoutSeconds request still adds its own margin on top of the
+  // 15s default: max(15000, 5*1000+15000) = 20000, never below 15000.
   assert.equal(
     forwardTimeoutMs(15000, "local_model_generate", { timeoutSeconds: 5 }),
-    15000,
+    20000,
   );
-  // Even with a higher configured default, a short request keeps that floor.
+  // With a higher configured default that already exceeds what a short
+  // request would need, the configured default itself is the floor.
   assert.equal(
     forwardTimeoutMs(60000, "local_model_generate", { timeoutSeconds: 5 }),
     60000,
