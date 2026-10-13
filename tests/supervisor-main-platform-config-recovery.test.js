@@ -58,7 +58,10 @@ test("all other projects retain standard fixed agent config", async () => {
     },
     exists: () => false,
   });
-  const result = await handler({ op: "project_status", projectId: "project_1" });
+  const result = await handler({
+    op: "project_status",
+    projectId: "project_1",
+  });
   assert.equal(result.response.present, false);
   assert.deepEqual(seen, [DEFAULT_CONFIG]);
   await assert.rejects(
@@ -117,39 +120,43 @@ test("malformed default config does not fall back or expose secret", async () =>
   assert.doesNotMatch(JSON.stringify(result), /token=never-print/);
 });
 
-test("legacy supervisor Python heredoc guards execute real validation", {
-  skip: process.platform === "win32",
-}, (t) => {
-  const bootstrap = fs.readFileSync(
-    "scripts/production/bootstrap-existing-supervisor.sh",
-    "utf8",
-  );
-  const bashSyntax = spawnSync(
-    "bash",
-    ["-n", "scripts/production/bootstrap-existing-supervisor.sh"],
-    { encoding: "utf8" },
-  );
-  assert.equal(bashSyntax.status, 0, bashSyntax.stderr);
-  const match = bootstrap.match(
-    /python3 - "\$AGENT_CONFIG" "\$SOCKET" <<'PY' \|\| fail "SUPERVISOR_BOOTSTRAP_AGENT_SOCKET_MISMATCH"\n([\s\S]*?)\nPY/,
-  );
-  assert.ok(match, "fail guard must NOT become Python stdin");
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cb-sup-config-"));
-  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
-  const filepath = path.join(tmp, "agent.json");
-  const runValidation = (data) => {
-    fs.writeFileSync(filepath, data, { mode: 0o600 });
-    return spawnSync("python3", ["-", filepath, SOCKET], {
-      input: match[1] + "\n",
-      encoding: "utf8",
-    });
-  };
-  const valid = runValidation(config());
-  assert.equal(valid.status, 0, valid.stderr);
-  const bad = JSON.parse(config());
-  bad.supervisorSocket = "/tmp/unsafe.sock";
-  assert.notEqual(runValidation(JSON.stringify(bad)).status, 0);
-  bad.supervisorSocket = SOCKET;
-  bad.projects = [];
-  assert.notEqual(runValidation(JSON.stringify(bad)).status, 0);
-});
+test(
+  "legacy supervisor Python heredoc guards execute real validation",
+  {
+    skip: process.platform === "win32",
+  },
+  (t) => {
+    const bootstrap = fs.readFileSync(
+      "scripts/production/bootstrap-existing-supervisor.sh",
+      "utf8",
+    );
+    const bashSyntax = spawnSync(
+      "bash",
+      ["-n", "scripts/production/bootstrap-existing-supervisor.sh"],
+      { encoding: "utf8" },
+    );
+    assert.equal(bashSyntax.status, 0, bashSyntax.stderr);
+    const match = bootstrap.match(
+      /python3 - "\$AGENT_CONFIG" "\$SOCKET" <<'PY' \|\| fail "SUPERVISOR_BOOTSTRAP_AGENT_SOCKET_MISMATCH"\n([\s\S]*?)\nPY/,
+    );
+    assert.ok(match, "fail guard must NOT become Python stdin");
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cb-sup-config-"));
+    t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+    const filepath = path.join(tmp, "agent.json");
+    const runValidation = (data) => {
+      fs.writeFileSync(filepath, data, { mode: 0o600 });
+      return spawnSync("python3", ["-", filepath, SOCKET], {
+        input: match[1] + "\n",
+        encoding: "utf8",
+      });
+    };
+    const valid = runValidation(config());
+    assert.equal(valid.status, 0, valid.stderr);
+    const bad = JSON.parse(config());
+    bad.supervisorSocket = "/tmp/unsafe.sock";
+    assert.notEqual(runValidation(JSON.stringify(bad)).status, 0);
+    bad.supervisorSocket = SOCKET;
+    bad.projects = [];
+    assert.notEqual(runValidation(JSON.stringify(bad)).status, 0);
+  },
+);
