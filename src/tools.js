@@ -1543,6 +1543,8 @@ export const definitions = {
     access: "read",
   },
 };
+const MAX_JOB_WAITERS = 16;
+
 export function createDispatcher(
   config,
   runner,
@@ -1579,6 +1581,7 @@ export function createDispatcher(
   let checkpointStore;
   const checkpoints = () =>
     (checkpointStore ??= new FileCheckpoints(config.stateDir));
+  let jobWaiters = 0;
   const dispatchCore = async function dispatchCore(name, input, permissions) {
     const definition = definitions[name];
     if (!definition || name === "list_devices") fail("UNKNOWN_TOOL");
@@ -2801,16 +2804,30 @@ export function createDispatcher(
       });
     }
     if (name === "get_job_status") {
-      let job = runner.get(a.job, p.id);
-      const deadline = Date.now() + (a.waitMs ?? 0);
-      while (["queued", "running"].includes(job.state)) {
-        const remaining = deadline - Date.now();
-        if (remaining <= 0) break;
-        await new Promise((resolve) =>
-          setTimeout(resolve, Math.min(250, remaining)),
-        );
-        job = runner.get(a.job, p.id);
+      let state = runner.peekState(a.job, p.id);
+      // At most MAX_JOB_WAITERS calls wait at once; beyond that the call answers immediately
+      // (never an error), so a burst of long waits cannot pile up timers or CPU on the agent.
+      if (
+        a.waitMs > 0 &&
+        ["queued", "running"].includes(state) &&
+        jobWaiters < MAX_JOB_WAITERS
+      ) {
+        jobWaiters += 1;
+        try {
+          const deadline = Date.now() + a.waitMs;
+          while (["queued", "running"].includes(state)) {
+            const remaining = deadline - Date.now();
+            if (remaining <= 0) break;
+            await new Promise((resolve) =>
+              setTimeout(resolve, Math.min(250, remaining)),
+            );
+            state = runner.peekState(a.job, p.id);
+          }
+        } finally {
+          jobWaiters -= 1;
+        }
       }
+      let job = runner.get(a.job, p.id);
       if (
         a.tailChars !== undefined &&
         typeof job.output === "string" &&

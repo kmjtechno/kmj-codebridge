@@ -14,6 +14,18 @@ const PAID_CREDENTIAL =
 const SELF_HOSTED_NOTE =
   "Run the job on your own authorized machine with a self-hosted runner (no hosted minutes are used), or run the same commands locally through an approved CodeBridge gate. Never attach a self-hosted runner to a public repository that runs untrusted pull-request code.";
 
+// Workflow files are repository-controlled input. Cap the line length before any regular
+// expression runs so a crafted line (for example hundreds of KiB of whitespace) cannot make the
+// scan super-linear and stall the agent; longer lines are skipped and counted, never parsed.
+const MAX_LINE = 2000;
+
+function stripComment(raw) {
+  const space = raw.indexOf(" #");
+  const tab = raw.indexOf("\t#");
+  const cut = [space, tab].filter((i) => i >= 0);
+  return cut.length ? raw.slice(0, Math.min(...cut)) : raw;
+}
+
 function excerpt(line) {
   return line.trim().slice(0, 140);
 }
@@ -63,7 +75,7 @@ function cronFinding(file, lineNo, cron, text) {
   };
 }
 
-function auditGitHubWorkflow(file, content, findings) {
+function auditGitHubWorkflow(file, content, findings, counters) {
   const lines = content.split(/\r?\n/);
   let inJobs = false;
   let job = null;
@@ -74,7 +86,11 @@ function auditGitHubWorkflow(file, content, findings) {
 
   lines.forEach((raw, index) => {
     const lineNo = index + 1;
-    const line = raw.replace(/\s+#.*$/, "");
+    if (raw.length > MAX_LINE) {
+      counters.longLines += 1;
+      return;
+    }
+    const line = stripComment(raw);
     if (/^on:/.test(line) || /^\s{2}(push|pull_request)\s*:/.test(line))
       hasTriggerPushOrPr ||= /(push|pull_request)/.test(line);
     if (/^on:\s*\[?.*\b(push|pull_request)\b/.test(line))
@@ -210,10 +226,14 @@ function auditGitHubWorkflow(file, content, findings) {
     });
 }
 
-function auditCircle(file, content, findings) {
+function auditCircle(file, content, findings, counters) {
   const lines = content.split(/\r?\n/);
   lines.forEach((raw, index) => {
-    const line = raw.replace(/\s+#.*$/, "");
+    if (raw.length > MAX_LINE) {
+      counters.longLines += 1;
+      return;
+    }
+    const line = stripComment(raw);
     const rc = /^\s*resource_class:\s*['"]?([A-Za-z0-9_./-]+)['"]?\s*$/.exec(
       line,
     );
@@ -258,13 +278,14 @@ export function auditFreeFirst(files) {
   if (!Array.isArray(files)) throw new TypeError("files must be an array");
   const findings = [];
   const checked = [];
+  const counters = { longLines: 0 };
   for (const { path, content } of files) {
     if (typeof path !== "string" || typeof content !== "string") continue;
     checked.push({ path, bytes: Buffer.byteLength(content) });
     if (/^\.github\/workflows\/[^/]+\.ya?ml$/i.test(path))
-      auditGitHubWorkflow(path, content, findings);
+      auditGitHubWorkflow(path, content, findings, counters);
     else if (/^\.circleci\/config\.ya?ml$/i.test(path))
-      auditCircle(path, content, findings);
+      auditCircle(path, content, findings, counters);
   }
   const summary = Object.fromEntries(SEVERITIES.map((s) => [s, 0]));
   for (const f of findings) summary[f.severity] += 1;
@@ -274,6 +295,7 @@ export function auditFreeFirst(files) {
     checkedFiles: checked,
     findings: findings.slice(0, 200),
     findingsTruncated: findings.length > 200,
+    longLinesSkipped: counters.longLines,
     summary,
     spendRisk,
     advisory:

@@ -146,6 +146,41 @@ test("an unbounded matrix is flagged, a bounded one is not", () => {
   assert.equal(job("      max-parallel: 1\n").length, 0);
 });
 
+test("crafted long lines cannot stall the scan (ReDoS guard)", () => {
+  const evil = [
+    `on: push\njobs:\n  a:\n    runs-on: x\n    steps:\n      - run: ${" ".repeat(200000)}x\n`,
+    `jobs:\n  a:\n    runs-on: ${" ".repeat(150000)}x\n`,
+    `x: ${"STRIPE_".repeat(40000)}\n`,
+    `on:\n  schedule:\n    - cron: '${" ".repeat(150000)}1'\n`,
+  ];
+  for (const content of evil) {
+    const started = Date.now();
+    const r = auditFreeFirst([wf("evil.yml", content)]);
+    assert.ok(Date.now() - started < 1500, "scan took too long");
+    assert.ok(r.longLinesSkipped >= 1);
+  }
+  const circle = auditFreeFirst([
+    {
+      path: ".circleci/config.yml",
+      content: `  resource_class: ${" ".repeat(150000)}x\n`,
+    },
+  ]);
+  assert.equal(circle.longLinesSkipped, 1);
+  // Ordinary lines around a skipped one are still audited.
+  const mixed = auditFreeFirst([
+    wf(
+      "mixed.yml",
+      `jobs:\n  a:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ${"x".repeat(2500)}\n    timeout-minutes: 5\n`,
+    ),
+  ]);
+  assert.equal(mixed.longLinesSkipped, 1);
+  assert.ok(mixed.findings.some((f) => f.id === "HOSTED_RUNNER"));
+  assert.equal(
+    auditFreeFirst([wf("ok.yml", "on: push\n")]).longLinesSkipped,
+    0,
+  );
+});
+
 test("concurrency without cancel-in-progress is reported once", () => {
   const r = auditFreeFirst([
     wf(

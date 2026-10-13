@@ -242,3 +242,36 @@ test("get_job_status still enforces project scope and read access", async (t) =>
   );
   await call(dispatch, "get_job_status", { job: started.id, waitMs: 8000 });
 });
+
+test("peekState is project scoped and many concurrent waits degrade to immediate answers", async (t) => {
+  const { dispatch } = fixture(t, {
+    long: {
+      command: process.execPath,
+      args: ["-e", "setTimeout(()=>{},3000)"],
+      timeoutMs: 8000,
+    },
+  });
+  const started = await call(dispatch, "run_quality_gate", {
+    gate: "long",
+    requestKey: "waiters-1",
+  });
+  // 24 simultaneous long waits: at most 16 may wait; the rest answer at once, all succeed.
+  const t0 = Date.now();
+  const results = await Promise.all(
+    Array.from({ length: 24 }, () =>
+      call(dispatch, "get_job_status", { job: started.id, waitMs: 600 }),
+    ),
+  );
+  assert.equal(results.length, 24);
+  assert.ok(results.every((r) => ["queued", "running"].includes(r.state)));
+  assert.ok(Date.now() - t0 < 3000);
+  await call(dispatch, "cancel_job", { job: started.id }).catch(() => {});
+  await assert.rejects(
+    dispatch(
+      "get_job_status",
+      { ...scope, project: "p2", job: started.id, waitMs: 100 },
+      ["read"],
+    ),
+    /PROJECT_NOT_FOUND/,
+  );
+});
