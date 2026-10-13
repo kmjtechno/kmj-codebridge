@@ -781,11 +781,9 @@ export function createGitHubBridge(config) {
 
     if (name === "github_actions_failed_job_triage") {
       const pull = await request("GET", a.repository, `pulls/${a.number}`);
-      if (pull.head?.sha !== a.expectedHeadSha)
-        fail("GITHUB_HEAD_MOVED");
+      if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
       const job = await request("GET", a.repository, `actions/jobs/${a.jobId}`);
-      if (job.head_sha !== a.expectedHeadSha)
-        fail("GITHUB_HEAD_MISMATCH");
+      if (job.head_sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MISMATCH");
       if (job.conclusion !== "failure" || job.status !== "completed")
         fail("GITHUB_JOB_NOT_FAILED");
       const output = await raw(a.repository, `actions/jobs/${a.jobId}/logs`);
