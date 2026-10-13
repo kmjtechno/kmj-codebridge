@@ -2202,6 +2202,7 @@ export function createDispatcher(
         task: saved.id,
         proposal: saved.checkpoint.summary,
         checkpointAt: saved.checkpoint.at,
+        hitTokenLimit: generated.hitTokenLimit === true,
         reused: false,
         writesApplied: false,
         paidInference: false,

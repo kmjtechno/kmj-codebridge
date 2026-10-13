@@ -52,6 +52,7 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
       assert.doesNotMatch(prompt, /secret-password/);
       return {
         response: "Implement local unit test. Bearer sampleTokenValue123",
+        hitTokenLimit: true,
       };
     },
   });
@@ -93,6 +94,8 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
   assert.equal(out.writesApplied, false);
   assert.equal(out.reviewRequired, true);
   assert.equal(out.paidInference, false);
+  // The reviewer is told when the draft was cut off by the token budget.
+  assert.equal(out.hitTokenLimit, true);
   assert.match(out.proposal, /\[REDACTED\]/);
   assert.doesNotMatch(out.proposal, /sampleTokenValue123/);
   assert.equal(calls, 1);

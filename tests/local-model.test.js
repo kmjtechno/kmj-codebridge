@@ -393,3 +393,44 @@ test("local warm-retention environment only accepts exact integer seconds", (t) 
   process.env[variable] = "0";
   assert.ok(createLocalModelClient({ port: 1 }));
 });
+
+test("hitTokenLimit reports a model stopped by the token budget, not a finished answer", async (t) => {
+  const replies = {
+    cap: { done: true, response: "cut off mid", eval_count: 32 },
+    reason: {
+      done: true,
+      response: "also cut",
+      eval_count: 7,
+      done_reason: "length",
+    },
+    finished: {
+      done: true,
+      response: "complete",
+      eval_count: 9,
+      done_reason: "stop",
+    },
+    unmeasured: { done: true, response: "no counters" },
+  };
+  let next = "cap";
+  const { port } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "tiny:1b" }] }];
+    return [200, replies[next]];
+  });
+  const client = createLocalModelClient({ port });
+  const run = async (key) => {
+    next = key;
+    return client.generate({
+      model: "tiny:1b",
+      prompt: "x",
+      maxTokens: 32,
+    });
+  };
+  assert.equal((await run("cap")).hitTokenLimit, true);
+  assert.equal((await run("reason")).hitTokenLimit, true);
+  assert.equal((await run("finished")).hitTokenLimit, false);
+  // Missing counters are never guessed into a limit hit.
+  assert.equal((await run("unmeasured")).hitTokenLimit, false);
+  // `truncated` keeps its separate, character-slice meaning.
+  assert.equal((await run("cap")).truncated, false);
+});

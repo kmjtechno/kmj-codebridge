@@ -219,6 +219,14 @@ export function createLocalModelClient(options = {}) {
           model,
           response: result.response.slice(0, 8192),
           truncated: result.response.length > 8192,
+          // `truncated` only covers the 8192-character reply slice. This says
+          // the model itself was stopped by the token budget (Ollama's own
+          // done_reason, or eval_count reaching num_predict), so a caller or
+          // reviewer is never handed a mid-sentence cut as a finished answer.
+          hitTokenLimit:
+            result.done_reason === "length" ||
+            (Number.isSafeInteger(result.eval_count) &&
+              result.eval_count >= maxTokens),
           paidInference: false,
           cloudFallback: false,
           outputIsUntrusted: true,
