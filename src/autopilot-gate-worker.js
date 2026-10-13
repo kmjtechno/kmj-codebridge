@@ -11,7 +11,8 @@ export function canQueueAutopilotGate(key, permissions) {
   return (
     typeof key === "string" &&
     Array.isArray(permissions) &&
-    (!key.startsWith("auto-gate:") || permissions.includes("execute"))
+    ((!key.startsWith("auto-gate:") && !key.startsWith("auto-draft:")) ||
+      permissions.includes("execute"))
   );
 }
 
