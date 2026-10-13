@@ -13,6 +13,7 @@ import {
 } from "../src/autopilot-repair-worker.js";
 import { canQueueAutopilotGate } from "../src/autopilot-gate-worker.js";
 import { WorktreeLanes } from "../src/worktree-lanes.js";
+import { reviewRepairCandidate } from "../src/autopilot-repair-review.js";
 
 function git(dir, ...args) {
   return execFileSync("git", args, {
@@ -187,6 +188,33 @@ test("approved edit runs a verification gate and preserves a review-only patch",
   assert.equal(f.starts.length, 2);
   f.worker.tick();
   assert.equal(f.starts.length, 2, "no duplicate execution after waiting");
+
+  const review = reviewRepairCandidate({
+    project: f.project,
+    journal: f.journal,
+    lanes: f.lanes,
+    taskId: task.id,
+    includePatch: true,
+  });
+  assert.equal(review.publishStatus, "NOT_PUBLISHED");
+  assert.equal(review.verificationJobId, "job-2");
+  assert.match(review.patchSha256, /^[a-f0-9]{64}$/);
+  assert.match(review.preview, /const x = 1/);
+  assert.deepEqual(review.files, ["src/format.js"]);
+  assert.equal(review.previewTruncated, false);
+
+  // A verified worktree that changes after its gate is NOT the same review
+  // candidate, even when it touches the same allowed file and byte count.
+  fs.writeFileSync(path.join(lane, "src", "format.js"), "const y = 1;\\n");
+  assert.throws(
+    () => reviewRepairCandidate({
+      project: f.project,
+      journal: f.journal,
+      lanes: f.lanes,
+      taskId: task.id,
+    }),
+    /AUTOPILOT_REPAIR_PATCH_CHANGED/,
+  );
 });
 
 test("disallowed touched paths never run follow-up verification", (t) => {
@@ -306,4 +334,19 @@ test("unconfigured worker creates no background activity", async () => {
   });
   assert.deepEqual(service.enabledProjects, []);
   await service.close();
+});
+
+test("review action fails before a verified repair checkpoint", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  assert.throws(
+    () => reviewRepairCandidate({
+      project: f.project,
+      journal: f.journal,
+      lanes: f.lanes,
+      taskId: task.id,
+      includePatch: true,
+    }),
+    /AUTOPILOT_REPAIR_NOT_VERIFIED/,
+  );
 });
