@@ -73,6 +73,7 @@ test("credential, URL and email error lines are dropped", () => {
     safeCiStepName("https://signed.example/?signature=abc"),
     "REDACTED_STEP",
   );
+  assert.equal(safeCiStepName("Error for person@example.com"), "REDACTED_STEP");
 });
 
 test("dedupe and line bounds prevent noisy error floods", () => {
