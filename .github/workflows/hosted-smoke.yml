@@ -7,6 +7,7 @@ on:
       - "src/**"
       - "package.json"
       - "scripts/verify-public-mcp-catalog.mjs"
+      - "scripts/verify-render-deployment.mjs"
       - ".github/workflows/hosted-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -215,3 +216,17 @@ jobs:
           persist-credentials: false
       - name: Compare live customer and Render MCP catalogs
         run: node scripts/verify-public-mcp-catalog.mjs
+
+  # Independent release gate. Healthy source CI and MCP discovery must NOT
+  # mask a Render build that still runs an older commit. A free-tier Render
+  # deploy may lag a push, so retry a bounded window; fail if it stays stale.
+  # This is read-only /healthz and does not use deployment credentials.
+  deployment_parity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Require exact Render deployed commit to match this workflow SHA
+        run: node scripts/verify-render-deployment.mjs
