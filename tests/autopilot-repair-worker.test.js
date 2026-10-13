@@ -207,12 +207,13 @@ test("approved edit runs a verification gate and preserves a review-only patch",
   // candidate, even when it touches the same allowed file and byte count.
   fs.writeFileSync(path.join(lane, "src", "format.js"), "const y = 1;\n");
   assert.throws(
-    () => reviewRepairCandidate({
-      project: f.project,
-      journal: f.journal,
-      lanes: f.lanes,
-      taskId: task.id,
-    }),
+    () =>
+      reviewRepairCandidate({
+        project: f.project,
+        journal: f.journal,
+        lanes: f.lanes,
+        taskId: task.id,
+      }),
     /AUTOPILOT_REPAIR_PATCH_CHANGED/,
   );
 });
@@ -340,13 +341,14 @@ test("review action fails before a verified repair checkpoint", (t) => {
   const f = fixture(t);
   const task = f.enqueue();
   assert.throws(
-    () => reviewRepairCandidate({
-      project: f.project,
-      journal: f.journal,
-      lanes: f.lanes,
-      taskId: task.id,
-      includePatch: true,
-    }),
+    () =>
+      reviewRepairCandidate({
+        project: f.project,
+        journal: f.journal,
+        lanes: f.lanes,
+        taskId: task.id,
+        includePatch: true,
+      }),
     /AUTOPILOT_REPAIR_NOT_VERIFIED/,
   );
 });
