@@ -13,6 +13,7 @@ const validAgent = JSON.stringify({
   tenant: "t1",
   stateDir: "/var/lib/kmj-codebridge",
   supervisorSocket: "/run/kmj-codebridge/supervisor.sock",
+  license: { mode: "free" },
   projects: [
     {
       id: "kmj-main-platform",
