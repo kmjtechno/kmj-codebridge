@@ -15,6 +15,11 @@ const CONFIGS = {
   agent: "/etc/kmj-codebridge/agent.json",
   gateway: "/etc/kmj-codebridge/gateway.json",
 };
+// The legacy Main Platform agent is enrolled with its own fixed config path. It is
+// selected only by the exact managed project id, never from caller-supplied paths.
+const MAIN_PLATFORM_PROJECT_ID = "kmj-main-platform";
+const MAIN_PLATFORM_AGENT_CONFIG =
+  "/etc/kmj-codebridge-main-platform/agent.json";
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
@@ -1558,7 +1563,15 @@ export function createSupervisorHandler({
         fail("INVALID_SUPERVISOR_REQUEST");
       let agentConfig;
       try {
-        agentConfig = agentSchema.parse(JSON.parse(readFile(CONFIGS.agent)));
+        agentConfig = agentSchema.parse(
+          JSON.parse(
+            readFile(
+              request.projectId === MAIN_PLATFORM_PROJECT_ID
+                ? MAIN_PLATFORM_AGENT_CONFIG
+                : CONFIGS.agent,
+            ),
+          ),
+        );
       } catch {
         fail("SUPERVISOR_CONFIG_INVALID");
       }
