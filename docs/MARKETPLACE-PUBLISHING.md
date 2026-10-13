@@ -100,7 +100,7 @@ Remote OAuth access and directory health scanner may require additional
 provider-specific test configuration. This command is documentation, not
 evidence it has run or been accepted.
 
-## F. Glama — SUBMIT & CLAIM REQUIRED
+## F. Glama — PUBLICLY INDEXED, OWNER CLAIM PENDING
 
 **Existing public listing already located:**
 https://glama.ai/mcp/servers/kmjtechno/kmj-codebridge/schema
