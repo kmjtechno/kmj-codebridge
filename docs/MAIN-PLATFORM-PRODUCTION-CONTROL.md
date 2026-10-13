@@ -57,8 +57,27 @@ an active supervisor; after confirming it is idle, the operator must
 restart its fixed socket/service through the guarded maintenance flow,
 then verify the new `supervisor_main_platform_production_status` response.
 
-It may enable an existing CodeBridge supervisor socket but does not alter
-stored enrollment/token files, OAuth settings or the development checkout.
+It provisions a missing *restricted* systemd supervisor socket and root
+service only for the existing, trusted Main Platform agent installation. The
+bootstrap checks the fixed KMJ-elite hostname, registered service user, exact
+agent ExecStart/runtime, protected 0600 enrollment configuration, root-only
+runtime source tree, and fixed /run/kmj-codebridge/supervisor.sock. It refuses
+unknown agent identities, writable imported packages or injected service
+paths. It never restarts the agent, re-enrolls it, downloads code, changes
+stored tokens/OAuth settings or deploys the website. Where the socket unit
+already exists, it only enables/starts that fixed unit without overwriting
+its operator-reviewed definition.
+
+After a successful bootstrap, `kmj-codebridge-supervisor.socket` should be
+**active**, while its socket-triggered privileged service can remain
+**inactive until the first authorized request**. From the connected
+`kmj-elite-main-platform` device, verify
+`supervisor_project_status` and
+`supervisor_main_platform_refresh_status` before using further controls.
+If the agent still advertises old tools, invoke the fixed authorized agent
+refresh path only when the updater and independent rollback checks permit.
+An online agent is not proof the production command catalog has updated.
+
 
 The CodeBridge agent must separately have the documented
 `supervisorSocket=/run/kmj-codebridge/supervisor.sock` configured in its
