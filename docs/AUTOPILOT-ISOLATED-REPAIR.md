@@ -20,6 +20,7 @@ Add to the chosen `projects[]` entry:
       "format": {
         "fixGate": "format_src",
         "verifyGate": "fast_check",
+        "triggerGate": "fast_check",
         "paths": ["src/", "tests/"]
       }
     }
@@ -43,6 +44,10 @@ write AND execute permissions:
 - key: `auto-repair:format:<current-full-40-character-local-HEAD-SHA>`
 - objective: brief description of the known formatting issue
 - priority: within the existing journal range
+
+A failed opt-in `auto-gate:fast_check:<full-SHA>` task may also queue this
+recipe automatically when `triggerGate` equals the failed gate, without
+requiring a second human enqueue. This never activates an unconfigured recipe.
 
 The existing background agent worker (when installed and running) will
 perform: check entitlement and resource pressure; lease exact eligible task;
