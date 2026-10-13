@@ -483,6 +483,7 @@ function commandRisk(category) {
 
 function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
+  if (name === "supervisor_main_platform_production_activate") return "DEPLOY";
   if (name === "run_quality_gate") return "TEST";
   if (name === "worktree_lane_prepare") return "GIT_WRITE";
   if (name === "worktree_lane_cleanup") return "DESTRUCTIVE";
@@ -1360,6 +1361,27 @@ export const definitions = {
       "Read a bounded device resource snapshot from the local CodeBridge supervisor, including CPU count, memory, load, uptime, platform, architecture, hostname, and Node runtime version.",
     input: scoped,
     access: "read",
+  },
+  supervisor_main_platform_production_status: {
+    title: "Main Platform production release status",
+    description:
+      "Read fixed KMJ-elite production release pointer, pre-approved immutable SHA, Nginx/PHP health and guarded operator-installed deployment unit availability. No command, path, environment, secret or release target can be supplied.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_main_platform_production_activate: {
+    title: "Activate operator-approved Main Platform production release",
+    description:
+      "Trigger only an operator-installed guarded Main Platform release systemd unit after matching a protected approval manifest, exact expected current release and approved SHA. Requires execute permission and explicit confirmation; does not accept commands, paths, branch names or arbitrary SHA targets. Accepted is not deployed: verify real post-cutover health separately.",
+    input: {
+      ...scoped,
+      approvedSha: z.string().regex(/^[a-f0-9]{40}$/),
+      expectedCurrentRelease: z
+        .string()
+        .regex(/^[a-z0-9][a-z0-9_-]{3,100}$/),
+      confirmation: z.literal("ACTIVATE_APPROVED_PRODUCTION_RELEASE"),
+    },
+    access: "execute",
   },
   supervisor_main_platform_refresh_status: {
     title: "Main Platform refresh status",
@@ -2261,6 +2283,17 @@ export function createDispatcher(
       });
     if (name === "supervisor_device_status")
       return await supervisor.request({ op: "device_status" });
+    if (name === "supervisor_main_platform_production_status")
+      return await supervisor.request({ op: "main_platform_production_status" });
+    if (name === "supervisor_main_platform_production_activate") {
+      if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_production_activate",
+        approvedSha: a.approvedSha,
+        expectedCurrentRelease: a.expectedCurrentRelease,
+        confirmation: a.confirmation,
+      });
+    }
     if (name === "supervisor_main_platform_refresh_status")
       return await supervisor.request({ op: "main_platform_refresh_status" });
     if (name === "supervisor_main_platform_refresh")
