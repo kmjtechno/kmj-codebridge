@@ -1531,7 +1531,17 @@ export function createSupervisorHandler({
       const configPath = CONFIGS[request.service];
       if (!configPath) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       try {
-        const raw = JSON.parse(readFile(configPath));
+        let raw;
+        try {
+          raw = JSON.parse(readFile(configPath));
+        } catch (error) {
+          // The existing KMJ-elite agent has a dedicated enrollment file.
+          // Only an absent generic agent file permits this fixed fallback.
+          // Malformed, unreadable, or gateway configs fail closed.
+          if (request.service !== "agent" || error?.code !== "ENOENT")
+            throw error;
+          raw = JSON.parse(readFile(MAIN_PLATFORM_AGENT_CONFIG));
+        }
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
         return { response: { service: request.service, valid: true } };
