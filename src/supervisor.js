@@ -17,7 +17,8 @@ const CONFIGS = {
 };
 // Existing KMJ-elite Main Platform enrollment uses a separate fixed config.
 // Never derive this path from an MCP request or a writable checkout.
-const MAIN_PLATFORM_AGENT_CONFIG = "/etc/kmj-codebridge-main-platform/agent.json";
+const MAIN_PLATFORM_AGENT_CONFIG =
+  "/etc/kmj-codebridge-main-platform/agent.json";
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
