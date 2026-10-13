@@ -1,0 +1,23 @@
+[Unit]
+Description=KMJ Main Platform guarded approved production release
+After=network-online.target nginx.service php8.4-fpm.service
+Wants=network-online.target
+ConditionPathExists=/etc/kmj-codebridge/main-platform-production-release.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+Environment=PATH=/usr/bin:/bin
+ExecStart=/usr/local/libexec/kmj-codebridge/activate-main-platform-approved.py
+TimeoutStartSec=600
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=full
+ProtectHome=no
+ReadWritePaths=/home/kmjprod /run/lock
+ReadOnlyPaths=/etc/kmj-codebridge /var/backups/kmj-platform
+
+[Install]
+WantedBy=multi-user.target
