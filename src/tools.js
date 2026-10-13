@@ -9,6 +9,7 @@ import { FileCheckpoints } from "./checkpoints.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
+import { runtimeRevision } from "./runtime-revision.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
@@ -1573,6 +1574,9 @@ export function createDispatcher(
         })),
         connection: "connected",
         version: VERSION,
+        // Commit of the code this agent process runs (null when unknown). A
+        // "git-branch" source is a checkout and may carry uncommitted edits.
+        runtimeRevision: runtimeRevision(),
       };
     if (name === "worktree_lane_status")
       return {
