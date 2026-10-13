@@ -18,6 +18,13 @@ const CONFIGS = {
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
+const MAIN_PLATFORM_PRODUCTION_RELEASE_SERVICE =
+  "kmj-main-platform-production-release.service";
+const MAIN_PLATFORM_PRODUCTION_CURRENT = "/home/kmjprod/current";
+const MAIN_PLATFORM_PRODUCTION_APPROVAL =
+  "/etc/kmj-codebridge/main-platform-production-release.json";
+const MAIN_PLATFORM_RELEASE_NAME = /^[a-z0-9][a-z0-9_-]{3,100}$/;
+const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
@@ -1375,8 +1382,105 @@ export function createSupervisorHandler({
     };
   };
 
+  const productionCurrentRelease = () => {
+    try {
+      if (!lstat(MAIN_PLATFORM_PRODUCTION_CURRENT).isSymbolicLink())
+        return null;
+      const target = readlink(MAIN_PLATFORM_PRODUCTION_CURRENT);
+      const match =
+        /^(?:\/home\/kmjprod\/)?releases\/([a-z0-9][a-z0-9_-]{3,100})$/.exec(
+          target,
+        );
+      return match && MAIN_PLATFORM_RELEASE_NAME.test(match[1])
+        ? match[1]
+        : null;
+    } catch {
+      return null;
+    }
+  };
+
+  const protectedProductionApproval = () => {
+    try {
+      const info = lstat(MAIN_PLATFORM_PRODUCTION_APPROVAL);
+      // Root-owned, regular, single-linked, and not group/world writable.
+      if (
+        !info.isFile() ||
+        info.isSymbolicLink() ||
+        info.uid !== 0 ||
+        info.nlink !== 1 ||
+        (info.mode & 0o022) !== 0
+      )
+        return null;
+      const raw = readFile(MAIN_PLATFORM_PRODUCTION_APPROVAL);
+      if (typeof raw !== "string" || Buffer.byteLength(raw) > 4096) return null;
+      const data = JSON.parse(raw);
+      if (
+        !data ||
+        typeof data !== "object" ||
+        Array.isArray(data) ||
+        Object.keys(data).some(
+          (key) =>
+            ![
+              "approvedSha",
+              "expectedCurrentRelease",
+              "backupVerified",
+              "rollbackVerified",
+            ].includes(key),
+        ) ||
+        !FULL_GIT_SHA.test(data.approvedSha) ||
+        !MAIN_PLATFORM_RELEASE_NAME.test(data.expectedCurrentRelease) ||
+        data.backupVerified !== true ||
+        data.rollbackVerified !== true
+      )
+        return null;
+      return {
+        approvedSha: data.approvedSha,
+        expectedCurrentRelease: data.expectedCurrentRelease,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const productionReleaseState = () => {
+    const approval = protectedProductionApproval();
+    const currentRelease = productionCurrentRelease();
+    const deployService = fixedUnitStatus(
+      run,
+      MAIN_PLATFORM_PRODUCTION_RELEASE_SERVICE,
+      ["ActiveState", "SubState", "Result", "ExecMainStatus"],
+    );
+    const nginx = fixedUnitStatus(run, "nginx.service", ["ActiveState"]);
+    const phpFpm = fixedUnitStatus(run, "php8.4-fpm.service", ["ActiveState"]);
+    return {
+      currentRelease,
+      approvedSha: approval?.approvedSha ?? null,
+      expectedCurrentRelease: approval?.expectedCurrentRelease ?? null,
+      approvalReady: approval !== null,
+      releaseUnit: deployService,
+      nginxActive: nginx.activeState === "active",
+      phpFpmActive: phpFpm.activeState === "active",
+      readyToActivate:
+        approval !== null &&
+        currentRelease !== null &&
+        currentRelease === approval.expectedCurrentRelease &&
+        deployService.installed &&
+        deployService.activeState === "inactive" &&
+        nginx.activeState === "active" &&
+        phpFpm.activeState === "active",
+    };
+  };
+
   return async function handle(request) {
-    exactKeys(request, ["op", "service", "lines", "projectId"]);
+    exactKeys(request, [
+      "op",
+      "service",
+      "lines",
+      "projectId",
+      "approvedSha",
+      "expectedCurrentRelease",
+      "confirmation",
+    ]);
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
 
     if (request.op === "status") {
@@ -1613,6 +1717,51 @@ export function createSupervisorHandler({
             MAIN_PLATFORM_REFRESH_SERVICE,
           ),
         },
+      };
+    }
+
+    if (request.op === "main_platform_production_status") {
+      exactKeys(request, ["op"]);
+      return { response: productionReleaseState() };
+    }
+
+    if (request.op === "main_platform_production_activate") {
+      exactKeys(request, [
+        "op",
+        "approvedSha",
+        "expectedCurrentRelease",
+        "confirmation",
+      ]);
+      if (
+        request.confirmation !== "ACTIVATE_APPROVED_PRODUCTION_RELEASE" ||
+        typeof request.approvedSha !== "string" ||
+        !FULL_GIT_SHA.test(request.approvedSha) ||
+        typeof request.expectedCurrentRelease !== "string" ||
+        !MAIN_PLATFORM_RELEASE_NAME.test(request.expectedCurrentRelease)
+      )
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const state = productionReleaseState();
+      if (!state.approvalReady) fail("SUPERVISOR_PRODUCTION_APPROVAL_MISSING");
+      if (
+        state.approvedSha !== request.approvedSha ||
+        state.expectedCurrentRelease !== request.expectedCurrentRelease ||
+        state.currentRelease !== request.expectedCurrentRelease
+      )
+        fail("SUPERVISOR_PRODUCTION_RELEASE_MISMATCH");
+      if (!state.releaseUnit.installed)
+        fail("SUPERVISOR_PRODUCTION_RELEASE_UNAVAILABLE");
+      if (
+        state.releaseUnit.activeState !== "inactive" ||
+        !state.nginxActive ||
+        !state.phpFpmActive
+      )
+        fail("SUPERVISOR_PRODUCTION_PRECHECK_FAILED");
+      // The installed fixed systemd unit MUST independently re-check
+      // protected approval, live symlink, backup and rollback before moving
+      // any production pointer. This response is an ACK, not a deploy PASS.
+      return {
+        response: { accepted: true, approvedSha: request.approvedSha },
+        afterSend: () => start(MAIN_PLATFORM_PRODUCTION_RELEASE_SERVICE),
       };
     }
 

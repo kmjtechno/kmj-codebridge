@@ -7,7 +7,7 @@ import { AutopilotJournal } from "../src/autopilot.js";
 import { JobRunner } from "../src/jobs.js";
 import { createDispatcher } from "../src/tools.js";
 
-function setup(t) {
+function setup(t, projectId = "p1") {
   const base = fs.mkdtempSync(
     path.join(os.tmpdir(), "cb-supervisor-dispatch-"),
   );
@@ -27,7 +27,7 @@ function setup(t) {
   const config = {
     id: "d1",
     stateDir: state,
-    projects: [{ id: "p1", root, writable: true, gates: {} }],
+    projects: [{ id: projectId, root, writable: true, gates: {} }],
   };
   const licenseProvider = () => ({
     features: ["read", "write", "execute"],
@@ -133,4 +133,68 @@ test("supervisor operations fail closed when local supervisor is absent", async 
     /SUPERVISOR_UNAVAILABLE/,
   );
   assert.equal(typeof dispatch, "function");
+});
+
+test("production release inventory is read-only, activation is execute and project scoped", async (t) => {
+  const { dispatch, calls } = setup(t, "kmj-main-platform");
+  const prodScope = { device: "d1", project: "kmj-main-platform" };
+  const valid = {
+    ...prodScope,
+    approvedSha: "a".repeat(40),
+    expectedCurrentRelease: "commerce-3315f2a-20261009",
+    confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
+  };
+  await dispatch("supervisor_main_platform_production_status", prodScope, [
+    "read",
+  ]);
+  assert.deepEqual(calls, [{ op: "main_platform_production_status" }]);
+  await assert.rejects(
+    dispatch("supervisor_main_platform_production_activate", valid, ["read"]),
+    /ACCESS_DENIED/,
+  );
+  await dispatch("supervisor_main_platform_production_activate", valid, [
+    "execute",
+  ]);
+  assert.deepEqual(calls.at(-1), {
+    op: "main_platform_production_activate",
+    approvedSha: "a".repeat(40),
+    expectedCurrentRelease: "commerce-3315f2a-20261009",
+    confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
+  });
+  await assert.rejects(
+    dispatch(
+      "supervisor_main_platform_production_activate",
+      {
+        ...valid,
+        project: "other",
+      },
+      ["execute"],
+    ),
+    /PROJECT_NOT_FOUND/,
+  );
+  assert.equal(calls.length, 2);
+});
+
+test("production release tool rejects caller-chosen shell, path and invalid SHA", async (t) => {
+  const { dispatch, calls } = setup(t);
+  const input = {
+    ...scope,
+    approvedSha: "b".repeat(40),
+    expectedCurrentRelease: "commerce-3315f2a-20261009",
+    confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
+  };
+  for (const malicious of [
+    { ...input, command: "/bin/bash" },
+    { ...input, path: "/root/.ssh" },
+    { ...input, approvedSha: "main" },
+    { ...input, expectedCurrentRelease: "../current" },
+    { ...input, confirmation: "yes" },
+  ]) {
+    await assert.rejects(
+      dispatch("supervisor_main_platform_production_activate", malicious, [
+        "execute",
+      ]),
+    );
+  }
+  assert.deepEqual(calls, []);
 });
