@@ -56,10 +56,7 @@ test("no cloud without explicit approval; never select paid", () => {
     freeCloud.id,
   );
   const onlyPaid = new ModelFailoverPolicy([paid]);
-  assert.equal(
-    onlyPaid.select({ ...task, cloudApproved: true }).modelId,
-    null,
-  );
+  assert.equal(onlyPaid.select({ ...task, cloudApproved: true }).modelId, null);
 });
 
 test("private code cannot go to a non-authorized cloud provider", () => {
@@ -139,10 +136,7 @@ test("invalid configuration and task budget fail closed", () => {
     () => new ModelFailoverPolicy([{ ...local, id: "bad id" }]),
     /INVALID_CONFIG/,
   );
-  assert.throws(
-    () => new ModelFailoverPolicy([local, local]),
-    /DUPLICATE_ID/,
-  );
+  assert.throws(() => new ModelFailoverPolicy([local, local]), /DUPLICATE_ID/);
   const policy = new ModelFailoverPolicy([local]);
   assert.throws(
     () => policy.select({ ...task, inputTokens: -1 }),
