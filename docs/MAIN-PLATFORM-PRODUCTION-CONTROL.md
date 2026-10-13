@@ -79,19 +79,22 @@ its permissions must remain protected.
 
 **Owner bootstrap invocation** from the pinned archive must supply the
 approved commit ID to the root installer, for example:
+
 ```bash
 KMJ_APPROVED_CODEBRIDGE_SHA="<exact-reviewed-Git-SHA>" \\
   bash scripts/production/install-main-platform-control.sh
 ```
+
 No runtime staging or privileged service operation is initiated by
-CodeBridge chat tools until this first trusted root action succeeds. It resolves
-the runtime from the existing effective systemd `WorkingDirectory` instead
-of guessing `/opt/kmj-codebridge-agent`: the only accepted layouts are that
-original path and the existing root-owned immutable
+CodeBridge chat tools until this first trusted root action succeeds. It resolves the existing agent location from the effective systemd `WorkingDirectory` instead of guessing: accepted layouts include the observed unprivileged
+`/srv/kmj-codebridge-projects/kmj-codebridge` (owned by `kmjcode`), the original
+`/opt/kmj-codebridge-agent`, and the separate root-owned immutable
 `/opt/kmj-codebridge-main-platform-stage/<40-character SHA>` created by the
 guarded Main Platform refresh flow. For staged agents it validates the fixed
 stage directory, immutable manifest identity and all root-owned imported
-code/dependencies. The Node executable must match the existing unit's exact
+code/dependencies. Root supervisor code is always isolated at
+`/opt/kmj-codebridge-supervisor-stage/<approved full SHA>`.
+The Node executable must match the existing unit's exact
 `ExecStart` and an allowlisted root-owned interpreter target; unknown,
 writable, symlink-escaped or caller-provided runtimes are refused. It refuses
 unknown agent identities, writable imported packages or injected service
