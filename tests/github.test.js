@@ -506,3 +506,114 @@ test("GitHub bridge fails closed when configured credential is missing", () => {
     /GITHUB_CREDENTIAL_MISSING/,
   );
 });
+
+test("native GitHub doctor distinguishes allowlist, auth, rate limit and private repository readiness", async (t) => {
+  let responseStatus = 200;
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push({
+      url: String(url),
+      authorization: options.headers.authorization,
+    });
+    if (responseStatus !== 200) {
+      return json({}, responseStatus);
+    }
+    return json({
+      full_name: "kmjtechno/kmj-codebridge",
+      default_branch: "main",
+      private: true,
+    });
+  });
+  const dispatch = writableBridge(t);
+
+  const denied = await dispatch("github_connection_doctor", {
+    repository: "other/private-cinecore",
+  });
+  assert.equal(denied.status, "repository_not_allowed");
+  assert.equal(
+    calls.length,
+    0,
+    "unapproved repositories never trigger GitHub requests",
+  );
+
+  const ready = await dispatch("github_connection_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(ready.status, "read_ready");
+  assert.equal(ready.privateRepository, true);
+  assert.equal(
+    ready.writeVerified,
+    false,
+    "a read probe cannot authorize writes",
+  );
+
+  responseStatus = 401;
+  const rejected = await dispatch("github_connection_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(rejected.status, "authorization_failed");
+  assert.equal(rejected.readVerified, false);
+
+  responseStatus = 403;
+  const forbidden = await dispatch("github_connection_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(forbidden.status, "authorization_failed");
+
+  responseStatus = 429;
+  const throttled = await dispatch("github_connection_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(throttled.status, "rate_limited");
+
+  responseStatus = 404;
+  const absent = await dispatch("github_connection_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(absent.status, "not_found_or_not_granted");
+
+  assert.equal(
+    calls.length,
+    5,
+    "doctor checks live GitHub state on each allowed call",
+  );
+  for (const result of [
+    denied,
+    ready,
+    rejected,
+    forbidden,
+    throttled,
+    absent,
+  ]) {
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /[j]{20}|CODEBRIDGE_TEST_GITHUB_TOKEN/,
+    );
+  }
+});
+
+test("public read-only native GitHub doctor sends no credential and never implies private/write access", async (t) => {
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push(options.headers.authorization);
+    return json({
+      full_name: "kmjtechno/kmj-codebridge",
+      private: false,
+      default_branch: "main",
+    });
+  });
+  const dispatch = createGitHubBridge({
+    apiBase: "https://api.github.com/",
+    publicReadOnly: true,
+    repositories: ["kmjtechno/kmj-codebridge"],
+    cacheSeconds: 30,
+  });
+  const result = await dispatch("github_connection_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+  });
+  assert.equal(result.status, "read_ready");
+  assert.equal(result.mode, "public_read_only");
+  assert.equal(result.privateRepository, false);
+  assert.equal(result.writeVerified, false);
+  assert.deepEqual(calls, [undefined]);
+});
