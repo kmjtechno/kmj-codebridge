@@ -4,7 +4,7 @@ umask 077
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 fail() { echo "KMJ_BLOCKED: $1" >&2; exit 1; }
 [[ "$(id -u)" == 0 && "$(hostname)" == KMJ-elite ]] || fail ROOT_AND_HOST_REQUIRED
-for x in curl git tar sha256sum install stat npm bash; do command -v "$x" >/dev/null || fail "MISSING_$x"; done
+for x in curl git tar sha256sum install stat bash; do command -v "$x" >/dev/null || fail "MISSING_$x"; done
 NODE=/opt/kmj-codebridge-node/bin/node
 safe() {
   local file="$1" mode
@@ -21,7 +21,7 @@ done
 if [[ -e "$NODE" || -L "$NODE" ]]; then
   [[ ! -L "$NODE" ]] || fail OPT_NODE_SYMLINK_DENIED
   safe "$NODE" || fail OPT_NODE_UNSAFE_DO_NOT_OVERWRITE
-elif safe /usr/bin/node; then
+elif safe /usr/bin/node && command -v npm >/dev/null; then
   echo "NODE24_EXISTING: /usr/bin/node"
 else
   case "$(uname -m)" in
@@ -36,14 +36,22 @@ else
   VER=24.21.0; PKG=node-v$VER-linux-$ARCH; FILE=$PKG.tar.xz
   curl --proto '=https' --tlsv1.2 -fLsS --retry 3 --max-time 180 "https://nodejs.org/dist/v$VER/$FILE" -o "$TMP/$FILE"
   (cd "$TMP" && printf '%s  %s\n' "$SUM" "$FILE" | sha256sum -c -) || fail NODE_CHECKSUM_FAILED
-  tar -xJf "$TMP/$FILE" -C "$TMP" --no-same-owner --no-same-permissions "$PKG/bin/node"
+  tar -xJf "$TMP/$FILE" -C "$TMP" --no-same-owner --no-same-permissions \
+    "$PKG/bin/node" "$PKG/lib/node_modules/npm"
   [[ "$("$TMP/$PKG/bin/node" -v)" == v$VER ]] || fail NODE_BINARY_VERSION_MISMATCH
   [[ ! -e "$NODE" && ! -L "$NODE" ]] || fail OPT_NODE_CONFLICT
+  install -d -m 0755 -o root -g root /opt/kmj-codebridge-node/lib/node_modules
+  [[ ! -e /opt/kmj-codebridge-node/lib/node_modules/npm ]] || fail NPM_TARGET_CONFLICT
+  cp -a -- "$TMP/$PKG/lib/node_modules/npm" /opt/kmj-codebridge-node/lib/node_modules/npm
+  chown -R root:root /opt/kmj-codebridge-node/lib/node_modules/npm
+  chmod -R go-w /opt/kmj-codebridge-node/lib/node_modules/npm
   install -m 0755 -o root -g root "$TMP/$PKG/bin/node" "$NODE"
+  ln -s ../lib/node_modules/npm/bin/npm-cli.js /opt/kmj-codebridge-node/bin/npm
   safe "$NODE" || fail INSTALLED_NODE_INVALID
   rm -rf -- "$TMP"; trap - EXIT
 fi
 export PATH=/opt/kmj-codebridge-node/bin:$PATH
+command -v npm >/dev/null || fail NPM_UNAVAILABLE_AFTER_NODE24_REPAIR
 SHA=7d2aad1d64c380f332e6791347d84bac115d5279
 WORK="$(mktemp -d /root/kmj-approved-XXXXXXXX)"; trap 'rm -rf -- "$WORK"' EXIT
 mkdir -m 0700 "$WORK/source"
