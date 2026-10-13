@@ -239,6 +239,15 @@ export const agentSchema = z.object({
               }),
             )
             .default({}),
+          autopilotLocalWorker: z
+            .object({
+              enabled: z.boolean().default(false),
+              model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
+              maxTokens: z.number().int().min(32).max(512).default(256),
+              timeoutSeconds: z.number().int().min(5).max(90).default(45),
+            })
+            .strict()
+            .optional(),
           autopilotGateWorker: z
             .object({
               enabled: z.boolean().default(false),
