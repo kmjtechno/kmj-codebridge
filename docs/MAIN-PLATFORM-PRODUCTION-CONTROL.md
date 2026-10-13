@@ -57,7 +57,7 @@ an active supervisor; after confirming it is idle, the operator must
 restart its fixed socket/service through the guarded maintenance flow,
 then verify the new `supervisor_main_platform_production_status` response.
 
-It provisions a missing *restricted* systemd supervisor socket and root
+It provisions a missing _restricted_ systemd supervisor socket and root
 service only for the existing, trusted Main Platform agent installation. The
 bootstrap checks the fixed KMJ-elite hostname, registered service user, exact
 agent ExecStart/runtime, protected 0600 enrollment configuration, root-only
@@ -77,7 +77,6 @@ After a successful bootstrap, `kmj-codebridge-supervisor.socket` should be
 If the agent still advertises old tools, invoke the fixed authorized agent
 refresh path only when the updater and independent rollback checks permit.
 An online agent is not proof the production command catalog has updated.
-
 
 The CodeBridge agent must separately have the documented
 `supervisorSocket=/run/kmj-codebridge/supervisor.sock` configured in its
