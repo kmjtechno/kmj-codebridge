@@ -284,7 +284,8 @@ export const agentSchema = z.object({
               if (Boolean(watch.tokenEnv) === watch.publicReadOnly) {
                 ctx.addIssue({
                   code: z.ZodIssueCode.custom,
-                  message: "Choose server token OR explicit public read-only mode",
+                  message:
+                    "Choose server token OR explicit public read-only mode",
                 });
               }
             })
@@ -379,7 +380,8 @@ export const agentSchema = z.object({
           )
             ctx.addIssue({
               code: z.ZodIssueCode.custom,
-              message: "CI watch needs a writable project and enabled repair recipe",
+              message:
+                "CI watch needs a writable project and enabled repair recipe",
             });
         })
         .transform((project) => ({
