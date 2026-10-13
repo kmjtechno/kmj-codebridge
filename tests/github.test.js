@@ -338,7 +338,7 @@ test("GitHub update file fails closed without verified default branch metadata",
   const calls = [];
   t.mock.method(globalThis, "fetch", async (url, options) => {
     calls.push({ url: String(url), method: options.method });
-    return json({ default_branch: "../unsafe" });
+    return json({ default_branch: "not a valid branch" });
   });
   const dispatch = writableBridge(t);
   await assert.rejects(
