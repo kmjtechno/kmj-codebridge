@@ -14,7 +14,8 @@ if [[ "$(hostname)" != "KMJ-elite" ]]; then
 fi
 SOURCE="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 if [[ -L "$SOURCE/activate-main-platform-approved.py" ||
-      -L "$SOURCE/kmj-main-platform-production-release.service" ]]; then
+      -L "$SOURCE/kmj-main-platform-production-release.service" ||
+      -L "$SOURCE/activate-supervisor-socket-approved.sh" ]]; then
   echo "INSTALL_SOURCE_SYMLINK_DENIED" >&2
   exit 1
 fi
@@ -23,6 +24,8 @@ test -f "$SOURCE/kmj-main-platform-production-release.service"
 test -f "$SOURCE/kmj-codebridge-supervisor-prod-readonly.conf"
 test -f "$SOURCE/bootstrap-existing-supervisor.sh"
 test -f "$SOURCE/stage-supervisor-root-runtime.sh"
+test -f "$SOURCE/activate-supervisor-socket-approved.sh"
+bash -n "$SOURCE/activate-supervisor-socket-approved.sh"
 python3 -m py_compile "$SOURCE/activate-main-platform-approved.py"
 test -d /home/kmjprod/releases
 test -L /home/kmjprod/current
@@ -63,6 +66,12 @@ systemctl show kmj-main-platform-production-release.service -p LoadState -p Acti
 KMJ_SUPERVISOR_RUNTIME="$SUPERVISOR_RUNTIME" \
   KMJ_APPROVED_CODEBRIDGE_SHA="${KMJ_APPROVED_CODEBRIDGE_SHA:-}" \
   bash "$SOURCE/bootstrap-existing-supervisor.sh"
+# Installs only the fixed reviewed helper. Does NOT grant passwordless sudo:
+# that remains a distinct explicit root operator approval after auditing it.
+install -m 0755 -o root -g root \
+  "$SOURCE/activate-supervisor-socket-approved.sh" \
+  "$BIN/activate-supervisor-socket-approved"
+echo "SUPERVISOR_FIXED_HELPER_INSTALLED_NO_SUDO_GRANT=1"
 echo "PRODUCTION_CONTROL_INSTALLED_NO_DEPLOY=1"
 if [[ ! -S /run/kmj-codebridge/supervisor.sock ]]; then
   echo "SUPERVISOR_SOCKET_NOT_READY: verify CodeBridge agent config and approved supervisor installation."

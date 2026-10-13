@@ -16,6 +16,10 @@ import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { createLocalModelClient } from "./local-model.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
+import {
+  bootstrapSupervisorStatus,
+  requestBootstrapSupervisor,
+} from "./bootstrap-supervisor.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -484,6 +488,7 @@ function commandRisk(category) {
 function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
   if (name === "supervisor_main_platform_production_activate") return "DEPLOY";
+  if (name === "bootstrap_supervisor_start") return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
   if (name === "worktree_lane_prepare") return "GIT_WRITE";
   if (name === "worktree_lane_cleanup") return "DESTRUCTIVE";
@@ -1316,6 +1321,23 @@ export const definitions = {
     },
     access: "write",
   },
+  bootstrap_supervisor_status: {
+    title: "CodeBridge supervisor bootstrap preflight",
+    description:
+      "Read fixed KMJ-elite supervisor unit/socket and operator-approved helper readiness without a root socket, shell, credentials, or caller-selected paths. A present socket is not an authenticated live MCP verification.",
+    input: scoped,
+    access: "read",
+  },
+  bootstrap_supervisor_start: {
+    title: "Start operator-provisioned CodeBridge supervisor socket",
+    description:
+      "Explicit privileged request only for the already installed fixed root-owned socket helper on KMJ-elite. Requires an exact confirmation and owner-provisioned no-argument sudoers permission; never installs privilege or runs a caller-selected command.",
+    input: {
+      ...scoped,
+      confirmation: z.literal("START_APPROVED_CODEBRIDGE_SUPERVISOR"),
+    },
+    access: "execute",
+  },
   supervisor_status: {
     title: "Supervisor service status",
     description:
@@ -1665,6 +1687,22 @@ export function createDispatcher(
         device: config.id,
         project: p.id,
         ...lanes().release(p.id, a.leaseToken),
+      };
+    }
+    if (name === "bootstrap_supervisor_status") {
+      if (p.id !== "kmj-main-platform") fail("BOOTSTRAP_PROJECT_DENIED");
+      return {
+        device: config.id,
+        project: p.id,
+        ...bootstrapSupervisorStatus(),
+      };
+    }
+    if (name === "bootstrap_supervisor_start") {
+      if (p.id !== "kmj-main-platform") fail("BOOTSTRAP_PROJECT_DENIED");
+      return {
+        device: config.id,
+        project: p.id,
+        ...requestBootstrapSupervisor(a.confirmation),
       };
     }
     if (name === "project_environment")
