@@ -6,6 +6,7 @@ import { setTimeout as delay } from "node:timers/promises";
 import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
+import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
 import { AuditLedger } from "./audit.js";
 import { supervisorRequest } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
@@ -123,6 +124,12 @@ export async function startAgent(rawConfig) {
     supervisor,
     audit,
   );
+  const gateWorker = startAutopilotGateWorker({
+    projects: c.projects,
+    journal: autopilot,
+    runner,
+    licenseProvider,
+  });
   const controller = new AbortController();
   let stopped = false;
   const connectionState = path.join(state, "connection.json");
@@ -290,6 +297,7 @@ export async function startAgent(rawConfig) {
       stopped = true;
       controller.abort();
       await loop;
+      await gateWorker.close();
       await runner.close();
       releaseAgentLock(agentLock);
     },
