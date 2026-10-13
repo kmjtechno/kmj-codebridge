@@ -78,7 +78,8 @@ const activate = {
 
 test("production inventory reports only bounded status and safe release identity", async () => {
   const { handle, started, calls } = harness();
-  const result = (await handle({ op: "main_platform_production_status" })).response;
+  const result = (await handle({ op: "main_platform_production_status" }))
+    .response;
   assert.equal(result.currentRelease, RELEASE);
   assert.equal(result.approvedSha, SHA);
   assert.equal(result.expectedCurrentRelease, RELEASE);
@@ -88,14 +89,21 @@ test("production inventory reports only bounded status and safe release identity
   assert.equal(result.phpFpmActive, true);
   assert.deepEqual(started, []);
   assert.equal(calls.length, 3);
-  assert.doesNotMatch(JSON.stringify(result), /\/etc\/|\/root\/|token|privateKey/i);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /\/etc\/|\/root\/|token|privateKey/i,
+  );
 });
 
 test("deploy trigger acknowledges only after pinned manifest and fixed service preflight", async () => {
   const { handle, started } = harness();
   const res = await handle(activate);
   assert.deepEqual(res.response, { accepted: true, approvedSha: SHA });
-  assert.deepEqual(started, [], "execution begins only after response delivered");
+  assert.deepEqual(
+    started,
+    [],
+    "execution begins only after response delivered",
+  );
   res.afterSend();
   assert.deepEqual(started, [UNIT]);
 });
@@ -120,7 +128,15 @@ test("protected approval manifest failures, absent unit and unhealthy processes 
   for (const options of [
     { file: null },
     { file: { approvedSha: SHA, expectedCurrentRelease: RELEASE } },
-    { file: { approvedSha: SHA, expectedCurrentRelease: RELEASE, backupVerified: true, rollbackVerified: true, command: "/bin/sh" } },
+    {
+      file: {
+        approvedSha: SHA,
+        expectedCurrentRelease: RELEASE,
+        backupVerified: true,
+        rollbackVerified: true,
+        command: "/bin/sh",
+      },
+    },
     { fileMode: 0o100666 },
     { fileUid: 1000 },
     { fileNlink: 2 },
@@ -130,14 +146,33 @@ test("protected approval manifest failures, absent unit and unhealthy processes 
     { nginx: "inactive" },
     { php: "failed" },
     { unitInstalled: false },
-    { file: { approvedSha: "0".repeat(40), expectedCurrentRelease: RELEASE, backupVerified: true, rollbackVerified: true } },
-    { file: { approvedSha: SHA, expectedCurrentRelease: "different_release", backupVerified: true, rollbackVerified: true } },
+    {
+      file: {
+        approvedSha: "0".repeat(40),
+        expectedCurrentRelease: RELEASE,
+        backupVerified: true,
+        rollbackVerified: true,
+      },
+    },
+    {
+      file: {
+        approvedSha: SHA,
+        expectedCurrentRelease: "different_release",
+        backupVerified: true,
+        rollbackVerified: true,
+      },
+    },
   ]) {
     const { handle, started } = harness(options);
-    const status = (await handle({ op: "main_platform_production_status" })).response;
+    const status = (await handle({ op: "main_platform_production_status" }))
+      .response;
     assert.equal(status.readyToActivate, false, JSON.stringify(options));
     await assert.rejects(handle(activate), undefined, JSON.stringify(options));
-    assert.deepEqual(started, [], "no side effects for " + JSON.stringify(options));
+    assert.deepEqual(
+      started,
+      [],
+      "no side effects for " + JSON.stringify(options),
+    );
   }
 });
 
@@ -148,7 +183,10 @@ test("activation rejects mismatched old-release and candidate SHA even when host
     /SUPERVISOR_PRODUCTION_RELEASE_MISMATCH/,
   );
   await assert.rejects(
-    handle({ ...activate, expectedCurrentRelease: "commerce-aaaaaaa-20261001" }),
+    handle({
+      ...activate,
+      expectedCurrentRelease: "commerce-aaaaaaa-20261001",
+    }),
     /SUPERVISOR_PRODUCTION_RELEASE_MISMATCH/,
   );
 });
