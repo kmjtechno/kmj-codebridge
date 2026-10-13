@@ -25,11 +25,20 @@ test("production control is a fixed, non-shell, operator-approved service", () =
   );
   assert.match(unit, /NoNewPrivileges=yes/);
   assert.match(unit, /ProtectSystem=full/);
-  assert.doesNotMatch(unit, /\/bin\/(?:sh|bash)|EnvironmentFile=|ExecStartPre=.+\$|\$\{/);
+  assert.doesNotMatch(
+    unit,
+    /\/bin\/(?:sh|bash)|EnvironmentFile=|ExecStartPre=.+\$|\$\{/,
+  );
   assert.match(install, /PRODUCTION_CONTROL_INSTALLED_NO_DEPLOY=1/);
-  assert.doesNotMatch(install, /systemctl start kmj-main-platform-production-release/);
+  assert.doesNotMatch(
+    install,
+    /systemctl start kmj-main-platform-production-release/,
+  );
   assert.match(activate, /NO_CALLER_ARGUMENTS_ALLOWED/);
-  assert.doesNotMatch(activate, /shell=True|os\.system\(|eval\(|subprocess\.Popen\(/);
+  assert.doesNotMatch(
+    activate,
+    /shell=True|os\.system\(|eval\(|subprocess\.Popen\(/,
+  );
 });
 
 test("release controller fails closed on unreviewed release or missing backup", () => {
