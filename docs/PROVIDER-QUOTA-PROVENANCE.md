@@ -28,12 +28,11 @@ zero provider calls. Unknown free allowance is **unknown**, not unlimited.
 - **Anthropic:** requests, combined tokens, input tokens and output tokens
   can have independent limits and RFC3339 reset times. These are rate
   windows, not unspent subscription credits or Anthropic API balance.
-- **OpenRouter `/api/v1/key`:** `free_model_daily_requests.remaining`
-  is a verified remaining count _when present_; `limit_remaining` is a
-  **key spending cap**, NEVER "free credits remaining". Each selected
-  model must independently be marked free by its current pricing/capability
-  metadata. OpenRouter account credit totals may require a separate
-  management key: do not assume those are included in this response.
+- **OpenRouter `/api/v1/key`:** `limit_remaining` is a **key spending cap**, NEVER
+  "free credits remaining". The documented response has no free-model daily
+  remaining counter; ignore unrecognized fields rather than claiming their
+  provenance is verified. Each model needs independently verified free pricing.
+  Account credit totals may require a separate management key.
 - **Unknown:** No compatible signal means that no balance or free quota
   can be asserted. Do not automatically enable a paid provider.
 
