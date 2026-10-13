@@ -107,6 +107,23 @@ original code was not verified back and needs a human. Pending gateway jobs are 
 memory, so a restart drops them; that is why `--confirm-no-active-jobs` is
 mandatory.
 
+**Root-run safety semantics.** Run it with `sudo` (the controller refuses to run
+as anyone else). Every `git` query runs **as the unprivileged service user**, never
+as root, because those repositories belong to the account that serves network
+traffic and repo-controlled Git config must not execute with root privileges.
+The lock (`/run/lock/kmj-codebridge-gateway-cutover.lock`) is created exclusively
+and records the holder's PID: `CUTOVER_LOCKED` means another run is active, while
+`CUTOVER_LOCK_STALE` means a run died and left it. A stale lock is **never**
+removed automatically, because that run may have left the service in an unknown
+state: check `systemctl status`, the drop-in and the newest directory under
+`/var/backups/kmj-codebridge/`, then delete the lock by hand. Backup directories
+are created exclusively (an existing one is never overwritten) and are owner-only,
+including the copied unit file, which may carry secrets in `Environment=`. A
+dropped SSH session (SIGHUP) is ignored during `--apply`, and SIGINT/SIGTERM lead
+to the same verified rollback as any other failure. If the failure happens before
+the restart, the rollback restores the drop-in without restarting the service (no
+outage for nothing) and still proves the original is serving.
+
 It replaces the drop-in wholesale, so it **refuses** (`DROPIN_UNRECOGNIZED`) if the
 existing drop-in contains anything other than the lines this controller or the
 earlier one-time utility wrote (`[Service]`, `WorkingDirectory=`,

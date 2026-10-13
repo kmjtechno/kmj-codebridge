@@ -132,16 +132,26 @@ function host(t, tweak = {}) {
         publish();
         return "";
       }
+      if (rest[0] === "daemon-reload") {
+        state.reloads = (state.reloads ?? 0) + 1;
+        if (state.failFirstReload && state.reloads === 1)
+          throw new CutoverError("COMMAND_FAILED:systemctl");
+      }
       return "";
     }
     if (cmd === node) return "v24.21.0";
-    if (cmd === "git") {
-      const root = argv[argv.indexOf("-C") + 1];
-      if (argv.includes("status")) return state.dirty ? " M src/x.js" : "";
-      return root === target ? state.candidateHead : state.gitHeadOld;
-    }
+    // git reads repo-controlled config; as root that is a privilege-escalation
+    // path, so it must only ever arrive via the unprivileged service user.
+    if (cmd === "git") throw new Error("git must never run as root");
     if (cmd === "getent") return "kmjcode:x:1000:1000::/home/kmjcode:/bin/sh";
     if (cmd === "runuser") {
+      const gitAt = argv.indexOf("git");
+      if (gitAt !== -1) {
+        const gitArgs = argv.slice(gitAt);
+        const root = gitArgs[gitArgs.indexOf("-C") + 1];
+        if (gitArgs.includes("status")) return state.dirty ? " M src/x.js" : "";
+        return root === target ? state.candidateHead : state.gitHeadOld;
+      }
       const at = argv.indexOf("npm");
       if (at === -1) return "CONFIG_VALID";
       const gate = argv.slice(at).join(" ");
@@ -172,6 +182,9 @@ function host(t, tweak = {}) {
     hostname: () => tweak.hostname ?? "KMJ-elite",
     now: () => Date.UTC(2026, 9, 13, 12, 0, 0),
     sleep: async () => {},
+    pid: () => 4242,
+    pidAlive: () => tweak.lockHolderAlive ?? true,
+    interrupted: () => Boolean(state.interrupt?.(state)),
   };
   return { options, deps, state, dropIn, target, oldRoot, base, node, config };
 }
@@ -414,7 +427,7 @@ test(
   { skip: POSIX_ONLY },
   async (t) => {
     const h = host(t);
-    fs.writeFileSync(h.options.lockFile, "");
+    fs.writeFileSync(h.options.lockFile, "999\n");
     await assert.rejects(
       runCutover(
         { ...h.options, apply: true, confirmNoActiveJobs: true },
@@ -422,6 +435,135 @@ test(
       ),
       /CUTOVER_LOCKED/,
     );
+    assert.equal(h.state.restarts, 0);
+    // A live holder's lock is never touched.
+    assert.equal(fs.readFileSync(h.options.lockFile, "utf8"), "999\n");
+  },
+);
+
+test(
+  "a lock left by a dead run is reported as stale and never silently removed",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    for (const content of ["999\n", "", "not-a-pid"]) {
+      const h = host(t, { lockHolderAlive: false });
+      fs.writeFileSync(h.options.lockFile, content);
+      await assert.rejects(
+        runCutover(
+          { ...h.options, apply: true, confirmNoActiveJobs: true },
+          h.deps,
+        ),
+        (error) => error.code === "CUTOVER_LOCK_STALE",
+        JSON.stringify(content),
+      );
+      assert.equal(h.state.restarts, 0);
+      assert.equal(fs.readFileSync(h.options.lockFile, "utf8"), content);
+      assert.equal(fs.existsSync(h.dropIn), false);
+    }
+  },
+);
+
+test(
+  "git only ever runs as the unprivileged service user, never as root",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const gitCalls = h.state.calls.filter((call) => / git /.test(call));
+    assert.ok(gitCalls.length >= 4, "git was exercised");
+    for (const call of gitCalls)
+      assert.match(call, /^runuser -u kmjcode -- env -i /, call);
+  },
+);
+
+test(
+  "backups are exclusive and owner-only; the lock records its holder",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const { out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const backup = lines(out).BACKUP;
+    assert.equal(fs.statSync(backup).mode & 0o077, 0);
+    for (const file of ["original.service", "plan.json"])
+      assert.equal(fs.statSync(path.join(backup, file)).mode & 0o077, 0, file);
+
+    // An existing backup directory is never overwritten: fail before any change.
+    const clash = host(t);
+    fs.mkdirSync(path.join(clash.options.backupRoot, "20261013T120000Z"), {
+      recursive: true,
+    });
+    await assert.rejects(
+      runCutover(
+        { ...clash.options, apply: true, confirmNoActiveJobs: true },
+        clash.deps,
+      ),
+      /EEXIST/,
+    );
+    assert.equal(clash.state.restarts, 0);
+    assert.equal(fs.existsSync(clash.dropIn), false);
+    assert.equal(fs.existsSync(clash.options.lockFile), false);
+  },
+);
+
+test(
+  "a failure before any restart does not restart the production service",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { failFirstReload: true } });
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(ok, false);
+    assert.equal(r.CUTOVER, "FAIL");
+    // No outage for nothing, and the untouched original is still proven.
+    assert.equal(h.state.restarts, 0);
+    assert.equal(r.ROLLBACK, "PASS");
+    assert.equal(r.ROLLBACK_ASSERT, "PID_RUNTIME_SOURCE_CATALOG_COMMIT");
+    assert.equal(fs.existsSync(h.dropIn), false);
+  },
+);
+
+test(
+  "an interrupt (SIGINT/SIGTERM) after the restart leads to a verified rollback",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { interrupt: (s) => s.restarts >= 1 } });
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(ok, false);
+    assert.equal(r.FAILURE, "INTERRUPTED");
+    assert.equal(r.ROLLBACK, "PASS");
+    assert.equal(h.state.restarts, 2);
+    assert.equal(fs.existsSync(h.dropIn), false);
+  },
+);
+
+test(
+  "an interrupt before the restart rolls back without restarting",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, {
+      state: { interrupt: (s) => (s.reloads ?? 0) >= 1 && s.restarts === 0 },
+    });
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const r = lines(out);
+    assert.equal(ok, false);
+    assert.equal(r.FAILURE, "INTERRUPTED");
+    assert.equal(r.ROLLBACK, "PASS");
     assert.equal(h.state.restarts, 0);
   },
 );

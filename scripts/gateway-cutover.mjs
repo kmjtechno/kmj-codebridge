@@ -146,8 +146,29 @@ export function realDeps() {
     hostname: () => os.hostname(),
     now: () => Date.now(),
     sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+    pid: () => process.pid,
+    pidAlive: (pid) => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (error) {
+        return error.code === "EPERM";
+      }
+    },
+    // A dropped SSH session (SIGHUP) must not abandon a half-applied cutover,
+    // and Ctrl-C / SIGTERM must lead to a verified rollback, not a bare exit.
+    // JS handlers only run between awaits, so each blocking step finishes first.
+    installSignalGuards() {
+      process.on("SIGHUP", () => {});
+      for (const signal of ["SIGINT", "SIGTERM"])
+        process.on(signal, () => {
+          interrupted = true;
+        });
+    },
+    interrupted: () => interrupted,
   };
 }
+let interrupted = false;
 
 const RPC = (method, id) =>
   JSON.stringify({ jsonrpc: "2.0", id, method, params: {} });
@@ -186,8 +207,14 @@ function probe(deps, url, { resolveLocal = false, publicHost }) {
   return { tools, commit };
 }
 
-const gitIn = (deps, root, ...args) =>
-  deps.run(["git", "-c", `safe.directory=${root}`, "-C", root, ...args]);
+// Git reads `.git/config` of repositories owned by the service user, and that
+// account serves network traffic. Running git as root there would let a
+// planted `core.fsmonitor` (or similar) execute as root at the next cutover, so
+// every git query goes through the unprivileged service user.
+const gitIn = (deps, asService, root, ...args) =>
+  deps.run(
+    asService(["git", "-c", `safe.directory=${root}`, "-C", root, ...args]),
+  );
 
 function inspect(options, deps) {
   const { unit, procRoot } = options;
@@ -219,27 +246,40 @@ function inspect(options, deps) {
   check(stat.isFile() && (stat.mode & 0o077) === 0, "CONFIG_NOT_PRIVATE");
   check(deps.run([node, "--version"]).startsWith("v24."), "NODE_MAJOR");
 
+  const home = deps
+    .run(["getent", "passwd", options.serviceUser])
+    .split(":")[5];
+  check(SAFE_PATH.test(home ?? ""), "SERVICE_HOME_INVALID");
+  const asService = (argv) => [
+    "runuser",
+    "-u",
+    options.serviceUser,
+    "--",
+    "env",
+    "-i",
+    `HOME=${home}`,
+    `PATH=${path.dirname(node)}:/usr/local/bin:/usr/bin:/bin`,
+    ...argv,
+  ];
+  const git = (root, ...args) => gitIn(deps, asService, root, ...args);
+
   const target = path.join(options.candidates, options.targetSha);
   check(SAFE_PATH.test(target), "UNSUPPORTED_PATH_CHARACTERS");
   check(fs.existsSync(target), "CANDIDATE_MISSING");
   check(fs.realpathSync(target) !== currentRoot, "ALREADY_RUNNING_TARGET");
   check(
-    gitIn(deps, target, "rev-parse", "HEAD") === options.targetSha,
+    git(target, "rev-parse", "HEAD") === options.targetSha,
     "CANDIDATE_SHA_MISMATCH",
   );
-  check(!gitIn(deps, target, "status", "--porcelain"), "CANDIDATE_DIRTY");
+  check(!git(target, "status", "--porcelain"), "CANDIDATE_DIRTY");
   check(
     fs.existsSync(path.join(target, "node_modules", "zod")),
     "DEPENDENCIES_MISSING",
   );
-  const currentCommit = gitIn(deps, currentRoot, "rev-parse", "HEAD");
+  const currentCommit = git(currentRoot, "rev-parse", "HEAD");
 
   // The staged build must accept the live private config before we touch
   // anything: validate it as the service user, inside the candidate.
-  const home = deps
-    .run(["getent", "passwd", options.serviceUser])
-    .split(":")[5];
-  check(SAFE_PATH.test(home ?? ""), "SERVICE_HOME_INVALID");
   const validate =
     'import fs from "node:fs"; import {gatewaySchema} from "./src/config.js";' +
     'const c=gatewaySchema.parse(JSON.parse(fs.readFileSync(process.argv[1],"utf8")));' +
@@ -282,17 +322,6 @@ function inspect(options, deps) {
   // gates the operator is told to run, as the unprivileged service user, and
   // make sure they left the tree clean. npm ci is an operator prerequisite
   // (it needs network); missing dependencies make these gates fail.
-  const asService = (argv) => [
-    "runuser",
-    "-u",
-    options.serviceUser,
-    "--",
-    "env",
-    "-i",
-    `HOME=${home}`,
-    `PATH=${path.dirname(node)}:/usr/local/bin:/usr/bin:/bin`,
-    ...argv,
-  ];
   for (const [name, argv, timeoutMs] of [
     ["check", ["npm", "run", "check"], 300000],
     ["test", ["npm", "test"], 900000],
@@ -304,10 +333,7 @@ function inspect(options, deps) {
       throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
     }
   }
-  check(
-    !gitIn(deps, target, "status", "--porcelain"),
-    "CANDIDATE_DIRTY_AFTER_GATES",
-  );
+  check(!git(target, "status", "--porcelain"), "CANDIDATE_DIRTY_AFTER_GATES");
 
   const before = probe(deps, `http://127.0.0.1:${options.port}/mcp`, options);
   check(before.tools.size > 0, "BASELINE_CATALOG_EMPTY");
@@ -324,6 +350,7 @@ function inspect(options, deps) {
     beforeCount: before.tools.size,
     // Older gateways (pre-#332) report no commit; then null skips that check.
     beforeServerCommit: before.commit,
+    git,
   };
 }
 
@@ -351,11 +378,15 @@ const atomicWrite = (file, text) => {
   fs.renameSync(tmp, file);
 };
 
-async function rollback(options, deps, ctx, dropIn, previous) {
+async function rollback(options, deps, ctx, dropIn, previous, restarted) {
   if (previous === null) fs.rmSync(dropIn, { force: true });
   else atomicWrite(dropIn, previous);
   deps.run(["systemctl", "daemon-reload"], { timeoutMs: 40000 });
-  deps.run(["systemctl", "restart", options.unit], { timeoutMs: 90000 });
+  // Only restart if a restart was actually attempted. A failure before that
+  // point must not cause an outage (and drop in-memory jobs) for nothing; the
+  // assertions below then prove the untouched original is still serving.
+  if (restarted)
+    deps.run(["systemctl", "restart", options.unit], { timeoutMs: 90000 });
   const show = (key) =>
     deps.run(["systemctl", "show", options.unit, "-p", key, "--value"]);
   for (let trial = 0; trial < 10; trial++) {
@@ -371,7 +402,7 @@ async function rollback(options, deps, ctx, dropIn, previous) {
       );
       check(cwd === fs.realpathSync(ctx.currentRoot), "ROLLBACK_WRONG_RUNTIME");
       check(
-        gitIn(deps, cwd, "rev-parse", "HEAD") === ctx.currentCommit,
+        ctx.git(cwd, "rev-parse", "HEAD") === ctx.currentCommit,
         "ROLLBACK_WRONG_SOURCE",
       );
       const seen = probe(deps, `http://127.0.0.1:${options.port}/mcp`, options);
@@ -413,10 +444,24 @@ export async function runCutover(options, deps = realDeps()) {
 
   let lock;
   try {
+    // O_EXCL: never follows a planted symlink and never shares a lock.
     lock = fs.openSync(options.lockFile, "wx", 0o600);
   } catch {
-    throw new CutoverError("CUTOVER_LOCKED");
+    // Tell "another run is active" from "a crash left this behind". A stale
+    // lock is never removed automatically: a killed run may have left the
+    // service in an unknown state, which a human must check first.
+    let holder = NaN;
+    try {
+      holder = Number(fs.readFileSync(options.lockFile, "utf8").trim());
+    } catch {}
+    throw new CutoverError(
+      Number.isInteger(holder) && holder > 0 && deps.pidAlive(holder)
+        ? "CUTOVER_LOCKED"
+        : "CUTOVER_LOCK_STALE",
+    );
   }
+  fs.writeSync(lock, `${deps.pid()}\n`);
+  deps.installSignalGuards?.();
   const dropIn = path.join(options.systemDir, `${options.unit}.d`, DROPIN);
   try {
     const previous = fs.existsSync(dropIn)
@@ -427,8 +472,13 @@ export async function runCutover(options, deps = realDeps()) {
       .replace(/[-:]/g, "")
       .replace(/\.\d+Z$/, "Z");
     const backup = path.join(options.backupRoot, stamp);
-    fs.mkdirSync(backup, { recursive: true, mode: 0o700 });
+    // The final directory is created exclusively so an existing backup is
+    // never silently overwritten; the unit may carry secrets in Environment=,
+    // so the copy is owner-only as well.
+    fs.mkdirSync(options.backupRoot, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(backup, { mode: 0o700 });
     fs.copyFileSync(ctx.unitFile, path.join(backup, "original.service"));
+    fs.chmodSync(path.join(backup, "original.service"), 0o600);
     if (previous !== null)
       fs.writeFileSync(path.join(backup, "previous-dropin.conf"), previous, {
         mode: 0o600,
@@ -440,6 +490,7 @@ export async function runCutover(options, deps = realDeps()) {
     );
     say("BACKUP", backup);
 
+    let restarted = false;
     try {
       atomicWrite(
         dropIn,
@@ -452,6 +503,8 @@ export async function runCutover(options, deps = realDeps()) {
       );
       deps.run(["systemctl", "daemon-reload"], { timeoutMs: 40000 });
       say("CUTOVER", "STARTING");
+      check(!deps.interrupted?.(), "INTERRUPTED");
+      restarted = true;
       deps.run(["systemctl", "restart", options.unit], { timeoutMs: 90000 });
       const show = (key) =>
         deps.run(["systemctl", "show", options.unit, "-p", key, "--value"]);
@@ -465,10 +518,11 @@ export async function runCutover(options, deps = realDeps()) {
       );
       for (let trial = 0; trial < 10; trial++) {
         try {
+          check(!deps.interrupted?.(), "INTERRUPTED");
           verifyServing(options, deps);
           break;
         } catch (error) {
-          if (trial === 9) throw error;
+          if (trial === 9 || error.code === "INTERRUPTED") throw error;
           await deps.sleep(2000);
         }
       }
@@ -486,7 +540,7 @@ export async function runCutover(options, deps = realDeps()) {
       say("FAILURE", error.code ?? "UNEXPECTED_ERROR");
       say("ROLLBACK", "STARTING");
       try {
-        await rollback(options, deps, ctx, dropIn, previous);
+        await rollback(options, deps, ctx, dropIn, previous, restarted);
         say("ROLLBACK_ASSERT", "PID_RUNTIME_SOURCE_CATALOG_COMMIT");
         say("ROLLBACK", "PASS");
       } catch {
