@@ -134,3 +134,60 @@ test("supervisor operations fail closed when local supervisor is absent", async 
   );
   assert.equal(typeof dispatch, "function");
 });
+
+test("production release inventory is read-only, activation is execute and project scoped", async (t) => {
+  const { dispatch, calls } = setup(t);
+  const valid = {
+    ...scope,
+    approvedSha: "a".repeat(40),
+    expectedCurrentRelease: "commerce-3315f2a-20261009",
+    confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
+  };
+  await dispatch("supervisor_main_platform_production_status", scope, ["read"]);
+  assert.deepEqual(calls, [{ op: "main_platform_production_status" }]);
+  await assert.rejects(
+    dispatch("supervisor_main_platform_production_activate", valid, ["read"]),
+    /ACCESS_DENIED/,
+  );
+  await dispatch("supervisor_main_platform_production_activate", valid, [
+    "execute",
+  ]);
+  assert.deepEqual(calls.at(-1), {
+    op: "main_platform_production_activate",
+    approvedSha: "a".repeat(40),
+    expectedCurrentRelease: "commerce-3315f2a-20261009",
+    confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
+  });
+  await assert.rejects(
+    dispatch("supervisor_main_platform_production_activate", {
+      ...valid,
+      project: "other",
+    }, ["execute"]),
+    /PROJECT_NOT_FOUND/,
+  );
+  assert.equal(calls.length, 2);
+});
+
+test("production release tool rejects caller-chosen shell, path and invalid SHA", async (t) => {
+  const { dispatch, calls } = setup(t);
+  const input = {
+    ...scope,
+    approvedSha: "b".repeat(40),
+    expectedCurrentRelease: "commerce-3315f2a-20261009",
+    confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
+  };
+  for (const malicious of [
+    { ...input, command: "/bin/bash" },
+    { ...input, path: "/root/.ssh" },
+    { ...input, approvedSha: "main" },
+    { ...input, expectedCurrentRelease: "../current" },
+    { ...input, confirmation: "yes" },
+  ]) {
+    await assert.rejects(
+      dispatch("supervisor_main_platform_production_activate", malicious, [
+        "execute",
+      ]),
+    );
+  }
+  assert.deepEqual(calls, []);
+});
