@@ -40,7 +40,7 @@ test("Claude Cowork git marketplace and remote MCP connector remain separate", (
   assert.equal(endpoint.mcpServers.codebridge.url, "https://kmjtechno.com/mcp");
   const guide = fs.readFileSync("docs/MARKETPLACE-PUBLISHING.md", "utf8");
   assert.match(guide, /https:\/\/github\.com\/kmjtechno\/kmj-codebridge/);
-  assert.match(guide, /not.*under Add Marketplace/i);
+  assert.match(guide, /never under Add Marketplace/i);
 });
 
 test("Glama claim metadata references authorized connected GitHub identity", () => {
