@@ -144,7 +144,9 @@ test("production release inventory is read-only, activation is execute and proje
     expectedCurrentRelease: "commerce-3315f2a-20261009",
     confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE",
   };
-  await dispatch("supervisor_main_platform_production_status", prodScope, ["read"]);
+  await dispatch("supervisor_main_platform_production_status", prodScope, [
+    "read",
+  ]);
   assert.deepEqual(calls, [{ op: "main_platform_production_status" }]);
   await assert.rejects(
     dispatch("supervisor_main_platform_production_activate", valid, ["read"]),
