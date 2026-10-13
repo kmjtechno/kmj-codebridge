@@ -1262,6 +1262,13 @@ export const definitions = {
     },
     access: "read",
   },
+  autopilot_worker_runtime_status: {
+    title: "Read real agent worker startup status",
+    description:
+      "Report configured versus actually started long-running CodeBridge gate, isolated repair, GitHub CI watcher and offline draft worker loops for this enrolled project. No secrets, tokens, commands or false deployment claims.",
+    input: scoped,
+    access: "read",
+  },
   autopilot_enqueue: {
     title: "Enqueue autopilot task",
     description:
@@ -1566,6 +1573,7 @@ export function createDispatcher(
   supervisor = null,
   audit = null,
   localModelFactory = createLocalModelClient,
+  workerRuntimeSource = null,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -2246,6 +2254,42 @@ export function createDispatcher(
       );
     if (name.startsWith("autopilot_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
+    if (name === "autopilot_worker_runtime_status") {
+      const source =
+        typeof workerRuntimeSource === "function"
+          ? workerRuntimeSource()
+          : null;
+      const observed = (kind) =>
+        source === null || !Array.isArray(source[kind])
+          ? null
+          : source[kind].includes(p.id);
+      return {
+        device: config.id,
+        project: p.id,
+        runtimeVersion: VERSION,
+        processAvailable: source !== null && source.agentRunning === true,
+        evidence: source === null ? "NOT_INSTRUMENTED" : "ACTIVE_AGENT_WORKER_HANDLES",
+        workers: {
+          gate: {
+            configured: p.autopilotGateWorker?.enabled === true,
+            loopStarted: observed("gate"),
+          },
+          repair: {
+            configured: p.autopilotRepairWorker?.enabled === true,
+            loopStarted: observed("repair"),
+          },
+          githubCiWatch: {
+            configured: p.autopilotCiWatch?.enabled === true,
+            loopStarted: observed("githubCiWatch"),
+          },
+          localDraft: {
+            configured: p.autopilotLocalWorker?.enabled === true,
+            loopStarted: observed("localDraft"),
+          },
+        },
+        note: "Loop started is not evidence of successful CI polling, a completed fix, service uptime or deployment.",
+      };
+    }
     if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
     if (name === "autopilot_repair_candidate")
       return reviewRepairCandidate({
