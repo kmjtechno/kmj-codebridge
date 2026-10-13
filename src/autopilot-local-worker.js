@@ -28,15 +28,16 @@ export class LocalAutopilotDraftWorker {
     try {
       for (const project of this.projects) {
         try {
-          const entitlement = this.licenseProvider();
-          if (!entitlement.features.includes("execute")) continue;
-          // Do not poll Ollama when no explicit eligible tasks exist.
+          // Check the in-memory queue before touching license state or
+          // polling Ollama: idle agents should remain almost zero-I/O.
           if (
             !this.journal.hasReady(project.id, (task) =>
               DRAFT_TASK.test(task.key),
             )
           )
             continue;
+          const entitlement = this.licenseProvider();
+          if (!entitlement.features.includes("execute")) continue;
           // Do not compete with active project gates or resource pressure.
           const capacity = this.runner?.capacity(project.root);
           if (
