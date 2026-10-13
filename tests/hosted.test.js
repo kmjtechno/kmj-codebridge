@@ -2,6 +2,7 @@ import http from "node:http";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { hostedConfig, startHostedGateway } from "../src/hosted.js";
+import { deployedCommit } from "../src/gateway.js";
 import { VERSION } from "../src/version.js";
 import { generateKeyPairSync } from "node:crypto";
 const { publicKey } = generateKeyPairSync("ed25519");
@@ -246,6 +247,92 @@ test("hosted health exposes a validated RENDER_GIT_COMMIT so a stale deploy is n
     assert.equal(JSON.parse(health.body).commit, "a".repeat(40));
   } finally {
     await withCommit.close();
+  }
+});
+
+test("non-Render deploys report CODEBRIDGE_SOURCE_COMMIT; Render's own commit wins", () => {
+  const render = "a".repeat(40);
+  const source = "b".repeat(40);
+  assert.equal(deployedCommit({}), null);
+  assert.equal(deployedCommit({ CODEBRIDGE_SOURCE_COMMIT: source }), source);
+  assert.equal(
+    deployedCommit({
+      RENDER_GIT_COMMIT: render,
+      CODEBRIDGE_SOURCE_COMMIT: source,
+    }),
+    render,
+  );
+  assert.equal(
+    deployedCommit({ CODEBRIDGE_SOURCE_COMMIT: "main; rm -rf /" }),
+    null,
+  );
+  assert.equal(deployedCommit({ CODEBRIDGE_SOURCE_COMMIT: "ABCDEF1" }), null);
+});
+
+test("public MCP initialize reports the validated deploy commit for /mcp-only origins", async (t) => {
+  const previous = {
+    render: process.env.RENDER_GIT_COMMIT,
+    source: process.env.CODEBRIDGE_SOURCE_COMMIT,
+  };
+  t.after(() => {
+    for (const [key, value] of [
+      ["RENDER_GIT_COMMIT", previous.render],
+      ["CODEBRIDGE_SOURCE_COMMIT", previous.source],
+    ]) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+  });
+  const initialize = async (gateway) => {
+    const url = gateway.url.replace("0.0.0.0", "127.0.0.1");
+    const response = await httpRequest(url + "/mcp", {
+      method: "POST",
+      headers: {
+        host: "bridge.example",
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-06-18",
+          capabilities: {},
+          clientInfo: { name: "deploy-probe", version: "1.0.0" },
+        },
+      }),
+    });
+    assert.equal(response.status, 200);
+    const data = response.body
+      .split(/\r?\n/)
+      .find((line) => line.startsWith("data:"));
+    const payload = JSON.parse(data ? data.slice(5) : response.body);
+    return payload.result.serverInfo;
+  };
+
+  delete process.env.RENDER_GIT_COMMIT;
+  delete process.env.CODEBRIDGE_SOURCE_COMMIT;
+  const unmarked = await startHostedGateway(JSON.stringify(config), "0");
+  try {
+    const info = await initialize(unmarked);
+    assert.equal(info.version, VERSION);
+    assert.equal(Object.hasOwn(info, "commit"), false);
+  } finally {
+    await unmarked.close();
+  }
+
+  process.env.CODEBRIDGE_SOURCE_COMMIT = "c".repeat(40);
+  const marked = await startHostedGateway(JSON.stringify(config), "0");
+  try {
+    assert.equal((await initialize(marked)).commit, "c".repeat(40));
+    const url = marked.url.replace("0.0.0.0", "127.0.0.1");
+    const health = await httpRequest(url + "/healthz", {
+      headers: { host: "bridge.example" },
+    });
+    assert.equal(JSON.parse(health.body).commit, "c".repeat(40));
+  } finally {
+    await marked.close();
   }
 });
 

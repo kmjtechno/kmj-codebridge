@@ -3,8 +3,11 @@ import assert from "node:assert/strict";
 import {
   ENDPOINTS,
   REQUIRED_TOOLS,
+  compareDeployedCommit,
+  parseServerCommit,
   parseToolNames,
   probeCatalog,
+  probeServerCommit,
   probeWithWarmup,
   verifyCatalogs,
 } from "../scripts/verify-public-mcp-catalog.mjs";
@@ -158,4 +161,77 @@ test("bounded cold-start transport retries never conceal malformed catalogs", as
   );
   assert.equal(attempts, 4);
   assert.deepEqual(boundedPauses, [2000, 4000, 6000]);
+});
+
+const initialized = (serverInfo) =>
+  JSON.stringify({
+    jsonrpc: "2.0",
+    id: 2,
+    result: { protocolVersion: "2025-06-18", capabilities: {}, serverInfo },
+  });
+
+test("deployed commit is read only from validated public initialize serverInfo", () => {
+  const sha = "f".repeat(40);
+  assert.equal(
+    parseServerCommit(initialized({ name: "kmj-codebridge", commit: sha })),
+    sha,
+  );
+  assert.equal(
+    parseServerCommit(
+      "event: message\ndata: " +
+        initialized({ name: "kmj-codebridge", commit: "39bc227" }),
+    ),
+    "39bc227",
+  );
+  // A gateway without the marker, or with a hostile value, is unknown.
+  assert.equal(
+    parseServerCommit(initialized({ name: "kmj-codebridge" })),
+    null,
+  );
+  assert.equal(
+    parseServerCommit(initialized({ commit: "<script>alert(1)</script>" })),
+    null,
+  );
+  assert.equal(parseServerCommit("not json"), null);
+  assert.throws(
+    () => parseServerCommit("x".repeat(1024 * 1024 + 1)),
+    /MCP_CATALOG_RESPONSE_INVALID/,
+  );
+});
+
+test("identical catalogs from an older gateway commit are reported stale, never current", () => {
+  const main = "ff11bb79b2faa14dd0a4c9bda9176f968e3fba60";
+  assert.equal(compareDeployedCommit(main, main), "current");
+  assert.equal(compareDeployedCommit(main, "ff11bb7"), "current");
+  assert.equal(
+    compareDeployedCommit(main, "055fd88ebfd56125abbe2bcec8f99819ed54ae80"),
+    "stale",
+  );
+  assert.equal(compareDeployedCommit(main, null), "unknown");
+  assert.equal(compareDeployedCommit("", main), "unverified");
+});
+
+test("commit probe uses fixed origins, public initialize only and no credentials", async () => {
+  const calls = [];
+  const request = async (url, options) => {
+    calls.push({ url, options });
+    return new Response(initialized({ commit: "a".repeat(40) }), {
+      status: 200,
+    });
+  };
+  assert.equal(
+    await probeServerCommit(ENDPOINTS.production, request),
+    "a".repeat(40),
+  );
+  assert.equal(calls[0].url, "https://kmjtechno.com/mcp");
+  assert.equal(calls[0].options.redirect, "error");
+  assert.equal(calls[0].options.headers.Authorization, undefined);
+  assert.match(calls[0].options.body, /"method":"initialize"/);
+  assert.doesNotMatch(calls[0].options.body, /tools\/call/);
+  await assert.rejects(
+    probeServerCommit("https://unapproved.example", request),
+    /MCP_CATALOG_ENDPOINT_DENIED/,
+  );
+  const unavailable = async () => new Response("", { status: 503 });
+  assert.equal(await probeServerCommit(ENDPOINTS.render, unavailable), null);
 });

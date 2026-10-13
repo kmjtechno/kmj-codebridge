@@ -29,24 +29,43 @@ const RPC = JSON.stringify({
   params: {},
 });
 
-export function parseToolNames(body) {
+const INITIALIZE = JSON.stringify({
+  jsonrpc: "2.0",
+  id: 2,
+  method: "initialize",
+  params: {
+    protocolVersion: "2025-06-18",
+    capabilities: {},
+    clientInfo: { name: "codebridge-deploy-probe", version: "1.0.0" },
+  },
+});
+const GIT_SHA = /^[0-9a-f]{7,40}$/;
+
+// Plain JSON or SSE `data:` frames, as returned by streamable HTTP MCP.
+function rpcMessages(body) {
   if (typeof body !== "string" || body.length > MAX_RESPONSE_BYTES) {
     throw new Error("MCP_CATALOG_RESPONSE_INVALID");
   }
-  const lines = body.split(/\r?\n/);
   const candidates = [
     body.trim(),
-    ...lines
+    ...body
+      .split(/\r?\n/)
       .filter((line) => line.startsWith("data:"))
       .map((line) => line.slice(5).trim()),
   ];
+  const parsed = [];
   for (const value of candidates) {
-    let parsed;
     try {
-      parsed = JSON.parse(value);
+      parsed.push(JSON.parse(value));
     } catch {
       continue;
     }
+  }
+  return parsed;
+}
+
+export function parseToolNames(body) {
+  for (const parsed of rpcMessages(body)) {
     const tools = parsed?.result?.tools;
     if (!Array.isArray(tools)) continue;
     const names = tools.map((tool) => tool?.name);
@@ -101,6 +120,47 @@ export async function probeCatalog(endpoint, request = fetch) {
   return parseToolNames(await readBounded(response));
 }
 
+// Only a strictly validated SHA is ever reported; anything else is unknown.
+export function parseServerCommit(body) {
+  for (const parsed of rpcMessages(body)) {
+    const info = parsed?.result?.serverInfo;
+    if (info && typeof info === "object") {
+      return typeof info.commit === "string" && GIT_SHA.test(info.commit)
+        ? info.commit
+        : null;
+    }
+  }
+  return null;
+}
+
+export async function probeServerCommit(endpoint, request = fetch) {
+  if (!Object.values(ENDPOINTS).includes(endpoint)) {
+    throw new Error("MCP_CATALOG_ENDPOINT_DENIED");
+  }
+  const response = await request(endpoint + "/mcp", {
+    method: "POST",
+    redirect: "error",
+    cache: "no-store",
+    signal: AbortSignal.timeout(25000),
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json, text/event-stream",
+    },
+    body: INITIALIZE,
+  });
+  if (response.status !== 200) return null;
+  return parseServerCommit(await readBounded(response));
+}
+
+// A tool catalog can be identical across commits (e.g. a gateway timeout fix),
+// so the catalog check alone cannot prove the live gateway runs current main.
+export function compareDeployedCommit(expectedSha, deployed) {
+  if (deployed === null) return "unknown";
+  if (typeof expectedSha !== "string" || !GIT_SHA.test(expectedSha))
+    return "unverified";
+  return expectedSha.startsWith(deployed) ? "current" : "stale";
+}
+
 export function verifyCatalogs(render, production) {
   for (const names of [render, production]) {
     if (!(names instanceof Set) || names.size < MIN_TOOL_COUNT) {
@@ -150,6 +210,28 @@ async function main() {
       " production=" +
       report.productionCount,
   );
+  const expected = process.env.GITHUB_SHA ?? "";
+  for (const [label, endpoint] of Object.entries(ENDPOINTS)) {
+    let deployed = null;
+    try {
+      deployed = await probeServerCommit(endpoint);
+    } catch {
+      deployed = null;
+    }
+    const state = compareDeployedCommit(expected, deployed);
+    console.log(
+      `MCP_DEPLOYED_COMMIT ${label}=${deployed ?? "unknown"} state=${state}`,
+    );
+    if (state === "stale") {
+      console.log(
+        `::warning title=${label} MCP gateway behind main::serverInfo.commit ${deployed} does not match ${expected}. Identical tool catalogs do not prove identical gateway behavior.`,
+      );
+    } else if (state === "unknown") {
+      console.log(
+        `::notice title=${label} MCP gateway commit unknown::serverInfo carries no validated commit. Non-Render deploys should set CODEBRIDGE_SOURCE_COMMIT.`,
+      );
+    }
+  }
 }
 
 if (
