@@ -42,6 +42,37 @@ The token exists only in the protected **gateway process environment**, not agen
 
 For public repositories without any GitHub credential, the gateway can instead use `publicReadOnly: true` and exactly `https://api.github.com/`. This disables and hides GitHub write tool definitions. A private repository cannot be read through anonymous public mode.
 
+## Diagnosing authorization without weakening repository boundaries
+
+The GitHub bridge deliberately distinguishes two failures that can appear in
+the same release sprint:
+
+- `GITHUB_REPOSITORY_DENIED`: the requested repository is **not in the
+  running gateway's configured `github.repositories` allowlist**. Adding it
+  to a sample file, another connector's scope or an unrelated agent's
+  configuration does not change the active gateway. An authorized gateway
+  operator must approve the additional exact repository, update the protected
+  configuration with backup/rollback, and validate it before a guarded
+  deployment. Do not implement a wildcard allowlist or return data instead.
+- `GITHUB_AUTHORIZATION_FAILED`: an allowlisted request received a GitHub
+  HTTP 401, or HTTP 403 without quota headers. Investigate the gateway's
+  server-held credential validity, installation/repository grants and required
+  read scopes **out of band**, with secret-safe diagnostics. Do not copy a
+  token to a chat, commit it, change OAuth grants or automatically fall back
+  to a broader GitHub identity. A 403 with rate-limit headers is instead
+  `GITHUB_RATE_LIMIT` and must be handled as quota.
+
+When recovering, first inspect the running gateway's approved allowlist and
+whether the managed credential is present, without displaying its contents.
+Then make a least-privilege GitHub App/token change on the authorized host,
+validate the configuration, and verify a **read-only** `github_repository`
+call against each specifically approved repository. Finally verify
+`github_pull_request_ci` for an exact known PR head. The external GitHub
+connector may independently be authorized while the CodeBridge gateway is not;
+using that connector for read-only CI evidence does not repair gateway
+authorization or grant CodeBridge native write access. A green GitHub CI
+run is also not proof that a gateway has been updated.
+
 ### Not implemented yet
 
 This is a focused GitHub Plugin **development workflow subset**, not false 100% parity. It does not yet implement repository installations and permissions management, organization administrative settings, GitHub Discussions, Projects boards, release publishing, artifacts download and inspection, Actions reruns/cancellations, granular inline PR review-thread editing, or multi-file Git Trees commits. Those require separate bounded commands, explicit authorization, audit logs and regression tests before activation.
