@@ -111,3 +111,38 @@ test("malformed, oversized, and wrong responses fail without retry", async () =>
     assert.equal(calls, 1);
   }
 });
+
+test("Render cold-start transport timeouts retry safely and stay bounded", async () => {
+  let calls = 0;
+  const pauses = [];
+  const accepted = await verifyDeployedGateway(
+    SHA,
+    async () => {
+      calls++;
+      if (calls <= 2) {
+        const error = new Error("request timed out");
+        error.name = "TimeoutError";
+        throw error;
+      }
+      return healthy(SHA);
+    },
+    async (ms) => pauses.push(ms),
+  );
+  assert.equal(accepted, SHA);
+  assert.equal(calls, 3);
+  assert.deepEqual(pauses, [3000, 6000]);
+
+  let failingCalls = 0;
+  await assert.rejects(
+    verifyDeployedGateway(
+      SHA,
+      async () => {
+        failingCalls++;
+        throw new TypeError("network failed");
+      },
+      async () => {},
+    ),
+    /DEPLOYED_HEALTH_REQUEST_FAILED/,
+  );
+  assert.equal(failingCalls, 6);
+});
