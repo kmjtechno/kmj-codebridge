@@ -54,7 +54,9 @@ function sanitizedLines(value, max = 18) {
   const lines = text.split("\n");
   const matches = [];
   for (const line of lines) {
-    const cleaned = redact(line).replace(BAD_SECRET, "[REDACTED]");
+    const cleaned = redact(line).replace(BAD_SECRET, (match) =>
+      match.replace(/(Bearer\\s+|[=:]\\s*)[^\\s,;]+$/i, "$1[REDACTED]"),
+    );
     if (!CI_LINE.test(cleaned)) continue;
     // Long error lines can carry tokens, URLs and serialized env data.
     // Avoid copying arbitrary long lines into an MCP response.
