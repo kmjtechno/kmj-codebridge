@@ -1,26 +1,28 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import {
-  classifyCiFailure,
-  createCiFailureReader,
-} from "../src/ci-failure.js";
+import { classifyCiFailure, createCiFailureReader } from "../src/ci-failure.js";
 
 const SHA = "a".repeat(40);
 const ENV = "CODEBRIDGE_TEST_CIRCLECI_TOKEN";
 const TOKEN = "c".repeat(48);
-const META = "https://circleci.com/api/v1.1/project/github/kmjtechno/kmj-main-platform/263";
-const OUTPUT = "https://logs.example.com/step?Signature=private-presigned-secret";
+const META =
+  "https://circleci.com/api/v1.1/project/github/kmjtechno/kmj-main-platform/263";
+const OUTPUT =
+  "https://logs.example.com/step?Signature=private-presigned-secret";
 
-function make(t, {
-  status = "failed",
-  exitCode = 1,
-  outputUrl = OUTPUT,
-  revision = SHA,
-  lines = "PHPStan Error: line 17 token=secret-information\nUnexpected error",
-  metaStatus = 200,
-  outputStatus = 200,
-  repositories = ["kmjtechno/kmj-main-platform"],
-} = {}) {
+function make(
+  t,
+  {
+    status = "failed",
+    exitCode = 1,
+    outputUrl = OUTPUT,
+    revision = SHA,
+    lines = "PHPStan Error: line 17 token=secret-information\nUnexpected error",
+    metaStatus = 200,
+    outputStatus = 200,
+    repositories = ["kmjtechno/kmj-main-platform"],
+  } = {},
+) {
   process.env[ENV] = TOKEN;
   t.after(() => delete process.env[ENV]);
   const calls = [];
@@ -32,7 +34,10 @@ function make(t, {
           build_num: 263,
           vcs_revision: revision,
           steps: [
-            { name: "Checkout", actions: [{ status: "success", exit_code: 0 }] },
+            {
+              name: "Checkout",
+              actions: [{ status: "success", exit_code: 0 }],
+            },
             {
               name: "Static analysis",
               actions: [{ status, exit_code: exitCode, output_url: outputUrl }],
@@ -42,10 +47,9 @@ function make(t, {
         { status: metaStatus },
       );
     if (String(url) === OUTPUT)
-      return Response.json(
-        [{ type: "out", message: lines }],
-        { status: outputStatus },
-      );
+      return Response.json([{ type: "out", message: lines }], {
+        status: outputStatus,
+      });
     throw new Error("Unexpected outbound request: " + String(url));
   };
   const read = createCiFailureReader(
@@ -175,7 +179,13 @@ test("oversized or untrusted logs are never echoed to the client", async (t) => 
 });
 
 test("diagnostic classification is deterministic and never auto-patches", () => {
-  assert.equal(classifyCiFailure(["error TS2339: missing property"]), "TYPESCRIPT");
-  assert.equal(classifyCiFailure(["phpstan property does not exist"]), "PHP_STATIC_ANALYSIS");
+  assert.equal(
+    classifyCiFailure(["error TS2339: missing property"]),
+    "TYPESCRIPT",
+  );
+  assert.equal(
+    classifyCiFailure(["phpstan property does not exist"]),
+    "PHP_STATIC_ANALYSIS",
+  );
   assert.equal(classifyCiFailure(["no usable output"]), "UNCLASSIFIED");
 });
