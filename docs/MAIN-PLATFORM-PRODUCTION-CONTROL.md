@@ -60,8 +60,31 @@ then verify the new `supervisor_main_platform_production_status` response.
 It provisions a missing _restricted_ systemd supervisor socket and root
 service only for the existing, trusted Main Platform agent installation. The
 bootstrap checks the fixed KMJ-elite hostname, registered service user, exact
-agent ExecStart/runtime, protected 0600 enrollment configuration, root-only
-runtime source tree, and fixed /run/kmj-codebridge/supervisor.sock. It resolves
+agent ExecStart/runtime, protected 0600 enrollment configuration, and fixed
+/run/kmj-codebridge/supervisor.sock. The owner's observed legacy Main Platform
+agent runs from `/srv/kmj-codebridge-projects/kmj-codebridge` as `kmjcode`
+and is legitimately writable by that unprivileged user. It must **never**
+be imported by a privileged root process.
+
+The updated installer stages an independent root-owned runtime from a
+**trusted, root-extracted GitHub commit archive** into
+`/opt/kmj-codebridge-supervisor-stage/<approved full SHA>`. It requires
+`KMJ_APPROVED_CODEBRIDGE_SHA` to be a 40-digit lowercase hex revision
+matching the archive explicitly approved by the owner; copies only source and
+lockfile, installs locked production npm dependencies with lifecycle scripts
+disabled, checks the Node runtime and rejects writable or escaping files.
+Only the staged runtime is referenced by the root supervisor's ExecStart.
+If an old staged runtime exists, its recorded source hashes must match and
+its permissions must remain protected.
+
+**Owner bootstrap invocation** from the pinned archive must supply the
+approved commit ID to the root installer, for example:
+```bash
+KMJ_APPROVED_CODEBRIDGE_SHA="<exact-reviewed-Git-SHA>" \\
+  bash scripts/production/install-main-platform-control.sh
+```
+No runtime staging or privileged service operation is initiated by
+CodeBridge chat tools until this first trusted root action succeeds. It resolves
 the runtime from the existing effective systemd `WorkingDirectory` instead
 of guessing `/opt/kmj-codebridge-agent`: the only accepted layouts are that
 original path and the existing root-owned immutable
