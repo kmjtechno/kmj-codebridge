@@ -250,9 +250,12 @@ test("owner-approved failed gate enqueues exactly one SHA-pinned isolated repair
   assert.equal(repair.length, 1);
   assert.equal(repair[0].state, "queued");
   f.worker.tick();
-  assert.equal(f.journal.state.tasks.filter(
-    (item) => item.key === `auto-repair:format:${f.head}`,
-  ).length, 1);
+  assert.equal(
+    f.journal.state.tasks.filter(
+      (item) => item.key === `auto-repair:format:${f.head}`,
+    ).length,
+    1,
+  );
 });
 
 test("failed gate cannot schedule repairs unless explicitly configured", (t) => {
