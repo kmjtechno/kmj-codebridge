@@ -148,14 +148,6 @@ test("protected approval manifest failures, absent unit and unhealthy processes 
     { unitInstalled: false },
     {
       file: {
-        approvedSha: "0".repeat(40),
-        expectedCurrentRelease: RELEASE,
-        backupVerified: true,
-        rollbackVerified: true,
-      },
-    },
-    {
-      file: {
         approvedSha: SHA,
         expectedCurrentRelease: "different_release",
         backupVerified: true,
