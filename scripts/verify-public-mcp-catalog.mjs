@@ -40,6 +40,7 @@ const INITIALIZE = JSON.stringify({
   },
 });
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
+const FULL_SHA = /^[0-9a-f]{40}$/;
 
 // Plain JSON or SSE `data:` frames, as returned by streamable HTTP MCP.
 function rpcMessages(body) {
@@ -161,6 +162,20 @@ export function compareDeployedCommit(expectedSha, deployed) {
   return expectedSha.startsWith(deployed) ? "current" : "stale";
 }
 
+// Strict post-cutover assertion (opt-in via EXPECT_DEPLOYED_COMMIT): every
+// fixed origin must report exactly the expected commit. "unknown" cannot prove
+// anything, so it fails too. Returns the failing labels; empty means PASS.
+export function failedCommitAssertions(expectedSha, observed) {
+  if (typeof expectedSha !== "string" || !FULL_SHA.test(expectedSha))
+    throw new Error("MCP_EXPECTED_COMMIT_INVALID");
+  return Object.entries(observed)
+    .filter(
+      ([, deployed]) =>
+        compareDeployedCommit(expectedSha, deployed) !== "current",
+    )
+    .map(([label]) => label);
+}
+
 export function verifyCatalogs(render, production) {
   for (const names of [render, production]) {
     if (!(names instanceof Set) || names.size < MIN_TOOL_COUNT) {
@@ -210,7 +225,9 @@ async function main() {
       " production=" +
       report.productionCount,
   );
-  const expected = process.env.GITHUB_SHA ?? "";
+  const strictExpected = process.env.EXPECT_DEPLOYED_COMMIT;
+  const expected = strictExpected ?? process.env.GITHUB_SHA ?? "";
+  const observed = {};
   for (const [label, endpoint] of Object.entries(ENDPOINTS)) {
     let deployed = null;
     try {
@@ -218,6 +235,7 @@ async function main() {
     } catch {
       deployed = null;
     }
+    observed[label] = deployed;
     const state = compareDeployedCommit(expected, deployed);
     console.log(
       `MCP_DEPLOYED_COMMIT ${label}=${deployed ?? "unknown"} state=${state}`,
@@ -231,6 +249,13 @@ async function main() {
         `::notice title=${label} MCP gateway commit unknown::serverInfo carries no validated commit. Non-Render deploys should set CODEBRIDGE_SOURCE_COMMIT.`,
       );
     }
+  }
+  if (strictExpected !== undefined) {
+    const failed = failedCommitAssertions(strictExpected, observed);
+    console.log(
+      "MCP_DEPLOYED_COMMIT_ASSERT=" + (failed.length === 0 ? "PASS" : "FAIL"),
+    );
+    if (failed.length > 0) throw new Error("MCP_DEPLOYED_COMMIT_MISMATCH");
   }
 }
 
@@ -249,6 +274,8 @@ if (
       "MCP_CATALOG_HTTP_NOT_OK",
       "MCP_CATALOG_INCOMPLETE",
       "MCP_REQUIRED_TOOLS_MISSING",
+      "MCP_EXPECTED_COMMIT_INVALID",
+      "MCP_DEPLOYED_COMMIT_MISMATCH",
     ]);
     const code = known.has(error.message)
       ? error.message
