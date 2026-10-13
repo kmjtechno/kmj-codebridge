@@ -21,6 +21,15 @@ SHA="${KMJ_APPROVED_CODEBRIDGE_SHA:-}"
 # never the writable /srv/kmj-codebridge-projects/kmj-codebridge checkout.
 [[ "$SOURCE" == /tmp/* || "$SOURCE" == /root/* ]] ||
   die "SUPERVISOR_STAGE_SOURCE_LOCATION_DENIED"
+# /tmp is sticky and shared, but the *immediate* extraction directory
+# must belong to root and not be writable by any other user.
+EXTRACTION_PARENT="$(dirname -- "$SOURCE")"
+[[ -d "$EXTRACTION_PARENT" && ! -L "$EXTRACTION_PARENT" &&
+   "$(stat -c '%u' "$EXTRACTION_PARENT")" == 0 ]] ||
+  die "SUPERVISOR_STAGE_SOURCE_PARENT_UNSAFE"
+parent_mode="$(stat -c '%a' "$EXTRACTION_PARENT")"
+(( (8#$parent_mode & 8#22) == 0 )) ||
+  die "SUPERVISOR_STAGE_SOURCE_PARENT_WRITABLE"
 [[ "$(stat -c '%u' "$SOURCE")" == 0 ]] ||
   die "SUPERVISOR_STAGE_SOURCE_OWNER_UNSAFE"
 source_mode="$(stat -c '%a' "$SOURCE")"
