@@ -30,6 +30,9 @@ test("Node 24 v24.21.0 package SHA256 is pinned by architecture", () => {
     /6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2/,
   );
   assert.match(repair, /sha256sum -c -/);
+  assert.match(repair, /lib\/node_modules\/npm/);
+  assert.match(repair, /NPM_LAUNCHER_CONFLICT/);
+  assert.match(repair, /NPM_UNAVAILABLE_AFTER_NODE24_REPAIR/);
   assert.match(repair, /--no-same-owner --no-same-permissions/);
   assert.match(repair, /--detach "\$SHA"/);
 });
