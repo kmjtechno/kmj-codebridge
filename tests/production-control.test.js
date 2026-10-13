@@ -83,3 +83,17 @@ test(
     assert.equal(sh.status, 0, sh.stderr);
   },
 );
+
+test("supervisor sees only the KMJ production home under a read-only bind", () => {
+  const dropin = fs.readFileSync(
+    "scripts/production/kmj-codebridge-supervisor-prod-readonly.conf",
+    "utf8",
+  );
+  assert.match(dropin, /ProtectHome=tmpfs/);
+  assert.match(dropin, /^BindReadOnlyPaths=\/home\/kmjprod$/m);
+  assert.doesNotMatch(dropin, /ProtectHome=(?:false|no)|BindPaths=/);
+  assert.doesNotMatch(dropin, /\/home\/\*|\/root\b/);
+  assert.match(install, /kmj-codebridge-supervisor-prod-readonly\.conf/);
+  assert.match(install, /20-main-platform-production-readonly\.conf/);
+  assert.doesNotMatch(install, /systemctl restart kmj-codebridge-supervisor/);
+});
