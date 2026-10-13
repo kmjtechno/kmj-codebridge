@@ -16,6 +16,7 @@ function fixture(t, options = {}) {
   const journal = new AutopilotJournal(dir);
   let calls = 0;
   let statusCalls = 0;
+  let licenseCalls = 0;
   const model = {
     status: async () => {
       statusCalls++;
@@ -52,9 +53,10 @@ function fixture(t, options = {}) {
     runner: options.pressure
       ? { capacity: () => ({ blocked: true, constrained: true }) }
       : null,
-    licenseProvider: () => ({
-      features: options.noExecute ? ["read", "write"] : ["execute"],
-    }),
+    licenseProvider: () => {
+      licenseCalls++;
+      return { features: options.noExecute ? ["read", "write"] : ["execute"] };
+    },
   });
   return {
     journal,
@@ -62,6 +64,7 @@ function fixture(t, options = {}) {
     project,
     calls: () => calls,
     statusCalls: () => statusCalls,
+    licenseCalls: () => licenseCalls,
     enqueue: (key = "auto-draft:feature-a") =>
       journal.enqueue({
         project: "repo",
@@ -91,6 +94,8 @@ test("ordinary roadmap work is not taken or falsely finished", async (t) => {
   await f.worker.tick();
   assert.equal(f.journal.get(general.id, "repo").state, "queued");
   assert.equal(f.calls(), 0);
+  assert.equal(f.licenseCalls(), 0);
+  assert.equal(f.statusCalls(), 0);
 });
 
 test("offline local model preserves task in queued state", async (t) => {
