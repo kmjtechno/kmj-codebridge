@@ -1250,7 +1250,7 @@ export const definitions = {
       ...scoped,
       holder: z
         .string()
-        .regex(/^[A-Za-z0-9._:@ -]{1,96}$/)
+        .regex(/^[A-Za-z0-9._:@/# -]{1,96}$/)
         .optional(),
     },
     access: "write",
@@ -2151,8 +2151,20 @@ export function createDispatcher(
         priority: a.priority,
         dependsOn: a.dependsOn,
       });
-    if (name === "autopilot_claim")
-      return autopilot.claim(p.id, { holder: a.holder });
+    if (name === "autopilot_claim") {
+      const claimed = autopilot.claim(p.id, { holder: a.holder });
+      // Never acknowledge a claim that a worker cannot fence. This catches
+      // mixed-version/incorrect journal integrations before a caller attempts
+      // an unsafe tokenless checkpoint or completion.
+      if (
+        claimed !== null &&
+        (claimed.state !== "running" ||
+          !z.string().uuid().safeParse(claimed.leaseToken).success ||
+          claimed.lease?.holder !== (a.holder ?? null))
+      )
+        fail("AUTOPILOT_CLAIM_CONTRACT_INVALID");
+      return claimed;
+    }
     if (name === "autopilot_local_draft") {
       const task = autopilot.get(a.task, p.id);
       if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
