@@ -23,7 +23,10 @@ test("official MCP registry uses existing OAuth HTTPS endpoint without unpublish
   assert.equal(pkg.private, true);
   assert.equal(registry.packages, undefined);
   assert.equal(JSON.stringify(registry).includes("Bearer "), false);
-  assert.match(registry.$schema, /^https:\/\/static\.modelcontextprotocol\.io\/schemas\//);
+  assert.match(
+    registry.$schema,
+    /^https:\/\/static\.modelcontextprotocol\.io\/schemas\//,
+  );
 });
 
 test("Claude Cowork git marketplace and remote MCP connector remain separate", () => {
