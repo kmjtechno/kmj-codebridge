@@ -265,6 +265,6 @@ Omitting every option behaves exactly as before. An agent that predates this cha
 
 ## GitHub plugin parity (native, no external plugin)
 
-Already native: repository, pull request list/detail/files/CI, issue read/create/comment, branch and file create/update (protected default branch blocked), pull request create and guarded merge, Actions runs/jobs/logs, and the private-repository connection doctor.
+Already native: repository, pull request list/detail/files/CI, issue read/create/comment, pull-request reviews and inline review comments (read), review COMMENT / REQUEST_CHANGES and review replies, pull-request update (title, body, base, open/closed), commit list, branch and file create/update (protected default branch blocked), pull request create and guarded merge, Actions runs/jobs/logs, and the private-repository connection doctor. Approving a pull request is deliberately not offered: it stays a human decision.
 
-Not yet native (candidate slices, each needs a GIT_WRITE or higher risk class, the existing allowlist and audit): pull request reviews and review comments/replies, update pull request (title, body, base, draft ↔ ready), list pull request comments, commit list/get/search, labels, workflow re-run, releases read. None is claimed as available until implemented, tested and deployed to the agent and gateway.
+Not yet native (candidate slices, each needs a GIT_WRITE or higher risk class, the existing allowlist and audit): draft ↔ ready conversion (needs GraphQL), labels, workflow re-run, releases read, commit detail/search. None is claimed as available until implemented, tested and deployed to the agent and gateway.
