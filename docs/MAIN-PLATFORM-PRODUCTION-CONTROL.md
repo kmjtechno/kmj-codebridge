@@ -46,6 +46,17 @@ sudo bash scripts/production/install-main-platform-control.sh
 
 It only installs the **fixed inactive** unit and fixed root-owned script;
 it cannot deploy by itself and does not create fake approvals or backups.
+It also installs a narrowly scoped supervisor service drop-in if the
+supervisor unit is already installed. The stock CodeBridge supervisor's
+`ProtectHome=yes` conceals the live symlink even from root. The drop-in
+uses `ProtectHome=tmpfs` plus a read-only bind of **only**
+`/home/kmjprod`, retaining isolation of every other home. This follows
+systemd's documented rule that bind mounts beneath a protected home must
+use tmpfs rather than `ProtectHome=yes`. The installer never force-restarts
+an active supervisor; after confirming it is idle, the operator must
+restart its fixed socket/service through the guarded maintenance flow,
+then verify the new `supervisor_main_platform_production_status` response.
+
 It may enable an existing CodeBridge supervisor socket but does not alter
 stored enrollment/token files, OAuth settings or the development checkout.
 
