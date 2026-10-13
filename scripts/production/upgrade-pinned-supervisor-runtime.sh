@@ -3,10 +3,11 @@
 # This does not restart the main agent, change its enrollment, or deploy the website.
 set -Eeuo pipefail
 umask 077
+export PATH=/opt/kmj-codebridge-node/bin:/usr/sbin:/usr/bin:/sbin:/bin
 fail() { printf 'SUPERVISOR_UPGRADE_BLOCKED=%s\n' "$1" >&2; exit 1; }
 [[ "$(id -u)" == 0 ]] || fail ROOT_REQUIRED
 [[ "$(hostname)" == KMJ-elite ]] || fail WRONG_HOST
-SHA="$KMJ_APPROVED_CODEBRIDGE_SHA"
+SHA="${KMJ_APPROVED_CODEBRIDGE_SHA:-}"
 [[ "$SHA" =~ ^[a-f0-9]{40}$ ]] || fail REVIEWED_SHA_REQUIRED
 SOURCE="$(cd -- "$(dirname -- "$0")/../.." && pwd -P)"
 [[ "$(git -C "$SOURCE" rev-parse --verify HEAD)" == "$SHA" ]] ||
@@ -42,6 +43,15 @@ MODE="$(stat -Lc %a "$NODE")"
 MAJOR="$("$NODE" -p 'process.versions.node.split(".")[0]')"
 [[ "$MAJOR" =~ ^[0-9]+$ ]] && (( MAJOR >= 24 )) ||
   fail NODE_VERSION_TOO_OLD
+# Never run untrusted npm through a login-shell or user-controlled PATH.
+command -v npm >/dev/null || fail PINNED_NPM_UNAVAILABLE
+NPM="$(command -v npm)"
+[[ "$NPM" == /opt/kmj-codebridge-node/bin/npm ||
+   "$NPM" == /usr/bin/npm ]] || fail NPM_PATH_UNTRUSTED
+NPM_TARGET="$(readlink -e "$NPM")"
+[[ "$NPM_TARGET" == /opt/kmj-codebridge-node/* ||
+   "$NPM_TARGET" == /usr/share/nodejs/npm/* ||
+   "$NPM_TARGET" == /usr/bin/npm ]] || fail NPM_TARGET_UNTRUSTED
 
 # Reuse the existing reviewed immutable root staging implementation.
 OUTPUT="$(KMJ_APPROVED_CODEBRIDGE_SHA="$SHA" bash "$SOURCE/scripts/production/stage-supervisor-root-runtime.sh")" ||
