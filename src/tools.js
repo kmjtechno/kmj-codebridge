@@ -2283,8 +2283,10 @@ export function createDispatcher(
       });
     if (name === "supervisor_device_status")
       return await supervisor.request({ op: "device_status" });
-    if (name === "supervisor_main_platform_production_status")
+    if (name === "supervisor_main_platform_production_status") {
+      if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
       return await supervisor.request({ op: "main_platform_production_status" });
+    }
     if (name === "supervisor_main_platform_production_activate") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
       return await supervisor.request({
