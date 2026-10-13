@@ -156,13 +156,19 @@ test("actual kmjcode development runtime is never executed as privileged supervi
   );
   assert.match(bootstrap, /\/srv\/kmj-codebridge-projects\/kmj-codebridge/);
   assert.match(bootstrap, /kmjcode\)/);
-  assert.match(bootstrap, /SUPERVISOR_RUNTIME="\$\{KMJ_SUPERVISOR_RUNTIME:-\}"/);
+  assert.match(
+    bootstrap,
+    /SUPERVISOR_RUNTIME="\$\{KMJ_SUPERVISOR_RUNTIME:-\}"/,
+  );
   assert.match(bootstrap, /WorkingDirectory=\$SUPERVISOR_RUNTIME/);
   assert.match(
     bootstrap,
     /ExecStart=\$NODE \$SUPERVISOR_RUNTIME\/src\/cli\.js supervisor/,
   );
-  assert.doesNotMatch(bootstrap, /ExecStart=\$NODE \$RUNTIME\/src\/cli\.js supervisor/);
+  assert.doesNotMatch(
+    bootstrap,
+    /ExecStart=\$NODE \$RUNTIME\/src\/cli\.js supervisor/,
+  );
   assert.match(stage, /SUPERVISOR_STAGE_SOURCE_LOCATION_DENIED/);
   assert.match(stage, /SUPERVISOR_STAGE_RUNTIME_WRITABLE/);
   assert.match(stage, /SUPERVISOR_STAGE_RUNTIME_SYMLINK_ESCAPE/);
@@ -173,7 +179,10 @@ test("actual kmjcode development runtime is never executed as privileged supervi
   assert.match(install, /KMJ_SUPERVISOR_RUNTIME="\$SUPERVISOR_RUNTIME"/);
   assert.doesNotMatch(stage, /systemctl (?:restart|start) /);
   assert.doesNotMatch(stage, /curl |wget |git clone|git pull|bash -c/);
-  assert.doesNotMatch(install, /systemctl restart kmj-codebridge-kmj-main-platform/);
+  assert.doesNotMatch(
+    install,
+    /systemctl restart kmj-codebridge-kmj-main-platform/,
+  );
 });
 
 test(
