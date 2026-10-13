@@ -8,6 +8,7 @@ import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
 import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
+import { startGitHubCiWatchWorker } from "./autopilot-ci-watch-worker.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
 import { createLocalModelClient } from "./local-model.js";
@@ -143,6 +144,11 @@ export async function startAgent(rawConfig) {
     runner,
     licenseProvider,
     lanes: new WorktreeLanes(state),
+  });
+  const ciWatchWorker = startGitHubCiWatchWorker({
+    projects: c.projects,
+    journal: autopilot,
+    licenseProvider,
   });
   const localDraftWorker = startLocalAutopilotDraftWorker({
     projects: c.projects,
@@ -321,6 +327,7 @@ export async function startAgent(rawConfig) {
       await gateWorker.close();
       await localDraftWorker.close();
       await repairWorker.close();
+      await ciWatchWorker.close();
       await runner.close();
       releaseAgentLock(agentLock);
     },
