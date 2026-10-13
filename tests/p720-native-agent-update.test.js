@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const updaterPath = path.resolve("scripts/p720-native-agent-update.ps1");
 const launcherPath = path.resolve("scripts/UPDATE-P720-CODEBRIDGE.cmd");
-const PINNED = "e83167161da9c742bfe92317b56f32758eded48b";
+const PINNED = "f8b46566998cc29312850db07be68418ebb96997";
 
 test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent switch", () => {
   const source = fs.readFileSync(updaterPath, "utf8");
