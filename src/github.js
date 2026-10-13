@@ -640,6 +640,18 @@ export function createGitHubBridge(config) {
     }
 
     if (name === "github_update_file") {
+      // An exact blob SHA prevents stale writes, but it does NOT prevent
+      // direct writes to the protected default branch when the GitHub token
+      // has sufficient permissions. Require the same verified feature-branch
+      // boundary used by github_create_file before the mutation.
+      const metadata = await request("GET", a.repository, "");
+      if (
+        typeof metadata.default_branch !== "string" ||
+        !branchName.safeParse(metadata.default_branch).success
+      )
+        fail("GITHUB_DEFAULT_BRANCH_UNVERIFIED");
+      if (a.branch === metadata.default_branch)
+        fail("GITHUB_DEFAULT_BRANCH_WRITE_DENIED");
       const data = await request(
         "PUT",
         a.repository,
