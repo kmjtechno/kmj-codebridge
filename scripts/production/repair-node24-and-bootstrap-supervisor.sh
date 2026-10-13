@@ -40,6 +40,7 @@ else
     "$PKG/bin/node" "$PKG/lib/node_modules/npm"
   [[ "$("$TMP/$PKG/bin/node" -v)" == v$VER ]] || fail NODE_BINARY_VERSION_MISMATCH
   [[ ! -e "$NODE" && ! -L "$NODE" ]] || fail OPT_NODE_CONFLICT
+  [[ ! -e /opt/kmj-codebridge-node/bin/npm && ! -L /opt/kmj-codebridge-node/bin/npm ]] || fail NPM_LAUNCHER_CONFLICT
   install -d -m 0755 -o root -g root /opt/kmj-codebridge-node/lib/node_modules
   [[ ! -e /opt/kmj-codebridge-node/lib/node_modules/npm ]] || fail NPM_TARGET_CONFLICT
   cp -a -- "$TMP/$PKG/lib/node_modules/npm" /opt/kmj-codebridge-node/lib/node_modules/npm
