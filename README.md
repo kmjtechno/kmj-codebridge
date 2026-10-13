@@ -420,6 +420,13 @@ CodeBridge uses **JSON configuration as the primary interface**. Local/developer
 | `agentIntrospection` | No                     | Derived from OAuth issuer when OAuth is enabled | Default cache: 60 seconds.                                                           |
 | `github`             | No                     | Disabled unless configured                      | Server-side GitHub token env reference, repository allowlist and short cache.        |
 
+**Local-model gateway timeout:** For `local_model_generate` and
+`autopilot_local_draft`, the gateway holds the device round trip for the
+explicit requested `timeoutSeconds` plus up to 15 seconds of delivery
+headroom, capped at 120,000 ms and never below `deviceTimeoutMs`. Ordinary
+file/Git tools retain the configured device timeout. This does not bypass
+OAuth, model-specific limits, or the local-only no-paid-fallback policy.
+
 ### Agent JSON
 
 | Setting               | Required | Safe default / example                        | Notes                                                    |
