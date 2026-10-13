@@ -9,7 +9,8 @@ const SECRET_INDICATOR =
   /\b(?:authorization|bearer|basic|cookie|set-cookie|password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|session[_-]?id)\b/i;
 const KEY_VALUE =
   /\b(?:token|secret|password|api[_-]?key)\s*[=:]\s*[^\s,;]+/i;
-const URL_WITH_QUERY = /https?:\/\/\S+\?\S+/i;
+const UNSAFE_URL = /https?:\/\/\S+/i;
+const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
 const MAX_TEXT = 96 * 1024;
 const MAX_LINES = 18;
 
@@ -31,7 +32,7 @@ export function sanitizeCiLog(text, maxLines = MAX_LINES) {
   let more = false;
   for (const raw of input) {
     if (!DIAGNOSTIC.test(raw)) continue;
-    if (raw.length > 400 || URL_WITH_QUERY.test(raw)) continue;
+    if (raw.length > 400 || UNSAFE_URL.test(raw) || EMAIL.test(raw)) continue;
     // The broad skip is intentional: even a known redactor cannot safely
     // infer every proprietary provider credential syntax or session cookie.
     if (SECRET_INDICATOR.test(raw) || KEY_VALUE.test(raw)) continue;
@@ -103,14 +104,18 @@ const RULES = [
   },
 ];
 
+export function safeCiStepName(value) {
+  if (typeof value !== "string") return "REDACTED_STEP";
+  if (value.length > 120 || SECRET_INDICATOR.test(value) || UNSAFE_URL.test(value))
+    return "REDACTED_STEP";
+  return redact(value).replace(/[\x00-\x1f\x7f]/g, "").trim().slice(0, 120);
+}
+
 export function triageCiFailure({ lines = [], stepName = "", evidence = "UNKNOWN" } = {}) {
   if (!Array.isArray(lines) || lines.some((line) => typeof line !== "string"))
     throw new Error("INVALID_CI_DIAGNOSTICS");
   const safeLines = sanitizeCiLog(lines.join("\n")).lines;
-  const cleanStep =
-    typeof stepName === "string" && stepName.length <= 128 && !SECRET_INDICATOR.test(stepName)
-      ? stepName
-      : "";
+  const cleanStep = safeCiStepName(stepName);
   const text = [cleanStep, ...safeLines].join(" ");
   const matched = RULES.find(({ pattern }) => pattern.test(text));
   const verifiedExcerpt = safeLines.length > 0 && evidence === "REDACTED_OUTPUT";
