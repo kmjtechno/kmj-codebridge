@@ -1,8 +1,7 @@
 import { z } from "zod";
 import { readJsonLimited } from "./http.js";
 import { fail } from "./errors.js";
-import { redact } from "./jobs.js";
-import { sanitizeCiLog, triageCiFailure } from "./ci-triage.js";
+import { sanitizeCiLog, safeCiStepName, triageCiFailure } from "./ci-triage.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const sha = z.string().regex(/^[a-f0-9]{40}$/i);
@@ -144,7 +143,7 @@ export function createCiFailureReader(config, fetchImpl = fetch) {
       });
       result.push({
         step: stepIndex,
-        name: redact(String(stepName ?? "")).slice(0, 120),
+        name: safeCiStepName(stepName),
         exitCode: Number.isInteger(action.exit_code) ? action.exit_code : null,
         evidence,
         category: diagnostic.category,
