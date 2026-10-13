@@ -4,6 +4,17 @@ import { setTimeout as delay } from "node:timers/promises";
 const GATE_TASK = /^auto-gate:([A-Za-z0-9_-]{1,64}):([a-f0-9]{40})$/;
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
 
+// Queueing an auto-gate task is an execution request, not just a write.
+// The caller must hold both the ordinary enqueue (write) permission and
+// the execute permission before this opt-in worker can run their task.
+export function canQueueAutopilotGate(key, permissions) {
+  return (
+    typeof key === "string" &&
+    Array.isArray(permissions) &&
+    (!key.startsWith("auto-gate:") || permissions.includes("execute"))
+  );
+}
+
 // Only explicit, administrator-allowlisted gate tasks may be executed.
 // An unstructured README/roadmap task is NEVER converted into shell commands.
 export function parseAutopilotGateTask(key, allowedGates) {
