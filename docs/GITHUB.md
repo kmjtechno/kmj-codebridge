@@ -54,7 +54,7 @@ Write scope:
 - `github_update_file`
 - `github_create_pull_request`
 - `github_merge_pull_request`
-- `github_update_pull_request` (title, body, base, open/closed only; never merges or approves)
+- `github_update_pull_request` (title, body, base, open/closed only; optional `expectedHeadSha` re-reads the pull request right before the change and refuses a moved head or a non-open pull request; closing needs `confirmClose: true`; never merges or approves)
 - `github_review_pull_request` (COMMENT or REQUEST_CHANGES only; optional exact head guard; approval stays human)
 - `github_reply_review_comment`
 

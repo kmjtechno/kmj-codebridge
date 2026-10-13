@@ -1,7 +1,8 @@
 // Advisory "free-first" audit of a project's CI configuration.
 //
-// It reads workflow text only: it never executes anything, never contacts a provider and never
-// sees secret values (workflow files hold secret NAMES, not values). It cannot know the account's
+// It reads repository workflow text only: it never executes anything, never contacts a provider
+// and never reads a provider secret store. Workflow files normally hold secret NAMES, but a
+// committed file could contain a literal secret, so findings never echo repository lines. It cannot know the account's
 // billing plan or whether a repository is private, so every finding is advice with the condition
 // spelled out, never a claim about an invoice. All alternatives are legal, free-tier-or-own-
 // hardware options; none relies on evading a provider's limits or terms.
@@ -26,6 +27,23 @@ function stripComment(raw) {
   return cut.length ? raw.slice(0, Math.min(...cut)) : raw;
 }
 
+// Findings never echo repository lines: a committed literal secret on the same line must not be
+// able to reach the output. Evidence is either a fixed string, a structural token this module
+// parsed itself (job id, credential NAME), or a value that passed a strict character allow-list.
+function safeValue(value, pattern, fallback) {
+  return value.length <= 40 && pattern.test(value) ? value : fallback;
+}
+
+// Exactly five cron fields made only of digits and the operators * / , - (no letters at all).
+const CRON_SHAPE = /^[0-9*/,-]+( [0-9*/,-]+){4}$/;
+// A hosted runner label such as ubuntu-24.04 or windows-latest, extracted rather than echoed.
+function runnerLabel(value) {
+  const m = /(?:ubuntu|windows|macos)-[a-z0-9.]{1,20}/i.exec(value);
+  return m ? m[0] : "<expression>";
+}
+// Lower-case CircleCI class names only (small, 2xlarge, gpu.nvidia.small, arm.medium ...).
+const CLASS_SHAPE = /^[a-z0-9.-]{1,32}$/;
+
 function excerpt(line) {
   return line.trim().slice(0, 140);
 }
@@ -49,7 +67,7 @@ function hostedRunnerFinding(file, lineNo, value, text) {
         ? "GitHub-hosted Windows runner. If this repository is private it consumes included minutes at a higher rate than Linux."
         : "GitHub-hosted Linux runner. Free for public repositories; private repositories draw on the account's included minutes.",
     freeAlternative: SELF_HOSTED_NOTE,
-    evidence: text,
+    evidence: `runs-on: ${runnerLabel(value)}`,
   };
 }
 
@@ -71,7 +89,7 @@ function cronFinding(file, lineNo, cron, text) {
     message: `Scheduled roughly ${perHour} time(s) per hour. A polling schedule keeps consuming runner time even when nothing changed.`,
     freeAlternative:
       "Trigger on push/pull_request instead of polling, lengthen the interval (for example once a day), or poll from your own machine with a local timer.",
-    evidence: text,
+    evidence: `cron: ${safeValue(cron.trim(), CRON_SHAPE, "<cron>")}`,
   };
 }
 
@@ -140,7 +158,7 @@ function auditGitHubWorkflow(file, content, findings, counters) {
               message:
                 "Runs on a self-hosted runner: no GitHub-hosted minutes are used. Keep it off untrusted pull-request code.",
               freeAlternative: "",
-              evidence: raw,
+              evidence: "runs-on: self-hosted",
             });
           } else if (/(ubuntu|windows|macos)-/i.test(value)) {
             add(findings, hostedRunnerFinding(file, lineNo, value, raw));
@@ -158,7 +176,7 @@ function auditGitHubWorkflow(file, content, findings, counters) {
         message: `Workflow references a credential name for a metered or paid service (${PAID_CREDENTIAL.exec(line)[1]}). Calls made with it may be billed to the account that owns the key.`,
         freeAlternative:
           "Use a local model or a free-tier/offline test double for CI, and make a paid call opt-in and budget-capped by its owner.",
-        evidence: raw,
+        evidence: PAID_CREDENTIAL.exec(line)[1],
       });
     }
   });
@@ -237,17 +255,19 @@ function auditCircle(file, content, findings, counters) {
     const rc = /^\s*resource_class:\s*['"]?([A-Za-z0-9_./-]+)['"]?\s*$/.exec(
       line,
     );
-    if (rc && !["small", "medium"].includes(rc[1]))
+    if (rc && !["small", "medium"].includes(rc[1])) {
+      const cls = CLASS_SHAPE.test(rc[1]) ? rc[1] : "<custom>";
       add(findings, {
         id: "PREMIUM_RESOURCE_CLASS",
         severity: "medium",
         file,
         line: index + 1,
-        message: `Resource class "${rc[1]}" may not be included in a free plan; verify against your plan before relying on it.`,
+        message: `Resource class "${cls}" may not be included in a free plan; verify against your plan before relying on it.`,
         freeAlternative:
           "Use small/medium, or run heavy builds on your own machine through an approved CodeBridge gate.",
-        evidence: raw,
+        evidence: `resource_class: ${cls}`,
       });
+    }
     if (/^\s*macos:\s*$/.test(line) || /^\s*-\s*image:.*gpu/i.test(line))
       add(findings, {
         id: "PREMIUM_EXECUTOR",
@@ -258,7 +278,7 @@ function auditCircle(file, content, findings, counters) {
           "macOS or GPU executors are typically metered or plan-restricted; verify before relying on them.",
         freeAlternative:
           "Build macOS/GPU targets on hardware you own and attach the receipt as evidence.",
-        evidence: raw,
+        evidence: "macos or gpu executor",
       });
     if (PAID_CREDENTIAL.test(line))
       add(findings, {
@@ -269,7 +289,7 @@ function auditCircle(file, content, findings, counters) {
         message: `Configuration references a credential name for a metered or paid service (${PAID_CREDENTIAL.exec(line)[1]}).`,
         freeAlternative:
           "Use a local model or an offline test double, and make paid calls opt-in with a budget cap.",
-        evidence: raw,
+        evidence: PAID_CREDENTIAL.exec(line)[1],
       });
   });
 }

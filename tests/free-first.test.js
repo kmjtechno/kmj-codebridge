@@ -69,6 +69,53 @@ test("flags the settings that can burn paid minutes, with a free alternative eac
   assert.match(r.advisory, /cannot see your billing plan/);
 });
 
+test("findings never echo repository lines, so a committed literal secret cannot reach the output", () => {
+  // Built at runtime so no secret-shaped literal sits in the repository (the secret scan would flag it).
+  const secret = ["sk", "live", "9f8e7d6c5b4a39281706f5e4d3c2b1a0"].join("-");
+  const token = "ghp_" + "Z".repeat(36);
+  const content = `name: leaky
+on:
+  schedule:
+    - cron: '*/5 * * * * # ${secret}'
+jobs:
+  a:
+    runs-on: \${{ ${token} }}
+    steps:
+      - run: echo
+        env:
+          OPENAI_API_KEY: ${secret}
+  b:
+    runs-on: ubuntu-latest ${token}
+    steps:
+      - run: echo
+`;
+  const circle = `jobs:
+  x:
+    resource_class: ${token}
+    macos: ${secret}
+    OPENAI_API_KEY: ${secret}
+`;
+  const r = auditFreeFirst([
+    wf("leaky.yml", content),
+    { path: ".circleci/config.yml", content: circle },
+  ]);
+  const text = JSON.stringify(r);
+  assert.ok(!text.includes(secret), "literal API key leaked");
+  assert.ok(!text.includes("Z".repeat(36)), "literal token leaked");
+  assert.ok(r.findings.length > 0);
+  // The credential finding names the variable, not the line.
+  const paid = r.findings.filter((f) => f.id === "PAID_SERVICE_CREDENTIAL");
+  assert.ok(paid.length >= 1);
+  assert.ok(paid.every((f) => f.evidence === "OPENAI_API_KEY"));
+  assert.ok(
+    r.findings
+      .filter((f) => f.id === "HOSTED_RUNNER")
+      .every((f) =>
+        /^runs-on: (<expression>|[A-Za-z0-9_.,\-[\] /]+)$/.test(f.evidence),
+      ),
+  );
+});
+
 test("a tidy self-hosted workflow has no spend finding", () => {
   const r = auditFreeFirst([
     wf(

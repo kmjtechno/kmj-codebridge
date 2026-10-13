@@ -627,7 +627,7 @@ export const definitions = {
   free_first_audit: {
     title: "Free-first spend audit",
     description:
-      "Read-only advisory scan of the project's CI configuration (GitHub workflows, CircleCI) for settings that may consume paid minutes or metered services, each with a legal free alternative. Reads configuration text only; never executes anything, contacts a provider or sees secret values.",
+      "Read-only advisory scan of the project's CI configuration (GitHub workflows, CircleCI) for settings that may consume paid minutes or metered services, each with a legal free alternative. Reads repository configuration text only; never executes anything, contacts a provider or reads any provider secret store. Findings never echo repository lines (only fixed text, parsed tokens or allow-listed values) and output redaction is best-effort, because committed workflow text could itself contain a literal secret.",
     input: scoped,
     access: "read",
   },

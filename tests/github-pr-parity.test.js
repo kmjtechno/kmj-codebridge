@@ -265,3 +265,125 @@ test("every new tool enforces the repository allowlist and the public read-only 
     );
   assert.equal(calls.length, 0);
 });
+
+test("update_pull_request with expectedHeadSha re-reads the PR and refuses a moved head without any PATCH", async (t) => {
+  const calls = mockFetch(t, (c) => {
+    if (c.method === "GET") return json({ state: "open", head: { sha: head } });
+    return json({
+      number: 7,
+      title: "T",
+      state: "open",
+      draft: false,
+      base: { ref: "main" },
+      head: { sha: head },
+      html_url: "https://github.com/x/y/pull/7",
+    });
+  });
+  const dispatch = bridge(t);
+  await assert.rejects(
+    dispatch("github_update_pull_request", {
+      repository,
+      number: 7,
+      title: "T",
+      expectedHeadSha: "b".repeat(40),
+    }),
+    /GITHUB_HEAD_MOVED/,
+  );
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["GET"],
+    "a stale head must never reach PATCH",
+  );
+
+  const ok = await dispatch("github_update_pull_request", {
+    repository,
+    number: 7,
+    title: "T",
+    expectedHeadSha: head,
+  });
+  assert.equal(ok.number, 7);
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["GET", "GET", "PATCH"],
+  );
+  // The guard fields are never forwarded to GitHub.
+  assert.deepEqual(calls.at(-1).body, { title: "T" });
+});
+
+test("update_pull_request guard refuses a pull request that is not open", async (t) => {
+  const calls = mockFetch(t, () =>
+    json({ state: "closed", head: { sha: head } }),
+  );
+  await assert.rejects(
+    bridge(t)("github_update_pull_request", {
+      repository,
+      number: 7,
+      base: "release",
+      expectedHeadSha: head,
+    }),
+    /GITHUB_PULL_REQUEST_NOT_OPEN/,
+  );
+  assert.deepEqual(
+    calls.map((c) => c.method),
+    ["GET"],
+  );
+});
+
+test("closing a pull request needs explicit confirmation and no network call is made without it", async (t) => {
+  const calls = mockFetch(t, (c) =>
+    c.method === "GET"
+      ? json({ state: "open", head: { sha: head } })
+      : json({
+          number: 7,
+          title: "T",
+          state: "closed",
+          draft: false,
+          base: { ref: "main" },
+          head: { sha: head },
+          html_url: "https://github.com/x/y/pull/7",
+        }),
+  );
+  const dispatch = bridge(t);
+  await assert.rejects(
+    dispatch("github_update_pull_request", {
+      repository,
+      number: 7,
+      state: "closed",
+    }),
+    /GITHUB_CLOSE_CONFIRMATION_REQUIRED/,
+  );
+  await assert.rejects(
+    dispatch("github_update_pull_request", {
+      repository,
+      number: 7,
+      state: "closed",
+      confirmClose: false,
+    }),
+  );
+  assert.equal(calls.length, 0);
+
+  const closed = await dispatch("github_update_pull_request", {
+    repository,
+    number: 7,
+    state: "closed",
+    confirmClose: true,
+    expectedHeadSha: head,
+  });
+  assert.equal(closed.state, "closed");
+  assert.deepEqual(calls.at(-1).body, { state: "closed" });
+  // Reopening is not a close and needs no confirmation.
+  await dispatch("github_update_pull_request", {
+    repository,
+    number: 7,
+    state: "open",
+  });
+  // The guard fields alone are not a change.
+  await assert.rejects(
+    dispatch("github_update_pull_request", {
+      repository,
+      number: 7,
+      expectedHeadSha: head,
+    }),
+    /GITHUB_PULL_REQUEST_NO_CHANGES/,
+  );
+});

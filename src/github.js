@@ -217,7 +217,7 @@ export const githubDefinitions = {
   github_update_pull_request: {
     title: "Update GitHub pull request",
     description:
-      "Change the title, body, base branch or open/closed state of an existing pull request in an allowed repository. At least one field is required. It never merges, approves or converts draft state.",
+      'Change the title, body, base branch or open/closed state of an existing pull request in an allowed repository. At least one of those fields is required. When expectedHeadSha is supplied the pull request is re-read immediately before the change and the call is refused if it is not open or its head moved. state "closed" additionally requires confirmClose: true. It never merges, approves or converts draft state.',
     input: {
       repository: repoName,
       number: issueNumber,
@@ -225,6 +225,8 @@ export const githubDefinitions = {
       body: z.string().max(20000).optional(),
       base: branchName.optional(),
       state: z.enum(["open", "closed"]).optional(),
+      expectedHeadSha: commitSha.optional(),
+      confirmClose: z.literal(true).optional(),
     },
     access: "write",
   },
@@ -963,6 +965,21 @@ export function createGitHubBridge(config) {
         if (a[field] !== undefined) changes[field] = a[field];
       if (Object.keys(changes).length === 0)
         fail("GITHUB_PULL_REQUEST_NO_CHANGES");
+      // Closing is a lifecycle action: it must be stated explicitly, never implied.
+      if (a.state === "closed" && a.confirmClose !== true)
+        fail("GITHUB_CLOSE_CONFIRMATION_REQUIRED");
+      // Optimistic concurrency: a stale task or a concurrent lane must not mutate a pull request
+      // whose head moved. The live re-read bypasses the cache and happens right before the PATCH.
+      if (a.expectedHeadSha) {
+        const pull = await request(
+          "GET",
+          a.repository,
+          `pulls/${a.number}`,
+          undefined,
+        );
+        if (pull.state !== "open") fail("GITHUB_PULL_REQUEST_NOT_OPEN");
+        if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
+      }
       const data = await request(
         "PATCH",
         a.repository,
