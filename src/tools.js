@@ -16,6 +16,7 @@ import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { createLocalModelClient } from "./local-model.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
+import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -2163,7 +2164,8 @@ export function createDispatcher(
     if (name.startsWith("autopilot_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
     if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
-    if (name === "autopilot_enqueue")
+    if (name === "autopilot_enqueue") {
+      if (!canQueueAutopilotGate(a.key, permissions)) fail("ACCESS_DENIED");
       return autopilot.enqueue({
         project: p.id,
         key: a.key,
@@ -2171,6 +2173,7 @@ export function createDispatcher(
         priority: a.priority,
         dependsOn: a.dependsOn,
       });
+    }
     if (name === "autopilot_claim") {
       const claimed = autopilot.claim(p.id, { holder: a.holder });
       // Never acknowledge a claim that a worker cannot fence. This catches
