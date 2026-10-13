@@ -15,6 +15,7 @@ import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-sc
 import { gatewaySchema } from "./config.js";
 import { definitions, FAST_READ_TOOLS } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
+import { createCiFailureReader, ciFailureDefinitions } from "./ci-failure.js";
 import {
   createGitHubReadiness,
   githubReadinessOptions,
@@ -151,6 +152,7 @@ export async function startGateway(rawConfig) {
     ? createOAuthVerifier(config.oauth, config.users, resolveOAuthUser)
     : null;
   const githubDispatch = createGitHubBridge(config.github);
+  const ciDispatch = createCiFailureReader(config.github?.circleci);
   const enabledGitHubDefinitions = config.github?.publicReadOnly
     ? Object.fromEntries(
         Object.entries(githubDefinitions).filter(
@@ -158,9 +160,11 @@ export async function startGateway(rawConfig) {
         ),
       )
     : githubDefinitions;
-  const allDefinitions = githubDispatch
-    ? { ...definitions, ...enabledGitHubDefinitions }
-    : definitions;
+  const allDefinitions = {
+    ...definitions,
+    ...(githubDispatch ? enabledGitHubDefinitions : {}),
+    ...(ciDispatch ? ciFailureDefinitions : {}),
+  };
   const probeGitHub = createGitHubReadiness(
     githubDispatch
       ? () =>
@@ -1122,6 +1126,12 @@ export async function startGateway(rawConfig) {
               }
               if (name === "fast_read_batch") {
                 const result = await fastReadBatch(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                };
+              }
+              if (ciDispatch && name === "ci_status_failure_log") {
+                const result = await ciDispatch(name, args);
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                 };
