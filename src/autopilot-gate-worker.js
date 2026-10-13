@@ -86,13 +86,34 @@ export class AutopilotGateWorker {
               leaseToken: current.leaseToken,
             });
           } else {
-            // No unbounded automatic retries or false success.
+            // No false success or unbounded retry. An administrator may
+            // explicitly map this failed gate to one deterministic isolated
+            // repair recipe. The repair worker still enforces SHA and scope.
             this.journal.wait(
               current.taskId,
               project.id,
               "ADMIN_APPROVED_GATE_FAILED_REVIEW_REQUIRED",
               current.leaseToken,
             );
+            const recipeConfig = project.autopilotRepairWorker;
+            if (recipeConfig?.enabled) {
+              const candidate = Object.entries(recipeConfig.recipes).find(
+                ([, recipe]) => recipe.triggerGate === current.gate,
+              );
+              if (candidate) {
+                try {
+                  this.journal.enqueue({
+                    project: project.id,
+                    key: `auto-repair:${candidate[0]}:${current.expectedHead}`,
+                    objective: "Auto-repair after approved quality gate failure; isolated deterministic recipe only",
+                    priority: 0,
+                  });
+                } catch {
+                  // Failed auto-enqueue never bypasses the review-required
+                  // failed gate or invents a fix completion.
+                }
+              }
+            }
           }
           this.active.delete(project.id);
         } else if (result) {
