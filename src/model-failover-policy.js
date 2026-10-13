@@ -193,16 +193,20 @@ export class ModelFailoverPolicy {
     const tokenRemaining = quotaHeader(headers, "x-ratelimit-remaining-tokens");
     if (requestRemaining !== null) state.remainingRequests = requestRemaining;
     if (tokenRemaining !== null) state.remainingTokens = tokenRemaining;
-    state.resetRequestsAt = quotaResetMs(
+    const requestReset = quotaResetMs(
       headers,
       "x-ratelimit-reset-requests",
       this.now(),
     );
-    state.resetTokensAt = quotaResetMs(
+    const tokenReset = quotaResetMs(
       headers,
       "x-ratelimit-reset-tokens",
       this.now(),
     );
+    // Provider responses often omit reset headers. Do not drop an existing
+    // observed reset window when processing a partial quota update.
+    if (requestReset !== null) state.resetRequestsAt = requestReset;
+    if (tokenReset !== null) state.resetTokensAt = tokenReset;
     if (statusCode === 429) {
       state.cooldownUntil = this.now() + retryDelay(headers, this.now());
     } else if (statusCode === 401 || statusCode === 403) {
