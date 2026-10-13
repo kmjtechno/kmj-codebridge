@@ -10,9 +10,24 @@ fail() { printf 'SUPERVISOR_UPGRADE_BLOCKED=%s\n' "$1" >&2; exit 1; }
 SHA="${KMJ_APPROVED_CODEBRIDGE_SHA:-}"
 [[ "$SHA" =~ ^[a-f0-9]{40}$ ]] || fail REVIEWED_SHA_REQUIRED
 SOURCE="$(cd -- "$(dirname -- "$0")/../.." && pwd -P)"
-[[ "$(git -C "$SOURCE" rev-parse --verify HEAD)" == "$SHA" ]] ||
+# Before invoking Git as root, refuse untrusted, writable or symlinked source.
+[[ "$SOURCE" == /root/* && -d "$SOURCE" && ! -L "$SOURCE" ]] ||
+  fail SOURCE_LOCATION_UNTRUSTED
+for dir in /root "$(dirname "$SOURCE")" "$SOURCE" "$SOURCE/.git"; do
+  [[ -d "$dir" && ! -L "$dir" && "$(stat -c %u "$dir")" == 0 ]] ||
+    fail SOURCE_OWNER_UNTRUSTED
+  mode="$(stat -c %a "$dir")"
+  (( (8#$mode & 8#22) == 0 )) || fail SOURCE_WRITABLE
+done
+# Disable hook/fsmonitor/environment injection for read-only provenance checks.
+git_safe() {
+  GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null GIT_TERMINAL_PROMPT=0 \
+    git -C "$SOURCE" -c core.hooksPath=/dev/null \
+      -c core.fsmonitor=false -c core.untrackedCache=false "$@"
+}
+[[ "$(git_safe rev-parse --verify HEAD)" == "$SHA" ]] ||
   fail SOURCE_HEAD_MISMATCH
-[[ -z "$(git -C "$SOURCE" status --porcelain --untracked-files=all)" ]] ||
+[[ -z "$(git_safe status --porcelain --untracked-files=all)" ]] ||
   fail SOURCE_DIRTY
 UNIT=kmj-codebridge-supervisor.service
 SOCKET=kmj-codebridge-supervisor.socket
@@ -52,6 +67,15 @@ NPM_TARGET="$(readlink -e "$NPM")"
 [[ "$NPM_TARGET" == /opt/kmj-codebridge-node/* ||
    "$NPM_TARGET" == /usr/share/nodejs/npm/* ||
    "$NPM_TARGET" == /usr/bin/npm ]] || fail NPM_TARGET_UNTRUSTED
+# The invoked npm CLI and every ancestor must be root-owned/non-writable.
+walk="$NPM_TARGET"
+while [[ "$walk" != / ]]; do
+  [[ -e "$walk" && ! -L "$walk" && "$(stat -Lc %u "$walk")" == 0 ]] ||
+    fail NPM_PATH_OWNER_UNTRUSTED
+  mode="$(stat -Lc %a "$walk")"
+  (( (8#$mode & 8#22) == 0 )) || fail NPM_PATH_WRITABLE
+  walk="$(dirname "$walk")"
+done
 
 # Reuse the existing reviewed immutable root staging implementation.
 OUTPUT="$(KMJ_APPROVED_CODEBRIDGE_SHA="$SHA" bash "$SOURCE/scripts/production/stage-supervisor-root-runtime.sh")" ||
