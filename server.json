@@ -1,0 +1,18 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.kmjtechno/kmj-codebridge",
+  "title": "KMJ CodeBridge",
+  "description": "Secure remote MCP coding bridge connecting AI clients to owner-authorized computer and VPS projects, with scoped files, audit, approved quality gates and OAuth authentication.",
+  "version": "0.3.2",
+  "websiteUrl": "https://kmjtechno.com/products/kmj-codebridge",
+  "repository": {
+    "url": "https://github.com/kmjtechno/kmj-codebridge",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://kmjtechno.com/mcp"
+    }
+  ]
+}
