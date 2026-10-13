@@ -4,7 +4,7 @@ import { redact } from "./jobs.js";
 // CI output is third-party content. It can contain credentials, personal
 // information and prompt-injection. Keep only a tiny diagnostic excerpt.
 const DIAGNOSTIC =
-  /(?:\berror\b|\bfatal\b|\bfail(?:ed|ure)?\b|exception|undefined|cannot|not found|typeerror|syntaxerror|✖|×|\bTS\d{4}\b|\bE\d{3,5}\b)/i;
+  /(?:\berror\b|\bfatal\b|\bfail(?:ed|ure)?\b|exception|undefined|cannot|not found|does not exist|failed asserting|expects .* given|typeerror|syntaxerror|✖|×|\bTS\d{4}\b|\bE\d{3,5}\b)/i;
 const SECRET_INDICATOR =
   /\b(?:authorization|bearer|basic|cookie|set-cookie|password|passwd|secret|api[_-]?key|access[_-]?token|refresh[_-]?token|private[_-]?key|client[_-]?secret|session[_-]?id)\b/i;
 const KEY_VALUE =
