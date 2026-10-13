@@ -4,7 +4,7 @@ umask 077
 export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 fail() { echo "KMJ_BLOCKED: $1" >&2; exit 1; }
 [[ "$(id -u)" == 0 && "$(hostname)" == KMJ-elite ]] || fail ROOT_AND_HOST_REQUIRED
-for x in curl git tar sha256sum install stat npm bash node; do command -v "$x" >/dev/null || fail "MISSING_$x"; done
+for x in curl git tar sha256sum install stat npm bash; do command -v "$x" >/dev/null || fail "MISSING_$x"; done
 NODE=/opt/kmj-codebridge-node/bin/node
 safe() {
   local file="$1" mode
