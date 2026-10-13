@@ -20,7 +20,8 @@ function fixture(t, overrides = {}) {
   t.after(() =>
     fs.rmSync(dir, { recursive: true, force: true, maxRetries: 5 }),
   );
-  if (!overrides.absentToken) process.env[ENV] = SECRET;
+  if (overrides.absentToken) delete process.env[ENV];
+  else process.env[ENV] = SECRET;
   t.after(() => delete process.env[ENV]);
   const journal = new AutopilotJournal(dir);
   let clock = 1000000;
