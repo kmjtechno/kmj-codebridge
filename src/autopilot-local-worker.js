@@ -5,13 +5,14 @@ const DRAFT_TASK = /^auto-draft:[A-Za-z0-9._-]{1,100}$/;
 // This worker produces review-only, untrusted proposals. It does not apply
 // patches, run commands, publish code, mark tasks done or contact cloud APIs.
 export class LocalAutopilotDraftWorker {
-  constructor({ projects, journal, licenseProvider, localModel }) {
+  constructor({ projects, journal, licenseProvider, localModel, runner = null }) {
     this.projects = projects.filter(
       (p) => p.writable && p.autopilotLocalWorker?.enabled === true,
     );
     this.journal = journal;
     this.licenseProvider = licenseProvider;
     this.localModel = localModel;
+    this.runner = runner;
     this.busy = false;
   }
 
@@ -23,6 +24,23 @@ export class LocalAutopilotDraftWorker {
         try {
           const entitlement = this.licenseProvider();
           if (!entitlement.features.includes("execute")) continue;
+          // Do not poll Ollama when no explicit eligible tasks exist.
+          if (
+            !this.journal.hasReady(project.id, (task) =>
+              DRAFT_TASK.test(task.key),
+            )
+          )
+            continue;
+          // Do not compete with active project gates or resource pressure.
+          const capacity = this.runner?.capacity(project.root);
+          if (
+            capacity &&
+            (capacity.blocked ||
+              capacity.constrained ||
+              capacity.effectiveMaxConcurrent < 1 ||
+              capacity.activeJobs > 0)
+          )
+            continue;
           const model = project.autopilotLocalWorker.model;
           const client = this.localModel();
           // Do not claim work unless the exact owner-approved local model is
