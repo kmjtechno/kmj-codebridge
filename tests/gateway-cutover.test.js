@@ -8,6 +8,7 @@ import {
   DEFAULTS,
   dropInContent,
   parseArgs,
+  recognizedDropIn,
   runCutover,
   validateOptions,
 } from "../scripts/gateway-cutover.mjs";
@@ -229,6 +230,8 @@ test(
     assert.equal(ok, true);
     assert.equal(r.RESULT, "PASS");
     assert.equal(r.COMMIT_ASSERT, "PASS");
+    // Agent reconnection can't be proven without agent credentials: say so.
+    assert.equal(r.AGENT_RECONNECT, "NOT_VERIFIED_USE_AUTHENTICATED_CLIENT");
     assert.equal(h.state.restarts, 1);
     assert.equal(h.state.commit, NEW_SHA);
     assert.equal(
@@ -405,3 +408,57 @@ test("the controller refuses to run anywhere but Linux, on every OS", async () =
     (error) => error.code === "UNSUPPORTED_PLATFORM",
   );
 });
+
+test("only drop-ins made of this controller's own lines may be replaced", async (t) => {
+  const ours = dropInContent({
+    target: "/opt/c/" + NEW_SHA,
+    sha: NEW_SHA,
+    node: "/usr/bin/node",
+    config: "/etc/k/g.json",
+  });
+  assert.equal(recognizedDropIn(ours), true);
+  // The one-time utility's format (no commit marker) is also recognized.
+  assert.equal(
+    recognizedDropIn(
+      "[Service]\nWorkingDirectory=/opt/c/x\nExecStart=\nExecStart=/usr/bin/node /opt/c/x/src/cli.js gateway /etc/k/g.json\n",
+    ),
+    true,
+  );
+  for (const bad of [
+    "",
+    "WorkingDirectory=/opt/c/x\n",
+    ours + "Environment=EXTRA=1\n",
+    ours + "LimitNOFILE=1\n",
+    ours + "ExecStartPre=/bin/true\n",
+    "[Service]\nExecStart=/bin/sh -c evil\n",
+    "[Service]\nWorkingDirectory=/opt/c/x y\n",
+  ])
+    assert.equal(recognizedDropIn(bad), false, JSON.stringify(bad));
+});
+
+test(
+  "an operator-edited drop-in blocks the cutover before anything changes",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const edited =
+      dropInContent({
+        target: h.oldRoot,
+        sha: OLD_SHA,
+        node: h.node,
+        config: h.config,
+      }) + "LimitNOFILE=65536\n";
+    fs.mkdirSync(path.dirname(h.dropIn), { recursive: true });
+    fs.writeFileSync(h.dropIn, edited);
+    await assert.rejects(
+      runCutover(
+        { ...h.options, apply: true, confirmNoActiveJobs: true },
+        h.deps,
+      ),
+      (error) => error.code === "DROPIN_UNRECOGNIZED",
+    );
+    assert.equal(h.state.restarts, 0);
+    assert.equal(fs.readFileSync(h.dropIn, "utf8"), edited);
+    assert.equal(fs.existsSync(h.options.backupRoot), false);
+  },
+);

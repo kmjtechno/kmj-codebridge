@@ -93,6 +93,28 @@ export function validateOptions(options) {
     check(SAFE_PATH.test(options[key]), "PATH_INVALID");
 }
 
+// The controller replaces its own drop-in wholesale, so it only does so when
+// the existing file contains nothing but the lines this controller (or the
+// one-time utility it supersedes) writes. Any other setting an operator added
+// would otherwise be discarded silently.
+const DROPIN_LINES = [
+  /^\[Service\]$/,
+  /^WorkingDirectory=\/[A-Za-z0-9_./-]+$/,
+  /^Environment=CODEBRIDGE_SOURCE_COMMIT=[0-9a-f]{7,40}$/,
+  /^ExecStart=$/,
+  /^ExecStart=\/[A-Za-z0-9_./-]+ \/[A-Za-z0-9_./-]+ gateway \/[A-Za-z0-9_./-]+$/,
+];
+export function recognizedDropIn(text) {
+  const lines = text
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+  return (
+    lines[0] === "[Service]" &&
+    lines.every((line) => DROPIN_LINES.some((pattern) => pattern.test(line)))
+  );
+}
+
 export function dropInContent({ target, sha, node, config }) {
   return (
     "[Service]\n" +
@@ -245,6 +267,17 @@ function inspect(options, deps) {
     "CANDIDATE_REJECTS_CONFIG",
   );
 
+  const existingDropIn = path.join(
+    options.systemDir,
+    `${options.unit}.d`,
+    DROPIN,
+  );
+  if (fs.existsSync(existingDropIn))
+    check(
+      recognizedDropIn(fs.readFileSync(existingDropIn, "utf8")),
+      "DROPIN_UNRECOGNIZED",
+    );
+
   const before = probe(deps, `http://127.0.0.1:${options.port}/mcp`, options);
   check(before.tools.size > 0, "BASELINE_CATALOG_EMPTY");
   const unitFile = show("FragmentPath");
@@ -387,6 +420,10 @@ export async function runCutover(options, deps = realDeps()) {
       say("CUTOVER", "PASS");
       say("NEW_PID", newPid);
       say("COMMIT_ASSERT", "PASS");
+      // The restart briefly disconnects every device agent. Agents reconnect
+      // on their own, but this controller has no agent credentials, so it can
+      // not prove that: confirm with an authenticated client afterwards.
+      say("AGENT_RECONNECT", "NOT_VERIFIED_USE_AUTHENTICATED_CLIENT");
       say("RESULT", "PASS");
       return { ok: true, out };
     } catch (error) {

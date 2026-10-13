@@ -93,6 +93,15 @@ restarts and verifies the rollback; `ROLLBACK=FAIL_MANUAL_RECOVERY_REQUIRED` mea
 the service did not recover and needs a human. Pending gateway jobs are in memory,
 so a restart drops them; that is why `--confirm-no-active-jobs` is mandatory.
 
+It replaces the drop-in wholesale, so it **refuses** (`DROPIN_UNRECOGNIZED`) if the
+existing drop-in contains anything other than the lines this controller or the
+earlier one-time utility wrote (`[Service]`, `WorkingDirectory=`,
+`Environment=CODEBRIDGE_SOURCE_COMMIT=`, `ExecStart=`); add such settings
+elsewhere. The restart briefly disconnects every device agent. The controller has
+no agent credentials, so a successful run prints
+`AGENT_RECONNECT=NOT_VERIFIED_USE_AUTHENTICATED_CLIENT`: confirm afterwards with an
+authenticated client (`list_devices`, then `inspect_project` on each device).
+
 It is tested against a fake host (apply, rollback, refusals), **not yet against the
 real server**. Have it reviewed, run the dry run first, and treat the first real
 run as the rollback rehearsal's missing evidence.
