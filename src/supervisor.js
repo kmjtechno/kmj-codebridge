@@ -15,6 +15,9 @@ const CONFIGS = {
   agent: "/etc/kmj-codebridge/agent.json",
   gateway: "/etc/kmj-codebridge/gateway.json",
 };
+// Existing KMJ-elite Main Platform enrollment uses a separate fixed config.
+// Never derive this path from an MCP request or a writable checkout.
+const MAIN_PLATFORM_AGENT_CONFIG = "/etc/kmj-codebridge-main-platform/agent.json";
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
@@ -1526,7 +1529,19 @@ export function createSupervisorHandler({
       const configPath = CONFIGS[request.service];
       if (!configPath) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       try {
-        const raw = JSON.parse(readFile(configPath));
+        let source = configPath;
+        let raw;
+        try {
+          raw = JSON.parse(readFile(source));
+        } catch (error) {
+          // Only a missing default agent config can fall back to the fixed
+          // existing Main Platform enrollment path. Malformed or unreadable
+          // configurations must fail closed without disclosing secrets.
+          if (request.service !== "agent" || error?.code !== "ENOENT")
+            throw error;
+          source = MAIN_PLATFORM_AGENT_CONFIG;
+          raw = JSON.parse(readFile(source));
+        }
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
         return { response: { service: request.service, valid: true } };
@@ -1558,7 +1573,11 @@ export function createSupervisorHandler({
         fail("INVALID_SUPERVISOR_REQUEST");
       let agentConfig;
       try {
-        agentConfig = agentSchema.parse(JSON.parse(readFile(CONFIGS.agent)));
+        const configPath =
+          request.projectId === "kmj-main-platform"
+            ? MAIN_PLATFORM_AGENT_CONFIG
+            : CONFIGS.agent;
+        agentConfig = agentSchema.parse(JSON.parse(readFile(configPath)));
       } catch {
         fail("SUPERVISOR_CONFIG_INVALID");
       }
