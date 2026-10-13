@@ -85,6 +85,34 @@ export function connectionHealth(lastSeenAt, health, now = Date.now()) {
   };
 }
 
+// local_model_generate/autopilot_local_draft each accept their own
+// timeoutSeconds (5-90s) for the Ollama call the P720 agent makes, but the
+// gateway's own wait for the whole round trip was always capped by the
+// single fixed config.deviceTimeoutMs (15s default, meant for fast
+// filesystem/git tools). A cold 7B model load alone measured ~12s on real
+// hardware, so any such call could be, and was, abandoned by the gateway
+// as DEVICE_TIMEOUT - discarding real in-progress work - well before the
+// caller's own requested timeoutSeconds, and well before the device-side
+// Ollama call would have failed on its own. Give these two tools a wait
+// floor that actually covers what they asked for, plus headroom for
+// queue/poll/delivery latency, never shrinking the configured default and
+// never exceeding gatewaySchema's own 120000ms ceiling.
+const EXTENDED_TIMEOUT_TOOLS = new Set([
+  "local_model_generate",
+  "autopilot_local_draft",
+]);
+export function forwardTimeoutMs(deviceTimeoutMs, name, args) {
+  if (
+    !EXTENDED_TIMEOUT_TOOLS.has(name) ||
+    !Number.isFinite(args?.timeoutSeconds)
+  )
+    return deviceTimeoutMs;
+  return Math.min(
+    120000,
+    Math.max(deviceTimeoutMs, args.timeoutSeconds * 1000 + 15000),
+  );
+}
+
 function json(res, status, data) {
   if (!res.writableEnded) {
     res.writeHead(status, {
@@ -354,10 +382,13 @@ export async function startGateway(rawConfig) {
       fail("GATEWAY_BUSY");
     return new Promise((resolve, reject) => {
       const id = randomUUID();
-      const timer = setTimeout(() => {
-        pending.delete(id);
-        reject(Object.assign(new Error(), { code: "DEVICE_TIMEOUT" }));
-      }, config.deviceTimeoutMs);
+      const timer = setTimeout(
+        () => {
+          pending.delete(id);
+          reject(Object.assign(new Error(), { code: "DEVICE_TIMEOUT" }));
+        },
+        forwardTimeoutMs(config.deviceTimeoutMs, name, args),
+      );
       pending.set(id, {
         id,
         agent: a.id,
