@@ -49,7 +49,8 @@ export async function verifyDeployedGatewayOnce(expectedSha, request = fetch) {
     signal: AbortSignal.timeout(20000),
     headers: { Accept: "application/json" },
   });
-  if (response.status !== 200) throw new Error("DEPLOYED_HEALTH_HTTP_UNAVAILABLE");
+  if (response.status !== 200)
+    throw new Error("DEPLOYED_HEALTH_HTTP_UNAVAILABLE");
   let payload;
   try {
     payload = JSON.parse(await readSmallBody(response));
