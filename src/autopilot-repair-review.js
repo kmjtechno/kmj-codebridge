@@ -48,9 +48,9 @@ export function reviewRepairCandidate({
     typeof evidence.verificationJobId !== "string"
   )
     fail("AUTOPILOT_REPAIR_EVIDENCE_INVALID");
-  const matches = lanes.status(project.id, project.root).lanes.filter(
-    (lane) => lane.laneId === evidence.laneId,
-  );
+  const matches = lanes
+    .status(project.id, project.root)
+    .lanes.filter((lane) => lane.laneId === evidence.laneId);
   if (
     matches.length !== 1 ||
     matches[0].head !== spec.expectedHead ||
