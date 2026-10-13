@@ -299,6 +299,16 @@ export class AutopilotJournal {
     });
   }
 
+  hasReady(project, eligible) {
+    if (typeof eligible !== "function") fail("INVALID_AUTOPILOT_FILTER");
+    return this.state.tasks.some(
+      (task) =>
+        task.project === project &&
+        this.isReady(task) &&
+        eligible(this.public(task)),
+    );
+  }
+
   claim(project, { holder, eligible = null } = {}) {
     if (eligible !== null && typeof eligible !== "function")
       fail("INVALID_AUTOPILOT_FILTER");
