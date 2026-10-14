@@ -5,7 +5,7 @@ set -Eeuo pipefail
 umask 077
 if [[ $# != 1 || ! "$1" =~ ^[a-f0-9]{40}$ ]]; then echo CI_INVALID_SHA >&2; exit 2; fi
 sha="$1"
-[[ "$sha" == 8d82d8e225ef89be1107402dfcfbfe5ae740c91e ]] || { echo CI_FIXED_SHA_MISMATCH >&2; exit 3; }
+[[ "$sha" == 0cc50ab391bea81c3694d3c7a51744304f8d5c91 ]] || { echo CI_FIXED_SHA_MISMATCH >&2; exit 3; }
 if [[ "$EUID" != 0 ]]; then echo CI_PREP_REQUIRES_ROOT >&2; exit 2; fi
 repo=/srv/kmj-codebridge-projects/kmj-main-platform
 # Offline preparation must not inherit GIT_DIR, GIT_WORK_TREE, namespaces
