@@ -40,7 +40,10 @@ const task = {
 };
 
 test("local-first remains safe default even with faster free cloud", () => {
-  const r = planSmartModelRoute({ models: [cloud, local], task: { ...task, strategy: "local-first" } });
+  const r = planSmartModelRoute({
+    models: [cloud, local],
+    task: { ...task, strategy: "local-first" },
+  });
   assert.equal(r.selected.modelId, local.id);
   assert.equal(r.fallbacks[0].modelId, cloud.id);
   assert.equal(r.modelExecution, "NOT_EXECUTED");
@@ -145,7 +148,6 @@ test("quota, backoff, full context and capability are respected", () => {
   assert.equal(r.selected, null);
 });
 
-
 test("the default route uses approved free cloud then offline local backup", () => {
   const r = planSmartModelRoute({ models: [cloud, local], task });
   assert.equal(r.strategy, "approved-free-cloud-first");
@@ -192,7 +194,10 @@ test("no false healthy cloud selection on stale, absent or disabled discovery", 
     assert.equal(r.eligibleCount, 1);
   }
   const noLocal = planSmartModelRoute({
-    models: [{ ...cloud, enabled: false }, { ...local, available: false }],
+    models: [
+      { ...cloud, enabled: false },
+      { ...local, available: false },
+    ],
     task,
     nowMs: now,
   });
