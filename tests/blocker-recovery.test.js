@@ -111,6 +111,21 @@ test("configured but not started worker never implies a coder", () => {
   assert.equal(report.autonomousCodingProven, false);
 });
 
+test("unobserved worker cannot be declared stopped", () => {
+  const report = inspectBlockers({
+    workerConfiguration: { localDraft: true },
+  });
+  assert.equal(report.workerHealth.localDraft.loopStarted, null);
+  assert.equal(
+    report.blockers.some((item) => item.code === "WORKER_CONFIGURED_NOT_STARTED"),
+    false,
+  );
+  assert.equal(
+    report.blockers.some((item) => item.code === "WORKER_STATUS_NOT_INSTRUMENTED"),
+    true,
+  );
+});
+
 test("dirty project means preserve existing work and continue independently", () => {
   const report = inspectBlockers({ checkoutState: "dirty" });
   assert.equal(report.safeIndependentWorkCanContinue, true);
