@@ -31,22 +31,22 @@ returned job receipt and use `get_job_status` to obtain the result.
 
 ## Safeguards and truthful QA
 
-* The command profile runs `node scripts/codebridge-ui-qa.mjs <fixed variant>`
+- The command profile runs `node scripts/codebridge-ui-qa.mjs <fixed variant>`
   **inside the authorized project root** with a 120-second timeout. It never
   accepts executable paths, shell strings, arbitrary argv, or external URLs.
-* It cannot bypass Windows user-session isolation. Running in a Windows
+- It cannot bypass Windows user-session isolation. Running in a Windows
   service/session 0 cannot prove that an operator desktop rendered correctly.
   A headless `UNVERIFIED` screenshot is not a visual PASS.
-* UIA/FlaUI are optional research references, not injected into customers'
+- UIA/FlaUI are optional research references, not injected into customers'
   runtime. The authorized project script remains responsible for the actual
   capture/test and all subprocess authorization.
-* Store local screenshot evidence only in the approved project's artifact
+- Store local screenshot evidence only in the approved project's artifact
   directory. Upload or share only with explicit operator direction. Redact
   remote-session content and private device names before external publication.
-* Compare the approved 1419×611 OmniDesk main-window reference, not the
+- Compare the approved 1419×611 OmniDesk main-window reference, not the
   separate marketing-banner image. Review 100/125/150/200% DPI and dynamic
   disconnected/permission/connected states separately.
-* A screenshot and pointer test do not prove authenticated internet
+- A screenshot and pointer test do not prove authenticated internet
   connectivity, relay behavior, M9 commercial signing, or public release.
 
 **Important:** CodeBridge does not yet provide an unrestricted computer-use
