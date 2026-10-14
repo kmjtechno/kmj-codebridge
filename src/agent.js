@@ -139,6 +139,9 @@ export async function startAgent(rawConfig) {
     journal: autopilot,
     runner,
     licenseProvider,
+    // Reuse audited WorktreeLanes boundaries. This never executes another
+    // agent's dirty checkout; enabling still requires admin-approved gates.
+    lanes: new WorktreeLanes(state),
   });
   const repairWorker = startIsolatedRepairWorker({
     projects: c.projects,
