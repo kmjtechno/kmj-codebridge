@@ -13,7 +13,10 @@ const AUTH_METADATA = `${ORIGIN}/.well-known/oauth-authorization-server`;
 export function validateDiscovery(resource, auth) {
   const issues = [];
   if (resource?.resource !== RESOURCE) issues.push("RESOURCE_MISMATCH");
-  if (!Array.isArray(resource?.authorization_servers) || !resource.authorization_servers.includes(ORIGIN)) {
+  if (
+    !Array.isArray(resource?.authorization_servers) ||
+    !resource.authorization_servers.includes(ORIGIN)
+  ) {
     issues.push("AUTHORIZATION_SERVER_MISSING");
   }
   if (auth?.issuer !== ORIGIN) issues.push("ISSUER_MISMATCH");
@@ -22,10 +25,13 @@ export function validateDiscovery(resource, auth) {
     ["token_endpoint", `${ORIGIN}/oauth/token`],
     ["registration_endpoint", `${ORIGIN}/oauth/register`],
   ]) {
-    if (auth?.[field] !== expected) issues.push(`INVALID_${field.toUpperCase()}`);
+    if (auth?.[field] !== expected)
+      issues.push(`INVALID_${field.toUpperCase()}`);
   }
-  if (!auth?.code_challenge_methods_supported?.includes("S256")) issues.push("PKCE_S256_MISSING");
-  if (!auth?.response_types_supported?.includes("code")) issues.push("AUTHORIZATION_CODE_MISSING");
+  if (!auth?.code_challenge_methods_supported?.includes("S256"))
+    issues.push("PKCE_S256_MISSING");
+  if (!auth?.response_types_supported?.includes("code"))
+    issues.push("AUTHORIZATION_CODE_MISSING");
   if (!auth?.token_endpoint_auth_methods_supported?.includes("none")) {
     issues.push("PUBLIC_CLIENT_AUTH_MISSING");
   }
@@ -57,31 +63,43 @@ async function main() {
   try {
     const result = await diagnoseClaudeOAuth();
     process.stdout.write(
-      `${JSON.stringify({
-        ...result,
-        metadata: result.ok ? "PASS" : "FAIL",
-        resources: [RESOURCE_METADATA, AUTH_METADATA],
-        connector_url: RESOURCE,
-        claude_plugin_button_state: "NOT_TESTED_CLIENT_CONTROL",
-        guidance: result.ok
-          ? "Claude Customize > Connectors > Add custom connector > KMJ CodeBridge > https://kmjtechno.com/mcp; authenticate in Claude."
-          : "Correct public OAuth discovery before attempting Claude authorization.",
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          ...result,
+          metadata: result.ok ? "PASS" : "FAIL",
+          resources: [RESOURCE_METADATA, AUTH_METADATA],
+          connector_url: RESOURCE,
+          claude_plugin_button_state: "NOT_TESTED_CLIENT_CONTROL",
+          guidance: result.ok
+            ? "Claude Customize > Connectors > Add custom connector > KMJ CodeBridge > https://kmjtechno.com/mcp; authenticate in Claude."
+            : "Correct public OAuth discovery before attempting Claude authorization.",
+        },
+        null,
+        2,
+      )}\n`,
     );
     if (!result.ok) process.exitCode = 1;
   } catch (error) {
     process.stdout.write(
-      `${JSON.stringify({
-        metadata: "UNVERIFIED",
-        error: error?.message ?? "UNKNOWN",
-        connector_url: RESOURCE,
-        claude_plugin_button_state: "NOT_TESTED_CLIENT_CONTROL",
-        guidance: "Check DNS, HTTPS, auth metadata and Claude account connector configuration.",
-      }, null, 2)}\n`,
+      `${JSON.stringify(
+        {
+          metadata: "UNVERIFIED",
+          error: error?.message ?? "UNKNOWN",
+          connector_url: RESOURCE,
+          claude_plugin_button_state: "NOT_TESTED_CLIENT_CONTROL",
+          guidance:
+            "Check DNS, HTTPS, auth metadata and Claude account connector configuration.",
+        },
+        null,
+        2,
+      )}\n`,
     );
     process.exitCode = 1;
   }
 }
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   await main();
 }
