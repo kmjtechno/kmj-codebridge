@@ -143,3 +143,14 @@ test("README links to opt-in AI setup without advertising active payment checkou
   assert.match(readme, /copilot plugin install kmj-codebridge@kmj-techno/);
   assert.match(readme, /developer preview/i);
 });
+
+test("launch copy never represents gated paid checkout or trial as active", () => {
+  const readme = fs.readFileSync("README.md", "utf8");
+  const pricing = fs.readFileSync("docs/PRICING.md", "utf8");
+  assert.match(readme, /Planned launch trial \(not active\)/);
+  assert.match(pricing, /Planned trial \(not active\)/);
+  assert.match(pricing, /Proposed founding-users offer \(not active\)/);
+  assert.match(pricing, /not a payment link/i);
+  assert.match(readme, /not a checkout/i);
+  assert.doesNotMatch(readme, /eligible new accounts get \*\*30 days of Pro/);
+});
