@@ -11,6 +11,7 @@ import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
+import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
@@ -1690,6 +1691,9 @@ export function createDispatcher(
                 // This is a local config observation only, not a privileged
                 // supervisor RPC. A socket path alone never proves uptime.
                 supervisorConfigured: Boolean(config.supervisorSocket),
+                supervisorObservation: observeSupervisorSocket({
+                  configured: Boolean(config.supervisorSocket),
+                }),
                 workerConfiguration: {
                   gate: p.autopilotGateWorker?.enabled === true,
                   repair: p.autopilotRepairWorker?.enabled === true,

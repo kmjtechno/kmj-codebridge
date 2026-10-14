@@ -37,6 +37,10 @@ Never commit or share the lease token. Every recovery is a proposal for reviewed
 
 ## Boundaries and release
 
+Platform-aware Supervisor filesystem preflight now checks **only** the fixed Linux path `/run/kmj-codebridge/supervisor.sock` using read-only `lstat`. It never connects to that path, follows a symlink, starts a privileged process or accepts a caller-specified path. If a socket file exists, its state is `SOCKET_PRESENT_UNVERIFIED`—**not** proof that authentication or the service works. Missing, wrong-type, symlink and permission-denied paths are separate diagnostic outcomes.
+
+On Windows P720 the Linux Supervisor is **UNSUPPORTED_OS**, regardless of configuration. Use the enrolled Windows user-mode runtime/update pathway instead of Linux `systemctl` instructions. On a supported Linux GCE VPS with a configured but missing socket, staging remains subject to host-specific root-owned trusted installer, backup, config identity and rollback; never run the KMJ-elite-only bootstrap blindly on google-vps.
+
 The `connection_doctor` response now includes `blockerRecovery.supervisor`: `NOT_CONFIGURED`, `NOT_PROBED`, or `UNKNOWN`. This is **configuration evidence**, not a socket probe or live update. An unavailable Supervisor cannot be repaired by re-pairing or resetting another AI's dirty worktree; host-specific installation, root ownership and rollback remain separate requirements.
 
 Pure planning + journal queuing only; permission required, no arbitrary subprocess/service control or unbounded retries. Source-based diagnosis does not prove a live AI worker exists. Existing CodeBridge gateway/client schema, installed release and real tenant permissions must be independently verified before saying it is deployed. The connected client may need an approved schema refresh to expose optional arguments. No provider automatically offers unlimited free model calls.

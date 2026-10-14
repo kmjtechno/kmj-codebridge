@@ -23,6 +23,21 @@ const SAFE_ACTIONS = Object.freeze({
     nextAction:
       "Supervisor path is configured, but connectivity is unknown. Run the existing read-only supervisor_status tool, inspect fixed socket service locally if unavailable, and verify runtime revision before any restart or update.",
   },
+  SUPERVISOR_UNSUPPORTED_PLATFORM: {
+    requiredCodeBridgeFeature: "WINDOWS_USER_MODE_AGENT_RECOVERY",
+    nextAction:
+      "The Linux Unix-socket Supervisor does not run on Windows. Check the existing enrolled Windows user-mode updater and agent health, not systemd or Linux bootstrap scripts.",
+  },
+  SUPERVISOR_SOCKET_MISSING: {
+    requiredCodeBridgeFeature: "TRUSTED_LINUX_SUPERVISOR_SOCKET_BOOTSTRAP",
+    nextAction:
+      "The expected fixed Unix socket is absent. Only an authorized Linux operator may stage and verify the host-specific audited Supervisor with backup/rollback and no device re-enrollment.",
+  },
+  SUPERVISOR_SOCKET_UNSAFE: {
+    requiredCodeBridgeFeature: "SUPERVISOR_SOCKET_TAMPER_REVIEW",
+    nextAction:
+      "The fixed socket path is a symlink or incorrect file type. Fail closed and independently inspect systemd and ownership; never delete an unexpected file automatically.",
+  },
   WORKER_CONFIGURED_NOT_STARTED: {
     requiredCodeBridgeFeature: "SUPERVISED_WORKER_HEALTH_AND_RECOVERY",
     nextAction:
@@ -78,6 +93,7 @@ export function inspectBlockers({
   workerConfiguration = {},
   workerStarted = null,
   supervisorConfigured = null,
+  supervisorObservation = null,
   ciObservation = "unknown",
   checkoutState = "unknown",
 } = {}) {
@@ -108,16 +124,43 @@ export function inspectBlockers({
     typeof supervisorConfigured !== "boolean"
   )
     throw new TypeError("INVALID_SUPERVISOR_OBSERVATION");
+  const socketStates = [
+    "UNSUPPORTED_OS",
+    "NOT_CONFIGURED",
+    "SOCKET_MISSING",
+    "SOCKET_PRESENT_UNVERIFIED",
+    "UNSAFE_SYMLINK",
+    "INVALID_SOCKET_TYPE",
+    "SOCKET_PROBE_UNAVAILABLE",
+  ];
+  if (
+    supervisorObservation !== null &&
+    (typeof supervisorObservation !== "object" ||
+      !socketStates.includes(supervisorObservation.state) ||
+      supervisorObservation.authenticated !== false ||
+      supervisorObservation.noServiceMutation !== true)
+  )
+    throw new TypeError("INVALID_SUPERVISOR_SOCKET_OBSERVATION");
 
   const blockers = [];
-  if (supervisorConfigured === false)
+  const socketState = supervisorObservation?.state ?? null;
+  if (socketState === "UNSUPPORTED_OS")
+    blockers.push(issue("SUPERVISOR_UNSUPPORTED_PLATFORM", { socketState }));
+  else if (socketState === "SOCKET_MISSING")
+    blockers.push(issue("SUPERVISOR_SOCKET_MISSING", { socketState }));
+  else if (
+    socketState === "UNSAFE_SYMLINK" ||
+    socketState === "INVALID_SOCKET_TYPE"
+  )
+    blockers.push(issue("SUPERVISOR_SOCKET_UNSAFE", { socketState }));
+  else if (supervisorConfigured === false)
     blockers.push(
       issue("SUPERVISOR_NOT_CONFIGURED", {
         configured: false,
         connectionVerified: false,
       }),
     );
-  if (supervisorConfigured === true)
+  else if (supervisorConfigured === true)
     blockers.push(
       issue("SUPERVISOR_HEALTH_NOT_VERIFIED", {
         configured: true,
@@ -200,12 +243,14 @@ export function inspectBlockers({
       configured: supervisorConfigured,
       connectionVerified: false,
       status:
-        supervisorConfigured === false
+        socketState ??
+        (supervisorConfigured === false
           ? "NOT_CONFIGURED"
           : supervisorConfigured === true
             ? "NOT_PROBED"
-            : "UNKNOWN",
-      note: "Configured socket is not evidence that the privileged service is installed or reachable.",
+            : "UNKNOWN"),
+      filesystemObservation: socketState,
+      note: "A socket path or file does not prove the privileged service is installed, authenticated or reachable.",
     },
     workerHealth: health,
     blockers,
