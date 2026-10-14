@@ -1907,3 +1907,60 @@ test("full fixed fetch access proof survives the bounded journal tail", async ()
   );
   assert.doesNotMatch(JSON.stringify(result), /\/private\/key/);
 });
+
+
+test("PR419 CI exposes bounded TypeScript codes without private compiler output", async () => {
+  const sha = "a".repeat(40);
+  const name = sha + "-20261014T103000Z.log";
+  const log = Buffer.from([
+    "KMJ_CI_GATE_BEGIN=typescript",
+    "resources/js/components/payment-gateway-onboarding.tsx(42,3): error TS2322: secret=NEVER_RETURN",
+    "resources/js/pages/operator-payments.tsx(80,4): error TS2345: /private/data",
+    "/private/secrets.ts(9,9): error TS9999: inaccessible",
+    "some untrusted text (30,30): error TS1111: ignore",
+  ].join("\n"));
+  const result = createSupervisorHandler({
+    run: () => "LoadState=loaded\nActiveState=inactive\n",
+    lstat: (filename) =>
+      filename === "/var/lib/kmj-codebridge-ci/evidence"
+        ? {
+            isDirectory: () => true,
+            isSymbolicLink: () => false,
+            uid: 0,
+            mode: 0o40700,
+          }
+        : {
+            isFile: () => true,
+            isSymbolicLink: () => false,
+            uid: 0,
+            nlink: 1,
+            mode: 0o100600,
+            size: filename.endsWith(".log") ? log.length : 400,
+          },
+    readdir: () => [name],
+    readLog: () => log,
+    readFile: () =>
+      JSON.stringify({
+        schema: 1,
+        repo: "kmjtechno/kmj-main-platform",
+        pr: 419,
+        sha,
+        linux_result: "FAIL",
+        exit_code: 1,
+        failed_gate: "typescript",
+        failure_kind: "COMMAND_FAILED_UNCLASSIFIED",
+        github_actions: "NOT_RUN",
+        windows: "NOT_RUN",
+        signed_production: false,
+        log_sha256: createHash("sha256").update(log).digest("hex"),
+      }),
+  });
+  const reply = (await result({ op: "private_pr419_ci_status" })).response;
+  assert.equal(reply.last.workerLogDiagnostic, "TYPESCRIPT_ERRORS_REPORTED");
+  assert.deepEqual(reply.last.workerLogTargets, [
+    "PAYMENT_ONBOARDING",
+    "PAYMENT_PAGE",
+  ]);
+  assert.deepEqual(reply.last.workerLogErrorCodes, ["TS2322", "TS2345"]);
+  assert.doesNotMatch(JSON.stringify(reply), /NEVER_RETURN|\/private|secrets\.ts|inaccessible/);
+});
