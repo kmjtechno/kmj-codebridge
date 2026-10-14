@@ -44,8 +44,7 @@ function profile(model) {
       : metric(model.p95LatencyMs, 120000, "LATENCY");
   if (
     model.kind === "cloud" &&
-    (model.freeTierVerified !== true ||
-      model.costPerMillionTokensUsd !== 0)
+    (model.freeTierVerified !== true || model.costPerMillionTokensUsd !== 0)
   )
     return null;
   if (
@@ -110,9 +109,7 @@ export function planSmartModelRoute({
     throw new Error("SMART_MODEL_ROUTER_INVALID_TASK");
   const strategy = task.strategy ?? "local-first";
   // validate all hint data eagerly, not only the eventually eligible models
-  const hintById = new Map(
-    models.map((m) => [m.id, profile(m)]),
-  );
+  const hintById = new Map(models.map((m) => [m.id, profile(m)]));
   const policy = new ModelFailoverPolicy(models, {
     now: () => nowMs,
     state,
@@ -130,21 +127,24 @@ export function planSmartModelRoute({
     });
     if (!selection.modelId) break;
     excluded.push(selection.modelId);
-    const model = models.find((candidate) => candidate.id === selection.modelId);
+    const model = models.find(
+      (candidate) => candidate.id === selection.modelId,
+    );
     const hint = hintById.get(model.id);
     if (!hint) continue;
     options.push({
       modelId: model.id,
       provider: model.provider,
       kind: model.kind,
-      rankScore: Math.round(
-        score(
-          model,
-          hint,
-          strategy,
-          task.inputTokens + task.maxOutputTokens,
-        ) * 100,
-      ) / 100,
+      rankScore:
+        Math.round(
+          score(
+            model,
+            hint,
+            strategy,
+            task.inputTokens + task.maxOutputTokens,
+          ) * 100,
+        ) / 100,
       latencyEstimateMs: hint.latency,
       qualityEstimate: hint.quality,
       reliabilityEstimatePct: hint.reliability,
