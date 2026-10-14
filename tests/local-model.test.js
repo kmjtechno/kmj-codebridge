@@ -193,6 +193,27 @@ test("multiple authorized loopback Ollama ports combine installed models and rou
   );
 });
 
+test("model attribution rejects daemon-reported identity mismatch", async (t) => {
+  const { port } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen3:4b" }] }];
+    return [
+      200,
+      { model: "unexpected-model:9b", done: true, response: "unsafe identity" },
+    ];
+  });
+  const client = createLocalModelClient({ port });
+  await assert.rejects(
+    client.generate({
+      model: "qwen3:4b",
+      prompt: "Show model identity",
+      maxTokens: 32,
+    }),
+    /LOCAL_MODEL_IDENTITY_MISMATCH/,
+  );
+  assert.equal((await client.status()).activeRequest, false);
+});
+
 test("invalid local model port selections fail closed before network access", () => {
   for (const ports of [
     [],
