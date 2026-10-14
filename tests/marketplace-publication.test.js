@@ -94,3 +94,21 @@ test("Claude OAuth distribution includes complete manifests and production endpo
     /name: codebridge-release-candidate[\s\S]*?include-hidden-files: true/,
   );
 });
+
+test("every candidate validates official MCP Registry manifest with pinned publisher", () => {
+  const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const release = fs.readFileSync(
+    ".github/workflows/publish-mcp-registry.yml",
+    "utf8",
+  );
+  const digest = [
+    "a06c9096dcb9727c13555b6be26c7eff",
+    "a707b01f06a4c561ba7a3635443cf2cc",
+  ].join("");
+  assert.match(workflow, /registry_manifest:/);
+  assert.match(workflow, /mcp-publisher_linux_amd64\.tar\.gz/);
+  assert.ok(workflow.includes(digest));
+  assert.ok(release.includes(digest));
+  assert.match(workflow, /sha256sum --check --status/);
+  assert.match(workflow, /validate server\.json/);
+});
