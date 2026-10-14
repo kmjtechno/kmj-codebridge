@@ -113,3 +113,33 @@ test("every candidate validates official MCP Registry manifest with pinned publi
   assert.match(workflow, /sha256sum --check --status/);
   assert.match(workflow, /validate server\.json/);
 });
+
+test("Claude and GitHub Copilot share a documented opt-in Git marketplace", () => {
+  const guide = fs.readFileSync("docs/AI-CLIENT-QUICKSTART.md", "utf8");
+  const catalog = json(".claude-plugin/marketplace.json");
+  const plugin = json("claude-plugin/.claude-plugin/plugin.json");
+  const mcp = json("claude-plugin/.mcp.json");
+  assert.equal(catalog.name, "kmj-techno");
+  assert.equal(catalog.plugins[0].source, "./claude-plugin");
+  assert.equal(plugin.name, "kmj-codebridge");
+  assert.equal(mcp.mcpServers.codebridge.url, "https://kmjtechno.com/mcp");
+  assert.match(
+    guide,
+    /copilot plugin marketplace add kmjtechno\/kmj-codebridge/,
+  );
+  assert.match(guide, /copilot plugin install kmj-codebridge@kmj-techno/);
+  assert.match(guide, /claude plugin install kmj-codebridge@kmj-techno/);
+  assert.match(guide, /do not.*auto-post|never auto-post/i);
+  assert.match(guide, /not.*yet/i);
+  assert.doesNotMatch(guide, /Bearer [a-zA-Z0-9]/);
+});
+
+test("README links to opt-in AI setup without advertising active payment checkout", () => {
+  const readme = fs.readFileSync("README.md", "utf8");
+  const section = readme.indexOf("## Connect CodeBridge to your AI");
+  assert.ok(section > 0);
+  assert.ok(section < readme.indexOf("## Why CodeBridge?"));
+  assert.match(readme, /docs\/AI-CLIENT-QUICKSTART\.md/);
+  assert.match(readme, /copilot plugin install kmj-codebridge@kmj-techno/);
+  assert.match(readme, /developer preview/i);
+});
