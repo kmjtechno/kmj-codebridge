@@ -154,3 +154,27 @@ test("launch copy never represents gated paid checkout or trial as active", () =
   assert.match(readme, /not a checkout/i);
   assert.doesNotMatch(readme, /eligible new accounts get \*\*30 days of Pro/);
 });
+
+test("Cursor and VS Code links encode only canonical OAuth MCP URL", () => {
+  const guide = fs.readFileSync("docs/AI-CLIENT-QUICKSTART.md", "utf8");
+  const cursor = guide.match(
+    /https:\/\/cursor\.com\/install-mcp\?name=kmj-codebridge&config=[A-Za-z0-9%]+/,
+  );
+  assert.ok(cursor);
+  const query = new URL(cursor[0]).searchParams;
+  const decodedCursor = JSON.parse(
+    Buffer.from(query.get("config"), "base64").toString("utf8"),
+  );
+  assert.deepEqual(decodedCursor, { url: "https://kmjtechno.com/mcp" });
+
+  const vscode = guide.match(/vscode:mcp\/install\?%7B[^\s]+%7D/);
+  assert.ok(vscode);
+  const config = JSON.parse(decodeURIComponent(vscode[0].split("?")[1]));
+  assert.deepEqual(config, {
+    name: "kmj-codebridge",
+    type: "http",
+    url: "https://kmjtechno.com/mcp",
+  });
+  assert.doesNotMatch(JSON.stringify(config), /token|secret|Authorization/i);
+  assert.match(guide, /codex mcp add kmj-codebridge --url/);
+});
