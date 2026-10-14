@@ -65,9 +65,11 @@ test("official registry workflow is manual, scoped and has no static registry to
   assert.ok(
     workflow.includes("releases/download/v1.8.1/mcp-publisher_linux_amd64"),
   );
-  assert.ok(
-    workflow.includes("a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc"),
-  );
+  const digest = [
+    "a06c9096dcb9727c13555b6be26c7eff",
+    "a707b01f06a4c561ba7a3635443cf2cc",
+  ].join("");
+  assert.ok(workflow.includes(digest));
   assert.ok(workflow.includes("sha256sum --check --status"));
   assert.doesNotMatch(workflow, /MCP_(?:PRIVATE_KEY|GITHUB_TOKEN)/);
   assert.doesNotMatch(workflow, /on:\s*\n\s*push:/);
