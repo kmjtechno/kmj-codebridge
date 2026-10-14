@@ -10,12 +10,12 @@ KMJ CodeBridge is **not a drop-in feature-complete replacement for Desktop Comma
 
 ## Proposed KMJ plans — no paid checkout yet
 
-| Plan | Proposed public price | Intended scope | State |
-| --- | --- | --- | --- |
-| Community | Free forever | Open-source core, 1 device, 1 project, 1 concurrent job | Self-hosted core exists; hosted activation must be verified |
-| Pro Launch | ₹149/month (India) / US$1.99/month (elsewhere) | 3 devices, 10 projects, 3 concurrent jobs, managed conveniences | Planned; not charged |
-| Team Launch | ₹399/user/month (India) / US$4.99/user/month (elsewhere) | 10 devices/user, 50 projects/user, 10 jobs/user, organization workflows | Planned; not charged |
-| Business | Individual quote | Custom authorized fleet limits, procurement/support, separately agreed service conditions | Planned; owner review |
+| Plan        | Proposed public price                                    | Intended scope                                                                            | State                                                       |
+| ----------- | -------------------------------------------------------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Community   | Free forever                                             | Open-source core, 1 device, 1 project, 1 concurrent job                                   | Self-hosted core exists; hosted activation must be verified |
+| Pro Launch  | ₹149/month (India) / US$1.99/month (elsewhere)           | 3 devices, 10 projects, 3 concurrent jobs, managed conveniences                           | Planned; not charged                                        |
+| Team Launch | ₹399/user/month (India) / US$4.99/user/month (elsewhere) | 10 devices/user, 50 projects/user, 10 jobs/user, organization workflows                   | Planned; not charged                                        |
+| Business    | Individual quote                                         | Custom authorized fleet limits, procurement/support, separately agreed service conditions | Planned; owner review                                       |
 
 The planned **30-day Pro trial** and founding-user price protection are not active. Paid features are a hosted service/entitlement and cannot take away rights already granted by Apache-2.0. Do not market “unlimited cloud calls,” free third-party AI inference, guaranteed uptime, or services not implemented and verified.
 
