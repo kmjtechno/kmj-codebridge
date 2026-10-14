@@ -25,6 +25,10 @@ test("private payment QA is pinned to one exact PR419 head and trusted project",
   assert.ok(updater.includes(branch));
   assert.match(preparer, /CI_FIXED_SHA_MISMATCH/);
   assert.match(preparer, /CI_DIRTY_SOURCE/);
+  // Agent-specific untracked QA paths are never deleted or archived. The
+  // reviewed job is built solely from immutable committed Git objects.
+  assert.match(preparer, /status --porcelain --untracked-files=no/);
+  assert.match(preparer, /git_read archive --format=tar "\$sha"/);
   assert.match(preparer, /CI_UNSAFE_TRACKED_SYMLINK/);
   assert.match(installer, /User=root/);
   assert.match(installer, /PrivateNetwork=true/);
