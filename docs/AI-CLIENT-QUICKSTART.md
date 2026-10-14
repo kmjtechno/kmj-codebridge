@@ -31,6 +31,54 @@ References:
 - https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-marketplace
 - https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference
 
+## Cursor (one-click client configuration)
+
+[**Add KMJ CodeBridge to Cursor**](https://cursor.com/install-mcp?name=kmj-codebridge&config=eyJ1cmwiOiJodHRwczovL2ttanRlY2huby5jb20vbWNwIn0%3D)
+
+The link uses Cursor's documented `install-mcp` URL with a base64-encoded JSON configuration containing only the canonical remote endpoint. It contains **no API token**, key or remote execution permission.
+
+After Cursor accepts the server, follow the KMJ OAuth prompt if shown and verify only authorized project tools are available. A configured server is not evidence that authentication or E2E project operations passed.
+
+Official installation pattern: https://developers.openai.com/learn/docs-mcp (Cursor tab).
+
+## VS Code / GitHub Copilot agent mode (one-click config)
+
+VS Code documents a custom URI handler for MCP installation. The configuration payload is URL-encoded JSON and points to the same remote HTTPS MCP endpoint:
+
+```text
+vscode:mcp/install?%7B%22name%22%3A%22kmj-codebridge%22%2C%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fkmjtechno.com%2Fmcp%22%7D
+```
+
+Open that URI in an installed VS Code client if your browser/OS permits custom protocol links. Some websites remove `vscode:` hyperlinks; copy the URI when required.
+
+Alternatively, put this **public, credential-free** configuration into your project's `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "kmj-codebridge": {
+      "type": "http",
+      "url": "https://kmjtechno.com/mcp"
+    }
+  }
+}
+```
+
+Allow only the tools needed in the Copilot Agent tools picker and complete the OAuth authorization when prompted. VS Code's supported OAuth redirect URLs must be accepted by the registration endpoint; if sign-in fails, report the specific error instead of weakening validation.
+
+Official guide: https://code.visualstudio.com/api/extension-guides/ai/mcp
+
+## OpenAI Codex CLI (one command)
+
+```sh
+codex mcp add kmj-codebridge --url https://kmjtechno.com/mcp
+codex mcp list
+```
+
+The first command only configures the remote MCP server. The second lists configuration for inspection. Sign in through a supported OAuth flow if your Codex client requests it; client setup does not grant automatic access.
+
+Official usage pattern: https://developers.openai.com/learn/docs-mcp (Codex tab).
+
 ## ChatGPT, other MCP-capable clients
 
 In a supported **Connectors / MCP servers** settings area, choose Streamable HTTP and enter:
