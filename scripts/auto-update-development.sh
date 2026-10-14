@@ -122,7 +122,7 @@ NODE
   fi
 }
 
-# Fetch only two approved review heads as the existing repository owner.
+# Fetch only owner-allowlisted, SHA-pinned review heads as the existing repository owner.
 # Never execute a service-owned SSH command as the privileged updater.
 refresh_fixed_private_ci_refs() {
   /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I - <<'PY'
@@ -133,6 +133,7 @@ BASE = "/var/lib/kmj-codebridge-ci"
 TARGETS = [
     ("PR322", "feat/codebridge-owner-tier", "d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764"),
     ("PR337", "fix/public-marketing-standalone-nav-20261008", "7a6d163dab3a7676d8dacc58fb0624bca3255c00"),
+    ("PR419", "feat/payment-gateway-guided-onboarding-20261014", "a1c4e6344cf6fd96e35f95e7fe46116e0c0ea157"),
 ]
 ORIGINS = {"git@github.com:kmjtechno/kmj-main-platform.git", "ssh://git@github.com/kmjtechno/kmj-main-platform.git", "https://github.com/kmjtechno/kmj-main-platform.git"}
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
@@ -680,8 +681,14 @@ finally:
         try:
             result = git("rev-parse", "--verify", tracking)
             if result.returncode or not re.fullmatch("[a-f0-9]{40}", result.stdout.strip()):
-                raise ValueError("existing tracking ref")
-            old = result.stdout.strip()
+                # Only the newly approved PR419 branch may be created on its
+                # first run, and only after exact remote object verification.
+                absent = git("show-ref", "--verify", "--quiet", tracking)
+                if label != "PR419" or absent.returncode != 1:
+                    raise ValueError("existing tracking ref")
+                old = "0" * 40
+            else:
+                old = result.stdout.strip()
             if old == expected:
                 print(prefix + "CURRENT")
                 continue
@@ -705,9 +712,12 @@ finally:
             if fetched != expected:
                 raise ValueError("unapproved head")
             operation = "ANCESTRY"
-            result = git("merge-base", "--is-ancestor", old, expected)
-            if result.returncode:
-                raise ValueError("non-fast-forward head")
+            if old != "0" * 40:
+                result = git("merge-base", "--is-ancestor", old, expected)
+                if result.returncode:
+                    raise ValueError("non-fast-forward head")
+            elif label != "PR419":
+                raise ValueError("unexpected new tracking ref")
             operation = "TRACKING_REF_CAS"
             result = git("update-ref", tracking, expected, old)
             if result.returncode:
@@ -752,7 +762,7 @@ PY
 }
 
 # One fixed, user-authorized CI attempt per installed verifier and source.
-# Website precedes owner; one accepted start per CURRENT request.
+# Fixed reviews run serially; one accepted start per CURRENT request.
 # This recovery uses the installed unit; no caller command, SHA or path is read.
 retry_fixed_private_ci() {
   /usr/bin/env -i PATH=/usr/bin:/bin LANG=C.UTF-8 /usr/bin/python3 -I - <<'PY'
@@ -764,6 +774,7 @@ RUNTIME = "/opt/kmj-codebridge-agent"
 PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
 TARGETS = [
     ("337", "7a6d163dab3a7676d8dacc58fb0624bca3255c00", "fix/public-marketing-standalone-nav-20261008", "ci-main-platform-pr337-fixed.sh", "ci-main-platform-pr337.sh"),
+    ("419", "a1c4e6344cf6fd96e35f95e7fe46116e0c0ea157", "feat/payment-gateway-guided-onboarding-20261014", "ci-main-platform-pr419-fixed.sh", "ci-main-platform-pr419.sh"),
     ("322", "d1b6f237fe85ae8516cfb3ce6d183ad3aeeb6764", "feat/codebridge-owner-tier", "ci-main-platform-pr-fixed.sh", "ci-main-platform-pr.sh"),
 ]
 ENV = {"PATH": "/usr/bin:/bin", "LANG": "C.UTF-8", "GIT_TERMINAL_PROMPT": "0", "GIT_NO_LAZY_FETCH": "1", "GIT_OPTIONAL_LOCKS": "0", "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null", "GIT_NO_REPLACE_OBJECTS": "1"}
@@ -793,7 +804,7 @@ def run(args):
     return subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True, timeout=5, env=ENV)
 
 def idle():
-    for unit in ["kmj-codebridge-private-pr322-ci.service", "kmj-codebridge-private-pr337-ci.service"]:
+    for unit in ["kmj-codebridge-private-pr322-ci.service", "kmj-codebridge-private-pr337-ci.service", "kmj-codebridge-private-pr419-ci.service"]:
         result = run(["/usr/bin/systemctl", "show", unit, "--property=LoadState", "--property=ActiveState", "--property=FragmentPath", "--property=DropInPaths", "--no-pager"])
         fields = dict(line.split("=", 1) for line in result.stdout.splitlines() if "=" in line)
         if result.returncode or fields.get("LoadState") != "loaded" or fields.get("ActiveState") not in ["inactive", "failed"] or fields.get("DropInPaths"):
