@@ -48,7 +48,8 @@ test("repeated TypeScript errors share a hash-only identity across line moves", 
   assert.notEqual(first.recurrenceFingerprint, different.recurrenceFingerprint);
   assert.notEqual(first.fingerprint, moved.fingerprint);
   assert.equal(
-    make("Authorization token=hidden secret: error TS2322").recurrenceFingerprint,
+    make("Authorization token=hidden secret: error TS2322")
+      .recurrenceFingerprint,
     null,
   );
   assert.ok(
