@@ -36,14 +36,35 @@ test("legacy and unobserved responses never inherit the caller's requested model
 test("untrusted metadata cannot smuggle keys, credentials or fabricated cloud providers", () => {
   for (const raw of [
     localModelReceipt("qwen3:4b", "local_model_generate"),
-    { ...localModelReceipt("qwen3:4b", "local_model_generate"), apiKey: "secret" },
-    { ...localModelReceipt("qwen3:4b", "local_model_generate"), paidInference: true },
-    { ...localModelReceipt("qwen3:4b", "local_model_generate"), provider: "openrouter" },
-    { ...localModelReceipt("qwen3:4b", "local_model_generate"), model: undefined },
-    { ...localModelReceipt("qwen3:4b", "local_model_generate"), model: { toString: () => "qwen3:4b" } },
-    { ...localModelReceipt("qwen3:4b", "local_model_generate"), hostChatModel: "GPT-6" },
+    {
+      ...localModelReceipt("qwen3:4b", "local_model_generate"),
+      apiKey: "secret",
+    },
+    {
+      ...localModelReceipt("qwen3:4b", "local_model_generate"),
+      paidInference: true,
+    },
+    {
+      ...localModelReceipt("qwen3:4b", "local_model_generate"),
+      provider: "openrouter",
+    },
+    {
+      ...localModelReceipt("qwen3:4b", "local_model_generate"),
+      model: undefined,
+    },
+    {
+      ...localModelReceipt("qwen3:4b", "local_model_generate"),
+      model: { toString: () => "qwen3:4b" },
+    },
+    {
+      ...localModelReceipt("qwen3:4b", "local_model_generate"),
+      hostChatModel: "GPT-6",
+    },
   ].slice(1)) {
-    assert.throws(() => normalizeModelReceipt(raw), /INVALID_MODEL_ATTRIBUTION/);
+    assert.throws(
+      () => normalizeModelReceipt(raw),
+      /INVALID_MODEL_ATTRIBUTION/,
+    );
   }
   assert.throws(
     () => localModelReceipt("Bearer secret value", "local_model_generate"),
@@ -76,32 +97,71 @@ test("connection doctor shows only observed project-scoped CodeBridge usage", as
     () => ({
       async generate({ model }) {
         calls++;
-        return { provider: "local-ollama", model, response: "safe", paidInference: false };
+        return {
+          provider: "local-ollama",
+          model,
+          response: "safe",
+          paidInference: false,
+        };
       },
     }),
   );
   const scope = { device: "device1", project: "p1" };
   const before = await dispatch("connection_doctor", scope, ["read"]);
   assert.equal(before.modelUsageStatus.lastVerifiedInvocation, null);
-  assert.equal(before.modelUsageStatus.originalChatHostModel, "not_observable_by_codebridge");
+  assert.equal(
+    before.modelUsageStatus.originalChatHostModel,
+    "not_observable_by_codebridge",
+  );
 
   await assert.rejects(
-    dispatch("local_model_generate", { ...scope, model: "qwen3:4b", prompt: "hello", localProcessingApproved: true }, ["read"]),
+    dispatch(
+      "local_model_generate",
+      {
+        ...scope,
+        model: "qwen3:4b",
+        prompt: "hello",
+        localProcessingApproved: true,
+      },
+      ["read"],
+    ),
     /ACCESS_DENIED/,
   );
-  assert.equal((await dispatch("connection_doctor", scope, ["read"])).modelUsageStatus.lastVerifiedInvocation, null);
+  assert.equal(
+    (await dispatch("connection_doctor", scope, ["read"])).modelUsageStatus
+      .lastVerifiedInvocation,
+    null,
+  );
   const generated = await dispatch(
     "local_model_generate",
-    { ...scope, model: "qwen3:4b", prompt: "hello", localProcessingApproved: true },
+    {
+      ...scope,
+      model: "qwen3:4b",
+      prompt: "hello",
+      localProcessingApproved: true,
+    },
     ["execute"],
   );
   assert.equal(generated.modelUsage.model, "qwen3:4b");
   assert.equal(generated.modelUsage.execution, "verified_local_generation");
   assert.equal(calls, 1);
   const doctor = await dispatch("connection_doctor", scope, ["read"]);
-  assert.equal(doctor.modelUsageStatus.lastVerifiedInvocation.model, "qwen3:4b");
-  assert.match(doctor.modelUsageStatus.lastVerifiedInvocation.observedAt, /^\d{4}-\d{2}-\d{2}T/);
-  assert.equal(doctor.modelUsageStatus.scope, "device_project_current_agent_process");
-  const other = await dispatch("connection_doctor", { ...scope, project: "p2" }, ["read"]);
+  assert.equal(
+    doctor.modelUsageStatus.lastVerifiedInvocation.model,
+    "qwen3:4b",
+  );
+  assert.match(
+    doctor.modelUsageStatus.lastVerifiedInvocation.observedAt,
+    /^\d{4}-\d{2}-\d{2}T/,
+  );
+  assert.equal(
+    doctor.modelUsageStatus.scope,
+    "device_project_current_agent_process",
+  );
+  const other = await dispatch(
+    "connection_doctor",
+    { ...scope, project: "p2" },
+    ["read"],
+  );
   assert.equal(other.modelUsageStatus.lastVerifiedInvocation, null);
 });
