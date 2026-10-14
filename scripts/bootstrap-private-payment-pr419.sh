@@ -10,14 +10,20 @@ branch="feat/payment-gateway-guided-onboarding-20261014"
 runtime="/opt/kmj-codebridge-agent"
 project="/srv/kmj-codebridge-projects/kmj-main-platform"
 unit="kmj-codebridge-private-pr419-ci.service"
-for tool in curl tar git systemctl python3 timeout runuser cmp install; do
+for tool in curl tar git systemctl python3 timeout runuser cmp install stat mv; do
   command -v "$tool" >/dev/null || { echo "PAYMENT_QA_MISSING_TOOL=$tool" >&2; exit 2; }
 done
-[[ -d "$runtime/scripts" && ! -L "$runtime" && ! -L "$runtime/scripts" && -f "$runtime/src/license.js" ]] || { echo PAYMENT_QA_RUNTIME_MISSING >&2; exit 3; }
 [[ -d "$project/.git" && ! -L "$project/.git" ]] || { echo PAYMENT_QA_PROJECT_MISSING >&2; exit 3; }
 getent passwd kmjcode >/dev/null || { echo PAYMENT_QA_PROJECT_OWNER_MISSING >&2; exit 3; }
 tmp="$(mktemp -d)"
-trap 'rm -rf --one-file-system -- "$tmp"' EXIT
+staged_runtime=""
+cleanup() {
+  if [[ -n "$staged_runtime" && "$staged_runtime" == /opt/.kmj-payment-ci-* ]]; then
+    rm -rf --one-file-system -- "$staged_runtime"
+  fi
+  rm -rf --one-file-system -- "$tmp"
+}
+trap cleanup EXIT
 curl --fail --location --silent --show-error --retry 3 --connect-timeout 10 --max-time 90   "https://codeload.github.com/kmjtechno/kmj-codebridge/tar.gz/$source_sha" -o "$tmp/source.tgz"
 mkdir "$tmp/source"
 tar -xzf "$tmp/source.tgz" -C "$tmp/source" --strip-components=1
@@ -27,6 +33,38 @@ done
 grep -Fq '"pr": 419,' "$tmp/source/scripts/ci-main-platform-pr419.sh" || { echo PAYMENT_QA_EVIDENCE_CONTRACT_MISMATCH >&2; exit 3; }
 grep -Fq "$review_sha" "$tmp/source/scripts/ci-main-platform-pr419-fixed.sh" || { echo PAYMENT_QA_PIN_MISMATCH >&2; exit 3; }
 grep -Fq "$review_sha" "$tmp/source/scripts/ci-main-platform-pr419.sh" || { echo PAYMENT_QA_PIN_MISMATCH >&2; exit 3; }
+# A fresh KMJ-elite has the main-platform agent but may not have the separate
+# native CodeBridge CI runtime. Bootstrap only a *missing* root-owned path,
+# from the exact reviewed Git commit; never replace an existing installation.
+if [[ ! -e "$runtime" && ! -L "$runtime" ]]; then
+  [[ -d /opt && ! -L /opt && "$(stat -c %u /opt)" == 0 ]] || { echo PAYMENT_QA_OPT_UNTRUSTED >&2; exit 3; }
+  staged_runtime="$(mktemp -d /opt/.kmj-payment-ci-XXXXXXXX)"
+  git_stage() {
+    /usr/bin/env -i PATH=/usr/bin:/bin HOME="$tmp" LANG=C.UTF-8 \
+      GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null \
+      GIT_NO_REPLACE_OBJECTS=1 /usr/bin/git -C "$staged_runtime" "$@"
+  }
+  git_stage init --quiet --template=
+  git_stage -c core.hooksPath=/dev/null fetch --quiet --depth 1 \
+    https://github.com/kmjtechno/kmj-codebridge.git "$source_sha"
+  git_stage -c core.hooksPath=/dev/null checkout --quiet --detach FETCH_HEAD
+  [[ "$(git_stage rev-parse HEAD)" == "$source_sha" ]] || { echo PAYMENT_QA_SOURCE_SHA_MISMATCH >&2; exit 3; }
+  for file in src/license.js src/errors.js package.json \
+    scripts/ci-main-platform-pr-worker.sh scripts/ci-main-platform-pr419.sh \
+    scripts/ci-main-platform-pr419-fixed.sh scripts/install-private-pr419-ci-unit.sh; do
+    [[ -f "$staged_runtime/$file" && ! -L "$staged_runtime/$file" ]] || { echo PAYMENT_QA_SOURCE_GIT_MISSING >&2; exit 3; }
+  done
+  # The downloaded archive must match the exact Git object that was verified.
+  for file in ci-main-platform-pr-worker.sh ci-main-platform-pr419.sh ci-main-platform-pr419-fixed.sh install-private-pr419-ci-unit.sh; do
+    cmp -s "$staged_runtime/scripts/$file" "$tmp/source/scripts/$file" || { echo PAYMENT_QA_SOURCE_ARCHIVE_MISMATCH >&2; exit 3; }
+  done
+  [[ ! -e "$runtime" && ! -L "$runtime" ]] || { echo PAYMENT_QA_RUNTIME_CONFLICT >&2; exit 3; }
+  chmod 0755 "$staged_runtime"
+  mv -T -- "$staged_runtime" "$runtime"
+  staged_runtime=""
+  echo PAYMENT_QA_RUNTIME_BOOTSTRAPPED_FROM_VERIFIED_COMMIT
+fi
+[[ -d "$runtime/.git" && -d "$runtime/scripts" && -d "$runtime/src" && ! -L "$runtime" && ! -L "$runtime/scripts" && -f "$runtime/src/license.js" ]] || { echo PAYMENT_QA_RUNTIME_PARTIAL_OR_UNTRUSTED >&2; exit 3; }
 if [[ -f "$runtime/scripts/ci-main-platform-pr-worker.sh" ]]; then
   [[ ! -L "$runtime/scripts/ci-main-platform-pr-worker.sh" ]] || { echo PAYMENT_QA_WORKER_SYMLINK >&2; exit 3; }
   cmp -s "$runtime/scripts/ci-main-platform-pr-worker.sh" "$tmp/source/scripts/ci-main-platform-pr-worker.sh" || { echo PAYMENT_QA_WORKER_VERSION_CONFLICT >&2; exit 3; }

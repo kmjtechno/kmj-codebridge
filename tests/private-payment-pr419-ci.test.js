@@ -151,6 +151,13 @@ test("owner one-command payment QA bootstrap never deploys or captures charges",
   assert.match(script, /--untracked-files=no/);
   assert.match(script, /systemctl start "\$unit"/);
   assert.match(script, /PAYMENT_PR419_ISOLATED_LINUX_QA_PASS/);
+  assert.match(script, /PAYMENT_QA_RUNTIME_BOOTSTRAPPED_FROM_VERIFIED_COMMIT/);
+  assert.match(script, /git_stage -c core.hooksPath=\/dev\/null fetch/);
+  assert.match(script, /git_stage rev-parse HEAD/);
+  assert.match(script, /PAYMENT_QA_SOURCE_ARCHIVE_MISMATCH/);
+  assert.match(script, /PAYMENT_QA_RUNTIME_PARTIAL_OR_UNTRUSTED/);
+  assert.match(script, /! -e "\$runtime" && ! -L "\$runtime"/);
+  assert.match(script, /git_stage -c core.hooksPath=\/dev\/null checkout/);
   assert.doesNotMatch(
     script,
     /git reset|git checkout|git push|php artisan migrate|npm run build/,
