@@ -170,6 +170,32 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  // Explicit per-project opt-in: the executable is Node itself and the
+  // project-scoped script path is fixed. No arbitrary launch path, shell,
+  // desktop privilege, screenshot upload, or input injection is provided.
+  // The administrator must install/review the project-side QA script first.
+  "windows-visual-qa": freeze({
+    windows_visual_qa: freeze({
+      category: "build",
+      description:
+        "Run administrator-approved native Windows UI visual QA scripts in the authorized project; evidence stays on device.",
+      command: "node",
+      variants: freeze({
+        capture: freeze({
+          args: ["scripts/codebridge-ui-qa.mjs", "capture"],
+          timeoutMs: 120000,
+        }),
+        compare: freeze({
+          args: ["scripts/codebridge-ui-qa.mjs", "compare"],
+          timeoutMs: 120000,
+        }),
+        accessibility: freeze({
+          args: ["scripts/codebridge-ui-qa.mjs", "accessibility"],
+          timeoutMs: 120000,
+        }),
+      }),
+    }),
+  }),
   "go-standard": freeze({
     go_verify: freeze({
       category: "build",
