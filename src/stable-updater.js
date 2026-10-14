@@ -173,10 +173,10 @@ function markerFor(store, releaseName) {
 function releaseMatchesManifest(marker, manifest) {
   return Boolean(
     marker &&
-      marker.sequence === manifest.sequence &&
-      marker.version === manifest.version &&
-      marker.revision === manifest.revision &&
-      marker.sha256 === manifest.sha256,
+    marker.sequence === manifest.sequence &&
+    marker.version === manifest.version &&
+    marker.revision === manifest.revision &&
+    marker.sha256 === manifest.sha256,
   );
 }
 
@@ -217,10 +217,10 @@ export function freshAuthenticatedConnection(
   if (!expectedManifest) return true;
   return Boolean(
     evidence.version === expectedManifest.version &&
-      evidence.release?.sequence === expectedManifest.sequence &&
-      evidence.release?.version === expectedManifest.version &&
-      evidence.release?.revision === expectedManifest.revision &&
-      evidence.release?.sha256 === expectedManifest.sha256,
+    evidence.release?.sequence === expectedManifest.sequence &&
+    evidence.release?.version === expectedManifest.version &&
+    evidence.release?.revision === expectedManifest.revision &&
+    evidence.release?.sha256 === expectedManifest.sha256,
   );
 }
 
