@@ -86,6 +86,13 @@ test("payment CI supervisor rejects arbitrary refs and defers start until after 
   const handle = createSupervisorHandler({
     run: () => "LoadState=loaded\nActiveState=inactive\n",
     start: (service) => started.push(service),
+    // Never inspect real /var/lib CI evidence from the host running tests.
+    // This test exercises supervisor control flow, not evidence parsing.
+    lstat: () => {
+      const error = new Error("Mock CI evidence absent");
+      error.code = "ENOENT";
+      throw error;
+    },
   });
   const state = await handle({ op: "private_pr419_ci_status" });
   assert.equal(state.response.service.installed, true);
