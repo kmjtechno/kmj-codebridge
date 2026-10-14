@@ -19,7 +19,11 @@ import { createLocalModelClient } from "./local-model.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 import { reviewRepairCandidate } from "./autopilot-repair-review.js";
-import { inspectBlockers, BLOCKER_CODES, remediationTaskForBlocker } from "./blocker-recovery.js";
+import {
+  inspectBlockers,
+  BLOCKER_CODES,
+  remediationTaskForBlocker,
+} from "./blocker-recovery.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -1693,7 +1697,8 @@ export function createDispatcher(
                   typeof workerRuntimeSource === "function"
                     ? (() => {
                         const observed = workerRuntimeSource();
-                        if (!observed || observed.agentRunning !== true) return null;
+                        if (!observed || observed.agentRunning !== true)
+                          return null;
                         return Object.fromEntries(
                           ["gate", "repair", "githubCiWatch", "localDraft"].map(
                             (kind) => [
