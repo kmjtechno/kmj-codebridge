@@ -61,10 +61,10 @@ test("official registry workflow is manual, scoped and has no static registry to
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /login github-oidc/);
   assert.match(workflow, /mcp-publisher validate server\.json/);
-  assert.match(workflow, /mcp-publisher publish server\\.json/);
-  assert.match(workflow, /releases\\/download\\/v1\\.8\\.1\\/mcp-publisher_linux_amd64/);
-  assert.match(workflow, /a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc/);
-  assert.match(workflow, /sha256sum --check --status/);
+  assert.ok(workflow.includes("mcp-publisher publish server.json"));
+  assert.ok(workflow.includes("releases/download/v1.8.1/mcp-publisher_linux_amd64"));
+  assert.ok(workflow.includes("a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc"));
+  assert.ok(workflow.includes("sha256sum --check --status"));
   assert.doesNotMatch(workflow, /MCP_(?:PRIVATE_KEY|GITHUB_TOKEN)/);
   assert.doesNotMatch(workflow, /on:\s*\n\s*push:/);
 });
