@@ -1220,7 +1220,10 @@ export const definitions = {
         .min(1)
         .max(64),
       task: z.object({
-        capability: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/).default("coding"),
+        capability: z
+          .string()
+          .regex(/^[a-z][a-z0-9-]{0,31}$/)
+          .default("coding"),
         inputTokens: z.number().int().min(0).max(1_000_000),
         maxOutputTokens: z.number().int().min(1).max(1_000_000),
         strategy: z
