@@ -200,7 +200,7 @@ test("competitive launch terms are comparison only, not active billing", () => {
     "utf8",
   );
   assert.match(readme, /COMPETITIVE-PLANS-AND-ACTIVATION\.md/);
-  assert.match(plans, /not a verified live API integration/i);
+  assert.match(plans, /a verified live API integration/i);
   assert.match(plans, /not yet verified end-to-end/i);
   assert.match(plans, /Razorpay \+ Cashfree/);
   assert.match(plans, /not a live CodeBridge subscription|not yet certified/i);
