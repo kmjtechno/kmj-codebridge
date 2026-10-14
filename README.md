@@ -367,11 +367,13 @@ The open-source Community tier stays useful. Hosted convenience and higher comme
 | **Team Launch** | **₹399/user/mo India · US$4.99/user/mo global** | Small engineering teams                   |
 | **Business**    |                                          Custom | Larger deployments, support, procurement  |
 
-**Launch trial:** eligible new accounts get **30 days of Pro** with no automatic paid conversion unless they explicitly choose a paid subscription.
+**Planned launch trial (not active):** eligible new accounts may receive **30 days of Pro** after Main Platform's trial-entitlement and payment gates are verified. There is no automatic paid conversion without an explicit subscription choice.
 
 Third-party AI subscriptions/API usage are separate. Taxes and final checkout terms are controlled by KMJ Main Platform.
 
 See the full **[plan and premium feature matrix](docs/PRICING.md)**.
+
+**Interested in a Pro/Team pilot?** [Contact KMJ CodeBridge support](https://kmjtechno.com/products/kmj-codebridge/support) to request a private, opt-in developer-preview onboarding discussion. A request is **not a checkout**, invoice, active subscription or an entitlement. Paid access can be fulfilled only through verified KMJ Main Platform commercial orders and the applicable terms.
 
 ## Premium capability categories
 
