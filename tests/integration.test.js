@@ -1507,6 +1507,12 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
   const { client: defaultClient } = await setup(t);
   const defaultServer = defaultClient.getServerVersion();
   assert.equal(defaultServer?.icons, undefined);
+  const defaultTools = await defaultClient.listTools();
+  assert.ok(defaultTools.tools.length > 0);
+  assert.ok(
+    defaultTools.tools.every((tool) => tool.icons === undefined),
+    "an unconfigured logo URL must never be invented in tools/list",
+  );
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));
   const root = path.join(dir, "project");
@@ -1544,6 +1550,11 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
       mimeType: "image/png",
     },
   ]);
+  // The installed SDK v1.31 default handler drops registerTool icons;
+  // the hosted OAuth tools/list override is verified in auth.test.js.
+  const advertisedTools = await client.listTools();
+  assert.ok(advertisedTools.tools.length >= 10);
+  assert.ok(advertisedTools.tools.every((tool) => tool.icons === undefined));
 });
 
 test("agent-configured jobArchiveMaxEntries actually bounds the live job archive (issue #186)", async (t) => {

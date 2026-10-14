@@ -830,6 +830,12 @@ export async function startGateway(rawConfig) {
             title: d.title,
             description: d.description,
             inputSchema: d.input,
+            // MCP Apps tool-activity icons resolve before the generic server
+            // fallback. Advertise only the same explicitly configured HTTPS
+            // PNG as serverInfo; never invent a URL or change OAuth/tool grants.
+            ...(config.iconUrl
+              ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
+              : {}),
             ...toolSecurityMeta(config.oauth, d.access),
             annotations: {
               title: d.title,
@@ -1179,6 +1185,12 @@ export async function startGateway(rawConfig) {
                     pipeStrategy: "input",
                   })
                 : { type: "object", properties: {} },
+              // OAuth public tools/list is CodeBridge's hosted ChatGPT
+              // catalog. Current SDK v1.31 registerTool omits icons from
+              // its default list handler, so advertise them here explicitly.
+              ...(config.iconUrl
+                ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
+                : {}),
               annotations: {
                 title: d.title,
                 readOnlyHint: d.access === "read",
