@@ -9,7 +9,11 @@ const OPERATIONS = new Set([
 ]);
 
 export function localModelReceipt(model, operation) {
-  if (typeof model !== "string" || !MODEL_ID.test(model) || !OPERATIONS.has(operation))
+  if (
+    typeof model !== "string" ||
+    !MODEL_ID.test(model) ||
+    !OPERATIONS.has(operation)
+  )
     throw new TypeError("INVALID_MODEL_ATTRIBUTION");
   return {
     provider: "local-ollama",
@@ -70,7 +74,8 @@ export function normalizeModelReceipt(value) {
     value.paidInference !== false ||
     value.scope !== "codebridge_invocation" ||
     value.hostChatModel !== "not_observable_by_codebridge" ||
-    (typeof value.model !== "string" || !MODEL_ID.test(value.model)) ||
+    typeof value.model !== "string" ||
+    !MODEL_ID.test(value.model) ||
     !OPERATIONS.has(value.operation)
   )
     throw new TypeError("INVALID_MODEL_ATTRIBUTION");
