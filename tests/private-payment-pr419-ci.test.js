@@ -28,8 +28,14 @@ test("private payment QA is pinned to one exact PR419 head and trusted project",
   assert.match(preparer, /CI_UNSAFE_TRACKED_SYMLINK/);
   assert.match(installer, /User=root/);
   assert.match(installer, /PrivateNetwork=true/);
-  assert.match(installer, /ReadOnlyPaths=\/srv\/kmj-codebridge-projects\/kmj-main-platform/);
-  assert.match(installer, /InaccessiblePaths=\/etc\/kmj-codebridge-main-platform/);
+  assert.match(
+    installer,
+    /ReadOnlyPaths=\/srv\/kmj-codebridge-projects\/kmj-main-platform/,
+  );
+  assert.match(
+    installer,
+    /InaccessiblePaths=\/etc\/kmj-codebridge-main-platform/,
+  );
   assert.match(preparer, /User=kmjci/);
   assert.match(preparer, /PrivateNetwork=yes/);
   assert.match(preparer, /InaccessiblePaths=\/srv/);
@@ -50,11 +56,20 @@ test("payment review CI entry refuses arbitrary parameters and shell injection",
     });
     assert.equal(check.status, 0, script + " " + check.stderr);
   }
-  for (const args of [[], ["main"], ["a".repeat(39)], ["a".repeat(40), "extra"]]) {
-    const p = spawnSync("bash", [path.join(root, "scripts/ci-main-platform-pr419.sh"), ...args], {
-      timeout: 5000,
-      encoding: "utf8",
-    });
+  for (const args of [
+    [],
+    ["main"],
+    ["a".repeat(39)],
+    ["a".repeat(40), "extra"],
+  ]) {
+    const p = spawnSync(
+      "bash",
+      [path.join(root, "scripts/ci-main-platform-pr419.sh"), ...args],
+      {
+        timeout: 5000,
+        encoding: "utf8",
+      },
+    );
     assert.equal(p.status, 2, p.stderr);
     assert.match(p.stderr, /CI_INVALID_SHA/);
   }
@@ -70,19 +85,33 @@ test("payment CI supervisor rejects arbitrary refs and defers start until after 
   assert.equal(state.response.service.installed, true);
   assert.equal(state.response.last, null);
   const request = await handle({ op: "private_pr419_ci_start" });
-  assert.deepEqual(request.response, { accepted: true, target: "private-pr419" });
+  assert.deepEqual(request.response, {
+    accepted: true,
+    target: "private-pr419",
+  });
   assert.deepEqual(started, []);
   request.afterSend();
   assert.deepEqual(started, ["kmj-codebridge-private-pr419-ci.service"]);
-  for (const extra of [{ sha: "a".repeat(40) }, { command: "bash" }, { path: "/etc/shadow" }]) {
-    await assert.rejects(handle({ op: "private_pr419_ci_start", ...extra }), /INVALID_SUPERVISOR_REQUEST/);
+  for (const extra of [
+    { sha: "a".repeat(40) },
+    { command: "bash" },
+    { path: "/etc/shadow" },
+  ]) {
+    await assert.rejects(
+      handle({ op: "private_pr419_ci_start", ...extra }),
+      /INVALID_SUPERVISOR_REQUEST/,
+    );
   }
   await assert.rejects(
-    createSupervisorHandler({run: () => "LoadState=not-found\nActiveState=inactive\n"})({op: "private_pr419_ci_start"}),
+    createSupervisorHandler({
+      run: () => "LoadState=not-found\nActiveState=inactive\n",
+    })({ op: "private_pr419_ci_start" }),
     /SUPERVISOR_PRIVATE_CI_UNAVAILABLE/,
   );
   await assert.rejects(
-    createSupervisorHandler({run: () => "LoadState=loaded\nActiveState=active\n"})({op: "private_pr419_ci_start"}),
+    createSupervisorHandler({
+      run: () => "LoadState=loaded\nActiveState=active\n",
+    })({ op: "private_pr419_ci_start" }),
     /SUPERVISOR_PRIVATE_CI_BUSY/,
   );
 });
@@ -93,8 +122,17 @@ test("CodeBridge offers only fixed payment CI tool commands", () => {
   assert.match(tools, /supervisor_private_pr419_ci_start/);
   assert.match(tools, /supervisor_private_pr419_ci_status/);
   assert.match(supervisor, /privatePr419Evidence/);
-  assert.match(supervisor, /privateCiEvidence\([\s\S]*?419,[\s\S]*?PRIVATE_PR419_CI_EVIDENCE/);
+  assert.match(
+    supervisor,
+    /privateCiEvidence\([\s\S]*?419,[\s\S]*?PRIVATE_PR419_CI_EVIDENCE/,
+  );
   assert.match(supervisor, /fixedUnitStatus\(run, PRIVATE_PR419_CI_SERVICE/);
-  assert.match(source("scripts/install-vps.sh"), /install-private-pr419-ci-unit\.sh/);
-  assert.match(source("scripts/auto-update-development.sh"), /"419", "09f39bcfa7ed649a90a544406140ab378f291b6f"/);
+  assert.match(
+    source("scripts/install-vps.sh"),
+    /install-private-pr419-ci-unit\.sh/,
+  );
+  assert.match(
+    source("scripts/auto-update-development.sh"),
+    /"419", "09f39bcfa7ed649a90a544406140ab378f291b6f"/,
+  );
 });
