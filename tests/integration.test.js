@@ -1552,7 +1552,11 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
   ]);
   const advertisedTools = await client.listTools();
   assert.ok(advertisedTools.tools.length >= 10);
-  for (const name of ["list_devices", "connection_doctor", "run_quality_gate"]) {
+  for (const name of [
+    "list_devices",
+    "connection_doctor",
+    "run_quality_gate",
+  ]) {
     const tool = advertisedTools.tools.find((item) => item.name === name);
     assert.ok(tool, `expected existing CodeBridge tool ${name}`);
     assert.deepEqual(tool.icons, [
