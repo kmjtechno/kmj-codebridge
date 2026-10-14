@@ -199,11 +199,12 @@ export function inspectBlockers({
     supervisor: {
       configured: supervisorConfigured,
       connectionVerified: false,
-      status: supervisorConfigured === false
-        ? "NOT_CONFIGURED"
-        : supervisorConfigured === true
-          ? "NOT_PROBED"
-          : "UNKNOWN",
+      status:
+        supervisorConfigured === false
+          ? "NOT_CONFIGURED"
+          : supervisorConfigured === true
+            ? "NOT_PROBED"
+            : "UNKNOWN",
       note: "Configured socket is not evidence that the privileged service is installed or reachable.",
     },
     workerHealth: health,
