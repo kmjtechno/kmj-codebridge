@@ -10,10 +10,12 @@ KMJ CodeBridge keeps the open-source core useful while reserving hosted convenie
 - **Pro Launch — ₹149/month in India or US$1.99/month globally:** introductory price for early adopters while the launch offer is active.
 - **Team Launch — ₹399/user/month in India or US$4.99/user/month globally:** introductory team price.
 - **Business — custom:** larger deployments, procurement, advanced support and negotiated limits.
-- **Trial:** new eligible accounts receive **30 days of Pro** with no automatic paid conversion unless the customer explicitly chooses a paid subscription.
-- **Founding users:** accounts that activate a paid Pro or Team subscription during the launch window may keep the launch base price for 12 months, subject to taxes, abuse controls and the published Terms.
+- **Planned trial (not active):** eligible new accounts may receive **30 days of Pro** after the trial entitlement is production-tested, with no automatic paid conversion unless the customer explicitly chooses a paid subscription.
+- **Proposed founding-users offer (not active):** accounts that activate a paid Pro or Team subscription during an announced launch window may keep the launch base price for 12 months, subject to taxes, abuse controls and published Terms. No founding-user price protection applies until the owner publishes actual checkout terms.
 
 These prices intentionally exclude AI-model subscription/API fees charged by third-party AI providers.
+
+**Pilot enquiries:** Developers who want an early access evaluation can [contact KMJ CodeBridge support](https://kmjtechno.com/products/kmj-codebridge/support) voluntarily. This is not a payment link. Only a KMJ Main Platform owner-authorized, independently verified commercial order may lead to a hosted paid entitlement.
 
 ## Feature matrix
 
