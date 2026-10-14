@@ -441,8 +441,19 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       execMainExitTimestamp: "unknown",
       invocationID: "unknown",
     },
+    privatePr419Ci: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+      execMainStartTimestamp: "unknown",
+      execMainExitTimestamp: "unknown",
+      invocationID: "unknown",
+    },
     privatePr322Evidence: null,
     privatePr337Evidence: null,
+    privatePr419Evidence: null,
     nativeCiPrerequisites: null,
     privatePr337Diagnostic: "NO_CLASSIFIED_ERROR",
     privatePr337GitSignals: {
@@ -660,6 +671,7 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
       "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
+      "/var/lib/kmj-codebridge-ci/evidence/latest-pr419.json",
       "/var/lib/kmj-codebridge-ci/prerequisites/status.json",
     ].sort(),
   );
