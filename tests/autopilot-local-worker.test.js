@@ -85,7 +85,10 @@ test("local draft is saved and paused, never marked implemented", async (t) => {
   assert.match(result.checkpoint.summary, /Proposed steps/);
   assert.equal(result.checkpoint.modelUsage.provider, "local-ollama");
   assert.equal(result.checkpoint.modelUsage.model, "qwen3:4b");
-  assert.equal(result.checkpoint.modelUsage.operation, "autopilot_local_worker");
+  assert.equal(
+    result.checkpoint.modelUsage.operation,
+    "autopilot_local_worker",
+  );
   assert.equal(f.calls(), 1);
   await f.worker.tick();
   assert.equal(f.calls(), 1);
