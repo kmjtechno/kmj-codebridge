@@ -83,6 +83,12 @@ test("local draft is saved and paused, never marked implemented", async (t) => {
   assert.equal(result.lastReason, "LOCAL_DRAFT_AWAITING_REVIEW");
   assert.equal(result.checkpoint.next, "LOCAL_DRAFT_AWAITING_REVIEW");
   assert.match(result.checkpoint.summary, /Proposed steps/);
+  assert.equal(result.checkpoint.modelUsage.provider, "local-ollama");
+  assert.equal(result.checkpoint.modelUsage.model, "qwen3:4b");
+  assert.equal(
+    result.checkpoint.modelUsage.operation,
+    "autopilot_local_worker",
+  );
   assert.equal(f.calls(), 1);
   await f.worker.tick();
   assert.equal(f.calls(), 1);
@@ -133,6 +139,7 @@ test("failed inference leaves a review-required task, not a false success", asyn
     "LOCAL_INFERENCE_FAILED_REVIEW_REQUIRED",
   );
   assert.equal(f.calls(), 1);
+  assert.equal(f.journal.get(task.id, "repo").checkpoint, null);
 });
 
 test("resumed checkpoint cannot repeat generation or overwrite proposal", async (t) => {
