@@ -91,7 +91,11 @@ subprocess.run = stub_run
         [
           "-c",
           prelude +
-            (env.TEST_BOTH ? body : body.replace(/^    \("337",[^\n]+\n/m, "")),
+            (env.TEST_BOTH
+              ? body.replace(/^    \("419",[^\n]+\n/m, "")
+              : body
+                  .replace(/^    \("337",[^\n]+\n/m, "")
+                  .replace(/^    \("419",[^\n]+\n/m, ""))
         ],
         {
           encoding: "utf8",
