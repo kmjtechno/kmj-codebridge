@@ -6,7 +6,10 @@ import test from "node:test";
 import { JobRunner } from "../src/jobs.js";
 import { AutopilotJournal } from "../src/autopilot.js";
 import { definitions, createDispatcher } from "../src/tools.js";
-import { inspectBlockers, remediationTaskForBlocker } from "../src/blocker-recovery.js";
+import {
+  inspectBlockers,
+  remediationTaskForBlocker,
+} from "../src/blocker-recovery.js";
 
 function fixture(t, runtimeSource = null, projectOptions = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-blocker-recovery-"));
@@ -44,7 +47,12 @@ function fixture(t, runtimeSource = null, projectOptions = {}) {
     undefined,
     runtimeSource,
   );
-  return { dispatch, autopilot, scope: { device: "device1", project: "project1" }, root };
+  return {
+    dispatch,
+    autopilot,
+    scope: { device: "device1", project: "project1" },
+    root,
+  };
 }
 
 test("recovery advisor maps absent client tool exposure to a safe native fix without privilege escalation", () => {
@@ -119,11 +127,15 @@ test("unobserved worker cannot be declared stopped", () => {
   });
   assert.equal(report.workerHealth.localDraft.loopStarted, null);
   assert.equal(
-    report.blockers.some((item) => item.code === "WORKER_CONFIGURED_NOT_STARTED"),
+    report.blockers.some(
+      (item) => item.code === "WORKER_CONFIGURED_NOT_STARTED",
+    ),
     false,
   );
   assert.equal(
-    report.blockers.some((item) => item.code === "WORKER_STATUS_NOT_INSTRUMENTED"),
+    report.blockers.some(
+      (item) => item.code === "WORKER_STATUS_NOT_INSTRUMENTED",
+    ),
     true,
   );
 });
@@ -131,7 +143,10 @@ test("unobserved worker cannot be declared stopped", () => {
 test("dirty project means preserve existing work and continue independently", () => {
   const report = inspectBlockers({ checkoutState: "dirty" });
   assert.equal(report.safeIndependentWorkCanContinue, true);
-  assert.equal(report.blockers.some((item) => item.code === "CHECKOUT_DIRTY"), true);
+  assert.equal(
+    report.blockers.some((item) => item.code === "CHECKOUT_DIRTY"),
+    true,
+  );
   assert.match(
     report.blockers.find((item) => item.code === "CHECKOUT_DIRTY").nextAction,
     /Preserve all uncommitted changes/,
@@ -166,16 +181,24 @@ test("recovery doctor is callable from existing MCP client, remains read-only an
   );
   assert.equal(observed.connection, "connected");
   assert.equal(observed.blockerRecovery.workerHealth.gate.loopStarted, true);
-  assert.equal(observed.blockerRecovery.workerHealth.localDraft.loopStarted, false);
+  assert.equal(
+    observed.blockerRecovery.workerHealth.localDraft.loopStarted,
+    false,
+  );
   assert.deepEqual(observed.blockerRecovery.clientModelToolsMissing, [
     "local_model_generate",
     "autopilot_local_draft",
   ]);
   assert.equal(
-    observed.blockerRecovery.blockers.some((item) => item.code === "CI_NO_RUNNER_STEPS"),
+    observed.blockerRecovery.blockers.some(
+      (item) => item.code === "CI_NO_RUNNER_STEPS",
+    ),
     true,
   );
-  assert.equal(fs.readFileSync(path.join(root, "unchanged.txt"), "utf8"), "other agent work\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "unchanged.txt"), "utf8"),
+    "other agent work\n",
+  );
   assert.deepEqual(fs.readdirSync(root), ["unchanged.txt"]);
 });
 
@@ -186,7 +209,9 @@ test("permission and project boundary remain guarded", async (t) => {
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("connection_doctor", { ...scope, project: "someone-else" }, ["read"]),
+    dispatch("connection_doctor", { ...scope, project: "someone-else" }, [
+      "read",
+    ]),
     /PROJECT_NOT_FOUND/,
   );
   await assert.rejects(
@@ -248,9 +273,15 @@ test("authorized waiting task hands off a bounded recovery feature without execu
   const recovery = autopilot.get(result.remediation.task, "project1");
   assert.equal(recovery.state, "queued");
   assert.equal(recovery.priority, 90);
-  assert.match(recovery.objective, /FIRST_PARTY_CI_CAPACITY_AND_BOOTSTRAP_DIAGNOSTIC/);
+  assert.match(
+    recovery.objective,
+    /FIRST_PARTY_CI_CAPACITY_AND_BOOTSTRAP_DIAGNOSTIC/,
+  );
   assert.equal(recovery.dependsOn.length, 0);
-  assert.equal(fs.readFileSync(path.join(root, "unchanged.txt"), "utf8"), "other agent work\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "unchanged.txt"), "utf8"),
+    "other agent work\n",
+  );
 });
 
 test("invalid lease cannot queue a recovery task or pause another worker", async (t) => {
