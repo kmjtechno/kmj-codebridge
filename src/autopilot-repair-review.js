@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fail } from "./errors.js";
+import { reviewHarnessGuard, reviewHandoff } from "./agent-harness-guard.js";
 import { redact } from "./jobs.js";
 import {
   parseRepairTask,
@@ -71,6 +72,7 @@ export function reviewRepairCandidate({
     fail("AUTOPILOT_REPAIR_PATCH_CHANGED");
   let preview = null;
   let previewTruncated = false;
+  let scannedPatch = null;
   if (includePatch) {
     const raw = execFileSync(
       "git",
@@ -112,9 +114,23 @@ export function reviewRepairCandidate({
         evidence.patchSha256
     )
       fail("AUTOPILOT_REPAIR_PATCH_CHANGED");
+    scannedPatch = raw;
     preview = redact(raw).slice(0, MAX_PREVIEW_CHARS);
     previewTruncated = raw.length > MAX_PREVIEW_CHARS;
   }
+  // ECC-style review guard is advisory, never an automatic publish permit.
+  // Without explicit patch preview, only paths are classified; no silent
+  // assumption that the patch was content-scanned.
+  const guard = reviewHarnessGuard({
+    files: patch.files,
+    patch: scannedPatch,
+  });
+  const handoff = reviewHandoff({
+    expectedHead: spec.expectedHead,
+    patchSha256: patch.sha256,
+    verificationJobId: evidence.verificationJobId,
+    guard,
+  });
   return {
     task: task.id,
     project: project.id,
@@ -126,6 +142,8 @@ export function reviewRepairCandidate({
     patchSha256: patch.sha256,
     verificationJobId: evidence.verificationJobId,
     state: "VERIFIED_PATCH_AWAITING_REVIEW",
+    reviewGuard: guard,
+    handoff,
     preview,
     previewTruncated,
     publishStatus: "NOT_PUBLISHED",
