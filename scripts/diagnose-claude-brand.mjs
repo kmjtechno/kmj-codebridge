@@ -36,9 +36,16 @@ export function verifyClaudeIcon(bytes) {
   };
 }
 
-export function classifyFavicon(bytes, contentType, md5 = digest("md5", bytes)) {
-  const ico = bytes.length >= 6 && bytes.readUInt16LE(0) === 0 &&
-    bytes.readUInt16LE(2) === 1 && bytes.readUInt16LE(4) > 0;
+export function classifyFavicon(
+  bytes,
+  contentType,
+  md5 = digest("md5", bytes),
+) {
+  const ico =
+    bytes.length >= 6 &&
+    bytes.readUInt16LE(0) === 0 &&
+    bytes.readUInt16LE(2) === 1 &&
+    bytes.readUInt16LE(4) > 0;
   return {
     status: LARAVEL_DEFAULT_MD5.has(md5)
       ? "LARAVEL_DEFAULT_DETECTED"
@@ -106,9 +113,12 @@ export async function diagnoseClaudeBrand({
     const code = String(error?.message ?? "UNKNOWN");
     favicon = {
       status: "LIVE_FAVICON_UNVERIFIED",
-      reason: /^HTTP_[0-9]{3}$|^FAVICON_TOO_LARGE$|^EMPTY_FAVICON_RESPONSE$/.test(code)
-        ? code
-        : "UNREACHABLE_OR_INVALID",
+      reason:
+        /^HTTP_[0-9]{3}$|^FAVICON_TOO_LARGE$|^EMPTY_FAVICON_RESPONSE$/.test(
+          code,
+        )
+          ? code
+          : "UNREACHABLE_OR_INVALID",
       claudeVisibleIconVerified: false,
     };
   }
@@ -124,7 +134,10 @@ export async function diagnoseClaudeBrand({
   };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   const result = await diagnoseClaudeBrand();
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   if (
