@@ -115,7 +115,10 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
   assert.equal(replay.reused, true);
   assert.equal(replay.modelUsage.model, "tiny:1b");
   assert.equal(replay.modelUsageReusedFromCheckpoint, true);
-  assert.equal(autopilot.get(queued.id, "project1").checkpoint.modelUsage.model, "tiny:1b");
+  assert.equal(
+    autopilot.get(queued.id, "project1").checkpoint.modelUsage.model,
+    "tiny:1b",
+  );
   assert.equal(calls, 1);
   assert.equal(autopilot.get(queued.id, "project1").state, "running");
   assert.equal(
@@ -151,7 +154,11 @@ test("unavailable local inference never checkpoints, edits files or charges a cl
     /LOCAL_MODEL_NOT_RUNNING/,
   );
   assert.equal(autopilot.get(queued.id, "project1").checkpoint, null);
-  assert.equal((await dispatch("connection_doctor", scope, ["read"])).modelUsageStatus.lastVerifiedInvocation, null);
+  assert.equal(
+    (await dispatch("connection_doctor", scope, ["read"])).modelUsageStatus
+      .lastVerifiedInvocation,
+    null,
+  );
 });
 
 test("finished, unclaimed or pre-checkpointed tasks never run a second model", async (t) => {
