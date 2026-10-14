@@ -26,11 +26,12 @@ A successful `local_model_generate` invocation now includes `modelUsage`:
 
 The existing direct-model result already reports model and provider. The explicit named receipt gives any client/chat a consistent object to render alongside a response. **This feature does not change the host ChatGPT/Claude/Gemini UI or force the chat assistant to render a badge.** The client may show the receipt or the assistant can summarize it in text.
 
-`autopilot_local_draft` now saves this minimal record **with its existing lease-fenced Autopilot checkpoint**, so retry/replay reports which model generated the original draft, not the *current caller's* selected model. Existing legacy checkpoints have no proof; they return `model: null`, `execution: not_verified` rather than making up history.
+`autopilot_local_draft` now saves this minimal record **with its existing lease-fenced Autopilot checkpoint**, so retry/replay reports which model generated the original draft, not the _current caller's_ selected model. Existing legacy checkpoints have no proof; they return `model: null`, `execution: not_verified` rather than making up history.
 
 The unattended local-draft worker also stores the actual local model in its task checkpoint. Inspect the task with `autopilot_status`; a queued or failed task **has not** generated a model response.
 
 The already advertised read-only `connection_doctor` now includes `modelUsageStatus` with:
+
 - `lastVerifiedInvocation` per authorized device+project **since the current agent process started** (or null);
 - `observedAt` of a successful local tool invocation;
 - explicit `originalChatHostModel: not_observable_by_codebridge`;
