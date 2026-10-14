@@ -127,14 +127,8 @@ test("Claude and GitHub Copilot share a documented opt-in Git marketplace", () =
     guide,
     /copilot plugin marketplace add kmjtechno\/kmj-codebridge/,
   );
-  assert.match(
-    guide,
-    /copilot plugin install kmj-codebridge@kmj-techno/,
-  );
-  assert.match(
-    guide,
-    /claude plugin install kmj-codebridge@kmj-techno/,
-  );
+  assert.match(guide, /copilot plugin install kmj-codebridge@kmj-techno/);
+  assert.match(guide, /claude plugin install kmj-codebridge@kmj-techno/);
   assert.match(guide, /do not.*auto-post|never auto-post/i);
   assert.match(guide, /not.*yet/i);
   assert.doesNotMatch(guide, /Bearer [a-zA-Z0-9]/);
