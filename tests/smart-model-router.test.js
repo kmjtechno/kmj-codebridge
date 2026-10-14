@@ -27,6 +27,9 @@ const cloud = {
   p95LatencyMs: 460,
   freeTierVerified: true,
   costPerMillionTokensUsd: 0,
+  enabled: true,
+  health: "ok",
+  modelsDiscoveredAtMs: Date.now(),
 };
 const task = {
   capability: "coding",
@@ -37,7 +40,7 @@ const task = {
 };
 
 test("local-first remains safe default even with faster free cloud", () => {
-  const r = planSmartModelRoute({ models: [cloud, local], task });
+  const r = planSmartModelRoute({ models: [cloud, local], task: { ...task, strategy: "local-first" } });
   assert.equal(r.selected.modelId, local.id);
   assert.equal(r.fallbacks[0].modelId, cloud.id);
   assert.equal(r.modelExecution, "NOT_EXECUTED");
@@ -140,6 +143,60 @@ test("quota, backoff, full context and capability are respected", () => {
     task: { ...task, capability: "vision" },
   });
   assert.equal(r.selected, null);
+});
+
+
+test("the default route uses approved free cloud then offline local backup", () => {
+  const r = planSmartModelRoute({ models: [cloud, local], task });
+  assert.equal(r.strategy, "approved-free-cloud-first");
+  assert.equal(r.selected.modelId, cloud.id);
+  assert.equal(r.fallbacks[0].modelId, local.id);
+});
+
+test("real OpenRouter vendor/model:free identifiers are supported; paid variants blocked", () => {
+  const openrouter = {
+    ...cloud,
+    id: "nvidia/nemotron-3-ultra-50b-a55b:free",
+    provider: "openrouter",
+    capabilities: ["reasoning"],
+  };
+  const result = planSmartModelRoute({
+    models: [openrouter, local],
+    task: { ...task, capability: "reasoning" },
+  });
+  assert.equal(result.selected.modelId, openrouter.id);
+  const paidAlias = { ...openrouter, id: "nvidia/nemotron-3-ultra-50b-a55b" };
+  const denied = planSmartModelRoute({
+    models: [paidAlias, local],
+    task: { ...task, capability: "reasoning" },
+  });
+  assert.equal(denied.selected.modelId, local.id);
+});
+
+test("no false healthy cloud selection on stale, absent or disabled discovery", () => {
+  const now = Date.now();
+  for (const bad of [
+    { enabled: false },
+    { health: "error" },
+    { health: "unknown" },
+    { modelsDiscoveredAtMs: now - 25 * 60 * 60 * 1000 },
+    { modelsDiscoveredAtMs: now + 10000 },
+    { modelsDiscoveredAtMs: undefined },
+  ]) {
+    const r = planSmartModelRoute({
+      models: [{ ...cloud, ...bad }, local],
+      task,
+      nowMs: now,
+    });
+    assert.equal(r.selected.modelId, local.id);
+    assert.equal(r.eligibleCount, 1);
+  }
+  const noLocal = planSmartModelRoute({
+    models: [{ ...cloud, enabled: false }, { ...local, available: false }],
+    task,
+    nowMs: now,
+  });
+  assert.equal(noLocal.outcome, "NO_FREE_AUTHORIZED_CAPABLE_MODEL");
 });
 
 test("routing invalid configuration and timing metadata fails closed", () => {
