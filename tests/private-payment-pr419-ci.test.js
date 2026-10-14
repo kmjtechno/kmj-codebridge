@@ -151,8 +151,14 @@ test("owner one-command payment QA bootstrap never deploys or captures charges",
   assert.match(script, /--untracked-files=no/);
   assert.match(script, /systemctl start "\$unit"/);
   assert.match(script, /PAYMENT_PR419_ISOLATED_LINUX_QA_PASS/);
-  assert.doesNotMatch(script, /git reset|git checkout|git push|php artisan migrate|npm run build/);
-  assert.doesNotMatch(script, /rzp_live_|cashfree.*production|payment.*capture/);
+  assert.doesNotMatch(
+    script,
+    /git reset|git checkout|git push|php artisan migrate|npm run build/,
+  );
+  assert.doesNotMatch(
+    script,
+    /rzp_live_|cashfree.*production|payment.*capture/,
+  );
   if (process.platform === "win32") return t.skip("POSIX shell only");
   const check = spawnSync(
     "bash",
