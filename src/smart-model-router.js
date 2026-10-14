@@ -107,7 +107,7 @@ export function planSmartModelRoute({
     models.length > MAX_MODELS ||
     !task ||
     typeof task !== "object" ||
-    !STRATEGIES.has(task.strategy ?? "local-first") ||
+    !STRATEGIES.has(task.strategy ?? "approved-free-cloud-first") ||
     !Number.isSafeInteger(nowMs) ||
     nowMs < 0 ||
     typeof task.cloudApproved !== "boolean" ||
@@ -122,7 +122,7 @@ export function planSmartModelRoute({
     Array.isArray(state)
   )
     throw new Error("SMART_MODEL_ROUTER_INVALID_TASK");
-  const strategy = task.strategy ?? "local-first";
+  const strategy = task.strategy ?? "approved-free-cloud-first";
   // validate all hint data eagerly, not only the eventually eligible models
   const hintById = new Map(models.map((m) => [m.id, profile(m, nowMs)]));
   const policy = new ModelFailoverPolicy(models, {
