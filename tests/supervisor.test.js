@@ -1908,17 +1908,18 @@ test("full fixed fetch access proof survives the bounded journal tail", async ()
   assert.doesNotMatch(JSON.stringify(result), /\/private\/key/);
 });
 
-
 test("PR419 CI exposes bounded TypeScript codes without private compiler output", async () => {
   const sha = "a".repeat(40);
   const name = sha + "-20261014T103000Z.log";
-  const log = Buffer.from([
-    "KMJ_CI_GATE_BEGIN=typescript",
-    "resources/js/components/payment-gateway-onboarding.tsx(42,3): error TS2322: secret=NEVER_RETURN",
-    "resources/js/pages/operator-payments.tsx(80,4): error TS2345: /private/data",
-    "/private/secrets.ts(9,9): error TS9999: inaccessible",
-    "some untrusted text (30,30): error TS1111: ignore",
-  ].join("\n"));
+  const log = Buffer.from(
+    [
+      "KMJ_CI_GATE_BEGIN=typescript",
+      "resources/js/components/payment-gateway-onboarding.tsx(42,3): error TS2322: secret=NEVER_RETURN",
+      "resources/js/pages/operator-payments.tsx(80,4): error TS2345: /private/data",
+      "/private/secrets.ts(9,9): error TS9999: inaccessible",
+      "some untrusted text (30,30): error TS1111: ignore",
+    ].join("\n"),
+  );
   const result = createSupervisorHandler({
     run: () => "LoadState=loaded\nActiveState=inactive\n",
     lstat: (filename) =>
@@ -1962,5 +1963,8 @@ test("PR419 CI exposes bounded TypeScript codes without private compiler output"
     "PAYMENT_PAGE",
   ]);
   assert.deepEqual(reply.last.workerLogErrorCodes, ["TS2322", "TS2345"]);
-  assert.doesNotMatch(JSON.stringify(reply), /NEVER_RETURN|\/private|secrets\.ts|inaccessible/);
+  assert.doesNotMatch(
+    JSON.stringify(reply),
+    /NEVER_RETURN|\/private|secrets\.ts|inaccessible/,
+  );
 });
