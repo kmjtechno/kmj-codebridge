@@ -1185,6 +1185,12 @@ export async function startGateway(rawConfig) {
                     pipeStrategy: "input",
                   })
                 : { type: "object", properties: {} },
+              // OAuth public tools/list is CodeBridge's hosted ChatGPT
+              // catalog. Current SDK v1.31 registerTool omits icons from
+              // its default list handler, so advertise them here explicitly.
+              ...(config.iconUrl
+                ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
+                : {}),
               annotations: {
                 title: d.title,
                 readOnlyHint: d.access === "read",
