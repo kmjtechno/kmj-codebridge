@@ -502,6 +502,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-main-platform-refresh.service",
       "kmj-codebridge-private-pr322-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
+      "kmj-codebridge-private-pr419-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-kmj-main-platform.service",
