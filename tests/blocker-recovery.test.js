@@ -11,7 +11,12 @@ import {
   remediationTaskForBlocker,
 } from "../src/blocker-recovery.js";
 
-function fixture(t, runtimeSource = null, projectOptions = {}) {
+function fixture(
+  t,
+  runtimeSource = null,
+  projectOptions = {},
+  supervisorSocket = null,
+) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-blocker-recovery-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const root = path.join(base, "project");
@@ -28,6 +33,7 @@ function fixture(t, runtimeSource = null, projectOptions = {}) {
     {
       id: "device1",
       stateDir: path.join(base, "state"),
+      ...(supervisorSocket ? { supervisorSocket } : {}),
       projects: [
         {
           id: "project1",
@@ -72,6 +78,55 @@ test("recovery advisor maps absent client tool exposure to a safe native fix wit
   assert.equal(result.autonomousCodingProven, false);
   assert.equal(result.taskActuallyClaimed, false);
   assert.equal(result.productionOrBillingModified, false);
+});
+
+test("supervisor absent is diagnosed from runtime config without privilege escalation", async (t) => {
+  const { dispatch, scope } = fixture(t);
+  const report = await dispatch("connection_doctor", scope, ["read"]);
+  assert.equal(report.blockerRecovery.supervisor.configured, false);
+  assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
+  assert.equal(report.blockerRecovery.supervisor.status, "NOT_CONFIGURED");
+  const issue = report.blockerRecovery.blockers.find(
+    (entry) => entry.code === "SUPERVISOR_NOT_CONFIGURED",
+  );
+  assert.equal(
+    issue.requiredCodeBridgeFeature,
+    "SAFE_SUPERVISOR_BOOTSTRAP_AND_AGENT_BINDING",
+  );
+  assert.match(issue.nextAction, /existing credentials/);
+  assert.equal(report.blockerRecovery.productionOrBillingModified, false);
+});
+
+test("configured supervisor does not imply a live privileged socket", async (t) => {
+  const { dispatch, scope } = fixture(
+    t,
+    null,
+    {},
+    "/run/kmj-codebridge/supervisor.sock",
+  );
+  const report = await dispatch("connection_doctor", scope, ["read"]);
+  assert.equal(report.blockerRecovery.supervisor.configured, true);
+  assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
+  assert.equal(report.blockerRecovery.supervisor.status, "NOT_PROBED");
+  assert.ok(
+    report.blockerRecovery.blockers.some(
+      (entry) => entry.code === "SUPERVISOR_HEALTH_NOT_VERIFIED",
+    ),
+  );
+  assert.equal(report.blockerRecovery.taskActuallyClaimed, false);
+});
+
+test("strict supervisor observation cannot invent verified health", () => {
+  assert.throws(
+    () => inspectBlockers({ supervisorConfigured: "yes" }),
+    /INVALID_SUPERVISOR_OBSERVATION/,
+  );
+  const r = inspectBlockers({ supervisorConfigured: null });
+  assert.equal(r.supervisor.status, "UNKNOWN");
+  assert.equal(
+    r.blockers.some((item) => item.code === "SUPERVISOR_NOT_CONFIGURED"),
+    false,
+  );
 });
 
 test("unknown client capture is not reported as missing", () => {

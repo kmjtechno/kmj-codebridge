@@ -1687,6 +1687,9 @@ export function createDispatcher(
           ? {
               blockerRecovery: inspectBlockers({
                 clientVisibleTools: a.clientVisibleTools ?? null,
+                // This is a local config observation only, not a privileged
+                // supervisor RPC. A socket path alone never proves uptime.
+                supervisorConfigured: Boolean(config.supervisorSocket),
                 workerConfiguration: {
                   gate: p.autopilotGateWorker?.enabled === true,
                   repair: p.autopilotRepairWorker?.enabled === true,

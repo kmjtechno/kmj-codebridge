@@ -13,6 +13,16 @@ const SAFE_ACTIONS = Object.freeze({
     nextAction:
       "Compare installed client capture with hosted authenticated tools/list and the deployed agent schema; refresh app/catalog through supported approval workflow, never bypass OAuth.",
   },
+  SUPERVISOR_NOT_CONFIGURED: {
+    requiredCodeBridgeFeature: "SAFE_SUPERVISOR_BOOTSTRAP_AND_AGENT_BINDING",
+    nextAction:
+      "Inspect enrolled agent config and OS-specific supported supervisor installer. Stage only trusted pinned, immutable runtime; preserve existing credentials, dirty source files and running jobs. Root enrollment or privilege changes need an authorized operator and rollback.",
+  },
+  SUPERVISOR_HEALTH_NOT_VERIFIED: {
+    requiredCodeBridgeFeature: "SUPERVISOR_SOCKET_LIVE_HEALTH_PROBE",
+    nextAction:
+      "Supervisor path is configured, but connectivity is unknown. Run the existing read-only supervisor_status tool, inspect fixed socket service locally if unavailable, and verify runtime revision before any restart or update.",
+  },
   WORKER_CONFIGURED_NOT_STARTED: {
     requiredCodeBridgeFeature: "SUPERVISED_WORKER_HEALTH_AND_RECOVERY",
     nextAction:
@@ -67,6 +77,7 @@ export function inspectBlockers({
   clientVisibleTools = null,
   workerConfiguration = {},
   workerStarted = null,
+  supervisorConfigured = null,
   ciObservation = "unknown",
   checkoutState = "unknown",
 } = {}) {
@@ -92,7 +103,27 @@ export function inspectBlockers({
   )
     throw new TypeError("INVALID_BLOCKER_OBSERVATION");
 
+  if (
+    supervisorConfigured !== null &&
+    typeof supervisorConfigured !== "boolean"
+  )
+    throw new TypeError("INVALID_SUPERVISOR_OBSERVATION");
+
   const blockers = [];
+  if (supervisorConfigured === false)
+    blockers.push(
+      issue("SUPERVISOR_NOT_CONFIGURED", {
+        configured: false,
+        connectionVerified: false,
+      }),
+    );
+  if (supervisorConfigured === true)
+    blockers.push(
+      issue("SUPERVISOR_HEALTH_NOT_VERIFIED", {
+        configured: true,
+        connectionVerified: false,
+      }),
+    );
   const missingClientTools =
     clientVisibleTools === null
       ? null
@@ -165,6 +196,17 @@ export function inspectBlockers({
     status: blockers.length ? "ACTION_REQUIRED" : "INSPECTED",
     clientToolSnapshotProvided: clientVisibleTools !== null,
     clientModelToolsMissing: missingClientTools,
+    supervisor: {
+      configured: supervisorConfigured,
+      connectionVerified: false,
+      status:
+        supervisorConfigured === false
+          ? "NOT_CONFIGURED"
+          : supervisorConfigured === true
+            ? "NOT_PROBED"
+            : "UNKNOWN",
+      note: "Configured socket is not evidence that the privileged service is installed or reachable.",
+    },
     workerHealth: health,
     blockers,
     safeIndependentWorkCanContinue: true,

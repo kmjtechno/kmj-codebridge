@@ -28,12 +28,16 @@ Never commit or share the lease token. Every recovery is a proposal for reviewed
 ## First supported blockers
 
 - `CLIENT_TOOL_NOT_ADVERTISED`: compare installed client capture with authenticated hosted MCP `tools/list` and installed agent revision; update/reconnect via supported workflow.
+- `SUPERVISOR_NOT_CONFIGURED`: runtime agent configuration does not bind a supervisor socket; install via the independently reviewed, host-specific trusted bootstrap. Do not re-enroll or alter secrets.
+- `SUPERVISOR_HEALTH_NOT_VERIFIED`: canonical supervisor socket is configured but is **not yet proven reachable**. Verify using the restricted `supervisor_status` tool and local operator-managed service. Never auto-start a root service from a connection doctor call.
 - `WORKER_CONFIGURED_NOT_STARTED` / `WORKER_STATUS_NOT_INSTRUMENTED`: verify supervisor, actual handles and agent update state.
 - `NO_AUTONOMOUS_CODING_EXECUTOR`: build a real consented/lease-bound local-first and isolated coding executor, rather than relying on heartbeat-only 60-second timers.
 - `CI_NO_RUNNER_STEPS` / `CI_TEST_FAILURE`: distinguish provider CI bootstrap from real exact-SHA test failures.
 - `CHECKOUT_DIRTY`: preserve parallel agents' changes and use only clean pinned worktree/lane.
 
 ## Boundaries and release
+
+The `connection_doctor` response now includes `blockerRecovery.supervisor`: `NOT_CONFIGURED`, `NOT_PROBED`, or `UNKNOWN`. This is **configuration evidence**, not a socket probe or live update. An unavailable Supervisor cannot be repaired by re-pairing or resetting another AI's dirty worktree; host-specific installation, root ownership and rollback remain separate requirements.
 
 Pure planning + journal queuing only; permission required, no arbitrary subprocess/service control or unbounded retries. Source-based diagnosis does not prove a live AI worker exists. Existing CodeBridge gateway/client schema, installed release and real tenant permissions must be independently verified before saying it is deployed. The connected client may need an approved schema refresh to expose optional arguments. No provider automatically offers unlimited free model calls.
 
