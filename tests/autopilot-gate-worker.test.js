@@ -79,10 +79,7 @@ function fixture(t, overrides = {}) {
     journal,
     runner,
     licenseProvider: overrides.licenseProvider ?? entitlement,
-    lanes:
-      overrides.lanes === false
-        ? null
-        : new WorktreeLanes(journal.dir),
+    lanes: overrides.lanes === false ? null : new WorktreeLanes(journal.dir),
   });
   return {
     root,
@@ -299,10 +296,7 @@ test("isolated gate executes at pinned SHA despite Claude dirty checkout", (t) =
     }).trim(),
     f.head,
   );
-  assert.equal(
-    fs.readFileSync(local, "utf8"),
-    "preserve parallel AI edits",
-  );
+  assert.equal(fs.readFileSync(local, "utf8"), "preserve parallel AI edits");
   f.jobs.get("job-1").state = "succeeded";
   f.jobs.get("job-1").exitCode = 0;
   f.worker.tick();
@@ -329,7 +323,10 @@ test("dirty isolated worktree remains reviewable and never runs a gate", (t) => 
     "ISOLATED_GATE_WORKTREE_DIRTY_REVIEW_REQUIRED",
   );
   assert.equal(f.count(), 0);
-  assert.equal(fs.readFileSync(artifact, "utf8"), "do not delete test artifacts");
+  assert.equal(
+    fs.readFileSync(artifact, "utf8"),
+    "do not delete test artifacts",
+  );
 });
 
 test("isolated opt-in without a worktree manager fails closed, never runs root", (t) => {
