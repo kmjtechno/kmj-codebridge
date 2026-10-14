@@ -35,11 +35,19 @@ References:
 
 [**Add KMJ CodeBridge to Cursor**](https://cursor.com/install-mcp?name=kmj-codebridge&config=eyJ1cmwiOiJodHRwczovL2ttanRlY2huby5jb20vbWNwIn0%3D)
 
+Cursor's documented native deep link is:
+
+```text
+cursor://anysphere.cursor-deeplink/mcp/install?name=kmj-codebridge&config=eyJ1cmwiOiJodHRwczovL2ttanRlY2huby5jb20vbWNwIn0%3D
+```
+
+The HTTPS link above serves the same configuration and can open the installed editor when the browser permits it. If the browser cannot launch Cursor, paste the native URI into the browser or add the URL manually under Cursor's MCP settings. These are installation configuration paths, not proof of OAuth sign-in or tool authorization.
+
 The link uses Cursor's documented `install-mcp` URL with a base64-encoded JSON configuration containing only the canonical remote endpoint. It contains **no API token**, key or remote execution permission.
 
 After Cursor accepts the server, follow the KMJ OAuth prompt if shown and verify only authorized project tools are available. A configured server is not evidence that authentication or E2E project operations passed.
 
-Official installation pattern: https://developers.openai.com/learn/docs-mcp (Cursor tab).
+Official deep-link documentation: https://prod.cursor.com/docs/mcp/install-links
 
 ## VS Code / GitHub Copilot agent mode (one-click config)
 

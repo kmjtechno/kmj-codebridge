@@ -178,3 +178,30 @@ test("Cursor and VS Code links encode only canonical OAuth MCP URL", () => {
   assert.doesNotMatch(JSON.stringify(config), /token|secret|Authorization/i);
   assert.match(guide, /codex mcp add kmj-codebridge --url/);
 });
+
+test("native Cursor deep link matches safe HTTP install configuration", () => {
+  const guide = fs.readFileSync("docs/AI-CLIENT-QUICKSTART.md", "utf8");
+  const nativeUri = guide.match(
+    /cursor:\/\/anysphere\.cursor-deeplink\/mcp\/install\?name=kmj-codebridge&config=[A-Za-z0-9%]+/,
+  );
+  assert.ok(nativeUri);
+  const query = new URL(nativeUri[0]).searchParams;
+  const config = JSON.parse(
+    Buffer.from(query.get("config"), "base64").toString("utf8"),
+  );
+  assert.deepEqual(config, { url: "https://kmjtechno.com/mcp" });
+  assert.doesNotMatch(JSON.stringify(config), /token|secret|Authorization/i);
+});
+
+test("competitive launch terms are comparison only, not active billing", () => {
+  const readme = fs.readFileSync("README.md", "utf8");
+  const plans = fs.readFileSync(
+    "docs/COMPETITIVE-PLANS-AND-ACTIVATION.md",
+    "utf8",
+  );
+  assert.match(readme, /COMPETITIVE-PLANS-AND-ACTIVATION\.md/);
+  assert.match(plans, /a verified live API integration/i);
+  assert.match(plans, /not yet verified end-to-end/i);
+  assert.match(plans, /Razorpay \+ Cashfree/);
+  assert.match(plans, /not a live CodeBridge subscription|not yet certified/i);
+});
