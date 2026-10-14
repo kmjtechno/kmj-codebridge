@@ -1,4 +1,5 @@
 import { setTimeout as delay } from "node:timers/promises";
+import { localModelReceipt } from "./model-attribution.js";
 
 const DRAFT_TASK = /^auto-draft:[A-Za-z0-9._-]{1,100}$/;
 
@@ -107,6 +108,7 @@ export class LocalAutopilotDraftWorker {
               summary: generated.response,
               next: "LOCAL_DRAFT_AWAITING_REVIEW",
               leaseToken: claimed.leaseToken,
+              modelUsage: localModelReceipt(model, "autopilot_local_worker"),
             });
             wait(
               generated.hitTokenLimit || generated.truncated
