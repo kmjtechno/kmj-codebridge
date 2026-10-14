@@ -40,6 +40,20 @@ Claude Code marketplace source if local directories are allowed.
 **Publication state**: GitHub-hosted marketplace files available; NOT
 equivalent to approval/listing in Anthropic's curated Claude directory.
 
+## A2. GitHub Copilot CLI — compatible Git marketplace source
+
+GitHub Copilot CLI recognizes the existing `.claude-plugin/marketplace.json` path. This repository already has the `kmj-techno` marketplace and `kmj-codebridge` plugin manifest. A Copilot user can opt in with:
+
+```sh
+copilot plugin marketplace add kmjtechno/kmj-codebridge
+copilot plugin install kmj-codebridge@kmj-techno
+```
+
+This does **not** establish compatibility on every GitHub Copilot surface, prove successful end-to-end OAuth for Copilot, or imply approval in GitHub's curated directory. An authenticated owner should verify `tools/list` and a read-only approved project before calling a client verified. Do not conflate marketplace installation with account authorization.
+
+Official GitHub documentation:
+https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-marketplace
+
 ## B. Official MCP Registry — READY FOR OWNER-GATED OIDC PUBLISH
 
 - `server.json` declares a **remote** (not npm) Streamable HTTP server,
