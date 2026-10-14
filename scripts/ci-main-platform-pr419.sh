@@ -46,7 +46,10 @@ test -d "$repo/.git" || exit 2
 [[ "$(git_read rev-parse refs/remotes/origin/feat/payment-gateway-guided-onboarding-20261014)" == "$sha" ]] ||
   { echo CI_REF_SHA_MISMATCH >&2; exit 3; }
 [[ "$(git_read cat-file -t "$sha")" == commit ]] || exit 3
-[[ -z "$(git_read status --porcelain)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
+# The review archive consumes committed objects only. Untracked QA artifacts
+# belong to other active agents and must not be removed or copied into the job.
+# Reject tracked edits, staged changes or index drift without altering worktree.
+[[ -z "$(git_read status --porcelain --untracked-files=no)" ]] || { echo CI_DIRTY_SOURCE >&2; exit 3; }
 echo KMJ_CI_PREP_STAGE=REF_VERIFIED
 for file in apps/platform/composer.lock apps/platform/package-lock.json; do
   echo KMJ_CI_PREP_STAGE=TARGET_LOCK_READ
