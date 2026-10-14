@@ -35,6 +35,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "cargo-standard",
     "cmake-standard",
     "go-standard",
+    "windows-visual-qa",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
   assert.ok(Object.keys(commands).length >= 8);
@@ -215,6 +216,31 @@ test("opt-in CMake profiles run actual isolated configure, build and CTest", (t)
       assert.match(stdout, /kmj_sanity/);
     }
   }
+});
+
+test("Windows visual QA preset is explicitly opt-in, scoped and never a general shell", () => {
+  const normal = agentSchema.parse(base).projects[0];
+  assert.equal(normal.commands.windows_visual_qa, undefined);
+  const enabled = agentSchema.parse({
+    ...base,
+    projects: [{ ...base.projects[0], commandPresets: ["windows-visual-qa"] }],
+  }).projects[0];
+  const p = enabled.commands.windows_visual_qa;
+  assert.equal(p.category, "build");
+  assert.equal(p.command, "node");
+  assert.deepEqual(Object.keys(p.variants), [
+    "capture",
+    "compare",
+    "accessibility",
+  ]);
+  for (const [variant, config] of Object.entries(p.variants)) {
+    assert.deepEqual(config.args, ["scripts/codebridge-ui-qa.mjs", variant]);
+    assert.equal(config.timeoutMs, 120000);
+    assert.ok(!config.args.some((arg) => /[;&|]/.test(arg)));
+  }
+  assert.equal(enabled.commands.node_dev, undefined);
+  assert.equal(enabled.commands.windows_visual_qa.variants.shell, undefined);
+  assert.equal(enabled.commands.windows_visual_qa.variants.deploy, undefined);
 });
 
 test("jobArchiveMaxEntries defaults to the archive's own default and stays bounded (issue #186)", () => {
