@@ -19,6 +19,7 @@ import { createLocalModelClient } from "./local-model.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 import { reviewRepairCandidate } from "./autopilot-repair-review.js";
+import { inspectBlockers } from "./blocker-recovery.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -1572,8 +1573,25 @@ export const definitions = {
   connection_doctor: {
     title: "Connection doctor",
     description:
-      "Read connection health and available project capabilities without changing settings.",
-    input: scoped,
+      "Read connection health and available project capabilities and diagnose missing hosted tools, inactive local workers, CI launch failures and dirty checkouts; never changes settings or executes work.",
+    input: {
+      ...scoped,
+      // Optional observations from the client are advisory, not host-verified.
+      clientVisibleTools: z
+        .array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/))
+        .max(120)
+        .optional(),
+      ciObservation: z
+        .enum([
+          "unknown",
+          "job-no-steps",
+          "executed-test-fail",
+          "checks-pending",
+          "passed",
+        ])
+        .optional(),
+      checkoutState: z.enum(["unknown", "dirty", "clean"]).optional(),
+    },
     access: "read",
   },
 };
@@ -1659,6 +1677,38 @@ export function createDispatcher(
         // Commit of the code this agent process runs (null when unknown). A
         // "git-branch" source is a checkout and may carry uncommitted edits.
         runtimeRevision: runtimeRevision(),
+        ...(name === "connection_doctor"
+          ? {
+              blockerRecovery: inspectBlockers({
+                clientVisibleTools: a.clientVisibleTools ?? null,
+                workerConfiguration: {
+                  gate: p.autopilotGateWorker?.enabled === true,
+                  repair: p.autopilotRepairWorker?.enabled === true,
+                  githubCiWatch: p.autopilotCiWatch?.enabled === true,
+                  localDraft: p.autopilotLocalWorker?.enabled === true,
+                },
+                workerStarted:
+                  typeof workerRuntimeSource === "function"
+                    ? (() => {
+                        const observed = workerRuntimeSource();
+                        if (!observed || observed.agentRunning !== true) return null;
+                        return Object.fromEntries(
+                          ["gate", "repair", "githubCiWatch", "localDraft"].map(
+                            (kind) => [
+                              kind,
+                              Array.isArray(observed[kind])
+                                ? observed[kind].includes(p.id)
+                                : false,
+                            ],
+                          ),
+                        );
+                      })()
+                    : null,
+                ciObservation: a.ciObservation ?? "unknown",
+                checkoutState: a.checkoutState ?? "unknown",
+              }),
+            }
+          : {}),
       };
     if (name === "worktree_lane_status")
       return {
