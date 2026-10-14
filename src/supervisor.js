@@ -949,8 +949,14 @@ function classifyPrivateCiWorkerLog(text) {
     ?.split("KMJ_CI_GATE_BEGIN=")[0];
   if (typescriptBlock) {
     const targets = new Map([
-      ["resources/js/components/operator-payment-settings.tsx", "PAYMENT_SETTINGS"],
-      ["resources/js/components/payment-gateway-onboarding.tsx", "PAYMENT_ONBOARDING"],
+      [
+        "resources/js/components/operator-payment-settings.tsx",
+        "PAYMENT_SETTINGS",
+      ],
+      [
+        "resources/js/components/payment-gateway-onboarding.tsx",
+        "PAYMENT_ONBOARDING",
+      ],
       ["resources/js/pages/operator-payments.tsx", "PAYMENT_PAGE"],
       ["scripts/check-payment-onboarding.test.mjs", "PAYMENT_TEST"],
       ["resources/js/app.tsx", "APP_ENTRY"],
