@@ -29,7 +29,8 @@ const SAFE_ACTIONS = Object.freeze({
       "Qualify an authorized isolated worker with actual lease, local/free model consent, allowlisted edits, exact-head gates and restart evidence; queue alone is not coding.",
   },
   CI_NO_RUNNER_STEPS: {
-    requiredCodeBridgeFeature: "FIRST_PARTY_CI_CAPACITY_AND_BOOTSTRAP_DIAGNOSTIC",
+    requiredCodeBridgeFeature:
+      "FIRST_PARTY_CI_CAPACITY_AND_BOOTSTRAP_DIAGNOSTIC",
     nextAction:
       "Distinguish GitHub Actions runner/account failure from source tests, preserve exact SHA, run only approved independent project QA without a paid runner.",
   },
@@ -75,15 +76,18 @@ export function inspectBlockers({
       clientVisibleTools.length > 120 ||
       !clientVisibleTools.every(
         (name) =>
-          typeof name === "string" &&
-          /^[a-z][a-z0-9_]{0,63}$/.test(name),
+          typeof name === "string" && /^[a-z][a-z0-9_]{0,63}$/.test(name),
       ))
   )
     throw new TypeError("INVALID_CLIENT_TOOL_OBSERVATION");
   if (
-    !["unknown", "job-no-steps", "executed-test-fail", "checks-pending", "passed"].includes(
-      ciObservation,
-    ) ||
+    ![
+      "unknown",
+      "job-no-steps",
+      "executed-test-fail",
+      "checks-pending",
+      "passed",
+    ].includes(ciObservation) ||
     !["unknown", "dirty", "clean"].includes(checkoutState)
   )
     throw new TypeError("INVALID_BLOCKER_OBSERVATION");
@@ -92,7 +96,9 @@ export function inspectBlockers({
   const missingClientTools =
     clientVisibleTools === null
       ? null
-      : REQUIRED_LOCAL_TOOLS.filter((name) => !clientVisibleTools.includes(name));
+      : REQUIRED_LOCAL_TOOLS.filter(
+          (name) => !clientVisibleTools.includes(name),
+        );
   if (missingClientTools !== null && missingClientTools.length)
     blockers.push(
       issue(
@@ -131,15 +137,27 @@ export function inspectBlockers({
 
   if (ciObservation === "job-no-steps")
     blockers.push(
-      issue("CI_NO_RUNNER_STEPS", { observedStatus: ciObservation }, "CALLER_CI_OBSERVATION"),
+      issue(
+        "CI_NO_RUNNER_STEPS",
+        { observedStatus: ciObservation },
+        "CALLER_CI_OBSERVATION",
+      ),
     );
   if (ciObservation === "executed-test-fail")
     blockers.push(
-      issue("CI_TEST_FAILURE", { observedStatus: ciObservation }, "CALLER_CI_OBSERVATION"),
+      issue(
+        "CI_TEST_FAILURE",
+        { observedStatus: ciObservation },
+        "CALLER_CI_OBSERVATION",
+      ),
     );
   if (checkoutState === "dirty")
     blockers.push(
-      issue("CHECKOUT_DIRTY", { observedStatus: checkoutState }, "CALLER_CHECKOUT_OBSERVATION"),
+      issue(
+        "CHECKOUT_DIRTY",
+        { observedStatus: checkoutState },
+        "CALLER_CHECKOUT_OBSERVATION",
+      ),
     );
 
   return {
@@ -154,8 +172,7 @@ export function inspectBlockers({
     taskActuallyClaimed: false,
     freeProviderAutomaticallyConnected: false,
     productionOrBillingModified: false,
-    note:
-      "Actions require real project permissions, provider consent, an authorized worker and independent QA. Advice alone neither enqueues nor runs tasks.",
+    note: "Actions require real project permissions, provider consent, an authorized worker and independent QA. Advice alone neither enqueues nor runs tasks.",
   };
 }
 
