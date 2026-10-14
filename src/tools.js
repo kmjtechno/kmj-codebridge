@@ -1462,6 +1462,20 @@ export const definitions = {
     input: scoped,
     access: "execute",
   },
+  supervisor_private_pr419_ci_status: {
+    title: "Private PR419 CI status",
+    description:
+      "Read a bounded SHA-bound local VPS CI result for the fixed Main Platform Payment Gateway PR and its guarded systemd service. Local Linux is never presented as hosted GitHub Actions or Windows CI.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_private_pr419_ci_start: {
+    title: "Run private PR419 CI",
+    description:
+      "Start only the fixed isolated Main Platform PR419 verifier on the existing VPS, with no caller-selected SHA, repository, shell, path or environment. Requires a preinstalled guarded unit.",
+    input: scoped,
+    access: "execute",
+  },
   supervisor_update_status: {
     title: "Auto-update status",
     description:
@@ -2447,6 +2461,10 @@ export function createDispatcher(
       return await supervisor.request({ op: "private_pr337_ci_status" });
     if (name === "supervisor_private_pr337_ci_start")
       return await supervisor.request({ op: "private_pr337_ci_start" });
+    if (name === "supervisor_private_pr419_ci_status")
+      return await supervisor.request({ op: "private_pr419_ci_status" });
+    if (name === "supervisor_private_pr419_ci_start")
+      return await supervisor.request({ op: "private_pr419_ci_start" });
     if (name === "supervisor_update_status")
       return await supervisor.request({ op: "update_status" });
     if (name === "supervisor_update_check")
