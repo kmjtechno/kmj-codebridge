@@ -9,7 +9,7 @@ import { createSupervisorHandler } from "../src/supervisor.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = (file) => fs.readFileSync(path.join(root, file), "utf8");
-const exactSha = "8d82d8e225ef89be1107402dfcfbfe5ae740c91e";
+const exactSha = "0cc50ab391bea81c3694d3c7a51744304f8d5c91";
 const branch = "feat/payment-gateway-guided-onboarding-20261014";
 
 test("private payment QA is pinned to one exact PR419 head and trusted project", () => {
@@ -139,14 +139,14 @@ test("CodeBridge offers only fixed payment CI tool commands", () => {
   );
   assert.match(
     source("scripts/auto-update-development.sh"),
-    /"419", "8d82d8e225ef89be1107402dfcfbfe5ae740c91e"/,
+    /"419", "0cc50ab391bea81c3694d3c7a51744304f8d5c91"/,
   );
 });
 
 test("owner one-command payment QA bootstrap never deploys or captures charges", (t) => {
   const script = source("scripts/bootstrap-private-payment-pr419.sh");
   assert.match(script, /b2416cd2e4aac8706b2053a3c37e9967e84e6461/);
-  assert.match(script, /8d82d8e225ef89be1107402dfcfbfe5ae740c91e/);
+  assert.match(script, /0cc50ab391bea81c3694d3c7a51744304f8d5c91/);
   assert.match(script, /"pr": 419,/);
   assert.match(script, /--untracked-files=no/);
   assert.match(script, /systemctl start "\$unit"/);
