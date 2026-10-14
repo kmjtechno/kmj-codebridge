@@ -942,6 +942,46 @@ function classifyPrivateCiWorkerLog(text) {
     /(?:Cannot find native binding|Failed to load native binding)/i.test(text)
   )
     return result("NATIVE_BINDING_LOAD_ERROR");
+  // Only categorical diagnostics from an SHA-verified, root-owned CI log.
+  // Never return private filenames, source snippets, or compiler messages.
+  const typescriptBlock = text
+    .split("KMJ_CI_GATE_BEGIN=typescript")[1]
+    ?.split("KMJ_CI_GATE_BEGIN=")[0];
+  if (typescriptBlock) {
+    const targets = new Map([
+      [
+        "resources/js/components/operator-payment-settings.tsx",
+        "PAYMENT_SETTINGS",
+      ],
+      [
+        "resources/js/components/payment-gateway-onboarding.tsx",
+        "PAYMENT_ONBOARDING",
+      ],
+      ["resources/js/pages/operator-payments.tsx", "PAYMENT_PAGE"],
+      ["scripts/check-payment-onboarding.test.mjs", "PAYMENT_TEST"],
+      ["resources/js/app.tsx", "APP_ENTRY"],
+    ]);
+    const matches = [
+      ...typescriptBlock.matchAll(
+        /^([A-Za-z0-9_/.-]+)\(([0-9]{1,6}),([0-9]{1,6})\): error TS([0-9]{4}):/gm,
+      ),
+    ].slice(0, 20);
+    if (matches.length) {
+      const targetCodes = new Set();
+      const errorCodes = new Set();
+      for (const match of matches) {
+        if (targets.has(match[1])) {
+          targetCodes.add(targets.get(match[1]));
+          errorCodes.add("TS" + match[4]);
+        }
+      }
+      return {
+        ...result("TYPESCRIPT_ERRORS_REPORTED"),
+        ...(targetCodes.size ? { targets: [...targetCodes] } : {}),
+        errorCodes: [...errorCodes].slice(0, 10),
+      };
+    }
+  }
   if (
     /(?:Formatting issues found in|Found formatting issues in) [1-9][0-9]* files?\b/i.test(
       text,
@@ -1297,6 +1337,9 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
               : {}),
             ...(workerLogDiagnostic.missingPackage
               ? { workerLogMissingPackage: workerLogDiagnostic.missingPackage }
+              : {}),
+            ...(workerLogDiagnostic.errorCodes
+              ? { workerLogErrorCodes: workerLogDiagnostic.errorCodes }
               : {}),
           }
         : {}),
