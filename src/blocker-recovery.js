@@ -135,12 +135,10 @@ export function inspectBlockers({
   ];
   if (
     supervisorObservation !== null &&
-    (
-      typeof supervisorObservation !== "object" ||
+    (typeof supervisorObservation !== "object" ||
       !socketStates.includes(supervisorObservation.state) ||
       supervisorObservation.authenticated !== false ||
-      supervisorObservation.noServiceMutation !== true
-    )
+      supervisorObservation.noServiceMutation !== true)
   )
     throw new TypeError("INVALID_SUPERVISOR_SOCKET_OBSERVATION");
 
