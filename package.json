@@ -27,7 +27,8 @@
     "test:interop": "node --test --test-concurrency=1 tests/interop.test.js",
     "test:clients": "node --test --test-concurrency=1 tests/client-packages.test.js",
     "scan:secrets": "node scripts/scan-secrets.js",
-    "benchmark": "node scripts/benchmark.js"
+    "benchmark": "node scripts/benchmark.js",
+    "doctor:claude": "node scripts/diagnose-claude-oauth.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.31.0",
