@@ -4,8 +4,9 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { JobRunner } from "../src/jobs.js";
+import { AutopilotJournal } from "../src/autopilot.js";
 import { definitions, createDispatcher } from "../src/tools.js";
-import { inspectBlockers } from "../src/blocker-recovery.js";
+import { inspectBlockers, remediationTaskForBlocker } from "../src/blocker-recovery.js";
 
 function fixture(t, runtimeSource = null, projectOptions = {}) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-blocker-recovery-"));
@@ -15,6 +16,7 @@ function fixture(t, runtimeSource = null, projectOptions = {}) {
   fs.writeFileSync(path.join(root, "unchanged.txt"), "other agent work\n");
   const runner = new JobRunner(path.join(base, "jobs"));
   t.after(async () => runner.close());
+  const autopilot = new AutopilotJournal(path.join(base, "autopilot"));
   const license = () => ({
     features: ["read", "write", "execute"],
     limits: { concurrent_jobs: 1 },
@@ -36,13 +38,13 @@ function fixture(t, runtimeSource = null, projectOptions = {}) {
     },
     runner,
     license,
-    null,
+    autopilot,
     null,
     null,
     undefined,
     runtimeSource,
   );
-  return { dispatch, scope: { device: "device1", project: "project1" }, root };
+  return { dispatch, autopilot, scope: { device: "device1", project: "project1" }, root };
 }
 
 test("recovery advisor maps absent client tool exposure to a safe native fix without privilege escalation", () => {
@@ -218,4 +220,77 @@ test("falsified input cannot be mistaken for verified executor or billing author
   assert.deepEqual(r.clientModelToolsMissing, []);
   assert.equal(r.autonomousCodingProven, false);
   assert.equal(r.productionOrBillingModified, false);
+});
+
+test("authorized waiting task hands off a bounded recovery feature without executing actions", async (t) => {
+  const { dispatch, autopilot, scope, root } = fixture(t);
+  const queued = autopilot.enqueue({
+    project: "project1",
+    key: "task:a",
+    objective: "Review failed CI job",
+  });
+  const claimed = autopilot.claim("project1");
+  assert.equal(claimed.id, queued.id);
+  const result = await dispatch(
+    "autopilot_wait",
+    {
+      ...scope,
+      task: claimed.id,
+      reason: "No GitHub Actions runner steps",
+      leaseToken: claimed.leaseToken,
+      blockerCode: "CI_NO_RUNNER_STEPS",
+    },
+    ["write"],
+  );
+  assert.equal(result.state, "waiting");
+  assert.equal(result.remediation.queued, true);
+  assert.equal(result.remediation.executionStarted, false);
+  const recovery = autopilot.get(result.remediation.task, "project1");
+  assert.equal(recovery.state, "queued");
+  assert.equal(recovery.priority, 90);
+  assert.match(recovery.objective, /FIRST_PARTY_CI_CAPACITY_AND_BOOTSTRAP_DIAGNOSTIC/);
+  assert.equal(recovery.dependsOn.length, 0);
+  assert.equal(fs.readFileSync(path.join(root, "unchanged.txt"), "utf8"), "other agent work\n");
+});
+
+test("invalid lease cannot queue a recovery task or pause another worker", async (t) => {
+  const { dispatch, autopilot, scope } = fixture(t);
+  autopilot.enqueue({
+    project: "project1",
+    key: "task:b",
+    objective: "Important work",
+  });
+  const claimed = autopilot.claim("project1");
+  await assert.rejects(
+    dispatch(
+      "autopilot_wait",
+      {
+        ...scope,
+        task: claimed.id,
+        reason: "Blocked",
+        leaseToken: "00000000-0000-4000-8000-000000000000",
+        blockerCode: "CLIENT_TOOL_NOT_ADVERTISED",
+      },
+      ["write"],
+    ),
+    /AUTOPILOT_LEASE_LOST/,
+  );
+  assert.equal(autopilot.get(claimed.id, "project1").state, "running");
+  assert.equal(autopilot.status("project1", 50).counts.queued, 0);
+});
+
+test("recovery task IDs are scoped to source task and idempotent", (t) => {
+  const { autopilot } = fixture(t);
+  const uuid = "3f3f3f3f-1234-4123-8123-aaaa1234abcd";
+  const spec = remediationTaskForBlocker("CHECKOUT_DIRTY", uuid);
+  assert.match(spec.key, /^blocker:checkout_dirty:/);
+  assert.equal(spec.key.includes("-"), false);
+  const first = autopilot.enqueue({ project: "project1", ...spec });
+  const repeated = autopilot.enqueue({ project: "project1", ...spec });
+  assert.equal(repeated.id, first.id);
+  assert.equal(spec.dependsOn.length, 0);
+  assert.throws(
+    () => remediationTaskForBlocker("ROOT_SHELL_OVERRIDE", uuid),
+    /UNKNOWN_RECOVERY_CODE/,
+  );
 });
