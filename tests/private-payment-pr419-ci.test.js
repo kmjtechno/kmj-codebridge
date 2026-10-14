@@ -145,7 +145,7 @@ test("CodeBridge offers only fixed payment CI tool commands", () => {
 
 test("owner one-command payment QA bootstrap never deploys or captures charges", (t) => {
   const script = source("scripts/bootstrap-private-payment-pr419.sh");
-  assert.match(script, /b2416cd2e4aac8706b2053a3c37e9967e84e6461/);
+  assert.match(script, /7a0733a1c18f7a694034a9b01d7008ee54a0843d/);
   assert.match(script, /0cc50ab391bea81c3694d3c7a51744304f8d5c91/);
   assert.match(script, /"pr": 419,/);
   assert.match(script, /--untracked-files=no/);
