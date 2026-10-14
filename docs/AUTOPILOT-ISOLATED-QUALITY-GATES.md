@@ -34,7 +34,7 @@ Default `isolatedWorktree:false` keeps previous behavior, refusing dirty checkou
 
 ## Limits and next real acceptance
 
-- Existing gate commands may assume dependencies available in the *original* checkout. A newly detached worktree does **not** inherit its node_modules, Python venv, .env or generated artifacts. Add a **scoped trusted staging install and pinned dependency cache** only after independent review. Never silently symlink production secrets or credential stores into a lane.
+- Existing gate commands may assume dependencies available in the _original_ checkout. A newly detached worktree does **not** inherit its node_modules, Python venv, .env or generated artifacts. Add a **scoped trusted staging install and pinned dependency cache** only after independent review. Never silently symlink production secrets or credential stores into a lane.
 - `git worktree add` is a filesystem mutation and repository Git metadata operation, restricted to explicit opt-in on an authorized development project. Repo-controlled checkout filters or Git config may execute as part of checkout; review source/repository trust first.
 - Source branch/CI proof is not equivalent to the running agent having this revision. Verify the built runtime, active agent revision, offered MCP permissions and actual P720/Google VPS gate jobs after approved install.
 - Before enabling unattended QA, check disk headroom. As of earlier Google VPS readings, approx. 12 GiB of free space remained, so avoid creating multiple heavy build worktrees or downloading full dependency trees.
