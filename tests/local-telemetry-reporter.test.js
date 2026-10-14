@@ -47,14 +47,16 @@ test("Ollama probe only queries exact device loopback endpoints", async () => {
   const result = await readOllama(async (url) => {
     seen.push(url);
     return new Response(
-      JSON.stringify({ models: [{ name: "qwen3:4b" }, { name: "unsafe key=secret" }] }),
+      JSON.stringify({
+        models: [{ name: "qwen3:4b" }, { name: "unsafe key=secret" }],
+      }),
       { status: 200 },
     );
   });
   assert.deepEqual(
     seen,
-    [11434, 11435, 11436].map((port) =>
-      "http://127.0.0.1:" + port + "/api/tags",
+    [11434, 11435, 11436].map(
+      (port) => "http://127.0.0.1:" + port + "/api/tags",
     ),
   );
   assert.deepEqual(result, { reachable: true, models: ["qwen3:4b"] });
