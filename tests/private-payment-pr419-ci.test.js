@@ -24,6 +24,8 @@ test("private payment QA is pinned to one exact PR419 head and trusted project",
   assert.ok(preparer.includes("refs/remotes/origin/" + branch));
   assert.ok(updater.includes(branch));
   assert.match(preparer, /CI_FIXED_SHA_MISMATCH/);
+  assert.match(preparer, /"pr": 419,/);
+  assert.doesNotMatch(preparer, /"pr": 337,/);
   assert.match(preparer, /CI_DIRTY_SOURCE/);
   // Agent-specific untracked QA paths are never deleted or archived. The
   // reviewed job is built solely from immutable committed Git objects.

@@ -207,7 +207,7 @@ if int(code) != 0:
 else:
     failed_gate = None
 record = {
-    "schema": 1, "repo": "kmjtechno/kmj-main-platform", "pr": 337,
+    "schema": 1, "repo": "kmjtechno/kmj-main-platform", "pr": 419,
     "sha": sha, "base_sha": base_sha, "consumer_sha": consumer_sha,
     "consumer_license_sha256": consumer_license_sha256, "runner": "kmj-codebridge-private-vps-v1",
     "github_actions": "NOT_RUN", "windows": "NOT_RUN",
