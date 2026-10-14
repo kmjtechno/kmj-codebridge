@@ -43,7 +43,10 @@ test("local-first remains safe default even with faster free cloud", () => {
   assert.equal(r.modelExecution, "NOT_EXECUTED");
   assert.equal(r.promptOrConversationTransferred, false);
   assert.equal(r.hostChatModel, "NOT_OBSERVABLE_OR_SWITCHABLE_BY_CODEBRIDGE");
-  assert.equal(r.metadataProvenance, "CALLER_SUPPLIED_NOT_VERIFIED_BY_CODEBRIDGE");
+  assert.equal(
+    r.metadataProvenance,
+    "CALLER_SUPPLIED_NOT_VERIFIED_BY_CODEBRIDGE",
+  );
 });
 
 test("explicitly approved free-cloud-first chooses fastest capable cloud", () => {
