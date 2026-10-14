@@ -633,9 +633,10 @@ cat >"$STABLE_UPDATE_TIMER_FILE" <<EOF
 Description=Check for signed KMJ CodeBridge stable updates
 
 [Timer]
-OnBootSec=15min
-OnUnitActiveSec=1h
-RandomizedDelaySec=15min
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+AccuracySec=15s
 Persistent=true
 Unit=$STABLE_UPDATE_SERVICE
 
@@ -838,9 +839,10 @@ cat >"$AUTO_UPDATE_TIMER_FILE" <<'EOF'
 Description=Check for KMJ CodeBridge development updates
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=1h
-RandomizedDelaySec=10min
+OnBootSec=1min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+AccuracySec=15s
 Persistent=true
 Unit=kmj-codebridge-auto-update.service
 
