@@ -60,8 +60,12 @@ distinct icon resolution path. For clients honoring the official MCP Apps
 extension, entrypoint tool `icons` metadata in `tools/list` is preferred,
 then the app registration icon or `serverInfo.icons`, then a generic fallback.
 The CodeBridge gateway now advertises the same `iconUrl` in both
-`serverInfo.icons` and each tool's `icons` **only when a deploy operator
-has explicitly configured a verified HTTPS PNG URL**. No default production
+`serverInfo.icons` and the **hosted OAuth tools/list** listing's `icons` fields
+**only when a deploy operator has explicitly configured a verified HTTPS PNG URL**.
+The bundled MCP SDK v1.31 drops tool icons in its generic non-OAuth
+`registerTool` tools/list handler; the CodeBridge hosted OAuth override has an
+explicit implementation and integration test for the actual ChatGPT-facing
+path. Generic non-OAuth clients may still rely on `serverInfo.icons`. No default production
 URL is manufactured. A URL can identify the CodeBridge server without altering
 OAuth, tenant grants or model use.
 
