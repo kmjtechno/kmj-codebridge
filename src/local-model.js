@@ -1,5 +1,6 @@
 import http from "node:http";
 import { fail } from "./errors.js";
+import { localModelReceipt } from "./model-attribution.js";
 
 const MAX_TAGS_BYTES = 65536;
 const MAX_REPLY_BYTES = 131072;
@@ -217,6 +218,7 @@ export function createLocalModelClient(options = {}) {
         return {
           provider: "local-ollama",
           model,
+          modelUsage: localModelReceipt(model, "local_model_generate"),
           response: result.response.slice(0, 8192),
           truncated: result.response.length > 8192,
           // `truncated` only covers the 8192-character reply slice. This says
