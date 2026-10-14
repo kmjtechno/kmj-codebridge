@@ -45,11 +45,35 @@
   <a href="#local-llm-first"><strong>Local LLM first</strong></a> ·
   <a href="#architecture"><strong>Architecture</strong></a> ·
   <a href="#quick-start"><strong>Quick start</strong></a> ·
-  <a href="docs/MARKETPLACE-PUBLISHING.md"><strong>Claude & MCP install</strong></a> ·
+  <a href="docs/AI-CLIENT-QUICKSTART.md"><strong>AI client install</strong></a> ·
   <a href="docs/PRICING.md"><strong>Launch plans</strong></a> ·
   <a href="#security-boundaries"><strong>Security</strong></a> ·
   <a href="#contributing"><strong>Contributing</strong></a>
 </p>
+
+---
+
+## Connect CodeBridge to your AI
+
+**Already use an AI coding assistant?** Start with the existing GitHub-hosted plugin marketplace—no CodeBridge payment or API key required for installation. You must still complete OAuth and authorize your own device/project before the AI can inspect anything. This is a **developer preview**, not a claim of curated marketplace approval or one-click device enrollment completion.
+
+**Claude Code:**
+
+```sh
+claude plugin marketplace add kmjtechno/kmj-codebridge
+claude plugin install kmj-codebridge@kmj-techno
+```
+
+**GitHub Copilot CLI:**
+
+```sh
+copilot plugin marketplace add kmjtechno/kmj-codebridge
+copilot plugin install kmj-codebridge@kmj-techno
+```
+
+**ChatGPT and other supported Streamable HTTP MCP clients:** add `https://kmjtechno.com/mcp` as a **remote MCP connector**, then complete the client-supported OAuth consent flow. Do **not** use the MCP URL as a Git marketplace source. AI tools are scoped to approved devices/projects; no blanket remote shell access.
+
+**[Full setup, safety checks, and reusable AI-assistant prompt →](docs/AI-CLIENT-QUICKSTART.md)**
 
 ---
 
