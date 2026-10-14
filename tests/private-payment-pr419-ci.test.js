@@ -9,7 +9,7 @@ import { createSupervisorHandler } from "../src/supervisor.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const source = (file) => fs.readFileSync(path.join(root, file), "utf8");
-const exactSha = "09f39bcfa7ed649a90a544406140ab378f291b6f";
+const exactSha = "a1c4e6344cf6fd96e35f95e7fe46116e0c0ea157";
 const branch = "feat/payment-gateway-guided-onboarding-20261014";
 
 test("private payment QA is pinned to one exact PR419 head and trusted project", () => {
@@ -137,6 +137,6 @@ test("CodeBridge offers only fixed payment CI tool commands", () => {
   );
   assert.match(
     source("scripts/auto-update-development.sh"),
-    /"419", "09f39bcfa7ed649a90a544406140ab378f291b6f"/,
+    /"419", "a1c4e6344cf6fd96e35f95e7fe46116e0c0ea157"/,
   );
 });
