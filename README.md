@@ -45,6 +45,8 @@
   <a href="#local-llm-first"><strong>Local LLM first</strong></a> ·
   <a href="#architecture"><strong>Architecture</strong></a> ·
   <a href="#quick-start"><strong>Quick start</strong></a> ·
+  <a href="docs/MARKETPLACE-PUBLISHING.md"><strong>Claude & MCP install</strong></a> ·
+  <a href="docs/PRICING.md"><strong>Launch plans</strong></a> ·
   <a href="#security-boundaries"><strong>Security</strong></a> ·
   <a href="#contributing"><strong>Contributing</strong></a>
 </p>
