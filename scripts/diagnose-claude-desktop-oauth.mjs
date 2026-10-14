@@ -1,3 +1,5 @@
+import { pathToFileURL } from "node:url";
+
 // Read-only public OAuth discovery preflight for Claude Desktop / CodeBridge.
 // Never registers clients, follows auth redirects, sends credentials or logs tokens.
 const EXPECTED = "https://kmjtechno.com";
@@ -100,7 +102,7 @@ export async function readOnlyClaudeOAuthProbe({ fetcher = fetch } = {}) {
   };
 }
 
-if (process.argv[1] && import.meta.url === new URL("file://" + process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = await readOnlyClaudeOAuthProbe();
   process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   if (result.status !== "DISCOVERY_READY_ONLY") process.exitCode = 1;
