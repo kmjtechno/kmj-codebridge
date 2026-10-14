@@ -40,6 +40,36 @@ test("OAuth discovery refuses misconfigured issuer, redirect or missing PKCE", (
   assert.ok(result.issues.includes("PKCE_S256_MISSING"));
 });
 
+test("OAuth discovery rejects schema-invalid string capability fields", () => {
+  const result = validateDiscovery(resource, {
+    ...auth,
+    code_challenge_methods_supported: "S256",
+    response_types_supported: "code",
+    token_endpoint_auth_methods_supported: "none",
+  });
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.issues, [
+    "PKCE_S256_MISSING",
+    "AUTHORIZATION_CODE_MISSING",
+    "PUBLIC_CLIENT_AUTH_MISSING",
+  ]);
+});
+
+test("OAuth discovery rejects missing and non-array capabilities without throwing", () => {
+  const result = validateDiscovery(resource, {
+    ...auth,
+    code_challenge_methods_supported: { includes: "S256" },
+    response_types_supported: null,
+    token_endpoint_auth_methods_supported: 42,
+  });
+  assert.equal(result.ok, false);
+  assert.deepEqual(result.issues, [
+    "PKCE_S256_MISSING",
+    "AUTHORIZATION_CODE_MISSING",
+    "PUBLIC_CLIENT_AUTH_MISSING",
+  ]);
+});
+
 test("Read-only doctor fetches only two public metadata URLs; never tokens", async () => {
   const seen = [];
   const fakeFetch = async (url, options) => {
