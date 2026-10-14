@@ -89,7 +89,10 @@ test("supervisor absent is diagnosed from runtime config without privilege escal
   const issue = report.blockerRecovery.blockers.find(
     (entry) => entry.code === "SUPERVISOR_NOT_CONFIGURED",
   );
-  assert.equal(issue.requiredCodeBridgeFeature, "SAFE_SUPERVISOR_BOOTSTRAP_AND_AGENT_BINDING");
+  assert.equal(
+    issue.requiredCodeBridgeFeature,
+    "SAFE_SUPERVISOR_BOOTSTRAP_AND_AGENT_BINDING",
+  );
   assert.match(issue.nextAction, /existing credentials/);
   assert.equal(report.blockerRecovery.productionOrBillingModified, false);
 });
