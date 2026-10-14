@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { AutopilotJournal } from "../src/autopilot.js";
+import { WorktreeLanes } from "../src/worktree-lanes.js";
 import {
   AutopilotGateWorker,
   canQueueAutopilotGate,
@@ -48,15 +49,21 @@ function fixture(t, overrides = {}) {
     root,
     writable: true,
     gates: { fast: { command: "node", args: ["--version"], timeoutMs: 1000 } },
-    autopilotGateWorker: { enabled: true, gates: ["fast"] },
+    autopilotGateWorker: {
+      enabled: true,
+      gates: ["fast"],
+      isolatedWorktree: overrides.isolatedWorktree === true,
+    },
   };
   const jobs = new Map();
   let runCount = 0;
+  let lastRun = null;
   const runner = {
     maxConcurrent: 1,
     capacity: () => ({ blocked: false }),
     run: ({ key, ...args }) => {
       runCount++;
+      lastRun = { key, ...args };
       const job = { id: "job-" + runCount, state: "running", exitCode: null };
       jobs.set(job.id, job);
       return { ...job };
@@ -72,6 +79,10 @@ function fixture(t, overrides = {}) {
     journal,
     runner,
     licenseProvider: overrides.licenseProvider ?? entitlement,
+    lanes:
+      overrides.lanes === false
+        ? null
+        : new WorktreeLanes(journal.dir),
   });
   return {
     root,
@@ -89,6 +100,7 @@ function fixture(t, overrides = {}) {
         priority,
       }),
     count: () => runCount,
+    lastRun: () => lastRun,
   };
 }
 
@@ -267,4 +279,105 @@ test("failed gate cannot schedule repairs unless explicitly configured", (t) => 
   f.worker.tick();
   assert.equal(f.journal.get(task.id, "repo").state, "waiting");
   assert.equal(f.journal.state.tasks.length, 1);
+});
+
+test("isolated gate executes at pinned SHA despite Claude dirty checkout", (t) => {
+  const f = fixture(t, { isolatedWorktree: true });
+  const local = path.join(f.root, "claude-untracked.txt");
+  fs.writeFileSync(local, "preserve parallel AI edits");
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "running");
+  assert.equal(f.count(), 1);
+  const selected = f.lastRun().cwd;
+  assert.notEqual(selected, f.root, "QA must not execute in Claude's checkout");
+  assert.ok(selected.includes("isolated-worktrees"));
+  assert.equal(
+    execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd: selected,
+      encoding: "utf8",
+    }).trim(),
+    f.head,
+  );
+  assert.equal(
+    fs.readFileSync(local, "utf8"),
+    "preserve parallel AI edits",
+  );
+  f.jobs.get("job-1").state = "succeeded";
+  f.jobs.get("job-1").exitCode = 0;
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "succeeded");
+  assert.equal(fs.readFileSync(local, "utf8"), "preserve parallel AI edits");
+});
+
+test("dirty isolated worktree remains reviewable and never runs a gate", (t) => {
+  const f = fixture(t, { isolatedWorktree: true });
+  const lanes = new WorktreeLanes(f.journal.dir);
+  const row = lanes.prepare(
+    "repo",
+    f.root,
+    `autogate_${f.head.slice(0, 24)}`,
+    f.head,
+  );
+  const artifact = path.join(row.path, "review-evidence.txt");
+  fs.writeFileSync(artifact, "do not delete test artifacts");
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_GATE_WORKTREE_DIRTY_REVIEW_REQUIRED",
+  );
+  assert.equal(f.count(), 0);
+  assert.equal(fs.readFileSync(artifact, "utf8"), "do not delete test artifacts");
+});
+
+test("isolated opt-in without a worktree manager fails closed, never runs root", (t) => {
+  const f = fixture(t, { isolatedWorktree: true, lanes: false });
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_GATE_WORKTREE_UNAVAILABLE",
+  );
+  assert.equal(f.count(), 0);
+});
+
+test("isolated lane refuses an outdated expected HEAD and preserves dirty data", (t) => {
+  const f = fixture(t, { isolatedWorktree: true });
+  const before = path.join(f.root, "other-agent.tmp");
+  fs.writeFileSync(before, "keep it");
+  const task = f.enqueue("auto-gate:fast:" + "f".repeat(40));
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(f.count(), 0);
+  assert.equal(fs.readFileSync(before, "utf8"), "keep it");
+});
+
+test("isolated mode obeys finite capacity and never starts a gate under pressure", (t) => {
+  const f = fixture(t, { isolatedWorktree: true });
+  const task = f.enqueue();
+  f.runner.capacity = () => ({ blocked: true });
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.count(), 0);
+});
+
+test("execution entitlement still fences worktree creation in isolated mode", (t) => {
+  const f = fixture(t, {
+    isolatedWorktree: true,
+    licenseProvider: () => ({
+      features: ["read", "write"],
+      limits: { concurrent_jobs: 1 },
+    }),
+  });
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.count(), 0);
+  assert.equal(
+    new WorktreeLanes(f.journal.dir).status("repo", f.root).lanes.length,
+    0,
+  );
 });
