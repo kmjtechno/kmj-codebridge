@@ -142,3 +142,22 @@ test("CodeBridge offers only fixed payment CI tool commands", () => {
     /"419", "82458ef28186acb32a16103bbeba7b1e30595273"/,
   );
 });
+
+test("owner one-command payment QA bootstrap never deploys or captures charges", (t) => {
+  const script = source("scripts/bootstrap-private-payment-pr419.sh");
+  assert.match(script, /7ddd1ebee16f262fd34ec0625c43fff5bd4083d5/);
+  assert.match(script, /82458ef28186acb32a16103bbeba7b1e30595273/);
+  assert.match(script, /"pr": 419,/);
+  assert.match(script, /--untracked-files=no/);
+  assert.match(script, /systemctl start "\$unit"/);
+  assert.match(script, /PAYMENT_PR419_ISOLATED_LINUX_QA_PASS/);
+  assert.doesNotMatch(script, /git reset|git checkout|git push|php artisan migrate|npm run build/);
+  assert.doesNotMatch(script, /rzp_live_|cashfree.*production|payment.*capture/);
+  if (process.platform === "win32") return t.skip("POSIX shell only");
+  const check = spawnSync(
+    "bash",
+    ["-n", path.join(root, "scripts/bootstrap-private-payment-pr419.sh")],
+    { encoding: "utf8", timeout: 5000 },
+  );
+  assert.equal(check.status, 0, check.stderr);
+});
