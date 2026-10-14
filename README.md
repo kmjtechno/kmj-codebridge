@@ -71,6 +71,14 @@ copilot plugin marketplace add kmjtechno/kmj-codebridge
 copilot plugin install kmj-codebridge@kmj-techno
 ```
 
+**One-click editor setup:** [Add CodeBridge to Cursor](https://cursor.com/install-mcp?name=kmj-codebridge&config=eyJ1cmwiOiJodHRwczovL2ttanRlY2huby5jb20vbWNwIn0%3D) or [copy the VS Code install URI](docs/AI-CLIENT-QUICKSTART.md#vs-code--github-copilot-agent-mode-one-click-config). Both configure only the remote endpoint; user OAuth/device approval is still mandatory. Installation/link behavior is not independently verified across all editor versions.
+
+**OpenAI Codex CLI:**
+
+```sh
+codex mcp add kmj-codebridge --url https://kmjtechno.com/mcp
+```
+
 **ChatGPT and other supported Streamable HTTP MCP clients:** add `https://kmjtechno.com/mcp` as a **remote MCP connector**, then complete the client-supported OAuth consent flow. Do **not** use the MCP URL as a Git marketplace source. AI tools are scoped to approved devices/projects; no blanket remote shell access.
 
 **[Full setup, safety checks, and reusable AI-assistant prompt →](docs/AI-CLIENT-QUICKSTART.md)**
