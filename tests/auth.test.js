@@ -453,7 +453,11 @@ test("hosted OAuth tools/list advertises the configured CodeBridge brand icon wi
     assert.equal(response.status, 200);
     const json = await response.json();
     assert.ok(json.result?.tools?.length >= 10);
-    for (const name of ["list_devices", "connection_doctor", "run_quality_gate"]) {
+    for (const name of [
+      "list_devices",
+      "connection_doctor",
+      "run_quality_gate",
+    ]) {
       const found = json.result.tools.find((tool) => tool.name === name);
       assert.ok(found, name);
       assert.deepEqual(found.icons, [{ src: icon, mimeType: "image/png" }]);
