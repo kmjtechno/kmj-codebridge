@@ -78,3 +78,19 @@ test("official registry workflow is manual, scoped and has no static registry to
   assert.doesNotMatch(workflow, /MCP_(?:PRIVATE_KEY|GITHUB_TOKEN)/);
   assert.doesNotMatch(workflow, /on:\s*\n\s*push:/);
 });
+
+test("Claude OAuth distribution includes complete manifests and production endpoint", () => {
+  const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.match(
+    workflow,
+    /package-claude\.js https:\/\/kmjtechno\.com\/mcp --out/,
+  );
+  assert.match(
+    workflow,
+    /name: kmj-codebridge-claude-oauth-marketplace[\s\S]*?include-hidden-files: true/,
+  );
+  assert.match(
+    workflow,
+    /name: codebridge-release-candidate[\s\S]*?include-hidden-files: true/,
+  );
+});
