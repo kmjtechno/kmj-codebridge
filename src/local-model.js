@@ -211,6 +211,10 @@ export function createLocalModelClient(options = {}) {
           !result.done
         )
           fail("LOCAL_MODEL_RESPONSE_INVALID");
+        // Do not label an unexpected daemon-reported model as the requested
+        // model. Older compatible runtimes may omit this optional field.
+        if (result.model !== undefined && result.model !== model)
+          fail("LOCAL_MODEL_IDENTITY_MISMATCH");
         // A done:true response with only internal thinking is not a usable
         // output. Fail closed instead of claiming successful generation.
         if (result.response.trim().length === 0)
