@@ -1,0 +1,33 @@
+name: Local-first Telemetry
+
+on:
+  push:
+    paths:
+      - scripts/report-main-platform-telemetry.mjs
+      - tests/local-telemetry-reporter.test.js
+      - .github/workflows/local-telemetry.yml
+  pull_request:
+    paths:
+      - scripts/report-main-platform-telemetry.mjs
+      - tests/local-telemetry-reporter.test.js
+      - .github/workflows/local-telemetry.yml
+
+permissions:
+  contents: read
+
+jobs:
+  local_telemetry:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - name: Exact-source formatting
+        run: npx prettier --check scripts/report-main-platform-telemetry.mjs tests/local-telemetry-reporter.test.js
+      - name: Isolated local-only unit tests (no network or paid APIs)
+        run: node --test tests/local-telemetry-reporter.test.js
