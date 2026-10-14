@@ -103,6 +103,35 @@ const RULES = [
   },
 ];
 
+// ECC-style continuous-learning identity, without storing untrusted logs.
+// Stable across irrelevant line/column offsets and CI-generated commit IDs;
+// different diagnostic codes still produce different recurrence identities.
+export function recurrenceFingerprint({ category, lines, evidence }) {
+  if (
+    evidence !== "REDACTED_OUTPUT" ||
+    !Array.isArray(lines) ||
+    lines.length === 0
+  )
+    return null;
+  const normalized = lines
+    .slice(0, MAX_LINES)
+    .map((line) =>
+      line
+        .toLowerCase()
+        .replace(/\b[a-f0-9]{40,64}\b/g, "<revision>")
+        .replace(/\(\d{1,6},\d{1,6}\)/g, "(#,#)")
+        .replace(/:(\d{1,6})(?::\d{1,6})?\b/g, ":#")
+        .replace(/\bline\s+\d{1,6}\b/g, "line #")
+        .replace(/[ \t]+/g, " ")
+        .trim(),
+    )
+    .sort();
+  return createHash("sha256")
+    .update(JSON.stringify([category, normalized]))
+    .digest("hex")
+    .slice(0, 16);
+}
+
 export function safeCiStepName(value) {
   if (typeof value !== "string") return "REDACTED_STEP";
   if (
@@ -139,6 +168,11 @@ export function triageCiFailure({
   return {
     category,
     fingerprint: key,
+    recurrenceFingerprint: recurrenceFingerprint({
+      category,
+      lines: safeLines,
+      evidence,
+    }),
     evidence: verifiedExcerpt ? "REDACTED_OUTPUT" : "INSUFFICIENT",
     rootCauseVerified: false,
     suggestedGateRole: verifiedExcerpt ? (matched?.gate ?? null) : null,

@@ -37,6 +37,36 @@ test("same failure has stable fingerprint and independent errors differ", () => 
   );
 });
 
+test("repeated TypeScript errors share a hash-only identity across line moves", () => {
+  const make = (line) =>
+    triageCiFailure({ lines: [line], evidence: "REDACTED_OUTPUT" });
+  const first = make("src/page.ts(14,2): error TS2322: Type A incompatible");
+  const moved = make("src/page.ts(900,19): error TS2322: Type A incompatible");
+  const different = make("src/page.ts(14,2): error TS2339: Property missing");
+  assert.match(first.recurrenceFingerprint, /^[0-9a-f]{16}$/);
+  assert.equal(first.recurrenceFingerprint, moved.recurrenceFingerprint);
+  assert.notEqual(first.recurrenceFingerprint, different.recurrenceFingerprint);
+  assert.notEqual(first.fingerprint, moved.fingerprint);
+  assert.equal(
+    make("Authorization token=hidden secret: error TS2322")
+      .recurrenceFingerprint,
+    null,
+  );
+  assert.ok(
+    !JSON.stringify(first).includes("Type A incompatible"),
+    "triage metadata never returns raw failure log text",
+  );
+});
+
+test("insufficient evidence has no reusable issue signature", () => {
+  const result = triageCiFailure({
+    lines: ["error TS2322 at line 14"],
+    evidence: "OUTPUT_UNAVAILABLE",
+  });
+  assert.equal(result.recurrenceFingerprint, null);
+  assert.equal(result.rootCauseVerified, false);
+});
+
 test("missing verified diagnostics never authorize a fix", () => {
   const r = triageCiFailure({
     stepName: "php_pint",
