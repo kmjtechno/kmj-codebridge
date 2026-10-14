@@ -970,8 +970,10 @@ function classifyPrivateCiWorkerLog(text) {
       const targetCodes = new Set();
       const errorCodes = new Set();
       for (const match of matches) {
-        if (targets.has(match[1])) targetCodes.add(targets.get(match[1]));
-        errorCodes.add("TS" + match[4]);
+        if (targets.has(match[1])) {
+          targetCodes.add(targets.get(match[1]));
+          errorCodes.add("TS" + match[4]);
+        }
       }
       return {
         ...result("TYPESCRIPT_ERRORS_REPORTED"),
