@@ -158,3 +158,31 @@ export function inspectBlockers({
       "Actions require real project permissions, provider consent, an authorized worker and independent QA. Advice alone neither enqueues nor runs tasks.",
   };
 }
+
+/**
+ * Opt-in, persisted handoff after an authorized caller pauses a task.
+ * Classification is fixed; no user-supplied instructions become shell
+ * commands, and an ordinary remediation task never executes by itself.
+ */
+export const BLOCKER_CODES = Object.freeze(Object.keys(SAFE_ACTIONS));
+
+export function remediationTaskForBlocker(blockerCode, taskId) {
+  if (!BLOCKER_CODES.includes(blockerCode))
+    throw new TypeError("UNKNOWN_RECOVERY_CODE");
+  if (
+    typeof taskId !== "string" ||
+    !/^[a-f0-9]{8}-[a-f0-9-]{27,40}$/.test(taskId)
+  )
+    throw new TypeError("INVALID_PARENT_TASK_ID");
+  const normalizedId = taskId.replaceAll("-", "");
+  const action = SAFE_ACTIONS[blockerCode];
+  return {
+    key: `blocker:${blockerCode.toLowerCase()}:${normalizedId}`,
+    priority: 90,
+    dependsOn: [],
+    objective:
+      `CodeBridge recovery feature ${action.requiredCodeBridgeFeature} for ${blockerCode}. ` +
+      action.nextAction +
+      " Record exact-SHA evidence, preserve other agents' work, do not deploy, purchase, delete data, bypass grants, or claim the blocker is fixed without tests.",
+  };
+}
