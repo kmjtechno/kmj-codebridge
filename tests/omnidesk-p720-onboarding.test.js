@@ -17,7 +17,7 @@ test("OmniDesk uses its own agent, project root, state, and private config", () 
   ]) {
     assert.ok(source.includes(value), value);
   }
-  assert.match(source, /projects = @\(@\(\{/u);
+  assert.match(source, /projects = @\(@\{/u);
   assert.doesNotMatch(source, /Remove-Item[\s\S]*-Recurse/u);
   assert.doesNotMatch(source, /Stop-Process|Restart-Service|Set-Service/u);
 });
@@ -47,5 +47,5 @@ test("Owner approval and actual gateway online verification are required", () =>
   assert.match(source, /scripts\\enroll-device\.js/u);
   assert.match(source, /OWNER_PAIRING_NOT_COMPLETED/u);
   assert.match(source, /Check CodeBridge list_devices and inspect_project/u);
-  assert.match(source, /-VerifyOnly/u);
+  assert.match(source, /param\(\[switch\]\$VerifyOnly\)/u);
 });
