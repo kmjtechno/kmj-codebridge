@@ -37,6 +37,9 @@ const PRIVATE_PR322_CI_SERVICE = "kmj-codebridge-private-pr322-ci.service";
 const PRIVATE_PR337_CI_SERVICE = "kmj-codebridge-private-pr337-ci.service";
 const PRIVATE_PR337_CI_EVIDENCE =
   "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json";
+const PRIVATE_PR419_CI_SERVICE = "kmj-codebridge-private-pr419-ci.service";
+const PRIVATE_PR419_CI_EVIDENCE =
+  "/var/lib/kmj-codebridge-ci/evidence/latest-pr419.json";
 const PRIVATE_PR322_CI_EVIDENCE =
   "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
@@ -1713,6 +1716,15 @@ export function createSupervisorHandler({
             "ExecMainExitTimestamp",
             "InvocationID",
           ]),
+          privatePr419Ci: fixedUnitStatus(run, PRIVATE_PR419_CI_SERVICE, [
+            "ActiveState",
+            "SubState",
+            "Result",
+            "ExecMainStatus",
+            "ExecMainStartTimestamp",
+            "ExecMainExitTimestamp",
+            "InvocationID",
+          ]),
           privatePr322Evidence: privateCiEvidence(
             lstat,
             readFile,
@@ -1725,6 +1737,13 @@ export function createSupervisorHandler({
             readFile,
             337,
             PRIVATE_PR337_CI_EVIDENCE,
+            { readLog, readdir },
+          ),
+          privatePr419Evidence: privateCiEvidence(
+            lstat,
+            readFile,
+            419,
+            PRIVATE_PR419_CI_EVIDENCE,
             { readLog, readdir },
           ),
           privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
@@ -1879,6 +1898,37 @@ export function createSupervisorHandler({
       return {
         response: { accepted: true, target: "private-pr337" },
         afterSend: () => start(PRIVATE_PR337_CI_SERVICE),
+      };
+    }
+
+    if (request.op === "private_pr419_ci_status") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, PRIVATE_PR419_CI_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "Result",
+        "ExecMainStatus",
+      ]);
+      const last = privateCiEvidence(
+        lstat,
+        readFile,
+        419,
+        PRIVATE_PR419_CI_EVIDENCE,
+        { readLog, readdir },
+      );
+      return { response: { service, last } };
+    }
+
+    if (request.op === "private_pr419_ci_start") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, PRIVATE_PR419_CI_SERVICE, [
+        "ActiveState",
+      ]);
+      if (!service.installed) fail("SUPERVISOR_PRIVATE_CI_UNAVAILABLE");
+      if (service.activeState === "active") fail("SUPERVISOR_PRIVATE_CI_BUSY");
+      return {
+        response: { accepted: true, target: "private-pr419" },
+        afterSend: () => start(PRIVATE_PR419_CI_SERVICE),
       };
     }
 
