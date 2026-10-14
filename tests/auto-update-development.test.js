@@ -167,3 +167,30 @@ main_platform_refresh_allowed
     /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/,
   );
 });
+
+test("existing enrolled agent can activate fast updates without re-enrollment or restart", (t) => {
+  const installer = fs.readFileSync(
+    "scripts/activate-existing-fast-updater.sh",
+    "utf8",
+  );
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_STANDARD_RUNTIME_MISSING/);
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_NONDEVELOPMENT_UNIT/);
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_RUNTIME_DIRTY/);
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_AGENT_UNEXPECTED/);
+  assert.match(installer, /CODEBRIDGE_FAST_AUTO_UPDATE_TIMER_ACTIVE=1/);
+  assert.match(installer, /CODEBRIDGE_AUTO_UPDATE_AGENT_RESTARTED=0/);
+  assert.match(installer, /OnUnitInactiveSec=2min/);
+  assert.match(installer, /systemctl enable --now "\$timer"/);
+  assert.doesNotMatch(installer, /systemctl restart|systemctl stop/);
+  assert.doesNotMatch(installer, /CODEBRIDGE_TOKEN|CODEBRIDGE_ENROLLMENT/);
+  if (process.platform === "win32") {
+    t.skip("POSIX bash validation runs on Linux CI");
+    return;
+  }
+  const checked = spawnSync(
+    "bash",
+    ["-n", "scripts/activate-existing-fast-updater.sh"],
+    { encoding: "utf8", timeout: 5000 },
+  );
+  assert.equal(checked.status, 0, checked.stderr);
+});
