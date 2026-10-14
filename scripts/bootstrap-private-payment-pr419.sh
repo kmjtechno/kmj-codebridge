@@ -4,8 +4,8 @@
 set -Eeuo pipefail
 umask 077
 [[ "$EUID" -eq 0 && "$#" -eq 0 ]] || { echo PAYMENT_QA_ROOT_NO_ARGS_REQUIRED >&2; exit 2; }
-source_sha="437bffdf878f27b232f571eef9a4535261b470c4"
-review_sha="fabbec09255416b1110fa367583aeb7a55f0dc94"
+source_sha="b2416cd2e4aac8706b2053a3c37e9967e84e6461"
+review_sha="8d82d8e225ef89be1107402dfcfbfe5ae740c91e"
 branch="feat/payment-gateway-guided-onboarding-20261014"
 runtime="/opt/kmj-codebridge-agent"
 project="/srv/kmj-codebridge-projects/kmj-main-platform"
@@ -80,7 +80,15 @@ for file in ci-main-platform-pr-worker.sh ci-main-platform-pr419.sh ci-main-plat
   install -o root -g root -m 0755 "$tmp/source/scripts/$file" "$dst"
 done
 bash "$runtime/scripts/install-private-pr419-ci-unit.sh"
+set +e
 systemctl start "$unit"
+unit_rc=$?
+set -e
+# Always print bounded non-secret gate evidence on service failure. Do not
+# dump unrestricted Laravel provider logs or any deployment credentials.
+if [[ "$unit_rc" -ne 0 ]]; then
+  echo PAYMENT_PR419_UNIT_EXIT="$unit_rc"
+fi
 python3 - "$review_sha" <<'PY'
 import json, pathlib, sys
 record = json.loads(pathlib.Path("/var/lib/kmj-codebridge-ci/evidence/latest-pr419.json").read_text())
