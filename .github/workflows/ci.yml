@@ -5,6 +5,26 @@ on:
 permissions:
   contents: read
 jobs:
+  registry_manifest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Verify and run pinned official MCP Registry manifest validator
+        shell: bash
+        run: |
+          set -euo pipefail
+          publisher_archive="$RUNNER_TEMP/mcp-publisher_linux_amd64.tar.gz"
+          curl --fail --location --silent --show-error --retry 2 \
+            https://github.com/modelcontextprotocol/registry/releases/download/v1.8.1/mcp-publisher_linux_amd64.tar.gz \
+            -o "$publisher_archive"
+          echo "a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc  $publisher_archive" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/mcp-publisher"
+          tar -xzf "$publisher_archive" -C "$RUNNER_TEMP/mcp-publisher" mcp-publisher
+          chmod 755 "$RUNNER_TEMP/mcp-publisher/mcp-publisher"
+          "$RUNNER_TEMP/mcp-publisher/mcp-publisher" validate server.json
   # CORE MCP: protocol/schema, security/policy and gateway/agent integration.
   verify:
     strategy:
