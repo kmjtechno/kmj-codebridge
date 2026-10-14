@@ -55,7 +55,10 @@ test("risk guard flags identity, payment, workflows, agent hooks and unsafe shel
   assert.ok(scan.requiredGates.includes("supply-chain-review"));
   assert.ok(scan.requiredGates.includes("signed-release-proof"));
   assert.ok(scan.requiredGates.includes("commerce-integrity-tests"));
-  assert.doesNotMatch(JSON.stringify(scan), /https:\/\/example\.invalid|\/tmp\/ignored|eval\(input\)/);
+  assert.doesNotMatch(
+    JSON.stringify(scan),
+    /https:\/\/example\.invalid|\/tmp\/ignored|eval\(input\)/,
+  );
 });
 
 test("removed-only dangerous lines cannot trigger a false positive", () => {
@@ -116,9 +119,24 @@ test("handoff is SHA-fenced and contains no patch, prompt, or credentials", () =
     publicationStatus: "NOT_PUBLISHED",
   });
   for (const bad of [
-    { expectedHead: "not-a-sha", patchSha256: PATCH, verificationJobId: "job-2", guard },
-    { expectedHead: SOURCE, patchSha256: PATCH, verificationJobId: "job;rm -rf /", guard },
-    { expectedHead: SOURCE, patchSha256: "bad", verificationJobId: "job-2", guard },
+    {
+      expectedHead: "not-a-sha",
+      patchSha256: PATCH,
+      verificationJobId: "job-2",
+      guard,
+    },
+    {
+      expectedHead: SOURCE,
+      patchSha256: PATCH,
+      verificationJobId: "job;rm -rf /",
+      guard,
+    },
+    {
+      expectedHead: SOURCE,
+      patchSha256: "bad",
+      verificationJobId: "job-2",
+      guard,
+    },
   ]) {
     assert.throws(() => reviewHandoff(bad), /HARNESS_HANDOFF_INVALID_EVIDENCE/);
   }
