@@ -326,6 +326,9 @@ export const agentSchema = z.object({
             .object({
               enabled: z.boolean().default(false),
               gates: z.array(id).min(1).max(16),
+              // Explicit opt-in: run approved gate from a pinned clean detached
+              // worktree even when Claude/main checkout has uncommitted work.
+              isolatedWorktree: z.boolean().default(false),
             })
             .strict()
             .optional(),
