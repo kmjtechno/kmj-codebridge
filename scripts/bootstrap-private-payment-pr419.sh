@@ -4,8 +4,8 @@
 set -Eeuo pipefail
 umask 077
 [[ "$EUID" -eq 0 && "$#" -eq 0 ]] || { echo PAYMENT_QA_ROOT_NO_ARGS_REQUIRED >&2; exit 2; }
-source_sha="7ddd1ebee16f262fd34ec0625c43fff5bd4083d5"
-review_sha="82458ef28186acb32a16103bbeba7b1e30595273"
+source_sha="437bffdf878f27b232f571eef9a4535261b470c4"
+review_sha="fabbec09255416b1110fa367583aeb7a55f0dc94"
 branch="feat/payment-gateway-guided-onboarding-20261014"
 runtime="/opt/kmj-codebridge-agent"
 project="/srv/kmj-codebridge-projects/kmj-main-platform"
