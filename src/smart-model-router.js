@@ -12,6 +12,7 @@ const STRATEGIES = new Set([
 const SHA = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/;
 const MAX_MODELS = 64;
 const MAX_ROUTE = 8;
+const MAX_DISCOVERY_AGE_MS = 24 * 60 * 60 * 1000;
 
 function metric(value, max, name) {
   if (
@@ -24,7 +25,7 @@ function metric(value, max, name) {
   return value;
 }
 
-function profile(model) {
+function profile(model, nowMs) {
   if (!model || typeof model !== "object") {
     throw new Error("SMART_MODEL_ROUTER_INVALID_MODEL");
   }
@@ -42,11 +43,25 @@ function profile(model) {
     model.p95LatencyMs === undefined
       ? 120000
       : metric(model.p95LatencyMs, 120000, "LATENCY");
-  if (
-    model.kind === "cloud" &&
-    (model.freeTierVerified !== true || model.costPerMillionTokensUsd !== 0)
-  )
-    return null;
+  if (model.kind === "cloud") {
+    // The Main Platform controller exposes enabled/health status, while its
+    // server-side provider manager enforces fresh discovery and free admission.
+    // Absent/stale metadata is NOT assumed healthy or billable-free.
+    if (
+      model.enabled !== true ||
+      model.health !== "ok" ||
+      !Number.isSafeInteger(model.modelsDiscoveredAtMs) ||
+      model.modelsDiscoveredAtMs > nowMs ||
+      nowMs - model.modelsDiscoveredAtMs >= MAX_DISCOVERY_AGE_MS ||
+      model.freeTierVerified !== true ||
+      model.costPerMillionTokensUsd !== 0
+    )
+      return null;
+    // OpenRouter free is per exact model ID, not per API key or account.
+    if (model.provider === "openrouter" && !model.id.endsWith(":free"))
+      return null;
+  }
+  if (model.kind === "local" && model.available === false) return null;
   if (
     model.kind === "local" &&
     model.costPerMillionTokensUsd !== undefined &&
@@ -92,7 +107,7 @@ export function planSmartModelRoute({
     models.length > MAX_MODELS ||
     !task ||
     typeof task !== "object" ||
-    !STRATEGIES.has(task.strategy ?? "local-first") ||
+    !STRATEGIES.has(task.strategy ?? "approved-free-cloud-first") ||
     !Number.isSafeInteger(nowMs) ||
     nowMs < 0 ||
     typeof task.cloudApproved !== "boolean" ||
@@ -107,9 +122,9 @@ export function planSmartModelRoute({
     Array.isArray(state)
   )
     throw new Error("SMART_MODEL_ROUTER_INVALID_TASK");
-  const strategy = task.strategy ?? "local-first";
+  const strategy = task.strategy ?? "approved-free-cloud-first";
   // validate all hint data eagerly, not only the eventually eligible models
-  const hintById = new Map(models.map((m) => [m.id, profile(m)]));
+  const hintById = new Map(models.map((m) => [m.id, profile(m, nowMs)]));
   const policy = new ModelFailoverPolicy(models, {
     now: () => nowMs,
     state,

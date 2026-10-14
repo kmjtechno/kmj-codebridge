@@ -197,3 +197,22 @@ test("a partial response cannot erase an observed future reset window", () => {
     freeCloud.id,
   );
 });
+
+test("OpenRouter provider-scoped free IDs are accepted without treating them as paths", () => {
+  const openrouter = {
+    ...freeCloud,
+    id: "nvidia/nemotron-3-ultra-50b-a55b:free",
+    provider: "openrouter",
+  };
+  const router = new ModelFailoverPolicy([openrouter]);
+  assert.equal(
+    router.select({ ...task, cloudApproved: true }).modelId,
+    openrouter.id,
+  );
+  for (const id of ["../secret", "vendor//model:free", "vendor/../model"]) {
+    assert.throws(
+      () => new ModelFailoverPolicy([{ ...openrouter, id }]),
+      /MODEL_POLICY_INVALID_CONFIG/,
+    );
+  }
+});

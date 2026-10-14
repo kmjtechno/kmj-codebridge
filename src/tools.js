@@ -1197,7 +1197,7 @@ export const definitions = {
   model_route_plan: {
     title: "Intelligent zero-cost model route plan",
     description:
-      "Read-only CodeBridge-managed inference planner. Rank explicitly free, authorized, capability-matching local/cloud models using caller-supplied quality, p95 latency, reliability, context and quota. No inference, billing, credentials or host-chat model switching.",
+      "Read-only routing plan for configured CodeBridge AI-chat inference. Cloud models need caller-approved access, fresh healthy provider metadata, confirmed zero price, exact OpenRouter :free model ID and context/quota fit; local is the backup. No model invocation, provider keys or host-chat model switching.",
     input: {
       ...scoped,
       models: z
@@ -1208,6 +1208,10 @@ export const definitions = {
             kind: z.enum(["local", "cloud"]),
             free: z.boolean(),
             privateCodeAllowed: z.boolean(),
+            enabled: z.boolean().optional(),
+            health: z.enum(["ok", "error", "unknown"]).optional(),
+            modelsDiscoveredAtMs: z.number().int().min(0).optional(),
+            available: z.boolean().optional(),
             contextWindow: z.number().int().positive().max(1_000_000),
             capabilities: z.array(z.string().min(1).max(32)).max(16),
             qualityScore: z.number().min(0).max(100).optional(),
@@ -1233,7 +1237,7 @@ export const definitions = {
             "fastest",
             "highest-quality",
           ])
-          .default("local-first"),
+          .default("approved-free-cloud-first"),
         cloudApproved: z.boolean().default(false),
         privateCode: z.boolean().default(true),
       }),
