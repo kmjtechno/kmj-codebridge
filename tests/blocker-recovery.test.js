@@ -115,7 +115,13 @@ test("configured supervisor does not imply a live privileged socket", async (t) 
   const os = report.blockerRecovery.supervisor.status;
   if (process.platform === "linux") {
     assert.ok(
-      ["SOCKET_MISSING", "SOCKET_PRESENT_UNVERIFIED", "SOCKET_PROBE_UNAVAILABLE", "UNSAFE_SYMLINK", "INVALID_SOCKET_TYPE"].includes(os),
+      [
+        "SOCKET_MISSING",
+        "SOCKET_PRESENT_UNVERIFIED",
+        "SOCKET_PROBE_UNAVAILABLE",
+        "UNSAFE_SYMLINK",
+        "INVALID_SOCKET_TYPE",
+      ].includes(os),
       "Linux filesystem probe must distinguish actual socket state",
     );
   } else {
@@ -163,12 +169,20 @@ test("Linux missing socket and access error are differentiated", () => {
   const absent = observeSupervisorSocket({
     platform: "linux",
     configured: true,
-    lstat: () => { const e = new Error("not found"); e.code = "ENOENT"; throw e; },
+    lstat: () => {
+      const e = new Error("not found");
+      e.code = "ENOENT";
+      throw e;
+    },
   });
   const denied = observeSupervisorSocket({
     platform: "linux",
     configured: true,
-    lstat: () => { const e = new Error("permission denied"); e.code = "EACCES"; throw e; },
+    lstat: () => {
+      const e = new Error("permission denied");
+      e.code = "EACCES";
+      throw e;
+    },
   });
   assert.equal(absent.state, "SOCKET_MISSING");
   assert.equal(absent.socketExists, false);
@@ -181,7 +195,10 @@ test("Windows agent never probes the Linux supervisor socket", () => {
   const win = observeSupervisorSocket({
     platform: "win32",
     configured: false,
-    lstat: () => { called = true; throw new Error("should not run"); },
+    lstat: () => {
+      called = true;
+      throw new Error("should not run");
+    },
   });
   assert.equal(win.state, "UNSUPPORTED_OS");
   assert.equal(called, false);
@@ -190,17 +207,39 @@ test("Windows agent never probes the Linux supervisor socket", () => {
     supervisorObservation: win,
   });
   assert.equal(report.supervisor.status, "UNSUPPORTED_OS");
-  assert.equal(report.blockers.some((entry) => entry.code === "SUPERVISOR_NOT_CONFIGURED"), false);
-  assert.equal(report.blockers.some((entry) => entry.code === "SUPERVISOR_UNSUPPORTED_PLATFORM"), true);
+  assert.equal(
+    report.blockers.some((entry) => entry.code === "SUPERVISOR_NOT_CONFIGURED"),
+    false,
+  );
+  assert.equal(
+    report.blockers.some(
+      (entry) => entry.code === "SUPERVISOR_UNSUPPORTED_PLATFORM",
+    ),
+    true,
+  );
 });
 
 test("untrusted caller cannot forge a connected root supervisor", () => {
   assert.throws(
-    () => inspectBlockers({ supervisorObservation: { state: "SOCKET_PRESENT_UNVERIFIED", authenticated: true, noServiceMutation: true } }),
+    () =>
+      inspectBlockers({
+        supervisorObservation: {
+          state: "SOCKET_PRESENT_UNVERIFIED",
+          authenticated: true,
+          noServiceMutation: true,
+        },
+      }),
     /INVALID_SUPERVISOR_SOCKET_OBSERVATION/,
   );
   assert.throws(
-    () => inspectBlockers({ supervisorObservation: { state: "CONNECTED", authenticated: false, noServiceMutation: true } }),
+    () =>
+      inspectBlockers({
+        supervisorObservation: {
+          state: "CONNECTED",
+          authenticated: false,
+          noServiceMutation: true,
+        },
+      }),
     /INVALID_SUPERVISOR_SOCKET_OBSERVATION/,
   );
 });
