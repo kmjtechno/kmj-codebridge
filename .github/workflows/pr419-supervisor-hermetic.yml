@@ -1,0 +1,25 @@
+name: PR419 Supervisor Hermetic Regression
+
+on:
+  pull_request:
+    paths:
+      - tests/private-payment-pr419-ci.test.js
+      - .github/workflows/pr419-supervisor-hermetic.yml
+
+permissions:
+  contents: read
+
+jobs:
+  isolated-pr419:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts
+      - name: PR419 supervisor regression
+        run: node --test tests/private-payment-pr419-ci.test.js
