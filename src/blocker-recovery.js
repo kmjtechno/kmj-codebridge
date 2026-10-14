@@ -102,9 +102,9 @@ export function inspectBlockers({
   for (const kind of workers) {
     const configured = workerConfiguration[kind] === true;
     const observed =
-      workerStarted === null || !Array.isArray(workerStarted[kind])
+      workerStarted === null || typeof workerStarted[kind] !== "boolean"
         ? null
-        : workerStarted[kind].includes(true);
+        : workerStarted[kind];
     health[kind] = { configured, loopStarted: observed };
     if (configured && observed !== true)
       blockers.push(
