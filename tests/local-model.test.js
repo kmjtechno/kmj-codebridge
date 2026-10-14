@@ -54,6 +54,9 @@ test("on-demand inference requires a local installed model and unloads it", asyn
   });
   assert.equal(response.response, "local result");
   assert.equal(response.paidInference, false);
+  assert.equal(response.modelUsage.model, "tiny:1b");
+  assert.equal(response.modelUsage.provider, "local-ollama");
+  assert.equal(response.modelUsage.hostChatModel, "not_observable_by_codebridge");
   assert.equal(response.outputIsUntrusted, true);
   assert.equal(response.modelUnloadRequested, true);
   assert.equal(requests.length, 3);
