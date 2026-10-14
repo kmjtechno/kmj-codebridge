@@ -10,6 +10,7 @@ test("official MCP registry uses existing OAuth HTTPS endpoint without unpublish
   const pkg = json("package.json");
   assert.equal(registry.name, "io.github.kmjtechno/kmj-codebridge");
   assert.equal(registry.title, "KMJ CodeBridge");
+  assert.ok(registry.description.length <= 100);
   assert.equal(registry.version, pkg.version);
   assert.equal(registry.version, product.versions.stable);
   assert.equal(registry.websiteUrl, product.product.homepage);
