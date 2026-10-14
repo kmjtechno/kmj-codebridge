@@ -87,9 +87,14 @@ test("VPS installer provisions a bounded auto-update timer", () => {
   const installer = fs.readFileSync("scripts/install-vps.sh", "utf8");
   assert.match(installer, /kmj-codebridge-auto-update\.service/);
   assert.match(installer, /kmj-codebridge-auto-update\.timer/);
-  assert.match(installer, /OnBootSec=5min/);
-  assert.match(installer, /OnUnitActiveSec=1h/);
-  assert.match(installer, /RandomizedDelaySec=10min/);
+  assert.match(installer, /OnBootSec=1min/);
+  assert.match(installer, /OnUnitInactiveSec=2min/);
+  assert.match(installer, /RandomizedDelaySec=15s/);
+  assert.match(installer, /AccuracySec=15s/);
+  assert.doesNotMatch(installer, /OnUnitActiveSec=1h/);
+  assert.match(installer, /OnBootSec=2min/);
+  assert.match(installer, /OnUnitInactiveSec=5min/);
+  assert.match(installer, /RandomizedDelaySec=30s/);
   assert.match(installer, /Persistent=true/);
   assert.match(installer, /CODEBRIDGE_AUTO_UPDATE_MODE:-development/);
   assert.match(installer, /systemctl enable --now "\$AUTO_UPDATE_TIMER"/);
