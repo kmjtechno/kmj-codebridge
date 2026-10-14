@@ -6,6 +6,7 @@ import test from "node:test";
 import { JobRunner } from "../src/jobs.js";
 import { AutopilotJournal } from "../src/autopilot.js";
 import { definitions, createDispatcher } from "../src/tools.js";
+import { observeSupervisorSocket } from "../src/supervisor-socket-observation.js";
 import {
   inspectBlockers,
   remediationTaskForBlocker,
@@ -85,15 +86,18 @@ test("supervisor absent is diagnosed from runtime config without privilege escal
   const report = await dispatch("connection_doctor", scope, ["read"]);
   assert.equal(report.blockerRecovery.supervisor.configured, false);
   assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
-  assert.equal(report.blockerRecovery.supervisor.status, "NOT_CONFIGURED");
+  const expectedCode =
+    process.platform === "linux"
+      ? "SUPERVISOR_NOT_CONFIGURED"
+      : "SUPERVISOR_UNSUPPORTED_PLATFORM";
+  const expectedStatus =
+    process.platform === "linux" ? "NOT_CONFIGURED" : "UNSUPPORTED_OS";
+  assert.equal(report.blockerRecovery.supervisor.status, expectedStatus);
   const issue = report.blockerRecovery.blockers.find(
-    (entry) => entry.code === "SUPERVISOR_NOT_CONFIGURED",
+    (entry) => entry.code === expectedCode,
   );
-  assert.equal(
-    issue.requiredCodeBridgeFeature,
-    "SAFE_SUPERVISOR_BOOTSTRAP_AND_AGENT_BINDING",
-  );
-  assert.match(issue.nextAction, /existing credentials/);
+  assert.ok(issue, "platform-specific operator guidance must exist");
+  assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
   assert.equal(report.blockerRecovery.productionOrBillingModified, false);
 });
 
@@ -107,12 +111,16 @@ test("configured supervisor does not imply a live privileged socket", async (t) 
   const report = await dispatch("connection_doctor", scope, ["read"]);
   assert.equal(report.blockerRecovery.supervisor.configured, true);
   assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
-  assert.equal(report.blockerRecovery.supervisor.status, "NOT_PROBED");
-  assert.ok(
-    report.blockerRecovery.blockers.some(
-      (entry) => entry.code === "SUPERVISOR_HEALTH_NOT_VERIFIED",
-    ),
-  );
+  assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
+  const os = report.blockerRecovery.supervisor.status;
+  if (process.platform === "linux") {
+    assert.ok(
+      ["SOCKET_MISSING", "SOCKET_PRESENT_UNVERIFIED", "SOCKET_PROBE_UNAVAILABLE", "UNSAFE_SYMLINK", "INVALID_SOCKET_TYPE"].includes(os),
+      "Linux filesystem probe must distinguish actual socket state",
+    );
+  } else {
+    assert.equal(os, "UNSUPPORTED_OS");
+  }
   assert.equal(report.blockerRecovery.taskActuallyClaimed, false);
 });
 
@@ -126,6 +134,74 @@ test("strict supervisor observation cannot invent verified health", () => {
   assert.equal(
     r.blockers.some((item) => item.code === "SUPERVISOR_NOT_CONFIGURED"),
     false,
+  );
+});
+
+test("Linux socket preflight never connects, deletes files or mutates state", () => {
+  const paths = [];
+  const first = observeSupervisorSocket({
+    platform: "linux",
+    configured: true,
+    lstat: (path) => {
+      paths.push(path);
+      return { isSocket: () => true, isSymbolicLink: () => false };
+    },
+  });
+  assert.deepEqual(paths, ["/run/kmj-codebridge/supervisor.sock"]);
+  assert.equal(first.state, "SOCKET_PRESENT_UNVERIFIED");
+  assert.equal(first.authenticated, false);
+  assert.equal(first.noServiceMutation, true);
+  const unsafe = observeSupervisorSocket({
+    platform: "linux",
+    configured: true,
+    lstat: () => ({ isSocket: () => true, isSymbolicLink: () => true }),
+  });
+  assert.equal(unsafe.state, "UNSAFE_SYMLINK");
+});
+
+test("Linux missing socket and access error are differentiated", () => {
+  const absent = observeSupervisorSocket({
+    platform: "linux",
+    configured: true,
+    lstat: () => { const e = new Error("not found"); e.code = "ENOENT"; throw e; },
+  });
+  const denied = observeSupervisorSocket({
+    platform: "linux",
+    configured: true,
+    lstat: () => { const e = new Error("permission denied"); e.code = "EACCES"; throw e; },
+  });
+  assert.equal(absent.state, "SOCKET_MISSING");
+  assert.equal(absent.socketExists, false);
+  assert.equal(denied.state, "SOCKET_PROBE_UNAVAILABLE");
+  assert.equal(denied.socketExists, null);
+});
+
+test("Windows agent never probes the Linux supervisor socket", () => {
+  let called = false;
+  const win = observeSupervisorSocket({
+    platform: "win32",
+    configured: false,
+    lstat: () => { called = true; throw new Error("should not run"); },
+  });
+  assert.equal(win.state, "UNSUPPORTED_OS");
+  assert.equal(called, false);
+  const report = inspectBlockers({
+    supervisorConfigured: false,
+    supervisorObservation: win,
+  });
+  assert.equal(report.supervisor.status, "UNSUPPORTED_OS");
+  assert.equal(report.blockers.some((entry) => entry.code === "SUPERVISOR_NOT_CONFIGURED"), false);
+  assert.equal(report.blockers.some((entry) => entry.code === "SUPERVISOR_UNSUPPORTED_PLATFORM"), true);
+});
+
+test("untrusted caller cannot forge a connected root supervisor", () => {
+  assert.throws(
+    () => inspectBlockers({ supervisorObservation: { state: "SOCKET_PRESENT_UNVERIFIED", authenticated: true, noServiceMutation: true } }),
+    /INVALID_SUPERVISOR_SOCKET_OBSERVATION/,
+  );
+  assert.throws(
+    () => inspectBlockers({ supervisorObservation: { state: "CONNECTED", authenticated: false, noServiceMutation: true } }),
+    /INVALID_SUPERVISOR_SOCKET_OBSERVATION/,
   );
 });
 
