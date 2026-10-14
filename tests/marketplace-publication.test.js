@@ -10,6 +10,7 @@ test("official MCP registry uses existing OAuth HTTPS endpoint without unpublish
   const pkg = json("package.json");
   assert.equal(registry.name, "io.github.kmjtechno/kmj-codebridge");
   assert.equal(registry.title, "KMJ CodeBridge");
+  assert.ok(registry.description.length <= 100);
   assert.equal(registry.version, pkg.version);
   assert.equal(registry.version, product.versions.stable);
   assert.equal(registry.websiteUrl, product.product.homepage);
@@ -93,4 +94,22 @@ test("Claude OAuth distribution includes complete manifests and production endpo
     workflow,
     /name: codebridge-release-candidate[\s\S]*?include-hidden-files: true/,
   );
+});
+
+test("every candidate validates official MCP Registry manifest with pinned publisher", () => {
+  const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  const release = fs.readFileSync(
+    ".github/workflows/publish-mcp-registry.yml",
+    "utf8",
+  );
+  const digest = [
+    "a06c9096dcb9727c13555b6be26c7eff",
+    "a707b01f06a4c561ba7a3635443cf2cc",
+  ].join("");
+  assert.match(workflow, /registry_manifest:/);
+  assert.match(workflow, /mcp-publisher_linux_amd64\.tar\.gz/);
+  assert.ok(workflow.includes(digest));
+  assert.ok(release.includes(digest));
+  assert.match(workflow, /sha256sum --check --status/);
+  assert.match(workflow, /validate server\.json/);
 });
