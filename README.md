@@ -381,6 +381,8 @@ Third-party AI subscriptions/API usage are separate. Taxes and final checkout te
 
 See the full **[plan and premium feature matrix](docs/PRICING.md)**.
 
+Our published comparison of scope and actual activation gates is in **[Competitive plans & payment readiness](docs/COMPETITIVE-PLANS-AND-ACTIVATION.md)**. Merchant account approval is not a live CodeBridge subscription.
+
 **Interested in a Pro/Team pilot?** [Contact KMJ CodeBridge support](https://kmjtechno.com/products/kmj-codebridge/support) to request a private, opt-in developer-preview onboarding discussion. A request is **not a checkout**, invoice, active subscription or an entitlement. Paid access can be fulfilled only through verified KMJ Main Platform commercial orders and the applicable terms.
 
 ## Premium capability categories
