@@ -432,3 +432,74 @@ test("future issued-at, wrong issuer and future not-before are rejected", async 
     assert.equal(await verify("Bearer " + jwt), null);
   }
 });
+
+test("hosted OAuth tools/list advertises the configured CodeBridge brand icon without changing scopes", async () => {
+  const icon = "https://kmjtechno.com/assets/kmj-codebridge-icon.png";
+  const gw = await startGateway({ ...gatewayConfig, iconUrl: icon });
+  try {
+    const response = await fetch(gw.url + "/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 14,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    assert.equal(response.status, 200);
+    const json = await response.json();
+    assert.ok(json.result?.tools?.length >= 10);
+    for (const name of ["list_devices", "connection_doctor", "run_quality_gate"]) {
+      const found = json.result.tools.find((tool) => tool.name === name);
+      assert.ok(found, name);
+      assert.deepEqual(found.icons, [{ src: icon, mimeType: "image/png" }]);
+      assert.ok(found.securitySchemes);
+      assert.ok(found._meta?.securitySchemes);
+    }
+    const denied = await fetch(gw.url + "/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 15,
+        method: "tools/call",
+        params: { name: "list_devices", arguments: {} },
+      }),
+    });
+    assert.equal(denied.status, 401);
+  } finally {
+    await gw.close();
+  }
+});
+
+test("hosted OAuth tools/list omits icons when no HTTPS image is configured", async () => {
+  const gw = await startGateway(gatewayConfig);
+  try {
+    const response = await fetch(gw.url + "/mcp", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 16,
+        method: "tools/list",
+        params: {},
+      }),
+    });
+    assert.equal(response.status, 200);
+    const json = await response.json();
+    assert.ok(json.result?.tools?.length > 0);
+    assert.ok(json.result.tools.every((tool) => tool.icons === undefined));
+  } finally {
+    await gw.close();
+  }
+});
