@@ -60,6 +60,7 @@ export class AutopilotGateWorker {
     runner,
     licenseProvider,
     checkoutClean = verifyCleanGateCheckout,
+    lanes = null,
     now = Date.now,
   }) {
     this.projects = projects.filter(
@@ -69,6 +70,7 @@ export class AutopilotGateWorker {
     this.runner = runner;
     this.licenseProvider = licenseProvider;
     this.checkoutClean = checkoutClean;
+    this.lanes = lanes;
     this.now = now;
     this.active = new Map();
   }
@@ -167,15 +169,41 @@ export class AutopilotGateWorker {
       }
 
       try {
-        if (!this.checkoutClean(project.root, spec.expectedHead)) {
+        let checkout = project.root;
+        if (project.autopilotGateWorker.isolatedWorktree === true) {
+          // Never fall back to the dirty main checkout when isolated mode is
+          // explicitly selected. WorktreeLanes validates source HEAD, limits
+          // lanes to four, rejects path tricks and never force-cleans changes.
+          if (!this.lanes) {
+            pause("ISOLATED_GATE_WORKTREE_UNAVAILABLE");
+            continue;
+          }
+          const lane = this.lanes.prepare(
+            project.id,
+            project.root,
+            `autogate_${spec.expectedHead.slice(0, 24)}`,
+            spec.expectedHead,
+          );
+          if (lane.dirty || !this.checkoutClean(lane.path, spec.expectedHead)) {
+            pause("ISOLATED_GATE_WORKTREE_DIRTY_REVIEW_REQUIRED");
+            continue;
+          }
+          checkout = lane.path;
+        } else if (!this.checkoutClean(project.root, spec.expectedHead)) {
           pause("GIT_HEAD_CHANGED_OR_WORKTREE_DIRTY");
+          continue;
+        }
+        // Check the selected execution filesystem, not just the source root.
+        // The approved project gate still has its original finite job limits.
+        if (this.runner.capacity(checkout).blocked) {
+          pause("ISOLATED_GATE_CAPACITY_BLOCKED");
           continue;
         }
         const job = this.runner.run({
           project: project.id,
           gate: spec.gate,
           key: `auto-gate:${claimed.id}`,
-          cwd: project.root,
+          cwd: checkout,
           command: gate.command,
           args: gate.args,
           timeoutMs: gate.timeoutMs,
