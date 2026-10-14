@@ -35,7 +35,8 @@ test("OmniDesk binding is validated and no generic shell is exposed", () => {
     "LockFile",
     "CheckConfig",
   ]) {
-    if (marker === "PAIRING_GATEWAY_UNKNOWN" || marker === "CheckConfig") continue;
+    if (marker === "PAIRING_GATEWAY_UNKNOWN" || marker === "CheckConfig")
+      continue;
     assert.ok(source.includes(marker), marker);
   }
   assert.match(source, /'https:\/\/kmjtechno\.com'/u);
