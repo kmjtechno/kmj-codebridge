@@ -29,7 +29,8 @@ const RISK_RULES = Object.freeze([
 const PATCH_RULES = Object.freeze([
   {
     id: "DYNAMIC_CODE_EXECUTION",
-    pattern: /\b(?:eval\s*\(|new\s+Function\s*\(|child_process\b|execSync\s*\(|spawnSync\s*\()/i,
+    pattern:
+      /\b(?:eval\s*\(|new\s+Function\s*\(|child_process\b|execSync\s*\(|spawnSync\s*\()/i,
     gates: ["sandbox-and-command-allowlist"],
   },
   {
@@ -39,7 +40,8 @@ const PATCH_RULES = Object.freeze([
   },
   {
     id: "BROAD_PRIVILEGE_CHANGE",
-    pattern: /\b(?:chmod\s+(?:-R\s+)?777|--privileged|setenforce\s+0|disable[_-]?auth(?:entication)?|verify\s*:\s*false)\b/i,
+    pattern:
+      /\b(?:chmod\s+(?:-R\s+)?777|--privileged|setenforce\s+0|disable[_-]?auth(?:entication)?|verify\s*:\s*false)\b/i,
     gates: ["negative-auth-tests"],
   },
 ]);
@@ -63,10 +65,16 @@ const safeFiles = (files) =>
 // comments or prompts embedded in diffs cannot cause any host action.
 export function reviewHarnessGuard({ files, patch = null } = {}) {
   if (!safeFiles(files)) throw new Error("HARNESS_GUARD_INVALID_FILES");
-  if (patch !== null && (typeof patch !== "string" || patch.length > MAX_PATCH_CHARS))
+  if (
+    patch !== null &&
+    (typeof patch !== "string" || patch.length > MAX_PATCH_CHARS)
+  )
     throw new Error("HARNESS_GUARD_INVALID_PATCH");
   const signals = [];
-  const requiredGates = new Set(["exact-head-ci", "isolated-patch-verification"]);
+  const requiredGates = new Set([
+    "exact-head-ci",
+    "isolated-patch-verification",
+  ]);
   for (const name of files) {
     for (const rule of RISK_RULES) {
       if (!rule.path.test(name)) continue;
@@ -88,7 +96,10 @@ export function reviewHarnessGuard({ files, patch = null } = {}) {
   }
   const riskSignals = unique(signals);
   return {
-    risk: riskSignals.length > 0 ? "ELEVATED_MANUAL_REVIEW" : "STANDARD_MANUAL_REVIEW",
+    risk:
+      riskSignals.length > 0
+        ? "ELEVATED_MANUAL_REVIEW"
+        : "STANDARD_MANUAL_REVIEW",
     signals: riskSignals,
     requiredGates: unique([...requiredGates]),
     inspection: patch === null ? "PATHS_ONLY" : "PATCH_ADDITIONS_AND_PATHS",
@@ -102,7 +113,12 @@ export function reviewHarnessGuard({ files, patch = null } = {}) {
 
 // Structured cross-agent handoff: a small, SHA-fenced record rather than
 // persisting full patches, logs, prompts, credentials or untrusted instructions.
-export function reviewHandoff({ expectedHead, patchSha256, verificationJobId, guard }) {
+export function reviewHandoff({
+  expectedHead,
+  patchSha256,
+  verificationJobId,
+  guard,
+}) {
   if (
     !/^[a-f0-9]{40}$/.test(expectedHead ?? "") ||
     !/^[a-f0-9]{64}$/.test(patchSha256 ?? "") ||
@@ -111,7 +127,8 @@ export function reviewHandoff({ expectedHead, patchSha256, verificationJobId, gu
     !guard ||
     !Array.isArray(guard.requiredGates) ||
     !["STANDARD_MANUAL_REVIEW", "ELEVATED_MANUAL_REVIEW"].includes(guard.risk)
-  ) throw new Error("HARNESS_HANDOFF_INVALID_EVIDENCE");
+  )
+    throw new Error("HARNESS_HANDOFF_INVALID_EVIDENCE");
   return {
     stage: "REVIEW",
     sourceHead: expectedHead,
