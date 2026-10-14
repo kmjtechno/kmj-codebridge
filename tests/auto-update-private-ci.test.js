@@ -95,7 +95,7 @@ subprocess.run = stub_run
               ? body.replace(/^    \("419",[^\n]+\n/m, "")
               : body
                   .replace(/^    \("337",[^\n]+\n/m, "")
-                  .replace(/^    \("419",[^\n]+\n/m, ""))
+                  .replace(/^    \("419",[^\n]+\n/m, "")),
         ],
         {
           encoding: "utf8",
