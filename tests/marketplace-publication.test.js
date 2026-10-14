@@ -61,6 +61,10 @@ test("official registry workflow is manual, scoped and has no static registry to
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /login github-oidc/);
   assert.match(workflow, /mcp-publisher validate server\.json/);
+  assert.match(workflow, /Require live production OAuth discovery/);
+  assert.match(workflow, /codebridge:read/);
+  assert.match(workflow, /codebridge:write/);
+  assert.match(workflow, /verify-public-mcp-catalog\.mjs/);
   assert.ok(workflow.includes("mcp-publisher publish server.json"));
   assert.ok(
     workflow.includes("releases/download/v1.8.1/mcp-publisher_linux_amd64"),
