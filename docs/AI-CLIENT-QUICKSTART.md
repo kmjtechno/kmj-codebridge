@@ -13,7 +13,7 @@ claude plugin install kmj-codebridge@kmj-techno
 
 In Claude Cowork/desktop, open **Customize → Plugins → Add marketplace** and enter `kmjtechno/kmj-codebridge`. Install `kmj-codebridge` from `kmj-techno` and complete the OAuth account sign-in if prompted.
 
-**Do not** paste `https://kmjtechno.com/mcp` into the *Add marketplace* field. That is the remote MCP endpoint, not a Git repository.
+**Do not** paste `https://kmjtechno.com/mcp` into the _Add marketplace_ field. That is the remote MCP endpoint, not a Git repository.
 
 ## GitHub Copilot CLI (marketplace source)
 
@@ -27,6 +27,7 @@ copilot plugin install kmj-codebridge@kmj-techno
 This is a documentation-supported **installation path**, not a claim of a tested Copilot app directory listing. After install, check whether your Copilot version exposes the plugin's MCP server, sign in to the KMJ OAuth flow as prompted, and confirm tools are scoped to an authorized device and project. If your client blocks the plugin or remote MCP, obey its administrator policy; do not bypass security or import credentials from another AI app.
 
 References:
+
 - https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/plugins-marketplace
 - https://docs.github.com/en/copilot/reference/copilot-cli-reference/cli-plugin-reference
 
