@@ -1507,6 +1507,12 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
   const { client: defaultClient } = await setup(t);
   const defaultServer = defaultClient.getServerVersion();
   assert.equal(defaultServer?.icons, undefined);
+  const defaultTools = await defaultClient.listTools();
+  assert.ok(defaultTools.tools.length > 0);
+  assert.ok(
+    defaultTools.tools.every((tool) => tool.icons === undefined),
+    "an unconfigured logo URL must never be invented in tools/list",
+  );
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));
   const root = path.join(dir, "project");
@@ -1544,6 +1550,19 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
       mimeType: "image/png",
     },
   ]);
+  const advertisedTools = await client.listTools();
+  assert.ok(advertisedTools.tools.length >= 10);
+  for (const name of ["list_devices", "connection_doctor", "run_quality_gate"]) {
+    const tool = advertisedTools.tools.find((item) => item.name === name);
+    assert.ok(tool, `expected existing CodeBridge tool ${name}`);
+    assert.deepEqual(tool.icons, [
+      {
+        src: "https://kmjtechno.com/assets/kmj-codebridge-icon.png",
+        mimeType: "image/png",
+      },
+    ]);
+    assert.equal(typeof tool.title, "string");
+  }
 });
 
 test("agent-configured jobArchiveMaxEntries actually bounds the live job archive (issue #186)", async (t) => {
