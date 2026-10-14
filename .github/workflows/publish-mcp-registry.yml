@@ -26,6 +26,44 @@ jobs:
       - name: Checkout approved main
         uses: actions/checkout@v4
 
+      - name: Set up Node.js for production MCP verification
+        uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+
+      - name: Require live production OAuth discovery and scoped protection
+        shell: bash
+        run: |
+          set -euo pipefail
+          for path in .well-known/oauth-authorization-server .well-known/oauth-protected-resource/mcp oauth/jwks.json; do
+            curl --fail --silent --show-error --max-time 20 --retry 2 "https://kmjtechno.com/$path" >/dev/null
+          done
+
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          trap 'rm -f "$headers" "$body"' EXIT
+          for tool in list_devices write_file; do
+            scope="codebridge:read"
+            if [ "$tool" = "write_file" ]; then scope="codebridge:write"; fi
+            status="$(curl --silent --show-error --max-time 20 \
+              -D "$headers" -o "$body" -w '%{http_code}' \
+              -H 'Content-Type: application/json' \
+              -H 'Accept: application/json, text/event-stream' \
+              --data "{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"tools/call\",\"params\":{\"name\":\"$tool\",\"arguments\":{}}}" \
+              https://kmjtechno.com/mcp)"
+            if [ "$status" != "401" ]; then
+              echo "::error title=MCP OAuth release blocked::$tool returned HTTP $status instead of 401"
+              exit 1
+            fi
+            grep -iq '^www-authenticate:.*resource_metadata' "$headers"
+            grep -Fq "scope=\"$scope\"" "$headers"
+            grep -q '"UNAUTHORIZED"' "$body"
+            echo "PASS: $tool is protected by OAuth scope $scope"
+          done
+
+      - name: Require live production MCP tool catalog
+        run: node scripts/verify-public-mcp-catalog.mjs
+
       - name: Verify repository metadata and release contract
         run: |
           node -e 'const s=require("./server.json"); const p=require("./package.json"); if(s.version!==p.version || s.name!=="io.github.kmjtechno/kmj-codebridge" || s.remotes.length!==1 || s.remotes[0].url!=="https://kmjtechno.com/mcp") process.exit(1)'

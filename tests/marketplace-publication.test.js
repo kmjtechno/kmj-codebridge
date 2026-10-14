@@ -61,6 +61,10 @@ test("official registry workflow is manual, scoped and has no static registry to
   assert.match(workflow, /id-token: write/);
   assert.match(workflow, /login github-oidc/);
   assert.match(workflow, /mcp-publisher validate server\.json/);
+  assert.match(workflow, /Require live production OAuth discovery/);
+  assert.match(workflow, /codebridge:read/);
+  assert.match(workflow, /codebridge:write/);
+  assert.match(workflow, /verify-public-mcp-catalog\.mjs/);
   assert.ok(workflow.includes("mcp-publisher publish server.json"));
   assert.ok(
     workflow.includes("releases/download/v1.8.1/mcp-publisher_linux_amd64"),
@@ -73,4 +77,20 @@ test("official registry workflow is manual, scoped and has no static registry to
   assert.ok(workflow.includes("sha256sum --check --status"));
   assert.doesNotMatch(workflow, /MCP_(?:PRIVATE_KEY|GITHUB_TOKEN)/);
   assert.doesNotMatch(workflow, /on:\s*\n\s*push:/);
+});
+
+test("Claude OAuth distribution includes complete manifests and production endpoint", () => {
+  const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.match(
+    workflow,
+    /package-claude\.js https:\/\/kmjtechno\.com\/mcp --out/,
+  );
+  assert.match(
+    workflow,
+    /name: kmj-codebridge-claude-oauth-marketplace[\s\S]*?include-hidden-files: true/,
+  );
+  assert.match(
+    workflow,
+    /name: codebridge-release-candidate[\s\S]*?include-hidden-files: true/,
+  );
 });
