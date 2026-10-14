@@ -32,7 +32,7 @@ test("OmniDesk binding is validated and no generic shell is exposed", () => {
     "MORE_THAN_ONE_PROJECT",
     "DUPLICATE_OMNIDESK_AGENT",
     "FileMode]::CreateNew",
-    "LockFile",
+    "ProtectFile",
     "CheckConfig",
   ]) {
     if (marker === "PAIRING_GATEWAY_UNKNOWN" || marker === "CheckConfig")
