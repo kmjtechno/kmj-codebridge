@@ -17,6 +17,7 @@ import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { createLocalModelClient } from "./local-model.js";
+import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 import { reviewRepairCandidate } from "./autopilot-repair-review.js";
@@ -1622,6 +1623,15 @@ export function createDispatcher(
   );
   let localModel;
   const offlineModel = () => (localModel ??= localModelFactory());
+  // In-memory per-device/project observation only, never a ChatGPT/Claude
+  // conversation identifier or inference on the host client's model.
+  const lastModelUsage = new Map();
+  const rememberModel = (project, usage) => {
+    lastModelUsage.set(project, {
+      ...usage,
+      observedAt: new Date().toISOString(),
+    });
+  };
   let laneRegistry;
   const laneStateDir =
     typeof config.stateDir === "string" && config.stateDir.length > 0
@@ -1686,6 +1696,12 @@ export function createDispatcher(
         runtimeRevision: runtimeRevision(),
         ...(name === "connection_doctor"
           ? {
+              modelUsageStatus: {
+                scope: "device_project_current_agent_process",
+                lastVerifiedInvocation: lastModelUsage.get(p.id) ?? null,
+                originalChatHostModel: "not_observable_by_codebridge",
+                note: "Only successful CodeBridge model tool calls are observed. A configured provider or a tool call without inference is not model usage. This is per-project, not per-chat.",
+              },
               blockerRecovery: inspectBlockers({
                 clientVisibleTools: a.clientVisibleTools ?? null,
                 // This is a local config observation only, not a privileged
@@ -1773,7 +1789,14 @@ export function createDispatcher(
         maxTokens: a.maxTokens,
         timeoutSeconds: a.timeoutSeconds,
       });
-      return { device: config.id, project: p.id, ...response };
+      const usage = localModelReceipt(a.model, "local_model_generate");
+      rememberModel(p.id, usage);
+      return {
+        device: config.id,
+        project: p.id,
+        ...response,
+        modelUsage: usage,
+      };
     }
     if (name === "chat_lane_status")
       return { device: config.id, project: p.id, ...lanes().status(p.id) };
@@ -2422,6 +2445,8 @@ export function createDispatcher(
           writesApplied: false,
           paidInference: false,
           reviewRequired: true,
+          modelUsage: existing.modelUsage ?? unknownModelReceipt(),
+          modelUsageReusedFromCheckpoint: existing.modelUsage !== undefined,
         };
       }
       const prompt = [
@@ -2440,11 +2465,14 @@ export function createDispatcher(
       });
       const proposal = redact(generated.response ?? "").slice(0, 4096);
       if (!proposal.trim()) fail("AUTOPILOT_LOCAL_DRAFT_EMPTY");
+      const usage = localModelReceipt(a.model, "autopilot_local_draft");
       const saved = autopilot.checkpoint(a.task, p.id, {
         summary: proposal,
         next: "LOCAL_DRAFT_AWAITING_REVIEW",
         leaseToken: a.leaseToken,
+        modelUsage: usage,
       });
+      rememberModel(p.id, usage);
       return {
         device: config.id,
         project: p.id,
@@ -2456,6 +2484,8 @@ export function createDispatcher(
         writesApplied: false,
         paidInference: false,
         reviewRequired: true,
+        modelUsage: saved.checkpoint.modelUsage,
+        modelUsageReusedFromCheckpoint: false,
         next: "Use guarded CodeBridge edits and configured quality gates before completion",
       };
     }
