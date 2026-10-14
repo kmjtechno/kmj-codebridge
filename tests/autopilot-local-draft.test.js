@@ -94,6 +94,10 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
   assert.equal(out.writesApplied, false);
   assert.equal(out.reviewRequired, true);
   assert.equal(out.paidInference, false);
+  assert.equal(out.modelUsage.model, "tiny:1b");
+  assert.equal(out.modelUsage.provider, "local-ollama");
+  assert.equal(out.modelUsage.operation, "autopilot_local_draft");
+  assert.equal(out.modelUsage.hostChatModel, "not_observable_by_codebridge");
   // The reviewer is told when the draft was cut off by the token budget.
   assert.equal(out.hitTokenLimit, true);
   assert.match(out.proposal, /\[REDACTED\]/);
@@ -109,6 +113,9 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
     ["execute"],
   );
   assert.equal(replay.reused, true);
+  assert.equal(replay.modelUsage.model, "tiny:1b");
+  assert.equal(replay.modelUsageReusedFromCheckpoint, true);
+  assert.equal(autopilot.get(queued.id, "project1").checkpoint.modelUsage.model, "tiny:1b");
   assert.equal(calls, 1);
   assert.equal(autopilot.get(queued.id, "project1").state, "running");
   assert.equal(
@@ -144,6 +151,7 @@ test("unavailable local inference never checkpoints, edits files or charges a cl
     /LOCAL_MODEL_NOT_RUNNING/,
   );
   assert.equal(autopilot.get(queued.id, "project1").checkpoint, null);
+  assert.equal((await dispatch("connection_doctor", scope, ["read"])).modelUsageStatus.lastVerifiedInvocation, null);
 });
 
 test("finished, unclaimed or pre-checkpointed tasks never run a second model", async (t) => {
