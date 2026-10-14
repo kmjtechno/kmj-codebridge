@@ -1554,9 +1554,7 @@ test("MCP server advertises a configured icon URL and omits it when unset", asyn
   // the hosted OAuth tools/list override is verified in auth.test.js.
   const advertisedTools = await client.listTools();
   assert.ok(advertisedTools.tools.length >= 10);
-  assert.ok(
-    advertisedTools.tools.every((tool) => tool.icons === undefined),
-  );
+  assert.ok(advertisedTools.tools.every((tool) => tool.icons === undefined));
 });
 
 test("agent-configured jobArchiveMaxEntries actually bounds the live job archive (issue #186)", async (t) => {
