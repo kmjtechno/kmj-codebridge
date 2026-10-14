@@ -62,6 +62,16 @@ for file in "$service_file" "$timer_file"; do
     grep -Fq 'KMJ CodeBridge' "$file" || {
       echo CODEBRIDGE_TIMER_REPAIR_UNIT_NOT_OWNED >&2; exit 3;
     }
+    if [[ "$file" == "$service_file" ]]; then
+      grep -Fxq 'Environment=CODEBRIDGE_AUTO_UPDATE_MODE=development' "$file" &&
+      grep -Fxq 'ExecStart=/bin/bash /opt/kmj-codebridge-agent/scripts/auto-update-development.sh' "$file" || {
+        echo CODEBRIDGE_TIMER_REPAIR_NONDEVELOPMENT_UNIT >&2; exit 3;
+      }
+    else
+      grep -Fxq 'Unit=kmj-codebridge-auto-update.service' "$file" || {
+        echo CODEBRIDGE_TIMER_REPAIR_TIMER_UNIT_MISMATCH >&2; exit 3;
+      }
+    fi
   fi
 done
 work="$(mktemp -d /run/kmj-codebridge-update-timer.XXXXXXXX)"
