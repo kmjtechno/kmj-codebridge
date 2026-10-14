@@ -18,6 +18,11 @@ const SAFE_ACTIONS = Object.freeze({
     nextAction:
       "Inspect fixed worker runtime status and enrolled agent revision; use only approved supervisor controls after version/config verification.",
   },
+  WORKER_STATUS_NOT_INSTRUMENTED: {
+    requiredCodeBridgeFeature: "SUPERVISOR_RUNTIME_STATUS_EVIDENCE",
+    nextAction:
+      "Verify installed agent version and expose actual worker runtime handles before asserting any worker has started or stopped.",
+  },
   NO_AUTONOMOUS_CODING_EXECUTOR: {
     requiredCodeBridgeFeature: "LEASE_BOUND_LOCAL_FIRST_CODING_EXECUTOR",
     nextAction:
@@ -106,9 +111,13 @@ export function inspectBlockers({
         ? null
         : workerStarted[kind];
     health[kind] = { configured, loopStarted: observed };
-    if (configured && observed !== true)
+    if (configured && observed === false)
       blockers.push(
         issue("WORKER_CONFIGURED_NOT_STARTED", { worker: kind, observed }),
+      );
+    if (configured && observed === null)
+      blockers.push(
+        issue("WORKER_STATUS_NOT_INSTRUMENTED", { worker: kind, observed }),
       );
   }
   // A local-draft loop writes proposals, not reviewed code. Gate/repair workers
