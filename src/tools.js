@@ -19,6 +19,11 @@ import { createLocalModelClient } from "./local-model.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 import { reviewRepairCandidate } from "./autopilot-repair-review.js";
+import {
+  inspectBlockers,
+  BLOCKER_CODES,
+  remediationTaskForBlocker,
+} from "./blocker-recovery.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -1332,6 +1337,8 @@ export const definitions = {
       task: identifier,
       reason: z.string().min(1).max(4096),
       leaseToken: z.string().uuid().optional(),
+      // Opt-in typed handoff; no arbitrary text becomes an execution command.
+      blockerCode: z.enum(BLOCKER_CODES).optional(),
     },
     access: "write",
   },
@@ -1572,8 +1579,25 @@ export const definitions = {
   connection_doctor: {
     title: "Connection doctor",
     description:
-      "Read connection health and available project capabilities without changing settings.",
-    input: scoped,
+      "Read connection health and available project capabilities and diagnose missing hosted tools, inactive local workers, CI launch failures and dirty checkouts; never changes settings or executes work.",
+    input: {
+      ...scoped,
+      // Optional observations from the client are advisory, not host-verified.
+      clientVisibleTools: z
+        .array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/))
+        .max(120)
+        .optional(),
+      ciObservation: z
+        .enum([
+          "unknown",
+          "job-no-steps",
+          "executed-test-fail",
+          "checks-pending",
+          "passed",
+        ])
+        .optional(),
+      checkoutState: z.enum(["unknown", "dirty", "clean"]).optional(),
+    },
     access: "read",
   },
 };
@@ -1659,6 +1683,39 @@ export function createDispatcher(
         // Commit of the code this agent process runs (null when unknown). A
         // "git-branch" source is a checkout and may carry uncommitted edits.
         runtimeRevision: runtimeRevision(),
+        ...(name === "connection_doctor"
+          ? {
+              blockerRecovery: inspectBlockers({
+                clientVisibleTools: a.clientVisibleTools ?? null,
+                workerConfiguration: {
+                  gate: p.autopilotGateWorker?.enabled === true,
+                  repair: p.autopilotRepairWorker?.enabled === true,
+                  githubCiWatch: p.autopilotCiWatch?.enabled === true,
+                  localDraft: p.autopilotLocalWorker?.enabled === true,
+                },
+                workerStarted:
+                  typeof workerRuntimeSource === "function"
+                    ? (() => {
+                        const observed = workerRuntimeSource();
+                        if (!observed || observed.agentRunning !== true)
+                          return null;
+                        return Object.fromEntries(
+                          ["gate", "repair", "githubCiWatch", "localDraft"].map(
+                            (kind) => [
+                              kind,
+                              Array.isArray(observed[kind])
+                                ? observed[kind].includes(p.id)
+                                : false,
+                            ],
+                          ),
+                        );
+                      })()
+                    : null,
+                ciObservation: a.ciObservation ?? "unknown",
+                checkoutState: a.checkoutState ?? "unknown",
+              }),
+            }
+          : {}),
       };
     if (name === "worktree_lane_status")
       return {
@@ -2401,8 +2458,41 @@ export function createDispatcher(
         next: a.next,
         leaseToken: a.leaseToken,
       });
-    if (name === "autopilot_wait")
-      return autopilot.wait(a.task, p.id, a.reason, a.leaseToken);
+    if (name === "autopilot_wait") {
+      // Release the current task's lease first; an authorized blocked task must
+      // never hold up independent queued work. A recovery task is metadata only.
+      const waiting = autopilot.wait(a.task, p.id, a.reason, a.leaseToken);
+      if (!a.blockerCode) return waiting;
+      const recoverySpec = remediationTaskForBlocker(a.blockerCode, a.task);
+      try {
+        const recovery = autopilot.enqueue({
+          project: p.id,
+          ...recoverySpec,
+        });
+        return {
+          ...waiting,
+          remediation: {
+            task: recovery.id,
+            state: recovery.state,
+            queued: true,
+            executionStarted: false,
+            blockerCode: a.blockerCode,
+          },
+        };
+      } catch {
+        // Original wait is already durable. A full journal or idempotency
+        // conflict is reported, not turned into fake success.
+        return {
+          ...waiting,
+          remediation: {
+            queued: false,
+            executionStarted: false,
+            blockerCode: a.blockerCode,
+            error: "RECOVERY_QUEUE_UNAVAILABLE",
+          },
+        };
+      }
+    }
     if (name === "autopilot_resume") return autopilot.resume(a.task, p.id);
     if (name === "autopilot_complete")
       return autopilot.complete(a.task, p.id, {
