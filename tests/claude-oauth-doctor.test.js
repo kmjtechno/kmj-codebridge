@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { diagnoseClaudeOAuth, validateDiscovery } from "../scripts/diagnose-claude-oauth.mjs";
+import {
+  diagnoseClaudeOAuth,
+  validateDiscovery,
+} from "../scripts/diagnose-claude-oauth.mjs";
 
 const origin = "https://kmjtechno.com";
 const resource = {
@@ -24,7 +27,11 @@ test("Claude OAuth discovery confirms PKCE and public dynamic registration", () 
 test("OAuth discovery refuses misconfigured issuer, redirect or missing PKCE", () => {
   const result = validateDiscovery(
     { resource: "https://evil.example/mcp", authorization_servers: [] },
-    { ...auth, issuer: "https://evil.example", code_challenge_methods_supported: [] },
+    {
+      ...auth,
+      issuer: "https://evil.example",
+      code_challenge_methods_supported: [],
+    },
   );
   assert.equal(result.ok, false);
   assert.ok(result.issues.includes("RESOURCE_MISMATCH"));
@@ -44,7 +51,10 @@ test("Read-only doctor fetches only two public metadata URLs; never tokens", asy
       json: async () => data,
     };
   };
-  assert.deepEqual(await diagnoseClaudeOAuth(fakeFetch), { ok: true, issues: [] });
+  assert.deepEqual(await diagnoseClaudeOAuth(fakeFetch), {
+    ok: true,
+    issues: [],
+  });
   assert.equal(seen.length, 2);
   for (const { url, options } of seen) {
     assert.match(url, /^https:\/\/kmjtechno\.com\/\.well-known\/oauth-/);
