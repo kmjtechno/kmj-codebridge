@@ -13,6 +13,7 @@ import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
+import { planSmartModelRoute } from "./smart-model-router.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
@@ -547,6 +548,7 @@ export const FAST_READ_TOOLS = [
   "git_index_probe",
   "search_code",
   "skill_recommendations",
+  "model_route_plan",
   "read_file",
   "read_file_tail",
   "read_file_range",
@@ -1189,6 +1191,60 @@ export const definitions = {
       objective: z.string().min(1).max(4096),
       changedFiles: z.array(z.string().min(1).max(1024)).max(50).default([]),
       failureSummary: z.string().max(4096).default(""),
+    },
+    access: "read",
+  },
+  model_route_plan: {
+    title: "Intelligent zero-cost model route plan",
+    description:
+      "Read-only CodeBridge-managed inference planner. Rank explicitly free, authorized, capability-matching local/cloud models using caller-supplied quality, p95 latency, reliability, context and quota. No inference, billing, credentials or host-chat model switching.",
+    input: {
+      ...scoped,
+      models: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(96),
+            provider: z.string().min(1).max(96),
+            kind: z.enum(["local", "cloud"]),
+            free: z.boolean(),
+            privateCodeAllowed: z.boolean(),
+            contextWindow: z.number().int().positive().max(1_000_000),
+            capabilities: z.array(z.string().min(1).max(32)).max(16),
+            qualityScore: z.number().min(0).max(100).optional(),
+            reliabilityPct: z.number().min(0).max(100).optional(),
+            p95LatencyMs: z.number().min(0).max(120000).optional(),
+            freeTierVerified: z.boolean().optional(),
+            costPerMillionTokensUsd: z.number().min(0).optional(),
+          }),
+        )
+        .min(1)
+        .max(64),
+      task: z.object({
+        capability: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/).default("coding"),
+        inputTokens: z.number().int().min(0).max(1_000_000),
+        maxOutputTokens: z.number().int().min(1).max(1_000_000),
+        strategy: z
+          .enum([
+            "local-first",
+            "approved-free-cloud-first",
+            "fastest",
+            "highest-quality",
+          ])
+          .default("local-first"),
+        cloudApproved: z.boolean().default(false),
+        privateCode: z.boolean().default(true),
+      }),
+      quotaState: z
+        .record(
+          z.object({
+            remainingRequests: z.number().int().min(0).nullable().optional(),
+            remainingTokens: z.number().int().min(0).nullable().optional(),
+            resetRequestsAt: z.number().int().min(0).nullable().optional(),
+            resetTokensAt: z.number().int().min(0).nullable().optional(),
+            cooldownUntil: z.number().int().min(0).optional(),
+          }),
+        )
+        .default({}),
     },
     access: "read",
   },
@@ -2322,6 +2378,12 @@ export function createDispatcher(
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
     }
+    if (name === "model_route_plan")
+      return planSmartModelRoute({
+        models: a.models,
+        task: a.task,
+        state: a.quotaState,
+      });
     if (name === "skill_recommendations")
       return {
         skills: selectSkillPacks({
