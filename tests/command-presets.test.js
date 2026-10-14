@@ -34,8 +34,8 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "python-standard",
     "cargo-standard",
     "cmake-standard",
-    "go-standard",
     "windows-visual-qa",
+    "go-standard",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
   assert.ok(Object.keys(commands).length >= 8);
