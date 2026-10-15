@@ -10,6 +10,21 @@ const base = {
   now: new Date("2026-10-15T00:00:00Z"),
 };
 
+test("resume marks type changes and copies dirty in either status column", () => {
+  for (const status of ["T ", " T", "C ", " C", "MT", "AA", "??"]) {
+    const packet = buildContextResume({
+      ...base,
+      git: good({ status: `## main\n${status} src/item.js\n` }),
+    });
+    assert.equal(packet.git.dirty, true, `status ${JSON.stringify(status)}`);
+  }
+  assert.equal(
+    buildContextResume({ ...base, git: good({ status: "## main\n" }) }).git
+      .dirty,
+    false,
+  );
+});
+
 test("unreadable parts are UNKNOWN and listed, never guessed", () => {
   const p = buildContextResume({
     ...base,

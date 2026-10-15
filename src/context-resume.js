@@ -72,7 +72,14 @@ export function buildContextResume({
     const branch = /^## ([A-Za-z0-9._/-]{1,120})/.exec(first);
     packet.git = {
       branch: branch ? branch[1] : null,
-      dirty: /\n\s*(?:M|A|D|R|\?\?|U)/m.test(git.value.status),
+      // Porcelain v1 uses two status columns; type changes and copies are
+      // changes too. Inspect both columns instead of a partial status list.
+      dirty: git.value.status
+        .split("\n")
+        .some(
+          (line) =>
+            /^[ MADRCUT?!]{2} /.test(line) && line.slice(0, 2).trim() !== "",
+        ),
     };
   }
   if (ok(autopilot)) {
