@@ -75,12 +75,25 @@ test("stale/future, forged or malformed samples cannot create healthy fleet", ()
 test("missing or malformed queue is unknown, not a misleading zero", () => {
   const result = getLiveDashboardMetrics({
     now: NOW,
+    authorizedDeviceIds: ["device1", "device2"],
     reports: [sample(), sample({ deviceId: "device2", queue: null })],
   });
   assert.equal(result.activeDevices, 2);
   assert.equal(result.projects[0].queueComplete, false);
   assert.equal(result.projects[0].queuedTasks, null);
   assert.equal(result.projects[0].activeWorkers, null);
+  assert.equal(result.partial, true);
+});
+
+test("a self-labelled authenticated report without tenant grants is rejected", () => {
+  const result = getLiveDashboardMetrics({
+    now: NOW,
+    reports: [sample({ queue: { queued: 345, running: 80 } })],
+  });
+  assert.equal(result.activeDevices, null);
+  assert.equal(result.authorizedDevices, null);
+  assert.equal(result.projects.length, 0);
+  assert.equal(result.fleetStatus, "UNKNOWN");
   assert.equal(result.partial, true);
 });
 
