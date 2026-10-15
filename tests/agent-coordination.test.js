@@ -97,6 +97,49 @@ function joinTmp() {
   return path.join(os.tmpdir(), "cb-collab-");
 }
 
+test("atomic publish hides partial files from concurrent reader", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-atomic-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const box = new AgentCoordination(dir);
+  const link = fs.linkSync;
+  let beforeChecked = false;
+  let afterChecked = false;
+  try {
+    fs.linkSync = (staging, finalPath) => {
+      const before = box.list("project1");
+      assert.equal(before.messages.length, 0);
+      assert.equal(fs.readdirSync(path.dirname(finalPath)).length, 0);
+      beforeChecked = true;
+      link(staging, finalPath);
+      const after = box.list("project1");
+      assert.equal(after.messages.length, 1);
+      assert.equal(after.messages[0].note, sample().note);
+      afterChecked = true;
+    };
+    const result = box.post("project1", sample());
+    assert.equal(result.stored, true);
+  } finally {
+    fs.linkSync = link;
+  }
+  assert.equal(beforeChecked, true);
+  assert.equal(afterChecked, true);
+  assert.deepEqual(
+    fs.readdirSync(path.join(dir, "agent-coordination", ".staging")),
+    [],
+  );
+  assert.equal(box.list("project1").messages.length, 1);
+});
+
+test("external hardlinks remain forbidden after atomic publication", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-atomic-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const box = new AgentCoordination(dir);
+  const { id } = box.post("project1", sample());
+  const published = path.join(dir, "agent-coordination", "project1", id + ".json");
+  fs.linkSync(published, path.join(dir, "other-hardlink.json"));
+  assert.throws(() => box.list("project1"), /COORDINATION_JOURNAL_CORRUPT/);
+});
+
 test("MCP dispatcher isolates messages by project and enforces write grants", async (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
