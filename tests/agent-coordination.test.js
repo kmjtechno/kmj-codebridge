@@ -135,7 +135,12 @@ test("external hardlinks remain forbidden after atomic publication", (t) => {
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const box = new AgentCoordination(dir);
   const { id } = box.post("project1", sample());
-  const published = path.join(dir, "agent-coordination", "project1", id + ".json");
+  const published = path.join(
+    dir,
+    "agent-coordination",
+    "project1",
+    id + ".json",
+  );
   fs.linkSync(published, path.join(dir, "other-hardlink.json"));
   assert.throws(() => box.list("project1"), /COORDINATION_JOURNAL_CORRUPT/);
 });
