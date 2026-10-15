@@ -94,7 +94,10 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   assert.deepEqual(seen, ["auto:default"]);
   // Confirm actual persisted audit receipts do not contain supplied prompts.
   // JobRunner does not receive or record this adapter's inputs.
-  const auditFile = fs.readFileSync(path.join(root, "audit", "p1.jsonl"), "utf8");
+  const auditFile = fs.readFileSync(
+    path.join(root, "audit", "p1.jsonl"),
+    "utf8",
+  );
   assert.equal(auditFile.includes(marker), false);
   assert.equal(audit.tail("p1", 10).entries.length, 2);
   const jobStoreFiles = fs.readdirSync(path.join(root, "jobs"), {
