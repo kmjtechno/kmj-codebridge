@@ -31,6 +31,7 @@ const base = {
 test("command presets are fixed, bounded and never expose a shell profile", () => {
   assert.deepEqual(COMMAND_PRESET_IDS, [
     "node-standard",
+    "main-platform-ui-ci",
     "python-standard",
     "cargo-standard",
     "cmake-standard",
@@ -253,4 +254,32 @@ test("jobArchiveMaxEntries defaults to the archive's own default and stays bound
       agentSchema.parse({ ...base, jobArchiveMaxEntries: bad }),
     );
   }
+});
+
+test("Main Platform zero-cost CI preset is explicit, fixed and deploy-free", () => {
+  assert.equal(agentSchema.parse(base).projects[0].commands.main_platform_ui_ci, undefined);
+  const enabled = agentSchema.parse({
+    ...base,
+    projects: [{ ...base.projects[0], commandPresets: ["main-platform-ui-ci"] }],
+  }).projects[0];
+  const p = enabled.commands.main_platform_ui_ci;
+  assert.equal(p.category, "build");
+  assert.equal(p.command, "npm");
+  assert.deepEqual(Object.keys(p.variants), ["check", "types", "build"]);
+  for (const [variant, script] of [
+    ["check", "check"],
+    ["types", "types:check"],
+    ["build", "build"],
+  ]) {
+    assert.deepEqual(p.variants[variant].args, [
+      "--prefix",
+      "apps/platform",
+      "run",
+      script,
+    ]);
+    assert.equal(p.variants[variant].timeoutMs, 300000);
+  }
+  assert.equal(p.variants.deploy, undefined);
+  assert.equal(p.variants.payment, undefined);
+  assert.equal(p.variants.migrate, undefined);
 });
