@@ -599,8 +599,14 @@ export const definitions = {
   context_resume: {
     title: "Resume engineering context",
     description:
-      "One compact, versioned packet to continue work: Git branch/dirty state, top open tasks, active file reservations, last five project mailbox notes (caller claims) and approved job slots. Unreadable parts are UNKNOWN, never guessed. No raw files, logs or credentials.",
-    input: { ...scoped },
+      "Pass ifNoneMatch (the digest from a previous packet) to get a tiny unchanged answer when nothing changed. One compact, versioned packet to continue work: Git branch/dirty state, top open tasks, active file reservations, last five project mailbox notes (caller claims) and approved job slots. Unreadable parts are UNKNOWN, never guessed. No raw files, logs or credentials.",
+    input: {
+      ...scoped,
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
+    },
     access: "read",
   },
   render_codebridge_status: {

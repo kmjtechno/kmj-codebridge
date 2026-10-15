@@ -2,6 +2,7 @@
 // without replaying history. Pure function over already-fetched tool results;
 // anything that could not be read is reported as UNKNOWN, never guessed.
 // Mailbox notes and PASS/FAIL values are caller-reported claims, not facts.
+import { createHash } from "node:crypto";
 const STATES = [
   "queued",
   "running",
@@ -161,5 +162,28 @@ export function buildContextResume({
   )
     packet.mailbox.recent.shift();
   packet.approxTokens = Math.ceil(size() / 4);
+  packet.digest = contextDigest(packet);
   return packet;
+}
+
+// Stable content digest ignoring volatile fields, so a client that already
+// holds this state can send it back (ifNoneMatch) and receive a tiny
+// "unchanged" answer instead of the full packet.
+export function contextDigest(packet) {
+  const { generatedAt, approxTokens, digest, ...stable } = packet;
+  void generatedAt;
+  void approxTokens;
+  void digest;
+  return createHash("sha256").update(JSON.stringify(stable)).digest("hex");
+}
+
+export function unchangedResume(packet) {
+  return {
+    version: packet.version,
+    kind: packet.kind,
+    device: packet.device,
+    project: packet.project,
+    unchanged: true,
+    digest: packet.digest,
+  };
 }

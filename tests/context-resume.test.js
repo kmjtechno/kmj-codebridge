@@ -131,3 +131,42 @@ test("hostile ids, shas and control characters are sanitized", () => {
 test("context_resume is a read-scope catalog tool", () => {
   assert.equal(definitions.context_resume.access, "read");
 });
+
+import { contextDigest, unchangedResume } from "../src/context-resume.js";
+
+test("digest ignores volatile fields and changes with real state", () => {
+  const a = buildContextResume({
+    ...base,
+    git: good({ status: "## main\n" }),
+  });
+  const b = buildContextResume({
+    ...base,
+    now: new Date("2027-01-01T00:00:00Z"),
+    git: good({ status: "## main\n" }),
+  });
+  const c = buildContextResume({
+    ...base,
+    git: good({ status: "## main\n M a\n" }),
+  });
+  assert.match(a.digest, /^[a-f0-9]{64}$/);
+  assert.equal(a.digest, b.digest);
+  assert.notEqual(a.digest, c.digest);
+  assert.equal(contextDigest(a), a.digest);
+});
+
+test("unchanged answer is tiny and carries only identity and digest", () => {
+  const a = buildContextResume({
+    ...base,
+    git: good({ status: "## main\n" }),
+  });
+  const u = unchangedResume(a);
+  assert.deepEqual(Object.keys(u).sort(), [
+    "device",
+    "digest",
+    "kind",
+    "project",
+    "unchanged",
+    "version",
+  ]);
+  assert.ok(JSON.stringify(u).length < JSON.stringify(a).length / 3);
+});
