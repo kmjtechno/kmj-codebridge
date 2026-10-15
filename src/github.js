@@ -149,7 +149,7 @@ export const githubDefinitions = {
     title: "Exact-head GitHub Actions execution doctor",
     description:
       "Detect failed zero-step GitHub Actions jobs, distinguish unavailable execution from test failure and recommend opt-in, SHA-pinned local gates. Read-only; never spends, bypasses CI, authorizes merge or executes code.",
-    input: { repository: repoName, runId, expectedHeadSha: commitSha },
+    input: { repository: repoName, number: issueNumber, runId, expectedHeadSha: commitSha },
     access: "read",
   },
   github_actions_job_log: {
@@ -792,8 +792,10 @@ export function createGitHubBridge(config) {
     }
 
     if (name === "github_actions_execution_doctor") {
+      const pull = await request("GET", a.repository, `pulls/${a.number}`);
+      if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
       const run = await request("GET", a.repository, `actions/runs/${a.runId}`);
-      if (run.head_sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
+      if (run.head_sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MISMATCH");
       const data = await request(
         "GET",
         a.repository,
@@ -802,6 +804,7 @@ export function createGitHubBridge(config) {
       if (!Array.isArray(data.jobs)) fail("GITHUB_RESPONSE_INVALID");
       return {
         repository: a.repository,
+        pullRequest: a.number,
         ...diagnoseActionsRun({
           run,
           jobs: data.jobs,
