@@ -185,3 +185,36 @@ test("generated enrollment proof is high entropy and not self-equal", () => {
   assert.notEqual(a.verifier, a.challenge);
   assert.notEqual(a.verifier, b.verifier);
 });
+
+test("redemption reports allowlisted server fault but never echoes arbitrary bodies", async () => {
+  const handle = {
+    device_code: "d".repeat(48),
+    verifier: "v".repeat(43),
+    expires_at_ms: Date.now() + 60000,
+  };
+  for (const code of [
+    "CODEBRIDGE_GATEWAY_UNAVAILABLE",
+    "CODEBRIDGE_PAIRING_INVALID",
+    "CODEBRIDGE_DEVICE_ALREADY_ENROLLED",
+    "CODEBRIDGE_DEVICE_LIMIT",
+  ]) {
+    await assert.rejects(
+      pollDeviceEnrollment(base, handle, request, {
+        fetch: async () => Response.json({ error: code }, { status: 400 }),
+      }),
+      (error) => error.code === code,
+    );
+  }
+  await assert.rejects(
+    pollDeviceEnrollment(base, handle, request, {
+      fetch: async () =>
+        Response.json(
+          { error: "SECRET_DO_NOT_LOG", device_code: "secret" },
+          { status: 400 },
+        ),
+    }),
+    (error) =>
+      error.code === "ENROLLMENT_INVALID" &&
+      !String(error.message).includes("secret"),
+  );
+});

@@ -128,7 +128,25 @@ export async function pollDeviceEnrollment(
   if (response.status === 429) return { state: "slow_down" };
   if (response.status === 410) fail("ENROLLMENT_EXPIRED");
   if (response.status === 403) fail("ENROLLMENT_DENIED");
-  if (!response.ok) fail("ENROLLMENT_INVALID");
+  if (!response.ok) {
+    // Keep the diagnostic allowlist small: the server response is untrusted
+    // and must never be echoed into pairing logs (it may contain secrets).
+    let body;
+    try {
+      body = await readJsonLimited(response.body, 2048);
+    } catch {
+      // HTML, malformed and oversized responses stay a generic error.
+    }
+    const allowed = new Set([
+      "CODEBRIDGE_GATEWAY_UNAVAILABLE",
+      "CODEBRIDGE_PAIRING_INVALID",
+      "CODEBRIDGE_PAIRING_CONSUMED",
+      "CODEBRIDGE_DEVICE_ALREADY_ENROLLED",
+      "CODEBRIDGE_DEVICE_LIMIT",
+    ]);
+    if (allowed.has(body?.error)) fail(body.error);
+    fail("ENROLLMENT_INVALID");
+  }
   const data = successSchema.parse(await readJsonLimited(response.body, 32768));
   if (data.agent.id !== request.device.id) fail("ENROLLMENT_BINDING");
   if (!data.projects.some((p) => p.id === request.project.id))
