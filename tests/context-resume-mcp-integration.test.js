@@ -44,13 +44,15 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
   gateway = await startGateway({
     host: "127.0.0.1",
     port: 0,
-    users: [{
-      id: "u1",
-      tenant: "t1",
-      tokenHash: hash(userToken),
-      devices: { d1: ["p1"] },
-      permissions: ["read", "write"],
-    }],
+    users: [
+      {
+        id: "u1",
+        tenant: "t1",
+        tokenHash: hash(userToken),
+        devices: { d1: ["p1"] },
+        permissions: ["read", "write"],
+      },
+    ],
     agents: [{ id: "d1", tenant: "t1", tokenHash: hash(agentToken) }],
   });
   agent = await startAgent({
@@ -73,20 +75,24 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
   const tools = await client.listTools();
   assert.ok(tools.tools.some((tool) => tool.name === "context_resume"));
 
-  const full = value(await client.callTool({
-    name: "context_resume",
-    arguments: scope,
-  }));
+  const full = value(
+    await client.callTool({
+      name: "context_resume",
+      arguments: scope,
+    }),
+  );
   assert.equal(full.kind, "codebridge.context_resume");
   assert.equal(full.version, 1);
   assert.match(full.digest, /^[a-f0-9]{64}$/);
   assert.equal(full.mailbox.actorLabelsVerified, false);
   assert.equal(full.git, "UNKNOWN");
 
-  const unchanged = value(await client.callTool({
-    name: "context_resume",
-    arguments: { ...scope, ifNoneMatch: full.digest },
-  }));
+  const unchanged = value(
+    await client.callTool({
+      name: "context_resume",
+      arguments: { ...scope, ifNoneMatch: full.digest },
+    }),
+  );
   assert.deepEqual(unchanged, {
     version: 1,
     kind: "codebridge.context_resume",
@@ -97,24 +103,28 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
   });
   assert.ok(JSON.stringify(unchanged).length < JSON.stringify(full).length);
 
-  const posted = value(await client.callTool({
-    name: "coordination_post",
-    arguments: {
-      ...scope,
-      actor: "test-worker",
-      recipient: "chatgpt",
-      requestKey: "resume-delta-event-1",
-      kind: "result",
-      note: "new evidence is ready",
-      reportedGate: "unknown",
-    },
-  }));
+  const posted = value(
+    await client.callTool({
+      name: "coordination_post",
+      arguments: {
+        ...scope,
+        actor: "test-worker",
+        recipient: "chatgpt",
+        requestKey: "resume-delta-event-1",
+        kind: "result",
+        note: "new evidence is ready",
+        reportedGate: "unknown",
+      },
+    }),
+  );
   assert.equal(posted.stored, true);
 
-  const changed = value(await client.callTool({
-    name: "context_resume",
-    arguments: { ...scope, ifNoneMatch: full.digest },
-  }));
+  const changed = value(
+    await client.callTool({
+      name: "context_resume",
+      arguments: { ...scope, ifNoneMatch: full.digest },
+    }),
+  );
   assert.equal(changed.unchanged, undefined);
   assert.match(changed.digest, /^[a-f0-9]{64}$/);
   assert.notEqual(changed.digest, full.digest);
