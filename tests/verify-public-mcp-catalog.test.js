@@ -83,7 +83,9 @@ test("a high tool count cannot hide missing agent coordination features", () => 
   good.tools.delete("coordination_post");
   assert.throws(
     () => verifyCriticalToolSchemas(good),
-    /MCP_CRITICAL_TOOL_MISSING/,
+    (error) =>
+      error.message === "MCP_CRITICAL_TOOL_MISSING" &&
+      error.criticalTool === "coordination_post",
   );
 });
 
