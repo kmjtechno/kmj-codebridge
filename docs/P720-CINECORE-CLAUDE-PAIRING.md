@@ -4,7 +4,7 @@
 
 ## One-click
 
-1. Double-click `START-KMJ-P720-CINECORE-CLAUDE.cmd` on the P720. It fetches the current CodeBridge `main` branch by clean fast-forward only; it never resets the CineCore checkout.
+1. Double-click `scripts/START-P720-CINECORE-CLAUDE.cmd` from the existing trusted CodeBridge checkout on the P720. It fetches the current CodeBridge `main` branch by clean fast-forward only; it never resets the CineCore checkout.
 2. Approve the **new** device beginning with `kmj-p720-cinecore-`, for **only** project `kmj-cinecore`, and read/write/execute scope in the KMJ browser account.
 3. The independent agent stores credentials under `D:\KMJ-HyperSpeed\private\p720-cinecore\` with current-user-only ACLs. It uses the VPS gateway at `https://kmjtechno.com/` after an unauthenticated HTTP 401 check.
 4. Send only `D:\KMJ-HyperSpeed\P720-CINECORE-AUTH-RESULT.txt`. **Never send** private `agent.json`, `enrollment.json` or backup secrets.
@@ -31,6 +31,12 @@ Claude account subscription/API usage is separate from free CodeBridge operation
 Missing MSVC, Qt6 or CMake remains a BLOCKED build prerequisite; enrollment does not secretly install them. No GitHub self-hosted runner is added.
 
 Claude must read CineCore `AGENTS.md`, `CLAUDE.md`, the YAML roadmap, latest handoff, QA issues and test matrix before changing code. Preserve D3D12, LEFT/RIGHT stereo, real-time safety, no fabricated readiness, and locked KMJ branding. Work on a feature branch and report actual CI/hardware test evidence.
+
+## Reconnect an already enrolled CineCore agent without touching a dirty checkout
+
+If the dedicated CineCore device is offline but its approved local `agent.json` already exists, double-click `scripts/START-P720-CINECORE-RECONNECT.cmd` from the **existing trusted CodeBridge checkout**. It checks both Git origins, the one-project grant, tenant and fixed VPS gateway without printing credentials, then starts only the existing scoped agent if no matching process is running. It does **not** fetch, fast-forward, reset, install, re-enroll, stop another worker or touch CineCore source. This is the safe choice when the CodeBridge repository has uncommitted AI changes.
+
+It writes only `D:\\KMJ-HyperSpeed\\P720-CINECORE-RECONNECT-RESULT.txt` plus scoped process logs under the local `logs` directory. Return code 0 with `GATEWAY_HEARTBEAT=FRESH_AUTHENTICATED` confirms a new heartbeat; `RECHECK_IN_CODEBRIDGE_CONNECTION_OVERVIEW` or code 3 requires independent online/grant verification. This **does not start the separate GitHub Actions runner**: queued Windows CI jobs must be diagnosed independently. If enrollment/config/dependencies are missing, use the original approval-based setup rather than copying credentials from another device.
 
 ## P720 staged one-click CodeBridge runtime refresh
 
