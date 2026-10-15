@@ -730,7 +730,11 @@ export const definitions = {
     input: {
       ...scoped,
       limit: z.number().int().min(1).max(50).default(25),
-      after: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
+      after: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable()
+        .default(null),
     },
     access: "read",
   },
@@ -741,13 +745,26 @@ export const definitions = {
     input: {
       ...scoped,
       actor: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      recipient: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/).default("all"),
+      recipient: z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/)
+        .default("all"),
       requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
       kind: z.enum(["issue", "analysis", "proposal", "handoff", "result"]),
       note: z.string().min(1).max(500),
-      replyTo: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
-      evidenceSha: z.string().regex(/^[a-f0-9]{40}$/).nullable().default(null),
-      reportedGate: z.enum(["unknown", "pass", "fail", "blocked"]).default("unknown"),
+      replyTo: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable()
+        .default(null),
+      evidenceSha: z
+        .string()
+        .regex(/^[a-f0-9]{40}$/)
+        .nullable()
+        .default(null),
+      reportedGate: z
+        .enum(["unknown", "pass", "fail", "blocked"])
+        .default("unknown"),
     },
     access: "write",
   },
