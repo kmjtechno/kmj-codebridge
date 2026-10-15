@@ -57,7 +57,14 @@ test("malformed or permission-denied standard config never triggers fallback", a
       },
     });
     const result = await handler({ op: "config_validate", service: "agent" });
-    assert.deepEqual(result.response, { service: "agent", valid: false });
+    assert.deepEqual(result.response, {
+      service: "agent",
+      valid: false,
+      reason:
+        scenario === "malformed"
+          ? "CONFIG_JSON_INVALID"
+          : "CONFIG_FILE_UNREADABLE",
+    });
     assert.deepEqual(seen, [standard]);
     assert.doesNotMatch(JSON.stringify(result), /PRIVATE_SECRET|do-not-leak/);
   }
@@ -89,6 +96,10 @@ test("gateway config cannot fall back to privileged agent config", async () => {
     },
   });
   const result = await handler({ op: "config_validate", service: "gateway" });
-  assert.deepEqual(result.response, { service: "gateway", valid: false });
+  assert.deepEqual(result.response, {
+    service: "gateway",
+    valid: false,
+    reason: "CONFIG_FILE_MISSING",
+  });
   assert.deepEqual(seen, [gateway]);
 });
