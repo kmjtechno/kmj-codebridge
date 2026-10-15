@@ -73,8 +73,19 @@ try {
   }
   console.log("Device approved and enrollment credential stored securely.");
 } catch (error) {
-  console.error(
-    "Enrollment failed. Approval may be missing, expired, denied, or the server contract may be unavailable.",
-  );
+  // Print a bounded diagnostic code only. Never print verifier, device code,
+  // response body, request URL with secrets, or the device bearer credential.
+  const safeCode =
+    error?.name === "CodeBridgeError" &&
+    typeof error.code === "string" &&
+    /^[A-Z][A-Z0-9_]{2,72}$/.test(error.code)
+      ? error.code
+      : error?.name === "ZodError"
+        ? "ENROLLMENT_RESPONSE_SCHEMA"
+        : error?.message === "ENROLLMENT_EXPIRED"
+          ? "ENROLLMENT_EXPIRED"
+          : "ENROLLMENT_NETWORK_OR_RUNTIME";
+  console.error("Enrollment failed: " + safeCode);
+  console.error("No credential was printed. Inspect browser approval and Main Platform pairing state.");
   process.exitCode = 1;
 }
