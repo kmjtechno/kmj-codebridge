@@ -257,10 +257,15 @@ test("jobArchiveMaxEntries defaults to the archive's own default and stays bound
 });
 
 test("Main Platform zero-cost CI preset is explicit, fixed and deploy-free", () => {
-  assert.equal(agentSchema.parse(base).projects[0].commands.main_platform_ui_ci, undefined);
+  assert.equal(
+    agentSchema.parse(base).projects[0].commands.main_platform_ui_ci,
+    undefined,
+  );
   const enabled = agentSchema.parse({
     ...base,
-    projects: [{ ...base.projects[0], commandPresets: ["main-platform-ui-ci"] }],
+    projects: [
+      { ...base.projects[0], commandPresets: ["main-platform-ui-ci"] },
+    ],
   }).projects[0];
   const p = enabled.commands.main_platform_ui_ci;
   assert.equal(p.category, "build");
