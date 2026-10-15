@@ -103,21 +103,46 @@ function exactKeys(value, allowed) {
 function serviceUnit(service, run) {
   const unit = SERVICES[service];
   if (!Object.hasOwn(SERVICES, service)) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
-  const loadState = (name) =>
+  const snapshot = (name) =>
     parseProperties(
-      run(SYSTEMCTL, ["show", name, "--property=LoadState", "--no-pager"]),
-    ).LoadState;
-  const state = loadState(unit);
-  if (state === "loaded") return unit;
-  // Only absence permits a fixed legacy fallback. Never route around a
-  // masked, broken, unreadable or otherwise unknown default unit.
-  if (state !== "not-found") fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+      run(SYSTEMCTL, [
+        "show",
+        name,
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--no-pager",
+      ]),
+    );
+  const primary = snapshot(unit);
+  if (!["loaded", "not-found"].includes(primary.LoadState))
+    fail("SUPERVISOR_SERVICE_UNAVAILABLE");
   const alternate =
     service === "agent"
       ? MAIN_PLATFORM_AGENT_SERVICE
       : "kmj-codebridge-gateway-stage.service";
-  if (loadState(alternate) !== "loaded") fail("SUPERVISOR_SERVICE_UNAVAILABLE");
-  return alternate;
+  const secondary = snapshot(alternate);
+  if (!["loaded", "not-found"].includes(secondary.LoadState))
+    fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  const installed = [
+    [unit, primary],
+    [alternate, secondary],
+  ].filter(([, state]) => state.LoadState === "loaded");
+  // Never infer a target from missing state or a unit changing lifecycle.
+  if (
+    !installed.length ||
+    installed.some(
+      ([, state]) =>
+        !["active", "inactive", "failed"].includes(state.ActiveState),
+    )
+  )
+    fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  const active = installed.filter(
+    ([, state]) => state.ActiveState === "active",
+  );
+  if (active.length > 1) fail("SUPERVISOR_SERVICE_AMBIGUOUS");
+  // The old default may remain installed after a stage cutover. Status,
+  // logs and restart must all address the same sole running instance.
+  return (active[0] ?? installed[0])[0];
 }
 
 function parseProperties(text) {
