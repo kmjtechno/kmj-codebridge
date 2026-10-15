@@ -1375,6 +1375,17 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
   }
 }
 
+export function classifySupervisorConfigError(error) {
+  // Emit only fixed codes. Never return file paths, parser messages,
+  // validation paths, expected values or any secret from config data.
+  if (error?.code === "ENOENT") return "CONFIG_FILE_MISSING";
+  if (error?.code === "EACCES" || error?.code === "EPERM")
+    return "CONFIG_FILE_UNREADABLE";
+  if (error instanceof SyntaxError) return "CONFIG_JSON_INVALID";
+  if (error?.name === "ZodError") return "CONFIG_SCHEMA_INVALID";
+  return "CONFIG_VALIDATION_FAILED";
+}
+
 export function createSupervisorHandler({
   run = defaultRun,
   start = defaultStart,
@@ -1591,8 +1602,14 @@ export function createSupervisorHandler({
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
         return { response: { service: request.service, valid: true } };
-      } catch {
-        return { response: { service: request.service, valid: false } };
+      } catch (error) {
+        return {
+          response: {
+            service: request.service,
+            valid: false,
+            reason: classifySupervisorConfigError(error),
+          },
+        };
       }
     }
 
