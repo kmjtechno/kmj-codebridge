@@ -22,7 +22,7 @@ for (const [service, standard, alternate] of [
         calls.push([bin, args]);
         if (bin.endsWith("journalctl")) return "connected\n";
         if (args.includes("--property=LoadState"))
-          return `LoadState=${args[1] === standard ? "not-found" : "loaded"}\n`;
+          return `LoadState=${args[1] === standard ? "not-found" : "loaded"}\nActiveState=active\n`;
         return "ActiveState=active\nSubState=running\nMainPID=123\n";
       },
       restart: (unit) => restarted.push(unit),
@@ -53,7 +53,9 @@ for (const [service, standard, alternate] of [
       const handle = createSupervisorHandler({
         run: (bin, args) => {
           calls.push(args);
-          return `LoadState=${state}\n`;
+          return args[1] === standard
+            ? `LoadState=${state}\nActiveState=inactive\n`
+            : "LoadState=not-found\n";
         },
         restart: (unit) => restarted.push(unit),
       });
@@ -68,7 +70,8 @@ for (const [service, standard, alternate] of [
         );
         assert.deepEqual(restarted, []);
       }
-      assert.ok(calls.every((args) => args[1] === standard));
+      if (state !== "loaded")
+        assert.ok(calls.every((args) => args[1] === standard));
     }
   });
 
@@ -80,5 +83,53 @@ for (const [service, standard, alternate] of [
       handle({ op: "restart", service }),
       /SUPERVISOR_SERVICE_UNAVAILABLE/,
     );
+  });
+}
+
+for (const service of ["agent", "gateway"]) {
+  test(`${service} selects the sole active unit and refuses ambiguous or changing units`, async () => {
+    const standard = `kmj-codebridge-${service}.service`;
+    const alternate =
+      service === "agent"
+        ? "kmj-codebridge-kmj-main-platform.service"
+        : "kmj-codebridge-gateway-stage.service";
+    for (const [defaultState, alternateState, chosen] of [
+      ["inactive", "active", alternate],
+      ["active", "inactive", standard],
+      ["inactive", "inactive", null],
+      ["inactive", "failed", null],
+      ["active", "active", null],
+      ["activating", "active", null],
+      ["inactive", "deactivating", null],
+      ["", "active", null],
+    ]) {
+      const restarted = [],
+        calls = [];
+      const handle = createSupervisorHandler({
+        run: (bin, args) => {
+          calls.push([bin, args]);
+          if (bin.endsWith("journalctl")) return "healthy\n";
+          const state = args[1] === standard ? defaultState : alternateState;
+          return `LoadState=loaded\nActiveState=${state}\nSubState=running\nMainPID=123\n`;
+        },
+        restart: (unit) => restarted.push(unit),
+      });
+      for (const op of ["status", "logs", "restart"]) {
+        if (chosen === null) {
+          await assert.rejects(
+            handle({ op, service }),
+            /SUPERVISOR_SERVICE_(AMBIGUOUS|UNAVAILABLE)/,
+          );
+        } else {
+          const result = await handle({ op, service });
+          if (op !== "restart") assert.equal(calls.at(-1)[1][1], chosen);
+          assert.deepEqual(restarted, []);
+          if (op === "restart") {
+            result.afterSend();
+            assert.deepEqual(restarted, [chosen]);
+          }
+        }
+      }
+    }
   });
 }

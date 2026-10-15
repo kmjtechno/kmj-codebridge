@@ -149,6 +149,8 @@ test("status maps only allowlisted service names", async () => {
   const handle = createSupervisorHandler({
     run: (command, args) => {
       calls.push([command, args]);
+      if (args[1] !== "kmj-codebridge-agent.service")
+        return "LoadState=not-found\n";
       return "LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=123\nNRestarts=2\n";
     },
   });
@@ -170,9 +172,11 @@ test("status maps only allowlisted service names", async () => {
 
 test("logs are bounded and redacted", async () => {
   const handle = createSupervisorHandler({
-    run: (bin) =>
+    run: (bin, args) =>
       bin.endsWith("systemctl")
-        ? "LoadState=loaded\n"
+        ? args[1] === "kmj-codebridge-gateway.service"
+          ? "LoadState=loaded\nActiveState=inactive\n"
+          : "LoadState=not-found\n"
         : "token=never-return-this\nnormal line\n",
   });
   const result = await handle({ op: "logs", service: "gateway", lines: 20 });
@@ -250,7 +254,10 @@ test("supervisor config validation classifies failures without leaking secrets",
 test("restart is acknowledged before a hardcoded unit is scheduled", async () => {
   const restarted = [];
   const handle = createSupervisorHandler({
-    run: () => "LoadState=loaded\n",
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-agent.service"
+        ? "LoadState=loaded\nActiveState=inactive\n"
+        : "LoadState=not-found\n",
     restart: (unit) => restarted.push(unit),
   });
   const result = await handle({ op: "restart", service: "agent" });
@@ -1104,7 +1111,7 @@ test("website CI journal filters accept only systemd invocation IDs", async () =
           return "";
         }
         if (args.includes("--value")) return id;
-        return "LoadState=loaded\n";
+        return "LoadState=loaded\nActiveState=inactive\n";
       },
       lstat: () => {
         throw new Error("absent");
@@ -1274,7 +1281,7 @@ test("native CI exposes validated optional worker failure evidence", async () =>
       failed_gate: "fmt_lint",
     };
     const handle = createSupervisorHandler({
-      run: () => "LoadState=loaded\n",
+      run: () => "LoadState=loaded\nActiveState=inactive\n",
       lstat: () => ({
         isFile: () => true,
         isSymbolicLink: () => false,
@@ -1501,7 +1508,7 @@ test("native CI existing log diagnostics require trusted metadata and exact mani
       let meta = trusted,
         names = [name];
       const handle = createSupervisorHandler({
-        run: () => "LoadState=loaded\n",
+        run: () => "LoadState=loaded\nActiveState=inactive\n",
         lstat: (file) =>
           file === "/var/lib/kmj-codebridge-ci/evidence"
             ? directoryMeta
