@@ -75,3 +75,24 @@ test("refuses production, non-loopback, bad subject, scope and ttl", async () =>
   await bad({ scopes: ["admin"] }, "DEV_TOKEN_SCOPE_INVALID");
   await bad({ ttlSeconds: 86400 }, "DEV_TOKEN_TTL_INVALID");
 });
+
+test("caller-provided env cannot bypass a real production runtime", async () => {
+  const { privateKey } = await setup();
+  const previous = process.env.NODE_ENV;
+  try {
+    process.env.NODE_ENV = "production";
+    await assert.rejects(
+      mintDevToken({
+        privateKey,
+        issuer,
+        resource,
+        subject: "dev",
+        env: {},
+      }),
+      { message: "DEV_TOKEN_FORBIDDEN_IN_PRODUCTION" },
+    );
+  } finally {
+    if (previous === undefined) delete process.env.NODE_ENV;
+    else process.env.NODE_ENV = previous;
+  }
+});
