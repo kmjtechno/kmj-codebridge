@@ -3,6 +3,7 @@ import { readJsonLimited, readTextLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { sanitizeCiLog, safeCiStepName, triageCiFailure } from "./ci-triage.js";
+import { classifyActionsJob, diagnoseActionsRun } from "./ci-execution-evidence.js";
 import { VERSION } from "./version.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
@@ -142,6 +143,13 @@ export const githubDefinitions = {
     description:
       "Read jobs and conclusions for one Actions workflow run in an allowed repository.",
     input: { repository: repoName, runId },
+    access: "read",
+  },
+  github_actions_execution_doctor: {
+    title: "Exact-head GitHub Actions execution doctor",
+    description:
+      "Detect failed zero-step GitHub Actions jobs, distinguish unavailable execution from test failure and recommend opt-in, SHA-pinned local gates. Read-only; never spends, bypasses CI, authorizes merge or executes code.",
+    input: { repository: repoName, runId, expectedHeadSha: commitSha },
     access: "read",
   },
   github_actions_job_log: {
@@ -764,15 +772,43 @@ export function createGitHubBridge(config) {
         undefined,
         `jobs:${a.runId}`,
       );
+      if (!Array.isArray(data.jobs)) fail("GITHUB_RESPONSE_INVALID");
       return {
-        jobs: (data.jobs ?? []).slice(0, 100).map((job) => ({
+        jobs: data.jobs.slice(0, 100).map((job) => ({
           id: job.id,
-          name: job.name,
+          name: safeCiStepName(job.name),
           status: job.status,
           conclusion: job.conclusion,
           started_at: job.started_at,
           completed_at: job.completed_at,
+          executionEvidence: classifyActionsJob(job),
         })),
+        evidenceComplete:
+          Number.isInteger(data.total_count) &&
+          data.total_count > 0 &&
+          data.total_count <= 100 &&
+          data.jobs.length === data.total_count,
+      };
+    }
+
+    if (name === "github_actions_execution_doctor") {
+      const run = await request("GET", a.repository, `actions/runs/${a.runId}`);
+      if (run.head_sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
+      const data = await request(
+        "GET",
+        a.repository,
+        `actions/runs/${a.runId}/jobs?per_page=100`,
+      );
+      if (!Array.isArray(data.jobs)) fail("GITHUB_RESPONSE_INVALID");
+      return {
+        repository: a.repository,
+        ...diagnoseActionsRun({
+          run,
+          jobs: data.jobs,
+          totalCount: data.total_count,
+          expectedHeadSha: a.expectedHeadSha,
+        }),
+        action: "READ_ONLY_DIAGNOSTIC",
       };
     }
 
