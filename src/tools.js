@@ -17,6 +17,7 @@ import { planSmartModelRoute } from "./smart-model-router.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
+import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
@@ -527,6 +528,7 @@ export const FAST_READ_TOOLS = [
   "execution_capacity",
   "project_progress",
   "chat_lane_status",
+  "coordination_list",
   "local_model_status",
   "worktree_lane_status",
   "verification_plan",
@@ -720,6 +722,34 @@ export const definitions = {
       recentJobs: z.number().int().min(1).max(20).default(8),
     },
     access: "read",
+  },
+  coordination_list: {
+    title: "Read project agent coordination mailbox",
+    description:
+      "List bounded notes and replies from authorized project agents: issues, blockers, proposals, handoffs and reported test outcomes. Actor names and PASS/FAIL are caller-reported, not attested. No background work or worker starts.",
+    input: {
+      ...scoped,
+      limit: z.number().int().min(1).max(50).default(25),
+      after: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
+    },
+    access: "read",
+  },
+  coordination_post: {
+    title: "Send project agent coordination note",
+    description:
+      "Post one sanitized, idempotent project-scoped issue, proposal, handoff or result for another authorized CodeBridge agent/chat. No code edit, shell, cloud call or automatic task claim.",
+    input: {
+      ...scoped,
+      actor: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      recipient: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/).default("all"),
+      requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      kind: z.enum(["issue", "analysis", "proposal", "handoff", "result"]),
+      note: z.string().min(1).max(500),
+      replyTo: z.string().regex(/^[a-f0-9]{64}$/).nullable().default(null),
+      evidenceSha: z.string().regex(/^[a-f0-9]{40}$/).nullable().default(null),
+      reportedGate: z.enum(["unknown", "pass", "fail", "blocked"]).default("unknown"),
+    },
+    access: "write",
   },
   chat_lane_status: {
     title: "Multi-chat work lane status",
@@ -1696,6 +1726,7 @@ export function createDispatcher(
     });
   };
   let laneRegistry;
+  let coordinationRegistry;
   const laneStateDir =
     typeof config.stateDir === "string" && config.stateDir.length > 0
       ? config.stateDir
@@ -1705,6 +1736,10 @@ export function createDispatcher(
   const lanes = () => {
     if (!laneStateDir) fail("CHAT_LANE_STATE_UNAVAILABLE");
     return (laneRegistry ??= new ChatLaneRegistry(laneStateDir));
+  };
+  const coordination = () => {
+    if (!laneStateDir) fail("COORDINATION_STATE_UNAVAILABLE");
+    return (coordinationRegistry ??= new AgentCoordination(laneStateDir));
   };
   let worktrees;
   const worktreeLanes = () => {
@@ -1861,6 +1896,16 @@ export function createDispatcher(
         modelUsage: usage,
       };
     }
+    if (name === "coordination_list")
+      return {
+        device: config.id,
+        ...coordination().list(p.id, { limit: a.limit, after: a.after }),
+      };
+    if (name === "coordination_post")
+      return {
+        device: config.id,
+        ...coordination().post(p.id, a),
+      };
     if (name === "chat_lane_status")
       return { device: config.id, project: p.id, ...lanes().status(p.id) };
     if (name === "chat_lane_reserve") {
