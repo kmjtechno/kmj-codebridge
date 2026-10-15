@@ -19,6 +19,7 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   const factory = () =>
     createFreeLlmApiClient({
       apiKey: "freellma-test-key-0001",
+      approvedFreeChains: ["auto:default"],
       request: async (r) => {
         if (r.path === "/v1/models") return { data: [{ id: "auto:default" }] };
         seen.push(r.body.model);
@@ -52,6 +53,7 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   );
   const scope = { device: "device1", project: "p1" };
   assert.equal(definitions.freellmapi_generate.access, "execute");
+  assert.ok(definitions.freellmapi_generate.input.upstreamCloudApproved);
   assert.equal(definitions.freellmapi_status.access, "read");
   await assert.rejects(
     dispatch("freellmapi_generate", { ...scope, prompt: "x" }, ["execute"]),
@@ -60,7 +62,7 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   await assert.rejects(
     dispatch(
       "freellmapi_generate",
-      { ...scope, prompt: "x", localProcessingApproved: true },
+      { ...scope, prompt: "x", localProcessingApproved: true, upstreamCloudApproved: true },
       ["read"],
     ),
     /ACCESS_DENIED/,
@@ -69,11 +71,12 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   assert.deepEqual(status.chains, ["auto:default"]);
   const out = await dispatch(
     "freellmapi_generate",
-    { ...scope, prompt: "x", task: "code", localProcessingApproved: true },
+    { ...scope, prompt: "x", task: "code", localProcessingApproved: true, upstreamCloudApproved: true },
     ["execute"],
   );
   assert.equal(out.response, "hi");
-  assert.equal(out.paidInference, false);
+  assert.equal(out.paidInference, null);
+  assert.equal(out.billingVerified, false);
   assert.deepEqual(seen, ["auto:default"]);
   assert.equal(
     forwardTimeoutMs(15000, "freellmapi_generate", { timeoutSeconds: 45 }),
