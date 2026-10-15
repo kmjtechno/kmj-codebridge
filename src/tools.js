@@ -4,6 +4,7 @@ import { z } from "zod";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
+import { commandRequiresIsolatedLane } from "./command-presets.js";
 import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
@@ -3133,6 +3134,8 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
+      if (commandRequiresIsolatedLane(a.command) && !a.laneId)
+        fail("WORKTREE_LANE_REQUIRED");
       if (profile.category !== "inspect" && !p.writable)
         fail("READ_ONLY_PROJECT");
       return runner.run({
