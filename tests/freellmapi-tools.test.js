@@ -62,7 +62,12 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   await assert.rejects(
     dispatch(
       "freellmapi_generate",
-      { ...scope, prompt: "x", localProcessingApproved: true, upstreamCloudApproved: true },
+      {
+        ...scope,
+        prompt: "x",
+        localProcessingApproved: true,
+        upstreamCloudApproved: true,
+      },
       ["read"],
     ),
     /ACCESS_DENIED/,
@@ -71,7 +76,13 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   assert.deepEqual(status.chains, ["auto:default"]);
   const out = await dispatch(
     "freellmapi_generate",
-    { ...scope, prompt: "x", task: "code", localProcessingApproved: true, upstreamCloudApproved: true },
+    {
+      ...scope,
+      prompt: "x",
+      task: "code",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    },
     ["execute"],
   );
   assert.equal(out.response, "hi");
