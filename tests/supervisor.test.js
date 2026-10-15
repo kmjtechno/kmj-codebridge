@@ -203,6 +203,47 @@ test("config validation uses fixed paths and never returns config content", asyn
   assert.equal(JSON.stringify(result).includes("x".repeat(20)), false);
 });
 
+test("supervisor config validation classifies failures without leaking secrets", async () => {
+  const cases = [
+    { code: "ENOENT", reason: "CONFIG_FILE_MISSING" },
+    { code: "EACCES", reason: "CONFIG_FILE_UNREADABLE" },
+    { code: "EPERM", reason: "CONFIG_FILE_UNREADABLE" },
+    { syntax: true, reason: "CONFIG_JSON_INVALID" },
+  ];
+  for (const item of cases) {
+    const handle = createSupervisorHandler({
+      readFile: () => {
+        const error = item.syntax
+          ? new SyntaxError("secret-json-content")
+          : new Error("secret-config-path");
+        if (item.code) error.code = item.code;
+        throw error;
+      },
+    });
+    const result = await handle({ op: "config_validate", service: "gateway" });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: item.reason,
+    });
+    assert.ok(!JSON.stringify(result).includes("secret"));
+    assert.ok(!JSON.stringify(result).includes("/etc/"));
+  }
+
+  const invalidSchema = createSupervisorHandler({
+    readFile: () => JSON.stringify({ unknown: true }),
+  });
+  const result = await invalidSchema({
+    op: "config_validate",
+    service: "gateway",
+  });
+  assert.deepEqual(result.response, {
+    service: "gateway",
+    valid: false,
+    reason: "CONFIG_SCHEMA_INVALID",
+  });
+});
+
 test("restart is acknowledged before a hardcoded unit is scheduled", async () => {
   const restarted = [];
   const handle = createSupervisorHandler({
