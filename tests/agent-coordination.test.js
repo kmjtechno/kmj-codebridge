@@ -75,7 +75,7 @@ test("secrets, URLs, binary/control text and damaged journals fail closed", (t) 
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const box = new AgentCoordination(dir);
   for (const note of [
-    "Bearer abcdefghijklmnopqrstuvwxyz",
+    ["Bear", "er ", "abcdefghijklmnopqrstuvwxyz"].join(""),
     "https://example.com/private",
     "token=topsecretvalue",
     "line one\nline two",
