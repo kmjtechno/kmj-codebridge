@@ -37,11 +37,13 @@ export function createFreeLlmApiClient({
   approvedFreeChains = process.env.CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS
     ? process.env.CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS.split(",")
     : [],
+  now = Date.now,
 } = {}) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     fail("FREELLMAPI_INVALID_PORT");
   if (typeof apiKey !== "string" || !KEY.test(apiKey))
     fail("FREELLMAPI_KEY_NOT_CONFIGURED");
+  if (typeof now !== "function") fail("FREELLMAPI_INVALID_CLOCK");
   if (
     !Array.isArray(approvedFreeChains) ||
     approvedFreeChains.length > 20 ||
@@ -131,10 +133,20 @@ export function createFreeLlmApiClient({
         fail("FREELLMAPI_CONSENT_REQUIRED");
       if (rest.upstreamCloudApproved !== true)
         fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
+      // One end-to-end time budget shared by discovery AND every attempted
+      // chain. This must fit the gateway's timeoutSeconds + 15s allowance.
+      const totalSeconds = rest.timeoutSeconds ?? 60;
+      if (
+        !Number.isInteger(totalSeconds) ||
+        totalSeconds < 5 ||
+        totalSeconds > 90
+      )
+        fail("FREELLMAPI_INVALID_TIMEOUT");
+      const startedAt = now();
+      const deadline = startedAt + totalSeconds * 1000;
       // Even explicit chains must be advertised, approved and discovered.
-      const now = Date.now();
-      if (!cached || now - cached.at > STATUS_TTL_MS)
-        cached = { at: now, chains: (await client.status()).chains };
+      if (!cached || startedAt - cached.at > STATUS_TTL_MS)
+        cached = { at: startedAt, chains: (await client.status()).chains };
       const candidates = (
         chain === undefined
           ? candidateChains(task, cached.chains)
@@ -145,8 +157,21 @@ export function createFreeLlmApiClient({
       if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
       const attempts = [];
       for (const candidate of candidates.slice(0, 2)) {
+        const remainingMs = deadline - now();
+        // Reserve enough for one meaningful request; do not begin a second
+        // cloud request with only milliseconds remaining after a 429.
+        if (remainingMs < 4500)
+          fail("FREELLMAPI_DEADLINE_EXCEEDED");
+        const remainingSeconds = Math.min(
+          totalSeconds,
+          Math.ceil(remainingMs / 1000),
+        );
         try {
-          const out = await client.generate({ ...rest, chain: candidate });
+          const out = await client.generate({
+            ...rest,
+            chain: candidate,
+            timeoutSeconds: remainingSeconds,
+          });
           return {
             ...out,
             routing: { task, chosen: candidate, attempts },
