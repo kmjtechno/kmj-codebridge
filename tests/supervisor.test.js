@@ -233,7 +233,10 @@ test("supervisor config validation classifies failures without leaking secrets",
   const invalidSchema = createSupervisorHandler({
     readFile: () => JSON.stringify({ unknown: true }),
   });
-  const result = await invalidSchema({ op: "config_validate", service: "gateway" });
+  const result = await invalidSchema({
+    op: "config_validate",
+    service: "gateway",
+  });
   assert.deepEqual(result.response, {
     service: "gateway",
     valid: false,
