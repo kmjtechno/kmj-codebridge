@@ -45,7 +45,9 @@ export function getLiveDashboardMetrics({
       !Number.isSafeInteger(report.observedAtEpochMs) ||
       report.observedAtEpochMs > now + CLOCK_SKEW_MS ||
       report.observedAtEpochMs <= now - FRESH_MS ||
-      (authorized !== null && !authorized.has(report.deviceId))
+      // Missing grant scope must fail closed, never accept a self-labelled
+      // "authenticated" report from an unscoped caller.
+      (authorized === null || !authorized.has(report.deviceId))
     )
       continue;
 
