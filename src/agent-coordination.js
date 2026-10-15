@@ -38,7 +38,9 @@ function safeNote(value) {
     value.length < 1 ||
     value.length > 500 ||
     /[\x00-\x1f\x7f]/.test(value) ||
-    /https?:\/\/|-----BEGIN |(?:sk|ghp|gho|ghu|ghs|ghr)-?[A-Za-z0-9_-]{18,}/i.test(value) ||
+    /https?:\/\/|-----BEGIN |(?:sk|ghp|gho|ghu|ghs|ghr)-?[A-Za-z0-9_-]{18,}/i.test(
+      value,
+    ) ||
     redact(value) !== value
   )
     fail("COORDINATION_SENSITIVE_OR_INVALID_NOTE");
@@ -118,8 +120,10 @@ export class AgentCoordination {
   rows(project) {
     const dir = this.directory(project);
     const filenames = fs.readdirSync(dir).sort();
-    if (filenames.length > MAX_MESSAGES ||
-        filenames.some((name) => !/^[a-f0-9]{64}\.json$/.test(name)))
+    if (
+      filenames.length > MAX_MESSAGES ||
+      filenames.some((name) => !/^[a-f0-9]{64}\.json$/.test(name))
+    )
       fail("COORDINATION_JOURNAL_CORRUPT");
     return filenames.map((name) =>
       this.readMessage(dir, project, name.slice(0, 64)),
@@ -136,10 +140,10 @@ export class AgentCoordination {
       fail("COORDINATION_INVALID_QUERY");
     const all = this.rows(project).sort(
       (a, b) =>
-        a.createdAtEpochMs - b.createdAtEpochMs ||
-        a.id.localeCompare(b.id),
+        a.createdAtEpochMs - b.createdAtEpochMs || a.id.localeCompare(b.id),
     );
-    const start = after === null ? 0 : all.findIndex((row) => row.id === after) + 1;
+    const start =
+      after === null ? 0 : all.findIndex((row) => row.id === after) + 1;
     if (after !== null && start === 0) fail("COORDINATION_CURSOR_UNKNOWN");
     const page = all.slice(start, start + limit);
     return {
@@ -153,8 +157,19 @@ export class AgentCoordination {
     };
   }
 
-  post(project, { actor, recipient = "all", requestKey, kind, note,
-    replyTo = null, evidenceSha = null, reportedGate = "unknown" } = {}) {
+  post(
+    project,
+    {
+      actor,
+      recipient = "all",
+      requestKey,
+      kind,
+      note,
+      replyTo = null,
+      evidenceSha = null,
+      reportedGate = "unknown",
+    } = {},
+  ) {
     if (
       !KEY.test(actor ?? "") ||
       !KEY.test(recipient ?? "") ||
@@ -175,9 +190,19 @@ export class AgentCoordination {
         fail("COORDINATION_REPLY_NOT_FOUND");
       this.readMessage(dir, project, replyTo);
     }
-    const existing = fs.existsSync(file) ? this.readMessage(dir, project, id) : null;
-    const body = { actor, recipient, requestKey, kind, note, replyTo,
-      evidenceSha, reportedGate };
+    const existing = fs.existsSync(file)
+      ? this.readMessage(dir, project, id)
+      : null;
+    const body = {
+      actor,
+      recipient,
+      requestKey,
+      kind,
+      note,
+      replyTo,
+      evidenceSha,
+      reportedGate,
+    };
     if (existing !== null) {
       if (Object.entries(body).some(([key, value]) => existing[key] !== value))
         fail("COORDINATION_IDEMPOTENCY_CONFLICT");
