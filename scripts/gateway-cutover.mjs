@@ -24,7 +24,8 @@ import { pathToFileURL } from "node:url";
 import {
   REQUIRED_TOOLS,
   parseServerCommit,
-  parseToolNames,
+  parseToolCatalog,
+  verifyCriticalToolSchemas,
 } from "./verify-public-mcp-catalog.mjs";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
@@ -202,9 +203,9 @@ function probe(deps, url, { resolveLocal = false, publicHost }) {
     );
     return deps.run(args, { input: body, timeoutMs: 20000 });
   };
-  const tools = parseToolNames(call(RPC("tools/list", 1)));
+  const catalog = parseToolCatalog(call(RPC("tools/list", 1)));
   const commit = parseServerCommit(call(INIT));
-  return { tools, commit };
+  return { tools: catalog.names, catalog, commit };
 }
 
 // Git reads `.git/config` of repositories owned by the service user, and that
@@ -367,6 +368,14 @@ function verifyServing(options, deps) {
       REQUIRED_TOOLS.every((name) => seen.tools.has(name)),
       `${label}_TOOLS_MISSING`,
     );
+    // Count and tool names are insufficient: a stale gateway can expose a
+    // tool with missing lease-fencing or coordination schema properties.
+    // Check all three post-cutover origins; rollback uses the original catalog.
+    try {
+      verifyCriticalToolSchemas(seen.catalog);
+    } catch {
+      throw new CutoverError(`${label}_CRITICAL_SCHEMA_INVALID`);
+    }
     check(seen.commit === options.targetSha, `${label}_COMMIT_MISMATCH`);
   }
 }

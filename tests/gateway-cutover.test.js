@@ -12,7 +12,10 @@ import {
   runCutover,
   validateOptions,
 } from "../scripts/gateway-cutover.mjs";
-import { REQUIRED_TOOLS } from "../scripts/verify-public-mcp-catalog.mjs";
+import {
+  REQUIRED_TOOLS,
+  CRITICAL_TOOL_PROPERTIES,
+} from "../scripts/verify-public-mcp-catalog.mjs";
 
 const OLD_SHA = "055fd88ebfd56125abbe2bcec8f99819ed54ae80";
 const NEW_SHA = "5eab929549edbef644f0b93c22eda42a4c48a320";
@@ -85,7 +88,7 @@ function host(t, tweak = {}) {
   };
   publish();
   const names = [
-    ...REQUIRED_TOOLS,
+    ...new Set([...REQUIRED_TOOLS, ...Object.keys(CRITICAL_TOOL_PROPERTIES)]),
     ...Array.from({ length: 90 }, (_, i) => "filler_tool_" + i),
   ];
   const run = (argv, { input } = {}) => {
@@ -169,7 +172,25 @@ function host(t, tweak = {}) {
         id: 1,
         result:
           method === "tools/list"
-            ? { tools: names.map((name) => ({ name })) }
+            ? {
+                tools: names.map((name) => {
+                  const required = CRITICAL_TOOL_PROPERTIES[name];
+                  if (!required) return { name };
+                  const properties = Object.fromEntries(
+                    required
+                      .filter(
+                        (property) =>
+                          !(
+                            state.cwd === target &&
+                            state.badCriticalSchema === name &&
+                            property === "after"
+                          ),
+                      )
+                      .map((property) => [property, { type: "string" }]),
+                  );
+                  return { name, inputSchema: { type: "object", properties } };
+                }),
+              }
             : { serverInfo: { name: "kmj-codebridge", commit: state.commit } },
       });
     }
@@ -300,6 +321,27 @@ test(
     for (const call of h.state.calls)
       assert.match(call, /^(systemctl|git|curl|getent|runuser|\S*node )/);
     assert.ok(!h.state.calls.some((c) => /nginx|dns|certbot/i.test(c)));
+  },
+);
+
+test(
+  "a complete tool-name list with an invalid coordination schema fails closed and rolls back",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, {
+      state: { badCriticalSchema: "coordination_list" },
+    });
+    const { ok, out } = await runCutover(
+      { ...h.options, apply: true, confirmNoActiveJobs: true },
+      h.deps,
+    );
+    const result = lines(out);
+    assert.equal(ok, false);
+    assert.equal(result.FAILURE, "DIRECT_CRITICAL_SCHEMA_INVALID");
+    assert.equal(result.ROLLBACK, "PASS");
+    assert.equal(h.state.restarts, 2);
+    assert.equal(h.state.commit, OLD_SHA);
+    assert.equal(fs.existsSync(h.dropIn), false);
   },
 );
 
