@@ -15,7 +15,11 @@ function assertLoopback(label, value) {
   } catch {
     throw new Error(`DEV_TOKEN_${label}_INVALID`);
   }
-  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password)
+  if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password
+  )
     throw new Error(`DEV_TOKEN_${label}_INVALID`);
   if (!LOOPBACK_HOSTS.has(url.hostname))
     throw new Error(`DEV_TOKEN_${label}_NOT_LOOPBACK`);
@@ -25,7 +29,12 @@ export async function createDevKeyPair() {
   const { publicKey, privateKey } = await generateKeyPair("EdDSA", {
     extractable: true,
   });
-  const jwk = { ...(await exportJWK(publicKey)), alg: "EdDSA", use: "sig", kid: "dev" };
+  const jwk = {
+    ...(await exportJWK(publicKey)),
+    alg: "EdDSA",
+    use: "sig",
+    kid: "dev",
+  };
   return { privateKey, jwks: { keys: [jwk] } };
 }
 
@@ -39,7 +48,8 @@ export async function mintDevToken({
   env = process.env,
   now = Math.floor(Date.now() / 1000),
 }) {
-  if (env.NODE_ENV === "production") throw new Error("DEV_TOKEN_FORBIDDEN_IN_PRODUCTION");
+  if (env.NODE_ENV === "production")
+    throw new Error("DEV_TOKEN_FORBIDDEN_IN_PRODUCTION");
   assertLoopback("ISSUER", issuer);
   assertLoopback("RESOURCE", resource);
   if (typeof subject !== "string" || !/^[A-Za-z0-9_.:@-]{1,128}$/.test(subject))
