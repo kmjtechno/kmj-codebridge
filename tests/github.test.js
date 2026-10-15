@@ -623,8 +623,7 @@ test("execution doctor confirms zero-step failure only at matching workflow HEAD
   const head = "a".repeat(40);
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = String(url);
-    if (p.endsWith("/pulls/433"))
-      return json({ head: { sha: head } });
+    if (p.endsWith("/pulls/433")) return json({ head: { sha: head } });
     if (p.endsWith("/actions/runs/500"))
       return json({
         id: 500,
@@ -636,8 +635,20 @@ test("execution doctor confirms zero-step failure only at matching workflow HEAD
       return json({
         total_count: 2,
         jobs: [
-          { id: 501, name: "CI startup", status: "completed", conclusion: "failure", steps: [] },
-          { id: 502, name: "CI browser", status: "completed", conclusion: "failure", steps: [] },
+          {
+            id: 501,
+            name: "CI startup",
+            status: "completed",
+            conclusion: "failure",
+            steps: [],
+          },
+          {
+            id: 502,
+            name: "CI browser",
+            status: "completed",
+            conclusion: "failure",
+            steps: [],
+          },
         ],
       });
     throw new Error("unexpected fetch");
@@ -691,8 +702,19 @@ test("run jobs expose step evidence but keep missing steps explicitly unknown", 
       return json({
         total_count: 2,
         jobs: [
-          { id: 801, name: "Startup", status: "completed", conclusion: "failure", steps: [] },
-          { id: 802, name: "Missing", status: "completed", conclusion: "failure" },
+          {
+            id: 801,
+            name: "Startup",
+            status: "completed",
+            conclusion: "failure",
+            steps: [],
+          },
+          {
+            id: 802,
+            name: "Missing",
+            status: "completed",
+            conclusion: "failure",
+          },
         ],
       });
     throw new Error("unexpected fetch");
