@@ -72,7 +72,7 @@ test("critical tool schemas and lease-token fields are mandatory on each MCP ori
   assert.equal(requests.length, 1);
   assert.equal(requests[0].url, "https://kmjtechno.com/mcp");
   assert.equal(requests[0].options.headers.Authorization, undefined);
-  assert.match(requests[0].options.body, /"method":"tools\\/list"/);
+  assert.match(requests[0].options.body, /"method":"tools\/list"/);
 });
 
 test("a high tool count cannot hide missing agent coordination features", () => {
