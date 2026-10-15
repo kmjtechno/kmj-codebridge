@@ -186,7 +186,6 @@ test("generated enrollment proof is high entropy and not self-equal", () => {
   assert.notEqual(a.verifier, b.verifier);
 });
 
-
 test("redemption reports allowlisted server fault but never echoes arbitrary bodies", async () => {
   const handle = {
     device_code: "d".repeat(48),
@@ -214,7 +213,8 @@ test("redemption reports allowlisted server fault but never echoes arbitrary bod
           { status: 400 },
         ),
     }),
-    (error) => error.code === "ENROLLMENT_INVALID" &&
+    (error) =>
+      error.code === "ENROLLMENT_INVALID" &&
       !String(error.message).includes("secret"),
   );
 });
