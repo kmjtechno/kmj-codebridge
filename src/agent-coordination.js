@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 
@@ -81,6 +81,10 @@ export class AgentCoordination {
     this.base = path.join(stateDir, "agent-coordination");
     this.now = now;
     checkDir(this.base);
+    // Staging is outside per-project mailboxes, so list() never observes a
+    // partially written JSON file from another agent process.
+    this.staging = path.join(this.base, ".staging");
+    checkDir(this.staging);
   }
 
   directory(project) {
@@ -101,7 +105,10 @@ export class AgentCoordination {
     if (
       !stat.isFile() ||
       stat.isSymbolicLink() ||
-      stat.nlink !== 1 ||
+      // During the atomic hard-link publish, the complete staged file may
+      // briefly have two links before staging cleanup. It is still fully
+      // fsynced and digest-validated before a reader receives it.
+      (stat.nlink !== 1 && stat.nlink !== 2) ||
       stat.size < 2 ||
       stat.size > MAX_MESSAGE_BYTES ||
       (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
@@ -220,13 +227,22 @@ export class AgentCoordination {
     const raw = JSON.stringify(row);
     if (Buffer.byteLength(raw) > MAX_MESSAGE_BYTES)
       fail("COORDINATION_MESSAGE_TOO_LARGE");
+    // Publish a fully written and fsynced file with an atomic, no-replace
+    // hard link. The previous "wx" final-file creation exposed a zero-length
+    // or partial JSON file to concurrent list/retry calls.
+    const stagedFile = path.join(this.staging, randomUUID() + ".tmp");
     let fd;
     try {
-      fd = fs.openSync(file, "wx", 0o600);
+      fd = fs.openSync(stagedFile, "wx", 0o600);
       fs.writeFileSync(fd, raw, "utf8");
       fs.fsyncSync(fd);
+      fs.closeSync(fd);
+      fd = undefined;
+      fs.linkSync(stagedFile, file);
     } catch (error) {
-      if (error?.code === "EEXIST") {
+      if (error?.code === "EEXIST" && fs.existsSync(file)) {
+        // Another process published the same deterministic message first.
+        // Its final path is already complete, not still being written.
         const raced = this.readMessage(dir, project, id);
         if (Object.entries(body).some(([key, value]) => raced[key] !== value))
           fail("COORDINATION_IDEMPOTENCY_CONFLICT");
@@ -235,6 +251,7 @@ export class AgentCoordination {
       throw error;
     } finally {
       if (fd !== undefined) fs.closeSync(fd);
+      if (fs.existsSync(stagedFile)) fs.unlinkSync(stagedFile);
     }
     return { project, id, reused: false, stored: true };
   }
