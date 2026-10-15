@@ -172,9 +172,11 @@ test("status maps only allowlisted service names", async () => {
 
 test("logs are bounded and redacted", async () => {
   const handle = createSupervisorHandler({
-    run: (bin) =>
+    run: (bin, args) =>
       bin.endsWith("systemctl")
-        ? "LoadState=loaded\nActiveState=inactive\n"
+        ? args[1] === "kmj-codebridge-gateway.service"
+          ? "LoadState=loaded\nActiveState=inactive\n"
+          : "LoadState=not-found\n"
         : "token=never-return-this\nnormal line\n",
   });
   const result = await handle({ op: "logs", service: "gateway", lines: 20 });
@@ -252,7 +254,10 @@ test("supervisor config validation classifies failures without leaking secrets",
 test("restart is acknowledged before a hardcoded unit is scheduled", async () => {
   const restarted = [];
   const handle = createSupervisorHandler({
-    run: () => "LoadState=loaded\nActiveState=inactive\n",
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-agent.service"
+        ? "LoadState=loaded\nActiveState=inactive\n"
+        : "LoadState=not-found\n",
     restart: (unit) => restarted.push(unit),
   });
   const result = await handle({ op: "restart", service: "agent" });

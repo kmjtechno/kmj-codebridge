@@ -96,7 +96,8 @@ for (const service of ["agent", "gateway"]) {
     for (const [defaultState, alternateState, chosen] of [
       ["inactive", "active", alternate],
       ["active", "inactive", standard],
-      ["inactive", "inactive", standard],
+      ["inactive", "inactive", null],
+      ["inactive", "failed", null],
       ["active", "active", null],
       ["activating", "active", null],
       ["inactive", "deactivating", null],

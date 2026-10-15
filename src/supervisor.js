@@ -139,7 +139,8 @@ function serviceUnit(service, run) {
   const active = installed.filter(
     ([, state]) => state.ActiveState === "active",
   );
-  if (active.length > 1) fail("SUPERVISOR_SERVICE_AMBIGUOUS");
+  if (active.length > 1 || (active.length === 0 && installed.length > 1))
+    fail("SUPERVISOR_SERVICE_AMBIGUOUS");
   // The old default may remain installed after a stage cutover. Status,
   // logs and restart must all address the same sole running instance.
   return (active[0] ?? installed[0])[0];
