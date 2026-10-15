@@ -114,6 +114,13 @@ export function parseToolNames(body) {
 // Only verify published, public JSON schemas; do not send authentication,
 // credentials, prompts or any tools/call requests. A missing or malformed
 // lease-token field is a release blocker, not an invitation to bypass fences.
+function criticalError(code, name) {
+  const error = new Error(code);
+  // Name comes from our static security-critical allowlist, never upstream.
+  error.criticalTool = name;
+  return error;
+}
+
 export function verifyCriticalToolSchemas(catalog) {
   if (!(catalog?.names instanceof Set) || !(catalog?.tools instanceof Map))
     throw new Error("MCP_CATALOG_INCOMPLETE");
@@ -122,7 +129,7 @@ export function verifyCriticalToolSchemas(catalog) {
   )) {
     const tool = catalog.tools.get(name);
     if (!catalog.names.has(name) || !tool)
-      throw new Error("MCP_CRITICAL_TOOL_MISSING");
+      throw criticalError("MCP_CRITICAL_TOOL_MISSING", name);
     const schema = tool.inputSchema;
     if (
       !schema ||
@@ -131,17 +138,17 @@ export function verifyCriticalToolSchemas(catalog) {
       typeof schema.properties !== "object" ||
       Array.isArray(schema.properties)
     )
-      throw new Error("MCP_CRITICAL_SCHEMA_MISSING");
+      throw criticalError("MCP_CRITICAL_SCHEMA_MISSING", name);
     for (const property of requiredProperties) {
       if (!Object.hasOwn(schema.properties, property))
-        throw new Error("MCP_CRITICAL_SCHEMA_MISSING");
+        throw criticalError("MCP_CRITICAL_SCHEMA_MISSING", name);
     }
     for (const sensitive of ["leaseToken"]) {
       if (
         requiredProperties.includes(sensitive) &&
         schema.properties[sensitive]?.type !== "string"
       )
-        throw new Error("MCP_CRITICAL_SCHEMA_INVALID");
+        throw criticalError("MCP_CRITICAL_SCHEMA_INVALID", name);
     }
   }
   return true;
@@ -297,8 +304,33 @@ async function main() {
   const report = verifyCatalogs(render.names, production.names);
   // Production and Render may differ in optional integrations, but their
   // project-scoped agent collaboration and fenced task lifecycle must agree.
-  verifyCriticalToolSchemas(render);
-  verifyCriticalToolSchemas(production);
+  for (const [origin, catalog] of [
+    ["render", render],
+    ["production", production],
+  ]) {
+    try {
+      verifyCriticalToolSchemas(catalog);
+      console.log(`MCP_CRITICAL_SCHEMA ${origin}=PASS`);
+    } catch (error) {
+      const tool =
+        typeof error.criticalTool === "string" &&
+        Object.hasOwn(CRITICAL_TOOL_PROPERTIES, error.criticalTool)
+          ? error.criticalTool
+          : "unknown";
+      const code = [
+        "MCP_CRITICAL_TOOL_MISSING",
+        "MCP_CRITICAL_SCHEMA_MISSING",
+        "MCP_CRITICAL_SCHEMA_INVALID",
+        "MCP_CATALOG_INCOMPLETE",
+      ].includes(error.message)
+        ? error.message
+        : "MCP_CATALOG_INCOMPLETE";
+      console.error(
+        `MCP_CRITICAL_SCHEMA ${origin}=FAIL tool=${tool} code=${code}`,
+      );
+      throw error;
+    }
+  }
   console.log(
     "MCP_PUBLIC_CATALOG=PASS render=" +
       report.renderCount +
