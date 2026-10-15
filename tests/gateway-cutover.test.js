@@ -36,6 +36,9 @@ function host(t, tweak = {}) {
   fs.mkdirSync(path.join(target, "node_modules", "zod"), { recursive: true });
   const config = path.join(base, "gateway.json");
   fs.writeFileSync(config, "{}", { mode: tweak.configMode ?? 0o600 });
+  // Creation mode is masked by the operator's umask (including 077).
+  // The unsafe-config case must actually put unsafe permissions on disk.
+  fs.chmodSync(config, tweak.configMode ?? 0o600);
   const node = path.join(base, "node");
   fs.writeFileSync(node, "");
   const unitFile = path.join(base, "unit.service");
@@ -688,6 +691,14 @@ test(
       lines(out).CANDIDATE_GATES,
       /^PASS_CHECK_TEST_SCAN_SECRETS_AS_/,
     );
+    const gateCalls = ok.state.calls.filter((call) => call.includes(" npm "));
+    assert.equal(gateCalls.length, 3);
+    for (const call of gateCalls) {
+      assert.ok(call.includes("GIT_CONFIG_COUNT=1"));
+      assert.ok(call.includes("GIT_CONFIG_KEY_0=safe.directory"));
+      assert.ok(call.includes(`GIT_CONFIG_VALUE_0=${ok.target} `));
+      assert.ok(!call.includes("safe.directory=*"));
+    }
     assert.deepEqual(ok.state.gatesRun, [
       "npm run check",
       "npm test",
