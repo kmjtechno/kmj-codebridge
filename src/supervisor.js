@@ -100,10 +100,24 @@ function exactKeys(value, allowed) {
     fail("INVALID_SUPERVISOR_REQUEST");
 }
 
-function serviceUnit(service) {
+function serviceUnit(service, run) {
   const unit = SERVICES[service];
-  if (!unit) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
-  return unit;
+  if (!Object.hasOwn(SERVICES, service)) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+  const loadState = (name) =>
+    parseProperties(
+      run(SYSTEMCTL, ["show", name, "--property=LoadState", "--no-pager"]),
+    ).LoadState;
+  const state = loadState(unit);
+  if (state === "loaded") return unit;
+  // Only absence permits a fixed legacy fallback. Never route around a
+  // masked, broken, unreadable or otherwise unknown default unit.
+  if (state !== "not-found") fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  const alternate =
+    service === "agent"
+      ? MAIN_PLATFORM_AGENT_SERVICE
+      : "kmj-codebridge-gateway-stage.service";
+  if (loadState(alternate) !== "loaded") fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  return alternate;
 }
 
 function parseProperties(text) {
@@ -1547,7 +1561,7 @@ export function createSupervisorHandler({
 
     if (request.op === "status") {
       exactKeys(request, ["op", "service"]);
-      const unit = serviceUnit(request.service);
+      const unit = serviceUnit(request.service, run);
       const output = run(SYSTEMCTL, [
         "show",
         unit,
@@ -1562,10 +1576,10 @@ export function createSupervisorHandler({
 
     if (request.op === "logs") {
       exactKeys(request, ["op", "service", "lines"]);
-      const unit = serviceUnit(request.service);
       const lines = request.lines ?? 80;
       if (!Number.isInteger(lines) || lines < 1 || lines > 200)
         fail("INVALID_SUPERVISOR_REQUEST");
+      const unit = serviceUnit(request.service, run);
       const output = run(JOURNALCTL, [
         "-u",
         unit,
@@ -1615,7 +1629,7 @@ export function createSupervisorHandler({
 
     if (request.op === "restart") {
       exactKeys(request, ["op", "service"]);
-      const unit = serviceUnit(request.service);
+      const unit = serviceUnit(request.service, run);
       return {
         response: { service: request.service, accepted: true },
         afterSend: () => restart(unit),

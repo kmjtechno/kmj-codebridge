@@ -149,7 +149,7 @@ test("status maps only allowlisted service names", async () => {
   const handle = createSupervisorHandler({
     run: (command, args) => {
       calls.push([command, args]);
-      return "ActiveState=active\nSubState=running\nMainPID=123\nNRestarts=2\n";
+      return "LoadState=loaded\nActiveState=active\nSubState=running\nMainPID=123\nNRestarts=2\n";
     },
   });
   const result = await handle({ op: "status", service: "agent" });
@@ -170,7 +170,10 @@ test("status maps only allowlisted service names", async () => {
 
 test("logs are bounded and redacted", async () => {
   const handle = createSupervisorHandler({
-    run: () => "token=never-return-this\nnormal line\n",
+    run: (bin) =>
+      bin.endsWith("systemctl")
+        ? "LoadState=loaded\n"
+        : "token=never-return-this\nnormal line\n",
   });
   const result = await handle({ op: "logs", service: "gateway", lines: 20 });
   assert.doesNotMatch(result.response.output, /never-return-this/);
@@ -247,6 +250,7 @@ test("supervisor config validation classifies failures without leaking secrets",
 test("restart is acknowledged before a hardcoded unit is scheduled", async () => {
   const restarted = [];
   const handle = createSupervisorHandler({
+    run: () => "LoadState=loaded\n",
     restart: (unit) => restarted.push(unit),
   });
   const result = await handle({ op: "restart", service: "agent" });
