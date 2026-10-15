@@ -596,6 +596,13 @@ export const definitions = {
     },
     access: "read",
   },
+  context_resume: {
+    title: "Resume engineering context",
+    description:
+      "One compact, versioned packet to continue work: Git branch/dirty state, top open tasks, active file reservations, last five project mailbox notes (caller claims) and approved job slots. Unreadable parts are UNKNOWN, never guessed. No raw files, logs or credentials.",
+    input: { ...scoped },
+    access: "read",
+  },
   render_codebridge_status: {
     title: "Show KMJ CodeBridge branded project card",
     description:

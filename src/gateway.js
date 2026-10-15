@@ -29,6 +29,7 @@ import {
   compactStatusText,
 } from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
+import { buildContextResume } from "./context-resume.js";
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
 // Render injects RENDER_GIT_COMMIT. Non-Render deploys (e.g. the VPS gateway
 // behind the customer-domain /mcp) set CODEBRIDGE_SOURCE_COMMIT at deploy time,
@@ -579,6 +580,35 @@ export async function startGateway(rawConfig) {
     });
   }
 
+  async function getContextResume(user, args) {
+    authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
+    const requests = [
+      ["git_status", scope],
+      ["autopilot_status", { ...scope, limit: 10 }],
+      ["chat_lane_status", scope],
+      ["coordination_list", { ...scope, limit: 5, after: null }],
+      ["execution_capacity", scope],
+    ];
+    const parts = await Promise.all(
+      requests.map(async ([name, input]) => {
+        try {
+          return decodeForwardedResult(await forward(user, name, input));
+        } catch (error) {
+          return { ok: false, error: publicError(error).error };
+        }
+      }),
+    );
+    return buildContextResume({
+      ...scope,
+      git: parts[0],
+      autopilot: parts[1],
+      lanes: parts[2],
+      mailbox: parts[3],
+      capacity: parts[4],
+    });
+  }
+
   const fastReadTools = new Set(FAST_READ_TOOLS);
 
   async function fastReadBatch(user, args) {
@@ -1106,6 +1136,13 @@ export async function startGateway(rawConfig) {
               }
               if (name === "compact_work_brief") {
                 const result = await getCompactWorkBrief(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                  structuredContent: result,
+                };
+              }
+              if (name === "context_resume") {
+                const result = await getContextResume(user, args);
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                   structuredContent: result,
