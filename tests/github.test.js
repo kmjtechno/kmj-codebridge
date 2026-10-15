@@ -623,6 +623,8 @@ test("execution doctor confirms zero-step failure only at matching workflow HEAD
   const head = "a".repeat(40);
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = String(url);
+    if (p.endsWith("/pulls/433"))
+      return json({ head: { sha: head } });
     if (p.endsWith("/actions/runs/500"))
       return json({
         id: 500,
@@ -642,6 +644,7 @@ test("execution doctor confirms zero-step failure only at matching workflow HEAD
   });
   const r = await dispatch("github_actions_execution_doctor", {
     repository: "kmjtechno/kmj-codebridge",
+    number: 433,
     runId: 500,
     expectedHeadSha: head,
   });
@@ -657,6 +660,8 @@ test("execution doctor rejects moved SHA and never follows a stale run", async (
   const dispatch = writableBridge(t);
   let jobRequests = 0;
   t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).endsWith("/pulls/433"))
+      return json({ head: { sha: "a".repeat(40) } });
     if (String(url).endsWith("/actions/runs/700"))
       return json({
         id: 700,
@@ -670,10 +675,11 @@ test("execution doctor rejects moved SHA and never follows a stale run", async (
   await assert.rejects(
     dispatch("github_actions_execution_doctor", {
       repository: "kmjtechno/kmj-codebridge",
+      number: 433,
       runId: 700,
       expectedHeadSha: "a".repeat(40),
     }),
-    /GITHUB_HEAD_MOVED/,
+    /GITHUB_HEAD_MISMATCH/,
   );
   assert.equal(jobRequests, 0);
 });
