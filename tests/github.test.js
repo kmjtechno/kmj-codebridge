@@ -617,3 +617,86 @@ test("public read-only native GitHub doctor sends no credential and never implie
   assert.equal(result.writeVerified, false);
   assert.deepEqual(calls, [undefined]);
 });
+
+test("execution doctor confirms zero-step failure only at matching workflow HEAD", async (t) => {
+  const dispatch = writableBridge(t);
+  const head = "a".repeat(40);
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const p = String(url);
+    if (p.endsWith("/actions/runs/500"))
+      return json({
+        id: 500,
+        head_sha: head,
+        status: "completed",
+        conclusion: "failure",
+      });
+    if (p.includes("/actions/runs/500/jobs"))
+      return json({
+        total_count: 2,
+        jobs: [
+          { id: 501, name: "CI startup", status: "completed", conclusion: "failure", steps: [] },
+          { id: 502, name: "CI browser", status: "completed", conclusion: "failure", steps: [] },
+        ],
+      });
+    throw new Error("unexpected fetch");
+  });
+  const r = await dispatch("github_actions_execution_doctor", {
+    repository: "kmjtechno/kmj-codebridge",
+    runId: 500,
+    expectedHeadSha: head,
+  });
+  assert.equal(r.classification, "FAILED_WITH_ZERO_JOB_STEPS");
+  assert.equal(r.zeroStepFailedJobs, 2);
+  assert.equal(r.action, "READ_ONLY_DIAGNOSTIC");
+  assert.equal(r.codeTestsPassed, false);
+  assert.equal(r.localEvidenceIsHostedCi, false);
+  assert.match(r.mergeAuthorization, /^BLOCKED/);
+});
+
+test("execution doctor rejects moved SHA and never follows a stale run", async (t) => {
+  const dispatch = writableBridge(t);
+  let jobRequests = 0;
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).endsWith("/actions/runs/700"))
+      return json({
+        id: 700,
+        head_sha: "b".repeat(40),
+        status: "completed",
+        conclusion: "failure",
+      });
+    jobRequests++;
+    throw new Error("unexpected fetch");
+  });
+  await assert.rejects(
+    dispatch("github_actions_execution_doctor", {
+      repository: "kmjtechno/kmj-codebridge",
+      runId: 700,
+      expectedHeadSha: "a".repeat(40),
+    }),
+    /GITHUB_HEAD_MOVED/,
+  );
+  assert.equal(jobRequests, 0);
+});
+
+test("run jobs expose step evidence but keep missing steps explicitly unknown", async (t) => {
+  const dispatch = writableBridge(t);
+  t.mock.method(globalThis, "fetch", async (url) => {
+    if (String(url).includes("/actions/runs/800/jobs"))
+      return json({
+        total_count: 2,
+        jobs: [
+          { id: 801, name: "Startup", status: "completed", conclusion: "failure", steps: [] },
+          { id: 802, name: "Missing", status: "completed", conclusion: "failure" },
+        ],
+      });
+    throw new Error("unexpected fetch");
+  });
+  const r = await dispatch("github_actions_run_jobs", {
+    repository: "kmjtechno/kmj-codebridge",
+    runId: 800,
+  });
+  assert.equal(r.evidenceComplete, true);
+  assert.equal(r.jobs[0].executionEvidence.execution, "NO_STEPS_RECORDED");
+  assert.equal(r.jobs[1].executionEvidence.execution, "STEPS_UNKNOWN");
+  assert.equal(r.jobs[0].executionEvidence.applicationTestsVerified, false);
+});
