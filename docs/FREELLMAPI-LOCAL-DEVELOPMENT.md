@@ -6,7 +6,7 @@ CodeBridge can connect to the **loopback** FreeLLMAPI gateway when installed on 
 
 ## Safe operator configuration
 
-- Configure `CODEBRIDGE_FREELLMAPI_KEY` as a *device-local secret*, not in Git, a chat prompt, process arguments, an MCP URL, or a dashboard screenshot.
+- Configure `CODEBRIDGE_FREELLMAPI_KEY` as a _device-local secret_, not in Git, a chat prompt, process arguments, an MCP URL, or a dashboard screenshot.
 - Explicitly set `CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS` to a comma-separated **owner-reviewed** subset advertised by the running `/v1/models` API. Example names are `auto:code,auto:default`; these are not presumed to exist on every router.
 - In FreeLLMAPI, independently verify that every eligible upstream/chain is free for **your account**, within its ToS, and does not silently fall back to paid providers. The allowlist denotes operator approval, **not billing proof**. Only owner-vetted chains should be listed.
 - `freellmapi_status` is a read-only discovery tool; `freellmapi_generate` requires both `localProcessingApproved: true` (contact the router) and `upstreamCloudApproved: true` (the router can transmit content to a remote provider), plus an owner-allowed and currently advertised chain.
