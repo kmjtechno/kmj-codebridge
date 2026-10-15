@@ -48,7 +48,9 @@ export async function mintDevToken({
   env = process.env,
   now = Math.floor(Date.now() / 1000),
 }) {
-  if (env.NODE_ENV === "production")
+  // Callers may supply an env snapshot in tests, but must never be able to
+  // override the actual runtime's production deny rule with { env: {} }.
+  if (process.env.NODE_ENV === "production" || env?.NODE_ENV === "production")
     throw new Error("DEV_TOKEN_FORBIDDEN_IN_PRODUCTION");
   assertLoopback("ISSUER", issuer);
   assertLoopback("RESOURCE", resource);
