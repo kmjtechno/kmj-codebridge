@@ -160,8 +160,7 @@ export function createFreeLlmApiClient({
         const remainingMs = deadline - now();
         // Reserve enough for one meaningful request; do not begin a second
         // cloud request with only milliseconds remaining after a 429.
-        if (remainingMs < 4500)
-          fail("FREELLMAPI_DEADLINE_EXCEEDED");
+        if (remainingMs < 4500) fail("FREELLMAPI_DEADLINE_EXCEEDED");
         const remainingSeconds = Math.min(
           totalSeconds,
           Math.ceil(remainingMs / 1000),
