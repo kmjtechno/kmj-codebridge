@@ -24,22 +24,22 @@ modules should be composed, not replaced by unreviewed third-party agents.
 
 ## Reuse the existing building blocks
 
-| Function | Existing implementation | Next integration requirement |
-| --- | --- | --- |
-| Strict OAuth | `src/auth.js` | Complete client PKCE/DCR acceptance per client, with no wildcard bearer tokens |
-| Isolated edits | `src/worktree-lanes.js`, `src/checkpoints.js` | Durable tenant-scoped lane lease and merge conflict handling |
-| Autonomous DAG planning | `src/hyperspeed-plan.js`, `src/autopilot.js` | Real owner-approved worker lease -> gates -> review -> PR |
-| Safe tools | `src/policy.js`, `src/command-presets.js` | Signed trust boundary and isolated process sandboxes |
-| Free model policy | `src/model-failover-policy.js`, `src/smart-model-router.js` | Connect proven provider inventory, latency and quota observations to executor |
-| Audit | `src/audit.js` | Retention, remote anchoring, integrity verification, incident export |
-| Project status | `src/fleet-overview.js`, `src/project-progress.js` | Authenticated live telemetry, not hardcoded fleet statistics |
+| Function                | Existing implementation                                     | Next integration requirement                                                   |
+| ----------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Strict OAuth            | `src/auth.js`                                               | Complete client PKCE/DCR acceptance per client, with no wildcard bearer tokens |
+| Isolated edits          | `src/worktree-lanes.js`, `src/checkpoints.js`               | Durable tenant-scoped lane lease and merge conflict handling                   |
+| Autonomous DAG planning | `src/hyperspeed-plan.js`, `src/autopilot.js`                | Real owner-approved worker lease -> gates -> review -> PR                      |
+| Safe tools              | `src/policy.js`, `src/command-presets.js`                   | Signed trust boundary and isolated process sandboxes                           |
+| Free model policy       | `src/model-failover-policy.js`, `src/smart-model-router.js` | Connect proven provider inventory, latency and quota observations to executor  |
+| Audit                   | `src/audit.js`                                              | Retention, remote anchoring, integrity verification, incident export           |
+| Project status          | `src/fleet-overview.js`, `src/project-progress.js`          | Authenticated live telemetry, not hardcoded fleet statistics                   |
 
 ## Developer access without unsafe bypass
 
 A local single-developer experience must have **the same authorization
 boundaries**, but can remove unnecessary ceremony:
 
-- Provide one-click creation of a local *loopback-bound*, short-lived,
+- Provide one-click creation of a local _loopback-bound_, short-lived,
   project-scoped developer session after an explicit OS-user approval.
   The session cannot be used from another machine; it has no automatic
   production/customer tenant privileges.
@@ -87,17 +87,17 @@ before making a low-cost claim.
 
 ## Acceptance sequence
 
-| Priority | Release gate | Evidence |
-| --- | --- | --- |
-| P0 | Truthful dashboard, no fake model/device counts | Live signed-agent reports, unknown/stale negative tests |
-| P0 | Safe developer onboarding | OS-confirmed loopback session, redirect allowlist and wildcard rejection tests |
-| P0 | Reliable local-first routing | Quota/429/timeout simulation, real P720 Ollama tool call, no billed request |
-| P0 | Autonomous task completion | Real lease -> worktree -> patch -> exact-head gates -> owner-reviewed PR |
-| P0 | Production deploy parity | Exact SHA for all public MCP origins, same catalog, authenticated smoke |
-| P1 | Stable signed upgrades | Published detached signature, staged device install, observed rollback |
-| P1 | Client UX | Claude Desktop, Cursor, Roo Code, ChatGPT OAuth and actual tool-call demos |
-| P1 | Enterprise durability | External ledger anchors, recovery drill and scoped multi-tenant isolation |
-| P2 | Scale tuning | Benchmarks for 1/10/100/1000 active nodes, P95/P99 SLO with stated hardware |
+| Priority | Release gate                                    | Evidence                                                                       |
+| -------- | ----------------------------------------------- | ------------------------------------------------------------------------------ |
+| P0       | Truthful dashboard, no fake model/device counts | Live signed-agent reports, unknown/stale negative tests                        |
+| P0       | Safe developer onboarding                       | OS-confirmed loopback session, redirect allowlist and wildcard rejection tests |
+| P0       | Reliable local-first routing                    | Quota/429/timeout simulation, real P720 Ollama tool call, no billed request    |
+| P0       | Autonomous task completion                      | Real lease -> worktree -> patch -> exact-head gates -> owner-reviewed PR       |
+| P0       | Production deploy parity                        | Exact SHA for all public MCP origins, same catalog, authenticated smoke        |
+| P1       | Stable signed upgrades                          | Published detached signature, staged device install, observed rollback         |
+| P1       | Client UX                                       | Claude Desktop, Cursor, Roo Code, ChatGPT OAuth and actual tool-call demos     |
+| P1       | Enterprise durability                           | External ledger anchors, recovery drill and scoped multi-tenant isolation      |
+| P2       | Scale tuning                                    | Benchmarks for 1/10/100/1000 active nodes, P95/P99 SLO with stated hardware    |
 
 No green source CI or proposal replaces the real-world acceptance gates.
 Keep the commercial general-availability label gated until all P0 gates pass.
