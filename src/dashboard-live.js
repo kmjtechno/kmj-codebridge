@@ -47,7 +47,8 @@ export function getLiveDashboardMetrics({
       report.observedAtEpochMs <= now - FRESH_MS ||
       // Missing grant scope must fail closed, never accept a self-labelled
       // "authenticated" report from an unscoped caller.
-      (authorized === null || !authorized.has(report.deviceId))
+      authorized === null ||
+      !authorized.has(report.deviceId)
     )
       continue;
 
