@@ -27,9 +27,16 @@ test("only a fresh authorized report counts and repeated device samples deduplic
     now: NOW,
     authorizedDeviceIds: ["device1", "device2", "revoked"],
     reports: [
-      sample({ queue: { queued: 99, running: 9 }, observedAtEpochMs: NOW - 10_000 }),
+      sample({
+        queue: { queued: 99, running: 9 },
+        observedAtEpochMs: NOW - 10_000,
+      }),
       sample(),
-      sample({ deviceId: "device2", projectId: "kmj-codebridge", queue: { queued: 3, running: 0 } }),
+      sample({
+        deviceId: "device2",
+        projectId: "kmj-codebridge",
+        queue: { queued: 3, running: 0 },
+      }),
       sample({ deviceId: "stranger", queue: { queued: 700, running: 0 } }),
     ],
   });
@@ -37,11 +44,14 @@ test("only a fresh authorized report counts and repeated device samples deduplic
   assert.equal(result.authorizedDevices, 3);
   assert.equal(result.notReportingDevices, 1);
   assert.equal(result.offlineDevices, null);
-  assert.deepEqual(result.projects.map((p) => ({
-    name: p.name,
-    queuedTasks: p.queuedTasks,
-    activeWorkers: p.activeWorkers,
-  })), [{ name: "kmj-codebridge", queuedTasks: 5, activeWorkers: 1 }]);
+  assert.deepEqual(
+    result.projects.map((p) => ({
+      name: p.name,
+      queuedTasks: p.queuedTasks,
+      activeWorkers: p.activeWorkers,
+    })),
+    [{ name: "kmj-codebridge", queuedTasks: 5, activeWorkers: 1 }],
+  );
   assert.equal(result.partial, false);
 });
 
@@ -65,10 +75,7 @@ test("stale/future, forged or malformed samples cannot create healthy fleet", ()
 test("missing or malformed queue is unknown, not a misleading zero", () => {
   const result = getLiveDashboardMetrics({
     now: NOW,
-    reports: [
-      sample(),
-      sample({ deviceId: "device2", queue: null }),
-    ],
+    reports: [sample(), sample({ deviceId: "device2", queue: null })],
   });
   assert.equal(result.activeDevices, 2);
   assert.equal(result.projects[0].queueComplete, false);
@@ -86,11 +93,16 @@ test("unknown grant scope is not treated as missing or offline", () => {
 
 test("bounded telemetry rejects oversized and malformed input", () => {
   assert.throws(
-    () => getLiveDashboardMetrics({ now: NOW, reports: new Array(129).fill(sample()) }),
+    () =>
+      getLiveDashboardMetrics({
+        now: NOW,
+        reports: new Array(129).fill(sample()),
+      }),
     /DASHBOARD_TELEMETRY_INVALID_INPUT/,
   );
   assert.throws(
-    () => getLiveDashboardMetrics({ now: NOW, authorizedDeviceIds: ["../other"] }),
+    () =>
+      getLiveDashboardMetrics({ now: NOW, authorizedDeviceIds: ["../other"] }),
     /DASHBOARD_TELEMETRY_INVALID_INPUT/,
   );
   assert.throws(
