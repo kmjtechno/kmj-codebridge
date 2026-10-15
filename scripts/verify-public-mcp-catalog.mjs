@@ -285,12 +285,9 @@ export async function probeWithWarmup(
 
 async function main() {
   // Free-tier Render can cold-start; retry transport errors, never schema drift.
-  const render = await probeWithWarmup(
-    ENDPOINTS.render,
-    fetch,
-    undefined,
-    { withSchemas: true },
-  );
+  const render = await probeWithWarmup(ENDPOINTS.render, fetch, undefined, {
+    withSchemas: true,
+  });
   const production = await probeWithWarmup(
     ENDPOINTS.production,
     fetch,
