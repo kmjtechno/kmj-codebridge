@@ -25,7 +25,7 @@ export function getLiveDashboardMetrics({
     (authorizedDeviceIds !== null &&
       (!Array.isArray(authorizedDeviceIds) ||
         authorizedDeviceIds.length > MAX_REPORTS ||
-        authorizedDeviceIds.some((id) => !ID.test(id))))
+        authorizedDeviceIds.some(\n          (id) => typeof id !== "string" || !ID.test(id),\n        )))
   )
     throw new Error("DASHBOARD_TELEMETRY_INVALID_INPUT");
 
@@ -89,7 +89,7 @@ export function getLiveDashboardMetrics({
     timestamp: new Date(now).toISOString(),
     platform: "KMJ CodeBridge",
     measurement: "FRESH_AUTHORIZED_AGENT_REPORTS_ONLY",
-    activeDevices: fresh.size === 0 ? null : fresh.size,
+    activeDevices:\n      fresh.size === 0 && authorized?.size !== 0 ? null : fresh.size,
     offlineDevices: null,
     authorizedDevices: authorized?.size ?? null,
     notReportingDevices:
