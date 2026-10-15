@@ -107,7 +107,7 @@ export class AgentCoordination {
     const names = fs.readdirSync(this.staging);
     if (names.length > MAX_MESSAGES) return false;
     return names.some((name) => {
-      if (!/^[a-f0-9-]{36}\\.tmp$/.test(name)) return false;
+      if (!/^[a-f0-9-]{36}\.tmp$/.test(name)) return false;
       try {
         const candidate = fs.lstatSync(path.join(this.staging, name));
         return (
