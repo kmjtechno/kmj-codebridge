@@ -99,16 +99,41 @@ export class AgentCoordination {
     return path.join(dir, id + ".json");
   }
 
+  stagedLinkMatches(stat) {
+    if (stat.nlink !== 2) return false;
+    // Hard-link count two is valid only while our private staging file
+    // and the published mailbox path refer to the same complete inode.
+    // Do not relax the original external-hardlink rejection policy.
+    const names = fs.readdirSync(this.staging);
+    if (names.length > MAX_MESSAGES) return false;
+    return names.some((name) => {
+      if (!/^[a-f0-9-]{36}\\.tmp$/.test(name)) return false;
+      try {
+        const candidate = fs.lstatSync(path.join(this.staging, name));
+        return (
+          candidate.isFile() &&
+          !candidate.isSymbolicLink() &&
+          candidate.dev === stat.dev &&
+          candidate.ino === stat.ino &&
+          candidate.nlink === 2
+        );
+      } catch {
+        return false;
+      }
+    });
+  }
+
   readMessage(dir, project, id) {
     const file = this.filename(dir, id);
     const stat = fs.lstatSync(file);
     if (
       !stat.isFile() ||
       stat.isSymbolicLink() ||
-      // During the atomic hard-link publish, the complete staged file may
-      // briefly have two links before staging cleanup. It is still fully
-      // fsynced and digest-validated before a reader receives it.
-      (stat.nlink !== 1 && stat.nlink !== 2) ||
+      // A transient second link is permitted only when it points to this
+      // private staging directory; external hardlinks remain forbidden.
+      (stat.nlink !== 1 &&
+        !this.stagedLinkMatches(stat) &&
+        fs.lstatSync(file).nlink !== 1) ||
       stat.size < 2 ||
       stat.size > MAX_MESSAGE_BYTES ||
       (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
