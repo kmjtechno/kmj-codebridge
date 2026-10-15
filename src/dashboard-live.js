@@ -25,7 +25,9 @@ export function getLiveDashboardMetrics({
     (authorizedDeviceIds !== null &&
       (!Array.isArray(authorizedDeviceIds) ||
         authorizedDeviceIds.length > MAX_REPORTS ||
-        authorizedDeviceIds.some(\n          (id) => typeof id !== "string" || !ID.test(id),\n        )))
+        authorizedDeviceIds.some(
+          (id) => typeof id !== "string" || !ID.test(id),
+        )))
   )
     throw new Error("DASHBOARD_TELEMETRY_INVALID_INPUT");
 
