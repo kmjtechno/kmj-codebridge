@@ -244,6 +244,12 @@ const PRESETS = freeze({
   }),
 });
 
+// Fail closed on the production/main checkout even after an administrator
+// explicitly enables the Main Platform frontend CI profile.
+export function commandRequiresIsolatedLane(commandId) {
+  return commandId === "main_platform_ui_ci";
+}
+
 export const COMMAND_PRESET_IDS = Object.freeze(Object.keys(PRESETS));
 
 const clone = (value) => structuredClone(value);
