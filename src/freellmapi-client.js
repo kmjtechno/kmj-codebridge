@@ -135,11 +135,12 @@ export function createFreeLlmApiClient({
       const now = Date.now();
       if (!cached || now - cached.at > STATUS_TTL_MS)
         cached = { at: now, chains: (await client.status()).chains };
-      const candidates = (chain === undefined
-        ? candidateChains(task, cached.chains)
-        : cached.chains.includes(chain)
-          ? [chain]
-          : []
+      const candidates = (
+        chain === undefined
+          ? candidateChains(task, cached.chains)
+          : cached.chains.includes(chain)
+            ? [chain]
+            : []
       ).filter((name) => approved.has(name));
       if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
       const attempts = [];
