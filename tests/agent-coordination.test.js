@@ -80,8 +80,10 @@ test("secrets, URLs, binary/control text and damaged journals fail closed", (t) 
     "token=topsecretvalue",
     "line one\nline two",
   ]) {
-    assert.throws(() => box.post("project1", sample({ note })),
-      /COORDINATION_SENSITIVE_OR_INVALID_NOTE/);
+    assert.throws(
+      () => box.post("project1", sample({ note })),
+      /COORDINATION_SENSITIVE_OR_INVALID_NOTE/,
+    );
   }
   const a = box.post("project1", sample());
   fs.writeFileSync(
@@ -106,7 +108,9 @@ test("MCP dispatcher isolates messages by project and enforces write grants", as
     {
       id: "device1",
       stateDir: path.join(dir, "state"),
-      projects: [{ id: "project1", root, writable: true, gates: {}, commands: {} }],
+      projects: [
+        { id: "project1", root, writable: true, gates: {}, commands: {} },
+      ],
     },
     runner,
     () => ({
