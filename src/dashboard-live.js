@@ -91,7 +91,8 @@ export function getLiveDashboardMetrics({
     timestamp: new Date(now).toISOString(),
     platform: "KMJ CodeBridge",
     measurement: "FRESH_AUTHORIZED_AGENT_REPORTS_ONLY",
-    activeDevices:\n      fresh.size === 0 && authorized?.size !== 0 ? null : fresh.size,
+    activeDevices:
+      fresh.size === 0 && authorized?.size !== 0 ? null : fresh.size,
     offlineDevices: null,
     authorizedDevices: authorized?.size ?? null,
     notReportingDevices:
