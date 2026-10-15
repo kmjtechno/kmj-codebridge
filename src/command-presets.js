@@ -40,6 +40,32 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  // Opt-in and non-deploying. On a production host these project-defined
+  // scripts must run only in an isolated SHA-pinned worktree/lane, never in
+  // the live Laravel deployment checkout. A successful run is local evidence,
+  // NOT a replacement for required GitHub branch-protection checks.
+  "main-platform-ui-ci": freeze({
+    main_platform_ui_ci: freeze({
+      category: "build",
+      description:
+        "Run fixed Main Platform frontend checks on an approved isolated project worktree; never issue licenses, migrate databases or deploy.",
+      command: "npm",
+      variants: freeze({
+        check: freeze({
+          args: ["--prefix", "apps/platform", "run", "check"],
+          timeoutMs: 300000,
+        }),
+        types: freeze({
+          args: ["--prefix", "apps/platform", "run", "types:check"],
+          timeoutMs: 300000,
+        }),
+        build: freeze({
+          args: ["--prefix", "apps/platform", "run", "build"],
+          timeoutMs: 300000,
+        }),
+      }),
+    }),
+  }),
   "python-standard": freeze({
     python_deps: freeze({
       category: "network",
