@@ -86,6 +86,8 @@ try {
           ? "ENROLLMENT_EXPIRED"
           : "ENROLLMENT_NETWORK_OR_RUNTIME";
   console.error("Enrollment failed: " + safeCode);
-  console.error("No credential was printed. Inspect browser approval and Main Platform pairing state.");
+  console.error(
+    "No credential was printed. Inspect browser approval and Main Platform pairing state.",
+  );
   process.exitCode = 1;
 }
