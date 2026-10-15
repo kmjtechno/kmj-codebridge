@@ -129,11 +129,19 @@ jobs:
             payload.capabilities?.githubReady === true &&
             state === 'ready';
           console.log(JSON.stringify({ githubBridgeReady: ready, state, error }));
-          if (!ready) process.exit(1);
+          // Anonymous GitHub quota resets over minutes/hours, not this 30s retry window.
+          // Fail the readiness gate promptly; never turn a rate limit into PASS.
+          if (!ready) process.exit(error === 'GITHUB_RATE_LIMIT' ? 3 : 1);
           NODE
               then
                 echo 'PASS: hosted GitHub bridge ready on an actual fresh HTTP probe'
                 exit 0
+              else
+                code="$?"
+                if [ "$code" -eq 3 ]; then
+                  echo '::error title=Hosted GitHub quota exhausted::GitHub returned GITHUB_RATE_LIMIT; immediate probes cannot restore hourly quota. Check configured authenticated GitHub bridge or wait for quota reset; readiness remains FAIL.'
+                  exit 1
+                fi
               fi
             fi
             echo "GitHub bridge cold-start retry $attempt/5"
