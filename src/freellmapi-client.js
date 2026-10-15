@@ -9,6 +9,22 @@ const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
 const KEY = /^[A-Za-z0-9._-]{8,200}$/;
 const MAX_PROMPT = 32768;
 const MAX_RESPONSE_BYTES = 262144;
+const STATUS_TTL_MS = 60000;
+export const TASKS = Object.freeze(["code", "fast", "reasoning", "general"]);
+// Owner-defined FreeLLMAPI fallback chains, in preference order per task.
+// Only chains FreeLLMAPI actually reports are used; "auto:default" is last.
+const CHAIN_PREFERENCE = Object.freeze({
+  code: ["auto:code", "auto:coder", "auto:default"],
+  fast: ["auto:fast", "auto:default"],
+  reasoning: ["auto:smart", "auto:reasoning", "auto:default"],
+  general: ["auto:default"],
+});
+
+export function candidateChains(task, available) {
+  const preferred = CHAIN_PREFERENCE[task] ?? CHAIN_PREFERENCE.general;
+  const found = preferred.filter((c) => available.includes(c));
+  return found.length ? found : ["auto:default"];
+}
 
 const fail = (code) => {
   throw new Error(code);
@@ -23,9 +39,10 @@ export function createFreeLlmApiClient({
     fail("FREELLMAPI_INVALID_PORT");
   if (typeof apiKey !== "string" || !KEY.test(apiKey))
     fail("FREELLMAPI_KEY_NOT_CONFIGURED");
+  let cached = null;
   const call = (method, path, body, timeoutMs) =>
     request({ port, method, path, apiKey, body, timeoutMs });
-  return {
+  const client = {
     async status() {
       const res = await call("GET", "/v1/models", undefined, 5000);
       const ids = (res?.data ?? [])
@@ -82,7 +99,34 @@ export function createFreeLlmApiClient({
         writesApplied: false,
       };
     },
+    // Smart routing: pick the owner's best-matching free chain for the task
+    // and, if its quota is exhausted, try the next candidate chain once.
+    async generateRouted({ task = "general", chain, ...rest }) {
+      if (!TASKS.includes(task)) fail("FREELLMAPI_INVALID_TASK");
+      let candidates = [chain];
+      if (chain === undefined) {
+        const now = Date.now();
+        if (!cached || now - cached.at > STATUS_TTL_MS)
+          cached = { at: now, chains: (await client.status()).chains };
+        candidates = candidateChains(task, cached.chains);
+      }
+      const attempts = [];
+      for (const candidate of candidates.slice(0, 2)) {
+        try {
+          const out = await client.generate({ ...rest, chain: candidate });
+          return {
+            ...out,
+            routing: { task, chosen: candidate, attempts },
+          };
+        } catch (error) {
+          if (error.message !== "FREELLMAPI_QUOTA_EXHAUSTED") throw error;
+          attempts.push({ chain: candidate, outcome: "quota_exhausted" });
+        }
+      }
+      fail("FREELLMAPI_QUOTA_EXHAUSTED");
+    },
   };
+  return client;
 }
 
 function httpRequest({ port, method, path, apiKey, body, timeoutMs }) {

@@ -110,6 +110,7 @@ export function connectionHealth(lastSeenAt, health, now = Date.now()) {
 const EXTENDED_TIMEOUT_TOOLS = new Set([
   "local_model_generate",
   "autopilot_local_draft",
+  "freellmapi_generate",
 ]);
 export function forwardTimeoutMs(deviceTimeoutMs, name, args) {
   if (

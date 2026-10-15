@@ -88,3 +88,61 @@ test("real HTTP path: loopback only, bearer sent, 429 maps to quota error", asyn
     server.close();
   }
 });
+
+import { candidateChains } from "../src/freellmapi-client.js";
+
+test("candidateChains prefers task chains the router really has", () => {
+  assert.deepEqual(candidateChains("code", ["auto:default", "auto:code"]), [
+    "auto:code",
+    "auto:default",
+  ]);
+  assert.deepEqual(candidateChains("fast", ["auto:default"]), ["auto:default"]);
+  assert.deepEqual(candidateChains("reasoning", []), ["auto:default"]);
+  assert.deepEqual(candidateChains("bogus", ["auto:default"]), [
+    "auto:default",
+  ]);
+});
+
+test("generateRouted routes by task and retries one next chain on quota", async () => {
+  const calls = [];
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:default" }, { id: "auto:code" }] };
+      calls.push(r.body.model);
+      if (r.body.model === "auto:code")
+        throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+      return {
+        choices: [{ message: { content: "done" }, finish_reason: "stop" }],
+      };
+    },
+  });
+  const out = await c.generateRouted({
+    task: "code",
+    prompt: "hi",
+    localProcessingApproved: true,
+  });
+  assert.deepEqual(calls, ["auto:code", "auto:default"]);
+  assert.equal(out.routing.chosen, "auto:default");
+  assert.deepEqual(out.routing.attempts, [
+    { chain: "auto:code", outcome: "quota_exhausted" },
+  ]);
+});
+
+test("generateRouted fails closed when every chain is exhausted or task invalid", async () => {
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    request: async (r) => {
+      if (r.path === "/v1/models") return { data: [{ id: "auto:default" }] };
+      throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+    },
+  });
+  const args = { prompt: "hi", localProcessingApproved: true };
+  await assert.rejects(c.generateRouted(args), {
+    message: "FREELLMAPI_QUOTA_EXHAUSTED",
+  });
+  await assert.rejects(c.generateRouted({ ...args, task: "x" }), {
+    message: "FREELLMAPI_INVALID_TASK",
+  });
+});
