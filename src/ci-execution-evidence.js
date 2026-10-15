@@ -24,7 +24,8 @@ export function diagnoseActionsRun({ run, jobs, totalCount, expectedHeadSha }) {
     !run ||
     run.head_sha !== expectedHeadSha ||
     !/^[a-f0-9]{40}$/i.test(expectedHeadSha ?? "")
-  ) throw new Error("CI_HEAD_MISMATCH");
+  )
+    throw new Error("CI_HEAD_MISMATCH");
 
   const complete =
     Number.isInteger(totalCount) &&
@@ -37,7 +38,8 @@ export function diagnoseActionsRun({ run, jobs, totalCount, expectedHeadSha }) {
     .slice(0, 100)
     .map(classifyActionsJob);
   const noSteps = observed.filter(
-    (j) => j.status === "completed" &&
+    (j) =>
+      j.status === "completed" &&
       j.conclusion === "failure" &&
       j.execution === "NO_STEPS_RECORDED",
   ).length;
