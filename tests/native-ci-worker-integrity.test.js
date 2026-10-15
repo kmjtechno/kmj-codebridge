@@ -98,10 +98,12 @@ test("sealed worker permissions allow reading while preserving root-only writes"
     const stage = path.join(temp, "trusted-fixture");
     fs.chmodSync(temp, 0o711);
     fs.mkdirSync(stage, { mode: 0o711 });
+    fs.chmodSync(stage, 0o711);
     const file = path.join(stage, "worker.sh");
     fs.writeFileSync(file, "#!/bin/bash\necho IMMUTABLE_WORKER_READABLE\n", {
       mode: 0o444,
     });
+    fs.chmodSync(file, 0o444);
     assert.equal(fs.statSync(file).uid, 0);
     assert.equal(fs.statSync(file).mode & 0o777, 0o444);
     assert.equal(fs.statSync(stage).mode & 0o777, 0o711);
