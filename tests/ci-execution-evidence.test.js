@@ -74,7 +74,11 @@ test("missing step metadata is unknown, not zero-step", () => {
 });
 
 test("pagination and empty jobs cannot be construed as complete", () => {
-  for (const [jobs, totalCount] of [[[], 0], [[job(1, [])], 2], [[job(1, [])], 101]]) {
+  for (const [jobs, totalCount] of [
+    [[], 0],
+    [[job(1, [])], 2],
+    [[job(1, [])], 101],
+  ]) {
     const r = diagnoseActionsRun({
       run: run(),
       jobs,
@@ -87,18 +91,26 @@ test("pagination and empty jobs cannot be construed as complete", () => {
 });
 
 test("unknown or moved HEAD is rejected before any diagnostics are trusted", () => {
-  assert.throws(() => diagnoseActionsRun({
-    run: { ...run(), head_sha: "b".repeat(40) },
-    jobs: [job(1, [])],
-    totalCount: 1,
-    expectedHeadSha: HEAD,
-  }), /CI_HEAD_MISMATCH/);
-  assert.throws(() => diagnoseActionsRun({
-    run: run(),
-    jobs: [job(1, [])],
-    totalCount: 1,
-    expectedHeadSha: "a",
-  }), /CI_HEAD_MISMATCH/);
+  assert.throws(
+    () =>
+      diagnoseActionsRun({
+        run: { ...run(), head_sha: "b".repeat(40) },
+        jobs: [job(1, [])],
+        totalCount: 1,
+        expectedHeadSha: HEAD,
+      }),
+    /CI_HEAD_MISMATCH/,
+  );
+  assert.throws(
+    () =>
+      diagnoseActionsRun({
+        run: run(),
+        jobs: [job(1, [])],
+        totalCount: 1,
+        expectedHeadSha: "a",
+      }),
+    /CI_HEAD_MISMATCH/,
+  );
 });
 
 test("pending and provider-success reports do not authorize merge", () => {
@@ -130,5 +142,8 @@ test("bad job identity cannot authorize a complete diagnosis", () => {
   assert.equal(r.evidenceComplete, false);
   assert.equal(r.jobs[0].id, null);
   assert.equal(r.classification, "INCOMPLETE_EVIDENCE");
-  assert.equal(classifyActionsJob({ steps: null, status: "completed" }).recordedStepCount, null);
+  assert.equal(
+    classifyActionsJob({ steps: null, status: "completed" }).recordedStepCount,
+    null,
+  );
 });
