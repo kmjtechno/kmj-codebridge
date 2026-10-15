@@ -1,0 +1,29 @@
+name: Claude Remote Connector Preflight
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/claude-connector-preflight.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public_connection_preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Verify real public OAuth metadata without credentials
+        run: node scripts/diagnose-claude-oauth.mjs
+      - name: Verify real public MCP tools/list over Streamable HTTP
+        run: node scripts/probe-live-mcp-catalog.mjs production
+      - name: Report precise acceptance boundary
+        if: always()
+        run: |
+          echo "Public discovery and tools/list DO NOT prove authenticated Claude Desktop."
+          echo "Claude account connector OAuth browser approval and one read-only tool call remain separate acceptance gates."
