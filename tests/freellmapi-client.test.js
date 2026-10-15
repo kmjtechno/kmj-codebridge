@@ -230,3 +230,91 @@ test("no owner-approved chains means no cloud processing", async () => {
     { message: "FREELLMAPI_NO_APPROVED_CHAIN" },
   );
 });
+
+test("429 fallback shares one bounded timeout across both chains", async () => {
+  let clock = 1000000;
+  const calls = [];
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:code", "auto:default"],
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:code" }, { id: "auto:default" }] };
+      calls.push({ chain: r.body.model, timeoutMs: r.timeoutMs });
+      if (calls.length === 1) {
+        clock += 20000;
+        throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+      }
+      return { choices: [{ message: { content: "done" } }] };
+    },
+  });
+  const out = await c.generateRouted({
+    task: "code",
+    prompt: "test content",
+    timeoutSeconds: 30,
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  });
+  assert.equal(out.routing.chosen, "auto:default");
+  assert.deepEqual(calls, [
+    { chain: "auto:code", timeoutMs: 30000 },
+    { chain: "auto:default", timeoutMs: 10000 },
+  ]);
+});
+
+test("429 after exhausted deadline never sends prompt to another cloud chain", async () => {
+  let clock = 1000000;
+  const sent = [];
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:code", "auto:default"],
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:code" }, { id: "auto:default" }] };
+      sent.push(r.body.model);
+      clock += 27000;
+      throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+    },
+  });
+  await assert.rejects(
+    c.generateRouted({
+      task: "code",
+      prompt: "private text must not be retried",
+      timeoutSeconds: 30,
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_DEADLINE_EXCEEDED" },
+  );
+  assert.deepEqual(sent, ["auto:code"]);
+});
+
+test("catalog discovery consumes the same generation deadline", async () => {
+  let clock = 1000000;
+  let promptsSent = 0;
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:default"],
+    request: async (r) => {
+      if (r.path === "/v1/models") {
+        clock += 27000;
+        return { data: [{ id: "auto:default" }] };
+      }
+      promptsSent += 1;
+      return { choices: [{ message: { content: "unreachable" } }] };
+    },
+  });
+  await assert.rejects(
+    c.generateRouted({
+      prompt: "do not forward after discovery expiry",
+      timeoutSeconds: 30,
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_DEADLINE_EXCEEDED" },
+  );
+  assert.equal(promptsSent, 0);
+});
