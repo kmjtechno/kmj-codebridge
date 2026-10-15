@@ -40,7 +40,7 @@ test(
   "a real 64-character SHA-256 backup witness is accepted and tampering is refused",
   { skip: process.platform === "win32" && "POSIX-only release controller" },
   (t) => {
-    const run = spawnSync("python3", ["-I", "-c", HARNESS], {
+    const run = spawnSync("python3", ["-I", "-B", "-c", HARNESS], {
       encoding: "utf8",
       env: { ...process.env, PYTHONDONTWRITEBYTECODE: "1" },
     });
