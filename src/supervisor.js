@@ -37,6 +37,9 @@ const PRIVATE_PR322_CI_SERVICE = "kmj-codebridge-private-pr322-ci.service";
 const PRIVATE_PR337_CI_SERVICE = "kmj-codebridge-private-pr337-ci.service";
 const PRIVATE_PR337_CI_EVIDENCE =
   "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json";
+const PRIVATE_PR419_CI_SERVICE = "kmj-codebridge-private-pr419-ci.service";
+const PRIVATE_PR419_CI_EVIDENCE =
+  "/var/lib/kmj-codebridge-ci/evidence/latest-pr419.json";
 const PRIVATE_PR322_CI_EVIDENCE =
   "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json";
 const UPDATE_ROLLBACK_SERVICE = "kmj-codebridge-stable-rollback.service";
@@ -939,6 +942,46 @@ function classifyPrivateCiWorkerLog(text) {
     /(?:Cannot find native binding|Failed to load native binding)/i.test(text)
   )
     return result("NATIVE_BINDING_LOAD_ERROR");
+  // Only categorical diagnostics from an SHA-verified, root-owned CI log.
+  // Never return private filenames, source snippets, or compiler messages.
+  const typescriptBlock = text
+    .split("KMJ_CI_GATE_BEGIN=typescript")[1]
+    ?.split("KMJ_CI_GATE_BEGIN=")[0];
+  if (typescriptBlock) {
+    const targets = new Map([
+      [
+        "resources/js/components/operator-payment-settings.tsx",
+        "PAYMENT_SETTINGS",
+      ],
+      [
+        "resources/js/components/payment-gateway-onboarding.tsx",
+        "PAYMENT_ONBOARDING",
+      ],
+      ["resources/js/pages/operator-payments.tsx", "PAYMENT_PAGE"],
+      ["scripts/check-payment-onboarding.test.mjs", "PAYMENT_TEST"],
+      ["resources/js/app.tsx", "APP_ENTRY"],
+    ]);
+    const matches = [
+      ...typescriptBlock.matchAll(
+        /^([A-Za-z0-9_/.-]+)\(([0-9]{1,6}),([0-9]{1,6})\): error TS([0-9]{4}):/gm,
+      ),
+    ].slice(0, 20);
+    if (matches.length) {
+      const targetCodes = new Set();
+      const errorCodes = new Set();
+      for (const match of matches) {
+        if (targets.has(match[1])) {
+          targetCodes.add(targets.get(match[1]));
+          errorCodes.add("TS" + match[4]);
+        }
+      }
+      return {
+        ...result("TYPESCRIPT_ERRORS_REPORTED"),
+        ...(targetCodes.size ? { targets: [...targetCodes] } : {}),
+        errorCodes: [...errorCodes].slice(0, 10),
+      };
+    }
+  }
   if (
     /(?:Formatting issues found in|Found formatting issues in) [1-9][0-9]* files?\b/i.test(
       text,
@@ -1295,6 +1338,9 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
             ...(workerLogDiagnostic.missingPackage
               ? { workerLogMissingPackage: workerLogDiagnostic.missingPackage }
               : {}),
+            ...(workerLogDiagnostic.errorCodes
+              ? { workerLogErrorCodes: workerLogDiagnostic.errorCodes }
+              : {}),
           }
         : {}),
       testedSha: record.sha,
@@ -1327,6 +1373,17 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
   } catch {
     return null;
   }
+}
+
+export function classifySupervisorConfigError(error) {
+  // Emit only fixed codes. Never return file paths, parser messages,
+  // validation paths, expected values or any secret from config data.
+  if (error?.code === "ENOENT") return "CONFIG_FILE_MISSING";
+  if (error?.code === "EACCES" || error?.code === "EPERM")
+    return "CONFIG_FILE_UNREADABLE";
+  if (error instanceof SyntaxError) return "CONFIG_JSON_INVALID";
+  if (error?.name === "ZodError") return "CONFIG_SCHEMA_INVALID";
+  return "CONFIG_VALIDATION_FAILED";
 }
 
 export function createSupervisorHandler({
@@ -1531,12 +1588,28 @@ export function createSupervisorHandler({
       const configPath = CONFIGS[request.service];
       if (!configPath) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       try {
-        const raw = JSON.parse(readFile(configPath));
+        let raw;
+        try {
+          raw = JSON.parse(readFile(configPath));
+        } catch (error) {
+          // The existing KMJ-elite agent has a dedicated enrollment file.
+          // Only an absent generic agent file permits this fixed fallback.
+          // Malformed, unreadable, or gateway configs fail closed.
+          if (request.service !== "agent" || error?.code !== "ENOENT")
+            throw error;
+          raw = JSON.parse(readFile(MAIN_PLATFORM_AGENT_CONFIG));
+        }
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
         return { response: { service: request.service, valid: true } };
-      } catch {
-        return { response: { service: request.service, valid: false } };
+      } catch (error) {
+        return {
+          response: {
+            service: request.service,
+            valid: false,
+            reason: classifySupervisorConfigError(error),
+          },
+        };
       }
     }
 
@@ -1703,6 +1776,15 @@ export function createSupervisorHandler({
             "ExecMainExitTimestamp",
             "InvocationID",
           ]),
+          privatePr419Ci: fixedUnitStatus(run, PRIVATE_PR419_CI_SERVICE, [
+            "ActiveState",
+            "SubState",
+            "Result",
+            "ExecMainStatus",
+            "ExecMainStartTimestamp",
+            "ExecMainExitTimestamp",
+            "InvocationID",
+          ]),
           privatePr322Evidence: privateCiEvidence(
             lstat,
             readFile,
@@ -1715,6 +1797,13 @@ export function createSupervisorHandler({
             readFile,
             337,
             PRIVATE_PR337_CI_EVIDENCE,
+            { readLog, readdir },
+          ),
+          privatePr419Evidence: privateCiEvidence(
+            lstat,
+            readFile,
+            419,
+            PRIVATE_PR419_CI_EVIDENCE,
             { readLog, readdir },
           ),
           privatePr337Diagnostic: fixedWebsiteCiDiagnostic(run),
@@ -1869,6 +1958,37 @@ export function createSupervisorHandler({
       return {
         response: { accepted: true, target: "private-pr337" },
         afterSend: () => start(PRIVATE_PR337_CI_SERVICE),
+      };
+    }
+
+    if (request.op === "private_pr419_ci_status") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, PRIVATE_PR419_CI_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "Result",
+        "ExecMainStatus",
+      ]);
+      const last = privateCiEvidence(
+        lstat,
+        readFile,
+        419,
+        PRIVATE_PR419_CI_EVIDENCE,
+        { readLog, readdir },
+      );
+      return { response: { service, last } };
+    }
+
+    if (request.op === "private_pr419_ci_start") {
+      exactKeys(request, ["op"]);
+      const service = fixedUnitStatus(run, PRIVATE_PR419_CI_SERVICE, [
+        "ActiveState",
+      ]);
+      if (!service.installed) fail("SUPERVISOR_PRIVATE_CI_UNAVAILABLE");
+      if (service.activeState === "active") fail("SUPERVISOR_PRIVATE_CI_BUSY");
+      return {
+        response: { accepted: true, target: "private-pr419" },
+        afterSend: () => start(PRIVATE_PR419_CI_SERVICE),
       };
     }
 

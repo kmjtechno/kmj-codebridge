@@ -633,9 +633,10 @@ cat >"$STABLE_UPDATE_TIMER_FILE" <<EOF
 Description=Check for signed KMJ CodeBridge stable updates
 
 [Timer]
-OnBootSec=15min
-OnUnitActiveSec=1h
-RandomizedDelaySec=15min
+OnBootSec=2min
+OnUnitInactiveSec=5min
+RandomizedDelaySec=30s
+AccuracySec=15s
 Persistent=true
 Unit=$STABLE_UPDATE_SERVICE
 
@@ -809,6 +810,14 @@ if [[ -f "$INSTALL_DIR/scripts/install-private-pr337-ci-unit.sh" ]]; then
     echo "PRIVATE_WEBSITE_CI_INSTALL_DEFERRED" >&2
   fi
 fi
+
+# Opt-in, SHA-bound payment PR419 CI uses the existing network-isolated kmjci
+# worker. Installing the fixed unit does not start CI or deploy payments.
+if [[ -f "$INSTALL_DIR/scripts/install-private-pr419-ci-unit.sh" ]]; then
+  if ! /bin/bash "$INSTALL_DIR/scripts/install-private-pr419-ci-unit.sh"; then
+    echo "PRIVATE_PAYMENTS_CI_INSTALL_DEFERRED" >&2
+  fi
+fi
 cat >"$AUTO_UPDATE_SERVICE_FILE" <<EOF
 [Unit]
 Description=KMJ CodeBridge guarded development auto-update
@@ -830,9 +839,10 @@ cat >"$AUTO_UPDATE_TIMER_FILE" <<'EOF'
 Description=Check for KMJ CodeBridge development updates
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=1h
-RandomizedDelaySec=10min
+OnBootSec=1min
+OnUnitInactiveSec=2min
+RandomizedDelaySec=15s
+AccuracySec=15s
 Persistent=true
 Unit=kmj-codebridge-auto-update.service
 

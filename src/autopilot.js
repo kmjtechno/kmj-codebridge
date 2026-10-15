@@ -3,6 +3,7 @@ import path from "node:path";
 import { createHash, randomUUID } from "node:crypto";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
+import { normalizeModelReceipt } from "./model-attribution.js";
 
 const PROJECT = /^[A-Za-z0-9_-]{1,64}$/;
 const KEY = /^[A-Za-z0-9._:-]{1,128}$/;
@@ -301,6 +302,11 @@ export class AutopilotJournal {
 
   hasReady(project, eligible) {
     if (typeof eligible !== "function") fail("INVALID_AUTOPILOT_FILTER");
+    // A worker first calls hasReady() and only calls claim() if it is true.
+    // Recover expired leases here too: otherwise a lone expired running task
+    // never becomes ready and the unattended worker can remain idle forever.
+    // Existing checkpoint/fencing safeguards still prevent mutation replay.
+    if (this.expireLeases(project)) this.persist();
     return this.state.tasks.some(
       (task) =>
         task.project === project &&
@@ -354,16 +360,20 @@ export class AutopilotJournal {
     return { ...this.public(task), leaseToken: task.lease.token };
   }
 
-  checkpoint(id, project, { summary, next, leaseToken }) {
+  checkpoint(id, project, { summary, next, leaseToken, modelUsage }) {
     const task = this.get(id, project);
     if (task.state !== "running") fail("AUTOPILOT_TASK_NOT_RUNNING");
     this.assertLease(task, leaseToken);
     if (task.lease)
       task.lease.expiresAt = new Date(this.now() + this.leaseMs).toISOString();
+    // Optional trusted CodeBridge inference provenance. Legacy/manual
+    // checkpoints remain valid but cannot retroactively prove a model.
+    const receipt = normalizeModelReceipt(modelUsage);
     task.checkpoint = {
       summary: cleanText(summary, 8192),
       next: cleanText(next, 8192),
       at: new Date().toISOString(),
+      ...(receipt ? { modelUsage: receipt } : {}),
     };
     task.updatedAt = task.checkpoint.at;
     this.persist();
@@ -712,6 +722,8 @@ export class AutopilotJournal {
       )[0];
     return {
       counts,
+      expiredRunningLeases: tasks.filter((task) => this.leaseExpired(task))
+        .length,
       next: next ? this.public(next) : null,
       tasks: tasks
         .slice(0, Math.max(1, Math.min(limit, 100)))

@@ -11,7 +11,9 @@ export function canQueueAutopilotGate(key, permissions) {
   return (
     typeof key === "string" &&
     Array.isArray(permissions) &&
-    ((!key.startsWith("auto-gate:") && !key.startsWith("auto-draft:")) ||
+    ((!key.startsWith("auto-gate:") &&
+      !key.startsWith("auto-draft:") &&
+      !key.startsWith("auto-repair:")) ||
       permissions.includes("execute"))
   );
 }
@@ -58,6 +60,7 @@ export class AutopilotGateWorker {
     runner,
     licenseProvider,
     checkoutClean = verifyCleanGateCheckout,
+    lanes = null,
     now = Date.now,
   }) {
     this.projects = projects.filter(
@@ -67,6 +70,7 @@ export class AutopilotGateWorker {
     this.runner = runner;
     this.licenseProvider = licenseProvider;
     this.checkoutClean = checkoutClean;
+    this.lanes = lanes;
     this.now = now;
     this.active = new Map();
   }
@@ -84,13 +88,35 @@ export class AutopilotGateWorker {
               leaseToken: current.leaseToken,
             });
           } else {
-            // No unbounded automatic retries or false success.
+            // No false success or unbounded retry. An administrator may
+            // explicitly map this failed gate to one deterministic isolated
+            // repair recipe. The repair worker still enforces SHA and scope.
             this.journal.wait(
               current.taskId,
               project.id,
               "ADMIN_APPROVED_GATE_FAILED_REVIEW_REQUIRED",
               current.leaseToken,
             );
+            const recipeConfig = project.autopilotRepairWorker;
+            if (recipeConfig?.enabled) {
+              const candidate = Object.entries(recipeConfig.recipes).find(
+                ([, recipe]) => recipe.triggerGate === current.gate,
+              );
+              if (candidate) {
+                try {
+                  this.journal.enqueue({
+                    project: project.id,
+                    key: `auto-repair:${candidate[0]}:${current.expectedHead}`,
+                    objective:
+                      "Auto-repair after approved quality gate failure; isolated deterministic recipe only",
+                    priority: 0,
+                  });
+                } catch {
+                  // Failed auto-enqueue never bypasses the review-required
+                  // failed gate or invents a fix completion.
+                }
+              }
+            }
           }
           this.active.delete(project.id);
         } else if (result) {
@@ -143,15 +169,41 @@ export class AutopilotGateWorker {
       }
 
       try {
-        if (!this.checkoutClean(project.root, spec.expectedHead)) {
+        let checkout = project.root;
+        if (project.autopilotGateWorker.isolatedWorktree === true) {
+          // Never fall back to the dirty main checkout when isolated mode is
+          // explicitly selected. WorktreeLanes validates source HEAD, limits
+          // lanes to four, rejects path tricks and never force-cleans changes.
+          if (!this.lanes) {
+            pause("ISOLATED_GATE_WORKTREE_UNAVAILABLE");
+            continue;
+          }
+          const lane = this.lanes.prepare(
+            project.id,
+            project.root,
+            `autogate_${spec.expectedHead.slice(0, 24)}`,
+            spec.expectedHead,
+          );
+          if (lane.dirty || !this.checkoutClean(lane.path, spec.expectedHead)) {
+            pause("ISOLATED_GATE_WORKTREE_DIRTY_REVIEW_REQUIRED");
+            continue;
+          }
+          checkout = lane.path;
+        } else if (!this.checkoutClean(project.root, spec.expectedHead)) {
           pause("GIT_HEAD_CHANGED_OR_WORKTREE_DIRTY");
+          continue;
+        }
+        // Check the selected execution filesystem, not just the source root.
+        // The approved project gate still has its original finite job limits.
+        if (this.runner.capacity(checkout).blocked) {
+          pause("ISOLATED_GATE_CAPACITY_BLOCKED");
           continue;
         }
         const job = this.runner.run({
           project: project.id,
           gate: spec.gate,
           key: `auto-gate:${claimed.id}`,
-          cwd: project.root,
+          cwd: checkout,
           command: gate.command,
           args: gate.args,
           timeoutMs: gate.timeoutMs,
@@ -164,6 +216,8 @@ export class AutopilotGateWorker {
         this.active.set(project.id, {
           taskId: claimed.id,
           jobId: job.id,
+          gate: spec.gate,
+          expectedHead: spec.expectedHead,
           leaseToken: claimed.leaseToken,
         });
       } catch {

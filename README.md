@@ -45,9 +45,43 @@
   <a href="#local-llm-first"><strong>Local LLM first</strong></a> ·
   <a href="#architecture"><strong>Architecture</strong></a> ·
   <a href="#quick-start"><strong>Quick start</strong></a> ·
+  <a href="docs/AI-CLIENT-QUICKSTART.md"><strong>AI client install</strong></a> ·
+  <a href="docs/PRICING.md"><strong>Launch plans</strong></a> ·
   <a href="#security-boundaries"><strong>Security</strong></a> ·
   <a href="#contributing"><strong>Contributing</strong></a>
 </p>
+
+---
+
+## Connect CodeBridge to your AI
+
+**Already use an AI coding assistant?** Start with the existing GitHub-hosted plugin marketplace—no CodeBridge payment or API key required for installation. You must still complete OAuth and authorize your own device/project before the AI can inspect anything. This is a **developer preview**, not a claim of curated marketplace approval or one-click device enrollment completion.
+
+**Claude Code:**
+
+```sh
+claude plugin marketplace add kmjtechno/kmj-codebridge
+claude plugin install kmj-codebridge@kmj-techno
+```
+
+**GitHub Copilot CLI:**
+
+```sh
+copilot plugin marketplace add kmjtechno/kmj-codebridge
+copilot plugin install kmj-codebridge@kmj-techno
+```
+
+**One-click editor setup:** [Add CodeBridge to Cursor](https://cursor.com/install-mcp?name=kmj-codebridge&config=eyJ1cmwiOiJodHRwczovL2ttanRlY2huby5jb20vbWNwIn0%3D) or [copy the VS Code install URI](docs/AI-CLIENT-QUICKSTART.md#vs-code--github-copilot-agent-mode-one-click-config). Both configure only the remote endpoint; user OAuth/device approval is still mandatory. Installation/link behavior is not independently verified across all editor versions.
+
+**OpenAI Codex CLI:**
+
+```sh
+codex mcp add kmj-codebridge --url https://kmjtechno.com/mcp
+```
+
+**ChatGPT and other supported Streamable HTTP MCP clients:** add `https://kmjtechno.com/mcp` as a **remote MCP connector**, then complete the client-supported OAuth consent flow. Do **not** use the MCP URL as a Git marketplace source. AI tools are scoped to approved devices/projects; no blanket remote shell access.
+
+**[Full setup, safety checks, and reusable AI-assistant prompt →](docs/AI-CLIENT-QUICKSTART.md)**
 
 ---
 
@@ -341,11 +375,15 @@ The open-source Community tier stays useful. Hosted convenience and higher comme
 | **Team Launch** | **₹399/user/mo India · US$4.99/user/mo global** | Small engineering teams                   |
 | **Business**    |                                          Custom | Larger deployments, support, procurement  |
 
-**Launch trial:** eligible new accounts get **30 days of Pro** with no automatic paid conversion unless they explicitly choose a paid subscription.
+**Planned launch trial (not active):** eligible new accounts may receive **30 days of Pro** after Main Platform's trial-entitlement and payment gates are verified. There is no automatic paid conversion without an explicit subscription choice.
 
 Third-party AI subscriptions/API usage are separate. Taxes and final checkout terms are controlled by KMJ Main Platform.
 
 See the full **[plan and premium feature matrix](docs/PRICING.md)**.
+
+Our published comparison of scope and actual activation gates is in **[Competitive plans & payment readiness](docs/COMPETITIVE-PLANS-AND-ACTIVATION.md)**. Merchant account approval is not a live CodeBridge subscription.
+
+**Interested in a Pro/Team pilot?** [Contact KMJ CodeBridge support](https://kmjtechno.com/products/kmj-codebridge/support) to request a private, opt-in developer-preview onboarding discussion. A request is **not a checkout**, invoice, active subscription or an entitlement. Paid access can be fulfilled only through verified KMJ Main Platform commercial orders and the applicable terms.
 
 ## Premium capability categories
 

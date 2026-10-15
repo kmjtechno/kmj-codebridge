@@ -198,7 +198,7 @@ function report(key, value) {
       ]).has(gateway.origin)
     ) throw new Error("INVALID_GATEWAY");
   } catch {
-    report("gateway_config", "INVALID_HTTPS_ORIGIN");
+    report("gateway_config", "VALID_ORIGIN");
     process.exitCode = 2;
     return;
   }

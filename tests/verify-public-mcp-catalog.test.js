@@ -1,16 +1,19 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  CRITICAL_TOOL_PROPERTIES,
   ENDPOINTS,
   REQUIRED_TOOLS,
   compareDeployedCommit,
   failedCommitAssertions,
   parseServerCommit,
+  parseToolCatalog,
   parseToolNames,
   probeCatalog,
   probeServerCommit,
   probeWithWarmup,
   verifyCatalogs,
+  verifyCriticalToolSchemas,
 } from "../scripts/verify-public-mcp-catalog.mjs";
 
 const validNames = () =>
@@ -24,6 +27,105 @@ const body = (names) =>
     id: 1,
     result: { tools: [...names].map((name) => ({ name })) },
   });
+
+// Production may expose fewer optional GitHub tools than Render, but critical
+// project-scoped and lease-fenced MCP contracts must be identical.
+const criticalBody = (overrides = {}) => {
+  const tools = [
+    ...new Set([...validNames(), ...Object.keys(CRITICAL_TOOL_PROPERTIES)]),
+  ].map((name) => ({
+    name,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(
+        (CRITICAL_TOOL_PROPERTIES[name] ?? []).map((key) => [
+          key,
+          { type: "string" },
+        ]),
+      ),
+    },
+  }));
+  return bodyResponse(
+    tools.map((tool) => ({
+      ...tool,
+      ...(overrides[tool.name] ?? {}),
+    })),
+  );
+};
+const bodyResponse = (tools) =>
+  JSON.stringify({ jsonrpc: "2.0", id: 1, result: { tools } });
+
+test("critical tool schemas and lease-token fields are mandatory on each MCP origin", async () => {
+  const catalog = parseToolCatalog(criticalBody());
+  assert.equal(verifyCriticalToolSchemas(catalog), true);
+  assert.ok(catalog.names.has("coordination_post"));
+  assert.ok(catalog.names.has("coordination_list"));
+
+  const requests = [];
+  const detail = await probeCatalog(
+    ENDPOINTS.production,
+    async (url, options) => {
+      requests.push({ url, options });
+      return new Response(criticalBody(), { status: 200 });
+    },
+    { withSchemas: true },
+  );
+  assert.equal(verifyCriticalToolSchemas(detail), true);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].url, "https://kmjtechno.com/mcp");
+  assert.equal(requests[0].options.headers.Authorization, undefined);
+  assert.match(requests[0].options.body, /"method":"tools\/list"/);
+});
+
+test("a high tool count cannot hide missing agent coordination features", () => {
+  const good = parseToolCatalog(criticalBody());
+  good.names.delete("coordination_post");
+  good.tools.delete("coordination_post");
+  assert.throws(
+    () => verifyCriticalToolSchemas(good),
+    (error) =>
+      error.message === "MCP_CRITICAL_TOOL_MISSING" &&
+      error.criticalTool === "coordination_post",
+  );
+});
+
+test("autopilot leaseToken schemas fail closed when absent or incorrectly typed", () => {
+  for (const property of [
+    "autopilot_checkpoint",
+    "autopilot_wait",
+    "autopilot_complete",
+  ]) {
+    const absent = parseToolCatalog(criticalBody());
+    delete absent.tools.get(property).inputSchema.properties.leaseToken;
+    assert.throws(
+      () => verifyCriticalToolSchemas(absent),
+      /MCP_CRITICAL_SCHEMA_MISSING/,
+    );
+    const wrong = parseToolCatalog(criticalBody());
+    wrong.tools.get(property).inputSchema.properties.leaseToken = {
+      type: "number",
+    };
+    assert.throws(
+      () => verifyCriticalToolSchemas(wrong),
+      /MCP_CRITICAL_SCHEMA_INVALID/,
+    );
+  }
+});
+
+test("critical schema validator rejects missing and malformed objects", () => {
+  const missing = parseToolCatalog(
+    criticalBody({ coordination_list: { inputSchema: null } }),
+  );
+  assert.throws(
+    () => verifyCriticalToolSchemas(missing),
+    /MCP_CRITICAL_SCHEMA_MISSING/,
+  );
+  assert.throws(
+    () =>
+      verifyCriticalToolSchemas(new Set(Object.keys(CRITICAL_TOOL_PROPERTIES))),
+    /MCP_CATALOG_INCOMPLETE/,
+  );
+});
 
 test("public MCP catalogs accept valid JSON and streaming SSE responses", () => {
   const names = validNames();

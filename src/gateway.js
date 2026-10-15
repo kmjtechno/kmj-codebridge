@@ -15,6 +15,7 @@ import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-sc
 import { gatewaySchema } from "./config.js";
 import { definitions, FAST_READ_TOOLS } from "./tools.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
+import { createCiFailureReader, ciFailureDefinitions } from "./ci-failure.js";
 import {
   createGitHubReadiness,
   githubReadinessOptions,
@@ -151,6 +152,7 @@ export async function startGateway(rawConfig) {
     ? createOAuthVerifier(config.oauth, config.users, resolveOAuthUser)
     : null;
   const githubDispatch = createGitHubBridge(config.github);
+  const ciDispatch = createCiFailureReader(config.github?.circleci);
   const enabledGitHubDefinitions = config.github?.publicReadOnly
     ? Object.fromEntries(
         Object.entries(githubDefinitions).filter(
@@ -158,9 +160,11 @@ export async function startGateway(rawConfig) {
         ),
       )
     : githubDefinitions;
-  const allDefinitions = githubDispatch
-    ? { ...definitions, ...enabledGitHubDefinitions }
-    : definitions;
+  const allDefinitions = {
+    ...definitions,
+    ...(githubDispatch ? enabledGitHubDefinitions : {}),
+    ...(ciDispatch ? ciFailureDefinitions : {}),
+  };
   const probeGitHub = createGitHubReadiness(
     githubDispatch
       ? () =>
@@ -826,6 +830,12 @@ export async function startGateway(rawConfig) {
             title: d.title,
             description: d.description,
             inputSchema: d.input,
+            // MCP Apps tool-activity icons resolve before the generic server
+            // fallback. Advertise only the same explicitly configured HTTPS
+            // PNG as serverInfo; never invent a URL or change OAuth/tool grants.
+            ...(config.iconUrl
+              ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
+              : {}),
             ...toolSecurityMeta(config.oauth, d.access),
             annotations: {
               title: d.title,
@@ -1126,6 +1136,12 @@ export async function startGateway(rawConfig) {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
+              if (ciDispatch && name === "ci_status_failure_log") {
+                const result = await ciDispatch(name, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                };
+              }
               if (githubDispatch && name.startsWith("github_")) {
                 const result = await githubDispatch(name, args);
                 return {
@@ -1169,6 +1185,12 @@ export async function startGateway(rawConfig) {
                     pipeStrategy: "input",
                   })
                 : { type: "object", properties: {} },
+              // OAuth public tools/list is CodeBridge's hosted ChatGPT
+              // catalog. Current SDK v1.31 registerTool omits icons from
+              // its default list handler, so advertise them here explicitly.
+              ...(config.iconUrl
+                ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
+                : {}),
               annotations: {
                 title: d.title,
                 readOnlyHint: d.access === "read",

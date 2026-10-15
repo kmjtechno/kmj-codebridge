@@ -102,6 +102,20 @@ export const gatewaySchema = z
           .min(1)
           .max(100),
         cacheSeconds: z.number().int().min(5).max(300).default(30),
+        circleci: z
+          .object({
+            tokenEnv: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+            repositories: z
+              .array(z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/))
+              .min(1)
+              .max(25),
+            outputHosts: z
+              .array(z.string().regex(/^[a-z0-9-]+(?:\.[a-z0-9-]+)+$/))
+              .min(1)
+              .max(15),
+          })
+          .strict()
+          .optional(),
       })
       .superRefine((github, ctx) => {
         if (!github.publicReadOnly && !github.tokenEnv) {
@@ -248,10 +262,73 @@ export const agentSchema = z.object({
             })
             .strict()
             .optional(),
+          autopilotCiWatch: z
+            .object({
+              enabled: z.boolean().default(false),
+              repository: z
+                .string()
+                .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+              branch: z.string().regex(/^[A-Za-z0-9._-]{1,64}$/),
+              workflow: z.string().min(1).max(120),
+              job: z.string().min(1).max(120),
+              recipe: z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+              tokenEnv: z
+                .string()
+                .regex(/^[A-Z][A-Z0-9_]{2,63}$/)
+                .optional(),
+              publicReadOnly: z.boolean().default(false),
+              intervalSeconds: z.number().int().min(600).max(3600).default(900),
+            })
+            .strict()
+            .superRefine((watch, ctx) => {
+              if (Boolean(watch.tokenEnv) === watch.publicReadOnly) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message:
+                    "Choose server token OR explicit public read-only mode",
+                });
+              }
+            })
+            .optional(),
+          autopilotRepairWorker: z
+            .object({
+              enabled: z.boolean().default(false),
+              recipes: z
+                .record(
+                  z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+                  z
+                    .object({
+                      fixGate: id,
+                      verifyGate: id,
+                      triggerGate: id.optional(),
+                      paths: z
+                        .array(
+                          z
+                            .string()
+                            .regex(
+                              /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?$/,
+                            ),
+                        )
+                        .min(1)
+                        .max(20),
+                    })
+                    .strict(),
+                )
+                .refine(
+                  (recipes) =>
+                    Object.keys(recipes).length > 0 &&
+                    Object.keys(recipes).length <= 8,
+                ),
+            })
+            .strict()
+            .optional(),
           autopilotGateWorker: z
             .object({
               enabled: z.boolean().default(false),
               gates: z.array(id).min(1).max(16),
+              // Explicit opt-in: run approved gate from a pinned clean detached
+              // worktree even when Claude/main checkout has uncommitted work.
+              isolatedWorktree: z.boolean().default(false),
             })
             .strict()
             .optional(),
@@ -293,6 +370,22 @@ export const agentSchema = z.object({
               }),
             )
             .default({}),
+        })
+        .superRefine((project, ctx) => {
+          if (
+            project.autopilotCiWatch?.enabled &&
+            (!project.writable ||
+              !project.autopilotRepairWorker?.enabled ||
+              !Object.hasOwn(
+                project.autopilotRepairWorker.recipes,
+                project.autopilotCiWatch.recipe,
+              ))
+          )
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                "CI watch needs a writable project and enabled repair recipe",
+            });
         })
         .transform((project) => ({
           ...project,

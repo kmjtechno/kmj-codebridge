@@ -11,13 +11,23 @@ import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
+import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
+import { planSmartModelRoute } from "./smart-model-router.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
+import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
+import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
+import { reviewRepairCandidate } from "./autopilot-repair-review.js";
+import {
+  inspectBlockers,
+  BLOCKER_CODES,
+  remediationTaskForBlocker,
+} from "./blocker-recovery.js";
 
 // Structured sensitive-binding comparison for write protection.
 //
@@ -518,6 +528,7 @@ export const FAST_READ_TOOLS = [
   "execution_capacity",
   "project_progress",
   "chat_lane_status",
+  "coordination_list",
   "local_model_status",
   "worktree_lane_status",
   "verification_plan",
@@ -539,6 +550,7 @@ export const FAST_READ_TOOLS = [
   "git_index_probe",
   "search_code",
   "skill_recommendations",
+  "model_route_plan",
   "read_file",
   "read_file_tail",
   "read_file_range",
@@ -710,6 +722,51 @@ export const definitions = {
       recentJobs: z.number().int().min(1).max(20).default(8),
     },
     access: "read",
+  },
+  coordination_list: {
+    title: "Read project agent coordination mailbox",
+    description:
+      "List bounded notes and replies from authorized project agents: issues, blockers, proposals, handoffs and reported test outcomes. Actor names and PASS/FAIL are caller-reported, not attested. No background work or worker starts.",
+    input: {
+      ...scoped,
+      limit: z.number().int().min(1).max(50).default(25),
+      after: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable()
+        .default(null),
+    },
+    access: "read",
+  },
+  coordination_post: {
+    title: "Send project agent coordination note",
+    description:
+      "Post one sanitized, idempotent project-scoped issue, proposal, handoff or result for another authorized CodeBridge agent/chat. No code edit, shell, cloud call or automatic task claim.",
+    input: {
+      ...scoped,
+      actor: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      recipient: z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/)
+        .default("all"),
+      requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      kind: z.enum(["issue", "analysis", "proposal", "handoff", "result"]),
+      note: z.string().min(1).max(500),
+      replyTo: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable()
+        .default(null),
+      evidenceSha: z
+        .string()
+        .regex(/^[a-f0-9]{40}$/)
+        .nullable()
+        .default(null),
+      reportedGate: z
+        .enum(["unknown", "pass", "fail", "blocked"])
+        .default("unknown"),
+    },
+    access: "write",
   },
   chat_lane_status: {
     title: "Multi-chat work lane status",
@@ -1184,6 +1241,67 @@ export const definitions = {
     },
     access: "read",
   },
+  model_route_plan: {
+    title: "Intelligent zero-cost model route plan",
+    description:
+      "Read-only routing plan for configured CodeBridge AI-chat inference. Cloud models need caller-approved access, fresh healthy provider metadata, confirmed zero price, exact OpenRouter :free model ID and context/quota fit; local is the backup. No model invocation, provider keys or host-chat model switching.",
+    input: {
+      ...scoped,
+      models: z
+        .array(
+          z.object({
+            id: z.string().min(1).max(96),
+            provider: z.string().min(1).max(96),
+            kind: z.enum(["local", "cloud"]),
+            free: z.boolean(),
+            privateCodeAllowed: z.boolean(),
+            enabled: z.boolean().optional(),
+            health: z.enum(["ok", "error", "unknown"]).optional(),
+            modelsDiscoveredAtMs: z.number().int().min(0).optional(),
+            available: z.boolean().optional(),
+            contextWindow: z.number().int().positive().max(1_000_000),
+            capabilities: z.array(z.string().min(1).max(32)).max(16),
+            qualityScore: z.number().min(0).max(100).optional(),
+            reliabilityPct: z.number().min(0).max(100).optional(),
+            p95LatencyMs: z.number().min(0).max(120000).optional(),
+            freeTierVerified: z.boolean().optional(),
+            costPerMillionTokensUsd: z.number().min(0).optional(),
+          }),
+        )
+        .min(1)
+        .max(64),
+      task: z.object({
+        capability: z
+          .string()
+          .regex(/^[a-z][a-z0-9-]{0,31}$/)
+          .default("coding"),
+        inputTokens: z.number().int().min(0).max(1_000_000),
+        maxOutputTokens: z.number().int().min(1).max(1_000_000),
+        strategy: z
+          .enum([
+            "local-first",
+            "approved-free-cloud-first",
+            "fastest",
+            "highest-quality",
+          ])
+          .default("approved-free-cloud-first"),
+        cloudApproved: z.boolean().default(false),
+        privateCode: z.boolean().default(true),
+      }),
+      quotaState: z
+        .record(
+          z.object({
+            remainingRequests: z.number().int().min(0).nullable().optional(),
+            remainingTokens: z.number().int().min(0).nullable().optional(),
+            resetRequestsAt: z.number().int().min(0).nullable().optional(),
+            resetTokensAt: z.number().int().min(0).nullable().optional(),
+            cooldownUntil: z.number().int().min(0).optional(),
+          }),
+        )
+        .default({}),
+    },
+    access: "read",
+  },
   mission_compile: {
     title: "Compile mission",
     description:
@@ -1250,6 +1368,24 @@ export const definitions = {
     },
     access: "read",
   },
+  autopilot_repair_candidate: {
+    title: "Review SHA-verified isolated repair candidate",
+    description:
+      "Read only: verify a previously completed repair gate checkpoint, exact detached worktree, safe allowed file diff, SHA-256 and redacted optional preview. Never applies, commits, publishes or deploys a patch.",
+    input: {
+      ...scoped,
+      task: identifier,
+      includePatch: z.boolean().default(false),
+    },
+    access: "read",
+  },
+  autopilot_worker_runtime_status: {
+    title: "Read real agent worker startup status",
+    description:
+      "Report configured versus actually started long-running CodeBridge gate, isolated repair, GitHub CI watcher and offline draft worker loops for this enrolled project. No secrets, tokens, commands or false deployment claims.",
+    input: scoped,
+    access: "read",
+  },
   autopilot_enqueue: {
     title: "Enqueue autopilot task",
     description:
@@ -1313,6 +1449,8 @@ export const definitions = {
       task: identifier,
       reason: z.string().min(1).max(4096),
       leaseToken: z.string().uuid().optional(),
+      // Opt-in typed handoff; no arbitrary text becomes an execution command.
+      blockerCode: z.enum(BLOCKER_CODES).optional(),
     },
     access: "write",
   },
@@ -1443,6 +1581,20 @@ export const definitions = {
     input: scoped,
     access: "execute",
   },
+  supervisor_private_pr419_ci_status: {
+    title: "Private PR419 CI status",
+    description:
+      "Read a bounded SHA-bound local VPS CI result for the fixed Main Platform Payment Gateway PR and its guarded systemd service. Local Linux is never presented as hosted GitHub Actions or Windows CI.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_private_pr419_ci_start: {
+    title: "Run private PR419 CI",
+    description:
+      "Start only the fixed isolated Main Platform PR419 verifier on the existing VPS, with no caller-selected SHA, repository, shell, path or environment. Requires a preinstalled guarded unit.",
+    input: scoped,
+    access: "execute",
+  },
   supervisor_update_status: {
     title: "Auto-update status",
     description:
@@ -1539,8 +1691,25 @@ export const definitions = {
   connection_doctor: {
     title: "Connection doctor",
     description:
-      "Read connection health and available project capabilities without changing settings.",
-    input: scoped,
+      "Read connection health and available project capabilities and diagnose missing hosted tools, inactive local workers, CI launch failures and dirty checkouts; never changes settings or executes work.",
+    input: {
+      ...scoped,
+      // Optional observations from the client are advisory, not host-verified.
+      clientVisibleTools: z
+        .array(z.string().regex(/^[a-z][a-z0-9_]{0,63}$/))
+        .max(120)
+        .optional(),
+      ciObservation: z
+        .enum([
+          "unknown",
+          "job-no-steps",
+          "executed-test-fail",
+          "checks-pending",
+          "passed",
+        ])
+        .optional(),
+      checkoutState: z.enum(["unknown", "dirty", "clean"]).optional(),
+    },
     access: "read",
   },
 };
@@ -1554,6 +1723,7 @@ export function createDispatcher(
   supervisor = null,
   audit = null,
   localModelFactory = createLocalModelClient,
+  workerRuntimeSource = null,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -1563,7 +1733,17 @@ export function createDispatcher(
   );
   let localModel;
   const offlineModel = () => (localModel ??= localModelFactory());
+  // In-memory per-device/project observation only, never a ChatGPT/Claude
+  // conversation identifier or inference on the host client's model.
+  const lastModelUsage = new Map();
+  const rememberModel = (project, usage) => {
+    lastModelUsage.set(project, {
+      ...usage,
+      observedAt: new Date().toISOString(),
+    });
+  };
   let laneRegistry;
+  let coordinationRegistry;
   const laneStateDir =
     typeof config.stateDir === "string" && config.stateDir.length > 0
       ? config.stateDir
@@ -1573,6 +1753,10 @@ export function createDispatcher(
   const lanes = () => {
     if (!laneStateDir) fail("CHAT_LANE_STATE_UNAVAILABLE");
     return (laneRegistry ??= new ChatLaneRegistry(laneStateDir));
+  };
+  const coordination = () => {
+    if (!laneStateDir) fail("COORDINATION_STATE_UNAVAILABLE");
+    return (coordinationRegistry ??= new AgentCoordination(laneStateDir));
   };
   let worktrees;
   const worktreeLanes = () => {
@@ -1625,6 +1809,51 @@ export function createDispatcher(
         // Commit of the code this agent process runs (null when unknown). A
         // "git-branch" source is a checkout and may carry uncommitted edits.
         runtimeRevision: runtimeRevision(),
+        ...(name === "connection_doctor"
+          ? {
+              modelUsageStatus: {
+                scope: "device_project_current_agent_process",
+                lastVerifiedInvocation: lastModelUsage.get(p.id) ?? null,
+                originalChatHostModel: "not_observable_by_codebridge",
+                note: "Only successful CodeBridge model tool calls are observed. A configured provider or a tool call without inference is not model usage. This is per-project, not per-chat.",
+              },
+              blockerRecovery: inspectBlockers({
+                clientVisibleTools: a.clientVisibleTools ?? null,
+                // This is a local config observation only, not a privileged
+                // supervisor RPC. A socket path alone never proves uptime.
+                supervisorConfigured: Boolean(config.supervisorSocket),
+                supervisorObservation: observeSupervisorSocket({
+                  configured: Boolean(config.supervisorSocket),
+                }),
+                workerConfiguration: {
+                  gate: p.autopilotGateWorker?.enabled === true,
+                  repair: p.autopilotRepairWorker?.enabled === true,
+                  githubCiWatch: p.autopilotCiWatch?.enabled === true,
+                  localDraft: p.autopilotLocalWorker?.enabled === true,
+                },
+                workerStarted:
+                  typeof workerRuntimeSource === "function"
+                    ? (() => {
+                        const observed = workerRuntimeSource();
+                        if (!observed || observed.agentRunning !== true)
+                          return null;
+                        return Object.fromEntries(
+                          ["gate", "repair", "githubCiWatch", "localDraft"].map(
+                            (kind) => [
+                              kind,
+                              Array.isArray(observed[kind])
+                                ? observed[kind].includes(p.id)
+                                : false,
+                            ],
+                          ),
+                        );
+                      })()
+                    : null,
+                ciObservation: a.ciObservation ?? "unknown",
+                checkoutState: a.checkoutState ?? "unknown",
+              }),
+            }
+          : {}),
       };
     if (name === "worktree_lane_status")
       return {
@@ -1675,8 +1904,25 @@ export function createDispatcher(
         maxTokens: a.maxTokens,
         timeoutSeconds: a.timeoutSeconds,
       });
-      return { device: config.id, project: p.id, ...response };
+      const usage = localModelReceipt(a.model, "local_model_generate");
+      rememberModel(p.id, usage);
+      return {
+        device: config.id,
+        project: p.id,
+        ...response,
+        modelUsage: usage,
+      };
     }
+    if (name === "coordination_list")
+      return {
+        device: config.id,
+        ...coordination().list(p.id, { limit: a.limit, after: a.after }),
+      };
+    if (name === "coordination_post")
+      return {
+        device: config.id,
+        ...coordination().post(p.id, a),
+      };
     if (name === "chat_lane_status")
       return { device: config.id, project: p.id, ...lanes().status(p.id) };
     if (name === "chat_lane_reserve") {
@@ -2201,6 +2447,12 @@ export function createDispatcher(
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
     }
+    if (name === "model_route_plan")
+      return planSmartModelRoute({
+        models: a.models,
+        task: a.task,
+        state: a.quotaState,
+      });
     if (name === "skill_recommendations")
       return {
         skills: selectSkillPacks({
@@ -2234,7 +2486,52 @@ export function createDispatcher(
       );
     if (name.startsWith("autopilot_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
+    if (name === "autopilot_worker_runtime_status") {
+      const source =
+        typeof workerRuntimeSource === "function"
+          ? workerRuntimeSource()
+          : null;
+      const observed = (kind) =>
+        source === null || !Array.isArray(source[kind])
+          ? null
+          : source[kind].includes(p.id);
+      return {
+        device: config.id,
+        project: p.id,
+        runtimeVersion: VERSION,
+        processAvailable: source !== null && source.agentRunning === true,
+        evidence:
+          source === null ? "NOT_INSTRUMENTED" : "ACTIVE_AGENT_WORKER_HANDLES",
+        workers: {
+          gate: {
+            configured: p.autopilotGateWorker?.enabled === true,
+            loopStarted: observed("gate"),
+          },
+          repair: {
+            configured: p.autopilotRepairWorker?.enabled === true,
+            loopStarted: observed("repair"),
+          },
+          githubCiWatch: {
+            configured: p.autopilotCiWatch?.enabled === true,
+            loopStarted: observed("githubCiWatch"),
+          },
+          localDraft: {
+            configured: p.autopilotLocalWorker?.enabled === true,
+            loopStarted: observed("localDraft"),
+          },
+        },
+        note: "Loop started is not evidence of successful CI polling, a completed fix, service uptime or deployment.",
+      };
+    }
     if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
+    if (name === "autopilot_repair_candidate")
+      return reviewRepairCandidate({
+        project: p,
+        journal: autopilot,
+        lanes: worktreeLanes(),
+        taskId: a.task,
+        includePatch: a.includePatch,
+      });
     if (name === "autopilot_enqueue") {
       if (!canQueueAutopilotGate(a.key, permissions)) fail("ACCESS_DENIED");
       return autopilot.enqueue({
@@ -2279,6 +2576,8 @@ export function createDispatcher(
           writesApplied: false,
           paidInference: false,
           reviewRequired: true,
+          modelUsage: existing.modelUsage ?? unknownModelReceipt(),
+          modelUsageReusedFromCheckpoint: existing.modelUsage !== undefined,
         };
       }
       const prompt = [
@@ -2297,11 +2596,14 @@ export function createDispatcher(
       });
       const proposal = redact(generated.response ?? "").slice(0, 4096);
       if (!proposal.trim()) fail("AUTOPILOT_LOCAL_DRAFT_EMPTY");
+      const usage = localModelReceipt(a.model, "autopilot_local_draft");
       const saved = autopilot.checkpoint(a.task, p.id, {
         summary: proposal,
         next: "LOCAL_DRAFT_AWAITING_REVIEW",
         leaseToken: a.leaseToken,
+        modelUsage: usage,
       });
+      rememberModel(p.id, usage);
       return {
         device: config.id,
         project: p.id,
@@ -2313,6 +2615,8 @@ export function createDispatcher(
         writesApplied: false,
         paidInference: false,
         reviewRequired: true,
+        modelUsage: saved.checkpoint.modelUsage,
+        modelUsageReusedFromCheckpoint: false,
         next: "Use guarded CodeBridge edits and configured quality gates before completion",
       };
     }
@@ -2322,8 +2626,41 @@ export function createDispatcher(
         next: a.next,
         leaseToken: a.leaseToken,
       });
-    if (name === "autopilot_wait")
-      return autopilot.wait(a.task, p.id, a.reason, a.leaseToken);
+    if (name === "autopilot_wait") {
+      // Release the current task's lease first; an authorized blocked task must
+      // never hold up independent queued work. A recovery task is metadata only.
+      const waiting = autopilot.wait(a.task, p.id, a.reason, a.leaseToken);
+      if (!a.blockerCode) return waiting;
+      const recoverySpec = remediationTaskForBlocker(a.blockerCode, a.task);
+      try {
+        const recovery = autopilot.enqueue({
+          project: p.id,
+          ...recoverySpec,
+        });
+        return {
+          ...waiting,
+          remediation: {
+            task: recovery.id,
+            state: recovery.state,
+            queued: true,
+            executionStarted: false,
+            blockerCode: a.blockerCode,
+          },
+        };
+      } catch {
+        // Original wait is already durable. A full journal or idempotency
+        // conflict is reported, not turned into fake success.
+        return {
+          ...waiting,
+          remediation: {
+            queued: false,
+            executionStarted: false,
+            blockerCode: a.blockerCode,
+            error: "RECOVERY_QUEUE_UNAVAILABLE",
+          },
+        };
+      }
+    }
     if (name === "autopilot_resume") return autopilot.resume(a.task, p.id);
     if (name === "autopilot_complete")
       return autopilot.complete(a.task, p.id, {
@@ -2382,6 +2719,10 @@ export function createDispatcher(
       return await supervisor.request({ op: "private_pr337_ci_status" });
     if (name === "supervisor_private_pr337_ci_start")
       return await supervisor.request({ op: "private_pr337_ci_start" });
+    if (name === "supervisor_private_pr419_ci_status")
+      return await supervisor.request({ op: "private_pr419_ci_status" });
+    if (name === "supervisor_private_pr419_ci_start")
+      return await supervisor.request({ op: "private_pr419_ci_start" });
     if (name === "supervisor_update_status")
       return await supervisor.request({ op: "update_status" });
     if (name === "supervisor_update_check")

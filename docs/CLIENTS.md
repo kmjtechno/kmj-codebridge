@@ -115,7 +115,12 @@ https://kmjtechno.com/mcp
 
 For Claude web or normal-account Desktop, add it as a custom remote connector and
 complete OAuth. CodeBridge publishes the protected-resource metadata needed to
-discover the authorization server.
+discover the authorization server. If the plugin's **Connect** control is disabled
+or does nothing, use **Customize → Connectors → Add custom connector** with
+`https://kmjtechno.com/mcp` instead. Account-level connector authentication is
+not guaranteed to launch from the plugin page. Run the read-only
+`npm run doctor:claude` to check public OAuth discovery before changing any
+OAuth configuration or regenerating clients. No static token is required.
 
 For Claude Desktop running a **third-party inference Gateway** such as a local
 model router, account-level plugins/connectors may not be the active connector

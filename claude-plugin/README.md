@@ -32,6 +32,45 @@ blank. Claude Desktop managed MCP may use an RFC 8252 loopback callback with an
 ephemeral local port; the CodeBridge authorization server supports that
 port-varying loopback behavior while keeping PKCE mandatory.
 
+## Disabled Connect button in Claude Desktop
+
+If Settings → Plugins → KMJ CodeBridge displays **"You're not connected to
+codebridge yet"** with an inactive or nonresponsive **Connect** button, don't
+assume the KMJ authorization service is down. Claude's plugin connection
+screen and its account-level custom MCP connector registration may not activate
+the same OAuth flow. Anthropic has received reports of similar disabled
+plugin-level connection controls.
+
+Use the Claude-supported **account connector** instead:
+
+1. Open Claude **Customize → Connectors** (or **Settings → Connectors**
+   in clients with the older navigation).
+2. Choose **Add custom connector** and name it **KMJ CodeBridge**.
+3. Set the **remote MCP URL** to `https://kmjtechno.com/mcp`.
+4. Save, choose **Connect / Authenticate**, and authorize KMJ in the
+   browser opened by Claude. Do not paste API keys or tokens into plugin
+   JSON or chat.
+5. Enable the connector in the chat connector picker and ask Claude to
+   list the CodeBridge devices authorized for your account.
+
+For Claude Desktop **third-party inference Gateway mode**, follow the
+existing **Inference configuration → Connectors → Managed MCP servers**
+procedure above instead of this account-level route.
+
+**Read-only doctor:** from a checked-out CodeBridge source tree with Node 24+,
+run `npm run doctor:claude`. It fetches only public resource and
+authorization-server metadata, validates PKCE S256 and public client
+registration, then returns `metadata: PASS | FAIL | UNVERIFIED`.
+It deliberately does **not** click the Claude UI or prove a connected
+account. A `GET /mcp` HTTP 405 response does not alone prove a broken
+Streamable HTTP MCP endpoint; real MCP initialization is a protocol operation.
+
+If the metadata passes but Claude's account connector cannot authorize,
+record the Claude Desktop version, whether Gateway mode is enabled, whether
+the browser confirmation dialog opened, and the visible OAuth error (without
+sharing authorization codes, cookies or credentials). Client UI controls are
+owned by Claude and cannot be force-enabled by editing the plugin manifest.
+
 ## Self-hosted deployments
 
 The repository remains self-hostable. Operators who run their own gateway should

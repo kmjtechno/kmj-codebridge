@@ -54,6 +54,12 @@ test("on-demand inference requires a local installed model and unloads it", asyn
   });
   assert.equal(response.response, "local result");
   assert.equal(response.paidInference, false);
+  assert.equal(response.modelUsage.model, "tiny:1b");
+  assert.equal(response.modelUsage.provider, "local-ollama");
+  assert.equal(
+    response.modelUsage.hostChatModel,
+    "not_observable_by_codebridge",
+  );
   assert.equal(response.outputIsUntrusted, true);
   assert.equal(response.modelUnloadRequested, true);
   assert.equal(requests.length, 3);
@@ -185,6 +191,27 @@ test("multiple authorized loopback Ollama ports combine installed models and rou
     client.generate({ model: "not-installed:1b", prompt: "test" }),
     /LOCAL_MODEL_NOT_INSTALLED/,
   );
+});
+
+test("model attribution rejects daemon-reported identity mismatch", async (t) => {
+  const { port } = await mockLocalRuntime(t, async (endpoint) => {
+    if (endpoint === "/api/tags")
+      return [200, { models: [{ name: "qwen3:4b" }] }];
+    return [
+      200,
+      { model: "unexpected-model:9b", done: true, response: "unsafe identity" },
+    ];
+  });
+  const client = createLocalModelClient({ port });
+  await assert.rejects(
+    client.generate({
+      model: "qwen3:4b",
+      prompt: "Show model identity",
+      maxTokens: 32,
+    }),
+    /LOCAL_MODEL_IDENTITY_MISMATCH/,
+  );
+  assert.equal((await client.status()).activeRequest, false);
 });
 
 test("invalid local model port selections fail closed before network access", () => {

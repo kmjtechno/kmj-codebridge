@@ -2,6 +2,7 @@ import { z } from "zod";
 import { readJsonLimited, readTextLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
+import { sanitizeCiLog, safeCiStepName, triageCiFailure } from "./ci-triage.js";
 import { VERSION } from "./version.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
@@ -150,6 +151,18 @@ export const githubDefinitions = {
     input: {
       repository: repoName,
       jobId: runId,
+    },
+    access: "read",
+  },
+  github_actions_failed_job_triage: {
+    title: "GitHub Actions failed job diagnosis",
+    description:
+      "Read sanitized diagnostic excerpts for one verified failed Actions job bound to an exact current PR HEAD. Suggest approved verification gate role but never execute, merge or deploy.",
+    input: {
+      repository: repoName,
+      number: issueNumber,
+      jobId: runId,
+      expectedHeadSha: commitSha,
     },
     access: "read",
   },
@@ -765,6 +778,34 @@ export function createGitHubBridge(config) {
 
     if (name === "github_actions_job_log")
       return raw(a.repository, `actions/jobs/${a.jobId}/logs`);
+
+    if (name === "github_actions_failed_job_triage") {
+      const pull = await request("GET", a.repository, `pulls/${a.number}`);
+      if (pull.head?.sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MOVED");
+      const job = await request("GET", a.repository, `actions/jobs/${a.jobId}`);
+      if (job.head_sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MISMATCH");
+      if (job.conclusion !== "failure" || job.status !== "completed")
+        fail("GITHUB_JOB_NOT_FAILED");
+      const output = await raw(a.repository, `actions/jobs/${a.jobId}/logs`);
+      const parsed = sanitizeCiLog(output.text ?? "");
+      const diagnosis = triageCiFailure({
+        lines: parsed.lines,
+        stepName: job.name,
+        evidence: parsed.lines.length ? "REDACTED_OUTPUT" : "UNKNOWN",
+      });
+      return {
+        repository: a.repository,
+        pullRequest: a.number,
+        jobId: a.jobId,
+        verifiedHeadSha: a.expectedHeadSha,
+        name: safeCiStepName(job.name),
+        conclusion: "failure",
+        lines: parsed.lines,
+        truncated: parsed.truncated || output.truncated === true,
+        diagnosis,
+        action: "READ_ONLY_DIAGNOSTIC",
+      };
+    }
 
     if (name === "github_create_branch") {
       const data = await request("POST", a.repository, "git/refs", {

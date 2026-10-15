@@ -203,6 +203,47 @@ test("config validation uses fixed paths and never returns config content", asyn
   assert.equal(JSON.stringify(result).includes("x".repeat(20)), false);
 });
 
+test("supervisor config validation classifies failures without leaking secrets", async () => {
+  const cases = [
+    { code: "ENOENT", reason: "CONFIG_FILE_MISSING" },
+    { code: "EACCES", reason: "CONFIG_FILE_UNREADABLE" },
+    { code: "EPERM", reason: "CONFIG_FILE_UNREADABLE" },
+    { syntax: true, reason: "CONFIG_JSON_INVALID" },
+  ];
+  for (const item of cases) {
+    const handle = createSupervisorHandler({
+      readFile: () => {
+        const error = item.syntax
+          ? new SyntaxError("secret-json-content")
+          : new Error("secret-config-path");
+        if (item.code) error.code = item.code;
+        throw error;
+      },
+    });
+    const result = await handle({ op: "config_validate", service: "gateway" });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: item.reason,
+    });
+    assert.ok(!JSON.stringify(result).includes("secret"));
+    assert.ok(!JSON.stringify(result).includes("/etc/"));
+  }
+
+  const invalidSchema = createSupervisorHandler({
+    readFile: () => JSON.stringify({ unknown: true }),
+  });
+  const result = await invalidSchema({
+    op: "config_validate",
+    service: "gateway",
+  });
+  assert.deepEqual(result.response, {
+    service: "gateway",
+    valid: false,
+    reason: "CONFIG_SCHEMA_INVALID",
+  });
+});
+
 test("restart is acknowledged before a hardcoded unit is scheduled", async () => {
   const restarted = [];
   const handle = createSupervisorHandler({
@@ -441,8 +482,19 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       execMainExitTimestamp: "unknown",
       invocationID: "unknown",
     },
+    privatePr419Ci: {
+      installed: true,
+      activeState: "inactive",
+      subState: "dead",
+      result: "success",
+      execMainStatus: "0",
+      execMainStartTimestamp: "unknown",
+      execMainExitTimestamp: "unknown",
+      invocationID: "unknown",
+    },
     privatePr322Evidence: null,
     privatePr337Evidence: null,
+    privatePr419Evidence: null,
     nativeCiPrerequisites: null,
     privatePr337Diagnostic: "NO_CLASSIFIED_ERROR",
     privatePr337GitSignals: {
@@ -491,6 +543,7 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       "kmj-codebridge-main-platform-refresh.service",
       "kmj-codebridge-private-pr322-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
+      "kmj-codebridge-private-pr419-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-private-pr337-ci.service",
       "kmj-codebridge-kmj-main-platform.service",
@@ -660,6 +713,7 @@ test("fixed refresh prerequisite doctor never accepts caller paths", async () =>
       "/srv/kmj-codebridge-projects/kmj-main-platform/.git",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr322.json",
       "/var/lib/kmj-codebridge-ci/evidence/latest-pr337.json",
+      "/var/lib/kmj-codebridge-ci/evidence/latest-pr419.json",
       "/var/lib/kmj-codebridge-ci/prerequisites/status.json",
     ].sort(),
   );
@@ -1893,4 +1947,65 @@ test("full fixed fetch access proof survives the bounded journal tail", async ()
     expected,
   );
   assert.doesNotMatch(JSON.stringify(result), /\/private\/key/);
+});
+
+test("PR419 CI exposes bounded TypeScript codes without private compiler output", async () => {
+  const sha = "a".repeat(40);
+  const name = sha + "-20261014T103000Z.log";
+  const log = Buffer.from(
+    [
+      "KMJ_CI_GATE_BEGIN=typescript",
+      "resources/js/components/payment-gateway-onboarding.tsx(42,3): error TS2322: secret=NEVER_RETURN",
+      "resources/js/pages/operator-payments.tsx(80,4): error TS2345: /private/data",
+      "/private/secrets.ts(9,9): error TS9999: inaccessible",
+      "some untrusted text (30,30): error TS1111: ignore",
+    ].join("\n"),
+  );
+  const result = createSupervisorHandler({
+    run: () => "LoadState=loaded\nActiveState=inactive\n",
+    lstat: (filename) =>
+      filename === "/var/lib/kmj-codebridge-ci/evidence"
+        ? {
+            isDirectory: () => true,
+            isSymbolicLink: () => false,
+            uid: 0,
+            mode: 0o40700,
+          }
+        : {
+            isFile: () => true,
+            isSymbolicLink: () => false,
+            uid: 0,
+            nlink: 1,
+            mode: 0o100600,
+            size: filename.endsWith(".log") ? log.length : 400,
+          },
+    readdir: () => [name],
+    readLog: () => log,
+    readFile: () =>
+      JSON.stringify({
+        schema: 1,
+        repo: "kmjtechno/kmj-main-platform",
+        pr: 419,
+        sha,
+        linux_result: "FAIL",
+        exit_code: 1,
+        failed_gate: "typescript",
+        failure_kind: "COMMAND_FAILED_UNCLASSIFIED",
+        github_actions: "NOT_RUN",
+        windows: "NOT_RUN",
+        signed_production: false,
+        log_sha256: createHash("sha256").update(log).digest("hex"),
+      }),
+  });
+  const reply = (await result({ op: "private_pr419_ci_status" })).response;
+  assert.equal(reply.last.workerLogDiagnostic, "TYPESCRIPT_ERRORS_REPORTED");
+  assert.deepEqual(reply.last.workerLogTargets, [
+    "PAYMENT_ONBOARDING",
+    "PAYMENT_PAGE",
+  ]);
+  assert.deepEqual(reply.last.workerLogErrorCodes, ["TS2322", "TS2345"]);
+  assert.doesNotMatch(
+    JSON.stringify(reply),
+    /NEVER_RETURN|\/private|secrets\.ts|inaccessible/,
+  );
 });

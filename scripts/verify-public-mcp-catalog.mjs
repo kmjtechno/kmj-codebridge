@@ -16,6 +16,26 @@ export const REQUIRED_TOOLS = Object.freeze([
   "worktree_lane_status",
 ]);
 
+// Public discovery must expose the current, security-sensitive tool contracts.
+// Count alone is never sufficient: different origins may legitimately carry
+// different hosted-only integrations, but these tools must exist on both.
+export const CRITICAL_TOOL_PROPERTIES = Object.freeze({
+  coordination_list: ["device", "project", "limit", "after"],
+  coordination_post: [
+    "device",
+    "project",
+    "actor",
+    "recipient",
+    "requestKey",
+    "kind",
+    "note",
+  ],
+  autopilot_claim: ["device", "project"],
+  autopilot_checkpoint: ["device", "project", "task", "leaseToken"],
+  autopilot_wait: ["device", "project", "task", "leaseToken"],
+  autopilot_complete: ["device", "project", "task", "leaseToken"],
+});
+
 export const ENDPOINTS = Object.freeze({
   render: "https://kmj-codebridge-gateway.onrender.com",
   production: "https://kmjtechno.com",
@@ -65,7 +85,7 @@ function rpcMessages(body) {
   return parsed;
 }
 
-export function parseToolNames(body) {
+export function parseToolCatalog(body) {
   for (const parsed of rpcMessages(body)) {
     const tools = parsed?.result?.tools;
     if (!Array.isArray(tools)) continue;
@@ -79,9 +99,59 @@ export function parseToolNames(body) {
     ) {
       throw new Error("MCP_CATALOG_NAMES_INVALID");
     }
-    return new Set(names);
+    return {
+      names: new Set(names),
+      tools: new Map(tools.map((tool) => [tool.name, tool])),
+    };
   }
   throw new Error("MCP_CATALOG_TOOLS_MISSING");
+}
+
+export function parseToolNames(body) {
+  return parseToolCatalog(body).names;
+}
+
+// Only verify published, public JSON schemas; do not send authentication,
+// credentials, prompts or any tools/call requests. A missing or malformed
+// lease-token field is a release blocker, not an invitation to bypass fences.
+function criticalError(code, name) {
+  const error = new Error(code);
+  // Name comes from our static security-critical allowlist, never upstream.
+  error.criticalTool = name;
+  return error;
+}
+
+export function verifyCriticalToolSchemas(catalog) {
+  if (!(catalog?.names instanceof Set) || !(catalog?.tools instanceof Map))
+    throw new Error("MCP_CATALOG_INCOMPLETE");
+  for (const [name, requiredProperties] of Object.entries(
+    CRITICAL_TOOL_PROPERTIES,
+  )) {
+    const tool = catalog.tools.get(name);
+    if (!catalog.names.has(name) || !tool)
+      throw criticalError("MCP_CRITICAL_TOOL_MISSING", name);
+    const schema = tool.inputSchema;
+    if (
+      !schema ||
+      schema.type !== "object" ||
+      !schema.properties ||
+      typeof schema.properties !== "object" ||
+      Array.isArray(schema.properties)
+    )
+      throw criticalError("MCP_CRITICAL_SCHEMA_MISSING", name);
+    for (const property of requiredProperties) {
+      if (!Object.hasOwn(schema.properties, property))
+        throw criticalError("MCP_CRITICAL_SCHEMA_MISSING", name);
+    }
+    for (const sensitive of ["leaseToken"]) {
+      if (
+        requiredProperties.includes(sensitive) &&
+        schema.properties[sensitive]?.type !== "string"
+      )
+        throw criticalError("MCP_CRITICAL_SCHEMA_INVALID", name);
+    }
+  }
+  return true;
 }
 
 async function readBounded(response) {
@@ -102,7 +172,11 @@ async function readBounded(response) {
   return Buffer.concat(chunks, count).toString("utf8");
 }
 
-export async function probeCatalog(endpoint, request = fetch) {
+export async function probeCatalog(
+  endpoint,
+  request = fetch,
+  { withSchemas = false } = {},
+) {
   if (!Object.values(ENDPOINTS).includes(endpoint)) {
     throw new Error("MCP_CATALOG_ENDPOINT_DENIED");
   }
@@ -118,7 +192,8 @@ export async function probeCatalog(endpoint, request = fetch) {
     body: RPC,
   });
   if (response.status !== 200) throw new Error("MCP_CATALOG_HTTP_NOT_OK");
-  return parseToolNames(await readBounded(response));
+  const catalog = parseToolCatalog(await readBounded(response));
+  return withSchemas ? catalog : catalog.names;
 }
 
 // Only a strictly validated SHA is ever reported; anything else is unknown.
@@ -192,10 +267,11 @@ export async function probeWithWarmup(
   endpoint,
   request = fetch,
   pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  { withSchemas = false } = {},
 ) {
   for (let attempt = 0; attempt < 4; attempt++) {
     try {
-      return await probeCatalog(endpoint, request);
+      return await probeCatalog(endpoint, request, { withSchemas });
     } catch (error) {
       // A malformed or malicious catalog must never be retried into a PASS.
       const fatal = new Set([
@@ -216,14 +292,51 @@ export async function probeWithWarmup(
 
 async function main() {
   // Free-tier Render can cold-start; retry transport errors, never schema drift.
-  const render = await probeWithWarmup(ENDPOINTS.render);
-  const production = await probeWithWarmup(ENDPOINTS.production);
-  const report = verifyCatalogs(render, production);
+  const render = await probeWithWarmup(ENDPOINTS.render, fetch, undefined, {
+    withSchemas: true,
+  });
+  const production = await probeWithWarmup(
+    ENDPOINTS.production,
+    fetch,
+    undefined,
+    { withSchemas: true },
+  );
+  const report = verifyCatalogs(render.names, production.names);
+  // Production and Render may differ in optional integrations, but their
+  // project-scoped agent collaboration and fenced task lifecycle must agree.
+  for (const [origin, catalog] of [
+    ["render", render],
+    ["production", production],
+  ]) {
+    try {
+      verifyCriticalToolSchemas(catalog);
+      console.log(`MCP_CRITICAL_SCHEMA ${origin}=PASS`);
+    } catch (error) {
+      const tool =
+        typeof error.criticalTool === "string" &&
+        Object.hasOwn(CRITICAL_TOOL_PROPERTIES, error.criticalTool)
+          ? error.criticalTool
+          : "unknown";
+      const code = [
+        "MCP_CRITICAL_TOOL_MISSING",
+        "MCP_CRITICAL_SCHEMA_MISSING",
+        "MCP_CRITICAL_SCHEMA_INVALID",
+        "MCP_CATALOG_INCOMPLETE",
+      ].includes(error.message)
+        ? error.message
+        : "MCP_CATALOG_INCOMPLETE";
+      console.error(
+        `MCP_CRITICAL_SCHEMA ${origin}=FAIL tool=${tool} code=${code}`,
+      );
+      throw error;
+    }
+  }
   console.log(
     "MCP_PUBLIC_CATALOG=PASS render=" +
       report.renderCount +
       " production=" +
-      report.productionCount,
+      report.productionCount +
+      " criticalSchemas=PASS",
   );
   const strictExpected = process.env.EXPECT_DEPLOYED_COMMIT;
   const expected = strictExpected ?? process.env.GITHUB_SHA ?? "";
@@ -274,6 +387,9 @@ if (
       "MCP_CATALOG_HTTP_NOT_OK",
       "MCP_CATALOG_INCOMPLETE",
       "MCP_REQUIRED_TOOLS_MISSING",
+      "MCP_CRITICAL_TOOL_MISSING",
+      "MCP_CRITICAL_SCHEMA_MISSING",
+      "MCP_CRITICAL_SCHEMA_INVALID",
       "MCP_EXPECTED_COMMIT_INVALID",
       "MCP_DEPLOYED_COMMIT_MISMATCH",
     ]);

@@ -7,6 +7,9 @@ import { agentSchema } from "./config.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
+import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
+import { startGitHubCiWatchWorker } from "./autopilot-ci-watch-worker.js";
+import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
@@ -120,6 +123,7 @@ export async function startAgent(rawConfig) {
     : null;
   let localModelClient;
   const localModel = () => (localModelClient ??= createLocalModelClient());
+  let workerHandles = null;
   const dispatch = createDispatcher(
     c,
     runner,
@@ -128,11 +132,27 @@ export async function startAgent(rawConfig) {
     supervisor,
     audit,
     localModel,
+    () => workerHandles,
   );
   const gateWorker = startAutopilotGateWorker({
     projects: c.projects,
     journal: autopilot,
     runner,
+    licenseProvider,
+    // Reuse audited WorktreeLanes boundaries. This never executes another
+    // agent's dirty checkout; enabling still requires admin-approved gates.
+    lanes: new WorktreeLanes(state),
+  });
+  const repairWorker = startIsolatedRepairWorker({
+    projects: c.projects,
+    journal: autopilot,
+    runner,
+    licenseProvider,
+    lanes: new WorktreeLanes(state),
+  });
+  const ciWatchWorker = startGitHubCiWatchWorker({
+    projects: c.projects,
+    journal: autopilot,
     licenseProvider,
   });
   const localDraftWorker = startLocalAutopilotDraftWorker({
@@ -144,6 +164,15 @@ export async function startAgent(rawConfig) {
   });
   const controller = new AbortController();
   let stopped = false;
+  workerHandles = {
+    gate: gateWorker.enabledProjects,
+    repair: repairWorker.enabledProjects,
+    githubCiWatch: ciWatchWorker.enabledProjects,
+    localDraft: localDraftWorker.enabledProjects,
+    get agentRunning() {
+      return !stopped;
+    },
+  };
   const connectionState = path.join(state, "connection.json");
   const runtimeIdentity = () => {
     const identity = { version: VERSION, release: null };
@@ -311,6 +340,8 @@ export async function startAgent(rawConfig) {
       await loop;
       await gateWorker.close();
       await localDraftWorker.close();
+      await repairWorker.close();
+      await ciWatchWorker.close();
       await runner.close();
       releaseAgentLock(agentLock);
     },

@@ -2,6 +2,9 @@
 // Admission, real provider calls, credential vault and durable persistence belong to the host.
 
 const ID = /^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,95}$/;
+// Provider model names (including OpenRouter's "vendor/model:free") are
+// opaque identifiers, never filesystem paths or request URLs.
+const MODEL_ID = /^[a-zA-Z0-9][a-zA-Z0-9._:/-]{0,127}$/;
 const CAPABILITY = /^[a-z][a-z0-9-]{0,31}$/;
 const MAX_MODELS = 64;
 const MAX_RETRY_MS = 3_600_000;
@@ -56,7 +59,10 @@ function quotaHeader(headers, key) {
 function validateModel(model) {
   if (
     !model ||
-    !ID.test(model.id ?? "") ||
+    !MODEL_ID.test(model.id ?? "") ||
+    (typeof model.id === "string" &&
+      (model.id.includes("//") ||
+        model.id.split("/").some((part) => part === "." || part === ".."))) ||
     !ID.test(model.provider ?? "") ||
     !["local", "cloud"].includes(model.kind) ||
     typeof model.free !== "boolean" ||

@@ -87,9 +87,14 @@ test("VPS installer provisions a bounded auto-update timer", () => {
   const installer = fs.readFileSync("scripts/install-vps.sh", "utf8");
   assert.match(installer, /kmj-codebridge-auto-update\.service/);
   assert.match(installer, /kmj-codebridge-auto-update\.timer/);
-  assert.match(installer, /OnBootSec=5min/);
-  assert.match(installer, /OnUnitActiveSec=1h/);
-  assert.match(installer, /RandomizedDelaySec=10min/);
+  assert.match(installer, /OnBootSec=1min/);
+  assert.match(installer, /OnUnitInactiveSec=2min/);
+  assert.match(installer, /RandomizedDelaySec=15s/);
+  assert.match(installer, /AccuracySec=15s/);
+  assert.doesNotMatch(installer, /OnUnitActiveSec=1h/);
+  assert.match(installer, /OnBootSec=2min/);
+  assert.match(installer, /OnUnitInactiveSec=5min/);
+  assert.match(installer, /RandomizedDelaySec=30s/);
   assert.match(installer, /Persistent=true/);
   assert.match(installer, /CODEBRIDGE_AUTO_UPDATE_MODE:-development/);
   assert.match(installer, /systemctl enable --now "\$AUTO_UPDATE_TIMER"/);
@@ -161,4 +166,31 @@ main_platform_refresh_allowed
     unverified.stderr,
     /AUTO_UPDATE_MAIN_PLATFORM_UNIT_PREFLIGHT_UNAVAILABLE/,
   );
+});
+
+test("existing enrolled agent can activate fast updates without re-enrollment or restart", (t) => {
+  const installer = fs.readFileSync(
+    "scripts/activate-existing-fast-updater.sh",
+    "utf8",
+  );
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_STANDARD_RUNTIME_MISSING/);
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_NONDEVELOPMENT_UNIT/);
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_RUNTIME_DIRTY/);
+  assert.match(installer, /CODEBRIDGE_TIMER_REPAIR_AGENT_UNEXPECTED/);
+  assert.match(installer, /CODEBRIDGE_FAST_AUTO_UPDATE_TIMER_ACTIVE=1/);
+  assert.match(installer, /CODEBRIDGE_AUTO_UPDATE_AGENT_RESTARTED=0/);
+  assert.match(installer, /OnUnitInactiveSec=2min/);
+  assert.match(installer, /systemctl enable --now "\$timer"/);
+  assert.doesNotMatch(installer, /systemctl restart|systemctl stop/);
+  assert.doesNotMatch(installer, /CODEBRIDGE_TOKEN|CODEBRIDGE_ENROLLMENT/);
+  if (process.platform === "win32") {
+    t.skip("POSIX bash validation runs on Linux CI");
+    return;
+  }
+  const checked = spawnSync(
+    "bash",
+    ["-n", "scripts/activate-existing-fast-updater.sh"],
+    { encoding: "utf8", timeout: 5000 },
+  );
+  assert.equal(checked.status, 0, checked.stderr);
 });
