@@ -3,7 +3,10 @@ import { readJsonLimited, readTextLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { sanitizeCiLog, safeCiStepName, triageCiFailure } from "./ci-triage.js";
-import { classifyActionsJob, diagnoseActionsRun } from "./ci-execution-evidence.js";
+import {
+  classifyActionsJob,
+  diagnoseActionsRun,
+} from "./ci-execution-evidence.js";
 import { VERSION } from "./version.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
@@ -149,7 +152,12 @@ export const githubDefinitions = {
     title: "Exact-head GitHub Actions execution doctor",
     description:
       "Detect failed zero-step GitHub Actions jobs, distinguish unavailable execution from test failure and recommend opt-in, SHA-pinned local gates. Read-only; never spends, bypasses CI, authorizes merge or executes code.",
-    input: { repository: repoName, number: issueNumber, runId, expectedHeadSha: commitSha },
+    input: {
+      repository: repoName,
+      number: issueNumber,
+      runId,
+      expectedHeadSha: commitSha,
+    },
     access: "read",
   },
   github_actions_job_log: {
