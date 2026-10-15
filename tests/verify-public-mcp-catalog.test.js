@@ -31,24 +31,26 @@ const body = (names) =>
 // Production may expose fewer optional GitHub tools than Render, but critical
 // project-scoped and lease-fenced MCP contracts must be identical.
 const criticalBody = (overrides = {}) => {
-  const tools = [...new Set([...validNames(), ...Object.keys(CRITICAL_TOOL_PROPERTIES)])].map(
-    (name) => ({
-      name,
-      inputSchema: {
-        type: "object",
-        properties: Object.fromEntries(
-          (CRITICAL_TOOL_PROPERTIES[name] ?? []).map((key) => [
-            key,
-            { type: "string" },
-          ]),
-        ),
-      },
-    }),
+  const tools = [
+    ...new Set([...validNames(), ...Object.keys(CRITICAL_TOOL_PROPERTIES)]),
+  ].map((name) => ({
+    name,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(
+        (CRITICAL_TOOL_PROPERTIES[name] ?? []).map((key) => [
+          key,
+          { type: "string" },
+        ]),
+      ),
+    },
+  }));
+  return bodyResponse(
+    tools.map((tool) => ({
+      ...tool,
+      ...(overrides[tool.name] ?? {}),
+    })),
   );
-  return bodyResponse(tools.map((tool) => ({
-    ...tool,
-    ...(overrides[tool.name] ?? {}),
-  })));
 };
 const bodyResponse = (tools) =>
   JSON.stringify({ jsonrpc: "2.0", id: 1, result: { tools } });
@@ -86,7 +88,11 @@ test("a high tool count cannot hide missing agent coordination features", () => 
 });
 
 test("autopilot leaseToken schemas fail closed when absent or incorrectly typed", () => {
-  for (const property of ["autopilot_checkpoint", "autopilot_wait", "autopilot_complete"]) {
+  for (const property of [
+    "autopilot_checkpoint",
+    "autopilot_wait",
+    "autopilot_complete",
+  ]) {
     const absent = parseToolCatalog(criticalBody());
     delete absent.tools.get(property).inputSchema.properties.leaseToken;
     assert.throws(
@@ -94,7 +100,9 @@ test("autopilot leaseToken schemas fail closed when absent or incorrectly typed"
       /MCP_CRITICAL_SCHEMA_MISSING/,
     );
     const wrong = parseToolCatalog(criticalBody());
-    wrong.tools.get(property).inputSchema.properties.leaseToken = { type: "number" };
+    wrong.tools.get(property).inputSchema.properties.leaseToken = {
+      type: "number",
+    };
     assert.throws(
       () => verifyCriticalToolSchemas(wrong),
       /MCP_CRITICAL_SCHEMA_INVALID/,
@@ -103,13 +111,16 @@ test("autopilot leaseToken schemas fail closed when absent or incorrectly typed"
 });
 
 test("critical schema validator rejects missing and malformed objects", () => {
-  const missing = parseToolCatalog(criticalBody({ coordination_list: { inputSchema: null } }));
+  const missing = parseToolCatalog(
+    criticalBody({ coordination_list: { inputSchema: null } }),
+  );
   assert.throws(
     () => verifyCriticalToolSchemas(missing),
     /MCP_CRITICAL_SCHEMA_MISSING/,
   );
   assert.throws(
-    () => verifyCriticalToolSchemas(new Set(Object.keys(CRITICAL_TOOL_PROPERTIES))),
+    () =>
+      verifyCriticalToolSchemas(new Set(Object.keys(CRITICAL_TOOL_PROPERTIES))),
     /MCP_CATALOG_INCOMPLETE/,
   );
 });
