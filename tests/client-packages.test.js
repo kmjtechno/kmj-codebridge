@@ -630,3 +630,65 @@ test("universal client config generator", () => {
     );
   }
 });
+
+test(
+  "OpenAI packages build from an immutable source checkout",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const base = fs.mkdtempSync(
+      path.join(os.tmpdir(), "cb-immutable-package-"),
+    );
+    const fixture = path.join(base, "source");
+    fs.mkdirSync(path.join(fixture, "scripts"), { recursive: true });
+    fs.writeFileSync(path.join(fixture, "package.json"), '{"type":"module"}');
+    for (const name of ["package-plugin.js", "package-common.js"])
+      fs.copyFileSync(
+        path.join(cwd, "scripts", name),
+        path.join(fixture, "scripts", name),
+      );
+    fs.cpSync(path.join(cwd, "plugin"), path.join(fixture, "plugin"), {
+      recursive: true,
+    });
+    const entries = fs.readdirSync(fixture, {
+      recursive: true,
+      withFileTypes: true,
+    });
+    for (const entry of entries) {
+      const file = path.join(entry.parentPath ?? entry.path, entry.name);
+      fs.chmodSync(file, entry.isDirectory() ? 0o555 : 0o444);
+    }
+    t.after(() => {
+      for (const entry of entries.filter((e) => e.isDirectory()))
+        fs.chmodSync(
+          path.join(entry.parentPath ?? entry.path, entry.name),
+          0o755,
+        );
+      fs.rmSync(base, { recursive: true, force: true });
+    });
+    for (const [label, url] of [
+      ["custom", endpoint],
+      ["hosted", "https://kmjtechno.com/mcp"],
+    ]) {
+      const out = path.join(base, label);
+      const result = run(path.join(fixture, "scripts/package-plugin.js"), [
+        url,
+        "--out",
+        out,
+      ]);
+      assert.equal(result.status, 0, result.stderr);
+      assert.equal(
+        readJson(path.join(out, "kmj-codebridge/mcp.json")).mcpServers
+          .codebridge.url,
+        url,
+      );
+      assert.equal(
+        fs.statSync(path.join(fixture, "plugin/plugin.json")).mode & 0o222,
+        0,
+      );
+      assert.equal(
+        fs.statSync(path.join(out, "kmj-codebridge/plugin.json")).mode & 0o200,
+        0o200,
+      );
+    }
+  },
+);

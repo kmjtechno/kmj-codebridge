@@ -329,7 +329,17 @@ function inspect(options, deps) {
     ["scan_secrets", ["npm", "run", "scan:secrets"], 300000],
   ]) {
     try {
-      deps.run(asService(argv), { cwd: target, timeoutMs });
+      // Tests and the secret scanner invoke git in child processes. Trust
+      // only this verified candidate, only for the lifetime of this gate.
+      deps.run(
+        asService([
+          "GIT_CONFIG_COUNT=1",
+          "GIT_CONFIG_KEY_0=safe.directory",
+          `GIT_CONFIG_VALUE_0=${target}`,
+          ...argv,
+        ]),
+        { cwd: target, timeoutMs },
+      );
     } catch {
       throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
     }
