@@ -77,12 +77,16 @@ test("explicit cloud consent still rejects paid models and private-code transfer
   assert.equal(publicOutput.selected.modelId, cloud.id);
   assert.deepEqual(publicOutput.fallbacks, []);
   assert.equal(publicOutput.modelExecution, "NOT_EXECUTED");
-  assert.equal(publicOutput.pricingGuarantee, "HOST_MUST_VERIFY_BEFORE_REAL_PROVIDER_CALL");
+  assert.equal(
+    publicOutput.pricingGuarantee,
+    "HOST_MUST_VERIFY_BEFORE_REAL_PROVIDER_CALL",
+  );
 });
 
 test("no prompt-length-string fallback or untrusted gateway endpoint", () => {
   assert.throws(
-    () => routeAIRequest({ models: [local], task: "A".repeat(1000), nowMs: NOW }),
+    () =>
+      routeAIRequest({ models: [local], task: "A".repeat(1000), nowMs: NOW }),
     /AI_ROUTER_INVALID_TASK/,
   );
   assert.throws(() => routeAIRequest(), /AI_ROUTER_INVALID_TASK/);
