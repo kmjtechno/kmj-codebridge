@@ -29,7 +29,7 @@ import {
   compactStatusText,
 } from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
-import { buildContextResume } from "./context-resume.js";
+import { buildContextResume, unchangedResume } from "./context-resume.js";
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
 // Render injects RENDER_GIT_COMMIT. Non-Render deploys (e.g. the VPS gateway
 // behind the customer-domain /mcp) set CODEBRIDGE_SOURCE_COMMIT at deploy time,
@@ -599,7 +599,7 @@ export async function startGateway(rawConfig) {
         }
       }),
     );
-    return buildContextResume({
+    const packet = buildContextResume({
       ...scope,
       git: parts[0],
       autopilot: parts[1],
@@ -607,6 +607,9 @@ export async function startGateway(rawConfig) {
       mailbox: parts[3],
       capacity: parts[4],
     });
+    return args.ifNoneMatch === packet.digest
+      ? unchangedResume(packet)
+      : packet;
   }
 
   const fastReadTools = new Set(FAST_READ_TOOLS);
