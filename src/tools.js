@@ -826,7 +826,7 @@ export const definitions = {
   freellmapi_generate: {
     title: "Generate through the local FreeLLMAPI router",
     description:
-      "Opt-in bounded prompt to this device's loopback FreeLLMAPI router with smart chain routing by task (code, fast, reasoning, general). Only owner-defined auto:<chain> names; no paid or cloud fallback added by CodeBridge; output is untrusted text.",
+      "Opt-in bounded prompt to FreeLLMAPI on this device's loopback. Its upstream MAY be cloud or paid. Requires explicit remote-cloud consent and owner-approved free-chain allowlist; actual cost/provider remains unverified. Output is untrusted.",
     input: {
       ...scoped,
       prompt: z.string().min(1).max(4096),
@@ -838,6 +838,7 @@ export const definitions = {
       maxTokens: z.number().int().min(16).max(512).default(192),
       timeoutSeconds: z.number().int().min(5).max(90).default(45),
       localProcessingApproved: z.literal(true),
+      upstreamCloudApproved: z.literal(true),
     },
     access: "execute",
   },
@@ -1943,6 +1944,7 @@ export function createDispatcher(
           maxTokens: a.maxTokens,
           timeoutSeconds: a.timeoutSeconds,
           localProcessingApproved: a.localProcessingApproved,
+          upstreamCloudApproved: a.upstreamCloudApproved,
         })),
       };
     if (name === "local_model_generate") {

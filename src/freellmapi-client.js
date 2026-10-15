@@ -23,7 +23,7 @@ const CHAIN_PREFERENCE = Object.freeze({
 export function candidateChains(task, available) {
   const preferred = CHAIN_PREFERENCE[task] ?? CHAIN_PREFERENCE.general;
   const found = preferred.filter((c) => available.includes(c));
-  return found.length ? found : ["auto:default"];
+  return found;
 }
 
 const fail = (code) => {
@@ -34,11 +34,26 @@ export function createFreeLlmApiClient({
   port = 31415,
   apiKey = process.env.CODEBRIDGE_FREELLMAPI_KEY,
   request = httpRequest,
+  approvedFreeChains = process.env.CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS
+    ? process.env.CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS.split(",")
+    : [],
+  now = Date.now,
 } = {}) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     fail("FREELLMAPI_INVALID_PORT");
   if (typeof apiKey !== "string" || !KEY.test(apiKey))
     fail("FREELLMAPI_KEY_NOT_CONFIGURED");
+  if (typeof now !== "function") fail("FREELLMAPI_INVALID_CLOCK");
+  if (
+    !Array.isArray(approvedFreeChains) ||
+    approvedFreeChains.length > 20 ||
+    approvedFreeChains.some(
+      (name) => typeof name !== "string" || !CHAIN.test(name),
+    )
+  )
+    fail("FREELLMAPI_INVALID_APPROVED_CHAINS");
+  // Owner approved != audited free pricing; upstream may still use cloud.
+  const approved = new Set(approvedFreeChains);
   let cached = null;
   const call = (method, path, body, timeoutMs) =>
     request({ port, method, path, apiKey, body, timeoutMs });
@@ -53,8 +68,12 @@ export function createFreeLlmApiClient({
         provider: "freellmapi-loopback",
         chains: ids.filter((id) => CHAIN.test(id)).slice(0, 20),
         modelCount: ids.length,
-        cloudFallback: false,
-        paidInference: false,
+        // Loopback only proves the local proxy address, not its upstream.
+        cloudFallback: null,
+        paidInference: null,
+        upstreamProviderVerified: false,
+        billingVerified: false,
+        approvedFreeChains: ids.filter((id) => approved.has(id)).slice(0, 20),
       };
     },
     async generate({
@@ -63,9 +82,13 @@ export function createFreeLlmApiClient({
       maxTokens = 256,
       timeoutSeconds = 60,
       localProcessingApproved,
+      upstreamCloudApproved,
     }) {
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
+      if (upstreamCloudApproved !== true)
+        fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
       if (!CHAIN.test(chain)) fail("FREELLMAPI_CHAIN_NOT_ALLOWED");
+      if (!approved.has(chain)) fail("FREELLMAPI_CHAIN_NOT_APPROVED");
       if (typeof prompt !== "string" || !prompt || prompt.length > MAX_PROMPT)
         fail("FREELLMAPI_INVALID_PROMPT");
       if (!Number.isInteger(maxTokens) || maxTokens < 16 || maxTokens > 2048)
@@ -94,8 +117,11 @@ export function createFreeLlmApiClient({
         response: String(choice?.message?.content ?? "").slice(0, 65536),
         hitTokenLimit: choice?.finish_reason === "length",
         outputIsUntrusted: true,
-        cloudFallback: false,
-        paidInference: false,
+        cloudFallback: null,
+        paidInference: null,
+        upstreamProviderVerified: false,
+        billingVerified: false,
+        actualUpstreamModel: null,
         writesApplied: false,
       };
     },
@@ -103,17 +129,48 @@ export function createFreeLlmApiClient({
     // and, if its quota is exhausted, try the next candidate chain once.
     async generateRouted({ task = "general", chain, ...rest }) {
       if (!TASKS.includes(task)) fail("FREELLMAPI_INVALID_TASK");
-      let candidates = [chain];
-      if (chain === undefined) {
-        const now = Date.now();
-        if (!cached || now - cached.at > STATUS_TTL_MS)
-          cached = { at: now, chains: (await client.status()).chains };
-        candidates = candidateChains(task, cached.chains);
-      }
+      if (rest.localProcessingApproved !== true)
+        fail("FREELLMAPI_CONSENT_REQUIRED");
+      if (rest.upstreamCloudApproved !== true)
+        fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
+      // One end-to-end time budget shared by discovery AND every attempted
+      // chain. This must fit the gateway's timeoutSeconds + 15s allowance.
+      const totalSeconds = rest.timeoutSeconds ?? 60;
+      if (
+        !Number.isInteger(totalSeconds) ||
+        totalSeconds < 5 ||
+        totalSeconds > 90
+      )
+        fail("FREELLMAPI_INVALID_TIMEOUT");
+      const startedAt = now();
+      const deadline = startedAt + totalSeconds * 1000;
+      // Even explicit chains must be advertised, approved and discovered.
+      if (!cached || startedAt - cached.at > STATUS_TTL_MS)
+        cached = { at: startedAt, chains: (await client.status()).chains };
+      const candidates = (
+        chain === undefined
+          ? candidateChains(task, cached.chains)
+          : cached.chains.includes(chain)
+            ? [chain]
+            : []
+      ).filter((name) => approved.has(name));
+      if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
       const attempts = [];
       for (const candidate of candidates.slice(0, 2)) {
+        const remainingMs = deadline - now();
+        // Reserve enough for one meaningful request; do not begin a second
+        // cloud request with only milliseconds remaining after a 429.
+        if (remainingMs < 4500) fail("FREELLMAPI_DEADLINE_EXCEEDED");
+        const remainingSeconds = Math.min(
+          totalSeconds,
+          Math.ceil(remainingMs / 1000),
+        );
         try {
-          const out = await client.generate({ ...rest, chain: candidate });
+          const out = await client.generate({
+            ...rest,
+            chain: candidate,
+            timeoutSeconds: remainingSeconds,
+          });
           return {
             ...out,
             routing: { task, chosen: candidate, attempts },
