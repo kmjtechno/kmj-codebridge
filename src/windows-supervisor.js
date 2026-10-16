@@ -54,16 +54,37 @@ export const WINDOWS_SUPERVISOR_OPS = Object.freeze([
   "project_verify_release",
 ]);
 
+// Strict absolute-path check. For Windows it requires a drive letter
+// (C:\ or C:/) or a UNC share (\\server\share); drive-relative (C:foo),
+// rooted-without-drive (\foo), device/extended namespaces (\\.\ and \\?\),
+// alternate data streams, wildcard/reserved characters, control characters
+// and any ".." segment are refused. POSIX only needs an absolute path
+// without traversal (used by tests on non-Windows hosts).
+const WINDOWS_DRIVE_PATH = /^[A-Za-z]:[\\/]/;
+const WINDOWS_UNC_PATH =
+  /^\\\\[^\\/?.<>:"|*\s][^\\/?<>:"|*]*[\\/][^\\/?<>:"|*]+/;
+export function isSafeAbsolutePath(value, pathLib = path.win32) {
+  if (typeof value !== "string" || value.length < 3 || value.length > 260)
+    return false;
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f]/.test(value)) return false;
+  if (value.split(/[\\/]/).includes("..")) return false;
+  if (pathLib === path.win32) {
+    const unc = WINDOWS_UNC_PATH.test(value);
+    if (!WINDOWS_DRIVE_PATH.test(value) && !unc) return false;
+    // After the drive prefix a colon would be an alternate data stream.
+    const rest = unc ? value : value.slice(2);
+    if (/[<>:"|?*]/.test(rest.slice(unc ? 2 : 0))) return false;
+    return pathLib.isAbsolute(value);
+  }
+  return pathLib.isAbsolute(value);
+}
+
 function absolutePath(pathLib) {
   return z
     .string()
-    .min(3)
-    .max(260)
     .refine(
-      (value) =>
-        pathLib.isAbsolute(value) &&
-        !value.includes("\0") &&
-        !value.split(/[\\/]/).includes(".."),
+      (value) => isSafeAbsolutePath(value, pathLib),
       "absolute path without traversal required",
     );
 }

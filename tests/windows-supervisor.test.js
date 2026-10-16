@@ -12,6 +12,7 @@ import {
   WINDOWS_SUPERVISOR_OPS,
   createWindowsSupervisorConfigSchema,
   createWindowsSupervisorHandler,
+  isSafeAbsolutePath,
   macFor,
   runBounded,
   startWindowsSupervisor,
@@ -23,29 +24,41 @@ import { agentSchema } from "../src/config.js";
 const SHA = "a".repeat(40);
 const TOKEN = "t".repeat(48);
 
-function posixConfig(root, extra = {}) {
+// Fixtures use the platform's own path rules: on Windows they are real drive
+// paths (os.tmpdir() under C:\\Users\\...), on POSIX they are POSIX paths. The
+// strict Windows rules are exercised separately with path.win32 literals.
+function nativeConfig(root, extra = {}) {
   return {
     pipeName: "kmj-codebridge-supervisor-test",
-    tokenFile: path.posix.join(root, "token"),
+    tokenFile: path.join(root, "token"),
     agent: {
-      installDir: path.posix.join(root, "agent"),
-      configPath: path.posix.join(root, "agent.json"),
+      installDir: path.join(root, "agent"),
+      configPath: path.join(root, "agent.json"),
       ...extra.agent,
     },
     projects: [
       {
         id: "kmj-cinecore",
-        repoRoot: path.posix.join(root, "repo"),
-        worktreeRoot: path.posix.join(root, "wtroot"),
-        gitExe: "/usr/bin/git",
-        cmakeExe: "/usr/bin/cmake",
-        ctestExe: "/usr/bin/ctest",
-        qtPrefix: path.posix.join(root, "qt"),
+        repoRoot: path.join(root, "repo"),
+        worktreeRoot: path.join(root, "wtroot"),
+        gitExe: path.join(root, "bin", "git"),
+        cmakeExe: path.join(root, "bin", "cmake"),
+        ctestExe: path.join(root, "bin", "ctest"),
+        qtPrefix: path.join(root, "qt"),
         generator: "Ninja",
         ...extra.project,
       },
     ],
   };
+}
+
+// A unique, platform-appropriate listening address: a real named pipe on
+// Windows (Unix-socket paths are invalid there) and a Unix socket elsewhere.
+function listenAddress(t) {
+  const unique = `${process.pid}-${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
+  if (process.platform === "win32")
+    return `\\\\.\\pipe\\kmj-codebridge-supervisor-test-${unique}`;
+  return path.join(tmp(t), `s-${unique}.sock`);
 }
 
 function tmp(t) {
@@ -56,12 +69,12 @@ function tmp(t) {
 
 function makeHandler(t, { runner, extra, exists, revision } = {}) {
   const root = tmp(t);
-  const schema = createWindowsSupervisorConfigSchema(path.posix);
-  const config = schema.parse(posixConfig(root, extra));
+  const schema = createWindowsSupervisorConfigSchema(path);
+  const config = schema.parse(nativeConfig(root, extra));
   const calls = [];
   const handler = createWindowsSupervisorHandler({
     config,
-    pathLib: path.posix,
+    pathLib: path,
     runner:
       runner ??
       (async (exe, args, opts) => {
@@ -86,11 +99,11 @@ function makeHandler(t, { runner, extra, exists, revision } = {}) {
 }
 
 test("config schema rejects relative paths, traversal, bad pipe names and extra keys", (t) => {
-  const schema = createWindowsSupervisorConfigSchema(path.posix);
+  const schema = createWindowsSupervisorConfigSchema(path);
   const root = tmp(t);
-  assert.ok(schema.safeParse(posixConfig(root)).success);
+  assert.ok(schema.safeParse(nativeConfig(root)).success);
   const bad = (mutate) => {
-    const c = posixConfig(root);
+    const c = nativeConfig(root);
     mutate(c);
     return schema.safeParse(c).success;
   };
@@ -122,6 +135,65 @@ test("config schema rejects relative paths, traversal, bad pipe names and extra 
     bad((c) => (c.projects[0].generator = "Unix Makefiles")),
     false,
   );
+});
+
+test("production Windows path rules accept drive and UNC paths and refuse traversal and namespaces", () => {
+  const ok = [
+    "D:\\KMJ-HyperSpeed\\private\\p720-cinecore\\agent.json",
+    "C:\\Program Files\\Git\\cmd\\git.exe",
+    "C:/Users/kmj/AppData/Local/Temp/kmj-ws-1/token",
+    "\\\\fileserver\\share\\kmj\\repo",
+  ];
+  const bad = [
+    "relative\\path",
+    "D:drive-relative",
+    "\\rooted-without-drive",
+    "C:\\a\\..\\b",
+    "C:/a/../b",
+    "\\\\.\\pipe\\kmj-codebridge-supervisor-x",
+    "\\\\?\\C:\\x",
+    "C:\\file.txt:stream",
+    "C:\\a*b",
+    "C:\\a\u0000b",
+    "\\\\server-only",
+    "C:",
+  ];
+  for (const value of ok)
+    assert.equal(isSafeAbsolutePath(value, path.win32), true, value);
+  for (const value of bad)
+    assert.equal(isSafeAbsolutePath(value, path.win32), false, value);
+  assert.equal(isSafeAbsolutePath("/etc/../x", path.posix), false);
+  assert.equal(isSafeAbsolutePath("/opt/kmj", path.posix), true);
+
+  const schema = createWindowsSupervisorConfigSchema(path.win32);
+  const config = {
+    pipeName: "kmj-codebridge-supervisor-p720",
+    tokenFile: "D:\\KMJ-HyperSpeed\\private\\p720-codebridge\\supervisor.token",
+    agent: {
+      installDir: "D:\\KMJ-HyperSpeed\\codebridge-releases\\current",
+      configPath: "D:\\KMJ-HyperSpeed\\private\\p720-codebridge\\agent.json",
+      restartTask: "KMJ-CodeBridge-Agent",
+    },
+    projects: [
+      {
+        id: "kmj-cinecore",
+        repoRoot: "D:\\KMJ-CineCore",
+        worktreeRoot: "D:\\KMJ-HyperSpeed\\verify\\cinecore",
+        gitExe: "C:\\Program Files\\Git\\cmd\\git.exe",
+        cmakeExe: "C:\\Program Files\\CMake\\bin\\cmake.exe",
+        ctestExe: "C:\\Program Files\\CMake\\bin\\ctest.exe",
+        qtPrefix: "C:\\Qt\\6.8.0\\msvc2022_64",
+        generator: "Ninja",
+      },
+    ],
+  };
+  assert.ok(schema.safeParse(config).success);
+  const traversal = structuredClone(config);
+  traversal.projects[0].repoRoot = "D:\\KMJ-CineCore\\..\\Windows";
+  assert.equal(schema.safeParse(traversal).success, false);
+  const unc = structuredClone(config);
+  unc.agent.installDir = "\\\\.\\pipe\\x";
+  assert.equal(schema.safeParse(unc).success, false);
 });
 
 test("status is truthful: runtime SHA, no update support, restart only with a verified task", async (t) => {
@@ -262,7 +334,7 @@ test("restart needs a configured, existing task and uses fixed schtasks argv", a
 test("verify prepare/stage use only a separate worktree and fixed argv", async (t) => {
   const seen = [];
   const { handler, config } = makeHandler(t, {
-    exists: (target) => !target.includes("/wt/"),
+    exists: (target) => !target.includes(`${path.sep}wt${path.sep}`),
     runner: async (exe, args, opts) => {
       seen.push({ exe, args, cwd: opts.cwd });
       const out = args.includes("rev-parse") ? SHA + "\n" : "";
@@ -283,7 +355,7 @@ test("verify prepare/stage use only a separate worktree and fixed argv", async (
     sha: SHA,
   });
   assert.equal(prep.response.originalCheckout.unchanged, true);
-  assert.ok(prep.response.worktree.endsWith(`/wt/${SHA.slice(0, 12)}`));
+  assert.ok(prep.response.worktree.endsWith(path.join("wt", SHA.slice(0, 12))));
   const add = seen.find((c) => c.args.includes("worktree"));
   assert.deepEqual(add.args.slice(-4, -2), ["add", "--detach"]);
   assert.equal(add.args.at(-1), SHA);
@@ -317,7 +389,7 @@ test("verify prepare/stage use only a separate worktree and fixed argv", async (
   }
   const exes = seen
     .filter((c) => !c.args.includes("rev-parse"))
-    .map((c) => path.posix.basename(c.exe));
+    .map((c) => path.basename(c.exe));
   assert.deepEqual(exes, ["cmake", "cmake", "ctest"]);
   assert.ok(
     seen.every((c) => c.cwd !== p.repoRoot),
@@ -456,7 +528,7 @@ test("a failing stage is reported failed, and a SHA absent without fetch permiss
 test("prepare reports a changed original checkout instead of hiding it", async (t) => {
   let statusCalls = 0;
   const { handler } = makeHandler(t, {
-    exists: (target) => !target.includes("/wt/"),
+    exists: (target) => !target.includes(`${path.sep}wt${path.sep}`),
     runner: async (exe, args) => {
       let output = "";
       if (args.includes("status")) output = ` M file-${statusCalls++}\0`;
@@ -648,7 +720,7 @@ test("server refuses a short token and a missing handler", async (t) => {
     /SUPERVISOR_TOKEN_INVALID/,
   );
   await assert.rejects(
-    startWindowsSupervisor({ pipePath: path.join(tmp(t), "s"), token: TOKEN }),
+    startWindowsSupervisor({ pipePath: listenAddress(t), token: TOKEN }),
     /SUPERVISOR_LISTENER_REQUIRED/,
   );
 });
@@ -742,7 +814,7 @@ test("CLI refuses non-Windows and an unsafe token ACL before listening", async (
     /SUPERVISOR_UNSUPPORTED/,
   );
   const root = tmp(t);
-  const cfg = posixConfig(root);
+  const cfg = nativeConfig(root);
   fs.writeFileSync(
     path.join(root, "cfg.json"),
     JSON.stringify({
