@@ -84,3 +84,28 @@ Linux-only operations, fixed argv, worktree isolation, bounded execution (timeou
 HMAC protocol over a plain socket, ACL parsing against sample `icacls` output, and static checks of the
 PowerShell scripts. They do not exercise a real Windows named pipe, `icacls`, `schtasks`, CMake/Qt or
 PowerShell. Those require a Windows run on the P720 and are listed as pending in the PR.
+
+## Read-only authorization for non-CMake projects
+
+CodeBridge projects that do not use CMake (for example, the P720
+`kmj-codebridge` Node.js checkout) should not be given a fabricated Qt/CMake
+verification profile. The Windows supervisor can accept an independently
+operator-configured `readOnlyProjects` list of at most four
+`{ "id": "...", "repoRoot": "..." }` entries in addition to existing
+CMake-enabled `projects`. Each ID must be unique across both lists.
+
+A read-only entry authorizes only `project_status`: it reports whether
+the fixed root exists and contains a Git checkout. It explicitly reports
+`verification.supported=false`, no allowed stages and `allowFetch=false`.
+It cannot authorize `project_verify_prepare`, `project_verify_stage`,
+`project_verify_release`, remote fetch or a caller-selected command.
+Unknown fields, unsafe paths and duplicate IDs are rejected.
+
+This is a **source-level capability**, not a live P720 grant. The running
+P720 native supervisor is still pinned to SHA
+`e3587be842dcc701236b54a2e1de90238a5c3429`; it does not accept the
+new setting. Do not edit its current JSON with the new key until a separately
+verified, reversible runtime upgrade is installed. Likewise, Windows
+restartTask remains unconfigured until the agent itself is managed by an
+operator-reviewed scheduled task. An existing manually launched agent is
+not a safe target for the supervisor's task-based restart operation.
