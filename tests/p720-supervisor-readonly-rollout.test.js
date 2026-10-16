@@ -90,7 +90,10 @@ test("read-only health launcher has no mutation or install functionality", () =>
   );
   assert.match(local, /verify-p720-readonly-rollout\.mjs/);
   assert.match(local, /KMJ_PROJECT_READONLY_VERIFY=PASS/);
-  assert.doesNotMatch(local, /powershell|schtasks|git |npm |Stop-Process|taskkill/i);
+  assert.doesNotMatch(
+    local,
+    /powershell|schtasks|git |npm |Stop-Process|taskkill/i,
+  );
 });
 
 test(
