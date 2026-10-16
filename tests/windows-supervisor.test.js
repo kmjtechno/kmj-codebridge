@@ -356,7 +356,10 @@ test("disabled and unknown Windows agent task states cannot be restarted", async
       /SUPERVISOR_RESTART_UNAVAILABLE/,
     );
     assert.equal(called.length, 2, "only read-only queries allowed");
-    assert.equal(called.some((args) => args.includes("/End") || args.includes("/Run")), false);
+    assert.equal(
+      called.some((args) => args.includes("/End") || args.includes("/Run")),
+      false,
+    );
   }
 });
 
