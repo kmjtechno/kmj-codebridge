@@ -23,23 +23,28 @@ const validAgent = JSON.stringify({
   ],
 });
 
-test("agent doctor uses fixed dedicated config only when standard one is absent", async () => {
+const agentUnitState = (running) => (_bin, args) =>
+  args[1] === "kmj-codebridge-kmj-main-platform.service"
+    ? running === "dedicated"
+      ? "LoadState=loaded\nActiveState=active\n"
+      : "LoadState=not-found\nActiveState=inactive\n"
+    : running === "standard"
+      ? "LoadState=loaded\nActiveState=active\n"
+      : "LoadState=not-found\nActiveState=inactive\n";
+
+test("agent doctor selects dedicated enrollment for the active dedicated unit", async () => {
   const seen = [];
   const handler = createSupervisorHandler({
+    run: agentUnitState("dedicated"),
     readFile: (file) => {
       seen.push(file);
-      if (file === standard) {
-        const error = new Error("not found");
-        error.code = "ENOENT";
-        throw error;
-      }
       assert.equal(file, dedicated);
       return validAgent;
     },
   });
   const result = await handler({ op: "config_validate", service: "agent" });
   assert.deepEqual(result.response, { service: "agent", valid: true });
-  assert.deepEqual(seen, [standard, dedicated]);
+  assert.deepEqual(seen, [dedicated]);
   assert.doesNotMatch(JSON.stringify(result), /x{32}/);
 });
 
@@ -47,6 +52,7 @@ test("malformed or permission-denied standard config never triggers fallback", a
   for (const scenario of ["malformed", "denied"]) {
     const seen = [];
     const handler = createSupervisorHandler({
+      run: agentUnitState("standard"),
       readFile: (file) => {
         seen.push(file);
         assert.equal(file, standard);
@@ -73,6 +79,7 @@ test("malformed or permission-denied standard config never triggers fallback", a
 test("present standard agent config remains authoritative", async () => {
   const seen = [];
   const handler = createSupervisorHandler({
+    run: agentUnitState("standard"),
     readFile: (file) => {
       seen.push(file);
       assert.equal(file, standard);
@@ -82,6 +89,26 @@ test("present standard agent config remains authoritative", async () => {
   const result = await handler({ op: "config_validate", service: "agent" });
   assert.deepEqual(result.response, { service: "agent", valid: true });
   assert.deepEqual(seen, [standard]);
+});
+
+test("active standard agent never silently falls back to dedicated secrets", async () => {
+  const reads = [];
+  const handle = createSupervisorHandler({
+    run: agentUnitState("standard"),
+    readFile: (file) => {
+      reads.push(file);
+      const error = new Error("secret enrollment must not be read");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+  const result = await handle({ op: "config_validate", service: "agent" });
+  assert.deepEqual(result.response, {
+    service: "agent",
+    valid: false,
+    reason: "CONFIG_FILE_MISSING",
+  });
+  assert.deepEqual(reads, [standard]);
 });
 
 test("gateway config cannot fall back to privileged agent config", async () => {
