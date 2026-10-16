@@ -53,7 +53,7 @@ try {
   if ($LASTEXITCODE -ne 0 -or [string]$gitOrigin -cne $ExpectedOrigin) {
     throw 'AGENT_TASK_AUDIT_ORIGIN_MISMATCH'
   }
-  $gitStatus = @(& $git -C $Runtime status --porcelain=v1 --untracked-files=all 2>$null)
+  $gitStatus = @(& $git --no-optional-locks -C $Runtime status --porcelain=v1 --untracked-files=all 2>$null)
   if ($LASTEXITCODE -ne 0 -or $gitStatus.Count -ne 0) {
     throw 'AGENT_TASK_AUDIT_PINNED_RELEASE_CHANGED'
   }
