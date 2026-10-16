@@ -50,7 +50,9 @@ function request(url, method, params = {}) {
         res.on("end", () => {
           try {
             const raw = Buffer.concat(chunks).toString("utf8");
-            const dataLine = raw.split(/\r?\n/).find((line) => line.startsWith("data:"));
+            const dataLine = raw
+              .split(/\r?\n/)
+              .find((line) => line.startsWith("data:"));
             const reply = JSON.parse(dataLine ? dataLine.slice(5) : raw);
             resolve({ status: res.statusCode, body: reply });
           } catch (error) {
@@ -66,9 +68,7 @@ function request(url, method, params = {}) {
 
 async function verifyCatalog(iconUrl) {
   const config =
-    iconUrl === undefined
-      ? baseConfig
-      : { ...baseConfig, iconUrl };
+    iconUrl === undefined ? baseConfig : { ...baseConfig, iconUrl };
   const gateway = await startHostedGateway(JSON.stringify(config), "0");
   const url = gateway.url.replace("0.0.0.0", "127.0.0.1") + "/mcp";
   try {
@@ -92,22 +92,42 @@ async function verifyCatalog(iconUrl) {
 test("locked KMJ icon is present on initialize AND read/write tool catalog by default", async () => {
   const { serverInfo, tools } = await verifyCatalog();
   assert.match(APPROVED_ICON_URL, /^https:\/\/raw\.githubusercontent\.com\//);
-  assert.deepEqual(serverInfo.icons, [{ src: APPROVED_ICON_URL, mimeType: "image/png" }]);
-  for (const name of ["read_file", "write_file", "write_files_atomic", "render_codebridge_status"]) {
+  assert.deepEqual(serverInfo.icons, [
+    { src: APPROVED_ICON_URL, mimeType: "image/png" },
+  ]);
+  for (const name of [
+    "read_file",
+    "write_file",
+    "write_files_atomic",
+    "render_codebridge_status",
+  ]) {
     const tool = tools.find((item) => item.name === name);
     assert.ok(tool, "missing " + name);
     assert.deepEqual(tool.icons, serverInfo.icons);
   }
-  assert.equal(tools.find((x) => x.name === "read_file").annotations.readOnlyHint, true);
-  assert.equal(tools.find((x) => x.name === "write_files_atomic").annotations.readOnlyHint, false);
-  assert.equal(tools.find((x) => x.name === "write_files_atomic").annotations.destructiveHint, true);
+  assert.equal(
+    tools.find((x) => x.name === "read_file").annotations.readOnlyHint,
+    true,
+  );
+  assert.equal(
+    tools.find((x) => x.name === "write_files_atomic").annotations.readOnlyHint,
+    false,
+  );
+  assert.equal(
+    tools.find((x) => x.name === "write_files_atomic").annotations
+      .destructiveHint,
+    true,
+  );
 });
 
 test("operator validated custom HTTPS icon continues to override the locked default", async () => {
   const custom = "https://brand.example/approved-icon.png";
   const { serverInfo, tools } = await verifyCatalog(custom);
   assert.deepEqual(serverInfo.icons, [{ src: custom, mimeType: "image/png" }]);
-  assert.deepEqual(tools.find((x) => x.name === "write_file").icons, serverInfo.icons);
+  assert.deepEqual(
+    tools.find((x) => x.name === "write_file").icons,
+    serverInfo.icons,
+  );
 });
 
 test("one atomic multi-file write remains a write tool and accepts up to 50 guarded changes", () => {
@@ -120,7 +140,14 @@ test("one atomic multi-file write remains a write tool and accepts up to 50 guar
   assert.match(batch.title, /guarded multi-file batch/);
   assert.match(batch.description, /host approval/i);
   assert.match(single.description, /write_files_atomic/);
-  const change = { path: "README.md", content: "Safe edit", expectedHash: "a".repeat(64) };
+  const change = {
+    path: "README.md",
+    content: "Safe edit",
+    expectedHash: "a".repeat(64),
+  };
   assert.equal(batch.input.changes.safeParse([change]).success, true);
-  assert.equal(batch.input.changes.safeParse(Array(51).fill(change)).success, false);
+  assert.equal(
+    batch.input.changes.safeParse(Array(51).fill(change)).success,
+    false,
+  );
 });
