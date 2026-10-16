@@ -20,7 +20,10 @@ import {
   windowsSupervisorRequest,
 } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
-import { createToolGuardHost, registerReadOnlyProjectGuard } from "./tool-guard-host.js";
+import {
+  createToolGuardHost,
+  registerReadOnlyProjectGuard,
+} from "./tool-guard-host.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
 import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
