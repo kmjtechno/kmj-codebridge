@@ -37,7 +37,7 @@ foreach ($entry in $manifest.files) {
   if ($hash -ne $entry.sha256) { throw "Backup file changed or corrupt: $($entry.backup)" }
 }
 # Check ALL targets before changing anything, even when a partial install failed.
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
 if ($task) {
   if (-not $manifest.taskExe -or -not $manifest.taskArgs -or
       @($task.Actions).Count -ne 1 -or
@@ -61,14 +61,24 @@ if ($agentEntry) {
     throw 'ROLLBACK_PROPOSED_CONFIG_CHANGED: refusing to erase operator changes.'
   }
 }
+# Install never changes agent.json or supervisor.json in place.
+# Even an explicit restore must refuse to overwrite a newer operator edit.
+if ($RestoreConfigs) {
+  foreach ($entry in $manifest.files | Where-Object { $_.source -notlike 'task:*' }) {
+    if (-not (Test-Path -LiteralPath $entry.source -PathType Leaf) -or
+        (Get-FileHash -Algorithm SHA256 -LiteralPath $entry.source).Hash.ToLowerInvariant() -cne $entry.sha256) {
+      throw 'RESTORE_TARGET_CHANGED: refusing to overwrite existing configuration.'
+    }
+  }
+}
 Write-Output "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY-RUN (no changes)' }); backup verified ($($manifest.files.Count) files)."
 if (-not $Apply) { Write-Output 'Re-run with -Apply to roll back.'; return }
 
 
 if ($task) {
-  Disable-ScheduledTask -TaskName $TaskName | Out-Null
-  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+  Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' | Out-Null
+  Stop-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+  Unregister-ScheduledTask -TaskName $TaskName -TaskPath '\' -Confirm:$false
 }
 if ($manifest.tokenCreatedByInstaller -and (Test-Path -LiteralPath $manifest.tokenFile)) {
   Remove-Item -LiteralPath $manifest.tokenFile -Force

@@ -66,7 +66,7 @@ if (-not $Apply) { Write-Output 'Re-run with -Apply to make these changes. Nothi
 
 # Never replace a pre-existing task or proposed configuration. A backup alone
 # is not a rollback guarantee for a Windows Scheduled Task.
-if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+if (Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue) {
   throw "TASK_ALREADY_EXISTS: $TaskName; refusing to overwrite an existing task."
 }
 if (Test-Path -LiteralPath "$AgentConfig.proposed") {
@@ -130,8 +130,8 @@ $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -
 # task remains DISABLED after preparation; activation is a distinct step.
 $trigger = New-ScheduledTaskTrigger -AtStartup
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
-Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
-Disable-ScheduledTask -TaskName $TaskName | Out-Null
+Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
+Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' | Out-Null
 
 $proposed = "$AgentConfig.proposed"
 $json | Add-Member -NotePropertyName supervisorPipe -NotePropertyValue $pipe -Force

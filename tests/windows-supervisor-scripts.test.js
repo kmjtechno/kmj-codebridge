@@ -156,3 +156,84 @@ test(
     });
   },
 );
+
+// Activation must remain separate from preparation and refuse any guesswork.
+const activation = fs.readFileSync(
+  "scripts/windows/activate-p720-supervisor.ps1",
+  "utf8",
+);
+const activator = fs.readFileSync(
+  "scripts/windows/ACTIVATE-P720-SUPERVISOR.cmd",
+  "utf8",
+);
+const health = fs.readFileSync(
+  "scripts/windows/verify-p720-supervisor.mjs",
+  "utf8",
+);
+
+test("activation validates pinned source, task identity, token, backups and HMAC", () => {
+  for (const marker of [
+    "PREPARED_SUPERVISOR_MANIFEST_NOT_UNIQUE",
+    "TOKEN_CHANGED",
+    "BACKUP_HASH_MISMATCH",
+    "AGENT_PROPOSAL_CHANGED",
+    "RUNTIME_SHA_MISMATCH",
+    "RUNTIME_ORIGIN_MISMATCH",
+    "TASK_IDENTITY_MISMATCH",
+    "SUPERVISOR_HMAC_VERIFICATION_FAILED",
+  ])
+    assert.ok(activation.includes(marker), marker);
+  assert.match(activation, /Enable-ScheduledTask/);
+  assert.match(activation, /Start-ScheduledTask/);
+  assert.match(activation, /Disable-ScheduledTask/);
+  assert.match(activation, /SUPERVISOR_ACTIVATION_ROLLED_BACK/);
+  assert.match(activator, /activate-p720-supervisor\.ps1/);
+  assert.match(health, /windowsSupervisorRequest/);
+  assert.match(health, /HMAC_STATUS=PASS/);
+  assert.doesNotMatch(
+    activation,
+    /git reset|Restart-Service|Unregister-ScheduledTask/i,
+  );
+});
+
+test("rollback refuses overwriting newer operator configuration", () => {
+  assert.match(rollback, /RESTORE_TARGET_CHANGED/);
+  assert.ok(
+    rollback.indexOf("RESTORE_TARGET_CHANGED") <
+      rollback.indexOf("Unregister-ScheduledTask"),
+  );
+});
+
+test(
+  "native Windows parser also accepts guarded activation script",
+  {
+    skip: process.platform !== "win32",
+  },
+  () => {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        "$tokens=$null; $errors=$null; " +
+          "[System.Management.Automation.Language.Parser]::ParseFile(" +
+          "'scripts/windows/activate-p720-supervisor.ps1'," +
+          "[ref]$tokens,[ref]$errors) | Out-Null; " +
+          "if($errors.Count -gt 0){throw $errors[0].Message}",
+      ],
+      { timeout: 20000, stdio: "pipe" },
+    );
+  },
+);
+
+test("all supervisor task operations are scoped to Task Scheduler root folder", () => {
+  const rootPath = "-TaskPath '" + String.fromCharCode(92) + "'";
+  for (const script of [install, rollback, activation]) {
+    for (const match of script.matchAll(
+      /(?:Get|Register|Start|Stop|Enable|Disable|Unregister)-ScheduledTask -TaskName \$TaskName/g,
+    )) {
+      const rest = script.slice(match.index, script.indexOf("\n", match.index));
+      assert.ok(rest.includes(rootPath), rest);
+    }
+  }
+});
