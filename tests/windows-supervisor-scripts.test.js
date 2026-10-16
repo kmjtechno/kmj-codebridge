@@ -57,10 +57,10 @@ test("installer refuses existing tasks, token ACL mutation, and stale agent prop
   assert.match(install, /PROPOSED_AGENT_CONFIG_EXISTS/);
   assert.match(install, /AGENT_SUPERVISOR_ALREADY_CONFIGURED/);
   assert.match(install, /BACKUP_DESTINATION_EXISTS/);
-  assert.doesNotMatch(install, /Register-ScheduledTask[^\\n]*-Force/);
-  assert.match(install, /taskName = \\$TaskName/);
-  assert.match(install, /tokenSha256 = \\$null/);
-  assert.match(install, /proposedSha256 = \\$null/);
+  assert.doesNotMatch(install, /Register-ScheduledTask[^\n]*-Force/);
+  assert.match(install, /taskName = \$TaskName/);
+  assert.match(install, /tokenSha256 = \$null/);
+  assert.match(install, /proposedSha256 = \$null/);
 });
 
 test("rollback refuses foreign tasks or changed installer-owned secrets and config", () => {
@@ -68,7 +68,16 @@ test("rollback refuses foreign tasks or changed installer-owned secrets and conf
   assert.match(rollback, /ROLLBACK_TASK_IDENTITY_MISMATCH/);
   assert.match(rollback, /ROLLBACK_TOKEN_CHANGED/);
   assert.match(rollback, /ROLLBACK_PROPOSED_CONFIG_CHANGED/);
-  assert.ok(rollback.indexOf("ROLLBACK_TASK_IDENTITY_MISMATCH") < rollback.indexOf("Unregister-ScheduledTask"));
-  assert.ok(rollback.indexOf("ROLLBACK_TOKEN_CHANGED") < rollback.indexOf("Unregister-ScheduledTask"));
-  assert.ok(rollback.indexOf("ROLLBACK_PROPOSED_CONFIG_CHANGED") < rollback.indexOf("Unregister-ScheduledTask"));
+  assert.ok(
+    rollback.indexOf("ROLLBACK_TASK_IDENTITY_MISMATCH") <
+      rollback.indexOf("Unregister-ScheduledTask"),
+  );
+  assert.ok(
+    rollback.indexOf("ROLLBACK_TOKEN_CHANGED") <
+      rollback.indexOf("Unregister-ScheduledTask"),
+  );
+  assert.ok(
+    rollback.indexOf("ROLLBACK_PROPOSED_CONFIG_CHANGED") <
+      rollback.indexOf("Unregister-ScheduledTask"),
+  );
 });
