@@ -141,7 +141,7 @@ $json | Add-Member -NotePropertyName supervisorTokenFile -NotePropertyValue $tok
 [System.IO.File]::WriteAllText(
   $proposed,
   ($json | ConvertTo-Json -Depth 32),
-  (New-Object System.Text.UTF8Encoding($false))
+  ([System.Text.UTF8Encoding]::new($false))
 )
 
 $manifest.proposedSha256 = Get-Sha256 $proposed
