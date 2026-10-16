@@ -374,7 +374,6 @@ export function createGitHubBridge(config) {
         base,
       );
       if (url.origin !== base.origin) fail("GITHUB_ENDPOINT_INVALID");
-  
       if (publicReadOnly && method !== "GET") fail("GITHUB_WRITE_DISABLED");
       const headers = {
         accept: "application/vnd.github+json",
@@ -384,7 +383,6 @@ export function createGitHubBridge(config) {
       };
       if (token) headers.authorization = `Bearer ${token}`;
       if (key && cached?.etag) headers["if-none-match"] = cached.etag;
-  
       const response = await fetch(url, {
         method,
         redirect: "error",
@@ -392,7 +390,6 @@ export function createGitHubBridge(config) {
         body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(10000),
       });
-  
       if (response.status === 304) {
         // A 304 is usable only when THIS authorized request has an intact
         // cached representation. Do not report rate-limit/authorization
@@ -421,7 +418,6 @@ export function createGitHubBridge(config) {
         if (response.status === 429) fail("GITHUB_RATE_LIMIT");
         fail("GITHUB_REQUEST_FAILED");
       }
-  
       const value = await readJsonLimited(response.body, 262144);
       if (key) {
         if (requestEpoch === cacheEpoch)
