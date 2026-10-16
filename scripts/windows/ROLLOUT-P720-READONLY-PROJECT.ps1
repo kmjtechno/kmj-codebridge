@@ -183,10 +183,15 @@ try {
   $live = $false
   for ($i = 0; $i -lt 18; $i++) {
     Start-Sleep -Seconds 1
-    & $node $Verifier live $Release $Config | Out-Null
+    & $node $Verifier live $Release $Config --probe-quiet | Out-Null
     if ($LASTEXITCODE -eq 0) { $live = $true; break }
   }
-  if (-not $live) { throw 'ROLLOUT_HMAC_PROJECT_VERIFICATION_FAILED' }
+  if (-not $live) {
+    # The final explicit verification prints one truthful FAIL marker.
+    # Earlier startup races are not reported as final failures.
+    & $node $Verifier live $Release $Config | Out-Null
+    throw 'ROLLOUT_HMAC_PROJECT_VERIFICATION_FAILED'
+  }
   Write-Output 'KMJ_ROLLOUT_NEW_SUPERVISOR_HMAC=PASS'
   Write-Output 'KMJ_ROLLOUT_READONLY_PROJECT=PASS'
   Write-Output 'KMJ_ROLLOUT_AGENT=UNTOUCHED'
