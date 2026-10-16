@@ -331,6 +331,35 @@ test("restart needs a configured, existing task and uses fixed schtasks argv", a
   ]);
 });
 
+test("disabled and unknown Windows agent task states cannot be restarted", async (t) => {
+  for (const state of ["Disabled", "unknown", "Could Not Start"]) {
+    const called = [];
+    const { handler } = makeHandler(t, {
+      extra: { agent: { restartTask: "KMJ-CodeBridge-P720-Agent" } },
+      runner: async (_exe, args) => {
+        called.push(args);
+        return {
+          exitCode: 0,
+          output: '"KMJ-CodeBridge-P720-Agent","N/A","' + state + '"',
+          truncated: false,
+          timedOut: false,
+          logSha256: "x",
+          durationMs: 1,
+        };
+      },
+    });
+    const status = (await handler({ op: "status", service: "agent" })).response;
+    assert.equal(status.restart.supported, false);
+    assert.equal(status.restart.mechanism, null);
+    await assert.rejects(
+      handler({ op: "restart", service: "agent" }),
+      /SUPERVISOR_RESTART_UNAVAILABLE/,
+    );
+    assert.equal(called.length, 2, "only read-only queries allowed");
+    assert.equal(called.some((args) => args.includes("/End") || args.includes("/Run")), false);
+  }
+});
+
 test("verify prepare/stage use only a separate worktree and fixed argv", async (t) => {
   const seen = [];
   const { handler, config } = makeHandler(t, {
