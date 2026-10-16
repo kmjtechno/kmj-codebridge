@@ -87,16 +87,16 @@ function StartScoped([string]$Entry,[string]$WorkDir,[string]$Prefix) {
   $p = Start-Process -FilePath $node -ArgumentList @($Entry,'agent',$Config) -WorkingDirectory $WorkDir -WindowStyle Hidden -RedirectStandardOutput (Join-Path $LogRoot "$Prefix-out.log") -RedirectStandardError (Join-Path $LogRoot "$Prefix-err.log") -PassThru
   return [int]$p.Id
 }
-function ConfirmAgent([int]$Pid,[string]$Entry,[datetime]$Since) {
+function ConfirmAgent([int]$AgentProcessId,[string]$Entry,[datetime]$Since) {
   for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Seconds 2
-    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $Pid" -ErrorAction SilentlyContinue
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $AgentProcessId" -ErrorAction SilentlyContinue
     if (-not $process -or
         $process.CommandLine.IndexOf($Entry,[StringComparison]::OrdinalIgnoreCase) -lt 0) {
       return $false
     }
     $scoped = @(ScopedAgents)
-    if ($scoped.Count -ne 1 -or [int]$scoped[0].ProcessId -ne $Pid) { return $false }
+    if ($scoped.Count -ne 1 -or [int]$scoped[0].ProcessId -ne $AgentProcessId) { return $false }
     $connection = Join-Path $State 'connection.json'
     if (Test-Path -LiteralPath $connection -PathType Leaf) {
       try {
@@ -204,8 +204,8 @@ try {
   }
   Write-Output 'KMJ_HANDOFF_BACKUP=CREATED'
   Write-Output 'KMJ_HANDOFF_CONFIG=APPLIED'
-  Stop-Process -Id $oldPid -ErrorAction Stop
   $oldStopped = $true
+  Stop-Process -Id $oldPid -ErrorAction Stop
   for ($i = 0; $i -lt 20; $i++) {
     if (-not (Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) { break }
     Start-Sleep -Milliseconds 500
@@ -234,13 +234,19 @@ try {
       }
       RestoreConfig
       if ($oldStopped) {
-        if (@(ScopedAgents).Count -gt 0) { throw 'HANDOFF_ROLLBACK_AGENT_CONFLICT' }
-        $rollbackSince = [datetime]::UtcNow
-        $rollbackPid = StartScoped $OldEntry $Repo ('rollback-' + $Sha.Substring(0,12))
-        if (-not (ConfirmAgent $rollbackPid $OldEntry $rollbackSince)) {
-          throw 'HANDOFF_ROLLBACK_HEARTBEAT_FAILED'
+        $agentsNow = @(ScopedAgents)
+        if ($agentsNow.Count -eq 1 -and [int]$agentsNow[0].ProcessId -eq $oldPid) {
+          Write-Output 'KMJ_HANDOFF_OLD_AGENT_ROLLBACK=ORIGINAL_STILL_RUNNING'
+        } elseif ($agentsNow.Count -eq 0) {
+          $rollbackSince = [datetime]::UtcNow
+          $rollbackPid = StartScoped $OldEntry $Repo ('rollback-' + $Sha.Substring(0,12))
+          if (-not (ConfirmAgent $rollbackPid $OldEntry $rollbackSince)) {
+            throw 'HANDOFF_ROLLBACK_HEARTBEAT_FAILED'
+          }
+          Write-Output 'KMJ_HANDOFF_OLD_AGENT_ROLLBACK=PASS'
+        } else {
+          throw 'HANDOFF_ROLLBACK_AGENT_CONFLICT'
         }
-        Write-Output 'KMJ_HANDOFF_OLD_AGENT_ROLLBACK=PASS'
       }
     } catch {
       Write-Output 'KMJ_HANDOFF_ROLLBACK=FAILED_MANUAL_RECOVERY'
