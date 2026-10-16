@@ -14,7 +14,7 @@ const digest = (s) => createHash("sha256").update(s).digest("hex");
 const userToken = "u".repeat(48),
   agentToken = "a".repeat(48),
   otherToken = "b".repeat(48);
-async function setup(t) {
+async function setup(t, { includeMainPlatformCi = false } = {}) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-e2e-"));
   const root = path.join(dir, "project");
   fs.mkdirSync(root);
@@ -87,6 +87,21 @@ async function setup(t) {
               },
             },
           },
+          ...(includeMainPlatformCi
+            ? {
+                main_platform_ui_ci: {
+                  category: "build",
+                  description: "Isolated Main Platform CI fixture.",
+                  command: process.execPath,
+                  variants: {
+                    check: {
+                      args: ["-e", 'console.log("CI_CWD=" + process.cwd())'],
+                      timeoutMs: 2000,
+                    },
+                  },
+                },
+              }
+            : {}),
         },
       },
     ],
@@ -1250,6 +1265,101 @@ test("run_project_command with laneId runs the exact profile inside the isolated
   const traversal = await run("cmd-traversal", "../outside");
   assert.equal(traversal.isError, true);
 });
+test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limited client args", async (t) => {
+  const { client, root } = await setup(t, { includeMainPlatformCi: true });
+  const { execFileSync } = await import("node:child_process");
+  const git = (...args) =>
+    execFileSync("git", args, { cwd: root, stdio: "pipe" }).toString().trim();
+  git("init", "-q");
+  git("add", "hello.txt");
+  execFileSync(
+    "git",
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.invalid",
+      "commit",
+      "-qm",
+      "initial",
+    ],
+    { cwd: root, stdio: "pipe" },
+  );
+  const head = git("rev-parse", "HEAD");
+  fs.writeFileSync(path.join(root, "untracked-owner-work.txt"), "PRESERVE");
+
+  // This is the four-argument shape exposed to some installed ChatGPT clients.
+  const args = {
+    device: "d1",
+    project: "p1",
+    command: "main_platform_ui_ci",
+    variant: "check",
+    requestKey: "main-platform-safe-lane-1",
+  };
+  const started = content(
+    await client.callTool({
+      name: "run_project_command",
+      arguments: args,
+    }),
+  );
+  assert.equal(started.state, "running");
+  assert.match(started.gate, /@mainplatform_ci#[a-f0-9]{40}$/);
+  assert.ok(started.gate.endsWith(head));
+
+  let done = started;
+  for (let i = 0; i < 80 && ["running", "queued"].includes(done.state); i++) {
+    await new Promise((resolve) => setTimeout(resolve, 25));
+    done = content(
+      await client.callTool({
+        name: "get_job_status",
+        arguments: { device: "d1", project: "p1", job: started.id },
+      }),
+    );
+  }
+  assert.equal(done.state, "succeeded");
+  const match = /^CI_CWD=(.+)$/m.exec(done.output);
+  assert.ok(match, "CI output must expose the isolated cwd");
+  const cwd = fs.realpathSync(match[1].trim());
+  assert.notEqual(cwd, fs.realpathSync(root));
+  assert.equal(
+    execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+    }).trim(),
+    head,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(root, "untracked-owner-work.txt"), "utf8"),
+    "PRESERVE",
+  );
+  assert.equal(
+    git("status", "--porcelain").trim(),
+    "?? untracked-owner-work.txt",
+  );
+  assert.equal(
+    content(
+      await client.callTool({
+        name: "run_project_command",
+        arguments: args,
+      }),
+    ).id,
+    started.id,
+  );
+
+  // Never silently build from a dirty private lane.
+  fs.writeFileSync(path.join(cwd, "unsaved-lane-file.txt"), "UNSAVED");
+  const blocked = await client.callTool({
+    name: "run_project_command",
+    arguments: { ...args, requestKey: "main-platform-safe-lane-2" },
+  });
+  assert.equal(blocked.isError, true);
+  assert.equal(content(blocked).error, "WORKTREE_HAS_UNSAVED_WORK");
+  assert.equal(
+    fs.readFileSync(path.join(cwd, "unsaved-lane-file.txt"), "utf8"),
+    "UNSAVED",
+  );
+});
+
 test("unauthenticated requests fail before MCP handling", async (t) => {
   const { gw } = await setup(t);
   const r = await fetch(gw.url + "/mcp", {
