@@ -98,94 +98,12 @@ try {
     $ownerSid = $account.Translate([Security.Principal.SecurityIdentifier]).Value
   } catch {}
   $principalName = [string]$task.Principal.UserId
-  # Resolve a task principal specified as either DOMAIN\User, local alias
-  # or SID. Do not print either account name, SID or process details.
-  $principalSid = $null
-  if ($principalName -match '^S-1-\d+(-\d+)+
-
-  $actions = @($task.Actions)
-  $expectedArguments = '"' + $Entry + '" agent "' + $Config + '"'
-  $actionValid = $actions.Count -eq 1 -and
-    [string]$actions[0].Execute -ieq $node -and
-    [string]$actions[0].Arguments -ceq $expectedArguments -and
-    [string]$actions[0].WorkingDirectory -ieq $Runtime
-  Write-Output "KMJ_AGENT_TASK_ACTION=$(if($actionValid){'MATCH'}else{'MISMATCH'})"
-
-  $triggers = @($task.Triggers)
-  $triggerValid = $triggers.Count -eq 1 -and
-    [string]$triggers[0].CimClass.CimClassName -eq 'MSFT_TaskBootTrigger'
-  $settingsValid = ([string]$task.Settings.MultipleInstances -eq 'IgnoreNew') -and
-    ([int]$task.Settings.RestartCount -eq 3)
-  $policyValid = $triggerValid -and $settingsValid
-  Write-Output "KMJ_AGENT_TASK_RECOVERY_POLICY=$(if($policyValid){'MATCH'}else{'MISMATCH'})"
-
-  if (-not ($principalValid -and $actionValid -and $policyValid)) {
-    Write-Output 'KMJ_AGENT_TASK_AUDIT=CONFLICT_NO_CHANGES'
-    exit 3
-  }
-  Write-Output 'KMJ_AGENT_TASK_IDENTITY=EXACT'
-  if ($state -ne 'Disabled') {
-    Write-Output 'KMJ_AGENT_TASK_AUDIT=ALREADY_ENABLED_OR_RUNNING_REVIEW_REQUIRED'
-    exit 4
-  }
-  # This is NOT permission to enable the task or run a second agent.
-  Write-Output 'KMJ_AGENT_TASK_AUDIT=REUSABLE_DISABLED'
-  Write-Output 'KMJ_AGENT_TASK_NEXT=GUARDED_TAKEOVER_NOT_YET_ACTIVE'
-} catch {
-  $code = [string]$_.Exception.Message
-  if ($code -notmatch '^[A-Z][A-Z0-9_]{3,80}$') {
-    $code = 'AGENT_TASK_AUDIT_UNCLASSIFIED'
-  }
-  Write-Output "KMJ_AGENT_TASK_AUDIT_BLOCKER=$code"
-  Write-Output 'KMJ_AGENT_TASK_AUDIT=BLOCKED_NO_CHANGES'
-  exit 2
-}
-) {
-    $principalSid = $principalName
-  } elseif (-not [string]::IsNullOrWhiteSpace($principalName)) {
-    try {
-      $principalAccount = [Security.Principal.NTAccount]::new($principalName)
-      $principalSid = $principalAccount.Translate([Security.Principal.SecurityIdentifier]).Value
-    } catch {}
-  }
   $principalMatches = $principalName -ine '' -and
     ($principalName -ieq $ownerName -or
-     ($ownerSid -and $principalSid -and $principalSid -ieq $ownerSid))
-  $principalIdentity = if ($principalMatches) {
-    'MATCH'
-  } elseif (-not $ownerSid -or -not $principalSid) {
-    'UNRESOLVED'
-  } else {
-    'MISMATCH'
-  }
-  $logonType = [string]$task.Principal.LogonType
-  $runLevel = [string]$task.Principal.RunLevel
-  # These are enum classifications, not identities or credentials.
-  $logonClass = if ($logonType -eq 'S4U') {
-    'S4U'
-  } elseif ($logonType -eq 'Password') {
-    'PASSWORD'
-  } elseif ($logonType -eq 'Interactive') {
-    'INTERACTIVE'
-  } elseif ($logonType -eq 'InteractiveOrPassword') {
-    'INTERACTIVE_OR_PASSWORD'
-  } elseif ($logonType -eq 'ServiceAccount') {
-    'SERVICE_ACCOUNT'
-  } else {
-    'OTHER_OR_UNKNOWN'
-  }
-  $runClass = if ($runLevel -eq 'Limited') {
-    'LIMITED'
-  } elseif ($runLevel -eq 'Highest') {
-    'HIGHEST'
-  } else {
-    'OTHER_OR_UNKNOWN'
-  }
-  $principalPolicy = ($logonType -eq 'S4U') -and ($runLevel -eq 'Limited')
+     ($ownerSid -and $principalName -ieq $ownerSid))
+  $principalPolicy = ([string]$task.Principal.LogonType -eq 'S4U') -and
+    ([string]$task.Principal.RunLevel -eq 'Limited')
   $principalValid = $principalMatches -and $principalPolicy
-  Write-Output "KMJ_AGENT_TASK_PRINCIPAL_IDENTITY=$principalIdentity"
-  Write-Output "KMJ_AGENT_TASK_PRINCIPAL_LOGON=$logonClass"
-  Write-Output "KMJ_AGENT_TASK_PRINCIPAL_RUN_LEVEL=$runClass"
   Write-Output "KMJ_AGENT_TASK_PRINCIPAL=$(if($principalValid){'MATCH'}else{'MISMATCH'})"
 
   $actions = @($task.Actions)
