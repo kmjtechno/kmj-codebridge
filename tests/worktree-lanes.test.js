@@ -83,7 +83,10 @@ test("auto CI lane follows immutable source HEAD without reusing a stale lane", 
   const first = lanes.prepareCurrentHead("project1", x.repo, "mainplatform_ci");
   assert.equal(first.head, x.head);
   assert.equal(first.laneId, `mainplatform_ci_${x.head.slice(0, 12)}`);
-  assert.equal(lanes.prepareCurrentHead("project1", x.repo, "mainplatform_ci").reused, true);
+  assert.equal(
+    lanes.prepareCurrentHead("project1", x.repo, "mainplatform_ci").reused,
+    true,
+  );
 
   fs.writeFileSync(path.join(x.repo, "README.md"), "new tracked commit\n");
   git(x.repo, "add", "README.md");
@@ -94,10 +97,22 @@ test("auto CI lane follows immutable source HEAD without reusing a stale lane", 
   assert.notEqual(next.path, first.path);
   assert.equal(git(first.path, "rev-parse", "HEAD"), x.head);
   assert.equal(git(next.path, "rev-parse", "HEAD"), head2);
-  assert.equal(fs.readFileSync(path.join(first.path, "README.md"), "utf8"), "original\n");
-  assert.equal(fs.readFileSync(path.join(next.path, "README.md"), "utf8"), "new tracked commit\n");
-  assert.equal(lanes.cleanup("project1", x.repo, next.laneId, head2).released, true);
-  assert.equal(lanes.cleanup("project1", x.repo, first.laneId, x.head).released, true);
+  assert.equal(
+    fs.readFileSync(path.join(first.path, "README.md"), "utf8"),
+    "original\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(next.path, "README.md"), "utf8"),
+    "new tracked commit\n",
+  );
+  assert.equal(
+    lanes.cleanup("project1", x.repo, next.laneId, head2).released,
+    true,
+  );
+  assert.equal(
+    lanes.cleanup("project1", x.repo, first.laneId, x.head).released,
+    true,
+  );
 });
 
 test("dirty or committed worktree changes are never force-deleted", (t) => {
