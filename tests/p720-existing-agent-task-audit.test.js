@@ -58,7 +58,10 @@ test("principal mismatch names the exact safe classification and resolves accoun
   assert.match(audit, /'S4U'/);
   assert.match(audit, /'LIMITED'/);
   assert.match(audit, /'HIGHEST'/);
-  assert.match(audit, /\$principalValid = \$principalMatches -and \$principalPolicy/);
+  assert.match(
+    audit,
+    /\$principalValid = \$principalMatches -and \$principalPolicy/,
+  );
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT=CONFLICT_NO_CHANGES/);
 });
 
