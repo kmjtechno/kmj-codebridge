@@ -238,17 +238,29 @@ test("authenticated project job receipts render real status timeline without exe
     },
   });
   assert.equal(view.element("activity-0").hidden, false);
-  assert.equal(view.element("activity-title-0").textContent, "p720_ai_tests · running");
-  assert.equal(view.element("activity-time-0").textContent, "2026-10-16T01:59:00.000Z");
+  assert.equal(
+    view.element("activity-title-0").textContent,
+    "p720_ai_tests · running",
+  );
+  assert.equal(
+    view.element("activity-time-0").textContent,
+    "2026-10-16T01:59:00.000Z",
+  );
   assert.equal(view.element("activity-0").attributes["data-state"], "running");
   assert.equal(view.element("activity-1").hidden, false);
   assert.equal(view.element("activity-2").hidden, true);
-  assert.match(view.element("activityNotice").textContent, /More entries available/);
+  assert.match(
+    view.element("activityNotice").textContent,
+    /More entries available/,
+  );
 
   view.send({
     product: "KMJ CodeBridge",
     project: "project1",
-    activity: { source: "AUTHORIZED_PROJECT_JOB_RECEIPTS", status: "UNAVAILABLE" },
+    activity: {
+      source: "AUTHORIZED_PROJECT_JOB_RECEIPTS",
+      status: "UNAVAILABLE",
+    },
   });
   assert.equal(view.element("activity-0").hidden, true);
   assert.match(view.element("activityNotice").textContent, /No verified/);
