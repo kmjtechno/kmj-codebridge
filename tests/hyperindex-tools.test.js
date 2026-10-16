@@ -100,3 +100,21 @@ test(
     assert.deepEqual(fs.readdirSync(outside), []);
   },
 );
+test("fallback exposes partial coverage when redacted matches consume the raw limit", async (t) => {
+  const f = setup(t);
+  fs.writeFileSync(
+    path.join(f.root, "a.js"),
+    [
+      "-----BEGIN " + "RSA PRIVATE KEY-----",
+      "needle",
+      "-----END " + "RSA PRIVATE KEY-----",
+      "needle",
+    ].join("\n"),
+  );
+  const r = await f.call("hyperindex_search", {
+    query: "needle",
+    maxResults: 1,
+  });
+  assert.deepEqual(r.matches, []);
+  assert.equal(r.truncated, true);
+});
