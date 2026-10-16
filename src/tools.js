@@ -1,3 +1,4 @@
+import { hyperIndexOperation } from "./hyperindex-service.js";
 import fs from "node:fs";
 import path from "node:path";
 import { z } from "zod";
@@ -1127,6 +1128,31 @@ export const definitions = {
       expectedRemoteHead: z.string().regex(/^[a-f0-9]{40}$/i),
     },
     access: "execute",
+  },
+  hyperindex_status: {
+    title: "Inspect project HyperIndex availability",
+    description:
+      "Inspect local index presence without creating files. Presence does not attest index integrity or freshness. Windows persistence remains unavailable until ACL validation is implemented.",
+    input: { ...scoped },
+    access: "read",
+  },
+  hyperindex_build: {
+    title: "Build bounded project HyperIndex",
+    description:
+      "Explicitly create and reconcile a private on-device SQLite index of policy-approved redacted project text. Bounded to 2000 entries and 8 MiB scanned text; no source upload or external service.",
+    input: { ...scoped },
+    access: "execute",
+  },
+  hyperindex_search: {
+    title: "Search project HyperIndex with safe fallback",
+    description:
+      "Search literal text with policy revalidation and explicit coverage. Reconcile an existing index; if absent, corrupt or unavailable use bounded live lexical search. Does not enable an index automatically. No guaranteed speedup.",
+    input: {
+      ...scoped,
+      query: z.string().min(1).max(200),
+      maxResults: z.number().int().min(1).max(100).optional(),
+    },
+    access: "read",
   },
   search_code: {
     title: "Search code",
@@ -2453,6 +2479,18 @@ export function createDispatcher(
       });
       return { files, count: files.length };
     }
+    if (
+      ["hyperindex_status", "hyperindex_build", "hyperindex_search"].includes(
+        name,
+      )
+    )
+      return hyperIndexOperation(name, {
+        files: p.files,
+        stateDir: config.stateDir,
+        project: p.id,
+        query: a.query,
+        maxResults: a.maxResults,
+      });
     if (name === "search_code") {
       const r = p.files.search(a.query, {
         maxResults: a.maxResults,
