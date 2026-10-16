@@ -31,6 +31,17 @@ test("recovery refuses to race the original installer or overwrite partial regis
   );
 });
 
+test("concurrent process diagnosis never emits credential-bearing command lines", () => {
+  assert.match(recovery, /KMJ_RECOVERY_BLOCKING_PROCESS_COUNT/);
+  assert.match(recovery, /KMJ_RECOVERY_BLOCKING_PROCESS=\$kind;PID=/);
+  assert.match(recovery, /ParentProcessId/);
+  assert.match(recovery, /Sort-Object ProcessId/);
+  assert.match(recovery, /Select-Object -First 12/);
+  assert.match(recovery, /RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING/);
+  assert.doesNotMatch(recovery, /Write-Output[^\n]*\$\(\$proc\.CommandLine/);
+  assert.doesNotMatch(recovery, /Write-Host[^\n]*CommandLine/);
+});
+
 test("resume validates SHA, origin, clean stage and empty checkout before any checkout", () => {
   assert.match(bootstrap, /\[switch\]\$Resume/);
   assert.match(bootstrap, /RESUME_ORIGINAL_INSTALLER_PROCESS_STILL_ACTIVE/);
