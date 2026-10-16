@@ -134,8 +134,10 @@ export class AutopilotGateWorker {
               leaseToken: current.leaseToken,
             });
         }
-        // One gate at a time per project; no duplicate execution.
-        continue;
+        // If a gate finished, its completed journal state can immediately
+        // release a dependency-ready successor in this same tick. A running
+        // gate remains exclusive and must not dispatch a second job.
+        if (this.active.has(project.id)) continue;
       }
 
       if (!this.canStart()) continue;
