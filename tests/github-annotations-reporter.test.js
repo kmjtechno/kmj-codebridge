@@ -8,7 +8,7 @@ import test from "node:test";
 test("failing tests become bounded GitHub error annotations", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-rep-"));
   try {
-    const file = path.join(dir, "sample.test.js");
+    const file = path.join(dir, "sample.test.mjs");
     fs.writeFileSync(
       file,
       'import test from "node:test";import assert from "node:assert/strict";' +
