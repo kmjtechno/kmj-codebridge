@@ -77,6 +77,15 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .timeline li strong{font-size:11px;font-weight:650;overflow-wrap:anywhere}
 .timeline li time{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
 @media(max-width:440px){.timeline li{grid-template-columns:8px 1fr}.timeline li time{grid-column:2;text-align:left;margin-top:4px}}
+.workspace-grid{display:grid;grid-template-columns:minmax(132px,1fr) minmax(0,2.2fr);gap:10px}
+.files-pane,.diff-pane{background:rgba(16,24,45,.73);border:1px solid var(--edge);border-radius:13px;padding:12px;min-width:0}
+.file-list{display:flex;flex-direction:column;gap:4px;max-height:320px;overflow:auto;margin-top:10px}
+.file-button{display:block;text-align:left;white-space:normal;word-break:break-word;width:100%;border:1px solid transparent;border-radius:7px;background:transparent;color:#c0cde3;font-size:10px;padding:8px 7px;cursor:pointer}
+.file-button[aria-pressed="true"]{background:rgba(121,230,227,.09);border-color:rgba(121,230,227,.3);color:#e3ffff}
+.file-button:focus-visible{outline:2px solid var(--cyan);outline-offset:1px}
+.patch{margin:9px 0 0;padding:12px;border-radius:9px;background:rgba(0,0,0,.22);color:#b9d8cf;white-space:pre-wrap;overflow-wrap:anywhere;max-height:310px;overflow-y:auto;font:10px/1.5 ui-monospace,Consolas,monospace;tab-size:2}
+@media(max-width:520px){.workspace-grid{grid-template-columns:1fr}.file-list{max-height:150px}.patch{max-height:240px}}
+@media(prefers-color-scheme:light){.files-pane,.diff-pane{background:rgba(255,255,255,.78)}.file-button{color:#273e59}.file-button[aria-pressed="true"]{color:#1b4b55;background:#ddf3f1}.patch{background:#eaf0f5;color:#205047}}
 @keyframes signal{50%{opacity:.27;box-shadow:0 0 20px var(--cyan)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 @media(max-width:520px){.shell{padding:17px;border-radius:15px}.pill{padding:6px 8px;font-size:9px}.brand img{width:36px;height:36px}.brand small{letter-spacing:.04em}.motion-icon{display:none}.flow{gap:4px;grid-template-columns:1fr 10px 1fr 10px 1fr}.node{padding:9px 7px;min-height:78px}.node strong{font-size:10px}.node span{font-size:9px}.foot{align-items:flex-start;flex-direction:column;gap:3px}}
@@ -100,6 +109,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-view="overview">Overview</button>
   <button type="button" role="tab" id="tab-work" aria-controls="panel-work" aria-selected="false" data-view="work" tabindex="-1">Workstream</button>
   <button type="button" role="tab" id="tab-evidence" aria-controls="panel-evidence" aria-selected="false" data-view="evidence" tabindex="-1">Evidence</button>
+  <button type="button" role="tab" id="tab-workspace" aria-controls="panel-workspace" aria-selected="false" data-view="workspace" tabindex="-1">Workspace</button>
 </nav>
 <section class="panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
   <div class="cards">
@@ -154,12 +164,41 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   </dl>
   <p class="note">No automatic polling, command execution, source upload or paid-model inference is performed by this view.</p>
 </section>
+<section class="panel" id="panel-workspace" role="tabpanel" aria-labelledby="tab-workspace" hidden>
+  <h2 class="sectiontitle">Authorized File Explorer · Tracked Diff</h2>
+  <div class="workspace-grid">
+    <div class="files-pane">
+      <strong class="sectiontitle">Project files</strong>
+      <p class="note" id="workspaceFilesHint">Request includeWorkspace=true for a bounded device snapshot.</p>
+      <div class="file-list" aria-label="Authorized project file names">
+      <button type="button" class="file-button" id="workspace-file-0" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-1" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-2" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-3" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-4" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-5" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-6" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-7" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-8" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-9" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-10" hidden aria-pressed="false"></button>
+      <button type="button" class="file-button" id="workspace-file-11" hidden aria-pressed="false"></button>
+      </div>
+    </div>
+    <div class="diff-pane">
+      <strong class="sectiontitle" id="workspaceDiffTitle">Tracked changes</strong>
+      <p class="note" id="workspaceDiffHint">No verified working-tree diff requested.</p>
+      <pre class="patch" id="workspaceDiff" aria-label="Redacted working-tree patch"></pre>
+    </div>
+  </div>
+  <p class="note">Read-only. The diff excludes untracked file content. Files are bounded and may be truncated; no build, edit or script is executed in this view.</p>
+</section>
 <footer class="foot"><span>KMJ TECHNO · SECURE BY DESIGN</span><span><strong>Read-only snapshot</strong> · Freshness requires a new tool result</span></footer>
 </article>
 <script>
 (function(){
  "use strict";
- var views=["overview","work","evidence"];
+ var views=["overview","work","evidence","workspace"];
  var latest=null;
  function text(id,value){var el=document.getElementById(id);if(el)el.textContent=String(value===null||value===undefined?"—":value).slice(0,128);}
  function safeName(value){return typeof value==="string"&&/^[A-Za-z0-9_.:-]{1,128}$/.test(value)?value:"Not provided";}
@@ -204,6 +243,61 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      text("activity-time-"+i,entry.at);
    }
  }
+ var selectedWorkspaceFiles=[];
+ var selectedPatch=null;
+ function renderSelectedFile(path){
+   var selected=selectedWorkspaceFiles.indexOf(path)>=0?path:null;
+   for(var i=0;i<12;i++){
+     var file=document.getElementById("workspace-file-"+i);
+     file.setAttribute("aria-pressed",String(file.getAttribute("data-path")===selected));
+   }
+   if(!selectedPatch||selected===null)return;
+   var token="diff --git a/"+selected+" b/"+selected;
+   var chunks=selectedPatch.split(/(?=^diff --git )/m);
+   var selectedPart=null;
+   for(var j=0;j<chunks.length;j++){
+     if(chunks[j].indexOf(token+"\\n")===0||chunks[j].indexOf(token+"\\r\\n")===0){
+       selectedPart=chunks[j];break;
+     }
+   }
+   text("workspaceDiffTitle",selected+" · Tracked changes");
+   text("workspaceDiff",selectedPart||"No tracked diff for this file in the current bounded snapshot.");
+ }
+ for(var fileIndex=0;fileIndex<12;fileIndex++){
+   (function(index){
+     var button=document.getElementById("workspace-file-"+index);
+     button.addEventListener("click",function(){
+       if(!button.hidden)renderSelectedFile(button.getAttribute("data-path"));
+     });
+   })(fileIndex);
+ }
+ function renderWorkspace(workspace){
+   var tree=workspace&&workspace.source==="AUTHORIZED_PROJECT_READS"&&
+     workspace.tree&&workspace.tree.status==="AVAILABLE"?workspace.tree:null;
+   var diff=workspace&&workspace.source==="AUTHORIZED_PROJECT_READS"&&
+     workspace.diff&&workspace.diff.status==="AVAILABLE"?workspace.diff:null;
+   var entries=tree&&Array.isArray(tree.entries)?tree.entries.filter(function(e){
+     return e&&e.type==="file"&&typeof e.path==="string"&&e.path.length<513;
+   }):[];
+   selectedWorkspaceFiles=entries.slice(0,12).map(function(e){return e.path;});
+   text("workspaceFilesHint",tree
+     ? selectedWorkspaceFiles.length+" files shown"+(tree.truncated||entries.length>12?" · partial view":"")
+     : "Request includeWorkspace=true for a verified project tree.");
+   for(var i=0;i<12;i++){
+     var row=document.getElementById("workspace-file-"+i);
+     var entry=selectedWorkspaceFiles[i]||null;
+     row.hidden=!entry;
+     row.setAttribute("data-path",entry||"");
+     row.setAttribute("aria-pressed","false");
+     if(entry)text("workspace-file-"+i,entry);
+   }
+   selectedPatch=diff&&typeof diff.patch==="string"?diff.patch:null;
+   text("workspaceDiffTitle","Tracked changes");
+   text("workspaceDiffHint",selectedPatch!==null
+     ? diff.truncated?"Tracked diff · truncated to safe UI limit":"Tracked diff · authorized repository"
+     : "No verified tracked diff available.");
+   text("workspaceDiff",selectedPatch===null?"":selectedPatch||"Working tree has no tracked changes.");
+ }
  function render(input){
    var data=input&&input.structuredContent&&input.structuredContent.product==="KMJ CodeBridge"?input.structuredContent:input;
    if(!data||data.product!=="KMJ CodeBridge")return;
@@ -232,6 +326,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    text("nextAction",data.nextReadyTaskId?"Next ready task: "+safeName(data.nextReadyTaskId):"Next: "+safeName(data.action));
    text("workHint",tasks?"Task counts from latest authorized snapshot.":"No authenticated task snapshot received.");
    renderActivity(data.activity);
+   renderWorkspace(data.workspace);
  }
  // ChatGPT's legacy bridge is optional. The portable MCP Apps protocol
  // requires a JSON-RPC initialize/initialized handshake with the parent host.
