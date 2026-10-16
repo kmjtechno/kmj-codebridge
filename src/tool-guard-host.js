@@ -1,3 +1,4 @@
+import { fail } from "./errors.js";
 // Narrow, reversible tool-policy extension point inspired by the scoped
 // registration and monotonic guard seams in DeepSeek Harness (MIT).
 // Trusted in-process registration only. Never loads third-party modules or
@@ -19,7 +20,7 @@ export function createToolGuardHost() {
         entries.has(id) ||
         entries.size >= 32
       )
-        throw new Error("TOOL_GUARD_REGISTRATION_INVALID");
+        fail("TOOL_GUARD_REGISTRATION_INVALID");
       const owner = { id, project, beforeExecute };
       entries.set(id, owner);
       // The disposer owns only this registration; another consumer cannot
@@ -40,7 +41,7 @@ export function createToolGuardHost() {
         !ACCESS.has(access) ||
         typeof writable !== "boolean"
       )
-        throw new Error("TOOL_GUARD_CONTEXT_INVALID");
+        fail("TOOL_GUARD_CONTEXT_INVALID");
       // Never give a plugin tool parameters, prompts, paths, secrets or
       // identity tokens. A plugin can ONLY deny, never grant authority.
       const facts = Object.freeze({ device, project, tool, access, writable });
@@ -51,11 +52,11 @@ export function createToolGuardHost() {
         try {
           verdict = await entry.beforeExecute(facts);
         } catch {
-          throw new Error("TOOL_GUARD_FAILED");
+          fail("TOOL_GUARD_FAILED");
         }
-        if (verdict === "deny") throw new Error("TOOL_GUARD_DENIED");
+        if (verdict === "deny") fail("TOOL_GUARD_DENIED");
         if (verdict !== "allow" && verdict !== undefined)
-          throw new Error("TOOL_GUARD_INVALID_VERDICT");
+          fail("TOOL_GUARD_INVALID_VERDICT");
       }
       return true;
     },
