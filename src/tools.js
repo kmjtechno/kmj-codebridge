@@ -3384,10 +3384,16 @@ export function createDispatcher(
         fail("BROWSER_QA_JOB_NOT_FOUND");
       if (!["succeeded", "failed"].includes(job.state))
         return { job: a.job, state: job.state, ready: false };
-      if (!laneStateDir || typeof job.key !== "string")
+      const internalJob =
+        runner.jobs.get(a.job) ?? runner.archive.get(a.job);
+      if (
+        !laneStateDir ||
+        !internalJob ||
+        typeof internalJob.key !== "string"
+      )
         fail("BROWSER_QA_STATE_UNAVAILABLE");
       const receiptKey = createHash("sha256")
-        .update(p.id + ":" + job.key)
+        .update(p.id + ":" + internalJob.key)
         .digest("hex");
       const reportPath = path.join(
         laneStateDir, "browser-qa", receiptKey, "receipt.json",
@@ -3408,6 +3414,40 @@ export function createDispatcher(
         data.samples.length > 9
       )
         fail("BROWSER_QA_RECEIPT_INVALID");
+      const names = new Set();
+      for (const sample of data.samples) {
+        if (
+          !/^(desktop|tablet|mobile)-(home|products|login)\.png$/.test(
+            sample.screenshot ?? "",
+          ) ||
+          names.has(sample.screenshot) ||
+          !/^[a-f0-9]{64}$/.test(sample.sha256 ?? "") ||
+          !Number.isInteger(sample.bytes) ||
+          sample.bytes < 64 ||
+          sample.bytes > 8 * 1024 * 1024
+        )
+          fail("BROWSER_QA_RECEIPT_INVALID");
+        names.add(sample.screenshot);
+        const filePath = path.join(path.dirname(reportPath), sample.screenshot);
+        let actual;
+        try {
+          const stat = fs.lstatSync(filePath);
+          if (
+            !stat.isFile() ||
+            stat.isSymbolicLink() ||
+            stat.size !== sample.bytes
+          )
+            fail("BROWSER_QA_RECEIPT_INVALID");
+          actual = createHash("sha256")
+            .update(fs.readFileSync(filePath))
+            .digest("hex");
+        } catch {
+          fail("BROWSER_QA_RECEIPT_INVALID");
+        }
+        if (actual !== sample.sha256) fail("BROWSER_QA_RECEIPT_INVALID");
+      }
+      if (data.verdict === "PASS" && names.size !== 9)
+        fail("BROWSER_QA_RECEIPT_INCOMPLETE");
       return {
         job: a.job,
         state: job.state,
