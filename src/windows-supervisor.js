@@ -134,8 +134,34 @@ export function createWindowsSupervisorConfigSchema(pathLib = path.win32) {
         )
         .max(4)
         .default([]),
+      // Operator-owned read-only roots, with no executable/argv allowance.
+      // Allows truthful status for Node projects without inventing CMake
+      // build profiles. These IDs cannot be used for verification jobs.
+      readOnlyProjects: z
+        .array(
+          z
+            .object({
+              id: z.string().regex(PROJECT_ID),
+              repoRoot: abs,
+            })
+            .strict(),
+        )
+        .max(4)
+        .default([]),
     })
-    .strict();
+    .strict()
+    .superRefine((value, ctx) => {
+      const ids = [
+        ...value.projects.map((project) => project.id),
+        ...value.readOnlyProjects.map((project) => project.id),
+      ];
+      if (new Set(ids).size !== ids.length)
+        ctx.addIssue({
+          code: "custom",
+          message: "Duplicate supervisor project ID",
+          path: ["readOnlyProjects"],
+        });
+    });
 }
 
 function exactKeys(value, allowed) {
@@ -424,7 +450,18 @@ export function createWindowsSupervisorHandler({
 
     if (request.op === "project_status") {
       exactKeys(request, ["op", "projectId"]);
-      const p = project(request.projectId);
+      if (
+        typeof request.projectId !== "string" ||
+        !PROJECT_ID.test(request.projectId)
+      )
+        fail("INVALID_SUPERVISOR_REQUEST");
+      // The full project() allowlist below remains the ONLY path to
+      // project_verify_* operations; these roots are read-only.
+      const full = config.projects.find((p) => p.id === request.projectId);
+      const p =
+        full ??
+        config.readOnlyProjects?.find((entry) => entry.id === request.projectId);
+      if (!p) fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
       const present = exists(p.repoRoot);
       return {
         response: {
@@ -433,9 +470,9 @@ export function createWindowsSupervisorHandler({
           directory: present,
           gitCheckout: present && exists(pathLib.join(p.repoRoot, ".git")),
           verification: {
-            supported: true,
-            stages: STAGES,
-            allowFetch: p.allowFetch,
+            supported: Boolean(full),
+            stages: full ? STAGES : [],
+            allowFetch: full?.allowFetch ?? false,
           },
         },
       };
