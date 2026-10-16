@@ -418,6 +418,13 @@ export async function runStableUpdate(
     restart: () => fixedAgentRestart(config.supervisorSocket, restartRequest),
     healthCheck: async () =>
       freshAuthenticatedConnection(agentStateDir, activationStart, manifest),
+    rollbackHealthCheck: async () =>
+      Boolean(currentMarker) &&
+      freshAuthenticatedConnection(
+        agentStateDir,
+        activationStart,
+        currentMarker,
+      ),
     attempts: config.health.attempts,
     delayMs: config.health.delayMs,
     sleep,
