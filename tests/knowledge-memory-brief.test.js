@@ -49,7 +49,11 @@ test("a scoped projection is deterministic, digestible and marked untrusted", ()
 });
 
 test("higher topic revision supersedes prior context without duplicate notes", () => {
-  const a = { ...one, revision: 2, preview: "Always use a clean isolated worktree." };
+  const a = {
+    ...one,
+    revision: 2,
+    preview: "Always use a clean isolated worktree.",
+  };
   const r = buildKnowledgeMemoryBrief({
     ...scope,
     observations: [a, one],
@@ -120,7 +124,9 @@ test("full notes are not truncated and oversized sets are omitted atomically", (
   assert.ok(r.brief.length <= 600);
   assert.ok(r.accepted >= 1);
   assert.ok(r.omitted >= 1);
-  assert.ok(!r.brief.includes("x".repeat(100)) || r.brief.includes("x".repeat(180)));
+  assert.ok(
+    !r.brief.includes("x".repeat(100)) || r.brief.includes("x".repeat(180)),
+  );
 });
 
 test("invalid scope, too many observations and too-large budget are refused", () => {
