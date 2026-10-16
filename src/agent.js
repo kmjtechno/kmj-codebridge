@@ -137,7 +137,6 @@ export async function startAgent(
       runner.pending.size === 0 &&
       workers.every((worker) => worker.isIdle()),
   });
-  runner.canStart = () => activity.canStart();
 
   const dispatch = createDispatcher(
     c,

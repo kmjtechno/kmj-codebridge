@@ -254,7 +254,6 @@ test(
     t.after(() => runner.close());
     f.guard.isIdle = () =>
       runner.active.size === 0 && runner.pending.size === 0;
-    runner.canStart = () => f.guard.canStart();
     const spec = {
       project: "p",
       gate: "unit",
@@ -283,8 +282,8 @@ test(
       await lease.drain();
       assert.equal(runner.get(a.id, "p").state, "succeeded");
       assert.equal(runner.get(b.id, "p").state, "succeeded");
-      assert.throws(
-        () => runner.run({ ...spec, key: "third" }),
+      await assert.rejects(
+        f.guard.run(() => runner.run({ ...spec, key: "third" })),
         /UPDATE_MAINTENANCE/,
       );
     } finally {
