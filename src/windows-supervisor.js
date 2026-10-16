@@ -352,11 +352,16 @@ export function createWindowsSupervisorHandler({
         spawnImpl,
       },
     );
-    if (r.exitCode !== 0) return { exists: false, state: "unknown", enabled: false };
+    if (r.exitCode !== 0)
+      return { exists: false, state: "unknown", enabled: false };
     const columns = r.output.trim().split(/","/);
     const state = (columns[columns.length - 1] ?? "").replace(/"/g, "").trim();
     const enabled = state === "Ready" || state === "Running";
-    return { exists: true, state: state ? state.slice(0, 32) : "unknown", enabled };
+    return {
+      exists: true,
+      state: state ? state.slice(0, 32) : "unknown",
+      enabled,
+    };
   };
 
   return async function handle(request) {
@@ -382,9 +387,12 @@ export function createWindowsSupervisorHandler({
           runtime: rev ? { commit: rev.commit, source: rev.source } : null,
           state: task.state,
           restart: {
-            supported: Boolean(config.agent.restartTask) && task.exists && task.enabled,
+            supported:
+              Boolean(config.agent.restartTask) && task.exists && task.enabled,
             mechanism:
-              config.agent.restartTask && task.enabled ? "scheduled-task" : null,
+              config.agent.restartTask && task.enabled
+                ? "scheduled-task"
+                : null,
           },
           // Truthful: no Windows updater exists yet; do not imply one.
           update: {
