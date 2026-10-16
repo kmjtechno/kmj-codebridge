@@ -52,6 +52,9 @@ Write-Output 'DIRTY_CHECKOUT=UNTOUCHED'
 # into another process. A failed inventory aborts instead of guessing.
 $running = @(Get-CimInstance Win32_Process -ErrorAction Stop |
   Where-Object {
+    # The new one-click entrypoint calls this script in the SAME
+    # PowerShell process. Never classify our own $PID as a second installer.
+    $_.ProcessId -ne $PID -and
     $_.CommandLine -and
     (
       ($_.Name -in @('git.exe','node.exe','npm.cmd','cmd.exe') -and
@@ -63,6 +66,9 @@ $running = @(Get-CimInstance Win32_Process -ErrorAction Stop |
 if ($running.Count -gt 0) {
   Write-Output 'KMJ_RECOVERY_STATE=EXISTING_INSTALLER_STILL_RUNNING'
   Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
+  if ($Apply) {
+    throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
+  }
   return
 }
 

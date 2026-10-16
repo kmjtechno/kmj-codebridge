@@ -136,3 +136,23 @@ The final verified success marker is
 supervisor authentication, **not** a connected ChatGPT/Claude tool or
 autonomous worker. The existing agent still needs a separately verified,
 non-destructive supervisorPipe/token handoff.
+
+## Repeated one-click invocation and error evidence
+
+The original fresh-only one-click launcher displayed only
+`KMJ_NATIVE_SUPERVISOR_PREPARE_BLOCKED` after a previous clone created
+the pinned release directory, hiding the actual preflight failure.
+The updated `ONE-CLICK-P720-SUPERVISOR.cmd` now delegates to the guarded
+recovery state machine: a new install is prepared only when its release
+does not exist; otherwise the release is verified or the tool fails
+closed without overwriting it. An active original installer is a
+**blocking** outcome in apply mode, not a successful return. The
+launcher excludes its own PowerShell PID from the competing-installer
+check so it does not trip on itself.
+
+For troubleshooting, share only the final
+`KMJ_NATIVE_SUPERVISOR_BLOCKER=...` and `KMJ_RECOVERY_STATE=...`
+markers. Do **not** share enrollment files, private tokens, backup
+manifests with personal paths, or unredacted process command lines.
+An older extracted ZIP still has the fresh-only launcher and must not
+be rerun after a partial install; use the updated trusted source.

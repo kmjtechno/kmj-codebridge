@@ -97,6 +97,9 @@ if ($Resume) {
   }
   $inFlight = @(Get-CimInstance Win32_Process -ErrorAction Stop |
     Where-Object {
+      # A recovery launch reuses the same PowerShell process for this script.
+      # Its own command line is not a competing installer.
+      $_.ProcessId -ne $PID -and
       $_.CommandLine -and
       (
         ($_.Name -in @('git.exe','node.exe','npm.cmd','cmd.exe') -and
