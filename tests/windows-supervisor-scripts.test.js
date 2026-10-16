@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { execFileSync } from "node:child_process";
 import test from "node:test";
 
@@ -237,3 +239,50 @@ test("all supervisor task operations are scoped to Task Scheduler root folder", 
     }
   }
 });
+
+test("all persisted rollback manifests use BOM-free UTF-8 writer", () => {
+  assert.match(install, /function Write-Manifest/);
+  assert.match(install, /UTF8Encoding\]::new\(\$false\)/);
+  assert.equal(
+    (install.match(/Write-Manifest \$manifestPath \$manifest/g) ?? []).length,
+    4,
+  );
+  assert.doesNotMatch(
+    install,
+    /\$manifest\s*\|\s*ConvertTo-Json[^\n]*Set-Content[^\n]*Encoding UTF8/,
+  );
+});
+
+test(
+  "real Windows PowerShell 5.1 manifest writer produces Node-parseable JSON",
+  { skip: process.platform !== "win32" },
+  (t) => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-manifest-bom-"));
+    t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+    const output = path.join(tmp, "manifest.json");
+    const beginning = install.indexOf("function Write-Manifest(");
+    const ending = install.indexOf("\n}", beginning);
+    assert.ok(beginning > 0 && ending > beginning);
+    const helper = install.slice(beginning, ending + 2);
+    const quoted = output.replaceAll("'", "''");
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        helper +
+          "\nWrite-Manifest '" +
+          quoted +
+          "' @{ schema = 2; files = @() }",
+      ],
+      { timeout: 20000, stdio: "pipe" },
+    );
+    const bytes = fs.readFileSync(output);
+    assert.equal(
+      bytes.subarray(0, 3).equals(Buffer.from([239, 187, 191])),
+      false,
+    );
+    assert.equal(JSON.parse(bytes.toString("utf8")).schema, 2);
+  },
+);

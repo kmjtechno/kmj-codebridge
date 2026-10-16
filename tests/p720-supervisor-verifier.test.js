@@ -72,6 +72,22 @@ test("verified native supervisor health must be authenticated and scoped", async
   );
 });
 
+test("a legacy Windows PowerShell UTF-8 BOM manifest remains verifiable", async (t) => {
+  const { backup } = fixture(t);
+  const file = path.join(backup, "manifest.json");
+  const source = fs.readFileSync(file, "utf8");
+  fs.writeFileSync(file, "\uFEFF" + source, "utf8");
+  const verified = await verifyPreparedSupervisor(backup, {
+    mockClient: async () => ({
+      supervisor: "windows-native",
+      service: "agent",
+      platform: "win32",
+    }),
+  });
+  assert.equal(verified.verified, true);
+  assert.equal(verified.agentWired, false);
+});
+
 test("changed token or snapshot is rejected before connecting", async (t) => {
   const { backup, token } = fixture(t);
   fs.writeFileSync(token, "b".repeat(64));

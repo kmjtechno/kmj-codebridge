@@ -12,7 +12,9 @@ export async function verifyPreparedSupervisor(backupDir, options = {}) {
   if (process.platform !== "win32" && !options.mockClient)
     throw new Error("WINDOWS_ONLY");
   const manifest = JSON.parse(
-    fs.readFileSync(path.join(backupDir, "manifest.json"), "utf8"),
+    fs
+      .readFileSync(path.join(backupDir, "manifest.json"), "utf8")
+      .replace(/^\uFEFF/, ""),
   );
   if (
     manifest.schema !== 2 ||
