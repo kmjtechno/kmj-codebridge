@@ -20,7 +20,7 @@ test("existing agent-task audit contains no mutation command invocation", () => 
   assert.match(audit, /--no-optional-locks/);
   assert.doesNotMatch(
     audit,
-    /(?m)^\s*(?:Start-Process|Stop-Process|Start-ScheduledTask|Stop-ScheduledTask|Enable-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask|Register-ScheduledTask|Unregister-ScheduledTask|Set-Content|Out-File|Set-Acl|git reset|git clean)\b/i,
+    /^\s*(?:Start-Process|Stop-Process|Start-ScheduledTask|Stop-ScheduledTask|Enable-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask|Register-ScheduledTask|Unregister-ScheduledTask|Set-Content|Out-File|Set-Acl|git reset|git clean)\b/im,
   );
   assert.doesNotMatch(launcher, /taskkill|schtasks|git\s+reset|git\s+clean/i);
   assert.match(launcher, /AUDIT-P720-EXISTING-AGENT-TASK\.ps1/);
@@ -35,11 +35,17 @@ test("unknown or foreign tasks never become reusable", () => {
   assert.match(audit, /AGENT_TASK_AUDIT_PINNED_RELEASE_CHANGED/);
   assert.match(audit, /AGENT_TASK_AUDIT_TASK_MISSING/);
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT=CONFLICT_NO_CHANGES/);
-  assert.match(audit, /KMJ_AGENT_TASK_AUDIT=ALREADY_ENABLED_OR_RUNNING_REVIEW_REQUIRED/);
+  assert.match(
+    audit,
+    /KMJ_AGENT_TASK_AUDIT=ALREADY_ENABLED_OR_RUNNING_REVIEW_REQUIRED/,
+  );
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT=REUSABLE_DISABLED/);
   assert.match(audit, /KMJ_AGENT_TASK_NEXT=GUARDED_TAKEOVER_NOT_YET_ACTIVE/);
   assert.match(audit, /if \(\$state -ne 'Disabled'\)/);
-  assert.match(audit, /if \(-not \(\$principalValid -and \$actionValid -and \$policyValid\)\)/);
+  assert.match(
+    audit,
+    /if \(-not \(\$principalValid -and \$actionValid -and \$policyValid\)\)/,
+  );
 });
 test("process args, secrets and user identities are never displayed", () => {
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT_COMMAND_LINES=HIDDEN/);
