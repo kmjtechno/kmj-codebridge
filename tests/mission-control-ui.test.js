@@ -42,7 +42,12 @@ function openCard(initialOutput = null) {
     element("panel-" + view);
   }
   const handlers = {};
-  const parent = {};
+  const parentMessages = [];
+  const parent = {
+    postMessage(message, origin) {
+      parentMessages.push({ message, origin });
+    },
+  };
   const window = {
     parent,
     openai: initialOutput ? { toolOutput: initialOutput } : {},
@@ -62,10 +67,22 @@ function openCard(initialOutput = null) {
   vm.runInNewContext(script, { window, document }, { timeout: 1000 });
   return {
     element,
+    parentMessages,
+    handshake() {
+      handlers.message({
+        source: parent,
+        data: {
+          jsonrpc: "2.0",
+          id: 1,
+          result: { protocolVersion: "2026-01-26" },
+        },
+      });
+    },
     send(data, source = parent) {
       handlers.message({
         source,
         data: {
+          jsonrpc: "2.0",
           method: "ui/notifications/tool-result",
           params: { structuredContent: data },
         },
@@ -85,6 +102,21 @@ test("premium MCP Apps UI keeps the canonical pinned KMJ icon and status resourc
     KMJ_STATUS_HTML,
     /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i,
   );
+});
+
+test("MCP Apps sends the portable handshake before receiving results", () => {
+  const view = openCard();
+  assert.equal(view.parentMessages.length, 1);
+  assert.equal(view.parentMessages[0].message.method, "ui/initialize");
+  assert.equal(view.parentMessages[0].message.params.protocolVersion, "2026-01-26");
+  view.handshake();
+  assert.equal(view.parentMessages.length, 2);
+  assert.equal(
+    view.parentMessages[1].message.method,
+    "ui/notifications/initialized",
+  );
+  view.handshake();
+  assert.equal(view.parentMessages.length, 2);
 });
 
 test("initial UI never invents workers, task counts, capacity, or release progress", () => {
