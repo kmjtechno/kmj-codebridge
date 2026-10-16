@@ -230,6 +230,14 @@ export const agentSchema = z.object({
   tenant: id,
   stateDir: z.string(),
   supervisorSocket: z.literal("/run/kmj-codebridge/supervisor.sock").optional(),
+  // Windows-native supervisor: fixed-prefix named pipe plus the path of the
+  // ACL-restricted secret file. Both or neither; never combined with the
+  // Linux socket.
+  supervisorPipe: z
+    .string()
+    .regex(/^\\\\\.\\pipe\\kmj-codebridge-supervisor-[a-z0-9-]{1,40}$/)
+    .optional(),
+  supervisorTokenFile: z.string().min(3).max(260).optional(),
   pollMs: z.number().min(10).max(5000).default(250),
   // Bounded operator-provided durable-archive retention (docs/JOB-ARCHIVAL.md,
   // issue #186). Purely a count cap, never age-based: an idempotency

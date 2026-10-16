@@ -4,6 +4,7 @@ import path from "node:path";
 import { startGateway } from "./gateway.js";
 import { startAgent } from "./agent.js";
 import { startSupervisor } from "./supervisor.js";
+import { runWindowsSupervisorCli } from "./windows-supervisor-cli.js";
 import { runStableRollback, runStableUpdate } from "./stable-updater.js";
 const version = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
@@ -14,19 +15,22 @@ if (
     "gateway",
     "agent",
     "supervisor",
+    "windows-supervisor",
     "stable-update",
     "stable-rollback",
   ].includes(mode) ||
   (mode === "supervisor" ? Boolean(file) : !file)
 ) {
   console.error(
-    "Usage: node src/cli.js gateway|agent|stable-update|stable-rollback /absolute/path/config.json | supervisor",
+    "Usage: node src/cli.js gateway|agent|windows-supervisor|stable-update|stable-rollback /absolute/path/config.json | supervisor",
   );
   process.exit(2);
 }
 try {
   let service = null;
-  if (mode === "supervisor") {
+  if (mode === "windows-supervisor") {
+    service = await runWindowsSupervisorCli(path.resolve(file));
+  } else if (mode === "supervisor") {
     const listenPid = Number(process.env.LISTEN_PID ?? 0);
     const listenFds = Number(process.env.LISTEN_FDS ?? 0);
     if (listenPid !== process.pid || listenFds !== 1)

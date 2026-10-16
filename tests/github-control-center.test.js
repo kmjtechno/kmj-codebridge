@@ -160,8 +160,7 @@ test("CI keeps Actions evidence when Checks access is denied and never reports g
     const p = pathOf(url);
     if (p.endsWith("/pulls/31"))
       return resp({ state: "open", head: { sha: SHA }, draft: false });
-    if (p.endsWith("/check-runs"))
-      return new Response("{}", { status: 403 });
+    if (p.endsWith("/check-runs")) return new Response("{}", { status: 403 });
     if (p.endsWith("/actions/runs"))
       return resp({
         total_count: 1,

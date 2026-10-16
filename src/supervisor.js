@@ -52,7 +52,7 @@ const JOURNALCTL = "/usr/bin/journalctl";
 const MAX_REQUEST_BYTES = 16384;
 const PROJECT_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-function defaultDeviceStatus() {
+export function defaultDeviceStatus() {
   const cpus = os.cpus();
   const [one, five, fifteen] = os.loadavg();
   return {
@@ -69,7 +69,7 @@ function defaultDeviceStatus() {
   };
 }
 
-function boundedDeviceStatus(raw) {
+export function boundedDeviceStatus(raw) {
   const boundedString = (value, max) =>
     typeof value === "string" ? value.slice(0, max) : "unknown";
   const boundedNumber = (value, max = Number.MAX_SAFE_INTEGER) =>

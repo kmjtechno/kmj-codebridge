@@ -14,7 +14,10 @@ import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
-import { supervisorRequest } from "./supervisor-client.js";
+import {
+  supervisorRequest,
+  windowsSupervisorRequest,
+} from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
@@ -120,11 +123,27 @@ export async function startAgent(
     fs.renameSync(tmp, licenseState);
     return p;
   };
+  if (c.supervisorSocket && (c.supervisorPipe || c.supervisorTokenFile))
+    throw new Error(
+      "Configure either the Linux supervisor socket or the Windows pipe, not both.",
+    );
+  if (Boolean(c.supervisorPipe) !== Boolean(c.supervisorTokenFile))
+    throw new Error(
+      "supervisorPipe and supervisorTokenFile must be configured together.",
+    );
   const supervisor = c.supervisorSocket
     ? {
         request: (request) => supervisorRequest(c.supervisorSocket, request),
       }
-    : null;
+    : c.supervisorPipe
+      ? {
+          request: (request) =>
+            windowsSupervisorRequest(
+              { pipePath: c.supervisorPipe, tokenFile: c.supervisorTokenFile },
+              request,
+            ),
+        }
+      : null;
   let localModelClient;
   const localModel = () => (localModelClient ??= createLocalModelClient());
   let workerHandles = null;
