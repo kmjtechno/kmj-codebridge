@@ -99,3 +99,40 @@ autonomous command profiles. Agent wiring remains a separate reviewed step
 so that the old production agent enrollment is not destroyed. After a
 successful authenticated supervisor status, verify the agent handoff
 independently; no feature is considered live merely from CI or a task start.
+
+## Recover an interrupted Windows installation without re-running the old CMD
+
+If the original console printed `Cloning into ...`, `Receiving objects:
+100%`, `Resolving deltas: 100%` but did not reach `KMJ_NATIVE_SUPERVISOR_HMAC=PASS`,
+**do not start another installer from the same incomplete tree**.
+
+Use a trusted copy of the current main branch (including the BOM-free
+manifest fix, PR #472). From `scripts/windows`, right-click
+`RECOVER-P720-SUPERVISOR.cmd` and choose **Run as administrator**.
+
+The recovery script checks locally without revealing keys:
+
+- Whether the original Git/npm process is still active (if yes it does
+  not start a second installer).
+- Whether the isolated SHA-pinned release exists and is immutable.
+- Whether the Git clone completed but the separate SHA checkout did not:
+  it may finish the detached checkout **only** if the directory contains
+  exactly `.git`, the Git index has no files, and the expected commit is
+  already locally present.
+- Whether one complete, disabled and backed-up supervisor task can be safely
+  activated with the existing HMAC verifier.
+- If a supervisor task is already enabled, it only tries authenticated
+  HMAC status; it does not reinstall or restart anything.
+
+Any suspicious configuration, unexpected task, token, partial registration,
+more than one backup manifest, changed checkout or active installer causes
+**RECOVERY_BLOCKED** without deleting anything. The script never overwrites
+the current CodeBridge enrollment or CineCore agent.
+
+To inspect without any mutation, run
+`RECOVER-P720-SUPERVISOR.ps1` without `-Apply`.
+The final verified success marker is
+`KMJ_RECOVERY_SUPERVISOR=VERIFIED`. That proves only local native
+supervisor authentication, **not** a connected ChatGPT/Claude tool or
+autonomous worker. The existing agent still needs a separately verified,
+non-destructive supervisorPipe/token handoff.
