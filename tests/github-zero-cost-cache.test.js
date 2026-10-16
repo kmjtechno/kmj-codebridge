@@ -89,11 +89,10 @@ test("unsolicited 304 and malformed ETags cannot create false cached success", a
   const calls = [];
   t.mock.method(globalThis, "fetch", async (_url, options) => {
     calls.push(options.headers);
-    if (calls.length === 1)
-      return new Response(null, { status: 304 });
+    if (calls.length === 1) return new Response(null, { status: 304 });
     if (calls.length === 2)
       return Response.json(repository, {
-        headers: { etag: '"invalid\nheader"' },
+        headers: { etag: 'invalid-etag' },
       });
     return Response.json(repository);
   });
