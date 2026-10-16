@@ -210,3 +210,36 @@ remote ChatGPT CodeBridge `supervisor_status(agent)` returning
 `supervisor: windows-native`. A local heartbeat alone is not enough.
 The optional Windows agent restart task and project verification profiles
 remain disabled/unconfigured unless separately approved by the operator.
+
+## Isolated P720 read-only project rollout (separate from agent handoff)
+
+After PR #479, `readOnlyProjects` exists in GitHub source, but the live
+P720 Windows supervisor remains pinned to an older SHA and cannot parse
+that new config field. Use the guarded `ROLLOUT-P720-READONLY-PROJECT.ps1`
+as a **read-only** inspection first (omit `-Apply`).
+
+The administrator-approved `ROLLOUT-P720-READONLY-PROJECT.cmd` stages the
+CI-green release at pinned SHA
+`4828da1e3a82f8c2372f648836e985626d8681f6` into a new isolated
+release directory. It does not change the connected CodeBridge agent runtime,
+agent.json, enrollment, project checkout or CineCore. It verifies the
+unique original supervisor backup manifest, task identity, token, original
+config and HMAC; builds a supervisor config differing only by one
+`readOnlyProjects` entry for the fixed KMJ CodeBridge checkout. It installs
+only locked production dependencies with lifecycle scripts disabled.
+
+After staging and validating the new schema, it saves the original
+supervisor config and task action, restarts **only** the existing native
+supervisor scheduled task against the new pinned release, and requires
+live HMAC `status(agent)`, truthful read-only project status and denial of
+`project_verify_prepare`. If anything after the cutover fails, it tries
+to restore the exact original task action and config and requires the old
+HMAC path to work again. A rollback failure must be treated as a manual
+recovery incident; do not rerun the launcher or delete the staged directory.
+
+This operation does **not** grant any build/CTest permissions, does not
+create a supervisor-managed agent scheduled task, and does not install an
+automatic Windows updater. Those require separately scoped gates and
+verified release/rollback workflows. Source CI does not establish P720
+live deployment: run `supervisor_project_status` from ChatGPT after the
+local `KMJ_ROLLOUT=PASS` receipt.
