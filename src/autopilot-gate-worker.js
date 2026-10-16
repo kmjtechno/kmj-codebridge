@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { setTimeout as delay } from "node:timers/promises";
+import { waitForTaskChange } from "./autopilot-continuation.js";
 
 const GATE_TASK = /^auto-gate:([A-Za-z0-9_-]{1,64}):([a-f0-9]{40})$/;
 const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
@@ -257,7 +257,7 @@ export function startAutopilotGateWorker(
         // Stay alive without leaking task details or making unsafe guesses.
       }
       try {
-        await delay(intervalMs, undefined, { signal: controller.signal });
+        await waitForTaskChange(options.journal, intervalMs, controller.signal);
       } catch {
         break;
       }
