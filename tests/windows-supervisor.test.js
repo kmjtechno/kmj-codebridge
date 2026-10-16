@@ -712,7 +712,7 @@ test("pipe protocol: tampered request, malformed, oversized and unauthenticated 
 test("server refuses a short token and a missing handler", async (t) => {
   await assert.rejects(
     startWindowsSupervisor({
-      pipePath: path.join(tmp(t), "s"),
+      pipePath: listenAddress(t),
       token: "short",
       handler: async () => ({}),
     }),
