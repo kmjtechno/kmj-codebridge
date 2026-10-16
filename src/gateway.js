@@ -673,7 +673,7 @@ export async function startGateway(rawConfig) {
       lane: args.lane,
       contextDigest: context.digest,
       checkpointRevision: continuity.ok
-        ? continuity.value?.revision ?? null
+        ? (continuity.value?.revision ?? null)
         : "UNKNOWN",
       checkpointAvailable: continuity.ok,
     };
@@ -698,7 +698,8 @@ export async function startGateway(rawConfig) {
         : { status: "UNKNOWN", error: continuity.error },
       hostChatAutoWake: false,
       hostContextWindowExtended: false,
-      notes: "Lane labels and saved summaries are client-authored claims. Background work requires separately enabled authorized device workers.",
+      notes:
+        "Lane labels and saved summaries are client-authored claims. Background work requires separately enabled authorized device workers.",
     };
   }
 
