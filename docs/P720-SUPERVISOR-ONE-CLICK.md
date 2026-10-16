@@ -243,3 +243,23 @@ automatic Windows updater. Those require separately scoped gates and
 verified release/rollback workflows. Source CI does not establish P720
 live deployment: run `supervisor_project_status` from ChatGPT after the
 local `KMJ_ROLLOUT=PASS` receipt.
+
+## Interpreting a transient read-only rollout verification failure
+
+After the native supervisor scheduled task is restarted, the named-pipe
+listener can briefly be unavailable. Prior rollout versions printed
+`KMJ_PROJECT_ROLLOUT_VERIFICATION=FAIL` for an individual polling attempt
+even if the very next attempt authenticated successfully and the overall
+operation ended with `KMJ_ROLLOUT=PASS`.
+
+The rollout now uses a quiet **nonzero-exit** readiness probe during
+startup retries. It still aborts and attempts rollback if no attempt
+succeeds, and still reports a truthful `FAIL` marker for that final
+failure. No HMAC, project status, or denied-write requirement is relaxed.
+
+For an **already completed rollout**, do **not** rerun the one-shot
+`ROLLOUT-P720-READONLY-PROJECT.cmd`, as the target release already exists.
+Instead, run `VERIFY-P720-READONLY-PROJECT.cmd` for a read-only local
+health check, or use ChatGPT's CodeBridge `supervisor_project_status`
+operation. Success requires both HMAC and proof that
+`project_verify_prepare` remains rejected for `kmj-codebridge`.
