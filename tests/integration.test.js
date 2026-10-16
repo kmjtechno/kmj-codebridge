@@ -95,10 +95,7 @@ async function setup(t, { includeMainPlatformCi = false } = {}) {
                   command: process.execPath,
                   variants: {
                     check: {
-                      args: [
-                        "-e",
-                        'console.log("CI_CWD=" + process.cwd())',
-                      ],
+                      args: ["-e", 'console.log("CI_CWD=" + process.cwd())'],
                       timeoutMs: 2000,
                     },
                   },
@@ -1277,7 +1274,15 @@ test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limi
   git("add", "hello.txt");
   execFileSync(
     "git",
-    ["-c", "user.name=Test", "-c", "user.email=test@example.invalid", "commit", "-qm", "initial"],
+    [
+      "-c",
+      "user.name=Test",
+      "-c",
+      "user.email=test@example.invalid",
+      "commit",
+      "-qm",
+      "initial",
+    ],
     { cwd: root, stdio: "pipe" },
   );
   const head = git("rev-parse", "HEAD");
@@ -1291,10 +1296,12 @@ test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limi
     variant: "check",
     requestKey: "main-platform-safe-lane-1",
   };
-  const started = content(await client.callTool({
-    name: "run_project_command",
-    arguments: args,
-  }));
+  const started = content(
+    await client.callTool({
+      name: "run_project_command",
+      arguments: args,
+    }),
+  );
   assert.equal(started.state, "running");
   assert.match(started.gate, /@mainplatform_ci#[a-f0-9]{40}$/);
   assert.ok(started.gate.endsWith(head));
@@ -1302,10 +1309,12 @@ test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limi
   let done = started;
   for (let i = 0; i < 80 && ["running", "queued"].includes(done.state); i++) {
     await new Promise((resolve) => setTimeout(resolve, 25));
-    done = content(await client.callTool({
-      name: "get_job_status",
-      arguments: { device: "d1", project: "p1", job: started.id },
-    }));
+    done = content(
+      await client.callTool({
+        name: "get_job_status",
+        arguments: { device: "d1", project: "p1", job: started.id },
+      }),
+    );
   }
   assert.equal(done.state, "succeeded");
   const match = /^CI_CWD=(.+)$/m.exec(done.output);
@@ -1313,16 +1322,27 @@ test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limi
   const cwd = fs.realpathSync(match[1].trim());
   assert.notEqual(cwd, fs.realpathSync(root));
   assert.equal(
-    execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim(),
+    execFileSync("git", ["rev-parse", "HEAD"], {
+      cwd,
+      encoding: "utf8",
+    }).trim(),
     head,
   );
-  assert.equal(fs.readFileSync(path.join(root, "untracked-owner-work.txt"), "utf8"), "PRESERVE");
-  assert.equal(git("status", "--porcelain").trim(), "?? untracked-owner-work.txt");
   assert.equal(
-    content(await client.callTool({
-      name: "run_project_command",
-      arguments: args,
-    })).id,
+    fs.readFileSync(path.join(root, "untracked-owner-work.txt"), "utf8"),
+    "PRESERVE",
+  );
+  assert.equal(
+    git("status", "--porcelain").trim(),
+    "?? untracked-owner-work.txt",
+  );
+  assert.equal(
+    content(
+      await client.callTool({
+        name: "run_project_command",
+        arguments: args,
+      }),
+    ).id,
     started.id,
   );
 
@@ -1334,7 +1354,10 @@ test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limi
   });
   assert.equal(blocked.isError, true);
   assert.equal(content(blocked).error, "WORKTREE_HAS_UNSAVED_WORK");
-  assert.equal(fs.readFileSync(path.join(cwd, "unsaved-lane-file.txt"), "utf8"), "UNSAVED");
+  assert.equal(
+    fs.readFileSync(path.join(cwd, "unsaved-lane-file.txt"), "utf8"),
+    "UNSAVED",
+  );
 });
 
 test("unauthenticated requests fail before MCP handling", async (t) => {
