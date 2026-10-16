@@ -1687,7 +1687,7 @@ export const definitions = {
   run_project_command: {
     title: "Run project command",
     description:
-      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. Optional laneId runs the profile inside an already-prepared isolated worktree (worktree_lane_prepare) instead of the shared project checkout.",
+      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci profile automatically pins a detached private worktree to the checkout's exact HEAD when laneId/expectedHead are omitted; it never executes from the shared checkout. Other profiles retain their existing lane rules.",
     input: {
       ...scoped,
       command: identifier,
@@ -3176,32 +3176,47 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
-      if (commandRequiresIsolatedLane(a.command) && !a.laneId)
-        fail("WORKTREE_LANE_REQUIRED");
       if (profile.category !== "inspect" && !p.writable)
         fail("READ_ONLY_PROJECT");
+      // Chat clients with a reduced connected-tool snapshot cannot always call
+      // worktree_lane_prepare. Only this opt-in, fixed UI CI profile may
+      // prepare a private detached worktree on its own. This derives the exact
+      // SHA from the approved checkout; no caller-supplied branch, ref or path
+      // is accepted, and it never builds in the shared/production checkout.
+      const autoLane =
+        a.command === "main_platform_ui_ci" &&
+        a.laneId === undefined &&
+        a.expectedHead === undefined
+          ? worktreeLanes().prepareCurrentHead(
+              p.id,
+              p.files.root,
+              "mainplatform_ci",
+            )
+          : null;
+      const selectedLaneId = autoLane?.laneId ?? a.laneId;
+      const selectedHead = autoLane?.head ?? a.expectedHead;
       const pinned =
-        commandRequiresIsolatedLane(a.command) || a.expectedHead !== undefined;
-      if (pinned && !a.expectedHead) fail("WORKTREE_EXPECTED_HEAD_REQUIRED");
-      if (pinned && !a.laneId) fail("WORKTREE_LANE_REQUIRED");
+        commandRequiresIsolatedLane(a.command) || selectedHead !== undefined;
+      if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED");
+      if (pinned && !selectedHead) fail("WORKTREE_EXPECTED_HEAD_REQUIRED");
       const verify = () => {
         const lane = worktreeLanes()
           .entries(p.id, p.files.root)
-          .find((row) => row.laneId === a.laneId);
+          .find((row) => row.laneId === selectedLaneId);
         if (!lane) fail("WORKTREE_NOT_FOUND");
-        if (lane.head !== a.expectedHead) fail("WORKTREE_HEAD_MISMATCH");
+        if (lane.head !== selectedHead) fail("WORKTREE_HEAD_MISMATCH");
         if (lane.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
         return lane.path;
       };
-      const cwd = pinned ? verify() : laneCwd(a.laneId);
+      const cwd = pinned ? verify() : laneCwd(selectedLaneId);
       let gate =
         laneLabel(
           `command:${a.command}:${a.variant}:${profile.category}`,
-          a.laneId,
-        ) + (pinned ? `#${a.expectedHead}` : "");
+          selectedLaneId,
+        ) + (pinned ? `#${selectedHead}` : "");
       // Keep SHA/lane receipts readable by existing archive readers on rollback.
       if (pinned && gate.length > 128)
-        gate = `command@${a.laneId}#${a.expectedHead}`;
+        gate = `command@${selectedLaneId}#${selectedHead}`;
       return runner.run({
         project: p.id,
         gate,
