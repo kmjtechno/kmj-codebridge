@@ -613,9 +613,10 @@ export const definitions = {
   render_codebridge_status: {
     title: "Open KMJ Mission Control",
     description:
-      "Open the premium, interactive KMJ CodeBridge Mission Control (Overview, Workstream and Evidence tabs) inside MCP Apps-capable chats. Read-only and project-scoped: it displays verified Git, task queue and authorized capacity evidence only; it never fabricates progress, executes commands or exposes credentials. Text-only MCP clients receive the compact status.",
+      "Open premium KMJ Mission Control with verified tasks and receipts. Optionally include an authorized read-only file tree and tracked Git diff in the Workspace tab. Missing data stays UNKNOWN. Does not write files or execute arbitrary commands; text-only clients keep a compact status.",
     input: {
       ...scoped,
+      includeWorkspace: z.boolean().default(false),
     },
     access: "read",
   },
