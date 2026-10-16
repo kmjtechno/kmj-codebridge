@@ -7,7 +7,8 @@ async function collect(events) {
     for (const event of events) yield event;
   }
   const output = [];
-  for await (const line of githubAnnotationsReporter(source())) output.push(line);
+  for await (const line of githubAnnotationsReporter(source()))
+    output.push(line);
   return output;
 }
 
