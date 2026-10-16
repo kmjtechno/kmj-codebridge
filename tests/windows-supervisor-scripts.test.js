@@ -227,10 +227,13 @@ test(
 );
 
 test("all supervisor task operations are scoped to Task Scheduler root folder", () => {
+  const rootPath = "-TaskPath '" + String.fromCharCode(92) + "'";
   for (const script of [install, rollback, activation]) {
-    for (const match of script.matchAll(/(?:Get|Register|Start|Stop|Enable|Disable|Unregister)-ScheduledTask -TaskName \$TaskName/g)) {
+    for (const match of script.matchAll(
+      /(?:Get|Register|Start|Stop|Enable|Disable|Unregister)-ScheduledTask -TaskName \$TaskName/g,
+    )) {
       const rest = script.slice(match.index, script.indexOf("\n", match.index));
-      assert.ok(rest.includes("-TaskPath '" + String.fromCharCode(92) + "'"), rest);
+      assert.ok(rest.includes(rootPath), rest);
     }
   }
 });
