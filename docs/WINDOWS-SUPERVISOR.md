@@ -173,3 +173,29 @@ prove the new task's actual gateway heartbeat and health, and back out
 without duplicate sessions if takeover fails. This audit does not
 activate the task or enable `restart.supported`, and it does not
 install Windows auto-update.
+
+## P720 existing task principal mismatch: read-only breakdown
+
+If the existing-task audit shows `KMJ_AGENT_TASK_STATE=Disabled`,
+`KMJ_AGENT_TASK_ACTION=MATCH`,
+`KMJ_AGENT_TASK_RECOVERY_POLICY=MATCH`, but
+`KMJ_AGENT_TASK_PRINCIPAL=MISMATCH`, rerun the updated
+`AUDIT-P720-EXISTING-AGENT-TASK.cmd`. It now prints three additional
+non-sensitive categories:
+
+- `KMJ_AGENT_TASK_PRINCIPAL_IDENTITY=MATCH|MISMATCH|UNRESOLVED`:
+  the task user matches the currently running agent's owner, using
+  canonical Windows SID comparison to support account aliases.
+- `KMJ_AGENT_TASK_PRINCIPAL_LOGON=S4U|PASSWORD|INTERACTIVE|INTERACTIVE_OR_PASSWORD|SERVICE_ACCOUNT|OTHER_OR_UNKNOWN`:
+  only the task's logon **type**, not a name, domain or secret.
+- `KMJ_AGENT_TASK_PRINCIPAL_RUN_LEVEL=LIMITED|HIGHEST|OTHER_OR_UNKNOWN`:
+  only its elevation policy, not account details.
+
+The existing fail-closed audit verdict is unchanged. A principal
+mismatch does not authorize replacing the task or changing its
+identity. In particular, changing a logon type to S4U could affect
+network credentials or access to encrypted resources, so do not
+apply a generic "repair". The connected agent, supervisor and
+CineCore remain untouched until identity and task rights have been
+reviewed. Only `REUSABLE_DISABLED` plus the separate idle-gated
+takeover process may proceed to a supervised restart activation.
