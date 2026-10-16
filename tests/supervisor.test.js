@@ -191,6 +191,10 @@ test("logs are bounded and redacted", async () => {
 test("config validation uses fixed paths and never returns config content", async () => {
   const seen = [];
   const handle = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-agent.service"
+        ? "LoadState=loaded\nActiveState=active\n"
+        : "LoadState=not-found\nActiveState=inactive\n",
     readFile: (file) => {
       seen.push(file);
       return JSON.stringify({
@@ -208,6 +212,73 @@ test("config validation uses fixed paths and never returns config content", asyn
   assert.deepEqual(result.response, { service: "agent", valid: true });
   assert.deepEqual(seen, ["/etc/kmj-codebridge/agent.json"]);
   assert.equal(JSON.stringify(result).includes("x".repeat(20)), false);
+});
+
+test("agent config validation targets the active Main Platform unit, never stale generic config", async () => {
+  const paths = [];
+  const handle = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-kmj-main-platform.service"
+        ? "LoadState=loaded\nActiveState=active\n"
+        : "LoadState=loaded\nActiveState=inactive\n",
+    readFile: (file) => {
+      paths.push(file);
+      if (file !== "/etc/kmj-codebridge-main-platform/agent.json")
+        throw new Error("unrelated generic config must not be used");
+      return JSON.stringify({
+        gateway: "https://kmjtechno.com",
+        token: "x".repeat(48),
+        id: "d1",
+        tenant: "t1",
+        stateDir: "/var/lib/kmj-codebridge",
+        projects: [{ id: "kmj-main-platform", root: "/srv/project" }],
+        license: { mode: "free" },
+      });
+    },
+  });
+  const result = await handle({ op: "config_validate", service: "agent" });
+  assert.deepEqual(result.response, { service: "agent", valid: true });
+  assert.deepEqual(paths, ["/etc/kmj-codebridge-main-platform/agent.json"]);
+});
+
+test("agent config validation refuses ambiguous or missing active units without reading secrets", async () => {
+  for (const activeUnits of [0, 2]) {
+    const paths = [];
+    const handle = createSupervisorHandler({
+      run: () =>
+        activeUnits === 0
+          ? "LoadState=not-found\nActiveState=inactive\n"
+          : "LoadState=loaded\nActiveState=active\n",
+      readFile: (file) => {
+        paths.push(file);
+        throw new Error("must not read an unselected config");
+      },
+    });
+    const result = await handle({ op: "config_validate", service: "agent" });
+    assert.deepEqual(result.response, {
+      service: "agent",
+      valid: false,
+      reason: "CONFIG_VALIDATION_FAILED",
+    });
+    assert.deepEqual(paths, []);
+  }
+});
+
+test("agent config validation rejects malformed current dedicated enrollment", async () => {
+  const handle = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-kmj-main-platform.service"
+        ? "LoadState=loaded\nActiveState=active\n"
+        : "LoadState=not-found\nActiveState=inactive\n",
+    readFile: () => JSON.stringify({ token: "SECRET-DO-NOT-LOG" }),
+  });
+  const result = await handle({ op: "config_validate", service: "agent" });
+  assert.deepEqual(result.response, {
+    service: "agent",
+    valid: false,
+    reason: "CONFIG_SCHEMA_INVALID",
+  });
+  assert.equal(JSON.stringify(result).includes("SECRET"), false);
 });
 
 test("supervisor config validation classifies failures without leaking secrets", async () => {
