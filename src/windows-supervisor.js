@@ -341,7 +341,7 @@ export function createWindowsSupervisorHandler({
 
   const agentTaskState = async () => {
     const task = config.agent.restartTask;
-    if (!task) return { exists: false, state: "unknown" };
+    if (!task) return { exists: false, state: "unknown", enabled: false };
     const r = await runner(
       schtasksExe,
       ["/Query", "/TN", task, "/FO", "CSV", "/NH"],
@@ -352,10 +352,11 @@ export function createWindowsSupervisorHandler({
         spawnImpl,
       },
     );
-    if (r.exitCode !== 0) return { exists: false, state: "unknown" };
+    if (r.exitCode !== 0) return { exists: false, state: "unknown", enabled: false };
     const columns = r.output.trim().split(/","/);
     const state = (columns[columns.length - 1] ?? "").replace(/"/g, "").trim();
-    return { exists: true, state: state ? state.slice(0, 32) : "unknown" };
+    const enabled = state === "Ready" || state === "Running";
+    return { exists: true, state: state ? state.slice(0, 32) : "unknown", enabled };
   };
 
   return async function handle(request) {
@@ -381,8 +382,9 @@ export function createWindowsSupervisorHandler({
           runtime: rev ? { commit: rev.commit, source: rev.source } : null,
           state: task.state,
           restart: {
-            supported: Boolean(config.agent.restartTask) && task.exists,
-            mechanism: config.agent.restartTask ? "scheduled-task" : null,
+            supported: Boolean(config.agent.restartTask) && task.exists && task.enabled,
+            mechanism:
+              config.agent.restartTask && task.enabled ? "scheduled-task" : null,
           },
           // Truthful: no Windows updater exists yet; do not imply one.
           update: {
@@ -414,7 +416,7 @@ export function createWindowsSupervisorHandler({
       exactKeys(request, ["op", "service"]);
       if (request.service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       const task = await agentTaskState();
-      if (!config.agent.restartTask || !task.exists)
+      if (!config.agent.restartTask || !task.exists || !task.enabled)
         fail("SUPERVISOR_RESTART_UNAVAILABLE");
       const taskName = config.agent.restartTask;
       return {
