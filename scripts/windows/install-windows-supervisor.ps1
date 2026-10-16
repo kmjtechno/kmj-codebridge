@@ -53,7 +53,7 @@ $cfg = Get-Content -LiteralPath $SupervisorConfig -Raw | ConvertFrom-Json
 $tokenFile = $cfg.tokenFile
 Assert-Absolute $tokenFile 'tokenFile'
 $pipe = "\\.\pipe\$($cfg.pipeName)"
-$stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssZ')
+$stamp = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ') + '-' + [guid]::NewGuid().ToString('N').Substring(0,8)
 $backup = Join-Path $BackupRoot $stamp
 
 Write-Output "Mode           : $(if ($Apply) { 'APPLY' } else { 'DRY-RUN (no changes)' })"
@@ -73,28 +73,45 @@ if (Test-Path -LiteralPath "$AgentConfig.proposed") {
   throw 'PROPOSED_AGENT_CONFIG_EXISTS: refusing to overwrite operator work.'
 }
 
-New-Item -ItemType Directory -Path $backup -Force | Out-Null
-$manifest = [ordered]@{ schema = 1; createdUtc = $stamp; tokenCreatedByInstaller = $false; files = @() }
+if (Test-Path -LiteralPath $tokenFile) { throw 'TOKEN_ALREADY_EXISTS: refusing to modify an existing token ACL.' }
+if ($cfg.pipeName -notmatch '^kmj-codebridge-supervisor-[a-z0-9-]{1,40}$') { throw 'INVALID_PIPE_NAME' }
+$json = Get-Content -LiteralPath $AgentConfig -Raw | ConvertFrom-Json
+if (@($json.PSObject.Properties.Name) -contains 'supervisorSocket' -or
+    @($json.PSObject.Properties.Name) -contains 'supervisorPipe' -or
+    @($json.PSObject.Properties.Name) -contains 'supervisorTokenFile') {
+  throw 'AGENT_SUPERVISOR_ALREADY_CONFIGURED'
+}
+if (Test-Path -LiteralPath $backup) { throw 'BACKUP_DESTINATION_EXISTS' }
+New-Item -ItemType Directory -Path $backup -ErrorAction Stop | Out-Null
+$manifest = [ordered]@{
+  schema = 2
+  createdUtc = $stamp
+  taskName = $TaskName
+  tokenFile = $tokenFile
+  tokenCreatedByInstaller = $false
+  tokenSha256 = $null
+  proposedSha256 = $null
+  taskExe = $null
+  taskArgs = $null
+  files = @()
+}
 foreach ($file in @($AgentConfig, $SupervisorConfig)) {
   $dest = Join-Path $backup ([System.IO.Path]::GetFileName($file))
   Copy-Item -LiteralPath $file -Destination $dest
   $manifest.files += [ordered]@{ source = $file; backup = $dest; sha256 = (Get-Sha256 $file) }
 }
-$existing = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-if ($existing) {
-  $xml = Join-Path $backup "$TaskName.task.xml"
-  Export-ScheduledTask -TaskName $TaskName | Set-Content -LiteralPath $xml -Encoding UTF8
-  $manifest.files += [ordered]@{ source = "task:$TaskName"; backup = $xml; sha256 = (Get-Sha256 $xml) }
-}
+$manifestPath = Join-Path $backup 'manifest.json'
+$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 
-if (-not (Test-Path -LiteralPath $tokenFile)) {
-  $bytes = New-Object byte[] 32
-  [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
-  $hex = -join ($bytes | ForEach-Object { $_.ToString('x2') })
-  New-Item -ItemType Directory -Path (Split-Path -Parent $tokenFile) -Force | Out-Null
-  Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
-  $manifest.tokenCreatedByInstaller = $true
-}
+$bytes = New-Object byte[] 32
+[System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
+$hex = -join ($bytes | ForEach-Object { $_.ToString('x2') })
+New-Item -ItemType Directory -Path (Split-Path -Parent $tokenFile) -Force | Out-Null
+Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
+$manifest.tokenCreatedByInstaller = $true
+$manifest.tokenSha256 = Get-Sha256 $tokenFile
+$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+
 # Restrict the secret: no inherited ACEs, only SYSTEM, Administrators and the service account.
 & icacls.exe $tokenFile /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(F)' 'BUILTIN\Administrators:(F)' "${ServiceAccount}:(R)" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'icacls failed to restrict the token file.' }
@@ -103,19 +120,23 @@ if ($acl -match '(?i)\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTER
   throw 'Token file ACL still contains a broad principal; refusing to continue.'
 }
 
-$action = New-ScheduledTaskAction -Execute $node -Argument "`"$RuntimeDir\src\cli.js`" windows-supervisor `"$SupervisorConfig`"" -WorkingDirectory $RuntimeDir
+$taskArgs = "`"$RuntimeDir\src\cli.js`" windows-supervisor `"$SupervisorConfig`""
+$manifest.taskExe = $node
+$manifest.taskArgs = $taskArgs
+$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+$action = New-ScheduledTaskAction -Execute $node -Argument $taskArgs -WorkingDirectory $RuntimeDir
 $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -RunLevel Limited
 $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Settings $settings -Force | Out-Null
+Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Settings $settings | Out-Null
 Disable-ScheduledTask -TaskName $TaskName | Out-Null
 
 $proposed = "$AgentConfig.proposed"
-$json = Get-Content -LiteralPath $AgentConfig -Raw | ConvertFrom-Json
 $json | Add-Member -NotePropertyName supervisorPipe -NotePropertyValue $pipe -Force
 $json | Add-Member -NotePropertyName supervisorTokenFile -NotePropertyValue $tokenFile -Force
 $json | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $proposed -Encoding UTF8
 
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $backup 'manifest.json') -Encoding UTF8
+$manifest.proposedSha256 = Get-Sha256 $proposed
+$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 Write-Output "Prepared. Task '$TaskName' is registered DISABLED and nothing was started."
 Write-Output "Proposed agent config: $proposed (agent.json was not modified)."
 Write-Output "Rollback: scripts\windows\rollback-windows-supervisor.ps1 -BackupDir `"$backup`" -TaskName $TaskName -Apply"
