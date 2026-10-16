@@ -84,6 +84,9 @@ export async function publicBrowserQa(targetName, outputDir) {
       windowsHide: true,
     },
   );
+  const processExited = new Promise((resolve) =>
+    browser.once("close", resolve),
+  );
   const pending = new Map();
   const sessions = new Map();
   let counter = 0;
@@ -275,7 +278,12 @@ export async function publicBrowserQa(targetName, outputDir) {
     try {
       browser.kill();
     } catch {}
-    fs.rmSync(profile, { recursive: true, force: true });
+    // Windows holds user-data files briefly after SIGTERM. Always persist
+    // the browser receipt even if temporary profile cleanup is delayed.
+    await Promise.race([processExited, wait(1200)]);
+    try {
+      fs.rmSync(profile, { recursive: true, force: true });
+    } catch {}
     fs.writeFileSync(
       path.join(outputDir, "receipt.json"),
       JSON.stringify(report, null, 2),
