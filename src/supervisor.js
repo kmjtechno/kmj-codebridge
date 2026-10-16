@@ -1625,20 +1625,17 @@ export function createSupervisorHandler({
 
     if (request.op === "config_validate") {
       exactKeys(request, ["op", "service"]);
-      const configPath = CONFIGS[request.service];
-      if (!configPath) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+      if (!CONFIGS[request.service]) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       try {
-        let raw;
-        try {
-          raw = JSON.parse(readFile(configPath));
-        } catch (error) {
-          // The existing KMJ-elite agent has a dedicated enrollment file.
-          // Only an absent generic agent file permits this fixed fallback.
-          // Malformed, unreadable, or gateway configs fail closed.
-          if (request.service !== "agent" || error?.code !== "ENOENT")
-            throw error;
-          raw = JSON.parse(readFile(MAIN_PLATFORM_AGENT_CONFIG));
-        }
+        // Validate the config of the actual running agent unit, not an
+        // unrelated generic file left behind after Main Platform cutover.
+        // serviceUnit fails closed for missing/ambiguous service states.
+        const configPath =
+          request.service === "agent" &&
+          serviceUnit("agent", run) === MAIN_PLATFORM_AGENT_SERVICE
+            ? MAIN_PLATFORM_AGENT_CONFIG
+            : CONFIGS[request.service];
+        const raw = JSON.parse(readFile(configPath));
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
         return { response: { service: request.service, valid: true } };
