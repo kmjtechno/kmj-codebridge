@@ -53,7 +53,7 @@ test("handoff preserves old agent and config on failure", () => {
 test("config preflight only approves the two wire fields and known hashes", () => {
   assert.match(guard, /delete originalOnly\.supervisorPipe/);
   assert.match(guard, /delete originalOnly\.supervisorTokenFile/);
-  assert.match(guard, /deepStrictEqual\(originalOnly, agent/);
+  assert.match(guard, /deepStrictEqual\(\s*originalOnly,\s*agent/s);
   assert.match(guard, /HANDOFF_AGENT_ALREADY_WIRED/);
   assert.match(guard, /HANDOFF_MANIFEST_INVALID/);
   assert.match(guard, /HANDOFF_TOKEN_CHANGED/);
