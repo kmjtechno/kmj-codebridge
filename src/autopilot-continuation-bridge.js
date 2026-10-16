@@ -52,18 +52,20 @@ export function continuationReceipts(journal, project) {
 }
 
 export class AutopilotContinuationBridge {
-  constructor({ journal, stateDir, projects, coordination = null }) {
+  constructor({ journal, stateDir, projects, coordination = null, now = Date.now }) {
     if (!journal || typeof journal.subscribe !== "function")
       throw new Error("CONTINUATION_JOURNAL_REQUIRED");
     if (!Array.isArray(projects) || projects.some((id) => !PROJECT.test(id)))
       throw new Error("CONTINUATION_PROJECT_INVALID");
+    if (typeof now !== "function") throw new Error("CONTINUATION_CLOCK_INVALID");
+    this.now = now;
     this.journal = journal;
     this.projects = [...new Set(projects)];
     this.coordination = coordination ?? new AgentCoordination(stateDir);
     this.delivered = new Set();
     // Never retry the same failing handoff in a hot event cycle.
     // Reconciliation after a process restart remains idempotent.
-    this.attempted = new Set();
+    this.attempted = new Map();
     this.lastError = null;
     this.deliveredCount = 0;
     this.closed = false;
@@ -90,10 +92,17 @@ export class AutopilotContinuationBridge {
         const receipts = continuationReceipts(this.journal, project);
         for (const record of receipts) {
           const seenKey = project + ":" + record.key;
-          if (this.attempted.has(seenKey)) continue;
-          // A failed mailbox write is not reattempted on every journal update.
-          // The operator can review lastError; a process restart retries.
-          this.attempted.add(seenKey);
+          if (this.delivered.has(seenKey)) continue;
+          const now = this.now();
+          const previousAttempt = this.attempted.get(seenKey);
+          // Transient storage failures can retry after a bounded cooldown,
+          // never on every persist in the same event burst.
+          if (
+            previousAttempt !== undefined &&
+            now - previousAttempt < 60_000
+          )
+            continue;
+          this.attempted.set(seenKey, now);
           // The immutable mailbox holds a single receipt for each task/state.
           // Only journal-derived, bounded identifiers are included.
           this.coordination.post(project, {
