@@ -156,3 +156,20 @@ markers. Do **not** share enrollment files, private tokens, backup
 manifests with personal paths, or unredacted process command lines.
 An older extracted ZIP still has the fresh-only launcher and must not
 be rerun after a partial install; use the updated trusted source.
+
+## Process blocker after cloning
+
+If recovery returns `RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING`, it now
+prints bounded metadata of matching processes: a process class, PID and PPID,
+with **no command-line arguments or credentials**. This is a fail-closed
+concurrency guard, not proof that the old installer is still progressing.
+Examples include an old `git.exe` clone, an `npm`/Node dependency stage or
+an original PowerShell installer. The same process might be idle or blocked.
+
+Do not kill or force-close a process purely because it matched. Compare its
+PID with Task Manager's **Details** view and distinguish a legitimate running
+KMJ native supervisor/agent from a stale setup before taking further action.
+Close any obsolete completed console normally only after confirming its
+child installers are not active. Never delete the immutable release directory,
+agent enrollment, token or backup to bypass the concurrency check. Re-run
+guarded recovery only after the original process is demonstrably inactive.
