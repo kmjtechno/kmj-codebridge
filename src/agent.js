@@ -20,6 +20,7 @@ import {
   windowsSupervisorRequest,
 } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
+import { createToolGuardHost, registerReadOnlyProjectGuard } from "./tool-guard-host.js";
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
 import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
@@ -158,6 +159,8 @@ export async function startAgent(
       workers.every((worker) => worker.isIdle()),
   });
 
+  const toolGuardHost = createToolGuardHost();
+  registerReadOnlyProjectGuard(toolGuardHost);
   const dispatch = createDispatcher(
     c,
     runner,
@@ -167,6 +170,7 @@ export async function startAgent(
     audit,
     localModel,
     () => workerHandles,
+    toolGuardHost,
   );
   const gateWorker = startAutopilotGateWorker({
     activity,
