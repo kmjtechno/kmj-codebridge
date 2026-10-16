@@ -42,7 +42,10 @@ function fixture(t) {
       },
     ],
   };
-  fs.writeFileSync(path.join(backup, "manifest.json"), JSON.stringify(manifest));
+  fs.writeFileSync(
+    path.join(backup, "manifest.json"),
+    JSON.stringify(manifest),
+  );
   return { root, backup, token, manifest };
 }
 
@@ -52,21 +55,30 @@ test("verified native supervisor health must be authenticated and scoped", async
   const result = await verifyPreparedSupervisor(backup, {
     mockClient: async (...args) => {
       actual = args;
-      return { supervisor: "windows-native", service: "agent", platform: "win32" };
+      return {
+        supervisor: "windows-native",
+        service: "agent",
+        platform: "win32",
+      };
     },
   });
   assert.equal(result.verified, true);
   assert.equal(result.agentWired, false);
   assert.equal(actual[1].op, "status");
   assert.equal(actual[1].service, "agent");
-  assert.equal(actual[0].pipePath, "\\\\.\\pipe\\kmj-codebridge-supervisor-p720");
+  assert.equal(
+    actual[0].pipePath,
+    "\\\\.\\pipe\\kmj-codebridge-supervisor-p720",
+  );
 });
 
 test("changed token or snapshot is rejected before connecting", async (t) => {
   const { backup, token } = fixture(t);
   fs.writeFileSync(token, "b".repeat(64));
   await assert.rejects(
-    verifyPreparedSupervisor(backup, { mockClient: async () => assert.fail("must not connect") }),
+    verifyPreparedSupervisor(backup, {
+      mockClient: async () => assert.fail("must not connect"),
+    }),
     /SUPERVISOR_TOKEN_MISMATCH/,
   );
 });
@@ -76,12 +88,17 @@ test("untrusted runtime identity is rejected before connecting", async (t) => {
   const mf = JSON.parse(fs.readFileSync(path.join(backup, "manifest.json")));
   const configEntry = mf.files[0];
   const cfg = JSON.parse(fs.readFileSync(configEntry.backup));
-  cfg.agent.installDir = path.join(path.dirname(cfg.agent.installDir), "unknown-runtime");
+  cfg.agent.installDir = path.join(
+    path.dirname(cfg.agent.installDir),
+    "unknown-runtime",
+  );
   fs.writeFileSync(configEntry.backup, JSON.stringify(cfg));
   mf.files[0].sha256 = sha(configEntry.backup);
   fs.writeFileSync(path.join(backup, "manifest.json"), JSON.stringify(mf));
   await assert.rejects(
-    verifyPreparedSupervisor(backup, { mockClient: async () => assert.fail("must not connect") }),
+    verifyPreparedSupervisor(backup, {
+      mockClient: async () => assert.fail("must not connect"),
+    }),
     /SUPERVISOR_RUNTIME_NOT_PINNED/,
   );
 });
@@ -89,7 +106,9 @@ test("untrusted runtime identity is rejected before connecting", async (t) => {
 test("a non-Windows or spoofed response cannot claim verified status", async (t) => {
   const { backup } = fixture(t);
   await assert.rejects(
-    verifyPreparedSupervisor(backup, { mockClient: async () => ({ supervisor: "linux" }) }),
+    verifyPreparedSupervisor(backup, {
+      mockClient: async () => ({ supervisor: "linux" }),
+    }),
     /SUPERVISOR_INVALID_HEALTH/,
   );
 });
