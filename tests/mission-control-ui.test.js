@@ -210,6 +210,80 @@ test("the overview/workstream/evidence tabs are actual accessible interactive co
   assert.equal(view.element("tab-evidence").focused, true);
 });
 
+test("authenticated project job receipts render real status timeline without executing tools", () => {
+  const view = openCard();
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    evidence: { git: false, tasks: false, capacity: false },
+    activity: {
+      source: "AUTHORIZED_PROJECT_JOB_RECEIPTS",
+      status: "AVAILABLE",
+      observedAt: "2026-10-16T02:00:00Z",
+      hasMore: true,
+      items: [
+        {
+          id: "job-123",
+          gate: "p720_ai_tests",
+          state: "running",
+          at: "2026-10-16T01:59:00.000Z",
+        },
+        {
+          id: "job-122",
+          gate: "check",
+          state: "succeeded",
+          at: "2026-10-16T01:58:00.000Z",
+        },
+      ],
+    },
+  });
+  assert.equal(view.element("activity-0").hidden, false);
+  assert.equal(view.element("activity-title-0").textContent, "p720_ai_tests · running");
+  assert.equal(view.element("activity-time-0").textContent, "2026-10-16T01:59:00.000Z");
+  assert.equal(view.element("activity-0").attributes["data-state"], "running");
+  assert.equal(view.element("activity-1").hidden, false);
+  assert.equal(view.element("activity-2").hidden, true);
+  assert.match(view.element("activityNotice").textContent, /More entries available/);
+
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    activity: { source: "AUTHORIZED_PROJECT_JOB_RECEIPTS", status: "UNAVAILABLE" },
+  });
+  assert.equal(view.element("activity-0").hidden, true);
+  assert.match(view.element("activityNotice").textContent, /No verified/);
+});
+
+test("unverified or hostile job receipts cannot create convincing work activity", () => {
+  const view = openCard();
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    activity: {
+      source: "UNTRUSTED_FIXTURE",
+      status: "AVAILABLE",
+      items: [{ gate: "build", state: "running", at: "2026-10-16T02:00:00Z" }],
+    },
+  });
+  assert.equal(view.element("activity-0").hidden, true);
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    activity: {
+      source: "AUTHORIZED_PROJECT_JOB_RECEIPTS",
+      status: "AVAILABLE",
+      items: [
+        {
+          gate: "<img src=x onerror=alert(1)>",
+          state: "succeeded",
+          at: "2026-10-16T02:00:00Z",
+        },
+      ],
+    },
+  });
+  assert.equal(view.element("activity-0").hidden, true);
+});
+
 test("tool strings are plain text, bounded, and cannot inject markup", () => {
   const view = openCard();
   view.send({
