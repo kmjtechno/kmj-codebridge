@@ -85,9 +85,13 @@ test("bounded coverage and limits are explicit; short substring search retains c
 });
 test("unsafe index paths fail closed", (t) => {
   const f = fixture(t);
-  fs.writeFileSync(path.join(f.state, "hyperindex.sqlite"), "bad", {
-    mode: 0o644,
-  });
+  const dbPath = path.join(f.state, "hyperindex.sqlite");
+  fs.writeFileSync(dbPath, "bad", { mode: 0o644 });
+  // writeFileSync's mode is masked by the process umask (e.g. 0o077 in
+  // hardened isolated QA). Force the unsafe bits so this test exercises
+  // HyperIndex's permission check instead of SQLite's corrupt-file error.
+  fs.chmodSync(dbPath, 0o644);
+  assert.equal(fs.statSync(dbPath).mode & 0o077, 0o044);
   assert.throws(() => new HyperIndex(f.files, f.state), /INDEX_FILE_UNSAFE/);
 });
 test("indexed literal matching preserves punctuation, case, unicode and whitespace", (t) => {
