@@ -20,14 +20,20 @@ export function continuationReceipts(journal, project) {
         kind: "result",
         // Do not repeat the objective, result, checkpoint, lease, hashes,
         // secrets or model output into the shared coordination mailbox.
-        note: "Task " + task.id + " recorded " + task.state +
+        note:
+          "Task " +
+          task.id +
+          " recorded " +
+          task.state +
           ". Evidence and release gates require independent verification.",
       });
     } else if (task.state === "waiting") {
       records.push({
         key: "blocked-" + task.id,
         kind: "handoff",
-        note: "Task " + task.id +
+        note:
+          "Task " +
+          task.id +
           " is waiting. Continue another dependency-ready approved task.",
       });
     }
@@ -36,7 +42,9 @@ export function continuationReceipts(journal, project) {
     records.push({
       key: "next-" + snapshot.next.id,
       kind: "handoff",
-      note: "Next ready task " + snapshot.next.id +
+      note:
+        "Next ready task " +
+        snapshot.next.id +
         ". Claim through CodeBridge with a lease; execute only approved steps.",
     });
   }
@@ -53,6 +61,9 @@ export class AutopilotContinuationBridge {
     this.projects = [...new Set(projects)];
     this.coordination = coordination ?? new AgentCoordination(stateDir);
     this.delivered = new Set();
+    // Never retry the same failing handoff in a hot event cycle.
+    // Reconciliation after a process restart remains idempotent.
+    this.attempted = new Set();
     this.lastError = null;
     this.deliveredCount = 0;
     this.closed = false;
@@ -79,7 +90,10 @@ export class AutopilotContinuationBridge {
         const receipts = continuationReceipts(this.journal, project);
         for (const record of receipts) {
           const seenKey = project + ":" + record.key;
-          if (this.delivered.has(seenKey)) continue;
+          if (this.attempted.has(seenKey)) continue;
+          // A failed mailbox write is not reattempted on every journal update.
+          // The operator can review lastError; a process restart retries.
+          this.attempted.add(seenKey);
           // The immutable mailbox holds a single receipt for each task/state.
           // Only journal-derived, bounded identifiers are included.
           this.coordination.post(project, {
