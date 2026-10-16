@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { setTimeout as delay } from "node:timers/promises";
+import { waitForTaskChange } from "./autopilot-continuation.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 
 const TASK = /^auto-repair:([A-Za-z0-9_-]{1,40}):([a-f0-9]{40})$/;
@@ -325,7 +325,7 @@ export function startIsolatedRepairWorker(
         // Task state remains available for operator inspection after failure.
       }
       try {
-        await delay(intervalMs, undefined, { signal: abort.signal });
+        await waitForTaskChange(options.journal, intervalMs, abort.signal);
       } catch {
         break;
       }
