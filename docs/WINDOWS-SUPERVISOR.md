@@ -109,3 +109,36 @@ verified, reversible runtime upgrade is installed. Likewise, Windows
 restartTask remains unconfigured until the agent itself is managed by an
 operator-reviewed scheduled task. An existing manually launched agent is
 not a safe target for the supervisor's task-based restart operation.
+
+## Safe preparation for persistent P720 CodeBridge agent
+
+After the P720 native supervisor, HMAC, and read-only project checks are
+live, the first prerequisite for task-based **agent restart** is an
+operator-owned, trusted Windows Scheduled Task. The existing CodeBridge
+agent currently runs as a separate process started during the P720 handoff.
+It must **not** be duplicated by starting a second task.
+
+Run `scripts/windows/PREPARE-P720-AGENT-TASK.ps1` without `-Apply`
+for the default read-only preflight. It checks the live single agent,
+running owner, Node binary, immutable release SHA, trusted Git origin,
+agent ID and supervisor wiring, and refuses any existing task. The
+separate administrator-approved `PREPARE-P720-AGENT-TASK.cmd` creates
+exactly one **disabled** startup task
+`KMJ-CodeBridge-P720-Agent` with pinned executable/arguments and
+recovery settings; it never starts or stops the agent, supervisor,
+CineCore or another project. It keeps the source checkout untouched.
+
+The preparation does **not** enable remote restart. A disabled task
+must report `restart.supported=false` when the supervisor later
+encounters it. Safe activation requires a separate transaction that
+confirms zero active jobs, preserves old process and task state,
+switches to the scheduled task, verifies a fresh gateway heartbeat
+without a duplicate device session, updates the supervisor config only
+after proven takeover, and restores the original process/config/task
+state if any stage fails. **Do not manually enable/start the new task
+while the original agent remains online.**
+
+The setup uses the original live agent's Windows identity as the
+Scheduled Task principal; logon/network and service-account permissions
+must be proven on the target workstation before activation. No Windows
+auto-update mechanism is enabled by this preparation.
