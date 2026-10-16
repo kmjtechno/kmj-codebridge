@@ -34,6 +34,15 @@ function Assert-Absolute([string]$Path, [string]$Name) {
 function Get-Sha256([string]$Path) {
   (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
+function Write-Manifest([string]$Path, [object]$Value) {
+  # Windows PowerShell 5.1's -Encoding UTF8 prepends EF BB BF. The
+  # Node.js verifier uses JSON.parse on this file, which rejects a BOM.
+  [System.IO.File]::WriteAllText(
+    $Path,
+    ($Value | ConvertTo-Json -Depth 8),
+    ([System.Text.UTF8Encoding]::new($false))
+  )
+}
 
 foreach ($pair in @(
     @($SupervisorConfig, 'SupervisorConfig'), @($AgentConfig, 'AgentConfig'),
@@ -101,7 +110,7 @@ foreach ($file in @($AgentConfig, $SupervisorConfig)) {
   $manifest.files += [ordered]@{ source = $file; backup = $dest; sha256 = (Get-Sha256 $file) }
 }
 $manifestPath = Join-Path $backup 'manifest.json'
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+Write-Manifest $manifestPath $manifest
 
 $bytes = New-Object byte[] 32
 [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
@@ -110,7 +119,7 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $tokenFile) -Force | Out-
 Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
 $manifest.tokenCreatedByInstaller = $true
 $manifest.tokenSha256 = Get-Sha256 $tokenFile
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+Write-Manifest $manifestPath $manifest
 
 # Restrict the secret: no inherited ACEs, only SYSTEM, Administrators and the service account.
 & icacls.exe $tokenFile /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(F)' 'BUILTIN\Administrators:(F)' "${ServiceAccount}:(R)" | Out-Null
@@ -123,7 +132,7 @@ if ($acl -match '(?i)\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTER
 $taskArgs = "`"$RuntimeDir\src\cli.js`" windows-supervisor `"$SupervisorConfig`""
 $manifest.taskExe = $node
 $manifest.taskArgs = $taskArgs
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+Write-Manifest $manifestPath $manifest
 $action = New-ScheduledTaskAction -Execute $node -Argument $taskArgs -WorkingDirectory $RuntimeDir
 $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -RunLevel Limited
 # A persistent agent must recover after reboot and transient failures. This
@@ -145,7 +154,7 @@ $json | Add-Member -NotePropertyName supervisorTokenFile -NotePropertyValue $tok
 )
 
 $manifest.proposedSha256 = Get-Sha256 $proposed
-$manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
+Write-Manifest $manifestPath $manifest
 Write-Output "Prepared. Task '$TaskName' is registered DISABLED and nothing was started."
 Write-Output "Proposed agent config: $proposed (agent.json was not modified)."
 Write-Output "Rollback: scripts\windows\rollback-windows-supervisor.ps1 -BackupDir `"$backup`" -TaskName $TaskName -Apply"
