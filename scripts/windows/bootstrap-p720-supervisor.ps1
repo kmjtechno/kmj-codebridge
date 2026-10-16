@@ -77,6 +77,11 @@ Write-Output 'CINECORE_AGENT=UNTOUCHED'
 Write-Output 'SUPERVISOR_START=NO'
 Write-Output 'ROLLBACK=INSTALLER_MANIFEST'
 if (-not $Apply) { return }
+$identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$principal = New-Object Security.Principal.WindowsPrincipal($identity)
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  throw 'ADMINISTRATOR_REQUIRED: right-click the trusted CMD launcher and choose Run as administrator'
+}
 
 # New install root only. Never execute Git commands within a live source checkout.
 New-Item -ItemType Directory -Path $ReleaseRoot -Force | Out-Null
