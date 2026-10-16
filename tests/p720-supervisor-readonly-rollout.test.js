@@ -20,7 +20,9 @@ test("rollout verifies existing task, manifest, token, HMAC and authorized proje
   const initialHmac = script.indexOf("Verify-OldHmac");
   const stage = script.indexOf("ROLLOUT_PREFLIGHT=PASS");
   const stagedHmac = script.indexOf("ROLLOUT_CANDIDATE_INVALID");
-  const swap = script.indexOf("[IO.File]::Replace($replace,$Config,$backupFile)");
+  const swap = script.indexOf(
+    "[IO.File]::Replace($replace,$Config,$backupFile)",
+  );
   const task = script.indexOf("Stop-ScheduledTask -TaskName $TaskName");
   const live = script.indexOf("& $node $Verifier live $Release $Config");
   assert.ok(initialHmac > 0 && stage > initialHmac);
@@ -36,7 +38,10 @@ test("rollout verifies existing task, manifest, token, HMAC and authorized proje
 });
 
 test("rollback restores exact original task and config with HMAC proof", () => {
-  assert.match(script, /Set-ScheduledTask -TaskName \$TaskName -TaskPath '\\' -Action \$oldAction/);
+  assert.match(
+    script,
+    /Set-ScheduledTask -TaskName \$TaskName -TaskPath '\\' -Action \$oldAction/,
+  );
   assert.match(script, /ROLLOUT_RESTORE_HASH_MISMATCH/);
   assert.match(script, /ROLLOUT_ROLLBACK_HMAC_FAILED/);
   assert.match(script, /KMJ_ROLLOUT_ROLLBACK=PASS/);
