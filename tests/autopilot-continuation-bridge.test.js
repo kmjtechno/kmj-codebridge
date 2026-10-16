@@ -45,7 +45,10 @@ test("new approved queue item is durably published to the correct project mailbo
   assert.equal(messages[0].requestKey, "next-" + task.id);
   assert.equal(messages[0].recipient, "all");
   assert.equal(coordination.list("p2").totalStored, 0);
-  assert.doesNotMatch(JSON.stringify(messages), /private customer|leaseToken|secret/i);
+  assert.doesNotMatch(
+    JSON.stringify(messages),
+    /private customer|leaseToken|secret/i,
+  );
   assert.equal(bridge.status("p1").automaticChatWake, false);
   assert.equal(bridge.status("p1").backgroundInference, false);
 });
@@ -139,7 +142,10 @@ test("crash-restart reconcile is idempotent, closes cleanly and never runs comma
   });
   await wake();
   assert.equal(coordination.list("p1").totalStored, 1);
-  assert.equal(coordination.list("p1").messages[0].requestKey, "next-" + item.id);
+  assert.equal(
+    coordination.list("p1").messages[0].requestKey,
+    "next-" + item.id,
+  );
   b.close();
   journal.enqueue({
     project: "p1",
@@ -176,10 +182,7 @@ test("missing or full coordination mailbox never destroys completed journal stat
   await wake();
   assert.equal(posts.length, 1);
   assert.equal(journal.status("p1").counts.queued, 1);
-  assert.equal(
-    bridge.status("p1").lastError,
-    "COORDINATION_CAPACITY_REACHED",
-  );
+  assert.equal(bridge.status("p1").lastError, "COORDINATION_CAPACITY_REACHED");
 });
 
 test("receipts never include objectives, checkpoints or arbitrary shell actions", (t) => {
@@ -194,5 +197,8 @@ test("receipts never include objectives, checkpoints or arbitrary shell actions"
     items.map((item) => item.key),
     ["next-" + task.id],
   );
-  assert.doesNotMatch(JSON.stringify(items), /sensitive task objective|shell|execute arbitrary/);
+  assert.doesNotMatch(
+    JSON.stringify(items),
+    /sensitive task objective|shell|execute arbitrary/,
+  );
 });
