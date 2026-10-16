@@ -70,7 +70,7 @@ $origin = (& $git -C $runtime remote get-url origin).Trim()
 if ($LASTEXITCODE -ne 0 -or $origin -cne 'https://github.com/kmjtechno/kmj-codebridge.git') {
   throw 'RUNTIME_ORIGIN_MISMATCH'
 }
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
 if (@($task.Actions).Count -ne 1 -or
     $task.Actions[0].Execute -cne $manifest.taskExe -or
     $task.Actions[0].Arguments -cne $manifest.taskArgs -or
@@ -100,9 +100,9 @@ $verifier = Join-Path $PSScriptRoot 'verify-p720-supervisor.mjs'
 if (-not (Test-Path -LiteralPath $verifier -PathType Leaf)) { throw 'HMAC_VERIFIER_MISSING' }
 $enabled = $false
 try {
-  Enable-ScheduledTask -TaskName $TaskName -ErrorAction Stop | Out-Null
+  Enable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop | Out-Null
   $enabled = $true
-  Start-ScheduledTask -TaskName $TaskName -ErrorAction Stop
+  Start-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   $verified = $false
   for ($attempt = 0; $attempt -lt 15; $attempt++) {
     & $node $verifier $manifestFile.DirectoryName | Out-Null
@@ -117,8 +117,8 @@ try {
   Write-Output 'AGENT_HANDOFF=PENDING_SEPARATE_VERIFIED_STEP'
 } catch {
   if ($enabled) {
-    Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-    Disable-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue | Out-Null
+    Stop-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+    Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue | Out-Null
   }
   throw 'SUPERVISOR_ACTIVATION_ROLLED_BACK'
 }
