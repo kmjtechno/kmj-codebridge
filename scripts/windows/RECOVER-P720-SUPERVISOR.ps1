@@ -64,6 +64,405 @@ $running = @(Get-CimInstance Win32_Process -ErrorAction Stop |
     )
   })
 if ($running.Count -gt 0) {
+  # Never reveal CommandLine or any credential-bearing process arguments.
+  # Only show safe Windows process metadata so false matches are diagnosable.
+  Write-Output "KMJ_RECOVERY_BLOCKING_PROCESS_COUNT=$($running.Count)"
+  foreach ($proc in @($running | Sort-Object ProcessId | Select-Object -First 12)) {
+    $kind = switch -Regex ([string]$proc.Name) {
+      '^(powershell|pwsh)\.exe
+  Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
+  if ($Apply) {
+    throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
+  }
+  return
+}
+
+$backups = @()
+if (Test-Path -LiteralPath $BackupRoot -PathType Container) {
+  foreach ($file in @(Get-ChildItem -LiteralPath $BackupRoot -Filter manifest.json -File -Recurse -ErrorAction Stop)) {
+    try {
+      $m = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+      if ($m.schema -eq 2 -and $m.taskName -ceq $TaskName) { $backups += $file }
+    } catch {
+      # Foreign or malformed backups are never silently modified.
+    }
+  }
+}
+if ($backups.Count -gt 1) {
+  throw 'RECOVERY_AMBIGUOUS_BACKUPS: no task or file changed'
+}
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+if ($task) {
+  if ($backups.Count -ne 1) {
+    throw 'RECOVERY_TASK_WITHOUT_UNIQUE_BACKUP'
+  }
+  if ($task.State -eq 'Disabled') {
+    Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=GUARDED_HMAC_ACTIVATION'
+    if (-not $Apply) { return }
+    & $activation -Apply
+    if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  if ($task.State -in @('Ready', 'Running')) {
+    Write-Output 'KMJ_RECOVERY_STATE=SUPERVISOR_TASK_ENABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=HMAC_HEALTH_CHECK_ONLY'
+    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    & $node $verifier $backups[0].DirectoryName
+    if ($LASTEXITCODE -ne 0) { throw 'RECOVERY_ENABLED_TASK_HMAC_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  throw 'RECOVERY_TASK_UNEXPECTED_STATE'
+}
+# Do not reuse partial install state. There is only one safe automatic
+# resumption path when the task has not yet been registered.
+if ($backups.Count -ne 0 -or
+    (Test-Path -LiteralPath $supervisorConfig) -or
+    (Test-Path -LiteralPath $token) -or
+    (Test-Path -LiteralPath $proposed)) {
+  throw 'RECOVERY_PARTIAL_REGISTRATION: preserve files for guarded review'
+}
+if (Test-Path -LiteralPath $ReleaseDir -PathType Container) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleaseDir '.git'))) {
+    throw 'RECOVERY_EXISTING_RELEASE_NOT_GIT'
+  }
+  Write-Output 'KMJ_RECOVERY_STATE=ISOLATED_RELEASE_PRESENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=VERIFY_AND_RESUME_EXISTING_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Resume -Apply
+} else {
+  Write-Output 'KMJ_RECOVERY_STATE=RELEASE_ABSENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=PREPARE_NEW_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Apply
+}
+if (-not $?) { throw 'RECOVERY_PREPARATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+& $activation -Apply
+if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+ { 'INSTALLER_HOST'; break }
+      '^git\.exe
+  Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
+  if ($Apply) {
+    throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
+  }
+  return
+}
+
+$backups = @()
+if (Test-Path -LiteralPath $BackupRoot -PathType Container) {
+  foreach ($file in @(Get-ChildItem -LiteralPath $BackupRoot -Filter manifest.json -File -Recurse -ErrorAction Stop)) {
+    try {
+      $m = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+      if ($m.schema -eq 2 -and $m.taskName -ceq $TaskName) { $backups += $file }
+    } catch {
+      # Foreign or malformed backups are never silently modified.
+    }
+  }
+}
+if ($backups.Count -gt 1) {
+  throw 'RECOVERY_AMBIGUOUS_BACKUPS: no task or file changed'
+}
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+if ($task) {
+  if ($backups.Count -ne 1) {
+    throw 'RECOVERY_TASK_WITHOUT_UNIQUE_BACKUP'
+  }
+  if ($task.State -eq 'Disabled') {
+    Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=GUARDED_HMAC_ACTIVATION'
+    if (-not $Apply) { return }
+    & $activation -Apply
+    if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  if ($task.State -in @('Ready', 'Running')) {
+    Write-Output 'KMJ_RECOVERY_STATE=SUPERVISOR_TASK_ENABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=HMAC_HEALTH_CHECK_ONLY'
+    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    & $node $verifier $backups[0].DirectoryName
+    if ($LASTEXITCODE -ne 0) { throw 'RECOVERY_ENABLED_TASK_HMAC_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  throw 'RECOVERY_TASK_UNEXPECTED_STATE'
+}
+# Do not reuse partial install state. There is only one safe automatic
+# resumption path when the task has not yet been registered.
+if ($backups.Count -ne 0 -or
+    (Test-Path -LiteralPath $supervisorConfig) -or
+    (Test-Path -LiteralPath $token) -or
+    (Test-Path -LiteralPath $proposed)) {
+  throw 'RECOVERY_PARTIAL_REGISTRATION: preserve files for guarded review'
+}
+if (Test-Path -LiteralPath $ReleaseDir -PathType Container) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleaseDir '.git'))) {
+    throw 'RECOVERY_EXISTING_RELEASE_NOT_GIT'
+  }
+  Write-Output 'KMJ_RECOVERY_STATE=ISOLATED_RELEASE_PRESENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=VERIFY_AND_RESUME_EXISTING_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Resume -Apply
+} else {
+  Write-Output 'KMJ_RECOVERY_STATE=RELEASE_ABSENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=PREPARE_NEW_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Apply
+}
+if (-not $?) { throw 'RECOVERY_PREPARATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+& $activation -Apply
+if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+ { 'GIT_STAGE'; break }
+      '^(npm|cmd)\.cmd
+  Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
+  if ($Apply) {
+    throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
+  }
+  return
+}
+
+$backups = @()
+if (Test-Path -LiteralPath $BackupRoot -PathType Container) {
+  foreach ($file in @(Get-ChildItem -LiteralPath $BackupRoot -Filter manifest.json -File -Recurse -ErrorAction Stop)) {
+    try {
+      $m = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+      if ($m.schema -eq 2 -and $m.taskName -ceq $TaskName) { $backups += $file }
+    } catch {
+      # Foreign or malformed backups are never silently modified.
+    }
+  }
+}
+if ($backups.Count -gt 1) {
+  throw 'RECOVERY_AMBIGUOUS_BACKUPS: no task or file changed'
+}
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+if ($task) {
+  if ($backups.Count -ne 1) {
+    throw 'RECOVERY_TASK_WITHOUT_UNIQUE_BACKUP'
+  }
+  if ($task.State -eq 'Disabled') {
+    Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=GUARDED_HMAC_ACTIVATION'
+    if (-not $Apply) { return }
+    & $activation -Apply
+    if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  if ($task.State -in @('Ready', 'Running')) {
+    Write-Output 'KMJ_RECOVERY_STATE=SUPERVISOR_TASK_ENABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=HMAC_HEALTH_CHECK_ONLY'
+    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    & $node $verifier $backups[0].DirectoryName
+    if ($LASTEXITCODE -ne 0) { throw 'RECOVERY_ENABLED_TASK_HMAC_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  throw 'RECOVERY_TASK_UNEXPECTED_STATE'
+}
+# Do not reuse partial install state. There is only one safe automatic
+# resumption path when the task has not yet been registered.
+if ($backups.Count -ne 0 -or
+    (Test-Path -LiteralPath $supervisorConfig) -or
+    (Test-Path -LiteralPath $token) -or
+    (Test-Path -LiteralPath $proposed)) {
+  throw 'RECOVERY_PARTIAL_REGISTRATION: preserve files for guarded review'
+}
+if (Test-Path -LiteralPath $ReleaseDir -PathType Container) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleaseDir '.git'))) {
+    throw 'RECOVERY_EXISTING_RELEASE_NOT_GIT'
+  }
+  Write-Output 'KMJ_RECOVERY_STATE=ISOLATED_RELEASE_PRESENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=VERIFY_AND_RESUME_EXISTING_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Resume -Apply
+} else {
+  Write-Output 'KMJ_RECOVERY_STATE=RELEASE_ABSENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=PREPARE_NEW_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Apply
+}
+if (-not $?) { throw 'RECOVERY_PREPARATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+& $activation -Apply
+if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+ { 'DEPENDENCY_STAGE'; break }
+      '^cmd\.exe
+  Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
+  if ($Apply) {
+    throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
+  }
+  return
+}
+
+$backups = @()
+if (Test-Path -LiteralPath $BackupRoot -PathType Container) {
+  foreach ($file in @(Get-ChildItem -LiteralPath $BackupRoot -Filter manifest.json -File -Recurse -ErrorAction Stop)) {
+    try {
+      $m = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+      if ($m.schema -eq 2 -and $m.taskName -ceq $TaskName) { $backups += $file }
+    } catch {
+      # Foreign or malformed backups are never silently modified.
+    }
+  }
+}
+if ($backups.Count -gt 1) {
+  throw 'RECOVERY_AMBIGUOUS_BACKUPS: no task or file changed'
+}
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+if ($task) {
+  if ($backups.Count -ne 1) {
+    throw 'RECOVERY_TASK_WITHOUT_UNIQUE_BACKUP'
+  }
+  if ($task.State -eq 'Disabled') {
+    Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=GUARDED_HMAC_ACTIVATION'
+    if (-not $Apply) { return }
+    & $activation -Apply
+    if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  if ($task.State -in @('Ready', 'Running')) {
+    Write-Output 'KMJ_RECOVERY_STATE=SUPERVISOR_TASK_ENABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=HMAC_HEALTH_CHECK_ONLY'
+    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    & $node $verifier $backups[0].DirectoryName
+    if ($LASTEXITCODE -ne 0) { throw 'RECOVERY_ENABLED_TASK_HMAC_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  throw 'RECOVERY_TASK_UNEXPECTED_STATE'
+}
+# Do not reuse partial install state. There is only one safe automatic
+# resumption path when the task has not yet been registered.
+if ($backups.Count -ne 0 -or
+    (Test-Path -LiteralPath $supervisorConfig) -or
+    (Test-Path -LiteralPath $token) -or
+    (Test-Path -LiteralPath $proposed)) {
+  throw 'RECOVERY_PARTIAL_REGISTRATION: preserve files for guarded review'
+}
+if (Test-Path -LiteralPath $ReleaseDir -PathType Container) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleaseDir '.git'))) {
+    throw 'RECOVERY_EXISTING_RELEASE_NOT_GIT'
+  }
+  Write-Output 'KMJ_RECOVERY_STATE=ISOLATED_RELEASE_PRESENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=VERIFY_AND_RESUME_EXISTING_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Resume -Apply
+} else {
+  Write-Output 'KMJ_RECOVERY_STATE=RELEASE_ABSENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=PREPARE_NEW_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Apply
+}
+if (-not $?) { throw 'RECOVERY_PREPARATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+& $activation -Apply
+if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+ { 'SHELL_PROCESS'; break }
+      '^node\.exe
+  Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
+  if ($Apply) {
+    throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
+  }
+  return
+}
+
+$backups = @()
+if (Test-Path -LiteralPath $BackupRoot -PathType Container) {
+  foreach ($file in @(Get-ChildItem -LiteralPath $BackupRoot -Filter manifest.json -File -Recurse -ErrorAction Stop)) {
+    try {
+      $m = Get-Content -LiteralPath $file.FullName -Raw -ErrorAction Stop | ConvertFrom-Json
+      if ($m.schema -eq 2 -and $m.taskName -ceq $TaskName) { $backups += $file }
+    } catch {
+      # Foreign or malformed backups are never silently modified.
+    }
+  }
+}
+if ($backups.Count -gt 1) {
+  throw 'RECOVERY_AMBIGUOUS_BACKUPS: no task or file changed'
+}
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+if ($task) {
+  if ($backups.Count -ne 1) {
+    throw 'RECOVERY_TASK_WITHOUT_UNIQUE_BACKUP'
+  }
+  if ($task.State -eq 'Disabled') {
+    Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=GUARDED_HMAC_ACTIVATION'
+    if (-not $Apply) { return }
+    & $activation -Apply
+    if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  if ($task.State -in @('Ready', 'Running')) {
+    Write-Output 'KMJ_RECOVERY_STATE=SUPERVISOR_TASK_ENABLED'
+    Write-Output 'KMJ_RECOVERY_ACTION=HMAC_HEALTH_CHECK_ONLY'
+    $node = (Get-Command node.exe -ErrorAction Stop).Source
+    & $node $verifier $backups[0].DirectoryName
+    if ($LASTEXITCODE -ne 0) { throw 'RECOVERY_ENABLED_TASK_HMAC_FAILED' }
+    Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+    Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+    return
+  }
+  throw 'RECOVERY_TASK_UNEXPECTED_STATE'
+}
+# Do not reuse partial install state. There is only one safe automatic
+# resumption path when the task has not yet been registered.
+if ($backups.Count -ne 0 -or
+    (Test-Path -LiteralPath $supervisorConfig) -or
+    (Test-Path -LiteralPath $token) -or
+    (Test-Path -LiteralPath $proposed)) {
+  throw 'RECOVERY_PARTIAL_REGISTRATION: preserve files for guarded review'
+}
+if (Test-Path -LiteralPath $ReleaseDir -PathType Container) {
+  if (-not (Test-Path -LiteralPath (Join-Path $ReleaseDir '.git'))) {
+    throw 'RECOVERY_EXISTING_RELEASE_NOT_GIT'
+  }
+  Write-Output 'KMJ_RECOVERY_STATE=ISOLATED_RELEASE_PRESENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=VERIFY_AND_RESUME_EXISTING_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Resume -Apply
+} else {
+  Write-Output 'KMJ_RECOVERY_STATE=RELEASE_ABSENT'
+  Write-Output 'KMJ_RECOVERY_ACTION=PREPARE_NEW_RELEASE'
+  if (-not $Apply) { return }
+  & $bootstrap -Apply
+}
+if (-not $?) { throw 'RECOVERY_PREPARATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_STATE=PREPARED_DISABLED'
+& $activation -Apply
+if (-not $?) { throw 'RECOVERY_ACTIVATION_FAILED' }
+Write-Output 'KMJ_RECOVERY_SUPERVISOR=VERIFIED'
+Write-Output 'KMJ_RECOVERY_AGENT_HANDOFF=PENDING'
+ { 'NODE_PROCESS'; break }
+      default { 'UNKNOWN_PROCESS' }
+    }
+    Write-Output "KMJ_RECOVERY_BLOCKING_PROCESS=$kind;PID=$($proc.ProcessId);PPID=$($proc.ParentProcessId)"
+  }
   Write-Output 'KMJ_RECOVERY_STATE=EXISTING_INSTALLER_STILL_RUNNING'
   Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
   if ($Apply) {
