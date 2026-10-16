@@ -104,6 +104,24 @@ if ($Resume) {
   if ($inFlight.Count -gt 0) {
     throw 'RESUME_ORIGINAL_INSTALLER_PROCESS_STILL_ACTIVE'
   }
+  # clone --no-checkout can finish cleanly before its separate pinned checkout.
+  # Only an empty clone (exactly .git, no indexed files) may advance that stage.
+  $headBefore = (& $git -C $ReleaseDir rev-parse HEAD).Trim()
+  if ($LASTEXITCODE -ne 0) { throw 'RESUME_HEAD_UNREADABLE' }
+  if ($headBefore -cne $ExpectedSha) {
+    $otherFiles = @(Get-ChildItem -LiteralPath $ReleaseDir -Force -ErrorAction Stop |
+      Where-Object { $_.Name -cne '.git' })
+    $indexedFiles = @(& $git -C $ReleaseDir ls-files)
+    if ($LASTEXITCODE -ne 0 -or $otherFiles.Count -ne 0 -or $indexedFiles.Count -ne 0) {
+      throw 'RESUME_CHECKOUT_IS_NOT_EMPTY: no checkout is permitted'
+    }
+    $commitObject = "$ExpectedSha" + '^{commit}'
+    & $git -C $ReleaseDir cat-file -e $commitObject
+    if ($LASTEXITCODE -ne 0) { throw 'RESUME_EXPECTED_COMMIT_MISSING' }
+    Write-Output 'STAGE=RESUME_PINNED_CHECKOUT_FROM_EMPTY_CLONE'
+    & $git -C $ReleaseDir -c core.hooksPath=NUL checkout --detach $ExpectedSha
+    if ($LASTEXITCODE -ne 0) { throw 'RESUME_PINNED_CHECKOUT_FAILED' }
+  }
   Write-Output 'RESUME=CHECK_EXISTING_IMMUTABLE_RELEASE'
 } else {
   New-Item -ItemType Directory -Path $ReleaseRoot -Force | Out-Null
