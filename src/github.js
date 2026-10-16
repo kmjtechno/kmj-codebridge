@@ -426,7 +426,9 @@ export function createGitHubBridge(config) {
             value,
             etag: safeEtag(response.headers.get("etag")),
           });
-      } else {
+      } else if (method !== "GET") {
+        // A live uncached GET must not evict independent cache keys.
+        // Only successful mutations invalidate previously cached reads.
         cacheEpoch++;
         cache.clear();
       }
