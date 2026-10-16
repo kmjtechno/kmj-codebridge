@@ -368,73 +368,73 @@ export function createGitHubBridge(config) {
     if (key && pendingReads.has(key)) return pendingReads.get(key);
     const requestEpoch = cacheEpoch;
     const execute = async () => {
-    const base = new URL(config.apiBase);
-    const url = new URL(
-      `repos/${safePath(repository)}${suffix ? "/" + suffix.replace(/^\//, "") : ""}`,
-      base,
-    );
-    if (url.origin !== base.origin) fail("GITHUB_ENDPOINT_INVALID");
-
-    if (publicReadOnly && method !== "GET") fail("GITHUB_WRITE_DISABLED");
-    const headers = {
-      accept: "application/vnd.github+json",
-      "content-type": "application/json",
-      "user-agent": `KMJ-CodeBridge/${VERSION}`,
-      "x-github-api-version": "2022-11-28",
-    };
-    if (token) headers.authorization = `Bearer ${token}`;
-    if (key && cached?.etag) headers["if-none-match"] = cached.etag;
-
-    const response = await fetch(url, {
-      method,
-      redirect: "error",
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(10000),
-    });
-
-    if (response.status === 304) {
-      // A 304 is usable only when THIS authorized request has an intact
-      // cached representation. Do not report rate-limit/authorization
-      // failures as success or serve stale data beyond a failed probe.
-      if (!key || !cached) fail("GITHUB_RESPONSE_INVALID");
-      if (requestEpoch === cacheEpoch)
-        cache.set(key, { ...cached, at: Date.now() });
-      return cached.value;
-    }
-    if (!response.ok) {
-      if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
-      if (response.status === 403) {
-        // GitHub uses HTTP 403 both for authorization denials and quota
-        // exhaustion. Inspect bounded headers only; never read an error body
-        // that may contain credential or organization details.
-        if (
-          response.headers.get("x-ratelimit-remaining") === "0" ||
-          response.headers.has("retry-after")
-        )
-          fail("GITHUB_RATE_LIMIT");
-        fail("GITHUB_AUTHORIZATION_FAILED");
+      const base = new URL(config.apiBase);
+      const url = new URL(
+        `repos/${safePath(repository)}${suffix ? "/" + suffix.replace(/^\//, "") : ""}`,
+        base,
+      );
+      if (url.origin !== base.origin) fail("GITHUB_ENDPOINT_INVALID");
+  
+      if (publicReadOnly && method !== "GET") fail("GITHUB_WRITE_DISABLED");
+      const headers = {
+        accept: "application/vnd.github+json",
+        "content-type": "application/json",
+        "user-agent": `KMJ-CodeBridge/${VERSION}`,
+        "x-github-api-version": "2022-11-28",
+      };
+      if (token) headers.authorization = `Bearer ${token}`;
+      if (key && cached?.etag) headers["if-none-match"] = cached.etag;
+  
+      const response = await fetch(url, {
+        method,
+        redirect: "error",
+        headers,
+        body: body === undefined ? undefined : JSON.stringify(body),
+        signal: AbortSignal.timeout(10000),
+      });
+  
+      if (response.status === 304) {
+        // A 304 is usable only when THIS authorized request has an intact
+        // cached representation. Do not report rate-limit/authorization
+        // failures as success or serve stale data beyond a failed probe.
+        if (!key || !cached) fail("GITHUB_RESPONSE_INVALID");
+        if (requestEpoch === cacheEpoch)
+          cache.set(key, { ...cached, at: Date.now() });
+        return cached.value;
       }
-      if (response.status === 404) fail("GITHUB_NOT_FOUND");
-      if (response.status === 409 || response.status === 422)
-        fail("GITHUB_CONFLICT");
-      if (response.status === 429) fail("GITHUB_RATE_LIMIT");
-      fail("GITHUB_REQUEST_FAILED");
-    }
-
-    const value = await readJsonLimited(response.body, 262144);
-    if (key) {
-      if (requestEpoch === cacheEpoch)
-        cache.set(key, {
-          at: Date.now(),
-          value,
-          etag: safeEtag(response.headers.get("etag")),
-        });
-    } else {
-      cacheEpoch++;
-      cache.clear();
-    }
-    return value;
+      if (!response.ok) {
+        if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
+        if (response.status === 403) {
+          // GitHub uses HTTP 403 both for authorization denials and quota
+          // exhaustion. Inspect bounded headers only; never read an error body
+          // that may contain credential or organization details.
+          if (
+            response.headers.get("x-ratelimit-remaining") === "0" ||
+            response.headers.has("retry-after")
+          )
+            fail("GITHUB_RATE_LIMIT");
+          fail("GITHUB_AUTHORIZATION_FAILED");
+        }
+        if (response.status === 404) fail("GITHUB_NOT_FOUND");
+        if (response.status === 409 || response.status === 422)
+          fail("GITHUB_CONFLICT");
+        if (response.status === 429) fail("GITHUB_RATE_LIMIT");
+        fail("GITHUB_REQUEST_FAILED");
+      }
+  
+      const value = await readJsonLimited(response.body, 262144);
+      if (key) {
+        if (requestEpoch === cacheEpoch)
+          cache.set(key, {
+            at: Date.now(),
+            value,
+            etag: safeEtag(response.headers.get("etag")),
+          });
+      } else {
+        cacheEpoch++;
+        cache.clear();
+      }
+      return value;
     };
     const pending = execute();
     if (key) {
