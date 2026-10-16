@@ -34,8 +34,9 @@ test("read-only CodeBridge status is truthful and never authorizes verification 
       throw Error("EXECUTION_NOT_PERMITTED");
     },
   });
-  const value = (await handler({ op: "project_status", projectId: "kmj-codebridge" }))
-    .response;
+  const value = (
+    await handler({ op: "project_status", projectId: "kmj-codebridge" })
+  ).response;
   assert.equal(value.projectId, "kmj-codebridge");
   assert.equal(value.present, true);
   assert.equal(value.gitCheckout, true);
@@ -45,11 +46,20 @@ test("read-only CodeBridge status is truthful and never authorizes verification 
     allowFetch: false,
   });
   await assert.rejects(
-    handler({ op: "project_verify_prepare", projectId: "kmj-codebridge", sha: "a".repeat(40) }),
+    handler({
+      op: "project_verify_prepare",
+      projectId: "kmj-codebridge",
+      sha: "a".repeat(40),
+    }),
     /SUPERVISOR_PROJECT_NOT_AUTHORIZED/,
   );
   await assert.rejects(
-    handler({ op: "project_verify_stage", projectId: "kmj-codebridge", sha: "a".repeat(40), stage: "build" }),
+    handler({
+      op: "project_verify_stage",
+      projectId: "kmj-codebridge",
+      sha: "a".repeat(40),
+      stage: "build",
+    }),
     /SUPERVISOR_PROJECT_NOT_AUTHORIZED/,
   );
   await assert.rejects(
@@ -69,17 +79,42 @@ test("read-only project schema refuses extra command knobs, duplicate IDs and un
       configPath: "D:\\KMJ-HyperSpeed\\private\\p720-codebridge\\agent.json",
     },
     projects: [],
-    readOnlyProjects: [{
-      id: "kmj-codebridge",
-      repoRoot: "D:\\KMJ-HyperSpeed\\projects\\kmj-codebridge",
-    }],
+    readOnlyProjects: [
+      {
+        id: "kmj-codebridge",
+        repoRoot: "D:\\KMJ-HyperSpeed\\projects\\kmj-codebridge",
+      },
+    ],
   };
   assert.equal(schema.safeParse(config).success, true);
   for (const bad of [
-    { ...config, readOnlyProjects: [{ ...config.readOnlyProjects[0], gitExe: "C:\\git.exe" }] },
-    { ...config, readOnlyProjects: [{ ...config.readOnlyProjects[0], repoRoot: "D:\\KMJ-HyperSpeed\\..\\Windows" }] },
-    { ...config, readOnlyProjects: [{ ...config.readOnlyProjects[0], id: "invalid id" }] },
-    { ...config, readOnlyProjects: [config.readOnlyProjects[0], config.readOnlyProjects[0]] },
+    {
+      ...config,
+      readOnlyProjects: [
+        { ...config.readOnlyProjects[0], gitExe: "C:\\git.exe" },
+      ],
+    },
+    {
+      ...config,
+      readOnlyProjects: [
+        {
+          ...config.readOnlyProjects[0],
+          repoRoot: "D:\\KMJ-HyperSpeed\\..\\Windows",
+        },
+      ],
+    },
+    {
+      ...config,
+      readOnlyProjects: [{ ...config.readOnlyProjects[0], id: "invalid id" }],
+    },
+    {
+      ...config,
+      readOnlyProjects: [
+        config.readOnlyProjects[0],
+        config.readOnlyProjects[0],
+      ],
+    },
     { ...config, projects: [{ id: "kmj-codebridge" }] },
-  ]) assert.equal(schema.safeParse(bad).success, false);
+  ])
+    assert.equal(schema.safeParse(bad).success, false);
 });
