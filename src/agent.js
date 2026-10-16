@@ -7,6 +7,7 @@ import { agentSchema } from "./config.js";
 import { AgentUpdateGuard } from "./update-maintenance.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
+import { startAutopilotContinuationBridge } from "./autopilot-continuation-bridge.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
 import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
 import { startGitHubCiWatchWorker } from "./autopilot-ci-watch-worker.js";
@@ -204,6 +205,11 @@ export async function startAgent(
     runner,
   });
   workers = [gateWorker, repairWorker, ciWatchWorker, localDraftWorker];
+  const continuationBridge = startAutopilotContinuationBridge({
+    journal: autopilot,
+    stateDir: state,
+    projects: c.projects.map((project) => project.id),
+  });
   activity.start();
   const controller = new AbortController();
   let stopped = false;
@@ -212,6 +218,8 @@ export async function startAgent(
     repair: repairWorker.enabledProjects,
     githubCiWatch: ciWatchWorker.enabledProjects,
     localDraft: localDraftWorker.enabledProjects,
+    continuation: c.projects.map((project) => project.id),
+    continuationStatus: (project) => continuationBridge.status(project),
     get agentRunning() {
       return !stopped;
     },
@@ -388,6 +396,7 @@ export async function startAgent(
       await localDraftWorker.close();
       await repairWorker.close();
       await ciWatchWorker.close();
+      continuationBridge.close();
       await runner.close();
       releaseAgentLock(agentLock);
     },
