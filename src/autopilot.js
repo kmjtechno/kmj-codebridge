@@ -48,6 +48,7 @@ export class AutopilotJournal {
     this.needsMigration = false;
     fs.mkdirSync(dir, { recursive: true, mode: 0o700 });
     this.state = this.load();
+    this.changeListeners = new Set();
 
     let recovered = false;
     const exhausted = [];
@@ -131,6 +132,18 @@ export class AutopilotJournal {
       fs.closeSync(fd);
     }
     fs.renameSync(tmp, this.file);
+    // Notify local approved workers only after durable journal commit.
+    // Microtasks prevent reentrant task claims during a state transition.
+    for (const listener of this.changeListeners)
+      queueMicrotask(() => {
+        if (this.changeListeners.has(listener)) listener();
+      });
+  }
+
+  subscribe(listener) {
+    if (typeof listener !== "function") fail("INVALID_AUTOPILOT_LISTENER");
+    this.changeListeners.add(listener);
+    return () => this.changeListeners.delete(listener);
   }
 
   // The lease token is a fencing token returned only to the claimant; other
