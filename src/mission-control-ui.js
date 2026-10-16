@@ -192,14 +192,41 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    text("nextAction",data.nextReadyTaskId?"Next ready task: "+safeName(data.nextReadyTaskId):"Next: "+safeName(data.action));
    text("workHint",tasks?"Task counts from latest authorized snapshot.":"No authenticated task snapshot received.");
  }
+ // ChatGPT's legacy bridge is optional. The portable MCP Apps protocol
+ // requires a JSON-RPC initialize/initialized handshake with the parent host.
+ // This view intentionally sends no tools/call and has no write capabilities.
  try{if(window.openai&&window.openai.toolOutput)render(window.openai.toolOutput);}catch(_){}
+ var initializeId=1;
+ var initialized=false;
  window.addEventListener("message",function(event){
    if(event.source!==window.parent)return;
    var message=event.data;
-   if(!message||message.method!=="ui/notifications/tool-result")return;
+   if(!message||message.jsonrpc!=="2.0")return;
+   if(message.id===initializeId){
+     if(!initialized&&message.result&&message.result.protocolVersion){
+       initialized=true;
+       window.parent.postMessage({
+         jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
+       },"*");
+     }
+     return;
+   }
+   if(message.method!=="ui/notifications/tool-result")return;
    var params=message.params||{};
    render(params.structuredContent||params.result&&params.result.structuredContent);
  });
+ if(window.parent&&typeof window.parent.postMessage==="function"){
+   window.parent.postMessage({
+     jsonrpc:"2.0",
+     id:initializeId,
+     method:"ui/initialize",
+     params:{
+       appInfo:{name:"KMJ CodeBridge Mission Control",version:"1.0.0"},
+       appCapabilities:{},
+       protocolVersion:"2026-01-26"
+     }
+   },"*");
+ }
 })();
 </script>
 </body>
