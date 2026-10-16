@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import { readJsonLimited } from "./http.js";
+import { classifyCiFailureStage } from "./ci-failure-stage.js";
 
 const SHA = /^[a-f0-9]{40}$/;
 const API = "https://api.github.com";
@@ -70,8 +71,8 @@ function matchesFailedJob(data, name, head) {
     data.total_count > MAX_JOBS ||
     data.jobs.length > MAX_JOBS
   )
-    return false;
-  return data.jobs.some(
+    return null;
+  return data.jobs.find(
     (job) =>
       job &&
       job.name === name &&
@@ -167,14 +168,20 @@ export class GitHubCiWatchWorker {
             `${prefix}/actions/runs/${run.id}/jobs?per_page=${MAX_JOBS}`,
             token,
           );
-          if (!matchesFailedJob(jobs, config.job, actual.head)) continue;
+          const failedJob = matchesFailedJob(jobs, config.job, actual.head);
+          if (!failedJob) continue;
+          const failedStage = classifyCiFailureStage(failedJob);
           // The journal is durable: task keys encode the exact SHA and
           // recipe so repeated polls and restarts cannot queue duplicates.
           this.journal.enqueue({
             project: project.id,
             key: `auto-repair:${config.recipe}:${actual.head}`,
             objective:
-              "Owner-approved deterministic repair of exact-SHA failed CI; review required before publication",
+              "Owner-approved deterministic repair of exact-SHA failed CI. " +
+              "GitHub job-step evidence: " +
+              failedStage +
+              " (classification only, not verified root cause). " +
+              "Review and test required before publication",
             priority: 0,
           });
         } catch {
