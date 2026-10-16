@@ -196,7 +196,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      var safe=entry&&typeof entry.gate==="string"&&
        /^[A-Za-z0-9_.:-]{1,100}$/.test(entry.gate)&&
        ["queued","running","succeeded","failed","cancelled","timed_out","interrupted"].indexOf(entry.state)>=0&&
-       typeof entry.at==="string"&&/^\\d{4}-\\d\\d-\\d\\dT/.test(entry.at);
+       typeof entry.at==="string"&&/^[0-9]{4}-[0-9]{2}-[0-9]{2}T/.test(entry.at);
      row.hidden=!safe;
      if(!safe)continue;
      row.setAttribute("data-state",entry.state);
