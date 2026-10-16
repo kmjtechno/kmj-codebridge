@@ -181,7 +181,8 @@ test("activation validates pinned source, task identity, token, backups and HMAC
     "RUNTIME_ORIGIN_MISMATCH",
     "TASK_IDENTITY_MISMATCH",
     "SUPERVISOR_HMAC_VERIFICATION_FAILED",
-  ]) assert.ok(activation.includes(marker), marker);
+  ])
+    assert.ok(activation.includes(marker), marker);
   assert.match(activation, /Enable-ScheduledTask/);
   assert.match(activation, /Start-ScheduledTask/);
   assert.match(activation, /Disable-ScheduledTask/);
@@ -189,7 +190,10 @@ test("activation validates pinned source, task identity, token, backups and HMAC
   assert.match(activator, /activate-p720-supervisor\.ps1/);
   assert.match(health, /windowsSupervisorRequest/);
   assert.match(health, /HMAC_STATUS=PASS/);
-  assert.doesNotMatch(activation, /git reset|Restart-Service|Unregister-ScheduledTask/i);
+  assert.doesNotMatch(
+    activation,
+    /git reset|Restart-Service|Unregister-ScheduledTask/i,
+  );
 });
 
 test("rollback refuses overwriting newer operator configuration", () => {
@@ -200,16 +204,24 @@ test("rollback refuses overwriting newer operator configuration", () => {
   );
 });
 
-test("native Windows parser also accepts guarded activation script", {
-  skip: process.platform !== "win32",
-}, () => {
-  execFileSync("powershell.exe", [
-    "-NoProfile",
-    "-Command",
-    "$tokens=$null; $errors=$null; " +
-      "[System.Management.Automation.Language.Parser]::ParseFile(" +
-      "'scripts/windows/activate-p720-supervisor.ps1'," +
-      "[ref]$tokens,[ref]$errors) | Out-Null; " +
-      "if($errors.Count -gt 0){throw $errors[0].Message}",
-  ], { timeout: 20000, stdio: "pipe" });
-});
+test(
+  "native Windows parser also accepts guarded activation script",
+  {
+    skip: process.platform !== "win32",
+  },
+  () => {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-Command",
+        "$tokens=$null; $errors=$null; " +
+          "[System.Management.Automation.Language.Parser]::ParseFile(" +
+          "'scripts/windows/activate-p720-supervisor.ps1'," +
+          "[ref]$tokens,[ref]$errors) | Out-Null; " +
+          "if($errors.Count -gt 0){throw $errors[0].Message}",
+      ],
+      { timeout: 20000, stdio: "pipe" },
+    );
+  },
+);
