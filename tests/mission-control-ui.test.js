@@ -108,7 +108,10 @@ test("MCP Apps sends the portable handshake before receiving results", () => {
   const view = openCard();
   assert.equal(view.parentMessages.length, 1);
   assert.equal(view.parentMessages[0].message.method, "ui/initialize");
-  assert.equal(view.parentMessages[0].message.params.protocolVersion, "2026-01-26");
+  assert.equal(
+    view.parentMessages[0].message.params.protocolVersion,
+    "2026-01-26",
+  );
   view.handshake();
   assert.equal(view.parentMessages.length, 2);
   assert.equal(
