@@ -8,6 +8,7 @@ import { AgentCoordination } from "../src/agent-coordination.js";
 import {
   continuationReceipts,
   startAutopilotContinuationBridge,
+  startOptionalAutopilotContinuationBridge,
 } from "../src/autopilot-continuation-bridge.js";
 
 function setup(t) {
@@ -230,6 +231,26 @@ test("failed mailbox write retries only after bounded cooldown", async (t) => {
   await wake();
   assert.equal(attempts, 2);
   assert.equal(bridge.status("p1").lastError, "COORDINATION_CAPACITY_REACHED");
+});
+
+test("optional mailbox failure never prevents the main agent journal from functioning", (t) => {
+  const { dir, journal } = setup(t);
+  const occupied = path.join(dir, "occupied-file");
+  fs.writeFileSync(occupied, "not a directory");
+  const bridge = startOptionalAutopilotContinuationBridge({
+    journal,
+    stateDir: occupied,
+    projects: ["p1"],
+  });
+  t.after(() => bridge.close());
+  assert.equal(bridge.status("p1").installed, false);
+  assert.equal(bridge.status("p1").lastError, "COORDINATION_HANDOFF_FAILED");
+  const task = journal.enqueue({
+    project: "p1",
+    key: "still-operational",
+    objective: "Authorized journal must survive optional outbox failure",
+  });
+  assert.equal(journal.status("p1").next.id, task.id);
 });
 
 test("receipts never include objectives, checkpoints or arbitrary shell actions", (t) => {
