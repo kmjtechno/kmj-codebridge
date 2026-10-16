@@ -26,6 +26,7 @@ import { VERSION } from "./version.js";
 import {
   KMJ_STATUS_RESOURCE_URI,
   KMJ_STATUS_HTML,
+  APPROVED_ICON_URL,
   compactWorkBrief,
   compactStatusText,
 } from "./branded-status.js";
@@ -137,6 +138,11 @@ function json(res, status, data) {
 const body = readJsonLimited;
 export async function startGateway(rawConfig) {
   const config = gatewaySchema.parse(rawConfig);
+  // Use the repository-approved, immutable CodeBridge icon when the operator
+  // has not configured a different public HTTPS icon URL. MCP hosts decide
+  // whether to display it; this only makes the standards metadata complete.
+  const clientIconUrl = config.iconUrl ?? APPROVED_ICON_URL;
+  const clientIcons = [{ src: clientIconUrl, mimeType: "image/png" }];
   if (
     new Set(config.agents.map((a) => a.id)).size !== config.agents.length ||
     new Set(
@@ -875,13 +881,10 @@ export async function startGateway(rawConfig) {
         // discovery, so origins that only route /mcp can still be verified.
         ...(serverCommit !== null ? { commit: serverCommit } : {}),
         // Standard MCP `Implementation.icons` (spec 2025-11-25 / SEP-973).
-        // Omitted entirely unless the operator configures a real, publicly
-        // reachable HTTPS icon URL via `iconUrl` — never a fabricated or
-        // guessed path. See docs/CLIENTS.md "Connector and plugin icon
-        // behavior" for which clients currently honor this.
-        ...(config.iconUrl
-          ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
-          : {}),
+        // Defaults to CodeBridge's pinned, approved PNG; an operator can
+        // explicitly override it with a validated public HTTPS iconUrl.
+        // Rendering/permission-dialog appearance is controlled by the host.
+        icons: clientIcons,
       });
       for (const [name, d] of Object.entries(allDefinitions))
         mcp.registerTool(
@@ -890,12 +893,9 @@ export async function startGateway(rawConfig) {
             title: d.title,
             description: d.description,
             inputSchema: d.input,
-            // MCP Apps tool-activity icons resolve before the generic server
-            // fallback. Advertise only the same explicitly configured HTTPS
-            // PNG as serverInfo; never invent a URL or change OAuth/tool grants.
-            ...(config.iconUrl
-              ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
-              : {}),
+            // Advertise the same pinned/validated icon as serverInfo.
+            // Hosts may choose to ignore this metadata.
+            icons: clientIcons,
             ...toolSecurityMeta(config.oauth, d.access),
             annotations: {
               title: d.title,
@@ -1252,12 +1252,9 @@ export async function startGateway(rawConfig) {
                     pipeStrategy: "input",
                   })
                 : { type: "object", properties: {} },
-              // OAuth public tools/list is CodeBridge's hosted ChatGPT
-              // catalog. Current SDK v1.31 registerTool omits icons from
-              // its default list handler, so advertise them here explicitly.
-              ...(config.iconUrl
-                ? { icons: [{ src: config.iconUrl, mimeType: "image/png" }] }
-                : {}),
+              // Keep the public tools/list icon consistent with serverInfo
+              // and the registered tool even when the SDK omits tool icons.
+              icons: clientIcons,
               annotations: {
                 title: d.title,
                 readOnlyHint: d.access === "read",
