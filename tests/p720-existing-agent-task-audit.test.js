@@ -74,7 +74,10 @@ test("principal mismatch diagnosis emits safe identity, logon and run-level clas
     diagnostic,
     /^\s*(?:Set-ScheduledTask|Start-ScheduledTask|Stop-ScheduledTask|Disable-ScheduledTask|Enable-ScheduledTask|Register-ScheduledTask|Unregister-ScheduledTask|Stop-Process|Start-Process|Set-Content|Out-File)\b/im,
   );
-  assert.doesNotMatch(diagnostic, /Write-Output[^\r\n]*(?:\$ownerName|\$ownerSid|\$taskAccount|\$taskSid|CommandLine)/);
+  assert.doesNotMatch(
+    diagnostic,
+    /Write-Output[^\r\n]*(?:\$ownerName|\$ownerSid|\$taskAccount|\$taskSid|CommandLine)/,
+  );
   assert.match(launcher, /DIAGNOSE-P720-AGENT-TASK-PRINCIPAL\.ps1/);
 });
 test(
