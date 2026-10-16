@@ -1,6 +1,7 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
@@ -1059,6 +1060,24 @@ export const definitions = {
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
     },
     access: "write",
+  },
+  browser_qa_start: {
+    title: "Live public browser QA",
+    description:
+      "Queue authenticated CodeBridge work for real anonymous Chrome/Edge public-site checks at fixed KMJ Main Platform URLs in desktop, tablet and mobile viewports. Captures nine private screenshots and HTTP/layout/JS evidence without touching the checkout, opening arbitrary URLs, or accessing owner sessions. Job status can be read while other project work continues; one free-plan agent still has one execution slot.",
+    input: {
+      ...scoped,
+      target: z.literal("kmj_public"),
+      requestKey: z.string().min(1).max(128),
+    },
+    access: "execute",
+  },
+  browser_qa_receipt: {
+    title: "Browser QA evidence receipt",
+    description:
+      "Read a finished private browser QA receipt from a known job. Returns fixed public routes, viewport result codes and SHA-256 screenshot hashes, not image contents, browser cookies or credentials.",
+    input: { ...scoped, job: identifier },
+    access: "read",
   },
   list_project_jobs: {
     title: "Project sessions and jobs",
@@ -3329,6 +3348,85 @@ export function createDispatcher(
         args: variant.args,
         timeoutMs: variant.timeoutMs,
       });
+    }
+    if (name === "browser_qa_start") {
+      if (p.id !== "kmj-main-platform" || !p.writable)
+        fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
+      if (!laneStateDir) fail("BROWSER_QA_STATE_UNAVAILABLE");
+      // This executable is a first-party release file, not caller-provided
+      // project code or arbitrary shell. The source is independent of repo
+      // modifications; its destination is outside the project checkout.
+      const script = fileURLToPath(
+        new URL("../scripts/browser-public-qa.mjs", import.meta.url),
+      );
+      if (!fs.existsSync(script)) fail("BROWSER_QA_RUNTIME_NOT_DEPLOYED");
+      const receiptKey = createHash("sha256")
+        .update(p.id + ":" + a.requestKey)
+        .digest("hex");
+      return runner.run({
+        project: p.id,
+        gate: "browser-qa:kmj-public",
+        key: a.requestKey,
+        cwd: p.files.root,
+        command: process.execPath,
+        args: [
+          script,
+          "kmj_public",
+          path.join(laneStateDir, "browser-qa", receiptKey),
+        ],
+        timeoutMs: 120000,
+      });
+    }
+    if (name === "browser_qa_receipt") {
+      if (p.id !== "kmj-main-platform") fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
+      const job = runner.get(a.job, p.id);
+      if (!job || job.gate !== "browser-qa:kmj-public")
+        fail("BROWSER_QA_JOB_NOT_FOUND");
+      if (!["succeeded", "failed"].includes(job.state))
+        return { job: a.job, state: job.state, ready: false };
+      if (!laneStateDir || typeof job.key !== "string")
+        fail("BROWSER_QA_STATE_UNAVAILABLE");
+      const receiptKey = createHash("sha256")
+        .update(p.id + ":" + job.key)
+        .digest("hex");
+      const reportPath = path.join(
+        laneStateDir, "browser-qa", receiptKey, "receipt.json",
+      );
+      let data;
+      try {
+        const stat = fs.lstatSync(reportPath);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 32768)
+          fail("BROWSER_QA_RECEIPT_INVALID");
+        data = JSON.parse(fs.readFileSync(reportPath, "utf8"));
+      } catch {
+        fail("BROWSER_QA_RECEIPT_NOT_AVAILABLE");
+      }
+      if (
+        data.schema !== "kmj-browser-v1" ||
+        data.target !== "kmj_public" ||
+        !Array.isArray(data.samples) ||
+        data.samples.length > 9
+      )
+        fail("BROWSER_QA_RECEIPT_INVALID");
+      return {
+        job: a.job,
+        state: job.state,
+        verdict: data.verdict === "PASS" ? "PASS" : "FAIL",
+        reason: /^[A-Z_]{4,80}$/.test(data.reason ?? "")
+          ? data.reason : null,
+        sampledAt: data.checkedAt,
+        samples: data.samples.map((sample) => ({
+          viewport: sample.viewport,
+          path: sample.path,
+          httpStatus: sample.httpStatus,
+          brokenImages: sample.brokenImages,
+          overflowPx: sample.overflowPx,
+          exceptions: sample.exceptions,
+          failures: sample.failures,
+          screenshotSha256: sample.sha256,
+          screenshotBytes: sample.bytes,
+        })),
+      };
     }
     if (name === "run_quality_gate") {
       const gate = p.gates[a.gate];
