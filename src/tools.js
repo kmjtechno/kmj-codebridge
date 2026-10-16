@@ -1775,6 +1775,7 @@ export function createDispatcher(
   audit = null,
   localModelFactory = createLocalModelClient,
   workerRuntimeSource = null,
+  toolGuardHost = null,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -1841,6 +1842,17 @@ export function createDispatcher(
         fail("FEATURE_UNAVAILABLE");
       runner.maxConcurrent = entitlement.limits.concurrent_jobs;
     }
+    // The trusted Harness-style extension seam runs AFTER the existing
+    // device, project, permission and entitlement checks. Guard plugins see
+    // immutable coarse facts only and can veto, never override authorization.
+    if (toolGuardHost)
+      await toolGuardHost.preflight({
+        device: config.id,
+        project: p.id,
+        tool: name,
+        access: definition.access,
+        writable: p.writable,
+      });
     if (name === "inspect_project" || name === "connection_doctor")
       return {
         device: config.id,
