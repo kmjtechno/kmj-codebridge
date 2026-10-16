@@ -35,3 +35,8 @@ reports sample counts and p50/p95/p99/max. It measures local synchronous calls,
 not authenticated remote latency. One query is not a representative recall
 qualification. Full reconciliation is intentional until reliable invalidation
 is implemented; no large speedup is claimed.
+
+Windows activation fails closed with `INDEX_WINDOWS_ACL_UNVERIFIED`: POSIX
+mode bits do not establish a private Windows ACL. Windows tests verify this
+refusal; the POSIX functional suite is explicitly skipped there. A Windows
+ACL adapter is required before enabling persistent indexing on Windows.

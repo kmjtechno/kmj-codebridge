@@ -19,6 +19,8 @@ function safeContent(text) {
 // Same Unix account is trusted, as in ProjectFiles; this is not a hostile-UID sandbox.
 export class HyperIndex {
   constructor(files, stateDir) {
+    if (process.platform === "win32")
+      throw Error("INDEX_WINDOWS_ACL_UNVERIFIED");
     if (!(files instanceof ProjectFiles)) throw Error("INDEX_POLICY_REQUIRED");
     this.files = files;
     stateDir = path.resolve(stateDir);
@@ -111,10 +113,7 @@ export class HyperIndex {
           }
           // Recognized credential bindings never enter the database. Filename policy
           // and this detector are defense in depth, not a universal secret detector.
-          accepted.set(relative, {
-            ...file,
-            content: safeContent(file.content),
-          });
+          accepted.set(relative, file);
         } catch {
           skipped++;
         }
@@ -134,12 +133,11 @@ export class HyperIndex {
         } else accepted.delete(row.path);
       }
       for (const [name, file] of accepted) {
+        const content = safeContent(file.content);
         this.db
           .prepare("INSERT INTO files VALUES (?,?,?)")
-          .run(name, file.sha256, file.content);
-        this.db
-          .prepare("INSERT INTO search VALUES (?,?)")
-          .run(name, file.content);
+          .run(name, file.sha256, content);
+        this.db.prepare("INSERT INTO search VALUES (?,?)").run(name, content);
         updated++;
       }
       this.db.exec("COMMIT");

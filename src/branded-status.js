@@ -1,3 +1,4 @@
+import { KMJ_MISSION_CONTROL_HTML } from "./mission-control-ui.js";
 // Read-only, token-lean project state for every MCP chat client.
 // The graphical card is opt-in and available only to MCP Apps UI hosts.
 export const KMJ_STATUS_RESOURCE_URI = "ui://kmj-codebridge/status-v1.html";
@@ -97,40 +98,10 @@ export function compactStatusText(value) {
   ].join("\n");
 }
 
-// Avoid a runtime fetch of any private asset. This is the existing approved
-// CodeBridge icon pinned to a reviewed immutable public GitHub commit.
-// No arbitrary HTML, JS or source values are interpolated into the card.
-export const KMJ_STATUS_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-:root{color-scheme:light dark;font-family:system-ui,Arial,sans-serif}
-body{margin:0;color:CanvasText;background:Canvas}
-article{padding:14px;border:1px solid color-mix(in srgb,CanvasText 16%,transparent);border-radius:12px;max-width:520px}
-header{display:flex;align-items:center;gap:12px}
-img{height:48px;width:48px;object-fit:contain;background:transparent}
-h2{margin:0;font-size:17px} small{opacity:.7}
-dl{display:grid;grid-template-columns:100px minmax(0,1fr);gap:6px;margin:14px 0 0;font-size:13px}
-dt{opacity:.7}dd{margin:0;overflow-wrap:anywhere}
-</style></head><body><article role="status" aria-label="KMJ CodeBridge progress">
-<header><img alt="Approved KMJ TECHNO icon" src="${APPROVED_ICON_URL}"><div><h2>KMJ CodeBridge</h2><small>KMJ TECHNO · INNOVATE | BUILD | SCALE</small></div></header>
-<dl><dt>Project</dt><dd id="project">Authorized project</dd>
-<dt>Next task</dt><dd id="next">Use a verified status tool</dd>
-<dt>Job slots</dt><dd id="slots">Unknown</dd>
-<dt>Release</dt><dd>Independent approval required</dd></dl></article>
-<script>
-(function(){
- const set=(id,value)=>{const element=document.getElementById(id);if(element&&value!==undefined&&value!==null)element.textContent=String(value).slice(0,128)};
- const render=(data)=>{
-   if(!data||data.product!=="KMJ CodeBridge")return;
-   set("project",data.project);
-   set("next",data.nextReadyTaskId||data.action);
-   set("slots",data.availableAuthorizedSlots);
- };
- try{render(window.openai?.toolOutput)}catch{}
- window.addEventListener("message",(event)=>{
-   if(event.source!==window.parent)return;
-   if(event.data?.method!=="ui/notifications/tool-result")return;
-   render(event.data?.params?.structuredContent);
- });
-})();
-</script></body></html>`;
+// The approved, immutable KMJ brand icon remains pinned. Keep the existing
+// ui:// status-v1 resource identifier for backwards-compatible MCP clients.
+// Mission Control never renders untrusted HTML from tool data.
+export const KMJ_STATUS_HTML = KMJ_MISSION_CONTROL_HTML.replace(
+  "__CODEBRIDGE_APPROVED_ICON_URL__",
+  APPROVED_ICON_URL,
+);

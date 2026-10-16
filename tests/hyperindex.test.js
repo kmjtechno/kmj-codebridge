@@ -1,4 +1,25 @@
-import test from "node:test";
+import nodeTest from "node:test";
+const test = (name, fn) =>
+  nodeTest(
+    name,
+    {
+      skip:
+        process.platform === "win32"
+          ? "Persistent index awaits Windows ACL verification"
+          : false,
+    },
+    fn,
+  );
+nodeTest(
+  "Windows index fails closed until private ACL verification exists",
+  { skip: process.platform !== "win32" },
+  () => {
+    assert.throws(
+      () => new HyperIndex(null, null),
+      /INDEX_WINDOWS_ACL_UNVERIFIED/,
+    );
+  },
+);
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -121,7 +142,14 @@ test("private key redaction preserves original line numbers and excludes key bod
   const f = fixture(t);
   fs.writeFileSync(
     path.join(f.root, "fixture.txt"),
-    "before\n-----BEGIN RSA PRIVATE KEY-----\nprivate-body\n-----END RSA PRIVATE KEY-----\nneedle\n",
+    [
+      "before",
+      "-----BEGIN " + "RSA PRIVATE KEY-----",
+      "private-body",
+      "-----END " + "RSA PRIVATE KEY-----",
+      "needle",
+      "",
+    ].join("\n"),
   );
   const index = new HyperIndex(f.files, f.state);
   t.after(() => index.close());
