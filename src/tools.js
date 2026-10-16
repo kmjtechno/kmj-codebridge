@@ -611,9 +611,9 @@ export const definitions = {
     access: "read",
   },
   render_codebridge_status: {
-    title: "Show KMJ CodeBridge branded project card",
+    title: "Open KMJ Mission Control",
     description:
-      "On request, show an optional KMJ TECHNO branded read-only project status card on MCP Apps-capable clients. This only displays existing approved source branding and compact verified metadata; unsupported clients get a plain text result.",
+      "Open the premium, interactive KMJ CodeBridge Mission Control (Overview, Workstream and Evidence tabs) inside MCP Apps-capable chats. Read-only and project-scoped: it displays verified Git, task queue and authorized capacity evidence only; it never fabricates progress, executes commands or exposes credentials. Text-only MCP clients receive the compact status.",
     input: {
       ...scoped,
     },
