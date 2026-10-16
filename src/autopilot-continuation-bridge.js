@@ -157,3 +157,30 @@ export class AutopilotContinuationBridge {
 export function startAutopilotContinuationBridge(options) {
   return new AutopilotContinuationBridge(options);
 }
+
+export function startOptionalAutopilotContinuationBridge(options) {
+  try {
+    return startAutopilotContinuationBridge(options);
+  } catch {
+    // Coordination is an optional notification outbox, never a dependency
+    // for the primary authorized CodeBridge agent connection or job runner.
+    const projects = Array.isArray(options?.projects) ? options.projects : [];
+    return {
+      projects: [],
+      close() {},
+      status(project) {
+        if (!projects.includes(project))
+          throw new Error("CONTINUATION_PROJECT_INVALID");
+        return {
+          project,
+          installed: false,
+          source: "COORDINATION_STORAGE_UNAVAILABLE",
+          deliveredThisProcess: 0,
+          lastError: "COORDINATION_HANDOFF_FAILED",
+          automaticChatWake: false,
+          backgroundInference: false,
+        };
+      },
+    };
+  }
+}
