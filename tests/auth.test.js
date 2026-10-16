@@ -504,9 +504,10 @@ test("hosted OAuth tools/list defaults to the pinned approved icon", async () =>
     const json = await response.json();
     assert.ok(json.result?.tools?.length > 0);
     assert.ok(
-      json.result.tools.every((tool) =>
-        JSON.stringify(tool.icons) ===
-        JSON.stringify([{ src: APPROVED_ICON_URL, mimeType: "image/png" }]),
+      json.result.tools.every(
+        (tool) =>
+          JSON.stringify(tool.icons) ===
+          JSON.stringify([{ src: APPROVED_ICON_URL, mimeType: "image/png" }]),
       ),
     );
   } finally {
