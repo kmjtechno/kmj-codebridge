@@ -343,18 +343,31 @@ export function createGitHubBridge(config) {
 
   const allowed = new Set(config.repositories);
   const cache = new Map();
+  const pendingReads = new Map();
+  let cacheEpoch = 0;
+  // Accept only bounded HTTP entity tags from the trusted GitHub origin.
+  // Never echo entity tags to callers or persist them outside this process.
+  const safeEtag = (value) =>
+    typeof value === "string" &&
+    value.length <= 200 &&
+    /^(?:W\/)?"[\x21\x23-\x7e]{1,128}"$/.test(value)
+      ? value
+      : null;
 
   const verifyRepo = (repository) => {
     if (!allowed.has(repository)) fail("GITHUB_REPOSITORY_DENIED");
   };
 
-  const request = async (method, repository, suffix, body, cacheKey) => {
+  const request = (method, repository, suffix, body, cacheKey) => {
     verifyRepo(repository);
-    const key = cacheKey ? `${repository}:${cacheKey}` : null;
+    const key =
+      method === "GET" && cacheKey ? `${repository}:${cacheKey}` : null;
     const cached = key ? cache.get(key) : null;
     if (cached && Date.now() - cached.at < config.cacheSeconds * 1000)
-      return cached.value;
-
+      return Promise.resolve(cached.value);
+    if (key && pendingReads.has(key)) return pendingReads.get(key);
+    const requestEpoch = cacheEpoch;
+    const execute = async () => {
     const base = new URL(config.apiBase);
     const url = new URL(
       `repos/${safePath(repository)}${suffix ? "/" + suffix.replace(/^\//, "") : ""}`,
@@ -370,6 +383,7 @@ export function createGitHubBridge(config) {
       "x-github-api-version": "2022-11-28",
     };
     if (token) headers.authorization = `Bearer ${token}`;
+    if (key && cached?.etag) headers["if-none-match"] = cached.etag;
 
     const response = await fetch(url, {
       method,
@@ -379,6 +393,15 @@ export function createGitHubBridge(config) {
       signal: AbortSignal.timeout(10000),
     });
 
+    if (response.status === 304) {
+      // A 304 is usable only when THIS authorized request has an intact
+      // cached representation. Do not report rate-limit/authorization
+      // failures as success or serve stale data beyond a failed probe.
+      if (!key || !cached) fail("GITHUB_RESPONSE_INVALID");
+      if (requestEpoch === cacheEpoch)
+        cache.set(key, { ...cached, at: Date.now() });
+      return cached.value;
+    }
     if (!response.ok) {
       if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
       if (response.status === 403) {
@@ -400,9 +423,30 @@ export function createGitHubBridge(config) {
     }
 
     const value = await readJsonLimited(response.body, 262144);
-    if (key) cache.set(key, { at: Date.now(), value });
-    else cache.clear();
+    if (key) {
+      if (requestEpoch === cacheEpoch)
+        cache.set(key, {
+          at: Date.now(),
+          value,
+          etag: safeEtag(response.headers.get("etag")),
+        });
+    } else {
+      cacheEpoch++;
+      cache.clear();
+    }
     return value;
+    };
+    const pending = execute();
+    if (key) {
+      pendingReads.set(key, pending);
+      // Observe both success and failure without creating an unhandled
+      // rejection from a detached .finally() continuation.
+      const cleanup = () => {
+        if (pendingReads.get(key) === pending) pendingReads.delete(key);
+      };
+      void pending.then(cleanup, cleanup);
+    }
+    return pending;
   };
 
   const raw = async (repository, suffix) => {
