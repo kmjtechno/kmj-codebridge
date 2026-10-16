@@ -179,7 +179,10 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
       arguments: { ...scope, lane: "chatA", ifNoneMatch: initialSync.digest },
     }),
   );
-  assert.equal(currentA.checkpoint.summary, "Approved project engineering checkpoint");
+  assert.equal(
+    currentA.checkpoint.summary,
+    "Approved project engineering checkpoint",
+  );
   assert.equal(currentA.checkpoint.revision, savedA.revision);
   assert.notEqual(currentA.digest, initialSync.digest);
   const tiny = value(
