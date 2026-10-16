@@ -1,12 +1,10 @@
 <#
 .SYNOPSIS
-  Prepare and activate KMJ TECHNO's OWN native Windows supervisor once.
+  Safely install or recover KMJ TECHNO's native P720 Windows supervisor.
 .DESCRIPTION
-  Operator-approved and elevated one-time bootstrap. Runs the existing
-  SHA-pinned isolated preparation, then the separately guarded HMAC activation.
-  Never edits/restarts the connected agent, CineCore or dirty checkouts.
-  Fail-closed: failure in either stage stops the sequence; activation itself
-  disables its scheduled task on failed authenticated health verification.
+  Calls the guarded state-aware recovery path. The original fresh-only
+  bootstrap cannot be invoked repeatedly after an interrupted Git clone.
+  No forced checkout, existing task/config overwrite or agent restart.
 #>
 [CmdletBinding()]
 param([switch]$Apply)
@@ -14,12 +12,9 @@ param([switch]$Apply)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$prepare = Join-Path $PSScriptRoot 'bootstrap-p720-supervisor.ps1'
-$activate = Join-Path $PSScriptRoot 'activate-p720-supervisor.ps1'
-foreach ($script in @($prepare, $activate)) {
-  if (-not (Test-Path -LiteralPath $script -PathType Leaf)) {
-    throw 'KMJ_NATIVE_SUPERVISOR_TRUSTED_SCRIPT_MISSING'
-  }
+$recovery = Join-Path $PSScriptRoot 'RECOVER-P720-SUPERVISOR.ps1'
+if (-not (Test-Path -LiteralPath $recovery -PathType Leaf)) {
+  throw 'KMJ_NATIVE_SUPERVISOR_RECOVERY_SCRIPT_MISSING'
 }
 if (-not $Apply) {
   Write-Output 'KMJ_NATIVE_SUPERVISOR=DRY_RUN'
@@ -33,25 +28,25 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
   throw 'KMJ_NATIVE_SUPERVISOR_ADMINISTRATOR_REQUIRED'
 }
 
-Write-Output 'KMJ_NATIVE_SUPERVISOR=PREPARE'
+Write-Output 'KMJ_NATIVE_SUPERVISOR=STATE_AWARE_RECOVERY'
 try {
-  & $prepare -Apply
-  if (-not $?) { throw 'KMJ_NATIVE_SUPERVISOR_PREPARE_FAILED' }
+  # This guarded script performs an immutable new preparation only when the
+  # release is absent; otherwise it verifies and safely resumes or refuses.
+  # Its -Apply path must throw on any incomplete or concurrent state.
+  & $recovery -Apply
+  if (-not $?) { throw 'KMJ_NATIVE_SUPERVISOR_RECOVERY_FAILED' }
 } catch {
-  # Do not attempt activation when immutable preparation was not successful.
-  throw 'KMJ_NATIVE_SUPERVISOR_PREPARE_BLOCKED'
+  # The previous wrapper hid every useful error behind PREPARE_BLOCKED.
+  # Expose only a stable machine-readable error code, never tokens, paths,
+  # process command lines, agent configuration or arbitrary exception text.
+  $message = [string]$_.Exception.Message
+  $code = 'UNCLASSIFIED_SETUP_FAILURE'
+  if ($message -match '^([A-Z][A-Z0-9_]{3,80})(?:\b|:|$)') {
+    $code = $Matches[1]
+  }
+  Write-Output "KMJ_NATIVE_SUPERVISOR_BLOCKER=$code"
+  throw 'KMJ_NATIVE_SUPERVISOR_RECOVERY_BLOCKED'
 }
-
-Write-Output 'KMJ_NATIVE_SUPERVISOR=ACTIVATE'
-try {
-  & $activate -Apply
-  if (-not $?) { throw 'KMJ_NATIVE_SUPERVISOR_ACTIVATE_FAILED' }
-} catch {
-  # The activation script owns its own guarded stop/disable rollback.
-  # Preserve the backup manifest and proposal for operator inspection.
-  throw 'KMJ_NATIVE_SUPERVISOR_ACTIVATION_BLOCKED'
-}
-
 Write-Output 'KMJ_NATIVE_SUPERVISOR_HMAC=PASS'
 Write-Output 'AGENT_HANDOFF=PENDING_SEPARATE_VERIFIED_STEP'
 Write-Output 'CINECORE=UNTOUCHED'
