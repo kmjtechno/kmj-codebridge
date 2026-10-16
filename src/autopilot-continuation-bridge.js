@@ -52,12 +52,19 @@ export function continuationReceipts(journal, project) {
 }
 
 export class AutopilotContinuationBridge {
-  constructor({ journal, stateDir, projects, coordination = null, now = Date.now }) {
+  constructor({
+    journal,
+    stateDir,
+    projects,
+    coordination = null,
+    now = Date.now,
+  }) {
     if (!journal || typeof journal.subscribe !== "function")
       throw new Error("CONTINUATION_JOURNAL_REQUIRED");
     if (!Array.isArray(projects) || projects.some((id) => !PROJECT.test(id)))
       throw new Error("CONTINUATION_PROJECT_INVALID");
-    if (typeof now !== "function") throw new Error("CONTINUATION_CLOCK_INVALID");
+    if (typeof now !== "function")
+      throw new Error("CONTINUATION_CLOCK_INVALID");
     this.now = now;
     this.journal = journal;
     this.projects = [...new Set(projects)];
@@ -97,10 +104,7 @@ export class AutopilotContinuationBridge {
           const previousAttempt = this.attempted.get(seenKey);
           // Transient storage failures can retry after a bounded cooldown,
           // never on every persist in the same event burst.
-          if (
-            previousAttempt !== undefined &&
-            now - previousAttempt < 60_000
-          )
+          if (previousAttempt !== undefined && now - previousAttempt < 60_000)
             continue;
           this.attempted.set(seenKey, now);
           // The immutable mailbox holds a single receipt for each task/state.
