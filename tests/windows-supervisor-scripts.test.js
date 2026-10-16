@@ -102,7 +102,10 @@ test("prepared Windows supervisor restarts after reboot but is not activated by 
 
 test("isolated P720 bootstrap uses immutable public source and refuses checkout mutation", () => {
   assert.match(bootstrap, /\$ExpectedSha = '[a-f0-9]{40}'/);
-  assert.match(bootstrap, /https:\/\/github\.com\/kmjtechno\/kmj-codebridge\.git/);
+  assert.match(
+    bootstrap,
+    /https:\/\/github\.com\/kmjtechno\/kmj-codebridge\.git/,
+  );
   assert.match(bootstrap, /--no-checkout --filter=blob:none/);
   assert.match(bootstrap, /checkout --detach \$ExpectedSha/);
   assert.match(bootstrap, /PINNED_SHA_MISMATCH/);
@@ -112,7 +115,10 @@ test("isolated P720 bootstrap uses immutable public source and refuses checkout 
   assert.match(bootstrap, /EXISTING_SUPERVISOR_TOKEN_REFUSED/);
   assert.match(bootstrap, /ACTIVE_AGENT=UNTOUCHED/);
   assert.match(bootstrap, /CINECORE_AGENT=UNTOUCHED/);
-  assert.doesNotMatch(bootstrap, /Start-ScheduledTask|Enable-ScheduledTask|Restart-Service|git reset/i);
+  assert.doesNotMatch(
+    bootstrap,
+    /Start-ScheduledTask|Enable-ScheduledTask|Restart-Service|git reset/i,
+  );
   assert.match(launcher, /bootstrap-p720-supervisor\.ps1/);
 });
 
@@ -124,25 +130,29 @@ test("Node JSON configurations are written without Windows PowerShell UTF-8 BOM"
   assert.doesNotMatch(bootstrap, /\$SupervisorConfig -Encoding UTF8/i);
 });
 
-test("Windows PowerShell parses all bootstrap and supervisor scripts without executing them", {
-  skip: process.platform !== "win32",
-}, () => {
-  const paths = [
-    "scripts/windows/install-windows-supervisor.ps1",
-    "scripts/windows/rollback-windows-supervisor.ps1",
-    "scripts/windows/bootstrap-p720-supervisor.ps1",
-  ];
-  const joined = paths.map((p) => "'" + p + "'").join(",");
-  const command = [
-    "$ErrorActionPreference = 'Stop'",
-    "foreach ($f in @(" + joined + ")) {",
-    "  $tok = $null; $errors = $null;",
-    "  [System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$tok, [ref]$errors) | Out-Null;",
-    "  if ($errors.Count -gt 0) { throw ($f + ': ' + $errors[0].Message) }",
-    "}",
-  ].join("\n");
-  execFileSync("powershell.exe", ["-NoProfile", "-Command", command], {
-    timeout: 20000,
-    stdio: "pipe",
-  });
-});
+test(
+  "Windows PowerShell parses all bootstrap and supervisor scripts without executing them",
+  {
+    skip: process.platform !== "win32",
+  },
+  () => {
+    const paths = [
+      "scripts/windows/install-windows-supervisor.ps1",
+      "scripts/windows/rollback-windows-supervisor.ps1",
+      "scripts/windows/bootstrap-p720-supervisor.ps1",
+    ];
+    const joined = paths.map((p) => "'" + p + "'").join(",");
+    const command = [
+      "$ErrorActionPreference = 'Stop'",
+      "foreach ($f in @(" + joined + ")) {",
+      "  $tok = $null; $errors = $null;",
+      "  [System.Management.Automation.Language.Parser]::ParseFile($f, [ref]$tok, [ref]$errors) | Out-Null;",
+      "  if ($errors.Count -gt 0) { throw ($f + ': ' + $errors[0].Message) }",
+      "}",
+    ].join("\n");
+    execFileSync("powershell.exe", ["-NoProfile", "-Command", command], {
+      timeout: 20000,
+      stdio: "pipe",
+    });
+  },
+);
