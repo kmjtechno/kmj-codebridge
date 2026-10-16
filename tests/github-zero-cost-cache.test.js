@@ -106,6 +106,22 @@ test("unsolicited 304 and malformed ETags cannot create false cached success", a
   assert.equal(calls[2]["if-none-match"], undefined);
 });
 
+test("live uncached GitHub doctor does not evict fresh independent read cache", async (t) => {
+  let requests = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    requests++;
+    return Response.json(repository);
+  });
+  const bridge = createGitHubBridge({ ...base, cacheSeconds: 60 });
+  await bridge("github_repository", { repository: repo });
+  const doctor = await bridge("github_connection_doctor", {
+    repository: repo,
+  });
+  assert.equal(doctor.readVerified, true);
+  await bridge("github_repository", { repository: repo });
+  assert.equal(requests, 2, "only one cached repository and one live doctor read");
+});
+
 test("cache/ETag never widens repository allowlist", async (t) => {
   let calls = 0;
   t.mock.method(globalThis, "fetch", async () => {
