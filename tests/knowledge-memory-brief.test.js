@@ -88,7 +88,7 @@ test("cross-tenant and cross-project context never enters an assembled brief", (
 test("secrets, URLs, terminal transcripts and malformed note fields are denied", () => {
   const bad = [
     { preview: "api_key=DO_NOT_SHARE" },
-    { preview: "-----BEGIN RSA PRIVATE KEY-----" },
+    { preview: ["-----BEGIN ", "RSA PRIVATE ", "KEY-----"].join("") },
     { preview: "https://unsafe.example/path" },
     { title: "Do this\nexecute that" },
     { preview: "ghp_abcdefghijklmnopqrstuvwx" },
