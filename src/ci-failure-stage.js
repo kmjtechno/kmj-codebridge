@@ -29,9 +29,15 @@ export function classifyCiFailureStage(job) {
       stages.add(STAGES.TEST);
     else if (/\b(build|compile|compilation|typecheck|type-check)\b/.test(name))
       stages.add(STAGES.BUILD);
-    else if (/\b(install dependencies|npm ci|pnpm install|yarn install)\b/.test(name))
+    else if (
+      /\b(install dependencies|npm ci|pnpm install|yarn install)\b/.test(name)
+    )
       stages.add(STAGES.DEPENDENCY);
-    else if (/\b(checkout|setup node|set up node|setup python|upload artifact)\b/.test(name))
+    else if (
+      /\b(checkout|setup node|set up node|setup python|upload artifact)\b/.test(
+        name,
+      )
+    )
       stages.add(STAGES.ENVIRONMENT);
     else stages.add("FAILED_STAGE_UNKNOWN");
   }
