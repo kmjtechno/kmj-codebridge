@@ -173,3 +173,40 @@ Close any obsolete completed console normally only after confirming its
 child installers are not active. Never delete the immutable release directory,
 agent enrollment, token or backup to bypass the concurrency check. Re-run
 guarded recovery only after the original process is demonstrably inactive.
+
+## HMAC PASS: complete the scoped P720 agent handoff
+
+If the P720 diagnostic reports `KMJ_PIPE_CHALLENGE=PASS`,
+`KMJ_SUPERVISOR_HMAC=PASS`, `KMJ_AGENT_PROPOSAL_WIRING=READY_MATCH`
+and `KMJ_AGENT_SUPERVISOR_WIRING=NOT_WIRED`, do **not** run installation,
+recovery, or supervisor activation again. The supervisor itself is already
+alive and authenticated.
+
+Use `scripts/windows/HANDOFF-P720-AGENT-SUPERVISOR.ps1` without `-Apply`
+for a read-only preflight first. It rejects a missing/multiple backup manifest,
+unknown original agent process, changed config, unexpected proposal fields,
+tampered token, mismatched SHA/origin, missing supervisor HMAC, or active
+jobs/autopilot leases.
+
+When preflight returns `KMJ_HANDOFF_PREFLIGHT=PASS`, run
+`HANDOFF-P720-AGENT-SUPERVISOR.cmd` as administrator **once** from the same
+reviewed and CI-green source tree. This is the first step that intentionally
+changes the agent: it replaces only the agent JSON using NTFS atomic replace,
+leaves a per-operation backup next to the private config, stops only the one
+matching idle P720 CodeBridge agent, and starts the already-prepared,
+immutable SHA-pinned agent runtime. It requires a new authenticated gateway
+heartbeat and rechecks HMAC. It does not fetch code, edit the dirty project
+checkout, restart the supervisor task, or modify the CineCore agent.
+
+A failed post-switch check attempts to restore the original config bytes
+and resume the original agent runtime. If output contains
+`KMJ_HANDOFF_ROLLBACK=FAILED_MANUAL_RECOVERY`, do not retry blindly.
+Preserve the backup and report only `KMJ_HANDOFF_*` status markers.
+Never share `agent.json`, `supervisor.token`, the proposal, credentials,
+backup contents, or process command lines.
+
+**End-to-end success requires both** local `KMJ_HANDOFF=PASS` and a fresh
+remote ChatGPT CodeBridge `supervisor_status(agent)` returning
+`supervisor: windows-native`. A local heartbeat alone is not enough.
+The optional Windows agent restart task and project verification profiles
+remain disabled/unconfigured unless separately approved by the operator.
