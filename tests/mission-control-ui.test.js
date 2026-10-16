@@ -36,7 +36,7 @@ function openCard(initialOutput = null) {
     }
     return elements.get(id);
   }
-  const views = ["overview", "work", "evidence"];
+  const views = ["overview", "work", "evidence", "workspace"];
   for (const view of views) {
     element("tab-" + view).attributes["data-view"] = view;
     element("panel-" + view);
@@ -294,6 +294,60 @@ test("unverified or hostile job receipts cannot create convincing work activity"
     },
   });
   assert.equal(view.element("activity-0").hidden, true);
+});
+
+test("optional Workspace renders scoped files and filters tracked diffs on click", () => {
+  const view = openCard();
+  const patch =
+    "diff --git a/src/tools.js b/src/tools.js\n--- a/src/tools.js\n+++ b/src/tools.js\n@@ -1 +1 @@\n-old\n+new\n" +
+    "diff --git a/README.md b/README.md\n--- a/README.md\n+++ b/README.md\n@@ -1 +1 @@\n-old-doc\n+new-doc\n";
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    workspace: {
+      source: "AUTHORIZED_PROJECT_READS",
+      tree: {
+        status: "AVAILABLE",
+        truncated: false,
+        entries: [
+          { path: "src", type: "directory", depth: 0 },
+          { path: "src/tools.js", type: "file", depth: 1 },
+          { path: "README.md", type: "file", depth: 0 },
+        ],
+      },
+      diff: { status: "AVAILABLE", patch, truncated: false },
+    },
+  });
+  assert.equal(view.element("workspace-file-0").hidden, false);
+  assert.equal(view.element("workspace-file-0").textContent, "src/tools.js");
+  assert.equal(view.element("workspace-file-1").textContent, "README.md");
+  assert.equal(view.element("workspace-file-2").hidden, true);
+  assert.equal(view.element("workspaceDiff").textContent, patch);
+  view.element("workspace-file-1").handlers.click();
+  assert.equal(view.element("workspace-file-1").attributes["aria-pressed"], "true");
+  assert.match(view.element("workspaceDiff").textContent, /new-doc/);
+  assert.doesNotMatch(view.element("workspaceDiff").textContent, /\+new\n/);
+
+  view.send({ product: "KMJ CodeBridge", project: "project1" });
+  assert.equal(view.element("workspace-file-0").hidden, true);
+  assert.equal(view.element("workspaceDiff").textContent, "");
+  assert.match(view.element("workspaceFilesHint").textContent, /includeWorkspace/);
+});
+
+test("no workspace data does not invent file availability or simulate a diff", () => {
+  const view = openCard();
+  assert.equal(view.element("workspace-file-0").hidden, false);
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    workspace: {
+      source: "UNVERIFIED",
+      tree: { status: "AVAILABLE", entries: [{ path: "secret", type: "file" }] },
+      diff: { status: "AVAILABLE", patch: "secret=abc" },
+    },
+  });
+  assert.equal(view.element("workspace-file-0").hidden, true);
+  assert.equal(view.element("workspaceDiff").textContent, "");
 });
 
 test("tool strings are plain text, bounded, and cannot inject markup", () => {
