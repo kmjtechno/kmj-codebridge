@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { generateKeyPair, exportJWK, SignJWT } from "jose";
 import { createServer } from "node:http";
 import { createOAuthVerifier } from "../src/auth.js";
+import { APPROVED_ICON_URL } from "../src/branded-status.js";
 const pair = await generateKeyPair("EdDSA");
 const jwk = { ...(await exportJWK(pair.publicKey)), kid: "test" };
 const config = {
@@ -483,7 +484,7 @@ test("hosted OAuth tools/list advertises the configured CodeBridge brand icon wi
   }
 });
 
-test("hosted OAuth tools/list omits icons when no HTTPS image is configured", async () => {
+test("hosted OAuth tools/list defaults to the pinned approved icon", async () => {
   const gw = await startGateway(gatewayConfig);
   try {
     const response = await fetch(gw.url + "/mcp", {
@@ -502,7 +503,13 @@ test("hosted OAuth tools/list omits icons when no HTTPS image is configured", as
     assert.equal(response.status, 200);
     const json = await response.json();
     assert.ok(json.result?.tools?.length > 0);
-    assert.ok(json.result.tools.every((tool) => tool.icons === undefined));
+    assert.ok(
+      json.result.tools.every(
+        (tool) =>
+          JSON.stringify(tool.icons) ===
+          JSON.stringify([{ src: APPROVED_ICON_URL, mimeType: "image/png" }]),
+      ),
+    );
   } finally {
     await gw.close();
   }

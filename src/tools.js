@@ -1220,23 +1220,23 @@ export const definitions = {
     access: "read",
   },
   preview_file: {
-    title: "Preview file change",
+    title: "KMJ • Preview guarded file change",
     description:
-      "Validate a proposed file replacement without changing the file.",
+      "Read-only validation of a proposed change. No write or ChatGPT write approval is requested for preview.",
     input: patch,
     access: "read",
   },
   write_file: {
-    title: "Write file",
+    title: "KMJ • Apply guarded single-file change",
     description:
-      "Replace an authorized file only when its current hash matches; null hash creates a new file.",
+      "Write ONE authorized file with SHA-256 precondition, or create with null. For multiple files prefer write_files_atomic to minimize separate host write approvals; host decides prompts.",
     input: patch,
     access: "write",
   },
   edit_file: {
-    title: "Edit file",
+    title: "KMJ • Apply exact fragment edit",
     description:
-      "Replace one exact, unique text fragment in an authorized file using its current SHA-256 precondition. This reduces payload size for focused code edits.",
+      "Write ONE exact, unique fragment inside an authorized project with SHA-256 verification. For a multi-file change prefer a single write_files_atomic call.",
     input: {
       ...file,
       oldText: z.string().min(1).max(65536),
@@ -1247,9 +1247,9 @@ export const definitions = {
     access: "write",
   },
   write_files_atomic: {
-    title: "Write files atomically",
+    title: "KMJ • Apply guarded multi-file batch",
     description:
-      "Replace or create up to 50 authorized files as one transaction. Every existing file must match its expected SHA-256 or no file is changed.",
+      "Preferred multi-file write: apply 1–50 authorized SHA-256-guarded file changes in ONE atomic transaction and ONE tool invocation. Preview and review first. Never bypass ChatGPT host approval; may reduce repetitive write prompts.",
     input: {
       ...scoped,
       leaseToken: z.string().uuid().optional(),

@@ -238,14 +238,26 @@ that icon — not anything CodeBridge configures. The Main Platform's own
 favicon is out of scope for this phase of work and will be addressed
 separately.
 
-**Standards-compliant forward path.** The gateway can still advertise a
-spec-compliant `Implementation.icons` entry (MCP spec 2025-11-25 /
-SEP-973) in its `initialize` response, for every MCP client that already
-honors it (several do; Claude's support is unreliable today). Set the
-gateway's optional `iconUrl` config field to a real, publicly reachable
-HTTPS icon URL to enable this — the gateway never fabricates or guesses a
-URL, so the field is simply omitted from `serverInfo` when `iconUrl` is
-unset.
+**Standards-compliant forward path.** The gateway advertises the existing
+approved, commit-pinned CodeBridge PNG by default through MCP
+`initialize.serverInfo.icons`, registered tool metadata, and the public
+`tools/list` catalog. Operators may override it using a validated
+public HTTPS `iconUrl`. This is an existing immutable reviewed repository
+asset, not a guessed icon path.
+
+ChatGPT and Claude may ignore MCP icons, cache earlier connector metadata, or
+display a generic native approval icon. CodeBridge cannot restyle the host's
+permission modal or add an `Always allow` control. After an approved gateway
+deployment, visually re-test the host; refresh cached connector metadata only
+via a supported client flow.
+
+**Approval friction and latency.** An authorized `write_files_atomic` call
+can change up to 50 SHA-256-guarded project files in one transaction. It may
+reduce dozens of round trips to one tool call but **does not** bypass host
+write approval or guarantee just one popup. For read-heavy chat workflows
+prefer `fast_context`, `compact_work_brief` and `fast_read_batch`
+over repeated large search/read/status calls. CodeBridge does not control
+ChatGPT's native chat rendering speed, modal layout or service latency.
 
 ## ChatGPT
 

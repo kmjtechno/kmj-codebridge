@@ -9,6 +9,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { startGateway } from "../src/gateway.js";
 import { startAgent } from "../src/agent.js";
 import { VERSION } from "../src/version.js";
+import { APPROVED_ICON_URL } from "../src/branded-status.js";
 const digest = (s) => createHash("sha256").update(s).digest("hex");
 const userToken = "u".repeat(48),
   agentToken = "a".repeat(48),
@@ -1503,15 +1504,17 @@ test("dynamically enrolled agent introspects once then serves MCP tools from cac
   assert.equal(introspections, 1);
 });
 
-test("MCP server advertises a configured icon URL and omits it when unset", async (t) => {
+test("MCP server defaults to the pinned icon and honors custom icon override", async (t) => {
   const { client: defaultClient } = await setup(t);
   const defaultServer = defaultClient.getServerVersion();
-  assert.equal(defaultServer?.icons, undefined);
+  assert.deepEqual(defaultServer?.icons, [
+    { src: APPROVED_ICON_URL, mimeType: "image/png" },
+  ]);
   const defaultTools = await defaultClient.listTools();
   assert.ok(defaultTools.tools.length > 0);
   assert.ok(
     defaultTools.tools.every((tool) => tool.icons === undefined),
-    "an unconfigured logo URL must never be invented in tools/list",
+    "the installed SDK does not forward registered tool icons on non-OAuth catalog",
   );
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));
