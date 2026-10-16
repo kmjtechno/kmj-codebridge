@@ -1408,6 +1408,13 @@ export const definitions = {
     },
     access: "read",
   },
+  autopilot_continuation_status: {
+    title: "Read automatic task-continuation handoff status",
+    description:
+      "Verify the event-driven local coordination bridge and durable project handoffs after task completion or blockers. Existing opt-in workers continue approved work; ChatGPT itself is not automatically awakened or executed.",
+    input: scoped,
+    access: "read",
+  },
   autopilot_repair_candidate: {
     title: "Review SHA-verified isolated repair candidate",
     description:
@@ -2580,6 +2587,27 @@ export function createDispatcher(
       };
     }
     if (name === "autopilot_status") return autopilot.status(p.id, a.limit);
+    if (name === "autopilot_continuation_status") {
+      const source =
+        typeof workerRuntimeSource === "function"
+          ? workerRuntimeSource()
+          : null;
+      return {
+        device: config.id,
+        project: p.id,
+        ...(source && typeof source.continuationStatus === "function"
+          ? source.continuationStatus(p.id)
+          : {
+              installed: false,
+              source: "NOT_INSTRUMENTED",
+              deliveredThisProcess: null,
+              lastError: null,
+              automaticChatWake: false,
+              backgroundInference: false,
+            }),
+        next: autopilot.status(p.id, 1).next?.id ?? null,
+      };
+    }
     if (name === "autopilot_repair_candidate")
       return reviewRepairCandidate({
         project: p,
