@@ -52,9 +52,13 @@ Write-Output 'DIRTY_CHECKOUT=UNTOUCHED'
 # into another process. A failed inventory aborts instead of guessing.
 $running = @(Get-CimInstance Win32_Process -ErrorAction Stop |
   Where-Object {
-    $_.Name -in @('git.exe','node.exe','npm.cmd','cmd.exe') -and
     $_.CommandLine -and
-    $_.CommandLine.IndexOf($ReleaseDir, [StringComparison]::OrdinalIgnoreCase) -ge 0
+    (
+      ($_.Name -in @('git.exe','node.exe','npm.cmd','cmd.exe') -and
+        $_.CommandLine.IndexOf($ReleaseDir, [StringComparison]::OrdinalIgnoreCase) -ge 0) -or
+      ($_.Name -in @('powershell.exe','pwsh.exe') -and
+        $_.CommandLine -match '(?i)(ONE-CLICK-P720-SUPERVISOR|bootstrap-p720-supervisor)\.ps1')
+    )
   })
 if ($running.Count -gt 0) {
   Write-Output 'KMJ_RECOVERY_STATE=EXISTING_INSTALLER_STILL_RUNNING'
