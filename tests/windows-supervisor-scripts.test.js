@@ -240,10 +240,13 @@ test("all supervisor task operations are scoped to Task Scheduler root folder", 
   }
 });
 
-test("all persisted rollback manifests use BOM-free atomic-compatible UTF-8 writer", () => {
+test("all persisted rollback manifests use BOM-free UTF-8 writer", () => {
   assert.match(install, /function Write-Manifest/);
   assert.match(install, /UTF8Encoding\]::new\(\$false\)/);
-  assert.equal((install.match(/Write-Manifest \$manifestPath \$manifest/g) ?? []).length, 4);
+  assert.equal(
+    (install.match(/Write-Manifest \$manifestPath \$manifest/g) ?? []).length,
+    4,
+  );
   assert.doesNotMatch(
     install,
     /\$manifest\s*\|\s*ConvertTo-Json[^\n]*Set-Content[^\n]*Encoding UTF8/,
@@ -268,13 +271,18 @@ test(
         "-NoProfile",
         "-NonInteractive",
         "-Command",
-        helper + "\nWrite-Manifest '" + quoted + "' @{ schema = 2; files = @() }",
+        helper +
+          "\nWrite-Manifest '" +
+          quoted +
+          "' @{ schema = 2; files = @() }",
       ],
       { timeout: 20000, stdio: "pipe" },
     );
     const bytes = fs.readFileSync(output);
-    assert.equal(bytes.subarray(0, 3).equals(Buffer.from([239, 187, 191])), false);
+    assert.equal(
+      bytes.subarray(0, 3).equals(Buffer.from([239, 187, 191])),
+      false,
+    );
     assert.equal(JSON.parse(bytes.toString("utf8")).schema, 2);
   },
 );
-
