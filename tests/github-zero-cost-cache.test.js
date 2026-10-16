@@ -119,7 +119,11 @@ test("live uncached GitHub doctor does not evict fresh independent read cache", 
   });
   assert.equal(doctor.readVerified, true);
   await bridge("github_repository", { repository: repo });
-  assert.equal(requests, 2, "only one cached repository and one live doctor read");
+  assert.equal(
+    requests,
+    2,
+    "only one cached repository and one live doctor read",
+  );
 });
 
 test("cache/ETag never widens repository allowlist", async (t) => {
