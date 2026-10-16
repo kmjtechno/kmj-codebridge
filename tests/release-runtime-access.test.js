@@ -96,7 +96,8 @@ for (const kind of ["symlink", "hardlink"]) {
       const outside = path.join(root, "private-key");
       fs.writeFileSync(outside, "private", { mode: 0o600 });
       const link = path.join(staged.staging, "escape");
-      if (kind === "symlink") fs.symlinkSync(path.relative(staged.staging, outside), link);
+      if (kind === "symlink")
+        fs.symlinkSync(path.relative(staged.staging, outside), link);
       else fs.linkSync(outside, link);
       assert.throws(
         () => store.finalize(manifest, staged.staging),
