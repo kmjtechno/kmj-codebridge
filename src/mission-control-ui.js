@@ -256,7 +256,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    var chunks=selectedPatch.split(/(?=^diff --git )/m);
    var selectedPart=null;
    for(var j=0;j<chunks.length;j++){
-     if(chunks[j].indexOf(token+"\\n")===0||chunks[j].indexOf(token+"\\r\\n")===0){
+     if(chunks[j].indexOf(token+String.fromCharCode(10))===0||chunks[j].indexOf(token+String.fromCharCode(13,10))===0){
        selectedPart=chunks[j];break;
      }
    }
