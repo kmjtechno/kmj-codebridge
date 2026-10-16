@@ -47,23 +47,53 @@ test("unknown or foreign tasks never become reusable", () => {
     /if \(-not \(\$principalValid -and \$actionValid -and \$policyValid\)\)/,
   );
 });
-test("principal mismatch names the exact safe classification and resolves account aliases by SID", () => {
-  assert.match(audit, /KMJ_AGENT_TASK_PRINCIPAL_IDENTITY=\$principalIdentity/);
-  assert.match(audit, /KMJ_AGENT_TASK_PRINCIPAL_LOGON=\$logonClass/);
-  assert.match(audit, /KMJ_AGENT_TASK_PRINCIPAL_RUN_LEVEL=\$runClass/);
-  assert.match(audit, /\$principalSid = \$principalAccount\.Translate/);
-  assert.match(audit, /\$principalMatches =/);
-  assert.match(audit, /'UNRESOLVED'/);
-  assert.match(audit, /'OTHER_OR_UNKNOWN'/);
-  assert.match(audit, /'S4U'/);
-  assert.match(audit, /'LIMITED'/);
-  assert.match(audit, /'HIGHEST'/);
-  assert.match(
-    audit,
-    /\$principalValid = \$principalMatches -and \$principalPolicy/,
+test("principal mismatch diagnosis emits safe identity, logon and run-level classifications", () => {
+  const diagnostic = fs.readFileSync(
+    "scripts/windows/DIAGNOSE-P720-AGENT-TASK-PRINCIPAL.ps1",
+    "utf8",
   );
-  assert.match(audit, /KMJ_AGENT_TASK_AUDIT=CONFLICT_NO_CHANGES/);
+  const launcher = fs.readFileSync(
+    "scripts/windows/DIAGNOSE-P720-AGENT-TASK-PRINCIPAL.cmd",
+    "utf8",
+  );
+  for (const marker of [
+    "KMJ_PRINCIPAL_IDENTITY=",
+    "KMJ_PRINCIPAL_LOGON=",
+    "KMJ_PRINCIPAL_RUN_LEVEL=",
+    "KMJ_PRINCIPAL_DIAG_RESULT=MISMATCH_NO_CHANGES",
+    "KMJ_PRINCIPAL_DIAG_IDENTITIES=HIDDEN",
+    "KMJ_PRINCIPAL_DIAG_WRITES=NONE",
+  ]) {
+    assert.ok(diagnostic.includes(marker));
+  }
+  assert.match(diagnostic, /SidOf \$ownerName/);
+  assert.match(diagnostic, /SidOf \$taskAccount/);
+  assert.match(diagnostic, /PRINCIPAL_DIAG_FOREIGN_TASK_ACTION/);
+  assert.match(diagnostic, /PRINCIPAL_DIAG_AGENT_EXECUTABLE_MISMATCH/);
+  assert.doesNotMatch(
+    diagnostic,
+    /^\s*(?:Set-ScheduledTask|Start-ScheduledTask|Stop-ScheduledTask|Disable-ScheduledTask|Enable-ScheduledTask|Register-ScheduledTask|Unregister-ScheduledTask|Stop-Process|Start-Process|Set-Content|Out-File)\b/im,
+  );
+  assert.doesNotMatch(diagnostic, /Write-Output[^\r\n]*(?:\$ownerName|\$ownerSid|\$taskAccount|\$taskSid|CommandLine)/);
+  assert.match(launcher, /DIAGNOSE-P720-AGENT-TASK-PRINCIPAL\.ps1/);
 });
+test(
+  "native PowerShell 5.1 principal diagnosis accepts the source without executing it",
+  { skip: process.platform !== "win32" },
+  () => {
+    const command = [
+      "$tokens=$null;$errors=$null;",
+      "[System.Management.Automation.Language.Parser]::ParseFile(",
+      "'scripts/windows/DIAGNOSE-P720-AGENT-TASK-PRINCIPAL.ps1',",
+      "[ref]$tokens,[ref]$errors) | Out-Null;",
+      "if ($errors.Count -gt 0) { throw $errors[0].Message }",
+    ].join(" ");
+    execFileSync("powershell.exe", ["-NoProfile", "-Command", command], {
+      timeout: 20000,
+      stdio: "pipe",
+    });
+  },
+);
 
 test("process args, secrets and user identities are never displayed", () => {
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT_COMMAND_LINES=HIDDEN/);
