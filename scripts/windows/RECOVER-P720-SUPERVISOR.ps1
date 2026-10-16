@@ -64,12 +64,22 @@ $running = @(Get-CimInstance Win32_Process -ErrorAction Stop |
     )
   })
 if ($running.Count -gt 0) {
-  # Never reveal CommandLine or any credential-bearing process arguments.
-  # Only show safe Windows process metadata so false matches are diagnosable.
+  # Only print process type and IDs; NEVER print CommandLine.
   Write-Output "KMJ_RECOVERY_BLOCKING_PROCESS_COUNT=$($running.Count)"
   foreach ($proc in @($running | Sort-Object ProcessId | Select-Object -First 12)) {
-    $kind = switch -Regex ([string]$proc.Name) {
-      '^(powershell|pwsh)\.exe
+    $kind = 'OTHER_PROCESS'
+    if ($proc.Name -in @('powershell.exe','pwsh.exe')) {
+      $kind = 'INSTALLER_HOST'
+    } elseif ($proc.Name -eq 'git.exe') {
+      $kind = 'GIT_STAGE'
+    } elseif ($proc.Name -eq 'node.exe') {
+      $kind = 'NODE_PROCESS'
+    } elseif ($proc.Name -in @('cmd.exe','npm.cmd')) {
+      $kind = 'SHELL_OR_DEPENDENCY_PROCESS'
+    }
+    Write-Output "KMJ_RECOVERY_BLOCKING_PROCESS=$kind;PID=$($proc.ProcessId);PPID=$($proc.ParentProcessId)"
+  }
+  Write-Output 'KMJ_RECOVERY_STATE=EXISTING_INSTALLER_STILL_RUNNING'
   Write-Output 'KMJ_RECOVERY_ACTION=DO_NOT_START_SECOND_INSTALLER'
   if ($Apply) {
     throw 'RECOVERY_ORIGINAL_INSTALLER_STILL_RUNNING'
