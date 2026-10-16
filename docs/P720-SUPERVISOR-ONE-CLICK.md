@@ -111,6 +111,7 @@ manifest fix, PR #472). From `scripts/windows`, right-click
 `RECOVER-P720-SUPERVISOR.cmd` and choose **Run as administrator**.
 
 The recovery script checks locally without revealing keys:
+
 - Whether the original Git/npm process is still active (if yes it does
   not start a second installer).
 - Whether the isolated SHA-pinned release exists and is immutable.
