@@ -15,7 +15,8 @@ export function createToolGuardHost() {
       if (
         typeof id !== "string" ||
         !ID.test(id) ||
-        (project !== null && (!PROJECT.test(project) || typeof project !== "string")) ||
+        (project !== null &&
+          (!PROJECT.test(project) || typeof project !== "string")) ||
         typeof beforeExecute !== "function" ||
         entries.has(id) ||
         entries.size >= 32
