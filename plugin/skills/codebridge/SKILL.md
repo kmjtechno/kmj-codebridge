@@ -68,6 +68,14 @@ that the plugin package alone gives machine access.
    status before repeating changes. A network timeout is not proof execution failed.
 10. Read the job result. Report the actual exit code and limitations. Never claim
     tests, licensing, deployment or a restart succeeded without verified results.
+    When a task finishes or becomes blocked, read `autopilot_continuation_status`
+    and `autopilot_status` for the next dependency-ready task, then check
+    `coordination_list` for durable, project-scoped handoffs. Continue the
+    next independent authorized task instead of ending the engineering
+    workflow merely because CI, review or one PR is waiting. Always require
+    the real lease, current grants and exact-head tests before writes or
+    execution. The local bridge posts receipts only; it cannot wake ChatGPT
+    or a closed chat session, authorize new actions, or initiate inference.
 11. Require explicit authorization for destructive or production actions. Do not
     broaden project paths or change permissions to bypass a denial.
 
