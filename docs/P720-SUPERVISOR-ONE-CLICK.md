@@ -81,3 +81,21 @@ build support.
 
 Rollback with `-RestoreConfigs` now refuses to overwrite any original
 configuration that changed after backup.
+
+## One-click KMJ native supervisor setup (no third-party runtime)
+
+For a **fresh**, never-before-prepared P720 supervisor, the simplest path is
+`scripts/windows/ONE-CLICK-P720-SUPERVISOR.cmd`, run once as administrator
+from a reviewed, trusted checkout. It chains the existing exact-SHA isolated
+preparation and HMAC-guarded activation, aborting immediately if either
+fails. Existing tokens, a previous preparation, multiple manifests or
+unexpected scheduled tasks are **not** overwritten or guessed: the scripts
+refuse and require inspection instead of a destructive retry.
+
+This starts the KMJ-authored native named-pipe supervisor, not an external
+Supervisor/Cygwin service. It **does not** change `agent.json`, restart or
+upgrade the currently connected CodeBridge agent, touch CineCore, or enable
+autonomous command profiles. Agent wiring remains a separate reviewed step
+so that the old production agent enrollment is not destroyed. After a
+successful authenticated supervisor status, verify the agent handoff
+independently; no feature is considered live merely from CI or a task start.
