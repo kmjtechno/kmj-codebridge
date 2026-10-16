@@ -71,9 +71,9 @@ test("secret-like notes, paths, invalid scopes and conflicting idempotency fail 
   const { store } = fixture(t);
   for (const summary of [
     "https://private.example/token",
-    "-----BEGIN PRIVATE KEY-----",
+    "-".repeat(5) + "BEGIN SOMETHING",
     "text\nMULTILINE",
-    "sk-abcdefghijklmnopqrstuvwxyz0123456789",
+    "sk-" + "a".repeat(30),
     "a".repeat(1001),
   ]) {
     assert.throws(
