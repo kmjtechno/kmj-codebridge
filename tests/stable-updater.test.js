@@ -584,3 +584,45 @@ test("rollback refuses a legacy runtime that cannot honor the held drain", async
   );
   assert.equal(changed, false);
 });
+
+test("activation refuses a signed legacy runtime before draining or changing links", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-legacy-update-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture(),
+    cfg = config(root, signed.trustedKeys),
+    store = fakeStore(root),
+    name = writeMarker(store, signed.manifest);
+  fs.writeFileSync(
+    path.join(store.releases, name, "package.json"),
+    JSON.stringify({ version: signed.manifest.version }),
+  );
+  let drained = false,
+    activated = false,
+    closed = false;
+  await assert.rejects(
+    runStableUpdate(cfg, {
+      nodeMajor: 24,
+      createStore: () => store,
+      fetchBytes: async (url) =>
+        Buffer.from(
+          url.endsWith(".sig") ? signed.signature : signed.rawManifest,
+        ),
+      acquireMaintenance: () => ({
+        drain: async () => {
+          drained = true;
+        },
+        close: () => {
+          closed = true;
+        },
+      }),
+      activate: async () => {
+        activated = true;
+      },
+    }),
+    /UPDATE_RUNTIME_MAINTENANCE_UNSUPPORTED/,
+  );
+  assert.equal(drained, false);
+  assert.equal(activated, false);
+  assert.equal(closed, true);
+  assert.equal(readAcceptedUpdateState(cfg.stateDir), null);
+});

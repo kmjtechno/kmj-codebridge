@@ -35,6 +35,8 @@ test(
           : null,
     };
     let agent, lease, guard, releaseResult;
+    let generation = 0;
+    let currentToken;
     let pending = [
       {
         id: "first",
@@ -58,7 +60,10 @@ test(
       }
       res.end(
         JSON.stringify(
-          req.url === "/agent/poll" ? (pending.shift() ?? null) : {},
+          req.url === "/agent/poll" &&
+            req.headers.authorization === `Bearer ${currentToken}`
+            ? (pending.shift() ?? null)
+            : {},
         ),
       );
     });
@@ -81,13 +86,20 @@ test(
       projects: [{ id: "p", root: project, writable: true, gates: {} }],
       license: { mode: "free" },
     };
-    const start = () =>
-      startAgent(config, {
-        createUpdateGuard: (args) => {
-          guard = new AgentUpdateGuard({ ...args, ...options });
-          return guard;
+    const start = () => {
+      // A cancelled old HTTP poll must not consume the new instance's work in
+      // this fixture. Production gateway forwarding has its own delivery queue.
+      currentToken = `${++generation}`.padEnd(48, "a");
+      return startAgent(
+        { ...config, token: currentToken },
+        {
+          createUpdateGuard: (args) => {
+            guard = new AgentUpdateGuard({ ...args, ...options });
+            return guard;
+          },
         },
-      });
+      );
+    };
     const wait = async (predicate) => {
       for (let i = 0; i < 200; i++) {
         if (predicate()) return;
