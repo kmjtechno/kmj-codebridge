@@ -1303,7 +1303,7 @@ test("fixed Main Platform UI CI auto-creates a private exact-HEAD lane with limi
     }),
   );
   assert.equal(started.state, "running");
-  assert.match(started.gate, /@mainplatform_ci#[a-f0-9]{40}$/);
+  assert.match(started.gate, /@mainplatform_ci_[a-f0-9]{12}#[a-f0-9]{40}$/);
   assert.ok(started.gate.endsWith(head));
 
   let done = started;
