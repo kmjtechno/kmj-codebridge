@@ -535,24 +535,57 @@ export function createGitHubBridge(config) {
       const head = pull.head?.sha;
       if (typeof head !== "string" || !/^[a-f0-9]{40}$/i.test(head))
         fail("GITHUB_RESPONSE_INVALID");
-      const [checkResult, workflowResult] = await Promise.all([
-        request("GET", a.repository, `commits/${head}/check-runs?per_page=100`),
-        request(
-          "GET",
-          a.repository,
-          `actions/runs?head_sha=${head}&per_page=100`,
+      // Checks and Actions are independent evidence sources and can have
+      // different authorization. A denied source must not hide the other one,
+      // but the result is then explicitly incomplete and can never be green.
+      const settle = async (promise) => {
+        try {
+          return { value: await promise, denied: false };
+        } catch (error) {
+          if (error?.code === "GITHUB_AUTHORIZATION_FAILED")
+            return { value: null, denied: true };
+          throw error;
+        }
+      };
+      const [checkOutcome, workflowOutcome] = await Promise.all([
+        settle(
+          request(
+            "GET",
+            a.repository,
+            `commits/${head}/check-runs?per_page=100`,
+          ),
+        ),
+        settle(
+          request(
+            "GET",
+            a.repository,
+            `actions/runs?head_sha=${head}&per_page=100`,
+          ),
         ),
       ]);
+      // Both denied means there is no evidence at all: surface the denial.
+      if (checkOutcome.denied && workflowOutcome.denied)
+        fail("GITHUB_AUTHORIZATION_FAILED");
+      const checkResult = checkOutcome.value ?? {
+        check_runs: [],
+        total_count: 0,
+      };
+      const workflowResult = workflowOutcome.value ?? {
+        workflow_runs: [],
+        total_count: 0,
+      };
       const checks = checkResult.check_runs;
       const runs = workflowResult.workflow_runs;
       if (!Array.isArray(checks) || !Array.isArray(runs))
         fail("GITHUB_RESPONSE_INVALID");
       const checksComplete =
+        !checkOutcome.denied &&
         Number.isInteger(checkResult.total_count) &&
         checkResult.total_count > 0 &&
         checkResult.total_count <= 100 &&
         checks.length === checkResult.total_count;
       const workflowsComplete =
+        !workflowOutcome.denied &&
         Number.isInteger(workflowResult.total_count) &&
         workflowResult.total_count > 0 &&
         workflowResult.total_count <= 100 &&
@@ -566,13 +599,33 @@ export function createGitHubBridge(config) {
           entry.status === "completed" && entry.conclusion !== "success",
       );
       const fullyObserved = checksComplete && workflowsComplete;
-      const verdict = !fullyObserved
-        ? "unverified"
-        : pending
+      const anyDenied = checkOutcome.denied || workflowOutcome.denied;
+      // A real failure or pending run that was observed is still reported when
+      // the other source is denied; only an otherwise-clean partial view is
+      // "unverified". Incomplete evidence is never "green".
+      const verdict = fullyObserved
+        ? pending
           ? "pending"
           : failed
             ? "failed"
-            : "green";
+            : "green"
+        : anyDenied && failed
+          ? "failed"
+          : anyDenied && pending
+            ? "pending"
+            : "unverified";
+      const evidenceSources = {
+        checks: checkOutcome.denied
+          ? "denied"
+          : checksComplete
+            ? "complete"
+            : "incomplete",
+        workflows: workflowOutcome.denied
+          ? "denied"
+          : workflowsComplete
+            ? "complete"
+            : "incomplete",
+      };
       return {
         number: a.number,
         head,
@@ -581,6 +634,7 @@ export function createGitHubBridge(config) {
         verdict,
         verifiedComplete: verdict === "green",
         evidenceComplete: fullyObserved,
+        evidenceSources,
         checks: checks.slice(0, 100).map((check) => ({
           name: check.name,
           status: check.status,

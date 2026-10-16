@@ -154,6 +154,89 @@ test("CI refuses false green for queued, failed, missing or truncated evidence",
   }
 });
 
+test("CI keeps Actions evidence when Checks access is denied and never reports green", async (t) => {
+  let scenario = "success";
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const p = pathOf(url);
+    if (p.endsWith("/pulls/31"))
+      return resp({ state: "open", head: { sha: SHA }, draft: false });
+    if (p.endsWith("/check-runs"))
+      return new Response("{}", { status: 403 });
+    if (p.endsWith("/actions/runs"))
+      return resp({
+        total_count: 1,
+        workflow_runs: [
+          {
+            id: 31,
+            name: "CI",
+            status: scenario === "queued" ? "queued" : "completed",
+            conclusion: scenario === "failed" ? "failure" : "success",
+            head_sha: SHA,
+          },
+        ],
+      });
+    throw Error("Unexpected endpoint");
+  });
+  const dispatch = bridge(t);
+  for (const [name, verdict] of [
+    ["success", "unverified"],
+    ["failed", "failed"],
+    ["queued", "pending"],
+  ]) {
+    scenario = name;
+    const r = await dispatch("github_pull_request_ci", {
+      repository,
+      number: 31,
+    });
+    assert.equal(r.verdict, verdict, name);
+    assert.equal(r.verifiedComplete, false, name);
+    assert.equal(r.evidenceComplete, false, name);
+    assert.equal(r.evidenceSources.checks, "denied");
+    assert.equal(r.evidenceSources.workflows, "complete");
+    assert.equal(r.workflows.length, 1, "Actions evidence stays visible");
+    assert.equal(r.checks.length, 0);
+  }
+});
+
+test("CI keeps Checks evidence when Actions access is denied", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const p = pathOf(url);
+    if (p.endsWith("/pulls/32"))
+      return resp({ state: "open", head: { sha: SHA }, draft: false });
+    if (p.endsWith("/check-runs"))
+      return resp({
+        total_count: 1,
+        check_runs: [
+          { name: "Windows", status: "completed", conclusion: "success" },
+        ],
+      });
+    if (p.endsWith("/actions/runs")) return new Response("{}", { status: 403 });
+    throw Error("Unexpected endpoint");
+  });
+  const r = await bridge(t)("github_pull_request_ci", {
+    repository,
+    number: 32,
+  });
+  assert.equal(r.verdict, "unverified");
+  assert.equal(r.verifiedComplete, false);
+  assert.equal(r.evidenceSources.workflows, "denied");
+  assert.equal(r.evidenceSources.checks, "complete");
+  assert.equal(r.checks.length, 1);
+});
+
+test("CI surfaces the denial when both evidence sources are denied", async (t) => {
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const p = pathOf(url);
+    if (p.endsWith("/pulls/33"))
+      return resp({ state: "open", head: { sha: SHA }, draft: false });
+    return new Response("{}", { status: 403 });
+  });
+  await assert.rejects(
+    bridge(t)("github_pull_request_ci", { repository, number: 33 }),
+    /GITHUB_AUTHORIZATION_FAILED/,
+  );
+});
+
 test("issue read and bounded comment pages use repository allowlist", async (t) => {
   t.mock.method(globalThis, "fetch", async (url) => {
     const p = String(url);
