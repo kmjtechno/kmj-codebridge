@@ -597,8 +597,7 @@ test("runBounded: success, exit code, timeout kill, output cap, redaction, spawn
 });
 
 async function withServer(t, handler, options = {}) {
-  const dir = tmp(t);
-  const sock = path.join(dir, "s.sock");
+  const sock = listenAddress(t);
   const server = await startWindowsSupervisor({
     pipePath: sock,
     token: TOKEN,
