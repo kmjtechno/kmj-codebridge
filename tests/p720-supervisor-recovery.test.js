@@ -42,7 +42,10 @@ test("resume validates SHA, origin, clean stage and empty checkout before any ch
   assert.match(bootstrap, /UNTRUSTED_RUNTIME_ORIGIN/);
   assert.match(bootstrap, /RESUME_RELEASE_NOT_CLEAN/);
   assert.match(bootstrap, /--ignore-scripts/);
-  assert.doesNotMatch(bootstrap, /git reset|git clean|git checkout -f|Remove-Item/i);
+  assert.doesNotMatch(
+    bootstrap,
+    /git reset|git clean|git checkout -f|Remove-Item/i,
+  );
 });
 
 test("recovery only starts the guarded activation after an eligible state", () => {
@@ -53,7 +56,10 @@ test("recovery only starts the guarded activation after an eligible state", () =
   assert.match(recovery, /KMJ_RECOVERY_AGENT_HANDOFF=PENDING/);
   assert.match(launcher, /RECOVER-P720-SUPERVISOR\.ps1/);
   assert.match(launcher, /if errorlevel 1/);
-  assert.doesNotMatch(launcher, /Invoke-Expression|curl|wget|powershell.*-enc/i);
+  assert.doesNotMatch(
+    launcher,
+    /Invoke-Expression|curl|wget|powershell.*-enc/i,
+  );
 });
 
 test(
