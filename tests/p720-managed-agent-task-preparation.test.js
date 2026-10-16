@@ -39,18 +39,22 @@ test("native supervisor never accepts disabled or unknown restart task state", (
   assert.match(src, /state === "Ready" \|\| state === "Running"/);
   assert.match(src, /!task\.exists \|\| !task\.enabled/);
 });
-test("Windows PowerShell 5.1 accepts scheduled-task preparation parser", {
-  skip: process.platform !== "win32",
-}, () => {
-  const parse = [
-    "$tokens=$null;$errors=$null;",
-    "[System.Management.Automation.Language.Parser]::ParseFile(",
-    "'scripts/windows/PREPARE-P720-AGENT-TASK.ps1',",
-    "[ref]$tokens,[ref]$errors) | Out-Null;",
-    "if($errors.Count -gt 0){throw $errors[0].Message}",
-  ].join(" ");
-  execFileSync("powershell.exe", ["-NoProfile", "-Command", parse], {
-    stdio: "pipe",
-    timeout: 20000,
-  });
-});
+test(
+  "Windows PowerShell 5.1 accepts scheduled-task preparation parser",
+  {
+    skip: process.platform !== "win32",
+  },
+  () => {
+    const parse = [
+      "$tokens=$null;$errors=$null;",
+      "[System.Management.Automation.Language.Parser]::ParseFile(",
+      "'scripts/windows/PREPARE-P720-AGENT-TASK.ps1',",
+      "[ref]$tokens,[ref]$errors) | Out-Null;",
+      "if($errors.Count -gt 0){throw $errors[0].Message}",
+    ].join(" ");
+    execFileSync("powershell.exe", ["-NoProfile", "-Command", parse], {
+      stdio: "pipe",
+      timeout: 20000,
+    });
+  },
+);
