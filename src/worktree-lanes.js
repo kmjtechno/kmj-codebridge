@@ -115,7 +115,13 @@ export class WorktreeLanes {
     const repo = source(root);
     const head = git(repo, ["rev-parse", "--verify", "HEAD"]);
     if (!SHA.test(head)) fail("WORKTREE_HEAD_INVALID");
-    return this.prepare(project, repo, laneId, head);
+    // A reused fixed lane name would point at the previous checkout HEAD
+    // after a new commit and fail every later CI command. Namespace only
+    // these auto-created lanes by the immutable SHA; retain existing
+    // fail-closed quota and dirty-worktree protections.
+    const versionedLaneId = `${laneId}_${head.slice(0, 12)}`;
+    if (!LANE.test(versionedLaneId)) fail("WORKTREE_INPUT_INVALID");
+    return this.prepare(project, repo, versionedLaneId, head);
   }
   prepare(project, root, laneId, expectedHead) {
     if (!LANE.test(laneId) || !SHA.test(expectedHead))
