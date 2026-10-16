@@ -142,3 +142,34 @@ The setup uses the original live agent's Windows identity as the
 Scheduled Task principal; logon/network and service-account permissions
 must be proven on the target workstation before activation. No Windows
 auto-update mechanism is enabled by this preparation.
+
+## Existing P720 agent task: do not rerun preparation
+
+If `PREPARE-P720-AGENT-TASK.cmd` reports
+`KMJ_AGENT_TASK_BLOCKER=AGENT_TASK_ALREADY_EXISTS`, treat this as a
+**non-destructive collision**, not permission to replace or start the task.
+The original preparation tool refuses the collision before modifying
+anything. The task might already have been prepared, might be running,
+or might be unrelated. Task existence alone proves none of those cases.
+
+Use `AUDIT-P720-EXISTING-AGENT-TASK.cmd` as administrator to perform a
+**read-only, secret-free audit** of the exact task name, pinned SHA,
+original release checkout, config scope, process count, Windows task
+action, principal, startup trigger, and restart policy. It does not
+print the token, Windows account names or process command-line args.
+It neither edits the registry/files nor starts/stops/changes tasks.
+
+The only `KMJ_AGENT_TASK_AUDIT=REUSABLE_DISABLED` outcome requires
+all identity/policy checks to match **and** the task to be Disabled.
+`CONFLICT_NO_CHANGES` means that some attributes differ; preserve
+the existing task and do not run a replacement task or old installer.
+`ALREADY_ENABLED_OR_RUNNING_REVIEW_REQUIRED` means even an otherwise
+matching task is not safe to treat as dormant. All non-matching cases
+are fail-closed.
+
+A reusable Disabled task still requires a separately authorized,
+idle-gated transaction to hand off the connected original agent,
+prove the new task's actual gateway heartbeat and health, and back out
+without duplicate sessions if takeover fails. This audit does not
+activate the task or enable `restart.supported`, and it does not
+install Windows auto-update.
