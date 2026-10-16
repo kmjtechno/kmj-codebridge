@@ -204,14 +204,29 @@ test("failed mailbox write retries only after bounded cooldown", async (t) => {
     },
   });
   t.after(() => bridge.close());
-  journal.enqueue({ project: "p1", key: "first", objective: "One", priority: 5 });
+  journal.enqueue({
+    project: "p1",
+    key: "first",
+    objective: "One",
+    priority: 5,
+  });
   await wake();
   assert.equal(attempts, 1);
-  journal.enqueue({ project: "p1", key: "second", objective: "Two", priority: 0 });
+  journal.enqueue({
+    project: "p1",
+    key: "second",
+    objective: "Two",
+    priority: 0,
+  });
   await wake();
   assert.equal(attempts, 1);
   clock += 60_001;
-  journal.enqueue({ project: "p1", key: "third", objective: "Three", priority: -5 });
+  journal.enqueue({
+    project: "p1",
+    key: "third",
+    objective: "Three",
+    priority: -5,
+  });
   await wake();
   assert.equal(attempts, 2);
   assert.equal(bridge.status("p1").lastError, "COORDINATION_CAPACITY_REACHED");
