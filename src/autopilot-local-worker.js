@@ -1,4 +1,4 @@
-import { setTimeout as delay } from "node:timers/promises";
+import { waitForTaskChange } from "./autopilot-continuation.js";
 import { localModelReceipt } from "./model-attribution.js";
 
 const DRAFT_TASK = /^auto-draft:[A-Za-z0-9._-]{1,100}$/;
@@ -155,7 +155,7 @@ export function startLocalAutopilotDraftWorker(
       if (options.activity) await options.activity.track(() => worker.tick());
       else await worker.tick();
       try {
-        await delay(intervalMs, undefined, { signal: controller.signal });
+        await waitForTaskChange(options.journal, intervalMs, controller.signal);
       } catch {
         break;
       }
