@@ -607,7 +607,10 @@ export const definitions = {
     input: {
       ...scoped,
       lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      ifNoneMatch: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
     },
     access: "read",
   },
@@ -814,7 +817,10 @@ export const definitions = {
       ...scoped,
       lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
       requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      expectedRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
       summary: z.string().min(1).max(1000),
       next: z.string().min(1).max(500),
       blockers: z.array(z.string().min(1).max(120)).max(6).default([]),
