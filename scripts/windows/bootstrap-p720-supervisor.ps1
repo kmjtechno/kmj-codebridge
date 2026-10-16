@@ -111,7 +111,7 @@ New-Item -ItemType Directory -Path (Split-Path -Parent $SupervisorConfig) -Force
 [System.IO.File]::WriteAllText(
   $SupervisorConfig,
   ($config | ConvertTo-Json -Depth 8),
-  (New-Object System.Text.UTF8Encoding($false))
+  ([System.Text.UTF8Encoding]::new($false))
 )
 $account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 & $Installer -SupervisorConfig $SupervisorConfig -AgentConfig $AgentConfig -RuntimeDir $ReleaseDir -BackupRoot $BackupRoot -ServiceAccount $account -Apply
