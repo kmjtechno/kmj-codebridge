@@ -92,7 +92,7 @@ test("unsolicited 304 and malformed ETags cannot create false cached success", a
     if (calls.length === 1) return new Response(null, { status: 304 });
     if (calls.length === 2)
       return Response.json(repository, {
-        headers: { etag: 'invalid-etag' },
+        headers: { etag: "invalid-etag" },
       });
     return Response.json(repository);
   });
