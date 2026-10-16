@@ -84,7 +84,13 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   try {
-    if (process.argv.length !== 5) throw Error("ARGUMENTS_REQUIRED");
+    const quietProbe = process.argv[5] === "--probe-quiet";
+    if (
+      (process.argv.length !== 5 && process.argv.length !== 6) ||
+      (process.argv.length === 6 && !quietProbe) ||
+      (quietProbe && process.argv[2] !== "live")
+    )
+      throw Error("ARGUMENTS_REQUIRED");
     const result = await verifyP720ReadOnlyProfile(
       process.argv[2],
       process.argv[3],
@@ -96,8 +102,11 @@ if (
         : "KMJ_PROJECT_ROLLOUT_LIVE=HMAC_AND_READONLY_PASS",
     );
   } catch {
-    // No secret path, token, stack trace, arbitrary server data or config.
-    console.error("KMJ_PROJECT_ROLLOUT_VERIFICATION=FAIL");
+    // A single failed readiness poll is not a final rollout failure.
+    // Quiet probes still return nonzero, so the guarded caller must retry.
+    // Final explicit live diagnostics keep an actionable FAIL marker.
+    if (process.argv[5] !== "--probe-quiet")
+      console.error("KMJ_PROJECT_ROLLOUT_VERIFICATION=FAIL");
     process.exitCode = 1;
   }
 }
