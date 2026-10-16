@@ -42,8 +42,11 @@ export async function verifyPreparedSupervisor(backupDir, options = {}) {
     throw new Error("SUPERVISOR_RUNTIME_NOT_PINNED");
   const request = options.mockClient
     ? options.mockClient
-    : (await import(pathToFileURL(path.join(runtime, "src", "supervisor-client.js"))))
-        .windowsSupervisorRequest;
+    : (
+        await import(
+          pathToFileURL(path.join(runtime, "src", "supervisor-client.js"))
+        )
+      ).windowsSupervisorRequest;
   const pipePath = "\\\\.\\pipe\\" + cfg.pipeName;
   const result = await request(
     { pipePath, tokenFile: cfg.tokenFile },
@@ -59,7 +62,10 @@ export async function verifyPreparedSupervisor(backupDir, options = {}) {
   return { supervisor: "windows-native", verified: true, agentWired: false };
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   try {
     if (process.argv.length !== 3) throw new Error("BACKUP_DIR_REQUIRED");
     await verifyPreparedSupervisor(process.argv[2]);
