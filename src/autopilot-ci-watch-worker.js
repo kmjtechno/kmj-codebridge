@@ -178,7 +178,8 @@ export class GitHubCiWatchWorker {
             key: `auto-repair:${config.recipe}:${actual.head}`,
             objective:
               "Owner-approved deterministic repair of exact-SHA failed CI. " +
-              "GitHub job-step evidence: " + failedStage +
+              "GitHub job-step evidence: " +
+              failedStage +
               " (classification only, not verified root cause). " +
               "Review and test required before publication",
             priority: 0,
