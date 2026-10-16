@@ -37,7 +37,7 @@ foreach ($entry in $manifest.files) {
   if ($hash -ne $entry.sha256) { throw "Backup file changed or corrupt: $($entry.backup)" }
 }
 # Check ALL targets before changing anything, even when a partial install failed.
-$task = Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
+$task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
 if ($task) {
   if (-not $manifest.taskExe -or -not $manifest.taskArgs -or
       @($task.Actions).Count -ne 1 -or
@@ -76,9 +76,9 @@ if (-not $Apply) { Write-Output 'Re-run with -Apply to roll back.'; return }
 
 
 if ($task) {
-  Disable-ScheduledTask -TaskName $TaskName | Out-Null
-  Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
-  Unregister-ScheduledTask -TaskName $TaskName -Confirm:$false
+  Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' | Out-Null
+  Stop-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
+  Unregister-ScheduledTask -TaskName $TaskName -TaskPath '\' -Confirm:$false
 }
 if ($manifest.tokenCreatedByInstaller -and (Test-Path -LiteralPath $manifest.tokenFile)) {
   Remove-Item -LiteralPath $manifest.tokenFile -Force
