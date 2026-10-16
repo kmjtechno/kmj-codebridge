@@ -19,6 +19,7 @@ import { planSmartModelRoute } from "./smart-model-router.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
+import { ChatContinuity } from "./chat-continuity.js";
 import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
@@ -530,6 +531,7 @@ export const FAST_READ_TOOLS = [
   "execution_capacity",
   "project_progress",
   "chat_lane_status",
+  "chat_continuity_read",
   "coordination_list",
   "local_model_status",
   "worktree_lane_status",
@@ -595,6 +597,20 @@ export const definitions = {
       "Token-efficient project briefing: bounded Git identity, task counts, next task ID and actually available approved job slots. No raw files, logs, prompts, credentials, token-usage guarantees or unverified completion estimates.",
     input: {
       ...scoped,
+    },
+    access: "read",
+  },
+  multi_chat_sync: {
+    title: "HyperSpeed multi-chat project sync",
+    description:
+      "Read one bounded project-lane continuity checkpoint plus compact live Git/tasks/locks/mailbox context in a single chat tool call. Supply ifNoneMatch for tiny unchanged replies. Works across independently granted ChatGPT chats, but does not wake inactive host chats or extend the host context window.",
+    input: {
+      ...scoped,
+      lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
     },
     access: "read",
   },
@@ -780,6 +796,34 @@ export const definitions = {
       reportedGate: z
         .enum(["unknown", "pass", "fail", "blocked"])
         .default("unknown"),
+    },
+    access: "write",
+  },
+  chat_continuity_read: {
+    title: "Read durable chat continuity checkpoint",
+    description:
+      "Read a bounded, versioned, untrusted project-and-lane context summary saved by authorized clients. Never a full chat transcript, automatic chat wake or verified task completion.",
+    input: {
+      ...scoped,
+      lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+    },
+    access: "read",
+  },
+  chat_continuity_save: {
+    title: "Save guarded chat continuity checkpoint",
+    description:
+      "Persist a sanitized, small next-steps summary for one authorized project/chat lane. Requires optimistic revision precondition and idempotency key to prevent lost multi-chat updates; host write approval still applies. Never saves chat transcripts, code or secrets.",
+    input: {
+      ...scoped,
+      lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
+      summary: z.string().min(1).max(1000),
+      next: z.string().min(1).max(500),
+      blockers: z.array(z.string().min(1).max(120)).max(6).default([]),
     },
     access: "write",
   },
@@ -1796,6 +1840,7 @@ export function createDispatcher(
   };
   let laneRegistry;
   let coordinationRegistry;
+  let continuityRegistry;
   const laneStateDir =
     typeof config.stateDir === "string" && config.stateDir.length > 0
       ? config.stateDir
@@ -1809,6 +1854,10 @@ export function createDispatcher(
   const coordination = () => {
     if (!laneStateDir) fail("COORDINATION_STATE_UNAVAILABLE");
     return (coordinationRegistry ??= new AgentCoordination(laneStateDir));
+  };
+  const continuity = () => {
+    if (!laneStateDir) fail("CHAT_CONTINUITY_STATE_UNAVAILABLE");
+    return (continuityRegistry ??= new ChatContinuity(laneStateDir));
   };
   let worktrees;
   const worktreeLanes = () => {
@@ -1985,6 +2034,19 @@ export function createDispatcher(
       return {
         device: config.id,
         ...coordination().post(p.id, a),
+      };
+    if (name === "chat_continuity_read")
+      return { device: config.id, ...continuity().status(p.id, a.lane) };
+    if (name === "chat_continuity_save")
+      return {
+        device: config.id,
+        ...continuity().save(p.id, a.lane, {
+          requestKey: a.requestKey,
+          expectedRevision: a.expectedRevision,
+          summary: a.summary,
+          next: a.next,
+          blockers: a.blockers,
+        }),
       };
     if (name === "chat_lane_status")
       return { device: config.id, project: p.id, ...lanes().status(p.id) };

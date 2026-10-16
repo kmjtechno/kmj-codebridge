@@ -131,4 +131,75 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
   assert.equal(changed.mailbox.totalStored, 1);
   assert.equal(changed.mailbox.actorLabelsVerified, false);
   assert.equal(changed.mailbox.recent[0].note, "new evidence is ready");
+
+  // Chat A and chat B can independently remember short state without
+  // replaying the full conversation, then use one read-only sync tool.
+  assert.ok(tools.tools.some((tool) => tool.name === "multi_chat_sync"));
+  const initialSync = value(
+    await client.callTool({
+      name: "multi_chat_sync",
+      arguments: { ...scope, lane: "chatA" },
+    }),
+  );
+  assert.equal(initialSync.checkpoint.exists, false);
+  assert.equal(initialSync.hostChatAutoWake, false);
+  const savedA = value(
+    await client.callTool({
+      name: "chat_continuity_save",
+      arguments: {
+        ...scope,
+        lane: "chatA",
+        requestKey: "checkpoint-A1",
+        expectedRevision: null,
+        summary: "Approved project engineering checkpoint",
+        next: "Verify tests before merge",
+        blockers: ["Waiting for review"],
+      },
+    }),
+  );
+  assert.match(savedA.revision, /^[a-f0-9]{64}$/);
+  const savedB = value(
+    await client.callTool({
+      name: "chat_continuity_save",
+      arguments: {
+        ...scope,
+        lane: "chatB",
+        requestKey: "checkpoint-B1",
+        expectedRevision: null,
+        summary: "Independent second chat",
+        next: "Review separate files",
+        blockers: [],
+      },
+    }),
+  );
+  assert.notEqual(savedB.revision, savedA.revision);
+  const currentA = value(
+    await client.callTool({
+      name: "multi_chat_sync",
+      arguments: { ...scope, lane: "chatA", ifNoneMatch: initialSync.digest },
+    }),
+  );
+  assert.equal(
+    currentA.checkpoint.summary,
+    "Approved project engineering checkpoint",
+  );
+  assert.equal(currentA.checkpoint.revision, savedA.revision);
+  assert.notEqual(currentA.digest, initialSync.digest);
+  const tiny = value(
+    await client.callTool({
+      name: "multi_chat_sync",
+      arguments: { ...scope, lane: "chatA", ifNoneMatch: currentA.digest },
+    }),
+  );
+  assert.equal(tiny.unchanged, true);
+  assert.equal(tiny.digest, currentA.digest);
+  assert.ok(JSON.stringify(tiny).length < JSON.stringify(currentA).length / 3);
+  const currentB = value(
+    await client.callTool({
+      name: "multi_chat_sync",
+      arguments: { ...scope, lane: "chatB" },
+    }),
+  );
+  assert.equal(currentB.checkpoint.summary, "Independent second chat");
+  assert.equal(currentB.checkpoint.revision, savedB.revision);
 });
