@@ -92,6 +92,7 @@ function validateActivationDependencies({
   releaseName,
   restart,
   healthCheck,
+  rollbackHealthCheck,
   attempts,
   delayMs,
   sleep,
@@ -113,6 +114,7 @@ function validateActivationDependencies({
   if (
     typeof restart !== "function" ||
     typeof healthCheck !== "function" ||
+    typeof rollbackHealthCheck !== "function" ||
     typeof sleep !== "function"
   )
     fail("UPDATE_ORCHESTRATOR_INVALID");
@@ -127,6 +129,7 @@ export async function activateReleaseWithHealthCheck({
   releaseName,
   restart,
   healthCheck,
+  rollbackHealthCheck = healthCheck,
   attempts = 5,
   delayMs = 1000,
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -136,6 +139,7 @@ export async function activateReleaseWithHealthCheck({
     releaseName,
     restart,
     healthCheck,
+    rollbackHealthCheck,
     attempts,
     delayMs,
     sleep,
@@ -155,7 +159,7 @@ export async function activateReleaseWithHealthCheck({
         fail("UPDATE_ROLLBACK_RESTART_FAILED");
       }
       const recovered = await waitForHealth({
-        healthCheck,
+        healthCheck: rollbackHealthCheck,
         attempts,
         delayMs,
         sleep,
@@ -192,7 +196,7 @@ export async function activateReleaseWithHealthCheck({
   }
 
   const recovered = await waitForHealth({
-    healthCheck,
+    healthCheck: rollbackHealthCheck,
     attempts,
     delayMs,
     sleep,
