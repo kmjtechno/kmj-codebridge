@@ -12,10 +12,32 @@ function fake(handler) {
   });
 }
 
-test("requires a configured key and a sane port", () => {
+test("requires a configured key and a sane port", (t) => {
+  // `apiKey: undefined` selects the client's default, which reads
+  // CODEBRIDGE_FREELLMAPI_KEY. A developer machine that has a real key
+  // configured (such as the P720) would otherwise make this "unconfigured"
+  // case succeed. Isolate the environment; restore it afterwards.
+  const saved = process.env.CODEBRIDGE_FREELLMAPI_KEY;
+  delete process.env.CODEBRIDGE_FREELLMAPI_KEY;
+  t.after(() => {
+    if (saved === undefined) delete process.env.CODEBRIDGE_FREELLMAPI_KEY;
+    else process.env.CODEBRIDGE_FREELLMAPI_KEY = saved;
+  });
   assert.throws(() => createFreeLlmApiClient({ apiKey: undefined }), {
     message: "FREELLMAPI_KEY_NOT_CONFIGURED",
   });
+  // Absent from both the argument and the environment is unconfigured.
+  assert.throws(() => createFreeLlmApiClient(), {
+    message: "FREELLMAPI_KEY_NOT_CONFIGURED",
+  });
+  // The environment key is honoured when it is well-formed.
+  process.env.CODEBRIDGE_FREELLMAPI_KEY = KEY;
+  assert.doesNotThrow(() => createFreeLlmApiClient());
+  process.env.CODEBRIDGE_FREELLMAPI_KEY = "bad key!";
+  assert.throws(() => createFreeLlmApiClient(), {
+    message: "FREELLMAPI_KEY_NOT_CONFIGURED",
+  });
+  delete process.env.CODEBRIDGE_FREELLMAPI_KEY;
   assert.throws(() => createFreeLlmApiClient({ apiKey: KEY, port: 80 }), {
     message: "FREELLMAPI_INVALID_PORT",
   });
