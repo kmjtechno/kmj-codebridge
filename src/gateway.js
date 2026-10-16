@@ -645,6 +645,63 @@ export async function startGateway(rawConfig) {
       : packet;
   }
 
+  async function getMultiChatSync(user, args) {
+    authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
+    // Request in parallel; a slow or temporarily offline lane should not
+    // invent successful state or block the truthfulness of other evidence.
+    const [context, continuity] = await Promise.all([
+      getContextResume(user, scope),
+      (async () => {
+        try {
+          return decodeForwardedResult(
+            await forward(user, "chat_continuity_read", {
+              ...scope,
+              lane: args.lane,
+            }),
+          );
+        } catch (error) {
+          return { ok: false, error: publicError(error).error };
+        }
+      })(),
+    ]);
+    const summary = {
+      version: 1,
+      kind: "codebridge.multi_chat_sync",
+      device: args.device,
+      project: args.project,
+      lane: args.lane,
+      contextDigest: context.digest,
+      checkpointRevision: continuity.ok
+        ? continuity.value?.revision ?? null
+        : "UNKNOWN",
+      checkpointAvailable: continuity.ok,
+    };
+    const digest = createHash("sha256")
+      .update(JSON.stringify(summary))
+      .digest("hex");
+    if (args.ifNoneMatch === digest)
+      return {
+        kind: summary.kind,
+        device: args.device,
+        project: args.project,
+        lane: args.lane,
+        unchanged: true,
+        digest,
+      };
+    return {
+      ...summary,
+      digest,
+      context,
+      checkpoint: continuity.ok
+        ? continuity.value
+        : { status: "UNKNOWN", error: continuity.error },
+      hostChatAutoWake: false,
+      hostContextWindowExtended: false,
+      notes: "Lane labels and saved summaries are client-authored claims. Background work requires separately enabled authorized device workers.",
+    };
+  }
+
   const fastReadTools = new Set(FAST_READ_TOOLS);
 
   async function fastReadBatch(user, args) {
@@ -1166,6 +1223,13 @@ export async function startGateway(rawConfig) {
               }
               if (name === "compact_work_brief") {
                 const result = await getCompactWorkBrief(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                  structuredContent: result,
+                };
+              }
+              if (name === "multi_chat_sync") {
+                const result = await getMultiChatSync(user, args);
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                   structuredContent: result,
