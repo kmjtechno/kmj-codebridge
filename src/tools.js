@@ -3384,19 +3384,17 @@ export function createDispatcher(
         fail("BROWSER_QA_JOB_NOT_FOUND");
       if (!["succeeded", "failed"].includes(job.state))
         return { job: a.job, state: job.state, ready: false };
-      const internalJob =
-        runner.jobs.get(a.job) ?? runner.archive.get(a.job);
-      if (
-        !laneStateDir ||
-        !internalJob ||
-        typeof internalJob.key !== "string"
-      )
+      const internalJob = runner.jobs.get(a.job) ?? runner.archive.get(a.job);
+      if (!laneStateDir || !internalJob || typeof internalJob.key !== "string")
         fail("BROWSER_QA_STATE_UNAVAILABLE");
       const receiptKey = createHash("sha256")
         .update(p.id + ":" + internalJob.key)
         .digest("hex");
       const reportPath = path.join(
-        laneStateDir, "browser-qa", receiptKey, "receipt.json",
+        laneStateDir,
+        "browser-qa",
+        receiptKey,
+        "receipt.json",
       );
       let data;
       try {
@@ -3452,8 +3450,7 @@ export function createDispatcher(
         job: a.job,
         state: job.state,
         verdict: data.verdict === "PASS" ? "PASS" : "FAIL",
-        reason: /^[A-Z_]{4,80}$/.test(data.reason ?? "")
-          ? data.reason : null,
+        reason: /^[A-Z_]{4,80}$/.test(data.reason ?? "") ? data.reason : null,
         sampledAt: data.checkedAt,
         samples: data.samples.map((sample) => ({
           viewport: sample.viewport,
