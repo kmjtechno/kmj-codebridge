@@ -21,7 +21,12 @@ test("failing tests become bounded GitHub error annotations", () => {
         `--test-reporter=${path.resolve("scripts/github-annotations-reporter.mjs")}`,
         file,
       ],
-      { encoding: "utf8" },
+      {
+        encoding: "utf8",
+        // A nested `node --test` inside a test run would otherwise attach to
+        // the parent runner instead of reporting on its own.
+        env: { ...process.env, NODE_TEST_CONTEXT: undefined },
+      },
     );
     assert.notEqual(result.status, 0);
     const lines = result.stdout
