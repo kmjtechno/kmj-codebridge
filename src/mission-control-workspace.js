@@ -4,7 +4,8 @@
 const MAX_ENTRIES = 48;
 const MAX_PATCH_BYTES = 24576;
 const ALLOWED_TYPES = new Set(["file", "directory"]);
-const BAD_SEGMENT = /^(?:\.\.?|\.git|\.env(?:\..*)?|node_modules|\.codebridge-.*)$/i;
+const BAD_SEGMENT =
+  /^(?:\.\.?|\.git|\.env(?:\..*)?|node_modules|\.codebridge-.*)$/i;
 
 function safePath(value) {
   if (
@@ -17,14 +18,17 @@ function safePath(value) {
     return false;
   return value.split("/").every((segment) => {
     return (
-      segment.length > 0 &&
-      !BAD_SEGMENT.test(segment) &&
-      !/[<>]/.test(segment)
+      segment.length > 0 && !BAD_SEGMENT.test(segment) && !/[<>]/.test(segment)
     );
   });
 }
 
-export function buildMissionWorkspace({ project, tree, diff, now = Date.now() }) {
+export function buildMissionWorkspace({
+  project,
+  tree,
+  diff,
+  now = Date.now(),
+}) {
   const result = {
     source: "AUTHORIZED_PROJECT_READS",
     observedAt: null,
