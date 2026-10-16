@@ -126,8 +126,11 @@ $manifest.taskArgs = $taskArgs
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 $action = New-ScheduledTaskAction -Execute $node -Argument $taskArgs -WorkingDirectory $RuntimeDir
 $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Settings $settings | Out-Null
+# A persistent agent must recover after reboot and transient failures. This
+# task remains DISABLED after preparation; activation is a distinct step.
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
+Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
 Disable-ScheduledTask -TaskName $TaskName | Out-Null
 
 $proposed = "$AgentConfig.proposed"
