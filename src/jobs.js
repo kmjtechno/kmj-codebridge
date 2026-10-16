@@ -360,7 +360,16 @@ export class JobRunner {
     };
   }
 
-  run({ project, gate, key, cwd, command, args = [], timeoutMs = 30000 }) {
+  run({
+    project,
+    gate,
+    key,
+    cwd,
+    command,
+    args = [],
+    timeoutMs = 30000,
+    beforeStart,
+  }) {
     if (this.closed) fail("JOB_RUNNER_CLOSED");
     if (typeof key !== "string" || key.length < 1 || key.length > 128)
       fail("INVALID_IDEMPOTENCY_KEY");
@@ -399,7 +408,7 @@ export class JobRunner {
       truncated: false,
     };
     this.jobs.set(j.id, j);
-    this.pending.set(j.id, { cwd, command, args, timeoutMs });
+    this.pending.set(j.id, { cwd, command, args, timeoutMs, beforeStart });
     this.persist(j);
     this.drain();
     return this.public(j);
@@ -446,7 +455,16 @@ export class JobRunner {
     else this.clearRecheck();
   }
 
-  start(j, { cwd, command, args, timeoutMs }) {
+  start(j, { cwd, command, args, timeoutMs, beforeStart }) {
+    try {
+      beforeStart?.();
+    } catch {
+      j.state = "failed";
+      j.endedAt = new Date().toISOString();
+      j.output = "JOB_PRECONDITION_FAILED";
+      this.persist(j);
+      return;
+    }
     j.state = "running";
     j.startedAt = new Date().toISOString();
     this.persist(j);
