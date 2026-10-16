@@ -64,6 +64,15 @@ Write-Output "Pipe           : $pipe"
 Write-Output "Task (disabled): $TaskName as $ServiceAccount"
 if (-not $Apply) { Write-Output 'Re-run with -Apply to make these changes. Nothing is started either way.'; return }
 
+# Never replace a pre-existing task or proposed configuration. A backup alone
+# is not a rollback guarantee for a Windows Scheduled Task.
+if (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue) {
+  throw "TASK_ALREADY_EXISTS: $TaskName; refusing to overwrite an existing task."
+}
+if (Test-Path -LiteralPath "$AgentConfig.proposed") {
+  throw 'PROPOSED_AGENT_CONFIG_EXISTS: refusing to overwrite operator work.'
+}
+
 New-Item -ItemType Directory -Path $backup -Force | Out-Null
 $manifest = [ordered]@{ schema = 1; createdUtc = $stamp; tokenCreatedByInstaller = $false; files = @() }
 foreach ($file in @($AgentConfig, $SupervisorConfig)) {
