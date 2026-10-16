@@ -47,6 +47,21 @@ test("unknown or foreign tasks never become reusable", () => {
     /if \(-not \(\$principalValid -and \$actionValid -and \$policyValid\)\)/,
   );
 });
+test("principal mismatch names the exact safe classification and resolves account aliases by SID", () => {
+  assert.match(audit, /KMJ_AGENT_TASK_PRINCIPAL_IDENTITY=\$principalIdentity/);
+  assert.match(audit, /KMJ_AGENT_TASK_PRINCIPAL_LOGON=\$logonClass/);
+  assert.match(audit, /KMJ_AGENT_TASK_PRINCIPAL_RUN_LEVEL=\$runClass/);
+  assert.match(audit, /\$principalSid = \$principalAccount\.Translate/);
+  assert.match(audit, /\$principalMatches =/);
+  assert.match(audit, /'UNRESOLVED'/);
+  assert.match(audit, /'OTHER_OR_UNKNOWN'/);
+  assert.match(audit, /'S4U'/);
+  assert.match(audit, /'LIMITED'/);
+  assert.match(audit, /'HIGHEST'/);
+  assert.match(audit, /\$principalValid = \$principalMatches -and \$principalPolicy/);
+  assert.match(audit, /KMJ_AGENT_TASK_AUDIT=CONFLICT_NO_CHANGES/);
+});
+
 test("process args, secrets and user identities are never displayed", () => {
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT_COMMAND_LINES=HIDDEN/);
   assert.match(audit, /KMJ_AGENT_TASK_AUDIT_SECRETS=HIDDEN/);
