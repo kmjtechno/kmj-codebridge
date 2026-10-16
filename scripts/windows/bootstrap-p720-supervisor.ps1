@@ -106,8 +106,13 @@ $config = [ordered]@{
   projects = @()
 }
 New-Item -ItemType Directory -Path (Split-Path -Parent $SupervisorConfig) -Force | Out-Null
-$config | ConvertTo-Json -Depth 8 |
-  Set-Content -LiteralPath $SupervisorConfig -Encoding UTF8 -NoNewline
+# Windows PowerShell 5.1 Set-Content -Encoding UTF8 adds a BOM; Node JSON.parse
+# rejects that prefix. Write UTF-8 without BOM for all Node-readable JSON.
+[System.IO.File]::WriteAllText(
+  $SupervisorConfig,
+  ($config | ConvertTo-Json -Depth 8),
+  (New-Object System.Text.UTF8Encoding($false))
+)
 $account = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 & $Installer -SupervisorConfig $SupervisorConfig -AgentConfig $AgentConfig -RuntimeDir $ReleaseDir -BackupRoot $BackupRoot -ServiceAccount $account -Apply
 if (-not $?) { throw 'SUPERVISOR_PREPARATION_FAILED' }
