@@ -9,10 +9,20 @@ import {
   defaultStableUpdatePreflight,
   freshAuthenticatedConnection,
   readAcceptedUpdateState,
-  runStableRollback,
-  runStableUpdate,
+  runStableRollback as realStableRollback,
+  runStableUpdate as realStableUpdate,
 } from "../src/stable-updater.js";
 import { releaseDirectoryName } from "../src/update.js";
+
+// These fixtures exercise signatures/activation without a host Supervisor.
+const maintenanceFixture = () => ({ drain: async () => {}, close: () => {} });
+const runStableUpdate = (config, deps) =>
+  realStableUpdate(config, { acquireMaintenance: maintenanceFixture, ...deps });
+const runStableRollback = (config, deps) =>
+  realStableRollback(config, {
+    acquireMaintenance: maintenanceFixture,
+    ...deps,
+  });
 
 function signedFixture(overrides = {}) {
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -74,6 +84,10 @@ function writeMarker(store, manifest) {
   const name = releaseDirectoryName(manifest);
   const target = path.join(store.releases, name);
   fs.mkdirSync(target, { recursive: true });
+  fs.writeFileSync(
+    path.join(target, "package.json"),
+    JSON.stringify({ codebridgeAgentUpdateProtocol: 1 }),
+  );
   fs.writeFileSync(
     path.join(target, ".codebridge-release.json"),
     JSON.stringify({
@@ -163,6 +177,7 @@ test("stable updater uses fixed Supervisor restart and fresh authenticated recon
       ])
         fs.writeFileSync(path.join(staging, "src", relative), "export {};\n");
       assert.equal(await preflight({ stagingDir: staging }), true);
+      writeMarker(store, signed.manifest);
       return {
         release: {
           name: releaseDirectoryName(signed.manifest),
@@ -477,4 +492,95 @@ test("stable rollback fails closed when no previous release is recorded", async 
     runStableRollback(cfg, { createStore: () => store }),
     /UPDATE_ROLLBACK_UNAVAILABLE/,
   );
+});
+
+test("busy maintenance prevents signed activation and always releases its lease", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-update-busy-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const cfg = config(root, signed.trustedKeys);
+  const store = fakeStore(root);
+  writeMarker(store, signed.manifest);
+  let closed = false;
+  let activated = false;
+  await assert.rejects(
+    runStableUpdate(cfg, {
+      nodeMajor: 24,
+      acquireMaintenance: () => ({
+        drain: async () => {
+          throw Error("UPDATE_AGENT_BUSY_OR_UNSUPPORTED");
+        },
+        close: () => {
+          closed = true;
+        },
+      }),
+      createStore: () => store,
+      fetchBytes: async (url) =>
+        Buffer.from(
+          url.endsWith(".sig") ? signed.signature : signed.rawManifest,
+        ),
+      activate: async () => {
+        activated = true;
+        return { changed: true };
+      },
+    }),
+    /UPDATE_AGENT_BUSY_OR_UNSUPPORTED/,
+  );
+  assert.equal(activated, false);
+  assert.equal(closed, true);
+  assert.equal(readAcceptedUpdateState(cfg.stateDir), null);
+});
+
+test("busy maintenance prevents rollback before release links change", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-rollback-busy-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const cfg = config(root, signed.trustedKeys);
+  const store = fakeStore(root);
+  const name = writeMarker(store, signed.manifest);
+  store.status = () => ({ current: "current", previous: name });
+  let changed = false,
+    closed = false;
+  store.rollback = () => {
+    changed = true;
+  };
+  await assert.rejects(
+    runStableRollback(cfg, {
+      createStore: () => store,
+      acquireMaintenance: () => ({
+        drain: async () => {
+          throw Error("UPDATE_AGENT_BUSY_OR_UNSUPPORTED");
+        },
+        close: () => {
+          closed = true;
+        },
+      }),
+    }),
+    /UPDATE_AGENT_BUSY_OR_UNSUPPORTED/,
+  );
+  assert.equal(changed, false);
+  assert.equal(closed, true);
+});
+
+test("rollback refuses a legacy runtime that cannot honor the held drain", async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-legacy-rollback-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture(),
+    cfg = config(root, signed.trustedKeys),
+    store = fakeStore(root);
+  const name = writeMarker(store, signed.manifest);
+  store.status = () => ({ current: "current", previous: name });
+  fs.writeFileSync(
+    path.join(store.releases, name, "package.json"),
+    JSON.stringify({ version: signed.manifest.version }),
+  );
+  let changed = false;
+  store.rollback = () => {
+    changed = true;
+  };
+  await assert.rejects(
+    runStableRollback(cfg, { createStore: () => store }),
+    /UPDATE_RUNTIME_MAINTENANCE_UNSUPPORTED/,
+  );
+  assert.equal(changed, false);
 });

@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { agentSchema } from "./config.js";
+import { AgentUpdateGuard } from "./update-maintenance.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
@@ -23,7 +24,10 @@ import {
   gatewayFailureCode,
 } from "./agent-connection-status.js";
 import { VERSION } from "./version.js";
-export async function startAgent(rawConfig) {
+export async function startAgent(
+  rawConfig,
+  { createUpdateGuard = (options) => new AgentUpdateGuard(options) } = {},
+) {
   const c = agentSchema.parse(rawConfig);
   const url = new URL(c.gateway);
   if (
@@ -124,6 +128,17 @@ export async function startAgent(rawConfig) {
   let localModelClient;
   const localModel = () => (localModelClient ??= createLocalModelClient());
   let workerHandles = null;
+  let workers = [];
+  const activity = createUpdateGuard({
+    stateDir: state,
+    agentOwner: agentLock.owner,
+    isIdle: () =>
+      runner.active.size === 0 &&
+      runner.pending.size === 0 &&
+      workers.every((worker) => worker.isIdle()),
+  });
+  runner.canStart = () => activity.canStart();
+
   const dispatch = createDispatcher(
     c,
     runner,
@@ -135,6 +150,8 @@ export async function startAgent(rawConfig) {
     () => workerHandles,
   );
   const gateWorker = startAutopilotGateWorker({
+    activity,
+    canStart: () => activity.canStart(),
     projects: c.projects,
     journal: autopilot,
     runner,
@@ -144,6 +161,8 @@ export async function startAgent(rawConfig) {
     lanes: new WorktreeLanes(state),
   });
   const repairWorker = startIsolatedRepairWorker({
+    activity,
+    canStart: () => activity.canStart(),
     projects: c.projects,
     journal: autopilot,
     runner,
@@ -151,17 +170,23 @@ export async function startAgent(rawConfig) {
     lanes: new WorktreeLanes(state),
   });
   const ciWatchWorker = startGitHubCiWatchWorker({
+    activity,
+    canStart: () => activity.canStart(),
     projects: c.projects,
     journal: autopilot,
     licenseProvider,
   });
   const localDraftWorker = startLocalAutopilotDraftWorker({
+    activity,
+    canStart: () => activity.canStart(),
     projects: c.projects,
     journal: autopilot,
     licenseProvider,
     localModel,
     runner,
   });
+  workers = [gateWorker, repairWorker, ciWatchWorker, localDraftWorker];
+  activity.start();
   const controller = new AbortController();
   let stopped = false;
   workerHandles = {
@@ -299,23 +324,25 @@ export async function startAgent(rawConfig) {
         const work = await post("/agent/poll", {});
         failures = 0;
         if (work) {
-          let result;
-          try {
-            const output = await dispatch(
-              work.tool,
-              work.args,
-              work.permissions,
-            );
-            result = {
-              content: [{ type: "text", text: JSON.stringify(output) }],
-            };
-          } catch (e) {
-            result = {
-              isError: true,
-              content: [{ type: "text", text: JSON.stringify(publicError(e)) }],
-            };
-          }
-          await post("/agent/result", { id: work.id, result });
+          await activity.track(async () => {
+            let result;
+            try {
+              const output = await activity.run(() =>
+                dispatch(work.tool, work.args, work.permissions),
+              );
+              result = {
+                content: [{ type: "text", text: JSON.stringify(output) }],
+              };
+            } catch (e) {
+              result = {
+                isError: true,
+                content: [
+                  { type: "text", text: JSON.stringify(publicError(e)) },
+                ],
+              };
+            }
+            await post("/agent/result", { id: work.id, result });
+          });
         }
       } catch (error) {
         if (stopped) break;
@@ -336,6 +363,7 @@ export async function startAgent(rawConfig) {
   return {
     close: async () => {
       stopped = true;
+      activity.close();
       controller.abort();
       await loop;
       await gateWorker.close();

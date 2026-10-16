@@ -379,6 +379,7 @@ export class JobRunner {
       if (archived.fingerprint !== fingerprint) fail("IDEMPOTENCY_CONFLICT");
       return this.public(archived);
     }
+    if (this.canStart && !this.canStart()) fail("UPDATE_MAINTENANCE");
     const capacity = this.capacity(cwd);
     if (capacity.blocked) fail("RESOURCE_PRESSURE");
     if (this.jobs.size >= this.journalLimit) this.compactJournal();

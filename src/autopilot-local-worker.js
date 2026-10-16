@@ -8,6 +8,7 @@ const DRAFT_TASK = /^auto-draft:[A-Za-z0-9._-]{1,100}$/;
 export class LocalAutopilotDraftWorker {
   constructor({
     projects,
+    canStart = () => true,
     journal,
     licenseProvider,
     localModel,
@@ -16,6 +17,7 @@ export class LocalAutopilotDraftWorker {
     this.projects = projects.filter(
       (p) => p.writable && p.autopilotLocalWorker?.enabled === true,
     );
+    this.canStart = canStart;
     this.journal = journal;
     this.licenseProvider = licenseProvider;
     this.localModel = localModel;
@@ -24,7 +26,7 @@ export class LocalAutopilotDraftWorker {
   }
 
   async tick() {
-    if (this.busy) return;
+    if (this.busy || !this.canStart()) return;
     this.busy = true;
     try {
       for (const project of this.projects) {
@@ -146,11 +148,12 @@ export function startLocalAutopilotDraftWorker(
     throw new Error("LOCAL_AUTOPILOT_INTERVAL_INVALID");
   const worker = new LocalAutopilotDraftWorker(options);
   if (worker.projects.length === 0)
-    return { enabledProjects: [], close: async () => {} };
+    return { enabledProjects: [], isIdle: () => true, close: async () => {} };
   const controller = new AbortController();
   const loop = (async () => {
     while (!controller.signal.aborted) {
-      await worker.tick();
+      if (options.activity) await options.activity.track(() => worker.tick());
+      else await worker.tick();
       try {
         await delay(intervalMs, undefined, { signal: controller.signal });
       } catch {
@@ -159,6 +162,7 @@ export function startLocalAutopilotDraftWorker(
     }
   })();
   return {
+    isIdle: () => !worker.busy,
     enabledProjects: worker.projects.map((p) => p.id),
     close: async () => {
       controller.abort();

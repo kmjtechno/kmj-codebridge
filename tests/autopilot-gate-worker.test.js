@@ -378,3 +378,17 @@ test("execution entitlement still fences worktree creation in isolated mode", (t
     0,
   );
 });
+
+test("maintenance still allows an already-running gate to finalize its task", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "running");
+  f.worker.canStart = () => false;
+  f.jobs.get("job-1").state = "succeeded";
+  f.jobs.get("job-1").exitCode = 0;
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "succeeded");
+  assert.equal(f.worker.active.size, 0);
+  assert.equal(f.count(), 1);
+});
