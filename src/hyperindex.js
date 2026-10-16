@@ -4,7 +4,7 @@ import { DatabaseSync } from "node:sqlite";
 import { hash, ProjectFiles } from "./policy.js";
 import { redact } from "./jobs.js";
 
-function safeContent(text) {
+export function safeIndexContent(text) {
   return redact(
     text.replace(
       /-----BEGIN [^-]*PRIVATE KEY-----[\s\S]*?(?:-----END [^-]*PRIVATE KEY-----|$)/g,
@@ -133,7 +133,7 @@ export class HyperIndex {
         } else accepted.delete(row.path);
       }
       for (const [name, file] of accepted) {
-        const content = safeContent(file.content);
+        const content = safeIndexContent(file.content);
         this.db
           .prepare("INSERT INTO files VALUES (?,?,?)")
           .run(name, file.sha256, content);
@@ -181,7 +181,9 @@ export class HyperIndex {
         truncated = true;
         continue;
       }
-      for (const [i, line] of safeContent(file.content).split("\n").entries())
+      for (const [i, line] of safeIndexContent(file.content)
+        .split("\n")
+        .entries())
         if (line.includes(query)) {
           if (matches.length === maxResults) {
             truncated = true;

@@ -1,7 +1,8 @@
 # HyperIndex backend foundation
 
 `HyperIndex(ProjectFiles, privateStateDirectory)` is an opt-in local SQLite FTS5
-trigram backend. It is not wired into MCP or enabled in production. Existing
+trigram backend. Three MCP tools expose status, explicit build and search with
+safe fallback. They are source-only and not enabled in production. Existing
 `search_code`, repository maps and context packs remain unchanged.
 
 State must be a real private directory outside the project. Database files must
@@ -22,9 +23,9 @@ partial results, never an assertion of an atomic whole-project snapshot.
 FTS queries use bounded table candidates with the same exact substring check.
 
 SQLite has a 64 MiB page limit and memory journaling; failed transactions roll
-back. Corrupt databases fail closed. Automatic recovery, safe lexical fallback,
-watcher generations, regex isolation, symbols, change feeds and MCP dispatch are
-still pending. Do not treat this foundation as the completed HyperIndex MVP.
+back. Corrupt databases fail closed. Lexical fallback handles absent, unsafe or corrupt indexes without deleting
+state. Automatic repair, watcher generations, regex isolation, symbols and
+change feeds are still pending. Do not treat this foundation as the completed HyperIndex MVP.
 No additional service, native package, watcher or external search provider is
 installed. Node 24's bundled SQLite must support FTS5/trigram.
 
@@ -40,3 +41,8 @@ Windows activation fails closed with `INDEX_WINDOWS_ACL_UNVERIFIED`: POSIX
 mode bits do not establish a private Windows ACL. Windows tests verify this
 refusal; the POSIX functional suite is explicitly skipped there. A Windows
 ACL adapter is required before enabling persistent indexing on Windows.
+
+`hyperindex_build` requires execute permission and creates private index state
+only after existing entitlement, device and project authorization. Search
+requires read permission and creates no index when missing. Existing indexes
+are reconciled on search. Status is presence-only, not an integrity proof.
