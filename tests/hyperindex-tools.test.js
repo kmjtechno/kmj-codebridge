@@ -31,7 +31,12 @@ function setup(t) {
 test("missing index search falls back without creating state; unauthorized build is refused", async (t) => {
   const f = setup(t);
   const status = await f.call("hyperindex_status");
-  assert.equal(status.state, "missing");
+  assert.equal(
+    status.state,
+    process.platform === "win32" ? "unavailable" : "missing",
+  );
+  if (process.platform === "win32")
+    assert.equal(status.reason, "WINDOWS_ACL_UNVERIFIED");
   const r = await f.call("hyperindex_search", { query: "needle" });
   assert.equal(r.fallback, true);
   assert.equal(r.matches[0].line, 1);
