@@ -21,9 +21,11 @@ export async function waitForTaskChange(journal, intervalMs, signal) {
   try {
     await Promise.race([
       wake,
-      delay(intervalMs, undefined, { signal: timeout.signal }).catch((error) => {
-        if (error?.name !== "AbortError") throw error;
-      }),
+      delay(intervalMs, undefined, { signal: timeout.signal }).catch(
+        (error) => {
+          if (error?.name !== "AbortError") throw error;
+        },
+      ),
     ]);
   } finally {
     timeout.abort();
