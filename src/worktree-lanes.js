@@ -108,6 +108,15 @@ export class WorktreeLanes {
       noAdditionalExecutionSlots: true,
     };
   }
+  // Single-call fixed CI commands may use the current checkout HEAD without
+  // exposing a shell, a caller-controlled ref, or a path. The immutable SHA is
+  // captured and rechecked by prepare(); the shared worktree is never checked out.
+  prepareCurrentHead(project, root, laneId) {
+    const repo = source(root);
+    const head = git(repo, ["rev-parse", "--verify", "HEAD"]);
+    if (!SHA.test(head)) fail("WORKTREE_HEAD_INVALID");
+    return this.prepare(project, repo, laneId, head);
+  }
   prepare(project, root, laneId, expectedHead) {
     if (!LANE.test(laneId) || !SHA.test(expectedHead))
       fail("WORKTREE_INPUT_INVALID");
