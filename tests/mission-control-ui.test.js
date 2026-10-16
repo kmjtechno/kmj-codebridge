@@ -137,7 +137,14 @@ test("verified task counts show correctly, host events update, and the running s
     project: "project1",
     device: "device1",
     evidence: { tasks: true, git: false, capacity: true },
-    tasks: { running: 0, queued: 0, waiting: 0, succeeded: 8, failed: 0, cancelled: 0 },
+    tasks: {
+      running: 0,
+      queued: 0,
+      waiting: 0,
+      succeeded: 8,
+      failed: 0,
+      cancelled: 0,
+    },
     availableAuthorizedSlots: 2,
   });
   assert.equal(view.element("running").textContent, "0");
@@ -161,7 +168,10 @@ test("the overview/workstream/evidence tabs are actual accessible interactive co
     },
   });
   assert.equal(prevented, true);
-  assert.equal(view.element("tab-evidence").attributes["aria-selected"], "true");
+  assert.equal(
+    view.element("tab-evidence").attributes["aria-selected"],
+    "true",
+  );
   assert.equal(view.element("tab-evidence").focused, true);
 });
 
@@ -177,7 +187,10 @@ test("tool strings are plain text, bounded, and cannot inject markup", () => {
     availableAuthorizedSlots: Number.POSITIVE_INFINITY,
   });
   assert.equal(view.element("project").textContent, "Not provided");
-  assert.equal(view.element("branch").textContent, "<img src=x onerror=alert(1)>");
+  assert.equal(
+    view.element("branch").textContent,
+    "<img src=x onerror=alert(1)>",
+  );
   assert.equal(view.element("running").textContent, "—");
   assert.equal(view.element("slots").textContent, "—");
 });
