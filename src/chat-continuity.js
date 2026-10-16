@@ -25,7 +25,9 @@ function safeText(value, min, max) {
     value.trim() !== value ||
     // Never store secrets, URLs, terminal output or multiline transcripts.
     /[\x00-\x1f\x7f]/.test(value) ||
-    /https?:\/\/|-----BEGIN |(?:sk|ghp|gho|ghu|ghs|ghr)-?[A-Za-z0-9_-]{18,}/i.test(value) ||
+    /https?:\/\/|-----BEGIN |(?:sk|ghp|gho|ghu|ghs|ghr)-?[A-Za-z0-9_-]{18,}/i.test(
+      value,
+    ) ||
     redact(value) !== value
   )
     fail("CHAT_CONTINUITY_UNSAFE_TEXT");
@@ -118,8 +120,16 @@ export class ChatContinuity {
         };
   }
 
-  save(project, lane, { requestKey, expectedRevision, summary, next, blockers }) {
-    if (!KEY.test(requestKey ?? "") || !Array.isArray(blockers) || blockers.length > MAX_BLOCKERS)
+  save(
+    project,
+    lane,
+    { requestKey, expectedRevision, summary, next, blockers },
+  ) {
+    if (
+      !KEY.test(requestKey ?? "") ||
+      !Array.isArray(blockers) ||
+      blockers.length > MAX_BLOCKERS
+    )
       fail("CHAT_CONTINUITY_INVALID_UPDATE");
     const body = {
       summary: safeText(summary, 1, 1000),
@@ -148,7 +158,10 @@ export class ChatContinuity {
       fail("CHAT_CONTINUITY_VERSION_CONFLICT");
     const filenames = fs.readdirSync(this.directory);
     if (
-      filenames.some((filename) => !HASH.test(filename.slice(0, -5)) || !filename.endsWith(".json"))
+      filenames.some(
+        (filename) =>
+          !HASH.test(filename.slice(0, -5)) || !filename.endsWith(".json"),
+      )
     )
       fail("CHAT_CONTINUITY_UNSAFE_DIRECTORY");
     if (!current && filenames.length >= SLOT_LIMIT)
