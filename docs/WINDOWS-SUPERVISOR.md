@@ -1,7 +1,8 @@
 # Windows-native supervisor (P720)
 
-Status: implemented and unit-tested on Linux CI hosts. **Not activated** and **not yet proven on a real
-Windows host** (see "Evidence" below). The Linux supervisor (`src/supervisor.js`, systemd socket) is
+Status: implemented and verified by GitHub-hosted Windows and Ubuntu CI at the PR #460 merge
+(`96c6f31a0327e5079209cf0f4880d6d6d07dde10`). **Not activated on the P720**;
+real workstation ACL, Scheduled Tasks, Qt/CMake and agent integration remain unverified. The Linux supervisor (`src/supervisor.js`, systemd socket) is
 unchanged and still refuses `win32`; Windows requests are never routed to systemd operations.
 
 ## What it is
@@ -52,13 +53,21 @@ the ACL to SYSTEM, Administrators and one service account (read).
 # then add -Apply
 ```
 
-`-Apply` backs up configs (SHA-256 manifest), creates the secret if missing and restricts its ACL,
+`-Apply` backs up configs (SHA-256 manifest), creates a new secret and restricts its ACL,
 registers a **disabled** scheduled task, and writes `agent.json.proposed`. `agent.json` is not modified.
+The installer refuses existing supervisor tasks, token files, proposed configs and already-configured
+agents rather than overwriting them. Backups have collision-resistant names and record the task
+identity and hashes of installer-owned token and proposed config. On interruption, preserve the
+backup and invoke rollback; never manually delete an unfamiliar Windows task or token.
 
 ```powershell
 .\scripts\windows\rollback-windows-supervisor.ps1 -BackupDir <backup folder>          # dry-run
 .\scripts\windows\rollback-windows-supervisor.ps1 -BackupDir <backup folder> -Apply   # add -RestoreConfigs to restore agent/supervisor json
 ```
+
+Rollback is also fail-closed: it refuses a different task name, a scheduled task whose executable or
+arguments do not match the install manifest, or any token/proposed config changed after creation.
+Existing user files are never deleted just because they have a familiar name.
 
 ## Activation (manual, after review)
 
