@@ -126,14 +126,23 @@ $manifest.taskArgs = $taskArgs
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
 $action = New-ScheduledTaskAction -Execute $node -Argument $taskArgs -WorkingDirectory $RuntimeDir
 $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -RunLevel Limited
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew
-Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Settings $settings | Out-Null
+# A persistent agent must recover after reboot and transient failures. This
+# task remains DISABLED after preparation; activation is a distinct step.
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
+Register-ScheduledTask -TaskName $TaskName -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
 Disable-ScheduledTask -TaskName $TaskName | Out-Null
 
 $proposed = "$AgentConfig.proposed"
 $json | Add-Member -NotePropertyName supervisorPipe -NotePropertyValue $pipe -Force
 $json | Add-Member -NotePropertyName supervisorTokenFile -NotePropertyValue $tokenFile -Force
-$json | ConvertTo-Json -Depth 32 | Set-Content -LiteralPath $proposed -Encoding UTF8
+# Node's JSON.parse rejects UTF-8 BOM emitted by Windows PowerShell 5.1.
+# Preserve the current agent.json and write only the proposed copy without BOM.
+[System.IO.File]::WriteAllText(
+  $proposed,
+  ($json | ConvertTo-Json -Depth 32),
+  ([System.Text.UTF8Encoding]::new($false))
+)
 
 $manifest.proposedSha256 = Get-Sha256 $proposed
 $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $manifestPath -Encoding UTF8
