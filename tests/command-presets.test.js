@@ -309,6 +309,8 @@ test("frontend CI cannot use shared checkout, other command profiles retain comp
   assert.ok(toolsSource.includes('a.command === "main_platform_ui_ci"'));
   assert.ok(toolsSource.includes("worktreeLanes().prepareCurrentHead("));
   assert.ok(
-    toolsSource.includes('if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")'),
+    toolsSource.includes(
+      'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
+    ),
   );
 });
