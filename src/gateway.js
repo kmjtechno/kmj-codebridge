@@ -1,3 +1,4 @@
+import { buildMissionActivity } from "./mission-control-activity.js";
 import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
 import { createUserIntrospector } from "./user-access.js";
 import {
@@ -580,6 +581,32 @@ export async function startGateway(rawConfig) {
     });
   }
 
+  async function getMissionControlBrief(user, args) {
+    authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
+    const [brief, jobs] = await Promise.all([
+      getCompactWorkBrief(user, args),
+      (async () => {
+        try {
+          return decodeForwardedResult(
+            await forward(user, "list_project_jobs", {
+              ...scope,
+              limit: 6,
+              state: "all",
+              cursor: null,
+            }),
+          );
+        } catch (error) {
+          return { ok: false, error: publicError(error).error };
+        }
+      })(),
+    ]);
+    return {
+      ...brief,
+      activity: buildMissionActivity({ project: args.project, jobs }),
+    };
+  }
+
   async function getContextResume(user, args) {
     authorize(user, args, "read");
     const scope = { device: args.device, project: args.project };
@@ -1152,7 +1179,7 @@ export async function startGateway(rawConfig) {
                 };
               }
               if (name === "render_codebridge_status") {
-                const result = await getCompactWorkBrief(user, args);
+                const result = await getMissionControlBrief(user, args);
                 return {
                   content: [{ type: "text", text: compactStatusText(result) }],
                   structuredContent: result,

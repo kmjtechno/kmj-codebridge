@@ -67,6 +67,16 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .foot strong{color:#b9c6de;font-weight:650}
 .statusrow{gap:8px;margin-top:10px;font-size:10px;color:#90a6b9}
 .statusrow i{width:6px;height:6px;border-radius:50%;background:var(--cyan)}
+.timeline{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:8px}
+.timeline li{display:grid;grid-template-columns:8px minmax(0,1fr) auto;align-items:center;column-gap:11px;padding:10px 12px;border-radius:10px;background:rgba(16,24,45,.64);border:1px solid var(--edge)}
+.timeline li i{height:7px;width:7px;border-radius:50%;background:#8295b6}
+.timeline li[data-state="running"] i{background:var(--cyan);box-shadow:0 0 12px rgba(121,230,227,.35)}
+.timeline li[data-state="succeeded"] i{background:#91e1ad}
+.timeline li[data-state="failed"] i,.timeline li[data-state="timed_out"] i{background:var(--red)}
+.timeline li[data-state="queued"] i{background:var(--amber)}
+.timeline li strong{font-size:11px;font-weight:650;overflow-wrap:anywhere}
+.timeline li time{font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums;overflow-wrap:anywhere;text-align:right}
+@media(max-width:440px){.timeline li{grid-template-columns:8px 1fr}.timeline li time{grid-column:2;text-align:left;margin-top:4px}}
 @keyframes signal{50%{opacity:.27;box-shadow:0 0 20px var(--cyan)}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 @media(max-width:520px){.shell{padding:17px;border-radius:15px}.pill{padding:6px 8px;font-size:9px}.brand img{width:36px;height:36px}.brand small{letter-spacing:.04em}.motion-icon{display:none}.flow{gap:4px;grid-template-columns:1fr 10px 1fr 10px 1fr}.node{padding:9px 7px;min-height:78px}.node strong{font-size:10px}.node span{font-size:9px}.foot{align-items:flex-start;flex-direction:column;gap:3px}}
@@ -118,7 +128,17 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <div class="cell"><small>Cancelled</small><strong id="cancelled">—</strong></div>
   </div>
   <div class="statusrow"><i aria-hidden="true"></i><span id="workHint">No authenticated task snapshot received.</span></div>
-  <p class="note">Task history is not the same as whole-product completion or release readiness.</p>
+  <h2 class="sectiontitle" style="margin-top:19px">Verified operation receipts</h2>
+  <p class="note" id="activityNotice">No recent job receipts requested.</p>
+  <ol class="timeline" aria-label="Recent authorized project jobs">
+    <li id="activity-0" hidden><i aria-hidden="true"></i><strong id="activity-title-0"></strong><time id="activity-time-0"></time></li>
+    <li id="activity-1" hidden><i aria-hidden="true"></i><strong id="activity-title-1"></strong><time id="activity-time-1"></time></li>
+    <li id="activity-2" hidden><i aria-hidden="true"></i><strong id="activity-title-2"></strong><time id="activity-time-2"></time></li>
+    <li id="activity-3" hidden><i aria-hidden="true"></i><strong id="activity-title-3"></strong><time id="activity-time-3"></time></li>
+    <li id="activity-4" hidden><i aria-hidden="true"></i><strong id="activity-title-4"></strong><time id="activity-time-4"></time></li>
+    <li id="activity-5" hidden><i aria-hidden="true"></i><strong id="activity-title-5"></strong><time id="activity-time-5"></time></li>
+  </ol>
+  <p class="note">Recent jobs are a snapshot, not a continuously streaming feed or whole-project completion metric.</p>
 </section>
 <section class="panel" id="panel-evidence" role="tabpanel" aria-labelledby="tab-evidence" hidden>
   <h2 class="sectiontitle">Provenance and operating boundaries</h2>
@@ -164,6 +184,26 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      tab(view);document.getElementById("tab-"+view).focus();
    });
  });
+ function renderActivity(activity){
+   var okay=activity&&activity.source==="AUTHORIZED_PROJECT_JOB_RECEIPTS"&&
+     activity.status==="AVAILABLE"&&Array.isArray(activity.items)&&activity.items.length<=6;
+   text("activityNotice",okay
+     ? "Project-scoped job records · "+(activity.hasMore?"More entries available":"Up to six recent entries")
+     : "No verified recent project-job receipts available.");
+   for(var i=0;i<6;i++){
+     var row=document.getElementById("activity-"+i);
+     var entry=okay?activity.items[i]:null;
+     var safe=entry&&typeof entry.gate==="string"&&
+       /^[A-Za-z0-9_.:-]{1,100}$/.test(entry.gate)&&
+       ["queued","running","succeeded","failed","cancelled","timed_out","interrupted"].indexOf(entry.state)>=0&&
+       typeof entry.at==="string"&&/^[0-9]{4}-[0-9]{2}-[0-9]{2}T/.test(entry.at);
+     row.hidden=!safe;
+     if(!safe)continue;
+     row.setAttribute("data-state",entry.state);
+     text("activity-title-"+i,entry.gate+" · "+entry.state);
+     text("activity-time-"+i,entry.at);
+   }
+ }
  function render(input){
    var data=input&&input.structuredContent&&input.structuredContent.product==="KMJ CodeBridge"?input.structuredContent:input;
    if(!data||data.product!=="KMJ CodeBridge")return;
@@ -191,6 +231,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    text("verifyState","Independent CI and policy gates");
    text("nextAction",data.nextReadyTaskId?"Next ready task: "+safeName(data.nextReadyTaskId):"Next: "+safeName(data.action));
    text("workHint",tasks?"Task counts from latest authorized snapshot.":"No authenticated task snapshot received.");
+   renderActivity(data.activity);
  }
  // ChatGPT's legacy bridge is optional. The portable MCP Apps protocol
  // requires a JSON-RPC initialize/initialized handshake with the parent host.
