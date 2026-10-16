@@ -179,16 +179,16 @@ install Windows auto-update.
 If the existing-task audit shows `KMJ_AGENT_TASK_STATE=Disabled`,
 `KMJ_AGENT_TASK_ACTION=MATCH`,
 `KMJ_AGENT_TASK_RECOVERY_POLICY=MATCH`, but
-`KMJ_AGENT_TASK_PRINCIPAL=MISMATCH`, rerun the updated
-`AUDIT-P720-EXISTING-AGENT-TASK.cmd`. It now prints three additional
+`KMJ_AGENT_TASK_PRINCIPAL=MISMATCH`, run the separate read-only
+`DIAGNOSE-P720-AGENT-TASK-PRINCIPAL.cmd`. It prints three additional
 non-sensitive categories:
 
-- `KMJ_AGENT_TASK_PRINCIPAL_IDENTITY=MATCH|MISMATCH|UNRESOLVED`:
+- `KMJ_PRINCIPAL_IDENTITY=MATCH|MISMATCH|UNRESOLVED`:
   the task user matches the currently running agent's owner, using
   canonical Windows SID comparison to support account aliases.
-- `KMJ_AGENT_TASK_PRINCIPAL_LOGON=S4U|PASSWORD|INTERACTIVE|INTERACTIVE_OR_PASSWORD|SERVICE_ACCOUNT|OTHER_OR_UNKNOWN`:
+- `KMJ_PRINCIPAL_LOGON=S4U|PASSWORD|INTERACTIVE|INTERACTIVE_OR_PASSWORD|SERVICE_ACCOUNT|OTHER_OR_UNKNOWN`:
   only the task's logon **type**, not a name, domain or secret.
-- `KMJ_AGENT_TASK_PRINCIPAL_RUN_LEVEL=LIMITED|HIGHEST|OTHER_OR_UNKNOWN`:
+- `KMJ_PRINCIPAL_RUN_LEVEL=LIMITED|HIGHEST|OTHER_OR_UNKNOWN`:
   only its elevation policy, not account details.
 
 The existing fail-closed audit verdict is unchanged. A principal
