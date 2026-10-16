@@ -61,6 +61,16 @@ if ($agentEntry) {
     throw 'ROLLBACK_PROPOSED_CONFIG_CHANGED: refusing to erase operator changes.'
   }
 }
+# Install never changes agent.json or supervisor.json in place.
+# Even an explicit restore must refuse to overwrite a newer operator edit.
+if ($RestoreConfigs) {
+  foreach ($entry in $manifest.files | Where-Object { $_.source -notlike 'task:*' }) {
+    if (-not (Test-Path -LiteralPath $entry.source -PathType Leaf) -or
+        (Get-FileHash -Algorithm SHA256 -LiteralPath $entry.source).Hash.ToLowerInvariant() -cne $entry.sha256) {
+      throw 'RESTORE_TARGET_CHANGED: refusing to overwrite existing configuration.'
+    }
+  }
+}
 Write-Output "Mode: $(if ($Apply) { 'APPLY' } else { 'DRY-RUN (no changes)' }); backup verified ($($manifest.files.Count) files)."
 if (-not $Apply) { Write-Output 'Re-run with -Apply to roll back.'; return }
 
