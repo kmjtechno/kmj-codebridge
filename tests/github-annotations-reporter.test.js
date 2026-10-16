@@ -20,18 +20,24 @@ test("failing tests become bounded GitHub error annotations", async () => {
         file: "C:\\repo\\tests\\example.test.js",
         line: 12,
         details: {
-          error: Object.assign(new Error("Expected values to be strictly equal"), {
-            code: "ERR_ASSERTION",
-            expected: 2,
-            actual: 1,
-          }),
+          error: Object.assign(
+            new Error("Expected values to be strictly equal"),
+            {
+              code: "ERR_ASSERTION",
+              expected: 2,
+              actual: 1,
+            },
+          ),
         },
       },
     },
     { type: "test:pass", data: { name: "fine" } },
   ]);
   assert.equal(lines.length, 1);
-  assert.match(lines[0], /^::error file=tests\/example\.test\.js,line=12,title=Test failed::deliberate failure/);
+  assert.match(
+    lines[0],
+    /^::error file=tests\/example\.test\.js,line=12,title=Test failed::deliberate failure/,
+  );
   assert.match(lines[0], /expected=2/);
   assert.match(lines[0], /actual=1/);
   assert.equal(lines[0].split("\n").length, 2);
