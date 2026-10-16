@@ -54,3 +54,31 @@ without an unrestricted PowerShell interface.
 For rollbacks use the exact backup folder printed by the installer and the
 existing scripts/windows/rollback-windows-supervisor.ps1 dry-run first.
 The rollback refuses changed tokens, configs and unknown task actions.
+
+
+## Second one-click operation: guarded supervisor activation
+
+After preparation, run `scripts/windows/ACTIVATE-P720-SUPERVISOR.cmd`
+using **Run as administrator** from the verified matching source tree.
+This launcher selects exactly one prepared supervisor backup under the fixed
+backup root. Multiple candidates cause a hard refusal, not a guess.
+
+Activation compares the immutable runtime SHA, trusted origin, exact task
+executable/arguments/working directory, backed-up config SHA-256, proposed
+agent configuration and token hash. It enables and starts **only** the fixed
+disabled supervisor task, then requires an actual HMAC-authenticated
+`status(agent)` over the Windows named pipe. A failed start or handshake
+causes a stop/disable attempt; the operator must still inspect Windows
+Task Scheduler after a failure.
+
+**The agent is not updated or restarted by this launcher.** This deliberate
+separation prevents accidentally replacing the connected agent with an
+unknown task identity. After successful native supervisor status, independently
+verify the active agent task command, the pinned release, enrollment identity,
+rollback, and compatibility before applying `agent.json.proposed` and
+restarting that exact agent task. A running supervisor alone does not
+prove automatic task continuation, command-profile activation or CineCore
+build support.
+
+Rollback with `-RestoreConfigs` now refuses to overwrite any original
+configuration that changed after backup.
