@@ -17,6 +17,47 @@ function ensureDirectory(target, mode = 0o755) {
   const stat = fs.lstatSync(target);
   if (!stat.isDirectory() || stat.isSymbolicLink())
     fail("UPDATE_RELEASE_ROOT_INVALID");
+  // mkdir's mode is filtered by the updater's private umask. Runtime roots
+  // must still be traversable by the separate, unprivileged agent user.
+  fs.chmodSync(target, mode);
+}
+
+function makeRuntimeReadable(root) {
+  const directories = [root];
+  const files = [];
+  const realRoot = fs.realpathSync(root);
+  for (let index = 0; index < directories.length; index += 1) {
+    for (const name of fs.readdirSync(directories[index])) {
+      const target = path.join(directories[index], name);
+      const stat = fs.lstatSync(target);
+      if (stat.isSymbolicLink()) {
+        // npm creates internal executable links. Never follow a link while
+        // changing modes, and reject links outside the finalized runtime.
+        if (path.isAbsolute(fs.readlinkSync(target)))
+          fail("UPDATE_STAGED_RUNTIME_INVALID");
+        let real;
+        try {
+          real = fs.realpathSync(target);
+        } catch {
+          fail("UPDATE_STAGED_RUNTIME_INVALID");
+        }
+        const relative = path.relative(realRoot, real);
+        if (
+          relative === ".." ||
+          relative.startsWith(".." + path.sep) ||
+          path.isAbsolute(relative)
+        )
+          fail("UPDATE_STAGED_RUNTIME_INVALID");
+      } else if (stat.isDirectory()) directories.push(target);
+      else if (stat.isFile() && stat.nlink === 1)
+        files.push({ target, mode: stat.mode });
+      else fail("UPDATE_STAGED_RUNTIME_INVALID");
+    }
+  }
+  // Validate the complete tree before modifying any file permissions.
+  for (const { target, mode } of files)
+    fs.chmodSync(target, mode & 0o111 ? 0o755 : 0o644);
+  for (const directory of directories.reverse()) fs.chmodSync(directory, 0o755);
 }
 
 function safeReleaseName(name) {
@@ -118,6 +159,10 @@ export class ReleaseStore {
     )
       fail("UPDATE_STAGED_RUNTIME_INVALID");
 
+    const target = path.join(releases, name);
+    if (fs.existsSync(target)) fail("UPDATE_RELEASE_EXISTS");
+    makeRuntimeReadable(resolved);
+
     const marker = {
       schema: 1,
       version: manifest.version,
@@ -130,9 +175,8 @@ export class ReleaseStore {
       JSON.stringify(marker) + "\n",
       { mode: 0o444, flag: "wx" },
     );
+    fs.chmodSync(path.join(resolved, ".codebridge-release.json"), 0o444);
 
-    const target = path.join(releases, name);
-    if (fs.existsSync(target)) fail("UPDATE_RELEASE_EXISTS");
     fs.renameSync(resolved, target);
     return { name, target };
   }

@@ -19,6 +19,21 @@ try {
   const base = prepareOutput(options.out, "kmj-codebridge");
   const out = path.join(base, "kmj-codebridge");
   fs.cpSync(path.join(root, "plugin"), out, { recursive: true });
+  // cp preserves immutable checkout modes. Only the generated copy needs
+  // owner write access so endpoint metadata can be replaced and desktop
+  // files removed; the source checkout stays immutable.
+  fs.chmodSync(out, fs.statSync(out).mode | 0o700);
+  for (const entry of fs.readdirSync(out, {
+    recursive: true,
+    withFileTypes: true,
+  })) {
+    if (!entry.isDirectory() && !entry.isFile()) continue;
+    const file = path.join(entry.parentPath ?? entry.path, entry.name);
+    fs.chmodSync(
+      file,
+      fs.statSync(file).mode | (entry.isDirectory() ? 0o700 : 0o600),
+    );
+  }
   // The public/submission package uses the hosted remote MCP endpoint.
   // Desktop-only local bridge code stays in the repository marketplace package.
   fs.rmSync(path.join(out, "desktop"), { recursive: true, force: true });

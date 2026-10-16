@@ -296,3 +296,21 @@ test("fixed private CI entry cannot accept a user-selected revision or command",
   assert.match(entry, /ci-main-platform-pr\.sh "\$sha"/);
   assert.doesNotMatch(entry, /eval |git\s+push|git\s+fetch|sudo |gh pr merge/);
 });
+
+test("both hardened updater units provision a writable maintenance control directory", () => {
+  const section = script.match(
+    /write_stable_update_units\(\) \{\n([\s\S]*?)\n\}\n/,
+  )[1];
+  const units = section
+    .split('cat >"')
+    .filter((part) => part.includes("[Service]"));
+  assert.equal(units.length, 2);
+  for (const unit of units) {
+    assert.match(unit, /ProtectSystem=strict/);
+    assert.match(
+      unit,
+      /RuntimeDirectory=kmj-codebridge-update\nRuntimeDirectoryMode=0755\nRuntimeDirectoryPreserve=yes/,
+    );
+    assert.match(unit, /ReadWritePaths=[^\n]* \/run\/kmj-codebridge-update\n/);
+  }
+});

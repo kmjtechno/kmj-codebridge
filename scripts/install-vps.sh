@@ -595,7 +595,10 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR $STABLE_WORK_DIR
+RuntimeDirectory=kmj-codebridge-update
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR $STABLE_WORK_DIR /run/kmj-codebridge-update
 UMask=0077
 Nice=10
 IOSchedulingClass=idle
@@ -624,7 +627,10 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictAddressFamilies=AF_UNIX
-ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR
+RuntimeDirectory=kmj-codebridge-update
+RuntimeDirectoryMode=0755
+RuntimeDirectoryPreserve=yes
+ReadWritePaths=$STABLE_INSTALL_ROOT $STABLE_UPDATE_STATE_DIR /run/kmj-codebridge-update
 UMask=0077
 EOF
 

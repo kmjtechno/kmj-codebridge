@@ -150,6 +150,7 @@ test("website CI staging copies content and modes without source ownership or ti
       fs.mkdirSync(path.dirname(file), { recursive: true });
 
       fs.writeFileSync(file, "fixture-content\n", { mode: 0o755 });
+      fs.chmodSync(file, 0o755);
       fs.utimesSync(file, 946684800, 946684800);
       if (process.getuid() === 0) {
         const ownership = spawnSync("chown", ["65534:65534", file]);

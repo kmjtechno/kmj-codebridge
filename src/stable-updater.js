@@ -14,6 +14,7 @@ import {
   activateReleaseWithHealthCheck,
   prepareVerifiedRelease,
 } from "./update-orchestrator.js";
+import { acquireUpdateMaintenance } from "./update-maintenance.js";
 import { SUPERVISOR_SOCKET, supervisorRequest } from "./supervisor-client.js";
 
 const version = z
@@ -180,6 +181,20 @@ function releaseMatchesManifest(marker, manifest) {
   );
 }
 
+function assertMaintenanceRuntime(store, releaseName) {
+  try {
+    const file = path.join(store.releases, releaseName, "package.json");
+    const stat = fs.lstatSync(file);
+    if (!stat.isFile() || stat.nlink !== 1 || stat.size > 65536)
+      fail("UPDATE_RUNTIME_MAINTENANCE_UNSUPPORTED");
+    const pkg = JSON.parse(fs.readFileSync(file, "utf8"));
+    if (pkg.codebridgeAgentUpdateProtocol !== 1)
+      fail("UPDATE_RUNTIME_MAINTENANCE_UNSUPPORTED");
+  } catch {
+    fail("UPDATE_RUNTIME_MAINTENANCE_UNSUPPORTED");
+  }
+}
+
 function currentReleaseMarker(store) {
   const current = store.status().current;
   return current ? markerFor(store, current) : null;
@@ -343,6 +358,14 @@ export async function runStableUpdate(
     prepare = prepareVerifiedRelease,
     activate = activateReleaseWithHealthCheck,
     restartRequest = supervisorRequest,
+    acquireMaintenance = (config) =>
+      acquireUpdateMaintenance(config, {
+        status: () =>
+          restartRequest(config.supervisorSocket, {
+            op: "status",
+            service: "agent",
+          }),
+      }),
     preflight = defaultStableUpdatePreflight,
     now = () => Date.now(),
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
@@ -357,82 +380,104 @@ export async function runStableUpdate(
     "UPDATE_AGENT_STATE_INVALID",
   );
 
-  const store = createStore(config);
-  const accepted = readAcceptedUpdateState(config.stateDir);
-  const currentMarker = currentReleaseMarker(store);
-  const minimumSequence = Math.max(
-    accepted?.sequence ?? -1,
-    currentMarker?.sequence ?? -1,
-  );
-
-  const [rawManifest, rawSignature] = await Promise.all([
-    fetchBytes(config.manifestUrl, { maxBytes: 65536 }),
-    fetchBytes(config.signatureUrl, { maxBytes: 1024 }),
-  ]);
-  let signature;
+  const maintenance = acquireMaintenance(config);
   try {
-    signature = new TextDecoder("utf-8", { fatal: true })
-      .decode(rawSignature)
-      .trim();
-  } catch {
-    fail("UPDATE_SIGNATURE_INVALID");
-  }
+    const store = createStore(config);
+    const accepted = readAcceptedUpdateState(config.stateDir);
+    const currentMarker = currentReleaseMarker(store);
+    const minimumSequence = Math.max(
+      accepted?.sequence ?? -1,
+      currentMarker?.sequence ?? -1,
+    );
 
-  const manifest = verifyManifest(rawManifest, signature, config.trustedKeys, {
-    minimumSequence: -1,
-  });
-  if (manifest.channel !== config.channel) fail("UPDATE_CHANNEL_MISMATCH");
-  assertNodeCompatible(manifest, nodeMajor);
+    const [rawManifest, rawSignature] = await Promise.all([
+      fetchBytes(config.manifestUrl, { maxBytes: 65536 }),
+      fetchBytes(config.signatureUrl, { maxBytes: 1024 }),
+    ]);
+    let signature;
+    try {
+      signature = new TextDecoder("utf-8", { fatal: true })
+        .decode(rawSignature)
+        .trim();
+    } catch {
+      fail("UPDATE_SIGNATURE_INVALID");
+    }
 
-  if (manifest.sequence < minimumSequence) fail("UPDATE_ROLLBACK_REJECTED");
-  if (manifest.sequence === minimumSequence) {
-    if (releaseMatchesManifest(currentMarker, manifest))
-      return {
-        updated: false,
-        current: releaseDirectoryName(manifest),
-        sequence: manifest.sequence,
-        version: manifest.version,
-      };
-    fail("UPDATE_ROLLBACK_REJECTED");
-  }
-
-  let release = reusableRelease(store, manifest);
-  if (!release) {
-    const prepared = await prepare({
+    const manifest = verifyManifest(
       rawManifest,
       signature,
-      trustedKeys: config.trustedKeys,
-      minimumSequence: -1,
+      config.trustedKeys,
+      {
+        minimumSequence: -1,
+      },
+    );
+    if (manifest.channel !== config.channel) fail("UPDATE_CHANNEL_MISMATCH");
+    assertNodeCompatible(manifest, nodeMajor);
+
+    if (manifest.sequence < minimumSequence) fail("UPDATE_ROLLBACK_REJECTED");
+    if (manifest.sequence === minimumSequence) {
+      if (releaseMatchesManifest(currentMarker, manifest))
+        return {
+          updated: false,
+          current: releaseDirectoryName(manifest),
+          sequence: manifest.sequence,
+          version: manifest.version,
+        };
+      fail("UPDATE_ROLLBACK_REJECTED");
+    }
+
+    let release = reusableRelease(store, manifest);
+    if (!release) {
+      const prepared = await prepare({
+        rawManifest,
+        signature,
+        trustedKeys: config.trustedKeys,
+        minimumSequence: -1,
+        store,
+        workDir: config.workDir,
+        verifyManifest: () => manifest,
+        preflight,
+      });
+      release = prepared.release;
+    }
+
+    assertMaintenanceRuntime(store, release.name);
+    await maintenance.drain();
+    const activationStart = now();
+    const activation = await activate({
       store,
-      workDir: config.workDir,
-      verifyManifest: () => manifest,
-      preflight,
+      releaseName: release.name,
+      restart: () => {
+        maintenance.assertHeld?.();
+        return fixedAgentRestart(config.supervisorSocket, restartRequest);
+      },
+      healthCheck: async () =>
+        freshAuthenticatedConnection(agentStateDir, activationStart, manifest),
+      rollbackHealthCheck: async () =>
+        Boolean(currentMarker) &&
+        freshAuthenticatedConnection(
+          agentStateDir,
+          activationStart,
+          currentMarker,
+        ),
+      attempts: config.health.attempts,
+      delayMs: config.health.delayMs,
+      sleep,
     });
-    release = prepared.release;
+
+    writeAcceptedUpdateState(config.stateDir, manifest, now());
+    return {
+      updated: activation.changed,
+      current: activation.current,
+      previous: activation.previous,
+      healthy: activation.healthy,
+      sequence: manifest.sequence,
+      version: manifest.version,
+      reused: Boolean(release.reused),
+    };
+  } finally {
+    maintenance.close();
   }
-
-  const activationStart = now();
-  const activation = await activate({
-    store,
-    releaseName: release.name,
-    restart: () => fixedAgentRestart(config.supervisorSocket, restartRequest),
-    healthCheck: async () =>
-      freshAuthenticatedConnection(agentStateDir, activationStart, manifest),
-    attempts: config.health.attempts,
-    delayMs: config.health.delayMs,
-    sleep,
-  });
-
-  writeAcceptedUpdateState(config.stateDir, manifest, now());
-  return {
-    updated: activation.changed,
-    current: activation.current,
-    previous: activation.previous,
-    healthy: activation.healthy,
-    sequence: manifest.sequence,
-    version: manifest.version,
-    reused: Boolean(release.reused),
-  };
 }
 
 export async function runStableRollback(
@@ -444,6 +489,14 @@ export async function runStableRollback(
         stateDir: config.stateDir,
       }),
     restartRequest = supervisorRequest,
+    acquireMaintenance = (config) =>
+      acquireUpdateMaintenance(config, {
+        status: () =>
+          restartRequest(config.supervisorSocket, {
+            op: "status",
+            service: "agent",
+          }),
+      }),
     now = () => Date.now(),
     sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
   } = {},
@@ -454,33 +507,44 @@ export async function runStableRollback(
     config.agentStateDir,
     "UPDATE_AGENT_STATE_INVALID",
   );
-  const store = createStore(config);
-  const before = store.status();
-  if (!before.previous) fail("UPDATE_ROLLBACK_UNAVAILABLE");
-
-  const previousMarker = markerFor(store, before.previous);
-  if (!previousMarker) fail("UPDATE_ROLLBACK_UNAVAILABLE");
-  const rollbackStart = now();
-  const result = store.rollback();
+  const maintenance = acquireMaintenance(config);
   try {
-    await fixedAgentRestart(config.supervisorSocket, restartRequest);
-  } catch {
+    const store = createStore(config);
+    const before = store.status();
+    if (!before.previous) fail("UPDATE_ROLLBACK_UNAVAILABLE");
+
+    const previousMarker = markerFor(store, before.previous);
+    if (!previousMarker) fail("UPDATE_ROLLBACK_UNAVAILABLE");
+    assertMaintenanceRuntime(store, before.previous);
+    await maintenance.drain();
+    const rollbackStart = now();
+    const result = store.rollback();
+    try {
+      await fixedAgentRestart(config.supervisorSocket, restartRequest);
+    } catch {
+      store.rollback();
+      await fixedAgentRestart(config.supervisorSocket, restartRequest);
+      fail("UPDATE_ROLLBACK_RESTART_FAILED");
+    }
+
+    for (let attempt = 0; attempt < config.health.attempts; attempt += 1) {
+      if (
+        freshAuthenticatedConnection(
+          agentStateDir,
+          rollbackStart,
+          previousMarker,
+        )
+      ) {
+        return { rolledBack: true, ...result };
+      }
+      if (attempt + 1 < config.health.attempts)
+        await sleep(config.health.delayMs);
+    }
+
     store.rollback();
     await fixedAgentRestart(config.supervisorSocket, restartRequest);
-    fail("UPDATE_ROLLBACK_RESTART_FAILED");
+    fail("UPDATE_ROLLBACK_HEALTH_FAILED");
+  } finally {
+    maintenance.close();
   }
-
-  for (let attempt = 0; attempt < config.health.attempts; attempt += 1) {
-    if (
-      freshAuthenticatedConnection(agentStateDir, rollbackStart, previousMarker)
-    ) {
-      return { rolledBack: true, ...result };
-    }
-    if (attempt + 1 < config.health.attempts)
-      await sleep(config.health.delayMs);
-  }
-
-  store.rollback();
-  await fixedAgentRestart(config.supervisorSocket, restartRequest);
-  fail("UPDATE_ROLLBACK_HEALTH_FAILED");
 }

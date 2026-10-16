@@ -234,8 +234,10 @@ function openPinnedHttpsResponse(
           "accept-encoding": "identity",
           "user-agent": "KMJ-CodeBridge-Updater/1",
         },
-        lookup: (_hostname, _options, callback) =>
-          callback(null, address, family),
+        lookup: (_hostname, options, callback) => {
+          if (options.all) callback(null, [{ address, family }]);
+          else callback(null, address, family);
+        },
       },
       resolve,
     );

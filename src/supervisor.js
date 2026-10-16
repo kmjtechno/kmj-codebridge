@@ -100,10 +100,50 @@ function exactKeys(value, allowed) {
     fail("INVALID_SUPERVISOR_REQUEST");
 }
 
-function serviceUnit(service) {
+function serviceUnit(service, run) {
   const unit = SERVICES[service];
-  if (!unit) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
-  return unit;
+  if (!Object.hasOwn(SERVICES, service)) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+  const snapshot = (name) =>
+    parseProperties(
+      run(SYSTEMCTL, [
+        "show",
+        name,
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--no-pager",
+      ]),
+    );
+  const primary = snapshot(unit);
+  if (!["loaded", "not-found"].includes(primary.LoadState))
+    fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  const alternate =
+    service === "agent"
+      ? MAIN_PLATFORM_AGENT_SERVICE
+      : "kmj-codebridge-gateway-stage.service";
+  const secondary = snapshot(alternate);
+  if (!["loaded", "not-found"].includes(secondary.LoadState))
+    fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  const installed = [
+    [unit, primary],
+    [alternate, secondary],
+  ].filter(([, state]) => state.LoadState === "loaded");
+  // Never infer a target from missing state or a unit changing lifecycle.
+  if (
+    !installed.length ||
+    installed.some(
+      ([, state]) =>
+        !["active", "inactive", "failed"].includes(state.ActiveState),
+    )
+  )
+    fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+  const active = installed.filter(
+    ([, state]) => state.ActiveState === "active",
+  );
+  if (active.length > 1 || (active.length === 0 && installed.length > 1))
+    fail("SUPERVISOR_SERVICE_AMBIGUOUS");
+  // The old default may remain installed after a stage cutover. Status,
+  // logs and restart must all address the same sole running instance.
+  return (active[0] ?? installed[0])[0];
 }
 
 function parseProperties(text) {
@@ -1547,7 +1587,7 @@ export function createSupervisorHandler({
 
     if (request.op === "status") {
       exactKeys(request, ["op", "service"]);
-      const unit = serviceUnit(request.service);
+      const unit = serviceUnit(request.service, run);
       const output = run(SYSTEMCTL, [
         "show",
         unit,
@@ -1562,10 +1602,10 @@ export function createSupervisorHandler({
 
     if (request.op === "logs") {
       exactKeys(request, ["op", "service", "lines"]);
-      const unit = serviceUnit(request.service);
       const lines = request.lines ?? 80;
       if (!Number.isInteger(lines) || lines < 1 || lines > 200)
         fail("INVALID_SUPERVISOR_REQUEST");
+      const unit = serviceUnit(request.service, run);
       const output = run(JOURNALCTL, [
         "-u",
         unit,
@@ -1615,7 +1655,7 @@ export function createSupervisorHandler({
 
     if (request.op === "restart") {
       exactKeys(request, ["op", "service"]);
-      const unit = serviceUnit(request.service);
+      const unit = serviceUnit(request.service, run);
       return {
         response: { service: request.service, accepted: true },
         afterSend: () => restart(unit),

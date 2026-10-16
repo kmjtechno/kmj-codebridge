@@ -108,10 +108,18 @@ export function verifyRepairCandidate(root, allowedPaths) {
 }
 
 export class IsolatedRepairWorker {
-  constructor({ projects, journal, runner, licenseProvider, lanes }) {
+  constructor({
+    projects,
+    journal,
+    runner,
+    licenseProvider,
+    lanes,
+    canStart = () => true,
+  }) {
     this.projects = projects.filter(
       (p) => p.writable && p.autopilotRepairWorker?.enabled === true,
     );
+    this.canStart = canStart;
     this.journal = journal;
     this.runner = runner;
     this.licenseProvider = licenseProvider;
@@ -212,6 +220,7 @@ export class IsolatedRepairWorker {
         continue;
       }
 
+      if (!this.canStart()) continue;
       const recipes = project.autopilotRepairWorker.recipes;
       if (
         !this.journal.hasReady(project.id, (task) =>
@@ -305,12 +314,13 @@ export function startIsolatedRepairWorker(
     throw new Error("AUTOPILOT_REPAIR_INTERVAL_INVALID");
   const worker = new IsolatedRepairWorker(options);
   if (!worker.projects.length)
-    return { enabledProjects: [], close: async () => {} };
+    return { enabledProjects: [], isIdle: () => true, close: async () => {} };
   const abort = new AbortController();
   const loop = (async () => {
     while (!abort.signal.aborted) {
       try {
-        worker.tick();
+        if (options.activity) await options.activity.track(() => worker.tick());
+        else worker.tick();
       } catch {
         // Task state remains available for operator inspection after failure.
       }
@@ -322,6 +332,7 @@ export function startIsolatedRepairWorker(
     }
   })();
   return {
+    isIdle: () => worker.active.size === 0,
     enabledProjects: worker.projects.map((p) => p.id),
     close: async () => {
       abort.abort();

@@ -352,3 +352,26 @@ test("review action fails before a verified repair checkpoint", (t) => {
     /AUTOPILOT_REPAIR_NOT_VERIFIED/,
   );
 });
+
+test("maintenance allows verification of an existing repair while stopping new claims", (t) => {
+  const f = fixture(t),
+    task = f.enqueue();
+  f.worker.tick();
+  f.worker.canStart = () => false;
+  const lane = f.starts[0].cwd;
+  fs.writeFileSync(path.join(lane, "src", "format.js"), "const x = 1;\n");
+  f.jobs.get("job-1").state = "succeeded";
+  f.jobs.get("job-1").exitCode = 0;
+  f.worker.tick();
+  assert.equal(f.starts.length, 2);
+  assert.equal(f.starts[1].gate, "check");
+  assert.equal(f.worker.active.size, 1);
+  f.jobs.get("job-2").state = "succeeded";
+  f.jobs.get("job-2").exitCode = 0;
+  f.worker.tick();
+  assert.equal(f.worker.active.size, 0);
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "VERIFIED_PATCH_AWAITING_REVIEW",
+  );
+});
