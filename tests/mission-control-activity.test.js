@@ -101,7 +101,11 @@ test("pagination is labelled, not quietly presented as a complete history", () =
   const input = receipts();
   input.value.total = 10;
   input.value.nextCursor = "a2b3c4";
-  const result = buildMissionActivity({ project: "project1", jobs: input, now });
+  const result = buildMissionActivity({
+    project: "project1",
+    jobs: input,
+    now,
+  });
   assert.equal(result.hasMore, true);
   assert.equal(result.items.length, 2);
 });
