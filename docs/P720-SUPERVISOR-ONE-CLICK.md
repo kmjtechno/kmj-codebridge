@@ -55,7 +55,6 @@ For rollbacks use the exact backup folder printed by the installer and the
 existing scripts/windows/rollback-windows-supervisor.ps1 dry-run first.
 The rollback refuses changed tokens, configs and unknown task actions.
 
-
 ## Second one-click operation: guarded supervisor activation
 
 After preparation, run `scripts/windows/ACTIVATE-P720-SUPERVISOR.cmd`
