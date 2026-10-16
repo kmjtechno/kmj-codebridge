@@ -460,7 +460,9 @@ export function createWindowsSupervisorHandler({
       const full = config.projects.find((p) => p.id === request.projectId);
       const p =
         full ??
-        config.readOnlyProjects?.find((entry) => entry.id === request.projectId);
+        config.readOnlyProjects?.find(
+          (entry) => entry.id === request.projectId,
+        );
       if (!p) fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
       const present = exists(p.repoRoot);
       return {
