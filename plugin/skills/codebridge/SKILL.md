@@ -52,6 +52,23 @@ that the plugin package alone gives machine access.
    exceed the verified payload limits. The host may still ask for approval;
    CodeBridge cannot add an Always Allow option to the host permission dialog.
    For focused one-file changes use `edit_file` with the exact precondition.
+   For several ChatGPT browser tabs/chats working on different authorized
+   projects, use one stable lane label per chat and always scope each call
+   to the correct enrolled device/project. Use `multi_chat_sync` at the
+   beginning of a work session and when returning after inactivity; carry
+   its digest as `ifNoneMatch` to skip unchanged payloads. Keep long-chat
+   context bounded by recording a small sanitized `chat_continuity_save`
+   checkpoint (summary, next action and blockers) with the current revision,
+   then reading it again through `multi_chat_sync`. Preserve current hash
+   preconditions and use `chat_lane_reserve` before conflicting file writes;
+   release reservations when finished. Use `coordination_post` and
+   `coordination_list` for durable project-local peer notes; never treat
+   actor names, checklists or reported gates as verified.
+   Inactive/closed host chats cannot be pinged, awakened, run a model or
+   receive new ChatGPT messages through an MCP server. Only explicitly
+   enabled authorized on-device workers can continue unattended; on return,
+   summarize their real recorded evidence. Long host chat rendering and
+   context limits are not under CodeBridge control.
    To reduce ChatGPT latency/context use `fast_context` or
    `compact_work_brief` for lightweight state, `fast_read_batch` for
    independent authorized reads, and short bounded excerpts. Avoid repeating
