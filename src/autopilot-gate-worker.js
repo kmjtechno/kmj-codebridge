@@ -56,6 +56,7 @@ export function verifyCleanGateCheckout(root, expectedHead) {
 export class AutopilotGateWorker {
   constructor({
     projects,
+    canStart = () => true,
     journal,
     runner,
     licenseProvider,
@@ -66,6 +67,7 @@ export class AutopilotGateWorker {
     this.projects = projects.filter(
       (p) => p.writable && p.autopilotGateWorker?.enabled,
     );
+    this.canStart = canStart;
     this.journal = journal;
     this.runner = runner;
     this.licenseProvider = licenseProvider;
@@ -136,6 +138,7 @@ export class AutopilotGateWorker {
         continue;
       }
 
+      if (!this.canStart()) continue;
       const allowed = project.autopilotGateWorker.gates;
       if (
         !this.journal.hasReady(project.id, (task) =>
@@ -243,12 +246,13 @@ export function startAutopilotGateWorker(
   const worker = new AutopilotGateWorker(options);
   // Default installations create no worker timer or extra background activity.
   if (worker.projects.length === 0)
-    return { enabledProjects: [], close: async () => {} };
+    return { enabledProjects: [], isIdle: () => true, close: async () => {} };
   const controller = new AbortController();
   const loop = (async () => {
     while (!controller.signal.aborted) {
       try {
-        worker.tick();
+        if (options.activity) await options.activity.track(() => worker.tick());
+        else worker.tick();
       } catch {
         // Stay alive without leaking task details or making unsafe guesses.
       }
@@ -260,6 +264,7 @@ export function startAutopilotGateWorker(
     }
   })();
   return {
+    isIdle: () => worker.active.size === 0,
     enabledProjects: worker.projects.map((p) => p.id),
     close: async () => {
       controller.abort();

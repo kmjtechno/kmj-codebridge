@@ -87,6 +87,7 @@ function matchesFailedJob(data, name, head) {
 export class GitHubCiWatchWorker {
   constructor({
     projects,
+    canStart = () => true,
     journal,
     licenseProvider,
     fetchImpl = fetch,
@@ -99,6 +100,7 @@ export class GitHubCiWatchWorker {
         p.autopilotRepairWorker?.enabled === true &&
         p.autopilotCiWatch?.enabled === true,
     );
+    this.canStart = canStart;
     this.journal = journal;
     this.licenseProvider = licenseProvider;
     this.fetchImpl = fetchImpl;
@@ -126,7 +128,7 @@ export class GitHubCiWatchWorker {
   }
 
   async tick() {
-    if (this.busy) return;
+    if (this.busy || !this.canStart()) return;
     this.busy = true;
     try {
       for (const project of this.projects) {
@@ -191,12 +193,13 @@ export function startGitHubCiWatchWorker(options, { intervalMs = 30000 } = {}) {
     throw new Error("CI_WATCH_INTERVAL_INVALID");
   const worker = new GitHubCiWatchWorker(options);
   if (!worker.projects.length)
-    return { enabledProjects: [], close: async () => {} };
+    return { enabledProjects: [], isIdle: () => true, close: async () => {} };
   const controller = new AbortController();
   const loop = (async () => {
     while (!controller.signal.aborted) {
       try {
-        await worker.tick();
+        if (options.activity) await options.activity.track(() => worker.tick());
+        else await worker.tick();
       } catch {
         // Never crash the long-lived device agent for an external CI outage.
       }
@@ -208,6 +211,7 @@ export function startGitHubCiWatchWorker(options, { intervalMs = 30000 } = {}) {
     }
   })();
   return {
+    isIdle: () => !worker.busy,
     enabledProjects: worker.projects.map((project) => project.id),
     close: async () => {
       controller.abort();

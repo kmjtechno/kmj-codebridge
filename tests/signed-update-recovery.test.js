@@ -65,6 +65,10 @@ for (const failure of [
         const target = path.join(store.releases, name);
         fs.mkdirSync(target);
         fs.writeFileSync(
+          path.join(target, "package.json"),
+          JSON.stringify({ codebridgeAgentUpdateProtocol: 1 }),
+        );
+        fs.writeFileSync(
           path.join(target, ".codebridge-release.json"),
           JSON.stringify({
             schema: 1,
@@ -85,6 +89,10 @@ for (const failure of [
       let restarts = 0;
       await assert.rejects(
         runStableUpdate(cfg, {
+          acquireMaintenance: () => ({
+            drain: async () => {},
+            close: () => {},
+          }),
           createStore: () => store,
           fetchBytes: async (url) =>
             url === cfg.manifestUrl ? rawManifest : Buffer.from(signature),
