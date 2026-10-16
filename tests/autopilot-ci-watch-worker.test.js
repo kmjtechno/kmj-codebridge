@@ -86,6 +86,7 @@ function fixture(t, overrides = {}) {
             name: "verify (ubuntu-24.04)",
             status: "completed",
             conclusion: overrides.jobConclusion ?? "failure",
+            ...(overrides.steps ? { steps: overrides.steps } : {}),
           },
         ],
       });
@@ -125,6 +126,7 @@ test("failed exact-head GitHub Actions job queues a durable single repair task",
   assert.equal(task.key, "auto-repair:format:" + HEAD);
   assert.equal(task.state, "queued");
   assert.ok(!JSON.stringify(task).includes(SECRET));
+  assert.match(task.objective, /FAILED_STAGE_UNKNOWN/);
   f.advance();
   await f.worker.tick();
   assert.equal(f.calls.length, 4);
@@ -133,6 +135,24 @@ test("failed exact-head GitHub Actions job queues a durable single repair task",
     1,
     "no duplicate per SHA and recipe",
   );
+});
+
+test("failed job-step evidence is summarized without exposing untrusted names", async (t) => {
+  const f = fixture(t, {
+    steps: [
+      {
+        name: "Check Prettier — SECRET_TOKEN=private",
+        status: "completed",
+        conclusion: "failure",
+      },
+    ],
+  });
+  await f.worker.tick();
+  const task = f.journal.state.tasks[0];
+  assert.match(task.objective, /FORMAT_STEP_FAILED/);
+  assert.match(task.objective, /not verified root cause/);
+  assert.doesNotMatch(task.objective, /SECRET_TOKEN|private|Prettier/);
+  assert.equal(task.key, "auto-repair:format:" + HEAD);
 });
 
 test("incomplete, successful, unrelated, stale or non-push runs are never executable evidence", async (t) => {
