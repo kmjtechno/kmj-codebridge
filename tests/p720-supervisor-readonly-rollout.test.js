@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import test from "node:test";
 
@@ -62,6 +62,35 @@ test("post-cutover HMAC and denial-of-verification are mandatory", () => {
   assert.match(verifier, /READONLY_WRITE_REFUSAL_NOT_CONFIRMED/);
   assert.match(verifier, /KMJ_PROJECT_ROLLOUT_LIVE=HMAC_AND_READONLY_PASS/);
   assert.doesNotMatch(verifier, /console\.log\([^)]*token/);
+});
+
+test("transient probe exits nonzero silently; final failure remains visible", () => {
+  const entry = "scripts/windows/verify-p720-readonly-rollout.mjs";
+  const args = ["live", "D:\\\\unused-runtime", "D:\\\\unused-config"];
+  const probe = spawnSync(process.execPath, [entry, ...args, "--probe-quiet"], {
+    encoding: "utf8",
+    timeout: 20000,
+  });
+  assert.equal(probe.status, 1);
+  assert.equal(probe.stderr.trim(), "");
+  const diagnostic = spawnSync(process.execPath, [entry, ...args], {
+    encoding: "utf8",
+    timeout: 20000,
+  });
+  assert.equal(diagnostic.status, 1);
+  assert.match(diagnostic.stderr, /KMJ_PROJECT_ROLLOUT_VERIFICATION=FAIL/);
+  assert.match(script, /--probe-quiet/);
+  assert.match(script, /ROLLOUT_HMAC_PROJECT_VERIFICATION_FAILED/);
+});
+
+test("read-only health launcher has no mutation or install functionality", () => {
+  const local = fs.readFileSync(
+    "scripts/windows/VERIFY-P720-READONLY-PROJECT.cmd",
+    "utf8",
+  );
+  assert.match(local, /verify-p720-readonly-rollout\.mjs/);
+  assert.match(local, /KMJ_PROJECT_READONLY_VERIFY=PASS/);
+  assert.doesNotMatch(local, /powershell|schtasks|git |npm |Stop-Process|taskkill/i);
 });
 
 test(
