@@ -90,7 +90,10 @@ function tokenCount(value) {
 
 // Port is local administrator configuration, never an MCP request parameter.
 // Enabled=false makes zero HTTP calls and never loads/downloads any model.
-export function createKyojinLocalBackend({ enabled = false, port = 8000 } = {}) {
+export function createKyojinLocalBackend({
+  enabled = false,
+  port = 8000,
+} = {}) {
   if (
     typeof enabled !== "boolean" ||
     !Number.isInteger(port) ||
