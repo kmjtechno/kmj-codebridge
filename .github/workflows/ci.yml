@@ -49,6 +49,13 @@ jobs:
           npm run format
           git --no-pager diff
       - run: npm test
+      # Diagnostic only, on failure: job log blobs are not readable through the
+      # REST API, check-run annotations are. Re-runs the suite with a reporter
+      # that annotates the failing tests; it never changes the job result.
+      - name: Annotate failing tests
+        if: failure()
+        continue-on-error: true
+        run: node --test --test-concurrency=2 --test-reporter=./scripts/github-annotations-reporter.mjs tests/*.test.js
       - run: npm run package:runtime
       - uses: actions/upload-artifact@v7.0.2
         with:
