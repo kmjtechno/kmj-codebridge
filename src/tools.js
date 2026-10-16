@@ -4,6 +4,7 @@ import { z } from "zod";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
+import { commandRequiresIsolatedLane } from "./command-presets.js";
 import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
@@ -1667,6 +1668,10 @@ export const definitions = {
       variant: identifier,
       requestKey: z.string().min(1).max(128),
       laneId: laneIdentifier.optional(),
+      expectedHead: z
+        .string()
+        .regex(/^[a-f0-9]{40}$/)
+        .optional(),
     },
     access: "execute",
   },
@@ -3133,16 +3138,38 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
+      if (commandRequiresIsolatedLane(a.command) && !a.laneId)
+        fail("WORKTREE_LANE_REQUIRED");
       if (profile.category !== "inspect" && !p.writable)
         fail("READ_ONLY_PROJECT");
-      return runner.run({
-        project: p.id,
-        gate: laneLabel(
+      const pinned =
+        commandRequiresIsolatedLane(a.command) || a.expectedHead !== undefined;
+      if (pinned && !a.expectedHead) fail("WORKTREE_EXPECTED_HEAD_REQUIRED");
+      if (pinned && !a.laneId) fail("WORKTREE_LANE_REQUIRED");
+      const verify = () => {
+        const lane = worktreeLanes()
+          .entries(p.id, p.files.root)
+          .find((row) => row.laneId === a.laneId);
+        if (!lane) fail("WORKTREE_NOT_FOUND");
+        if (lane.head !== a.expectedHead) fail("WORKTREE_HEAD_MISMATCH");
+        if (lane.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
+        return lane.path;
+      };
+      const cwd = pinned ? verify() : laneCwd(a.laneId);
+      let gate =
+        laneLabel(
           `command:${a.command}:${a.variant}:${profile.category}`,
           a.laneId,
-        ),
+        ) + (pinned ? `#${a.expectedHead}` : "");
+      // Keep SHA/lane receipts readable by existing archive readers on rollback.
+      if (pinned && gate.length > 128)
+        gate = `command@${a.laneId}#${a.expectedHead}`;
+      return runner.run({
+        project: p.id,
+        gate,
         key: a.requestKey,
-        cwd: laneCwd(a.laneId),
+        cwd,
+        ...(pinned ? { beforeStart: verify } : {}),
         command: profile.command,
         args: variant.args,
         timeoutMs: variant.timeoutMs,
