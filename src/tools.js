@@ -1080,6 +1080,17 @@ export const definitions = {
     },
     access: "write",
   },
+  browser_fast_probe: {
+    title: "Fast public browser probe (Moli with Chrome fallback)",
+    description:
+      "Queue one fixed-origin anonymous public-site semantic extraction via separately pinned Moli 1.1.18, falling back to the established Chrome nine-screenshot QA when Moli is absent, incompatible or fails. No caller URL, scripts, local/private-network navigation, credentials or worker-slot bypass. EXTRACTION_PASS is not full visual QA.",
+    input: {
+      ...scoped,
+      target: z.literal("kmj_public"),
+      requestKey: z.string().min(1).max(128),
+    },
+    access: "execute",
+  },
   browser_qa_start: {
     title: "Live public browser QA",
     description:
@@ -3670,6 +3681,31 @@ export function createDispatcher(
         command: profile.command,
         args: variant.args,
         timeoutMs: variant.timeoutMs,
+      });
+    }
+    if (name === "browser_fast_probe") {
+      if (p.id !== "kmj-main-platform" || !p.writable)
+        fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
+      if (!laneStateDir) fail("BROWSER_QA_STATE_UNAVAILABLE");
+      const script = fileURLToPath(
+        new URL("../scripts/browser-moli-fast.mjs", import.meta.url),
+      );
+      if (!fs.existsSync(script)) fail("BROWSER_FAST_RUNTIME_NOT_DEPLOYED");
+      const receiptKey = createHash("sha256")
+        .update(p.id + ":" + a.requestKey)
+        .digest("hex");
+      return runner.run({
+        project: p.id,
+        gate: "browser-fast:kmj-public",
+        key: a.requestKey,
+        cwd: p.files.root,
+        command: process.execPath,
+        args: [
+          script,
+          "kmj_public",
+          path.join(laneStateDir, "browser-fast", receiptKey),
+        ],
+        timeoutMs: 120000,
       });
     }
     if (name === "browser_qa_start") {
