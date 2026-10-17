@@ -91,7 +91,7 @@ def dependency_guard():
             ["systemctl", "show", service, "-pRequires", "-pWants",
              "-pBindsTo", "-pPartOf", "-pAfter", "-pEnvironment"],
         ):
-            if re.search(r"\\b" + re.escape(NAME) + r"\\b",
+            if re.search(r"\b" + re.escape(NAME) + r"\b",
                          run(args, timeout=15), flags=re.I):
                 raise RuntimeError("LIVE_SERVICE_REFERENCES_GUEST")
     mounts = run(["findmnt", "--raw", "--noheadings", "--output", "TARGET"])
@@ -208,7 +208,7 @@ def backup_guest(dest):
     validate_archive(archive)
     with archive.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
-    (dest / "SHA256SUMS").write_text(digest + f"  {NAME}.tar.gz\\n")
+    (dest / "SHA256SUMS").write_text(digest + f"  {NAME}.tar.gz\n")
     print("LOCAL_BACKUP_VALIDATED=YES", flush=True)
     print("ARCHIVE_BYTES=" + str(archive.stat().st_size), flush=True)
     print("ARCHIVE_SHA256=" + digest, flush=True)
@@ -221,7 +221,7 @@ def revive(previous_enabled, archive, removed):
                 raise RuntimeError("RESTORE_ARCHIVE_UNAVAILABLE")
             # Restore into a new private staging root and rename only after
             # extraction succeeds. A partial restore must never masquerade as a
-            # bootable kvm01, and no archive entry may touch sibling guests.
+            # bootable guest, and no archive entry may touch sibling guests.
             validate_archive(archive)
             with tempfile.TemporaryDirectory(prefix=f".kmj-{NAME}-restore-",
                                              dir=ROOT) as staging:
@@ -287,7 +287,7 @@ def main():
         removed = False
         archive = None
         try:
-            # Controlled canary: if production health changes while kvm01 is
+            # Controlled canary: if production health changes while this guest is
             # stopped, reverse the stop before touching its stored image.
             # A timed-out stop can still have stopped the unit. Always attempt
             # rollback after the first stop instruction, even on a timeout.
