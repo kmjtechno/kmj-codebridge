@@ -30,9 +30,13 @@ test("all documented Chat/IDE/CLI profiles use same secure OAuth MCP endpoint", 
       { encoding: "utf8", timeout: 10000 },
     );
     assert.equal(run.status, 0, `${format}: ${run.stderr}`);
-    assert.ok(run.stdout.includes(endpoint) || run.stdout.includes("bridge.example"));
+    assert.ok(
+      run.stdout.includes(endpoint) || run.stdout.includes("bridge.example"),
+    );
     assert.equal(run.stderr, "");
-    assert.ok(!/Bearer\s+[A-Za-z0-9]|sk-proj-|ghp_[A-Za-z0-9]/.test(run.stdout));
+    assert.ok(
+      !/Bearer\s+[A-Za-z0-9]|sk-proj-|ghp_[A-Za-z0-9]/.test(run.stdout),
+    );
   }
 });
 
