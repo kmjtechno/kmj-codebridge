@@ -187,3 +187,16 @@ test("browser readiness waits for hydrated text without suppressing genuine blan
     ["BLANK_PAGE"],
   );
 });
+
+test("browser compatibility profile uses captured commands without widening execution", () => {
+  const src = fs.readFileSync("src/tools.js", "utf8");
+  assert.match(src, /a\.command === "browser_public_qa"/);
+  assert.match(src, /a\.variant !== "start"/);
+  assert.match(src, /a\.laneId !== undefined/);
+  assert.match(src, /a\.expectedHead !== undefined/);
+  assert.match(src, /p\.id !== "kmj-main-platform" \|\| !p\.writable/);
+  assert.match(src, /gate: "browser-qa:kmj-public"/);
+  assert.match(src, /command: process\.execPath/);
+  assert.match(src, /"kmj_public"/);
+  assert.match(src, /timeoutMs: 120000/);
+});
