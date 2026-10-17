@@ -10,7 +10,7 @@ import { commandRequiresIsolatedLane } from "./command-presets.js";
 import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
-import { fail } from "./errors.js";
+import { fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
@@ -3563,6 +3563,35 @@ export function createDispatcher(
           outputChars: job.output.length,
           outputTailOnly: true,
         };
+      }
+      // Preserve browser QA receipt integrity even when an older connected
+      // ChatGPT client only captured get_job_status (not browser_qa_receipt).
+      // Reuse the exact same project-authorized, hash-verifying read handler.
+      // A failed/absent receipt never becomes a false PASS and must not mask
+      // the ordinary terminal job status or safe diagnostic output.
+      if (
+        job.gate === "browser-qa:kmj-public" &&
+        ["succeeded", "failed"].includes(job.state)
+      ) {
+        try {
+          const receipt = await dispatchCore(
+            "browser_qa_receipt",
+            { device: a.device, project: p.id, job: a.job },
+            permissions,
+          );
+          job = {
+            ...job,
+            browserQaReceipt: { verified: true, ...receipt },
+          };
+        } catch (error) {
+          job = {
+            ...job,
+            browserQaReceipt: {
+              verified: false,
+              error: publicError(error).error,
+            },
+          };
+        }
       }
       return job;
     }
