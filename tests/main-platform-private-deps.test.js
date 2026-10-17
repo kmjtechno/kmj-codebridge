@@ -116,12 +116,26 @@ test("private dependency command prepares exact HEAD without touching dirty sour
   assert.deepEqual(job.args, [
     "--prefix",
     "apps/platform",
+    "--cache",
+    path.join(
+      x.state,
+      "npm-cache",
+      (await import("node:crypto"))
+        .createHash("sha256")
+        .update("kmj-main-platform:" + x.head)
+        .digest("hex"),
+    ),
     "ci",
     "--ignore-scripts",
     "--no-audit",
     "--no-fund",
     "--prefer-offline",
   ]);
+  assert.equal(job.args[3].startsWith(path.join(x.state, "npm-cache")), true);
+  assert.equal(job.args[3].includes(x.root), false);
+  assert.equal(job.args.includes("--ignore-scripts"), true);
+  assert.equal(job.args.includes("--no-audit"), true);
+  assert.equal(job.args.includes("--no-fund"), true);
   assert.equal(job.timeoutMs, 180000);
   assert.equal(job.gate.includes(x.head), true);
   assert.equal(
