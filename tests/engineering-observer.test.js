@@ -49,7 +49,9 @@ test("two independent observed sessions suggest structural guard review only", (
   assert.equal(result.proposals[0].distinctSessions, 2);
   assert.equal(result.proposals[0].sessionsWithAssertedEvidence, 2);
   assert.equal(result.proposals[0].externalEvidenceVerified, false);
-  assert.ok(result.proposals[0].requiredGates.includes("exact-head required CI"));
+  assert.ok(
+    result.proposals[0].requiredGates.includes("exact-head required CI"),
+  );
   const reversed = evaluateEngineeringObservations({
     project,
     observations: [...observations].reverse(),
@@ -77,10 +79,7 @@ test("idempotency-key reuse with changed evidence fails closed", () => {
     () =>
       evaluateEngineeringObservations({
         project,
-        observations: [
-          make(),
-          make({ evidence: "UNVERIFIED" }),
-        ],
+        observations: [make(), make({ evidence: "UNVERIFIED" })],
       }),
     /ENGINEERING_OBSERVER_CONFLICTING_REPLAY/,
   );
@@ -133,7 +132,11 @@ test("event budget and project identity are strictly bounded", () => {
     /ENGINEERING_OBSERVER_INVALID_REQUEST/,
   );
   assert.throws(
-    () => evaluateEngineeringObservations({ project: "../other", observations: [] }),
+    () =>
+      evaluateEngineeringObservations({
+        project: "../other",
+        observations: [],
+      }),
     /ENGINEERING_OBSERVER_INVALID_REQUEST/,
   );
 });
@@ -151,5 +154,7 @@ test("different causes are never incorrectly merged as one systemic failure", ()
     ],
   });
   assert.equal(r.proposalCount, 2);
-  assert.ok(r.proposals.every((proposal) => proposal.stage === "EVIDENCE_COLLECTION"));
+  assert.ok(
+    r.proposals.every((proposal) => proposal.stage === "EVIDENCE_COLLECTION"),
+  );
 });
