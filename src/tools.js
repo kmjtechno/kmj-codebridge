@@ -973,10 +973,10 @@ export const definitions = {
   fast_read_batch: {
     title: "Fast read batch",
     description:
-      "Run up to eight allowlisted read-only checks through one MCP call. Set responseMode=compact to receive small SHA-256 receipts and safe status hints, saving AI output tokens. Full result remains the legacy default; compact never stores details and requires a new authorized read to inspect them.",
+      "Run up to eight allowlisted read-only checks through one MCP call. Choose responseMode=auto for adaptive byte-saving summaries on large read results while keeping small results intact; responseMode=compact always returns SHA-256 receipts and safe hints. Default full preserves legacy behavior; no result details are cached.",
     input: {
       ...scoped,
-      responseMode: z.enum(["full", "compact"]).default("full"),
+      responseMode: z.enum(["full", "compact", "auto"]).default("full"),
       calls: z
         .array(
           z.object({
