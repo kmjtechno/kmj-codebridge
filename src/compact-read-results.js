@@ -111,3 +111,31 @@ export function compactReadBatchResult(row) {
     externallyVerified: false,
   };
 }
+
+
+/**
+ * Opt-in adaptive output. A compact receipt is returned only when it yields
+ * a material model-visible byte saving. Small responses remain intact so
+ * consumers do not need to spend another tool call to inspect trivial facts.
+ * This compares UTF-8 JSON bytes, not provider tokens or inference credits.
+ * Tool failures are always code-only (never forward untrusted error details).
+ */
+export function adaptiveReadBatchResult(row) {
+  if (!row || typeof row !== "object" || typeof row.key !== "string" || typeof row.tool !== "string")
+    throw new Error("COMPACT_READ_INVALID_ROW");
+  if (row.ok !== true) return compactReadBatchResult(row);
+
+  const full = JSON.stringify(row);
+  if (typeof full !== "string") throw new Error("COMPACT_READ_INVALID_VALUE");
+  const fullBytes = Buffer.byteLength(full, "utf8");
+  if (fullBytes <= 512) return row;
+
+  const compact = compactReadBatchResult(row);
+  const compactBytes = Buffer.byteLength(JSON.stringify(compact), "utf8");
+  if (
+    fullBytes - compactBytes >= 192 &&
+    compactBytes * 5 <= fullBytes * 4
+  )
+    return compact;
+  return row;
+}
