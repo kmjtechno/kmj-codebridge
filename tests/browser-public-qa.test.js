@@ -110,10 +110,18 @@ test("Chrome receives isolated writable HOME and XDG dirs under hardened agents"
     });
     assert.deepEqual(
       [env.HOME, env.XDG_CONFIG_HOME, env.XDG_CACHE_HOME],
-      [path.join(root, "home"), path.join(root, "config"), path.join(root, "cache")],
+      [
+        path.join(root, "home"),
+        path.join(root, "config"),
+        path.join(root, "cache"),
+      ],
     );
     assert.equal(env.PATH, "/usr/bin:/bin");
-    for (const directory of [env.HOME, env.XDG_CONFIG_HOME, env.XDG_CACHE_HOME]) {
+    for (const directory of [
+      env.HOME,
+      env.XDG_CONFIG_HOME,
+      env.XDG_CACHE_HOME,
+    ]) {
       const stat = fs.statSync(directory);
       assert.ok(stat.isDirectory());
       if (process.platform !== "win32") assert.equal(stat.mode & 0o077, 0);
