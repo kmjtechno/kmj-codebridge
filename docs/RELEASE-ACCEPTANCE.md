@@ -2,7 +2,7 @@
 
 KMJ CodeBridge already packages runtime archives, SBOMs, provenance and an
 owner-controlled Ed25519 signing flow. This **read-only** gate keeps unrelated
-claims separate so a signed *staged* runtime is never mistaken for a deployed
+claims separate so a signed _staged_ runtime is never mistaken for a deployed
 or approved stable release.
 
 Run on an operator-owned **non-secret** evidence file:
@@ -12,7 +12,7 @@ node scripts/release-acceptance-gate.mjs /path/to/release-evidence.json
 ```
 
 The command returns exit code **1** and `assessment=BLOCKED` for missing or
-red checks. Exit **0** means **READY_FOR_MANUAL_OWNER_VERIFICATION**, *not*
+red checks. Exit **0** means **READY_FOR_MANUAL_OWNER_VERIFICATION**, _not_
 release approval. File read is bounded to 256 KiB; symlinks are rejected.
 It performs no GitHub API requests, no model calls, no signing, no network
 mutations, and no automatic activation.
@@ -22,11 +22,16 @@ mutations, and no automatic activation.
 ```json
 {
   "schema": 1,
-  "source": {"revision": "<exact 40-hex source SHA>"},
+  "source": { "revision": "<exact 40-hex source SHA>" },
   "ci": {
     "revision": "<same SHA>",
     "checks": [
-      {"name":"registry_manifest","headSha":"<same SHA>","status":"completed","conclusion":"success"}
+      {
+        "name": "registry_manifest",
+        "headSha": "<same SHA>",
+        "status": "completed",
+        "conclusion": "success"
+      }
     ]
   },
   "candidate": {
