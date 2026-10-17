@@ -32,7 +32,9 @@ function checkFullCoverage(original, plan) {
 }
 
 test("large ASCII prompt is covered exactly and never silently truncated", () => {
-  const source = ("# Section\n" + "line of requirements\n".repeat(50)).repeat(450);
+  const source = ("# Section\n" + "line of requirements\n".repeat(50)).repeat(
+    450,
+  );
   const plan = planLargePrompt({ prompt: source });
   checkFullCoverage(source, plan);
   assert.ok(plan.parts.length > 10);
@@ -54,13 +56,23 @@ test("Hindi, emoji, CRLF and very long lines preserve every original unit", () =
   for (const part of plan.parts.slice(0, -1)) {
     const before = source.charCodeAt(part.endUtf16 - 1);
     const after = source.charCodeAt(part.endUtf16);
-    assert.equal(before >= 0xd800 && before <= 0xdbff && after >= 0xdc00 && after <= 0xdfff, false);
-    assert.equal(source[part.endUtf16 - 1] === "\r" && source[part.endUtf16] === "\n", false);
+    assert.equal(
+      before >= 0xd800 &&
+        before <= 0xdbff &&
+        after >= 0xdc00 &&
+        after <= 0xdfff,
+      false,
+    );
+    assert.equal(
+      source[part.endUtf16 - 1] === "\r" && source[part.endUtf16] === "\n",
+      false,
+    );
   }
 });
 
 test("splitting within a large fenced code block is flagged for reassembly", () => {
-  const source = "# Overview\n" + "```js\n" + "x".repeat(45000) + "\n```\n" + "# End\n";
+  const source =
+    "# Overview\n" + "```js\n" + "x".repeat(45000) + "\n```\n" + "# End\n";
   const plan = planLargePrompt({ prompt: source, chunkChars: 8192 });
   checkFullCoverage(source, plan);
   assert.ok(plan.parts.some((p) => p.crossesCodeFenceBoundary));
@@ -68,7 +80,9 @@ test("splitting within a large fenced code block is flagged for reassembly", () 
 });
 
 test("unclosed fenced code is flagged rather than silently treated as a task", () => {
-  const plan = planLargePrompt({ prompt: "# Work\n~~~python\n" + "x".repeat(10000) });
+  const plan = planLargePrompt({
+    prompt: "# Work\n~~~python\n" + "x".repeat(10000),
+  });
   assert.equal(plan.unclosedCodeFence, true);
   assert.ok(plan.parts.length >= 1);
   assert.equal(plan.modelInvoked, false);
