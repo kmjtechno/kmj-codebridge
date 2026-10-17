@@ -1,4 +1,5 @@
 import { buildMissionActivity } from "./mission-control-activity.js";
+import { buildMissionWorkspace } from "./mission-control-workspace.js";
 import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
 import { createUserIntrospector } from "./user-access.js";
 import {
@@ -594,26 +595,47 @@ export async function startGateway(rawConfig) {
   async function getMissionControlBrief(user, args) {
     authorize(user, args, "read");
     const scope = { device: args.device, project: args.project };
-    const [brief, jobs] = await Promise.all([
-      getCompactWorkBrief(user, args),
-      (async () => {
-        try {
-          return decodeForwardedResult(
-            await forward(user, "list_project_jobs", {
+    const scopedRead = async (name, input) => {
+      try {
+        return decodeForwardedResult(await forward(user, name, input));
+      } catch (error) {
+        return { ok: false, error: publicError(error).error };
+      }
+    };
+    const workspaceReads =
+      args.includeWorkspace === true
+        ? Promise.all([
+            scopedRead("project_tree", {
               ...scope,
-              limit: 6,
-              state: "all",
-              cursor: null,
+              path: "",
+              maxDepth: 2,
+              maxEntries: 48,
             }),
-          );
-        } catch (error) {
-          return { ok: false, error: publicError(error).error };
-        }
-      })(),
+            scopedRead("git_diff", scope),
+          ])
+        : Promise.resolve(null);
+    const [brief, jobs, workspaceParts] = await Promise.all([
+      getCompactWorkBrief(user, args),
+      scopedRead("list_project_jobs", {
+        ...scope,
+        limit: 6,
+        state: "all",
+        cursor: null,
+      }),
+      workspaceReads,
     ]);
     return {
       ...brief,
       activity: buildMissionActivity({ project: args.project, jobs }),
+      ...(workspaceParts
+        ? {
+            workspace: buildMissionWorkspace({
+              project: args.project,
+              tree: workspaceParts[0],
+              diff: workspaceParts[1],
+            }),
+          }
+        : {}),
     };
   }
 
