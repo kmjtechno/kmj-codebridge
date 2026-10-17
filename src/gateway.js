@@ -15,7 +15,10 @@ import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-comp
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { gatewaySchema } from "./config.js";
 import { definitions, FAST_READ_TOOLS } from "./tools.js";
-import { adaptiveReadBatchResult, compactReadBatchResult } from "./compact-read-results.js";
+import {
+  adaptiveReadBatchResult,
+  compactReadBatchResult,
+} from "./compact-read-results.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { createCiFailureReader, ciFailureDefinitions } from "./ci-failure.js";
 import {
