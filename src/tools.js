@@ -1362,11 +1362,7 @@ export const definitions = {
                 "skill_gap",
               ]),
               causeCode: z.string().regex(/^[A-Z][A-Z0-9_]{3,47}$/),
-              evidence: z.enum([
-                "REPRODUCED",
-                "USER_CONFIRMED",
-                "UNVERIFIED",
-              ]),
+              evidence: z.enum(["REPRODUCED", "USER_CONFIRMED", "UNVERIFIED"]),
             })
             .strict(),
         )
