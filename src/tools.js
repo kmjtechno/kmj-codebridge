@@ -1,4 +1,5 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
+import { verifiedFastReceipt } from "./browser-fast-receipt.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1090,6 +1091,13 @@ export const definitions = {
       requestKey: z.string().min(1).max(128),
     },
     access: "execute",
+  },
+  browser_fast_probe_receipt: {
+    title: "Verified Moli/Chrome fast QA receipt",
+    description:
+      "Read only SHA-bound private extraction metadata or nine verified Chrome fallback screenshot hashes from a completed project-authorized fast browser job. No HTML, cookies, screenshot bytes, scripts or arbitrary paths.",
+    input: { ...scoped, job: identifier },
+    access: "read",
   },
   browser_qa_start: {
     title: "Live public browser QA",
@@ -3705,7 +3713,7 @@ export function createDispatcher(
           "kmj_public",
           path.join(laneStateDir, "browser-fast", receiptKey),
         ],
-        timeoutMs: 120000,
+        timeoutMs: 180000,
       });
     }
     if (name === "browser_qa_start") {
@@ -3735,6 +3743,28 @@ export function createDispatcher(
         ],
         timeoutMs: 120000,
       });
+    }
+    if (name === "browser_fast_probe_receipt") {
+      if (p.id !== "kmj-main-platform") fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
+      const job = runner.get(a.job, p.id);
+      if (!job || job.gate !== "browser-fast:kmj-public")
+        fail("BROWSER_FAST_JOB_NOT_FOUND");
+      if (!["succeeded", "failed"].includes(job.state))
+        return { job: a.job, state: job.state, ready: false };
+      const internal = runner.jobs.get(a.job) ?? runner.archive.get(a.job);
+      if (!laneStateDir || !internal || typeof internal.key !== "string")
+        fail("BROWSER_FAST_STATE_UNAVAILABLE");
+      const receiptKey = createHash("sha256")
+        .update(p.id + ":" + internal.key)
+        .digest("hex");
+      const directory = path.join(laneStateDir, "browser-fast", receiptKey);
+      let proof;
+      try {
+        proof = verifiedFastReceipt(directory);
+      } catch {
+        fail("BROWSER_FAST_RECEIPT_INVALID");
+      }
+      return { job: a.job, state: job.state, ...proof };
     }
     if (name === "browser_qa_receipt") {
       if (p.id !== "kmj-main-platform") fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
@@ -3872,6 +3902,27 @@ export function createDispatcher(
           outputChars: job.output.length,
           outputTailOnly: true,
         };
+      }
+      if (
+        job.gate === "browser-fast:kmj-public" &&
+        ["succeeded", "failed"].includes(job.state)
+      ) {
+        try {
+          const receipt = await dispatchCore(
+            "browser_fast_probe_receipt",
+            { device: a.device, project: p.id, job: a.job },
+            permissions,
+          );
+          job = { ...job, browserFastReceipt: receipt };
+        } catch {
+          job = {
+            ...job,
+            browserFastReceipt: {
+              verified: false,
+              error: "BROWSER_FAST_RECEIPT_INVALID",
+            },
+          };
+        }
       }
       // Preserve browser QA receipt integrity even when an older connected
       // ChatGPT client only captured get_job_status (not browser_qa_receipt).
