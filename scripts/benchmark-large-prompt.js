@@ -6,7 +6,8 @@ const sizes = [32 * 1024, 256 * 1024, 1024 * 1024];
 for (const size of sizes) {
   const paragraph = "# Work item\nKeep requirements and tests.\n";
   const count = Math.floor(size / paragraph.length);
-  const prompt = paragraph.repeat(count) + "x".repeat(size - paragraph.length * count);
+  const prompt =
+    paragraph.repeat(count) + "x".repeat(size - paragraph.length * count);
   const samples = [];
   let outputBytes = 0;
   for (let i = 0; i < 10; i += 1) {
