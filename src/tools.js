@@ -3452,8 +3452,7 @@ export function createDispatcher(
           const row = worktreeLanes()
             .entries(p.id, p.files.root)
             .find((item) => item.laneId === lane.laneId);
-          if (!row || row.head !== lane.head)
-            fail("WORKTREE_HEAD_MISMATCH");
+          if (!row || row.head !== lane.head) fail("WORKTREE_HEAD_MISMATCH");
           if (row.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
           for (const name of [
             "KMJ_CloudOS_Phase1_COMPLETE_Release_Gates_v1.2.yaml",
@@ -3896,7 +3895,11 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command"
-        ? ["browser_public_qa", "main_platform_ui_deps", "cloudos_release_qa"].includes(a.command)
+        ? [
+            "browser_public_qa",
+            "main_platform_ui_deps",
+            "cloudos_release_qa",
+          ].includes(a.command)
           ? "TEST"
           : commandRisk((p.commands ?? {})[a.command]?.category)
         : toolRisk(name, definition);
