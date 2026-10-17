@@ -143,6 +143,74 @@ test("strict supervisor observation cannot invent verified health", () => {
   );
 });
 
+test("doctor requires a trusted live RPC, not a socket file alone", () => {
+  const observation = {
+    state: "SOCKET_PRESENT_UNVERIFIED",
+    observedPlatform: "linux",
+    socketExists: true,
+    authenticated: false,
+    noServiceMutation: true,
+  };
+  const unverified = inspectBlockers({
+    supervisorConfigured: true,
+    supervisorObservation: observation,
+  });
+  assert.equal(unverified.supervisor.connectionVerified, false);
+  assert.equal(unverified.supervisor.status, "SOCKET_PRESENT_UNVERIFIED");
+  assert.ok(
+    unverified.blockers.some(
+      (item) => item.code === "SUPERVISOR_HEALTH_NOT_VERIFIED",
+    ),
+  );
+
+  const verified = inspectBlockers({
+    supervisorConfigured: true,
+    supervisorObservation: observation,
+    supervisorHealthVerified: true,
+  });
+  assert.equal(verified.supervisor.connectionVerified, true);
+  assert.equal(verified.supervisor.status, "LIVE_STATUS_VERIFIED");
+  assert.equal(verified.supervisor.filesystemObservation, observation.state);
+  assert.ok(
+    !verified.blockers.some(
+      (item) => item.code === "SUPERVISOR_HEALTH_NOT_VERIFIED",
+    ),
+  );
+  // A verified socket does not imply AI coding, free billing or lease work.
+  assert.equal(verified.autonomousCodingProven, false);
+  assert.equal(verified.productionOrBillingModified, false);
+  assert.equal(verified.taskActuallyClaimed, false);
+});
+
+test("doctor rejects invalid or forged live Supervisor health evidence", () => {
+  const validSocket = {
+    state: "SOCKET_PRESENT_UNVERIFIED",
+    authenticated: false,
+    noServiceMutation: true,
+  };
+  for (const invalid of [
+    { supervisorConfigured: true, supervisorHealthVerified: "yes" },
+    { supervisorConfigured: true, supervisorHealthVerified: true },
+    {
+      supervisorConfigured: false,
+      supervisorHealthVerified: true,
+      supervisorObservation: validSocket,
+    },
+    {
+      supervisorConfigured: true,
+      supervisorHealthVerified: true,
+      supervisorObservation: {
+        ...validSocket,
+        state: "UNSAFE_SYMLINK",
+      },
+    },
+  ])
+    assert.throws(
+      () => inspectBlockers(invalid),
+      /INVALID_SUPERVISOR_LIVE_EVIDENCE/,
+    );
+});
+
 test("Linux socket preflight never connects, deletes files or mutates state", () => {
   const paths = [];
   const first = observeSupervisorSocket({
