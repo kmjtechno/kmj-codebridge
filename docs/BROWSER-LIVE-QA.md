@@ -33,3 +33,9 @@ The MVP does not claim authenticated Super Admin coverage, arbitrary clicking,
 interactive screen control, screenshot retrieval, accessibility audit or a
 working live browser if the release is not deployed or Chrome is missing.
 Production DNS, website files, licensing and database are never modified.
+
+## Compatibility for a captured ChatGPT command catalog
+
+A connected session may expose `run_project_command` but not the new `browser_qa_start`/`browser_qa_receipt` names. On an authorized writable `kmj-main-platform` device, `list_project_commands` advertises a first-party `browser_public_qa` / `start` command. Call `run_project_command` with `{device,project,command:"browser_public_qa",variant:"start",requestKey}`, then `get_job_status` with the returned job ID. The fixed-origin command uses the **same trusted browser runner, job gate and private receipt path** as `browser_qa_start`. Reusing the request key is idempotent. Job stdout shows verdict and nine screenshot hashes, but it does not independently verify receipt bytes; use the dedicated `browser_qa_receipt` operation or an approved local verifier for that final step.
+
+This is **not** a generic tool trampoline, extra worker slot, shell/URL/script override or a way to force ChatGPT to refresh its captured tools. Only the `start` variant and fixed `kmj_public` target are accepted under the existing project authorization. The CodeBridge app registration, OAuth and image branding are unchanged.
