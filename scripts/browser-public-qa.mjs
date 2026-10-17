@@ -48,6 +48,27 @@ export function assess(sample) {
 const digest = (buf) => createHash("sha256").update(buf).digest("hex");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// A load event can precede client hydration. Permit a tightly bounded retry
+// only when text is initially blank; persistent blanks remain QA failures.
+export async function measureAfterTextReady(
+  measure,
+  {
+    minimumChars = 40,
+    timeoutMs = 3500,
+    pollMs = 175,
+    clock = Date.now,
+    sleep = wait,
+  } = {},
+) {
+  const deadline = clock() + timeoutMs;
+  let sample = await measure();
+  while (sample.bodyLength < minimumChars && clock() < deadline) {
+    await sleep(Math.max(0, Math.min(pollMs, deadline - clock())));
+    sample = await measure();
+  }
+  return sample;
+}
+
 // Chrome started by a hardened systemd agent cannot rely on a writable
 // service HOME. Keep Chrome/XDG state inside its per-run private tmp tree.
 // No global process.env changes, root-mode launch or sandbox opt-out.
@@ -250,22 +271,25 @@ export async function publicBrowserQa(targetName, outputDir) {
         );
         if (settled.exceptionDetails || settled.result?.value !== true)
           throw Error("BROWSER_MEASUREMENT_FAILED");
-        const result = await send(
-          "Runtime.evaluate",
-          {
-            returnByValue: true,
-            expression:
-              "(() => ({actualUrl:location.href,bodyLength:(document.body?.innerText||'').length,overflowPx:Math.max(0,document.documentElement.scrollWidth-innerWidth),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length}))()",
-          },
-          sessionId,
-        );
-        if (result.exceptionDetails || !result.result?.value)
-          throw Error("BROWSER_MEASUREMENT_FAILED");
+        const metrics = await measureAfterTextReady(async () => {
+          const result = await send(
+            "Runtime.evaluate",
+            {
+              returnByValue: true,
+              expression:
+                "(() => ({actualUrl:location.href,bodyLength:(document.body?.innerText||'').length,overflowPx:Math.max(0,document.documentElement.scrollWidth-innerWidth),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length}))()",
+            },
+            sessionId,
+          );
+          if (result.exceptionDetails || !result.result?.value)
+            throw Error("BROWSER_MEASUREMENT_FAILED");
+          return result.result.value;
+        });
         const sample = {
           viewport: vp.name,
           path: pagePath,
           expectedUrl,
-          ...result.result.value,
+          ...metrics,
           httpStatus: state.httpStatus,
           exceptions: state.exceptions,
         };
