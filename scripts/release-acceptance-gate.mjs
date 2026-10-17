@@ -37,17 +37,17 @@ export function assessReleaseEvidence(evidence) {
   } else {
     for (const name of REQUIRED) {
       const matches = ci.checks.filter((run) => run?.name === name);
-      if (matches.length !== 1) {
-        fail("CI_CHECK_MISSING_OR_DUPLICATE:" + name);
-      } else {
-        const check = matches[0];
-        if (
-          check.headSha !== sha ||
-          check.status !== "completed" ||
-          check.conclusion !== "success"
-        ) {
-          fail("CI_CHECK_NOT_GREEN:" + name);
-        }
+      if (matches.length === 0) {
+        fail("CI_CHECK_MISSING:" + name);
+      } else if (
+        matches.some(
+          (check) =>
+            check.headSha !== sha ||
+            check.status !== "completed" ||
+            check.conclusion !== "success",
+        )
+      ) {
+        fail("CI_CHECK_NOT_GREEN:" + name);
       }
     }
     if (
