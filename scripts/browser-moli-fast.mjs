@@ -58,7 +58,10 @@ export function parseMoliResult(raw, expectedUrl) {
   };
 }
 
-export async function moliFetch(expectedUrl, { executable = selectedMoliBinary(), spawnFn = spawn } = {}) {
+export async function moliFetch(
+  expectedUrl,
+  { executable = selectedMoliBinary(), spawnFn = spawn } = {},
+) {
   if (!executable) throw Error("MOLI_NOT_INSTALLED");
   if (process.platform !== "win32" && process.getuid?.() === 0)
     throw Error("MOLI_ROOT_UNSAFE");
@@ -73,11 +76,15 @@ export async function moliFetch(expectedUrl, { executable = selectedMoliBinary()
     return await new Promise((resolve, reject) => {
       // Fetch only allowlisted HTTPS origin; deny RFC1918/localhost redirects.
       const args = [
-        "fetch", "--block-private-networks",
+        "fetch",
+        "--block-private-networks",
         "--disable-subframes",
-        "--timeout", "12000",
-        "--dump", "json",
-        "--wait-selector", "body",
+        "--timeout",
+        "12000",
+        "--dump",
+        "json",
+        "--wait-selector",
+        "body",
         expectedUrl,
       ];
       let child;
@@ -166,9 +173,10 @@ export async function fastBrowserProbe(
         elapsedMs: Date.now() - started,
       });
     }
-    receipt.verdict = receipt.samples.length === target.paths.length
-      ? "EXTRACTION_PASS"
-      : "FAIL";
+    receipt.verdict =
+      receipt.samples.length === target.paths.length
+        ? "EXTRACTION_PASS"
+        : "FAIL";
   } catch (error) {
     receipt.fallbackReason = ERROR_CODE.test(error?.message ?? "")
       ? error.message
@@ -203,7 +211,8 @@ if (
   import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
 ) {
   try {
-    if (process.argv.length !== 4) throw Error("BROWSER_FAST_ARGUMENTS_INVALID");
+    if (process.argv.length !== 4)
+      throw Error("BROWSER_FAST_ARGUMENTS_INVALID");
     const result = await fastBrowserProbe(process.argv[2], process.argv[3]);
     console.log(
       JSON.stringify({
