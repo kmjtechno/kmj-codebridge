@@ -24,18 +24,12 @@ const make = (t, projectId, writable = true) => {
   const config = {
     id: "d1",
     stateDir,
-    projects: [
-      { id: projectId, root, writable, gates: {}, commands: {} },
-    ],
+    projects: [{ id: projectId, root, writable, gates: {}, commands: {} }],
   };
-  const dispatcher = createDispatcher(
-    config,
-    runner,
-    () => ({
-      features: ["read", "write", "execute"],
-      limits: { concurrent_jobs: 1 },
-    }),
-  );
+  const dispatcher = createDispatcher(config, runner, () => ({
+    features: ["read", "write", "execute"],
+    limits: { concurrent_jobs: 1 },
+  }));
   return { dispatch: dispatcher, calls, root, stateDir };
 };
 const input = (project, extra = {}) => ({
@@ -54,7 +48,10 @@ test("captured command browser QA is an exact fixed-origin job", async (t) => {
     { device: "d1", project: "kmj-main-platform" },
     ["read"],
   );
-  assert.deepEqual(listing.commands.map((command) => command.id), ["browser_public_qa"]);
+  assert.deepEqual(
+    listing.commands.map((command) => command.id),
+    ["browser_public_qa"],
+  );
   assert.deepEqual(listing.commands[0].variants, ["start"]);
   assert.equal(listing.commands[0].risk, "TEST");
 
@@ -95,7 +92,10 @@ test("captured command browser QA denies unapproved projects or overrides", asyn
     { device: "d1", project: "unrelated" },
     ["read"],
   );
-  assert.equal(unrelated.commands.some((c) => c.id === "browser_public_qa"), false);
+  assert.equal(
+    unrelated.commands.some((c) => c.id === "browser_public_qa"),
+    false,
+  );
   await assert.rejects(
     other.dispatch("run_project_command", input("unrelated"), ["execute"]),
     /BROWSER_QA_PROJECT_NOT_ALLOWED/,
@@ -104,7 +104,9 @@ test("captured command browser QA denies unapproved projects or overrides", asyn
 
   const readOnly = make(t, "kmj-main-platform", false);
   await assert.rejects(
-    readOnly.dispatch("run_project_command", input("kmj-main-platform"), ["execute"]),
+    readOnly.dispatch("run_project_command", input("kmj-main-platform"), [
+      "execute",
+    ]),
     /BROWSER_QA_PROJECT_NOT_ALLOWED/,
   );
   assert.equal(readOnly.calls.length, 0);
@@ -116,12 +118,18 @@ test("captured command browser QA denies unapproved projects or overrides", asyn
     { expectedHead: "a".repeat(40) },
   ]) {
     await assert.rejects(
-      approved.dispatch("run_project_command", input("kmj-main-platform", override), ["execute"]),
+      approved.dispatch(
+        "run_project_command",
+        input("kmj-main-platform", override),
+        ["execute"],
+      ),
       /COMMAND_NOT_ALLOWED/,
     );
   }
   await assert.rejects(
-    approved.dispatch("run_project_command", input("kmj-main-platform"), ["read"]),
+    approved.dispatch("run_project_command", input("kmj-main-platform"), [
+      "read",
+    ]),
     /ACCESS_DENIED/,
   );
   assert.equal(approved.calls.length, 0);
