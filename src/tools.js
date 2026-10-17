@@ -3294,6 +3294,15 @@ export function createDispatcher(
                   approvalRequired: false,
                   variants: ["start"],
                 },
+                {
+                  id: "main_platform_ui_deps",
+                  category: "build",
+                  description:
+                    "Explicitly install SHA-pinned frontend dependencies into the private Main Platform CI worktree. Uses committed apps/platform/package-lock.json, ignores npm lifecycle scripts and never modifies the shared checkout.",
+                  risk: "TEST",
+                  approvalRequired: false,
+                  variants: ["ci"],
+                },
               ]
             : []),
         ],
@@ -3311,6 +3320,86 @@ export function createDispatcher(
     const laneLabel = (label, laneId) =>
       laneId !== undefined ? `${label}@${laneId}` : label;
     if (name === "run_project_command") {
+      // Dependency setup is a separate opt-in action, not implicit CI logic.
+      // The immutable HEAD is derived from the authorized checkout; npm only
+      // runs in the existing private SHA-pinned detached lane.
+      if (a.command === "main_platform_ui_deps") {
+        if (
+          a.variant !== "ci" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (p.id !== "kmj-main-platform" || !p.writable)
+          fail("READ_ONLY_PROJECT");
+        const lane = worktreeLanes().prepareCurrentHead(
+          p.id,
+          p.files.root,
+          "mainplatform_ci",
+        );
+        const validate = () => {
+          const row = worktreeLanes()
+            .entries(p.id, p.files.root)
+            .find((item) => item.laneId === lane.laneId);
+          if (!row || row.head !== lane.head) fail("WORKTREE_HEAD_MISMATCH");
+          if (row.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
+          const appRoot = path.join(row.path, "apps", "platform");
+          const manifest = path.join(appRoot, "package.json");
+          const lockfile = path.join(appRoot, "package-lock.json");
+          for (const name of [manifest, lockfile]) {
+            let stat;
+            try {
+              stat = fs.lstatSync(name);
+            } catch {
+              fail("WORKTREE_DEPS_LOCK_MISSING");
+            }
+            if (
+              !stat.isFile() ||
+              stat.isSymbolicLink() ||
+              stat.size < (name === manifest ? 32 : 128) ||
+              stat.size > 2 * 1024 * 1024
+            )
+              fail("WORKTREE_DEPS_LOCK_UNSAFE");
+          }
+          let pkg;
+          let locked;
+          try {
+            pkg = JSON.parse(fs.readFileSync(manifest, "utf8"));
+            locked = JSON.parse(fs.readFileSync(lockfile, "utf8"));
+          } catch {
+            fail("WORKTREE_DEPS_LOCK_INVALID");
+          }
+          if (
+            pkg.name !== "@kmjtechno/main-platform" ||
+            pkg.devDependencies?.["vite-plus"] !== "0.3.0" ||
+            locked.lockfileVersion !== 3 ||
+            locked.packages?.[""]?.name !== pkg.name ||
+            locked.packages?.[""]?.devDependencies?.["vite-plus"] !== "0.3.0" ||
+            locked.packages?.["node_modules/vite-plus"]?.version !== "0.3.0"
+          )
+            fail("WORKTREE_DEPS_LOCK_MISMATCH");
+          return row.path;
+        };
+        const cwd = validate();
+        return runner.run({
+          project: p.id,
+          gate: `command:main_platform_ui_deps:ci:build@${lane.laneId}#${lane.head}`,
+          key: a.requestKey,
+          cwd,
+          beforeStart: validate,
+          command: process.platform === "win32" ? "npm.cmd" : "npm",
+          args: [
+            "--prefix",
+            "apps/platform",
+            "ci",
+            "--ignore-scripts",
+            "--no-audit",
+            "--no-fund",
+            "--prefer-offline",
+          ],
+          timeoutMs: 180000,
+        });
+      }
       // Use an already captured client command schema for the same fixed-origin
       // browser job; no arbitrary scripts, paths, URL or terminal execution.
       if (a.command === "browser_public_qa") {
@@ -3622,7 +3711,7 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command"
-        ? a.command === "browser_public_qa"
+        ? ["browser_public_qa", "main_platform_ui_deps"].includes(a.command)
           ? "TEST"
           : commandRisk((p.commands ?? {})[a.command]?.category)
         : toolRisk(name, definition);
