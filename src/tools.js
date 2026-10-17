@@ -1966,7 +1966,36 @@ export function createDispatcher(
         access: definition.access,
         writable: p.writable,
       });
-    if (name === "inspect_project" || name === "connection_doctor")
+    if (name === "inspect_project" || name === "connection_doctor") {
+      // The filesystem preflight alone is never trusted as live Supervisor
+      // evidence. Probe only the fixed existing socket via the bounded,
+      // read-only status RPC; a timeout or invalid result stays unverified.
+      const doctorSocketObservation =
+        name === "connection_doctor"
+          ? observeSupervisorSocket({
+              configured: Boolean(config.supervisorSocket),
+            })
+          : null;
+      let doctorSupervisorVerified = false;
+      if (
+        doctorSocketObservation?.state === "SOCKET_PRESENT_UNVERIFIED" &&
+        typeof supervisor?.request === "function"
+      ) {
+        try {
+          const status = await supervisor.request({
+            op: "status",
+            service: "agent",
+          });
+          doctorSupervisorVerified =
+            status?.activeState === "active" &&
+            status?.subState === "running" &&
+            Number.isSafeInteger(status?.mainPid) &&
+            status.mainPid > 0;
+        } catch {
+          // No warning payload, secrets, or false-positive health claims.
+          doctorSupervisorVerified = false;
+        }
+      }
       return {
         device: config.id,
         project: p.id,
@@ -1995,12 +2024,11 @@ export function createDispatcher(
               },
               blockerRecovery: inspectBlockers({
                 clientVisibleTools: a.clientVisibleTools ?? null,
-                // This is a local config observation only, not a privileged
-                // supervisor RPC. A socket path alone never proves uptime.
+                // Only a successful trusted bounded Supervisor status RPC
+                // upgrades the filesystem observation into live health.
                 supervisorConfigured: Boolean(config.supervisorSocket),
-                supervisorObservation: observeSupervisorSocket({
-                  configured: Boolean(config.supervisorSocket),
-                }),
+                supervisorObservation: doctorSocketObservation,
+                supervisorHealthVerified: doctorSupervisorVerified,
                 workerConfiguration: {
                   gate: p.autopilotGateWorker?.enabled === true,
                   repair: p.autopilotRepairWorker?.enabled === true,
@@ -2031,6 +2059,7 @@ export function createDispatcher(
             }
           : {}),
       };
+    }
     if (name === "worktree_lane_status")
       return {
         device: config.id,
