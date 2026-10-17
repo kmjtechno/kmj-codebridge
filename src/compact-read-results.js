@@ -60,7 +60,12 @@ function visibleValue(field, value) {
 }
 
 export function compactReadBatchResult(row) {
-  if (!row || typeof row !== "object" || typeof row.key !== "string" || typeof row.tool !== "string")
+  if (
+    !row ||
+    typeof row !== "object" ||
+    typeof row.key !== "string" ||
+    typeof row.tool !== "string"
+  )
     throw new Error("COMPACT_READ_INVALID_ROW");
   if (row.ok !== true) {
     return {
