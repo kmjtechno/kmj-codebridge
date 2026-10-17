@@ -16,6 +16,7 @@ import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
+import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
@@ -1341,6 +1342,32 @@ export const definitions = {
       objective: z.string().min(1).max(4096),
       changedFiles: z.array(z.string().min(1).max(1024)).max(50).default([]),
       failureSummary: z.string().max(4096).default(""),
+      observations: z
+        .array(
+          z
+            .object({
+              eventId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{7,63}$/),
+              project: identifier,
+              sessionId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_.:-]{7,63}$/),
+              skill: z.enum([
+                "security-hardening",
+                "debugging",
+                "tdd",
+                "release-readiness",
+              ]),
+              kind: z.enum([
+                "ci_failure",
+                "user_correction",
+                "repeated_work",
+                "skill_gap",
+              ]),
+              causeCode: z.string().regex(/^[A-Z][A-Z0-9_]{3,47}$/),
+              evidence: z.enum(["REPRODUCED", "USER_CONFIRMED", "UNVERIFIED"]),
+            })
+            .strict(),
+        )
+        .max(32)
+        .optional(),
     },
     access: "read",
   },
@@ -2616,6 +2643,14 @@ export function createDispatcher(
           changedFiles: a.changedFiles,
           failureSummary: a.failureSummary,
         }),
+        ...(a.observations === undefined
+          ? {}
+          : {
+              observer: evaluateEngineeringObservations({
+                project: p.id,
+                observations: a.observations,
+              }),
+            }),
       };
     if (name.startsWith("mission_") && !autopilot)
       fail("AUTOPILOT_UNAVAILABLE");
