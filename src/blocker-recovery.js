@@ -125,7 +125,16 @@ export function inspectBlockers({
     typeof supervisorConfigured !== "boolean"
   )
     throw new TypeError("INVALID_SUPERVISOR_OBSERVATION");
-  // This signal is supplied by trusted dispatcher code after an actual bounded\n  // Supervisor RPC. Never expose it as caller-provided MCP input.\n  if (typeof supervisorHealthVerified !== "boolean" ||\n      (supervisorHealthVerified && supervisorConfigured !== true))\n    throw new TypeError("INVALID_SUPERVISOR_LIVE_EVIDENCE");\n  const socketStates = [
+  // A caller cannot provide this value via the MCP input schema. Only a
+  // successful bounded, read-only Supervisor RPC may set it in dispatcher code.
+  if (
+    typeof supervisorHealthVerified !== "boolean" ||
+    (supervisorHealthVerified &&
+      (supervisorConfigured !== true ||
+        supervisorObservation?.state !== "SOCKET_PRESENT_UNVERIFIED"))
+  )
+    throw new TypeError("INVALID_SUPERVISOR_LIVE_EVIDENCE");
+  const socketStates = [
     "UNSUPPORTED_OS",
     "NOT_CONFIGURED",
     "SOCKET_MISSING",
