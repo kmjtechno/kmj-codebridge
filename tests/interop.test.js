@@ -466,6 +466,20 @@ test("universal MCP clients can opt into compact batch receipts without losing a
   assert.ok(!JSON.stringify(compact).includes('content":"hello"'));
   assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length);
 
+  const adaptive = body(
+    await client.callTool({
+      name: "fast_read_batch",
+      arguments: { ...scoped, calls, responseMode: "auto" },
+    }),
+  );
+  assert.equal(adaptive.responseMode, "auto");
+  assert.equal(adaptive.results.length, 3);
+  assert.equal(adaptive.results[1].value.content, "hello");
+  assert.equal(adaptive.results[2].responseMode, "compact");
+  assert.equal(adaptive.results[2].detailsReturned, false);
+  assert.match(adaptive.results[2].contentSha256, /^[a-f0-9]{64}$/);
+  assert.ok(JSON.stringify(adaptive).length < JSON.stringify(full).length);
+
   await expectRejected(
     client.callTool({
       name: "fast_read_batch",
