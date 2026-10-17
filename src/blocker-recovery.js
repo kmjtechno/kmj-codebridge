@@ -94,6 +94,7 @@ export function inspectBlockers({
   workerStarted = null,
   supervisorConfigured = null,
   supervisorObservation = null,
+  supervisorHealthVerified = false,
   ciObservation = "unknown",
   checkoutState = "unknown",
 } = {}) {
@@ -124,7 +125,7 @@ export function inspectBlockers({
     typeof supervisorConfigured !== "boolean"
   )
     throw new TypeError("INVALID_SUPERVISOR_OBSERVATION");
-  const socketStates = [
+  // This signal is supplied by trusted dispatcher code after an actual bounded\n  // Supervisor RPC. Never expose it as caller-provided MCP input.\n  if (typeof supervisorHealthVerified !== "boolean" ||\n      (supervisorHealthVerified && supervisorConfigured !== true))\n    throw new TypeError("INVALID_SUPERVISOR_LIVE_EVIDENCE");\n  const socketStates = [
     "UNSUPPORTED_OS",
     "NOT_CONFIGURED",
     "SOCKET_MISSING",
@@ -160,7 +161,7 @@ export function inspectBlockers({
         connectionVerified: false,
       }),
     );
-  else if (supervisorConfigured === true)
+  else if (supervisorConfigured === true && !supervisorHealthVerified)
     blockers.push(
       issue("SUPERVISOR_HEALTH_NOT_VERIFIED", {
         configured: true,
@@ -241,16 +242,20 @@ export function inspectBlockers({
     clientModelToolsMissing: missingClientTools,
     supervisor: {
       configured: supervisorConfigured,
-      connectionVerified: false,
+      connectionVerified: supervisorHealthVerified,
       status:
-        socketState ??
+        supervisorHealthVerified
+          ? "LIVE_STATUS_VERIFIED"
+          : socketState ??
         (supervisorConfigured === false
           ? "NOT_CONFIGURED"
           : supervisorConfigured === true
             ? "NOT_PROBED"
             : "UNKNOWN"),
       filesystemObservation: socketState,
-      note: "A socket path or file does not prove the privileged service is installed, authenticated or reachable.",
+      note: supervisorHealthVerified
+        ? "Trusted agent read-only Supervisor status RPC returned healthy runtime evidence; this does not prove future uptime or autonomous worker readiness."
+        : "A socket path or file does not prove the privileged service is installed, authenticated or reachable.",
     },
     workerHealth: health,
     blockers,
