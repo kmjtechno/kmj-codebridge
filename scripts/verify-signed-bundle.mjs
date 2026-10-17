@@ -42,7 +42,12 @@ function readBounded(file, limit) {
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
     const stat = fs.fstatSync(fd);
-    if (!stat.isFile() || stat.nlink !== 1 || stat.size < 1 || stat.size > limit)
+    if (
+      !stat.isFile() ||
+      stat.nlink !== 1 ||
+      stat.size < 1 ||
+      stat.size > limit
+    )
       throw Error("BUNDLE_FILE_UNSAFE");
     const bytes = Buffer.alloc(stat.size);
     let cursor = 0;
@@ -57,8 +62,7 @@ function readBounded(file, limit) {
       if (amount === 0) throw Error("BUNDLE_FILE_CHANGED");
       cursor += amount;
     }
-    if (fs.fstatSync(fd).size !== stat.size)
-      throw Error("BUNDLE_FILE_CHANGED");
+    if (fs.fstatSync(fd).size !== stat.size) throw Error("BUNDLE_FILE_CHANGED");
     return bytes;
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
@@ -66,8 +70,9 @@ function readBounded(file, limit) {
 }
 
 function parseBoundedJson(file, limit) {
+  const bytes = readBounded(file, limit);
   try {
-    return JSON.parse(readBounded(file, limit).toString("utf8"));
+    return JSON.parse(bytes.toString("utf8"));
   } catch {
     throw Error("BUNDLE_JSON_INVALID");
   }
@@ -165,8 +170,7 @@ export async function verifySignedReleaseBundle({
     sequence: signed.sequence,
     archiveSha256: archive.sha256,
     archiveBytes: archive.bytes,
-    note:
-      "Local source/archive identity only. No network, CI, runtime health, deployment or owner approval was verified.",
+    note: "Local source/archive identity only. No network, CI, runtime health, deployment or owner approval was verified.",
   };
 }
 
