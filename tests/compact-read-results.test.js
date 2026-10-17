@@ -93,7 +93,10 @@ test("errors remain visible but unsafe, untrusted error strings fail closed", ()
 
 test("rejects malformed records instead of silently returning fake evidence", () => {
   for (const row of [null, [], { key: 2, tool: "read_file" }, { key: "one" }])
-    assert.throws(() => compactReadBatchResult(row), /COMPACT_READ_INVALID_ROW/);
+    assert.throws(
+      () => compactReadBatchResult(row),
+      /COMPACT_READ_INVALID_ROW/,
+    );
 });
 
 test("displays safe numeric/boolean state but excludes arbitrary strings", () => {
