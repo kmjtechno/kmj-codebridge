@@ -16,7 +16,7 @@ Runs via existing bounded JobRunner, one agent slot; no added shell, arbitrary U
 
 ## Install (separate explicit operator-controlled action)
 
-- After review and exact-SHA CI: `sudo bash scripts/install-moli-fast-lane.sh` on approved KMJ-elite Linux x86_64. It downloads *only* official Moli v1.1.18 Linux tarball, SHA-256 `59715fbdb2b016bb9136e1edb59a2a195c0f98459fd06739e17edc62da6a48b1`, refuses symlink/overwrite and checks --version.
+- After review and exact-SHA CI: `sudo bash scripts/install-moli-fast-lane.sh` on approved KMJ-elite Linux x86_64. It downloads _only_ official Moli v1.1.18 Linux tarball, SHA-256 `59715fbdb2b016bb9136e1edb59a2a195c0f98459fd06739e17edc62da6a48b1`, refuses symlink/overwrite and checks --version.
 - The Moli binary is optional, never autoinstalled by an AI chat or MCP call. Installing binary alone does not update CodeBridge gateway/agent or expose the new tool.
 - The Windows binary has independent asset checksum and must be separately pinned and approved; Linux shell installer does not run on Windows.
 - Runtime release needs signed/staged CodeBridge update with rollback proof, exact head CI and connected clients refresh. Do not run unreleased scripts on production.
