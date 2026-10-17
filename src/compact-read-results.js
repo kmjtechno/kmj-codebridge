@@ -121,7 +121,12 @@ export function compactReadBatchResult(row) {
  * Tool failures are always code-only (never forward untrusted error details).
  */
 export function adaptiveReadBatchResult(row) {
-  if (!row || typeof row !== "object" || typeof row.key !== "string" || typeof row.tool !== "string")
+  if (
+    !row ||
+    typeof row !== "object" ||
+    typeof row.key !== "string" ||
+    typeof row.tool !== "string"
+  )
     throw new Error("COMPACT_READ_INVALID_ROW");
   if (row.ok !== true) return compactReadBatchResult(row);
 
