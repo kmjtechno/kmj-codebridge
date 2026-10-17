@@ -6,7 +6,10 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const script = path.join(root, "scripts/production/retire-google-cloudos-kvm01-canary.py");
+const script = path.join(
+  root,
+  "scripts/production/retire-google-cloudos-kvm01-canary.py",
+);
 const source = fs.readFileSync(script, "utf8");
 
 test(
@@ -14,11 +17,16 @@ test(
   { skip: process.platform === "win32" },
   () => {
     assert.doesNotThrow(() =>
-      execFileSync("python3", [
-        "-B", "-c",
-        "import ast,sys; ast.parse(open(sys.argv[1]).read())",
-        script,
-      ], { cwd: root, timeout: 10000, stdio: ["ignore", "pipe", "pipe"] }),
+      execFileSync(
+        "python3",
+        [
+          "-B",
+          "-c",
+          "import ast,sys; ast.parse(open(sys.argv[1]).read())",
+          script,
+        ],
+        { cwd: root, timeout: 10000, stdio: ["ignore", "pipe", "pipe"] },
+      ),
     );
   },
 );
@@ -37,12 +45,13 @@ test("CloudOS nspawn retirement does not touch LXD or other guests", () => {
     "kmj-cloudos-api.service",
     "kmj-cloudos-worker.service",
     "kmj-codebridge-cloudos.service",
-  ]) assert.ok(source.includes(service));
+  ])
+    assert.ok(source.includes(service));
 });
 
 test("retirement must stop, test health, verify backup before one image removal", () => {
   const order = [
-    'identity()',
+    "identity()",
     "if not args.apply:",
     'run(["systemctl", "stop", UNIT]',
     "healthy()",
@@ -61,10 +70,16 @@ test("retirement must stop, test health, verify backup before one image removal"
     last = next;
   }
   for (const marker of [
-    "ARCHIVE_UNSAFE_ENTRY", "ARCHIVE_INCOMPLETE", "LOCAL_BACKUP_VALIDATED=YES",
-    "MIN_FREE_AFTER_BACKUP", "GUEST_SYSTEMD_JOB_ACTIVE",
-    "LIVE_SERVICE_REFERENCES_GUEST", "NESTED_GUEST_MOUNT_PRESENT",
-    "CANARY_ROLLBACK=GUEST_RUNNING", "CANARY_RETIREMENT=BLOCKED_OR_ROLLED_BACK",
+    "ARCHIVE_UNSAFE_ENTRY",
+    "ARCHIVE_INCOMPLETE",
+    "LOCAL_BACKUP_VALIDATED=YES",
+    "MIN_FREE_AFTER_BACKUP",
+    "GUEST_SYSTEMD_JOB_ACTIVE",
+    "LIVE_SERVICE_REFERENCES_GUEST",
+    "NESTED_GUEST_MOUNT_PRESENT",
+    "CANARY_ROLLBACK=GUEST_RUNNING",
+    "CANARY_RETIREMENT=BLOCKED_OR_ROLLED_BACK",
     "FURTHER_GUEST_REMOVALS=REQUIRE_SEPARATE_QUALIFICATION",
-  ]) assert.ok(source.includes(marker), marker);
+  ])
+    assert.ok(source.includes(marker), marker);
 });
