@@ -3,7 +3,11 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { createDispatcher, definitions, FAST_READ_TOOLS } from "../src/tools.js";
+import {
+  createDispatcher,
+  definitions,
+  FAST_READ_TOOLS,
+} from "../src/tools.js";
 
 test("large_prompt_plan is opt-in, scoped, read-only and does not echo private prompts", async (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-large-prompt-"));
@@ -28,7 +32,8 @@ test("large_prompt_plan is opt-in, scoped, read-only and does not echo private p
     () => ({ features: ["read"], limits: { concurrent_jobs: 1 } }),
   );
   const secretText =
-    "# Private notes\n" + "This stays local to the authorized project.\n".repeat(4000);
+    "# Private notes\n" +
+    "This stays local to the authorized project.\n".repeat(4000);
   assert.equal(definitions.large_prompt_plan.access, "read");
   assert.ok(!FAST_READ_TOOLS.includes("large_prompt_plan"));
   const result = await dispatch(
