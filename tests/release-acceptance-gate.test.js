@@ -101,7 +101,7 @@ test("requires all checks including newly introduced extra checks", () => {
   evidence.ci.checks.pop();
   assert(
     assessReleaseEvidence(evidence).blockers.includes(
-      "CI_CHECK_MISSING_OR_DUPLICATE:deployment_parity",
+      "CI_CHECK_MISSING:deployment_parity",
     ),
   );
   evidence.ci.checks.push({
@@ -113,6 +113,22 @@ test("requires all checks including newly introduced extra checks", () => {
   assert(
     assessReleaseEvidence(evidence).blockers.includes(
       "CI_ADDITIONAL_CHECK_NOT_GREEN",
+    ),
+  );
+});
+
+test("duplicate CI names require every exact-head attempt to pass", () => {
+  const evidence = goodEvidence();
+  const duplicate = { ...evidence.ci.checks[0] };
+  evidence.ci.checks.push(duplicate);
+  assert.equal(
+    assessReleaseEvidence(evidence).assessment,
+    "READY_FOR_MANUAL_OWNER_VERIFICATION",
+  );
+  duplicate.conclusion = "failure";
+  assert(
+    assessReleaseEvidence(evidence).blockers.includes(
+      "CI_CHECK_NOT_GREEN:registry_manifest",
     ),
   );
 });
