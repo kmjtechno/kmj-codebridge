@@ -14,7 +14,9 @@ function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-signed-bundle-"));
   t.after(() => fs.rmSync(dir, { force: true, recursive: true }));
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
-  const archive = Buffer.from("synthetic archive content for offline digest test");
+  const archive = Buffer.from(
+    "synthetic archive content for offline digest test",
+  );
   const runtime = {
     product: "KMJ CodeBridge",
     version: "0.3.2",
@@ -29,7 +31,8 @@ function fixture(t) {
   const publicPem = publicKey.export({ type: "spki", format: "pem" });
   const signed = buildSignedReleaseManifest({
     runtimeManifest: runtime,
-    archiveUrl: "https://kmjtechno.com/codebridge/releases/beta/" + REV + "/" + NAME,
+    archiveUrl:
+      "https://kmjtechno.com/codebridge/releases/beta/" + REV + "/" + NAME,
     sequence: 12,
     keyId: "owner-2026",
     privateKeyPem: ownerKey,
@@ -44,8 +47,14 @@ function fixture(t) {
   const options = {
     signedManifestPath: write("release-manifest.json", signed.manifestBytes),
     signaturePath: write("release-manifest.sig", signed.signature + "\n"),
-    trustedKeysPath: write("trusted-keys.json", JSON.stringify({ "owner-2026": publicPem })),
-    runtimeManifestPath: write("runtime-manifest.json", JSON.stringify(runtime)),
+    trustedKeysPath: write(
+      "trusted-keys.json",
+      JSON.stringify({ "owner-2026": publicPem }),
+    ),
+    runtimeManifestPath: write(
+      "runtime-manifest.json",
+      JSON.stringify(runtime),
+    ),
     archivePath: write(NAME, archive),
     minimumSequence: 11,
   };
@@ -78,9 +87,15 @@ test("rejects a forged signature and unknown signing key", async (t) => {
     options.signaturePath,
     Buffer.alloc(64, 12).toString("base64url"),
   );
-  await assert.rejects(verifySignedReleaseBundle(options), /UPDATE_SIGNATURE_INVALID/);
+  await assert.rejects(
+    verifySignedReleaseBundle(options),
+    /UPDATE_SIGNATURE_INVALID/,
+  );
   options.signaturePath = write("release-manifest-unknown.sig", "garbage");
-  await assert.rejects(verifySignedReleaseBundle(options), /UPDATE_SIGNATURE_INVALID/);
+  await assert.rejects(
+    verifySignedReleaseBundle(options),
+    /UPDATE_SIGNATURE_INVALID/,
+  );
 });
 
 test("rejects a mismatched runtime revision despite valid signed manifest", async (t) => {
@@ -142,15 +157,24 @@ test("requires PUBLIC keys, never private PEM or an untrusted key", async (t) =>
       "owner-2026": publicKey.export({ type: "spki", format: "pem" }),
     }),
   );
-  await assert.rejects(verifySignedReleaseBundle(options), /UPDATE_SIGNATURE_INVALID/);
+  await assert.rejects(
+    verifySignedReleaseBundle(options),
+    /UPDATE_SIGNATURE_INVALID/,
+  );
 });
 
 test("invalid manifest JSON and missing files fail closed", async (t) => {
   const { options } = fixture(t);
   fs.writeFileSync(options.runtimeManifestPath, "{ broken");
-  await assert.rejects(verifySignedReleaseBundle(options), /BUNDLE_JSON_INVALID/);
   await assert.rejects(
-    verifySignedReleaseBundle({ ...options, trustedKeysPath: "/definitely/not/available.json" }),
+    verifySignedReleaseBundle(options),
+    /BUNDLE_JSON_INVALID/,
+  );
+  await assert.rejects(
+    verifySignedReleaseBundle({
+      ...options,
+      trustedKeysPath: "/definitely/not/available.json",
+    }),
     /BUNDLE_FILE_UNAVAILABLE/,
   );
 });
