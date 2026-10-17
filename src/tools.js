@@ -3593,7 +3593,9 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command"
-        ? commandRisk((p.commands ?? {})[a.command]?.category)
+        ? a.command === "browser_public_qa"
+          ? "TEST"
+          : commandRisk((p.commands ?? {})[a.command]?.category)
         : toolRisk(name, definition);
     const attempt = audit.append(p.id, {
       device: config.id,
