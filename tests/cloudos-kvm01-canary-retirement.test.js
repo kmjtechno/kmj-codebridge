@@ -79,7 +79,14 @@ test("retirement must stop, test health, verify backup before one image removal"
     "NESTED_GUEST_MOUNT_PRESENT",
     "CANARY_ROLLBACK=GUEST_RUNNING",
     "CANARY_RETIREMENT=BLOCKED_OR_ROLLED_BACK",
+    "BACKUP_BASE_PERMISSIONS_UNSAFE",
+    "INSUFFICIENT_BACKUP_HEADROOM",
     "FURTHER_GUEST_REMOVALS=REQUIRE_SEPARATE_QUALIFICATION",
   ])
     assert.ok(source.includes(marker), marker);
+  assert.ok(
+    source.indexOf("stopped = True") <
+      source.indexOf('run(["systemctl", "stop", UNIT]'),
+    "must attempt rollback even when stop times out",
+  );
 });
