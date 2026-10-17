@@ -19,6 +19,7 @@ import { selectSkillPacks } from "./skill-packs.js";
 import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
+import { planLargePrompt } from "./large-prompt-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { ChatContinuity } from "./chat-continuity.js";
@@ -698,6 +699,22 @@ export const definitions = {
     input: {
       ...scoped,
       limit: z.number().int().min(1).max(100).default(20),
+    },
+    access: "read",
+  },
+  large_prompt_plan: {
+    title: "Lossless large-prompt fast-path manifest",
+    description:
+      "Opt-in project-scoped read-only planning for up to 1 MiB of caller-authorized prompt text. Returns only ordered UTF-16 spans, SHA-256 integrity receipts, Markdown fence risk and existing fast-tool recommendations; never echoes/stores prompt text, calls AI, extends ChatGPT context or executes work. Client must retain the original text.",
+    input: {
+      ...scoped,
+      prompt: z.string().min(1).max(1048576),
+      chunkChars: z.number().int().min(8192).max(32768).default(16384),
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable()
+        .default(null),
     },
     access: "read",
   },
@@ -2195,6 +2212,17 @@ export function createDispatcher(
     if (name === "audit_tail") {
       if (!audit) fail("AUDIT_UNAVAILABLE");
       return audit.tail(p.id, a.limit);
+    }
+    if (name === "large_prompt_plan") {
+      return {
+        device: config.id,
+        project: p.id,
+        ...planLargePrompt({
+          prompt: a.prompt,
+          chunkChars: a.chunkChars,
+          ifNoneMatch: a.ifNoneMatch,
+        }),
+      };
     }
     if (name === "hyperspeed_plan") {
       const capacity = runner.capacity(p.files.root);
