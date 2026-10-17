@@ -154,6 +154,49 @@ export function verifyCriticalToolSchemas(catalog) {
   return true;
 }
 
+// Compare the *actual* public input contracts for security-critical fields.
+// Different providers may expose additional optional tools, but a stale
+// leaseToken shape, requiredness or object-closure flag must fail the gate.
+// Canonicalizing JSON object key order prevents false positives from
+// serialization order. No tool is called and no input value is inspected.
+function canonicalSchema(value) {
+  if (Array.isArray(value)) return value.map(canonicalSchema);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(
+    Object.entries(value)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, child]) => [key, canonicalSchema(child)]),
+  );
+}
+
+export function verifyCriticalSchemaParity(render, production) {
+  verifyCriticalToolSchemas(render);
+  verifyCriticalToolSchemas(production);
+  for (const [name, properties] of Object.entries(CRITICAL_TOOL_PROPERTIES)) {
+    const a = render.tools.get(name).inputSchema;
+    const b = production.tools.get(name).inputSchema;
+    const requiredA = a.required ?? [];
+    const requiredB = b.required ?? [];
+    if (
+      !Array.isArray(requiredA) ||
+      !Array.isArray(requiredB) ||
+      requiredA.some((key) => typeof key !== "string") ||
+      requiredB.some((key) => typeof key !== "string") ||
+      (a.additionalProperties ?? null) !== (b.additionalProperties ?? null)
+    )
+      throw criticalError("MCP_CRITICAL_SCHEMA_DRIFT", name);
+    for (const property of properties) {
+      if (
+        JSON.stringify(canonicalSchema(a.properties[property])) !==
+          JSON.stringify(canonicalSchema(b.properties[property])) ||
+        requiredA.includes(property) !== requiredB.includes(property)
+      )
+        throw criticalError("MCP_CRITICAL_SCHEMA_DRIFT", name);
+    }
+  }
+  return true;
+}
+
 async function readBounded(response) {
   if (!response.body) throw new Error("MCP_CATALOG_BODY_MISSING");
   const reader = response.body.getReader();
@@ -331,12 +374,24 @@ async function main() {
       throw error;
     }
   }
+  try {
+    verifyCriticalSchemaParity(render, production);
+    console.log("MCP_CRITICAL_PARITY=PASS");
+  } catch (error) {
+    const tool =
+      typeof error.criticalTool === "string" &&
+      Object.hasOwn(CRITICAL_TOOL_PROPERTIES, error.criticalTool)
+        ? error.criticalTool
+        : "unknown";
+    console.error(`MCP_CRITICAL_PARITY=FAIL tool=${tool}`);
+    throw error;
+  }
   console.log(
     "MCP_PUBLIC_CATALOG=PASS render=" +
       report.renderCount +
       " production=" +
       report.productionCount +
-      " criticalSchemas=PASS",
+      " criticalSchemas=PASS criticalParity=PASS",
   );
   const strictExpected = process.env.EXPECT_DEPLOYED_COMMIT;
   const expected = strictExpected ?? process.env.GITHUB_SHA ?? "";
@@ -390,6 +445,7 @@ if (
       "MCP_CRITICAL_TOOL_MISSING",
       "MCP_CRITICAL_SCHEMA_MISSING",
       "MCP_CRITICAL_SCHEMA_INVALID",
+      "MCP_CRITICAL_SCHEMA_DRIFT",
       "MCP_EXPECTED_COMMIT_INVALID",
       "MCP_DEPLOYED_COMMIT_MISMATCH",
     ]);
