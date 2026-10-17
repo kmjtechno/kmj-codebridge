@@ -27,7 +27,7 @@ Audited the actual CodeBridge gateway, SDK dependency, stdio bridge and all
   coding agent / IDE ecosystem. Do not replace CodeBridge's authorization
   or import a complete agent system just to lower token output.
 
-CodeBridge *already* generates remote OAuth configuration for ChatGPT/custom
+CodeBridge _already_ generates remote OAuth configuration for ChatGPT/custom
 MCP, Claude.ai/Code/Desktop, Codex CLI, VS Code/Copilot, Cursor,
 Windsurf, JetBrains, Gemini CLI and generic clients. Every client has the
 same `https://kmjtechno.com/mcp` endpoint. Successful configuration
@@ -44,7 +44,7 @@ calls under the exact same user, device and project authorization.
 With compact mode, for successful calls:
 
 - Respond with per-tool SHA-256 receipt of the complete JSON result,
-  its byte length, data shape and up to a handful of *strictly allowlisted*
+  its byte length, data shape and up to a handful of _strictly allowlisted_
   boolean/integer/status hints; do not copy source files, arbitrary log
   strings, tokens, file paths or nested blobs into the model context.
 - Failure codes remain explicit but invalid or unsafe strings fail closed
@@ -70,9 +70,9 @@ Example (already connected client with authorized `device`, `project`):
   "project": "authorized-project",
   "responseMode": "compact",
   "calls": [
-    {"key":"git","tool":"git_status","args":{}},
-    {"key":"capacity","tool":"execution_capacity","args":{}},
-    {"key":"project","tool":"inspect_project","args":{}}
+    { "key": "git", "tool": "git_status", "args": {} },
+    { "key": "capacity", "tool": "execution_capacity", "args": {} },
+    { "key": "project", "tool": "inspect_project", "args": {} }
   ]
 }
 ```
@@ -95,7 +95,7 @@ write/execute tool in this feature.
 Avoid sending raw source or full logs to an unapproved free-cloud model,
 assuming local model inference is free of electricity costs, silently
 switching to a billable provider, bypassing developer/IDE restrictions,
-or claiming unlimited credits/zero tokens. CodeBridge can reduce *avoidable*
+or claiming unlimited credits/zero tokens. CodeBridge can reduce _avoidable_
 model-visible tool output; inference itself consumes whatever quota the
 client/model/provider uses.
 
