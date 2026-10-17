@@ -6,7 +6,10 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createDispatcher } from "../src/tools.js";
 
-function fixture(t, { project = "kmj-main-platform", writable = true, lock = true } = {}) {
+function fixture(
+  t,
+  { project = "kmj-main-platform", writable = true, lock = true } = {},
+) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-main-private-ci-"));
   const root = path.join(base, "repo");
   const state = path.join(base, "state");
@@ -96,16 +99,14 @@ test("private dependency command prepares exact HEAD without touching dirty sour
     { device: "d1", project: "kmj-main-platform" },
     ["read"],
   );
-  const profile = profiles.commands.find((p) => p.id === "main_platform_ui_deps");
+  const profile = profiles.commands.find(
+    (p) => p.id === "main_platform_ui_deps",
+  );
   assert.equal(profile.category, "build");
   assert.deepEqual(profile.variants, ["ci"]);
   assert.equal(profile.risk, "TEST");
 
-  const queued = await x.dispatch(
-    "run_project_command",
-    args(),
-    ["execute"],
-  );
+  const queued = await x.dispatch("run_project_command", args(), ["execute"]);
   assert.equal(queued.state, "queued");
   assert.equal(x.calls.length, 1);
   const job = x.calls[0];
@@ -123,9 +124,18 @@ test("private dependency command prepares exact HEAD without touching dirty sour
   ]);
   assert.equal(job.timeoutMs, 180000);
   assert.equal(job.gate.includes(x.head), true);
-  assert.equal(job.cwd.startsWith(path.join(x.state, "isolated-worktrees")), true);
-  assert.equal(fs.readFileSync(path.join(x.root, "owner-notes.txt"), "utf8"), "keep my changes");
-  assert.equal(fs.existsSync(path.join(x.root, "apps", "platform", "node_modules")), false);
+  assert.equal(
+    job.cwd.startsWith(path.join(x.state, "isolated-worktrees")),
+    true,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(x.root, "owner-notes.txt"), "utf8"),
+    "keep my changes",
+  );
+  assert.equal(
+    fs.existsSync(path.join(x.root, "apps", "platform", "node_modules")),
+    false,
+  );
   assert.equal(job.beforeStart(), job.cwd);
 
   const laneFile = path.join(job.cwd, "apps", "platform", "package-lock.json");
@@ -147,7 +157,10 @@ test("private dependency command rejects absent lock and unauthorized overrides"
     { device: "d1", project: "another-project" },
     ["read"],
   );
-  assert.equal(listed.commands.some((p) => p.id === "main_platform_ui_deps"), false);
+  assert.equal(
+    listed.commands.some((p) => p.id === "main_platform_ui_deps"),
+    false,
+  );
   await assert.rejects(
     other.dispatch("run_project_command", args("another-project"), ["execute"]),
     /READ_ONLY_PROJECT/,
@@ -166,7 +179,11 @@ test("private dependency command rejects absent lock and unauthorized overrides"
     { expectedHead: "a".repeat(40) },
   ]) {
     await assert.rejects(
-      allowed.dispatch("run_project_command", args("kmj-main-platform", override), ["execute"]),
+      allowed.dispatch(
+        "run_project_command",
+        args("kmj-main-platform", override),
+        ["execute"],
+      ),
       /COMMAND_NOT_ALLOWED/,
     );
   }
