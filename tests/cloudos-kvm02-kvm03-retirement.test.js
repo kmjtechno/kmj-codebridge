@@ -52,7 +52,7 @@ test("only approved nspawn guests may be retired; no raw shell or LXD operations
   for (const marker of [
     'ALLOWED_GUESTS = ("kvm02", "kvm03")',
     'parser.add_argument("--guest", choices=ALLOWED_GUESTS, required=True)',
-    "LOCK = Path(\"/run/lock/kmj-cloudos-simfleet-retirement.lock\")",
+    'LOCK = Path("/run/lock/kmj-cloudos-simfleet-retirement.lock")',
     "BACKUP_BASE_PERMISSIONS_UNSAFE",
     "LOCAL_BACKUP_VALIDATED=YES",
     "ARCHIVE_DEVICE_NODES_VALIDATED",
