@@ -460,7 +460,9 @@ test("universal MCP clients can opt into compact batch receipts without losing a
   assert.equal(compact.results.length, 3);
   assert.ok(compact.results.every((row) => row.ok === true));
   assert.ok(compact.results.every((row) => row.detailsReturned === false));
-  assert.ok(compact.results.every((row) => /^[a-f0-9]{64}$/.test(row.contentSha256)));
+  assert.ok(
+    compact.results.every((row) => /^[a-f0-9]{64}$/.test(row.contentSha256)),
+  );
   assert.ok(!JSON.stringify(compact).includes('content":"hello"'));
   assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length);
 
