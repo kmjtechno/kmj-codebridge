@@ -44,7 +44,6 @@ test("skill_recommendations is read-only, deterministic and fast-batch eligible"
   assert.ok(result.skills.every((skill) => !("signals" in skill)));
 });
 
-
 test("opt-in observer uses the same scoped read-only tool without changing legacy response", async (t) => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-observer-tool-"));
   const root = path.join(base, "project");
@@ -93,10 +92,7 @@ test("opt-in observer uses the same scoped read-only tool without changing legac
     ["read"],
   );
   assert.equal(reviewed.observer.proposalCount, 1);
-  assert.equal(
-    reviewed.observer.proposals[0].stage,
-    "STRUCTURAL_GUARD_REVIEW",
-  );
+  assert.equal(reviewed.observer.proposals[0].stage, "STRUCTURAL_GUARD_REVIEW");
   assert.equal(reviewed.observer.liveSkillsChanged, false);
   assert.equal(reviewed.observer.externalEvidenceVerified, false);
 });
