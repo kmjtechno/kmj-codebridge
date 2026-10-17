@@ -10,6 +10,7 @@ import {
   chromeCandidates,
   assess,
   createChromePrivateEnvironment,
+  measureAfterTextReady,
 } from "../scripts/browser-public-qa.mjs";
 
 test("browser test destinations and viewports are fixed", () => {
@@ -134,4 +135,55 @@ test("Chrome receives isolated writable HOME and XDG dirs under hardened agents"
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("browser readiness waits for hydrated text without suppressing genuine blank pages", async () => {
+  let now = 0;
+  let attempts = 0;
+  const hydrated = await measureAfterTextReady(
+    async () => ({ bodyLength: [0, 0, 15055][attempts++] }),
+    {
+      timeoutMs: 400,
+      pollMs: 100,
+      clock: () => now,
+      sleep: async (ms) => {
+        now += ms;
+      },
+    },
+  );
+  assert.equal(hydrated.bodyLength, 15055);
+  assert.equal(attempts, 3);
+  assert.equal(now, 200);
+
+  now = 0;
+  attempts = 0;
+  const trulyBlank = await measureAfterTextReady(
+    async () => {
+      attempts++;
+      return { bodyLength: 0 };
+    },
+    {
+      timeoutMs: 400,
+      pollMs: 200,
+      clock: () => now,
+      sleep: async (ms) => {
+        now += ms;
+      },
+    },
+  );
+  assert.equal(trulyBlank.bodyLength, 0);
+  assert.equal(attempts, 3);
+  assert.equal(now, 400);
+  assert.deepEqual(
+    assess({
+      actualUrl: "https://kmjtechno.com/products",
+      expectedUrl: "https://kmjtechno.com/products",
+      httpStatus: 200,
+      bodyLength: trulyBlank.bodyLength,
+      overflowPx: 0,
+      brokenImages: 0,
+      exceptions: 0,
+    }),
+    ["BLANK_PAGE"],
+  );
 });
