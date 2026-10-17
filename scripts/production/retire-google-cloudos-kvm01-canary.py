@@ -145,7 +145,8 @@ def backup_guest(dest):
             count += 1
         if count < 5:
             raise RuntimeError("ARCHIVE_INCOMPLETE")
-    digest = hashlib.file_digest(archive.open("rb"), "sha256").hexdigest()
+    with archive.open("rb") as stream:
+        digest = hashlib.file_digest(stream, "sha256").hexdigest()
     (dest / "SHA256SUMS").write_text(digest + "  kvm01.tar.gz\n")
     print("LOCAL_BACKUP_VALIDATED=YES", flush=True)
     print("ARCHIVE_BYTES=" + str(archive.stat().st_size), flush=True)
@@ -194,8 +195,16 @@ def main():
         enabled = run(["systemctl", "is-enabled", UNIT], ok=(0, 1))
         if enabled not in ("enabled", "disabled"):
             raise RuntimeError("UNIT_ENABLEMENT_UNKNOWN")
+        # Backups contain the guest's complete private filesystem. Never
+        # follow an operator-unexpected symlink or permit world-readable files.
+        if BACKUP_BASE.is_symlink():
+            raise RuntimeError("BACKUP_BASE_SYMLINK_UNSAFE")
+        BACKUP_BASE.mkdir(parents=True, mode=0o700, exist_ok=True)
+        meta = BACKUP_BASE.lstat()
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o077:
+            raise RuntimeError("BACKUP_BASE_PERMISSIONS_UNSAFE")
         dest = BACKUP_BASE / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-        dest.mkdir(parents=True, mode=0o700, exist_ok=False)
+        dest.mkdir(mode=0o700, exist_ok=False)
         old_free = avail()
         stopped = False
         removed = False
@@ -203,8 +212,10 @@ def main():
         try:
             # Controlled canary: if production health changes while kvm01 is
             # stopped, reverse the stop before touching its stored image.
-            run(["systemctl", "stop", UNIT], timeout=90)
+            # A timed-out stop can still have stopped the unit. Always attempt
+            # rollback after the first stop instruction, even on a timeout.
             stopped = True
+            run(["systemctl", "stop", UNIT], timeout=90)
             for _ in range(30):
                 if machine_state() == "absent":
                     break
