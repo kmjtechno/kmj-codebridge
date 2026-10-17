@@ -3357,7 +3357,7 @@ export function createDispatcher(
             if (
               !stat.isFile() ||
               stat.isSymbolicLink() ||
-              stat.size < 128 ||
+              stat.size < (name === manifest ? 32 : 128) ||
               stat.size > 2 * 1024 * 1024
             )
               fail("WORKTREE_DEPS_LOCK_UNSAFE");
