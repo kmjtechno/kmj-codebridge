@@ -87,7 +87,6 @@ For public repositories without any GitHub credential, the gateway can instead u
 
 On a free-tier hosting egress IP, anonymous GitHub API requests share a small hourly quota. Public-read-only `/healthz` readiness now probes no more frequently than every **15 minutes** (four baseline probes per hour), with a 30-second grace for in-flight refreshes. An actual failed probe still turns readiness **failed immediately**, and `GITHUB_RATE_LIMIT` still fails the separate hosted CI gate and enforces a one-hour recheck cooldown. The longer interval is a zero-cost request-budget mitigation, **not** proof of authenticated GitHub access or a guarantee against third-party quota usage. Actual PR/CI fetches and their cache freshness remain unchanged. A least-privilege server-held GitHub App credential remains the recommended production solution.
 
-
 ## Diagnosing authorization without weakening repository boundaries
 
 The GitHub bridge deliberately distinguishes two failures that can appear in
