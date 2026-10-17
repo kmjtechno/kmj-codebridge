@@ -38,7 +38,7 @@ function manualTimers() {
 test("unauthenticated public GitHub readiness avoids exhausting hourly API quota", async () => {
   const publicPolicy = githubReadinessOptions({ publicReadOnly: true });
   assert.deepEqual(publicPolicy, {
-    ttlMs: 300000,
+    ttlMs: 900000,
     graceMs: 30000,
     rateLimitCooldownMs: 3600000,
   });
@@ -63,9 +63,13 @@ test("unauthenticated public GitHub readiness avoids exhausting hourly API quota
   await drain();
   assert.equal(probes, 1, "30-second health checks must not call GitHub again");
   now += 270000;
+  assert.equal(ready(), true, "five minutes must use the prior bounded probe");
+  await drain();
+  assert.equal(probes, 1, "no anonymous probe at the old five-minute cadence");
+  now += 600000;
   assert.equal(ready(), true, "grace permits an in-flight bounded refresh");
   await drain();
-  assert.equal(probes, 2, "one refresh per five minutes, not every 30 seconds");
+  assert.equal(probes, 2, "one refresh per 15 minutes, not every 30 seconds");
 });
 
 test("anonymous GitHub quota failure cools down without false readiness", async () => {
@@ -92,7 +96,7 @@ test("anonymous GitHub quota failure cools down without false readiness", async 
   clock += 300000;
   assert.equal(ready(), false);
   await drain();
-  assert.equal(calls, 1, "do not retry quota exhaustion every five minutes");
+  assert.equal(calls, 1, "do not retry quota exhaustion while in cooldown");
   clock += 3299000;
   assert.equal(ready(), false);
   await drain();
