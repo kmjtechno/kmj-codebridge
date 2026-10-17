@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import test from "node:test";
 import {
   TARGETS,
@@ -7,6 +9,7 @@ import {
   allowedTarget,
   chromeCandidates,
   assess,
+  createChromePrivateEnvironment,
 } from "../scripts/browser-public-qa.mjs";
 
 test("browser test destinations and viewports are fixed", () => {
@@ -93,4 +96,34 @@ test("CodeBridge browser MCP tools use the existing nonblocking runner", () => {
     browser,
     /process\.env\.(?:PASSWORD|TOKEN|COOKIE|SECRET)/,
   );
+});
+
+test("Chrome receives isolated writable HOME and XDG dirs under hardened agents", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-browser-env-test-"));
+  try {
+    const inheritedHome = process.env.HOME;
+    const env = createChromePrivateEnvironment(root, {
+      HOME: "/restricted/service/home",
+      XDG_CONFIG_HOME: "/restricted/config",
+      XDG_CACHE_HOME: "/restricted/cache",
+      PATH: "/usr/bin:/bin",
+    });
+    assert.deepEqual(
+      [env.HOME, env.XDG_CONFIG_HOME, env.XDG_CACHE_HOME],
+      [path.join(root, "home"), path.join(root, "config"), path.join(root, "cache")],
+    );
+    assert.equal(env.PATH, "/usr/bin:/bin");
+    for (const directory of [env.HOME, env.XDG_CONFIG_HOME, env.XDG_CACHE_HOME]) {
+      const stat = fs.statSync(directory);
+      assert.ok(stat.isDirectory());
+      if (process.platform !== "win32") assert.equal(stat.mode & 0o077, 0);
+    }
+    assert.equal(process.env.HOME, inheritedHome);
+    const source = fs.readFileSync("scripts/browser-public-qa.mjs", "utf8");
+    assert.match(source, /env: chromeEnv/);
+    assert.match(source, /fs\.rmSync\(profileRoot/);
+    assert.doesNotMatch(source, /--no-sandbox|--remote-debugging-port/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
