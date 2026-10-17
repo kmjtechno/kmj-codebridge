@@ -45,10 +45,7 @@ export function planMainPlatformAllowlist(raw) {
  * repository's metadata and main ref. No fallback to anonymous/public mode.
  * Dependency-injected fetch permits zero-network negative regression tests.
  */
-export async function verifyPrivateRepoGrant(
-  token,
-  request = fetch,
-) {
+export async function verifyPrivateRepoGrant(token, request = fetch) {
   if (typeof token !== "string" || token.length < 20)
     throw new Error("REPO_REPAIR_TOKEN_MISSING");
   const headers = {
@@ -70,8 +67,7 @@ export async function verifyPrivateRepoGrant(
     if (!result || result.status !== 200)
       throw new Error("REPO_REPAIR_GRANT_NOT_PROVEN");
     const length = Number(result.headers?.get?.("content-length") ?? 0);
-    if (length > 65536)
-      throw new Error("REPO_REPAIR_RESPONSE_TOO_LARGE");
+    if (length > 65536) throw new Error("REPO_REPAIR_RESPONSE_TOO_LARGE");
     const text = await result.text();
     if (typeof text !== "string" || Buffer.byteLength(text) > 65536)
       throw new Error("REPO_REPAIR_RESPONSE_TOO_LARGE");
