@@ -139,7 +139,7 @@ def validate_archive(archive):
             name = member.name.removeprefix("./").rstrip("/")
             parts = Path(name).parts
             if (not parts or parts[0] != NAME or ".." in parts
-                    or name.startswith("/") or "\\x00" in name):
+                    or name.startswith("/") or chr(0) in name):
                 raise RuntimeError("ARCHIVE_UNSAFE_ENTRY")
             if name in seen:
                 raise RuntimeError("ARCHIVE_DUPLICATE_MEMBER")
@@ -178,8 +178,10 @@ def validate_archive(archive):
     # An archive containing a symlink directory followed by descendants is
     # unsafe to unpack as root, even with a trusted archive origin.
     for name in seen:
-        if any(name.startswith(link + "/") for link in symlink_names):
-            raise RuntimeError("ARCHIVE_SYMLINK_PARENT")
+        parts = Path(name).parts
+        for depth in range(1, len(parts)):
+            if "/".join(parts[:depth]) in symlink_names:
+                raise RuntimeError("ARCHIVE_SYMLINK_PARENT")
     print("ARCHIVE_DEVICE_NODES_VALIDATED=" + str(devices), flush=True)
     print("ARCHIVE_FIFOS_VALIDATED=" + str(fifos), flush=True)
     print("ARCHIVE_MEMBERS_VALIDATED=" + str(members), flush=True)
