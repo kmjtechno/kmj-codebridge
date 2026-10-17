@@ -73,7 +73,10 @@ test("refuse allowlist overflow and malformed auth config", () => {
     () => planMainPlatformAllowlist(config),
     /REPO_REPAIR_ALLOWLIST_FULL/,
   );
-  assert.throws(() => planMainPlatformAllowlist({}), /invalid|Required|too_small|custom|expected/i);
+  assert.throws(
+    () => planMainPlatformAllowlist({}),
+    /invalid|Required|too_small|custom|expected/i,
+  );
 });
 
 function response(value, status = 200) {
@@ -102,7 +105,13 @@ test("private metadata and git/main content grant must both succeed", async () =
   });
   assert.equal(seen.length, 2);
   assert.ok(seen.every((x) => x.method === "GET" && x.redirect === "error"));
-  assert.ok(seen.every((x) => x.url.startsWith("https://api.github.com/repos/kmjtechno/kmj-main-platform")));
+  assert.ok(
+    seen.every((x) =>
+      x.url.startsWith(
+        "https://api.github.com/repos/kmjtechno/kmj-main-platform",
+      ),
+    ),
+  );
 });
 
 test("public repo, absent token, 404, and bad SHA never permit mutation", async () => {
@@ -111,7 +120,9 @@ test("public repo, absent token, 404, and bad SHA never permit mutation", async 
     /REPO_REPAIR_TOKEN_MISSING/,
   );
   await assert.rejects(
-    verifyPrivateRepoGrant("x".repeat(40), async () => response({ private: false, full_name: PRIVATE_PLATFORM_REPOSITORY })),
+    verifyPrivateRepoGrant("x".repeat(40), async () =>
+      response({ private: false, full_name: PRIVATE_PLATFORM_REPOSITORY }),
+    ),
     /REPO_REPAIR_PRIVATE_GRANT_NOT_PROVEN/,
   );
   await assert.rejects(
