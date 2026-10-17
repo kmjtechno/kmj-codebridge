@@ -192,27 +192,65 @@ def validate_archive(archive):
     return members
 
 
+def classify_tar_failure(diag):
+    """Emit bounded categorical evidence, never tar's raw private file paths."""
+    try:
+        errors = diag.read_text(encoding="utf-8", errors="replace")[:65536].lower()
+    except OSError:
+        return "DIAGNOSTIC_UNREADABLE"
+    rules = (
+        ("NO_SPACE", ("no space left on device", "disk quota exceeded")),
+        ("IO_ERROR", ("input/output error", "read error", "write error")),
+        ("PERMISSION", ("permission denied", "operation not permitted")),
+        ("SOURCE_CHANGED", ("file changed as we read it", "file shrank by")),
+        ("SOURCE_VANISHED", ("file removed before we read it", "cannot stat")),
+        ("XATTR_OR_ACL", ("cannot set acl", "cannot read acl", "xattr", "extended attributes")),
+        ("BROKEN_PIPE", ("broken pipe",)),
+    )
+    for code, signatures in rules:
+        if any(item in errors for item in signatures):
+            return code
+    return "OTHER_REVIEW_REQUIRED" if errors.strip() else "NO_STDERR_AVAILABLE"
+
+
 def backup_guest(dest):
+    # Failure evidence goes into a root-only log. Never leave a failed tar
+    # stream taking another 1-4 GB on an already constrained Google VM.
     archive = dest / f"{NAME}.tar.gz"
-    with archive.open("xb") as output:
-        proc = subprocess.run(
-            ["tar", "--numeric-owner", "--xattrs", "--acls",
-             "--one-file-system", "-czf", "-", "-C", str(ROOT), NAME],
-            stdout=output, stderr=subprocess.DEVNULL, timeout=900,
-            check=False,
-        )
-    if proc.returncode != 0:
-        raise RuntimeError("ARCHIVE_CREATE_FAILED")
-    if avail() < MIN_FREE_AFTER_BACKUP:
-        raise RuntimeError("DISK_LOW_AFTER_BACKUP")
-    validate_archive(archive)
-    with archive.open("rb") as stream:
-        digest = hashlib.file_digest(stream, "sha256").hexdigest()
-    (dest / "SHA256SUMS").write_text(digest + f"  {NAME}.tar.gz\n")
-    print("LOCAL_BACKUP_VALIDATED=YES", flush=True)
-    print("ARCHIVE_BYTES=" + str(archive.stat().st_size), flush=True)
-    print("ARCHIVE_SHA256=" + digest, flush=True)
-    return archive
+    partial = dest / f".{NAME}.tar.gz.unverified-partial"
+    diag = dest / "tar-diagnostic.log"
+    try:
+        with partial.open("xb") as output, diag.open("xb") as errors:
+            os.fchmod(errors.fileno(), 0o600)
+            proc = subprocess.run(
+                ["tar", "--numeric-owner", "--xattrs", "--acls",
+                 "--one-file-system", "-czf", "-", "-C", str(ROOT), NAME],
+                stdout=output, stderr=errors, timeout=900,
+                check=False,
+            )
+        if proc.returncode != 0:
+            print("ARCHIVE_CREATE_EXIT_CODE=" + str(proc.returncode), flush=True)
+            print("ARCHIVE_CREATE_ERROR_CLASS=" + classify_tar_failure(diag), flush=True)
+            print("TAR_DIAGNOSTIC_LOG=" + str(diag), flush=True)
+            raise RuntimeError("ARCHIVE_CREATE_FAILED")
+        if avail() < MIN_FREE_AFTER_BACKUP:
+            raise RuntimeError("DISK_LOW_AFTER_BACKUP")
+        validate_archive(partial)
+        with partial.open("rb") as stream:
+            digest = hashlib.file_digest(stream, "sha256").hexdigest()
+        os.replace(partial, archive)
+        (dest / "SHA256SUMS").write_text(digest + f"  {NAME}.tar.gz\n")
+        print("LOCAL_BACKUP_VALIDATED=YES", flush=True)
+        print("ARCHIVE_BYTES=" + str(archive.stat().st_size), flush=True)
+        print("ARCHIVE_SHA256=" + digest, flush=True)
+        return archive
+    except BaseException:
+        # This attempt's staging bytes have NEVER been independently
+        # validated. Preserve old archives and every verified SHA256SUMS.
+        if partial.is_file() and not partial.is_symlink():
+            partial.unlink()
+            print("THIS_ATTEMPT_UNVERIFIED_PARTIAL_REMOVED=YES", flush=True)
+        raise
 
 def revive(previous_enabled, archive, removed):
     try:
