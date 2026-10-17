@@ -3917,7 +3917,10 @@ export function createDispatcher(
         } catch {
           job = {
             ...job,
-            browserFastReceipt: { verified: false, error: "BROWSER_FAST_RECEIPT_INVALID" },
+            browserFastReceipt: {
+              verified: false,
+              error: "BROWSER_FAST_RECEIPT_INVALID",
+            },
           };
         }
       }
