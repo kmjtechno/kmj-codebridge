@@ -3341,8 +3341,7 @@ export function createDispatcher(
           const row = worktreeLanes()
             .entries(p.id, p.files.root)
             .find((item) => item.laneId === lane.laneId);
-          if (!row || row.head !== lane.head)
-            fail("WORKTREE_HEAD_MISMATCH");
+          if (!row || row.head !== lane.head) fail("WORKTREE_HEAD_MISMATCH");
           if (row.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
           const appRoot = path.join(row.path, "apps", "platform");
           const manifest = path.join(appRoot, "package.json");
