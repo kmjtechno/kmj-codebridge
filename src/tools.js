@@ -3445,6 +3445,18 @@ export function createDispatcher(
           return row.path;
         };
         const cwd = validate();
+        // The agent runner deliberately strips inherited HOME and secrets.
+        // npm otherwise falls back to the service user's read-only home
+        // (/var/lib/kmjcode/.npm under the hardened systemd sandbox).
+        // Put its cache in the already authorized agent-private state root,
+        // not the shared checkout or an arbitrary caller-supplied directory.
+        const npmCache = path.join(
+          laneStateDir,
+          "npm-cache",
+          createHash("sha256")
+            .update(p.id + ":" + lane.head)
+            .digest("hex"),
+        );
         return runner.run({
           project: p.id,
           gate: `command:main_platform_ui_deps:ci:build@${lane.laneId}#${lane.head}`,
@@ -3455,6 +3467,8 @@ export function createDispatcher(
           args: [
             "--prefix",
             "apps/platform",
+            "--cache",
+            npmCache,
             "ci",
             "--ignore-scripts",
             "--no-audit",
