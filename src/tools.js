@@ -973,9 +973,10 @@ export const definitions = {
   fast_read_batch: {
     title: "Fast read batch",
     description:
-      "Run up to eight allowlisted read-only project checks through one MCP call. Each inner tool keeps its own authorization and strict input validation, and failures are isolated per result.",
+      "Run up to eight allowlisted read-only checks through one MCP call. Set responseMode=compact to receive small SHA-256 receipts and safe status hints, saving AI output tokens. Full result remains the legacy default; compact never stores details and requires a new authorized read to inspect them.",
     input: {
       ...scoped,
+      responseMode: z.enum(["full", "compact"]).default("full"),
       calls: z
         .array(
           z.object({
