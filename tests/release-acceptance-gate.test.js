@@ -79,7 +79,9 @@ test("fails closed for rate-limited hosted GitHub and current red CI", () => {
   const report = assessReleaseEvidence(evidence);
   assert.equal(report.assessment, "BLOCKED");
   assert(report.blockers.includes("CI_CHECK_NOT_GREEN:github_bridge"));
-  assert(report.blockers.includes("HOSTED_EXACT_SHA_OR_READINESS_NOT_VERIFIED"));
+  assert(
+    report.blockers.includes("HOSTED_EXACT_SHA_OR_READINESS_NOT_VERIFIED"),
+  );
 });
 
 test("never trusts a successful check for a different head SHA", () => {
