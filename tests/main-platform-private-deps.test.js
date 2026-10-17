@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createDispatcher } from "../src/tools.js";
 
 function fixture(
@@ -120,8 +121,7 @@ test("private dependency command prepares exact HEAD without touching dirty sour
     path.join(
       x.state,
       "npm-cache",
-      (await import("node:crypto"))
-        .createHash("sha256")
+      createHash("sha256")
         .update("kmj-main-platform:" + x.head)
         .digest("hex"),
     ),
