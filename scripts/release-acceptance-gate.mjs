@@ -112,13 +112,20 @@ export function assessReleaseEvidence(evidence) {
 
 export function readReleaseEvidence(filename) {
   const stat = fs.lstatSync(filename);
-  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_EVIDENCE_BYTES) {
+  if (
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.size > MAX_EVIDENCE_BYTES
+  ) {
     throw Error("EVIDENCE_FILE_INVALID");
   }
   return JSON.parse(fs.readFileSync(filename, "utf8"));
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     if (process.argv.length !== 3) throw Error("USAGE");
     const assessment = assessReleaseEvidence(
