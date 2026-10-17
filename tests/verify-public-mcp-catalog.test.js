@@ -117,9 +117,10 @@ test("critical leaseToken format drift fails the cross-origin gate", () => {
     type: "string",
     format: "uuid",
   };
-  production.tools.get("autopilot_complete").inputSchema.properties.leaseToken = {
-    type: "string",
-  };
+  production.tools.get("autopilot_complete").inputSchema.properties.leaseToken =
+    {
+      type: "string",
+    };
   assert.throws(
     () => verifyCriticalSchemaParity(render, production),
     (error) =>
@@ -151,7 +152,8 @@ test("critical requiredness and object closure drift fail safely", () => {
     "project",
     "device",
   ];
-  render.tools.get("coordination_post").inputSchema.additionalProperties = false;
+  render.tools.get("coordination_post").inputSchema.additionalProperties =
+    false;
   assert.throws(
     () => verifyCriticalSchemaParity(render, production),
     (error) =>
