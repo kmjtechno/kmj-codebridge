@@ -7,7 +7,7 @@ This design is independently implemented for KMJ CodeBridge after reviewing
 v3.7.0, pinned source commit `3463c7c9cd2a2c2745af09c742100ad0b1465a68`.
 Upstream is **CC BY 4.0**, not Apache or MIT; attribution matters for
 derivative copied materials. No upstream scripts, text blocks, assets or
-binaries are bundled in this implementation. The *methodology* inspires
+binaries are bundled in this implementation. The _methodology_ inspires
 event logging, recurring-friction review, fail-closed structural guards,
 and staged human approval.
 
@@ -35,22 +35,22 @@ Each event has exactly these seven fields:
 }
 ```
 
-* The tool's already-authorized `device` and `project` gate remains
+- The tool's already-authorized `device` and `project` gate remains
   authoritative. Embedded event project mismatches fail the entire review.
-* `skill` is an existing, known pack; `kind` and `evidence` are
+- `skill` is an existing, known pack; `kind` and `evidence` are
   allowlisted; `causeCode` is bounded machine-safe taxonomy, **not** a
   log excerpt. Extra fields and raw user text fail closed.
-* Same event ID and identical payload is an idempotent retry; same ID
+- Same event ID and identical payload is an idempotent retry; same ID
   with changed content is a conflict. Recurrence is counted only from
   distinct session IDs with **caller-asserted** evidence.
-* At least two distinct sessions with asserted evidence recommend
+- At least two distinct sessions with asserted evidence recommend
   `STRUCTURAL_GUARD_REVIEW`; otherwise `EVIDENCE_COLLECTION`. A guard is
   **not written, staged or installed** by this module. Suggestions always
   require actual source review, negative regression tests, exact-head CI
   and a rollback plan.
-* Caller assertions do not attest CI, session identity, user approval or
+- Caller assertions do not attest CI, session identity, user approval or
   production safety: `externalEvidenceVerified:false` is mandatory.
-* The tool does not route AI models, add GitHub Actions capacity, update
+- The tool does not route AI models, add GitHub Actions capacity, update
   autonomous workers, change P720 Windows agents, migrate PostgreSQL,
   write any file, send data to an API, or activate any skill.
 
