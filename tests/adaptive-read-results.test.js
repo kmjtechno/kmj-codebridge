@@ -34,7 +34,10 @@ test("large read results compact only when there is a material byte saving", () 
   assert.match(actual.contentSha256, /^[a-f0-9]{64}$/);
   assert.deepEqual(actual.hints, { status: "ready" });
   assert.ok(!JSON.stringify(actual).includes("DO_NOT_ECHO_PRIVATE_SOURCE"));
-  assert.ok(Buffer.byteLength(JSON.stringify(actual)) * 5 <= Buffer.byteLength(JSON.stringify(row)) * 4);
+  assert.ok(
+    Buffer.byteLength(JSON.stringify(actual)) * 5 <=
+      Buffer.byteLength(JSON.stringify(row)) * 4,
+  );
   assert.deepEqual(actual, compactReadBatchResult(row));
 });
 
