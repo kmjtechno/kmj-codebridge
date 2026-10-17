@@ -79,6 +79,8 @@ test("CodeBridge browser MCP tools use the existing nonblocking runner", () => {
   assert.match(src, /actual !== sample\.sha256/);
   assert.match(browser, /--remote-debugging-pipe/);
   assert.match(browser, /--user-data-dir=/);
+  // Unsettled lazy images must never be reported as successfully loaded.
+  assert.match(browser, /filter\(i=>!i\.complete\|\|!i\.naturalWidth\)/);
   assert.match(
     browser,
     /if \(process\.platform !== "win32" && process\.getuid\?\.\(\) === 0\)/,
