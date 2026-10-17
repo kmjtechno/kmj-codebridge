@@ -32,7 +32,10 @@ test("verified extraction reports only fixed metadata without page HTML", () => 
     const proof = verifiedFastReceipt(root);
     assert.equal(proof.verified, true);
     assert.equal(proof.verdict, "EXTRACTION_PASS");
-    assert.deepEqual(proof.samples.map((s) => s.path), paths);
+    assert.deepEqual(
+      proof.samples.map((s) => s.path),
+      paths,
+    );
     assert.equal(JSON.stringify(proof).includes("<html"), false);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -52,7 +55,10 @@ test("faked extraction PASS with missing, repeated, malformed or redirected page
       const v = extraction();
       edit(v);
       json(path.join(root, "receipt.json"), v);
-      assert.throws(() => verifiedFastReceipt(root), /BROWSER_FAST_RECEIPT_INVALID/);
+      assert.throws(
+        () => verifiedFastReceipt(root),
+        /BROWSER_FAST_RECEIPT_INVALID/,
+      );
     }
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
@@ -67,7 +73,8 @@ test("Chrome fallback PASS verifies all nine screenshot hashes", () => {
     const samples = [];
     for (const viewport of views) {
       for (const page of paths) {
-        const name = viewport + "-" + (page === "/" ? "home" : page.slice(1)) + ".png";
+        const name =
+          viewport + "-" + (page === "/" ? "home" : page.slice(1)) + ".png";
         const bytes = Buffer.alloc(96, 1);
         fs.writeFileSync(path.join(chromeDir, name), bytes);
         samples.push({
@@ -98,27 +105,43 @@ test("Chrome fallback PASS verifies all nine screenshot hashes", () => {
     const proof = verifiedFastReceipt(root);
     assert.equal(proof.verdict, "CHROME_QA_PASS");
     assert.equal(proof.samples.length, 9);
-    fs.writeFileSync(path.join(chromeDir, "desktop-home.png"), Buffer.alloc(96, 2));
-    assert.throws(() => verifiedFastReceipt(root), /BROWSER_FAST_RECEIPT_INVALID/);
+    fs.writeFileSync(
+      path.join(chromeDir, "desktop-home.png"),
+      Buffer.alloc(96, 2),
+    );
+    assert.throws(
+      () => verifiedFastReceipt(root),
+      /BROWSER_FAST_RECEIPT_INVALID/,
+    );
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
 
-test("receipt path symlink is rejected", { skip: process.platform === "win32" }, () => {
-  const root = tmp();
-  try {
-    const actual = path.join(root, "real.json");
-    json(actual, extraction());
-    fs.symlinkSync(actual, path.join(root, "receipt.json"));
-    assert.throws(() => verifiedFastReceipt(root), /BROWSER_FAST_RECEIPT_INVALID/);
-  } finally {
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
+test(
+  "receipt path symlink is rejected",
+  { skip: process.platform === "win32" },
+  () => {
+    const root = tmp();
+    try {
+      const actual = path.join(root, "real.json");
+      json(actual, extraction());
+      fs.symlinkSync(actual, path.join(root, "receipt.json"));
+      assert.throws(
+        () => verifiedFastReceipt(root),
+        /BROWSER_FAST_RECEIPT_INVALID/,
+      );
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
+  },
+);
 
 test("CodeBridge exposes the project-scoped receipt under existing job status", () => {
-  const src = fs.readFileSync(new URL("../src/tools.js", import.meta.url), "utf8");
+  const src = fs.readFileSync(
+    new URL("../src/tools.js", import.meta.url),
+    "utf8",
+  );
   assert.match(src, /browser_fast_probe_receipt:/);
   assert.match(src, /if \(name === "browser_fast_probe_receipt"\)/);
   assert.match(src, /job\.gate !== "browser-fast:kmj-public"/);
