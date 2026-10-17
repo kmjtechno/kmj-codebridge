@@ -13,7 +13,7 @@ or disable `verifyRepo` in `src/github.js`.
 ## Check without modifying protected config
 
 On the actual gateway host, the authorized operator must identify the
-*effective* protected `gateway.json` path and the existing GitHub App token
+_effective_ protected `gateway.json` path and the existing GitHub App token
 environment variable from the protected service configuration. Do **not**
 paste the token, service file, gateway JSON or environment contents into chat.
 
