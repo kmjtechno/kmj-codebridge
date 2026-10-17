@@ -15,7 +15,10 @@ Linux root is refused rather than disabling browser sandboxing.
 
 Each run captures public pages at 1440, 768, and 390-pixel widths (nine
 screenshots). It checks actual navigation, HTTP 200, nonblank text, broken
-images, uncaught JS exceptions, and horizontal overflow. Screenshots reside
+images, uncaught JS exceptions, and horizontal overflow. Incomplete or undecodable
+images fail closed rather than being counted as healthy. The isolated browser
+first requests deferred lazy images and waits up to four seconds for load/error
+before measurement; images still pending afterward are recorded as failures. Screenshots reside
 in the CodeBridge agent private state directory, not in the dirty Git checkout.
 The browser_qa_receipt tool validates screenshot hashes and returns only
 sanitized evidence, not private image bytes, page text, cookies, or secrets.
