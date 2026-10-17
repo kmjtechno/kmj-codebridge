@@ -15,6 +15,7 @@ import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-comp
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import { gatewaySchema } from "./config.js";
 import { definitions, FAST_READ_TOOLS } from "./tools.js";
+import { compactReadBatchResult } from "./compact-read-results.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { createCiFailureReader, ciFailureDefinitions } from "./ci-failure.js";
 import {
@@ -738,7 +739,11 @@ export async function startGateway(rawConfig) {
       generatedAt: new Date().toISOString(),
       device: args.device,
       project: args.project,
-      results,
+      responseMode: args.responseMode ?? "full",
+      results:
+        args.responseMode === "compact"
+          ? results.map(compactReadBatchResult)
+          : results,
     };
   }
   const server = http.createServer(async (req, res) => {
