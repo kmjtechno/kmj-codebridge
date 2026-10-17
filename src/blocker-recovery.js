@@ -259,9 +259,7 @@ export function inspectBlockers({
     supervisor: {
       configured: supervisorConfigured,
       connectionVerified: supervisorHealthVerified,
-      status: supervisorHealthVerified
-        ? "LIVE_STATUS_VERIFIED"
-        : socketStatus,
+      status: supervisorHealthVerified ? "LIVE_STATUS_VERIFIED" : socketStatus,
       filesystemObservation: socketState,
       note: supervisorHealthVerified
         ? "Trusted agent read-only Supervisor status RPC returned healthy runtime evidence; this does not prove future uptime or autonomous worker readiness."
