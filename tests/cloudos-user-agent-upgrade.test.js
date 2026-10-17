@@ -6,16 +6,27 @@ import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const SCRIPT = path.join(ROOT, "scripts/production/upgrade-google-cloudos-user-agent.sh");
+const SCRIPT = path.join(
+  ROOT,
+  "scripts/production/upgrade-google-cloudos-user-agent.sh",
+);
 const source = fs.readFileSync(SCRIPT, "utf8");
 
-test("CloudOS upgrade script parses on supported Linux hosts", {
-  skip: process.platform === "win32",
-}, () => {
-  assert.doesNotThrow(() => execFileSync("bash", ["-n", SCRIPT], {
-    cwd: ROOT, timeout: 10000, stdio: ["ignore", "pipe", "pipe"],
-  }));
-});
+test(
+  "CloudOS upgrade script parses on supported Linux hosts",
+  {
+    skip: process.platform === "win32",
+  },
+  () => {
+    assert.doesNotThrow(() =>
+      execFileSync("bash", ["-n", SCRIPT], {
+        cwd: ROOT,
+        timeout: 10000,
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    );
+  },
+);
 
 test("CloudOS upgrade is fixed-host, pinned and preserves the agent enrollment", () => {
   for (const text of [
