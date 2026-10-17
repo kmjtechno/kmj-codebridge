@@ -438,6 +438,7 @@ test("universal MCP clients can opt into compact batch receipts without losing a
   const calls = [
     { key: "project", tool: "inspect_project", args: {} },
     { key: "file", tool: "read_file", args: { path: "hello.txt" } },
+    { key: "long", tool: "read_file", args: { path: "many.txt" } },
   ];
   const full = body(
     await client.callTool({
@@ -446,7 +447,7 @@ test("universal MCP clients can opt into compact batch receipts without losing a
     }),
   );
   assert.equal(full.responseMode, "full");
-  assert.equal(full.results.length, 2);
+  assert.equal(full.results.length, 3);
   assert.equal(full.results[1].value.content, "hello");
 
   const compact = body(
@@ -456,7 +457,7 @@ test("universal MCP clients can opt into compact batch receipts without losing a
     }),
   );
   assert.equal(compact.responseMode, "compact");
-  assert.equal(compact.results.length, 2);
+  assert.equal(compact.results.length, 3);
   assert.ok(compact.results.every((row) => row.ok === true));
   assert.ok(compact.results.every((row) => row.detailsReturned === false));
   assert.ok(compact.results.every((row) => /^[a-f0-9]{64}$/.test(row.contentSha256)));
