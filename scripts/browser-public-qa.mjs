@@ -48,6 +48,23 @@ export function assess(sample) {
 const digest = (buf) => createHash("sha256").update(buf).digest("hex");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Chrome started by a hardened systemd agent cannot rely on a writable
+// service HOME. Keep Chrome/XDG state inside its per-run private tmp tree.
+// No global process.env changes, root-mode launch or sandbox opt-out.
+export function createChromePrivateEnvironment(root, baseEnv = process.env) {
+  const home = path.join(root, "home");
+  const config = path.join(root, "config");
+  const cache = path.join(root, "cache");
+  for (const directory of [home, config, cache])
+    fs.mkdirSync(directory, { mode: 0o700 });
+  return {
+    ...baseEnv,
+    HOME: home,
+    XDG_CONFIG_HOME: config,
+    XDG_CACHE_HOME: cache,
+  };
+}
+
 export async function publicBrowserQa(targetName, outputDir) {
   const target = allowedTarget(targetName);
   if (!path.isAbsolute(outputDir) || outputDir.includes("\0"))
@@ -64,7 +81,14 @@ export async function publicBrowserQa(targetName, outputDir) {
   if (!browserBinary) throw Error("BROWSER_BINARY_NOT_INSTALLED");
   if (fs.existsSync(outputDir)) throw Error("BROWSER_RECEIPT_COLLISION");
   fs.mkdirSync(outputDir, { recursive: true, mode: 0o700 });
-  const profile = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-public-chrome-"));
+  const profileRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "kmj-public-chrome-"),
+  );
+  const profile = path.join(profileRoot, "profile");
+  const chromeEnv =
+    process.platform === "win32"
+      ? process.env
+      : createChromePrivateEnvironment(profileRoot);
   const browser = spawn(
     browserBinary,
     [
@@ -82,6 +106,7 @@ export async function publicBrowserQa(targetName, outputDir) {
       stdio: ["ignore", "ignore", "ignore", "pipe", "pipe"],
       shell: false,
       windowsHide: true,
+      env: chromeEnv,
     },
   );
   const processExited = new Promise((resolve) =>
@@ -297,7 +322,7 @@ export async function publicBrowserQa(targetName, outputDir) {
     // the browser receipt even if temporary profile cleanup is delayed.
     await Promise.race([processExited, wait(1200)]);
     try {
-      fs.rmSync(profile, { recursive: true, force: true });
+      fs.rmSync(profileRoot, { recursive: true, force: true });
     } catch {}
     fs.writeFileSync(
       path.join(outputDir, "receipt.json"),
