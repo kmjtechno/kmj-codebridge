@@ -210,6 +210,21 @@ export async function publicBrowserQa(targetName, outputDir) {
         const started = Date.now();
         while (!state.loaded && Date.now() - started < 14000) await wait(100);
         if (!state.loaded) throw Error("BROWSER_PAGE_TIMEOUT");
+        // Native lazy loading defers offscreen images beyond Page.loadEventFired.
+        // Request them in this ephemeral browser and wait briefly for load/error
+        // so a healthy lazy image does not produce a false failure.
+        const settled = await send(
+          "Runtime.evaluate",
+          {
+            awaitPromise: true,
+            returnByValue: true,
+            expression:
+              "(async()=>{const images=[...document.images];for(const image of images)if(image.loading==='lazy')image.loading='eager';await Promise.race([Promise.all(images.map(image=>image.complete?Promise.resolve():new Promise(resolve=>{image.addEventListener('load',resolve,{once:true});image.addEventListener('error',resolve,{once:true})}))),new Promise(resolve=>setTimeout(resolve,4000))]);await document.fonts.ready;return true})()",
+          },
+          sessionId,
+        );
+        if (settled.exceptionDetails || settled.result?.value !== true)
+          throw Error("BROWSER_MEASUREMENT_FAILED");
         const result = await send(
           "Runtime.evaluate",
           {
