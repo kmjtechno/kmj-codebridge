@@ -271,7 +271,10 @@ def existing_verified_kvm02_backup():
         meta = item.stat()
         if meta.st_uid != 0:
             raise RuntimeError("EXISTING_BACKUP_OWNER_UNSAFE")
-        if meta.st_mode & 0o077:
+        # Archive and checksum can be 0644 because the validated parent
+        # directory and the backup pool are both root-only 0700.
+        forbidden = 0o077 if item == dest else 0o022
+        if meta.st_mode & forbidden:
             raise RuntimeError("EXISTING_BACKUP_PERMISSIONS_UNSAFE")
     if not dest.is_dir() or not archive.is_file() or not manifest.is_file():
         raise RuntimeError("EXISTING_BACKUP_TYPE_UNSAFE")
@@ -433,7 +436,10 @@ def main():
             if enabled == "enabled":
                 run(["systemctl", "disable", UNIT], timeout=30)
             if args.reuse_verified_kvm02:
-                remove_with_diagnostics(dest / "machinectl-removal-diagnostic.log")
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+                remove_with_diagnostics(
+                    dest / ("machinectl-removal-diagnostic-" + stamp + ".log")
+                )
             else:
                 run(["machinectl", "remove", NAME], timeout=120)
             removed = True
