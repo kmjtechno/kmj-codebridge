@@ -12,6 +12,7 @@ from pathlib import Path
 import re
 import shutil
 import stat
+import tempfile
 import subprocess
 import sys
 import tarfile
@@ -120,6 +121,71 @@ def identity():
     dependency_guard()
     healthy()
 
+def validate_archive(archive):
+    """Validate a complete rootfs archive, including ordinary /dev device nodes.
+
+    Linux systemd-nspawn roots naturally contain character/block device entries.
+    A blanket rejection makes genuine archives unusable. Retain that metadata
+    only under the one guest's /dev; fail closed on path traversal, unknown
+    types, hard links outside this guest, or device files elsewhere.
+    """
+    members = 0
+    devices = 0
+    fifos = 0
+    symlink_names = set()
+    seen = set()
+    with tarfile.open(archive, "r:gz") as tf:
+        for member in tf:
+            name = member.name.removeprefix("./").rstrip("/")
+            parts = Path(name).parts
+            if (not parts or parts[0] != NAME or ".." in parts
+                    or name.startswith("/") or "\\x00" in name):
+                raise RuntimeError("ARCHIVE_UNSAFE_ENTRY")
+            if name in seen:
+                raise RuntimeError("ARCHIVE_DUPLICATE_MEMBER")
+            seen.add(name)
+            if not (member.isfile() or member.isdir() or member.issym()
+                    or member.islnk() or member.ischr() or member.isblk()
+                    or member.isfifo()):
+                raise RuntimeError("ARCHIVE_UNKNOWN_ENTRY_TYPE")
+            if member.islnk():
+                link = member.linkname
+                link_parts = Path(link).parts
+                if (not link_parts or link_parts[0] != NAME
+                        or ".." in link_parts or link.startswith("/")):
+                    raise RuntimeError("ARCHIVE_UNSAFE_HARDLINK")
+            if member.issym():
+                symlink_names.add(name)
+            if member.ischr() or member.isblk():
+                if (len(parts) < 3 or parts[1] != "dev"
+                        or not isinstance(member.devmajor, int)
+                        or not isinstance(member.devminor, int)
+                        or not 0 <= member.devmajor <= 4095
+                        or not 0 <= member.devminor <= 1048575):
+                    raise RuntimeError("ARCHIVE_UNSAFE_DEVICE_LOCATION")
+                devices += 1
+            if member.isfifo():
+                fifos += 1
+            # tar_filter protects member extraction paths; unlike data_filter
+            # it retains the original rootfs ownership and device nodes.
+            try:
+                tarfile.tar_filter(member, str(ROOT / ".kmj-kvm01-preview-only"))
+            except tarfile.FilterError as exc:
+                raise RuntimeError("ARCHIVE_UNSAFE_LINK_OR_PATH") from exc
+            members += 1
+        if members < 5:
+            raise RuntimeError("ARCHIVE_INCOMPLETE")
+    # An archive containing a symlink directory followed by descendants is
+    # unsafe to unpack as root, even with a trusted archive origin.
+    for name in seen:
+        if any(name.startswith(link + "/") for link in symlink_names):
+            raise RuntimeError("ARCHIVE_SYMLINK_PARENT")
+    print("ARCHIVE_DEVICE_NODES_VALIDATED=" + str(devices), flush=True)
+    print("ARCHIVE_FIFOS_VALIDATED=" + str(fifos), flush=True)
+    print("ARCHIVE_MEMBERS_VALIDATED=" + str(members), flush=True)
+    return members
+
+
 def backup_guest(dest):
     archive = dest / "kvm01.tar.gz"
     with archive.open("xb") as output:
@@ -133,18 +199,7 @@ def backup_guest(dest):
         raise RuntimeError("ARCHIVE_CREATE_FAILED")
     if avail() < MIN_FREE_AFTER_BACKUP:
         raise RuntimeError("DISK_LOW_AFTER_BACKUP")
-    with tarfile.open(archive, "r:gz") as tf:
-        count = 0
-        for member in tf:
-            n = member.name.removeprefix("./")
-            parts = Path(n).parts
-            if not parts or parts[0] != NAME or ".." in parts or n.startswith("/"):
-                raise RuntimeError("ARCHIVE_UNSAFE_ENTRY")
-            if member.isdev() or member.isfifo():
-                raise RuntimeError("ARCHIVE_UNSAFE_SPECIAL_FILE")
-            count += 1
-        if count < 5:
-            raise RuntimeError("ARCHIVE_INCOMPLETE")
+    validate_archive(archive)
     with archive.open("rb") as stream:
         digest = hashlib.file_digest(stream, "sha256").hexdigest()
     (dest / "SHA256SUMS").write_text(digest + "  kvm01.tar.gz\n")
@@ -158,9 +213,19 @@ def revive(previous_enabled, archive, removed):
         if removed and not IMAGE.exists():
             if archive is None or not archive.is_file():
                 raise RuntimeError("RESTORE_ARCHIVE_UNAVAILABLE")
-            # The archive was generated and vetted by this process, not untrusted input.
-            with tarfile.open(archive, "r:gz") as tf:
-                tf.extractall(ROOT, filter="data")
+            # Restore into a new private staging root and rename only after
+            # extraction succeeds. A partial restore must never masquerade as a
+            # bootable kvm01, and no archive entry may touch sibling guests.
+            validate_archive(archive)
+            with tempfile.TemporaryDirectory(prefix=".kmj-kvm01-restore-",
+                                             dir=ROOT) as staging:
+                with tarfile.open(archive, "r:gz") as tf:
+                    tf.extractall(staging, filter="tar")
+                restored = Path(staging) / NAME
+                if (not restored.is_dir() or restored.is_symlink()
+                        or IMAGE.exists()):
+                    raise RuntimeError("RESTORED_ROOT_UNSAFE")
+                os.replace(restored, IMAGE)
         if previous_enabled == "enabled":
             run(["systemctl", "enable", UNIT], timeout=30)
         run(["systemctl", "start", UNIT], timeout=60)
