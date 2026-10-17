@@ -432,6 +432,51 @@ test("retries with the same requestKey reuse one durable job", async (t) => {
   assert.equal(second.id, first.id);
 });
 
+test("universal MCP clients can opt into compact batch receipts without losing authorization", async (t) => {
+  const { connect } = await bridge(t);
+  const client = await connect(readToken, "portable-token-efficient-client");
+  const calls = [
+    { key: "project", tool: "inspect_project", args: {} },
+    { key: "file", tool: "read_file", args: { path: "hello.txt" } },
+  ];
+  const full = body(
+    await client.callTool({
+      name: "fast_read_batch",
+      arguments: { ...scoped, calls },
+    }),
+  );
+  assert.equal(full.responseMode, "full");
+  assert.equal(full.results.length, 2);
+  assert.equal(full.results[1].value.content, "hello");
+
+  const compact = body(
+    await client.callTool({
+      name: "fast_read_batch",
+      arguments: { ...scoped, calls, responseMode: "compact" },
+    }),
+  );
+  assert.equal(compact.responseMode, "compact");
+  assert.equal(compact.results.length, 2);
+  assert.ok(compact.results.every((row) => row.ok === true));
+  assert.ok(compact.results.every((row) => row.detailsReturned === false));
+  assert.ok(compact.results.every((row) => /^[a-f0-9]{64}$/.test(row.contentSha256)));
+  assert.ok(!JSON.stringify(compact).includes('content":"hello"'));
+  assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length);
+
+  const denied = body(
+    await client.callTool({
+      name: "fast_read_batch",
+      arguments: {
+        ...scoped,
+        responseMode: "compact",
+        calls: [{ key: "invalid", tool: "run_quality_gate", args: {} }],
+      },
+    }),
+  );
+  assert.equal(denied.results[0].ok, false);
+  assert.equal(denied.results[0].error, "FAST_READ_TOOL_NOT_ALLOWED");
+});
+
 test("responses are bounded for large files and broad searches", async (t) => {
   const { connect } = await bridge(t);
   const client = await connect(fullToken);
