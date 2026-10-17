@@ -36,6 +36,13 @@ SERVICES = ("kmj-cloudos-api.service", "kmj-cloudos-worker.service",
 MIN_FREE_BEFORE = 8 * 1024 ** 3
 MIN_FREE_AFTER_BACKUP = 4 * 1024 ** 3
 
+# Reuse-only option is deliberately pinned to one completed guest archive.
+# This local backup may not contain writes made after its snapshot; kvm02 is
+# specifically qualified as an obsolete synthetic test container.
+REUSE_KVM02_SUBDIR = "20261017T150330Z-kvm02"
+REUSE_KVM02_DIGEST = "51e3a3687c83b14b1d635c3f3a90443cc773a3c9bc6277ee724aeced03903482"
+
+
 def run(argv, timeout=30, ok=(0,)):
     p = subprocess.run(argv, check=False, stdout=subprocess.PIPE,
                        stderr=subprocess.DEVNULL, text=True, timeout=timeout,
@@ -252,6 +259,80 @@ def backup_guest(dest):
             print("THIS_ATTEMPT_UNVERIFIED_PARTIAL_REMOVED=YES", flush=True)
         raise
 
+def existing_verified_kvm02_backup():
+    if NAME != "kvm02":
+        raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM02")
+    dest = BACKUP_BASE / REUSE_KVM02_SUBDIR
+    archive = dest / "kvm02.tar.gz"
+    manifest = dest / "SHA256SUMS"
+    for item in (dest, archive, manifest):
+        if item.is_symlink():
+            raise RuntimeError("EXISTING_BACKUP_SYMLINK_UNSAFE")
+        meta = item.stat()
+        if meta.st_uid != 0:
+            raise RuntimeError("EXISTING_BACKUP_OWNER_UNSAFE")
+        # Archive and checksum can be 0644 because the validated parent
+        # directory and the backup pool are both root-only 0700.
+        forbidden = 0o077 if item == dest else 0o022
+        if meta.st_mode & forbidden:
+            raise RuntimeError("EXISTING_BACKUP_PERMISSIONS_UNSAFE")
+    if not dest.is_dir() or not archive.is_file() or not manifest.is_file():
+        raise RuntimeError("EXISTING_BACKUP_TYPE_UNSAFE")
+    expected = REUSE_KVM02_DIGEST + "  kvm02.tar.gz\n"
+    if manifest.read_text(encoding="ascii") != expected:
+        raise RuntimeError("EXISTING_BACKUP_MANIFEST_MISMATCH")
+    with archive.open("rb") as stream:
+        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+    if actual != REUSE_KVM02_DIGEST:
+        raise RuntimeError("EXISTING_BACKUP_CHECKSUM_MISMATCH")
+    validate_archive(archive)
+    print("EXISTING_KVM02_BACKUP_SHA256=PASS", flush=True)
+    print("EXISTING_KVM02_BACKUP_PATH=" + str(dest), flush=True)
+    return archive
+
+
+def remove_with_diagnostics(diag):
+    """Capture machinectl's real stderr, classify it without leaking paths."""
+    with diag.open("xb") as output:
+        os.fchmod(output.fileno(), 0o600)
+        try:
+            proc = subprocess.run(
+                ["machinectl", "remove", NAME],
+                stdout=output, stderr=subprocess.STDOUT, timeout=120,
+                check=False,
+                env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C"},
+            )
+        except subprocess.TimeoutExpired:
+            print("MACHINECTL_REMOVE_ERROR_CLASS=TIMEOUT", flush=True)
+            raise RuntimeError("MACHINECTL_REMOVE_TIMEOUT")
+    if proc.returncode:
+        try:
+            message = diag.read_text(errors="replace")[:8192].lower()
+        except OSError:
+            message = ""
+        codes = (
+            ("BUSY", ("device or resource busy", "resource busy")),
+            ("ACCESS_DENIED", ("access denied", "permission denied")),
+            ("NOT_SUPPORTED", ("operation not supported", "not supported")),
+            ("READ_ONLY", ("read-only file system",)),
+            ("NO_SPACE", ("no space left on device",)),
+            ("FILE_NOT_FOUND", ("no such file", "not found")),
+            ("NOT_EMPTY", ("directory not empty",)),
+            ("IO_ERROR", ("input/output error",)),
+            ("INVALID_IMAGE", ("invalid image",)),
+        )
+        category = next(
+            (label for label, phrases in codes
+             if any(phrase in message for phrase in phrases)),
+            "OTHER_REVIEW_REQUIRED",
+        )
+        print("MACHINECTL_REMOVE_EXIT_CODE=" + str(proc.returncode), flush=True)
+        print("MACHINECTL_REMOVE_ERROR_CLASS=" + category, flush=True)
+        print("MACHINECTL_DIAGNOSTIC_LOG=" + str(diag), flush=True)
+        raise RuntimeError("MACHINECTL_REMOVE_FAILED")
+    print("MACHINECTL_REMOVE=PASS", flush=True)
+
+
 def revive(previous_enabled, archive, removed):
     try:
         if removed and not IMAGE.exists():
@@ -287,6 +368,8 @@ def main():
     parser.add_argument("--guest", choices=ALLOWED_GUESTS, required=True)
     parser.add_argument("--apply", action="store_true",
                         help="retire ONLY the explicitly selected simulation guest")
+    parser.add_argument("--reuse-verified-kvm02", action="store_true",
+                        help="reuse the pinned, SHA-verified kvm02 test backup; never archive again")
     args = parser.parse_args()
     global NAME, IMAGE, UNIT
     NAME = args.guest
@@ -306,6 +389,8 @@ def main():
             return 0
         if avail() < MIN_FREE_BEFORE:
             raise RuntimeError("INSUFFICIENT_BACKUP_HEADROOM")
+        if args.reuse_verified_kvm02 and NAME != "kvm02":
+            raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM02")
         enabled = run(["systemctl", "is-enabled", UNIT], ok=(0, 1))
         if enabled not in ("enabled", "disabled"):
             raise RuntimeError("UNIT_ENABLEMENT_UNKNOWN")
@@ -317,13 +402,19 @@ def main():
         meta = BACKUP_BASE.lstat()
         if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o077:
             raise RuntimeError("BACKUP_BASE_PERMISSIONS_UNSAFE")
-        dest = BACKUP_BASE / (
-            datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + NAME)
-        dest.mkdir(mode=0o700, exist_ok=False)
+        if args.reuse_verified_kvm02:
+            # Verify against the immutable operator-observed successful SHA
+            # BEFORE stopping a running guest; no additional tar output.
+            archive = existing_verified_kvm02_backup()
+            dest = BACKUP_BASE / REUSE_KVM02_SUBDIR
+        else:
+            dest = BACKUP_BASE / (
+                datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + NAME)
+            dest.mkdir(mode=0o700, exist_ok=False)
+            archive = None
         old_free = avail()
         stopped = False
         removed = False
-        archive = None
         try:
             # Controlled canary: if production health changes while this guest is
             # stopped, reverse the stop before touching its stored image.
@@ -338,12 +429,19 @@ def main():
             if machine_state() != "absent":
                 raise RuntimeError("STOP_TIMEOUT")
             healthy()
-            archive = backup_guest(dest)
+            if not args.reuse_verified_kvm02:
+                archive = backup_guest(dest)
             dependency_guard()
             healthy()
             if enabled == "enabled":
                 run(["systemctl", "disable", UNIT], timeout=30)
-            run(["machinectl", "remove", NAME], timeout=120)
+            if args.reuse_verified_kvm02:
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+                remove_with_diagnostics(
+                    dest / ("machinectl-removal-diagnostic-" + stamp + ".log")
+                )
+            else:
+                run(["machinectl", "remove", NAME], timeout=120)
             removed = True
             if IMAGE.exists():
                 raise RuntimeError("IMAGE_NOT_REMOVED")
