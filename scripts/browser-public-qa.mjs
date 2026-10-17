@@ -215,7 +215,7 @@ export async function publicBrowserQa(targetName, outputDir) {
           {
             returnByValue: true,
             expression:
-              "(() => ({actualUrl:location.href,bodyLength:(document.body?.innerText||'').length,overflowPx:Math.max(0,document.documentElement.scrollWidth-innerWidth),brokenImages:[...document.images].filter(i=>i.complete&&!i.naturalWidth).length}))()",
+              "(() => ({actualUrl:location.href,bodyLength:(document.body?.innerText||'').length,overflowPx:Math.max(0,document.documentElement.scrollWidth-innerWidth),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length}))()",
           },
           sessionId,
         );
