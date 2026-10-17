@@ -116,3 +116,34 @@ Migration note: client-specific features such as elicitation, long-running
 tasks, resume/subscriptions, SSE/stdio and latest 2026-07-28 MCP wire
 format require separate compatibility testing. One URL does not magically
 connect to apps lacking any supported MCP/API/plugin channel.
+
+
+## Adaptive output mode (source candidate)
+
+An optional `responseMode:"auto"` has been added to the same authenticated,
+read-only `fast_read_batch`. This is an **opt-in** third mode; existing
+clients continue to receive `"full"` by default.
+
+- Failed tool calls are normalized to a safe error code and never
+  mistaken for successful evidence.
+- Small successful results (up to 512 bytes of serialized JSON per result)
+  are returned in full with no extra receipt overhead.
+- For larger results, the gateway compares the full JSON result with the
+  already-existing compact receipt. It only uses the compact form if the
+  saving is **at least 192 UTF-8 bytes and at least 20%**. Otherwise the
+  original full result is preserved. This is an output-size heuristic,
+  **not a model tokenizer, billing guarantee or signed attestation**.
+- Compact rows carry `responseMode:"compact"` and
+  `detailsRequireNewAuthorizedToolCall:true`. Unchanged small/full rows
+  keep the legacy shape. There is no hidden storage or bypass for reads.
+- Adaptive mode only changes what the **AI client sees**. Every requested
+  tool still executes once with identical project and OAuth permissions,
+  and device-to-gateway bytes are not reduced.
+- Use actual `full` mode and required CI/source evidence for final
+  decisions, not a compact hash or unverified status hint. A second
+  authorized read is required when the result is not sufficient.
+
+Example: `{"device":"approved","project":"approved","responseMode":"auto","calls":[{"key":"status","tool":"git_status","args":{}}]}`.
+
+The threshold can be tuned only after measuring real task outcomes. Do not
+force compaction when the follow-up fetch would consume more model credits.
