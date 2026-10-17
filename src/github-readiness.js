@@ -26,11 +26,14 @@ export function readinessErrorCode(error) {
 }
 
 // Public GitHub reads share a small unauthenticated hourly budget.
-// Sample only public-read-only health checks at a bounded lower cadence.
-// Do NOT extend actual PR/CI data-cache freshness or relax fail-closed errors.
+// On a shared free-tier Render egress IP, one health check every five minutes
+// can consume 12 of the 60 anonymous API requests/hour before real user reads.
+// Revalidate this OPTIONAL health signal at most four times/hour instead.
+// Fail closed as soon as a real probe fails; never change the freshness of
+// actual PR/CI reads, their authorization, or cached response data.
 export function githubReadinessOptions(github) {
   return github?.publicReadOnly
-    ? { ttlMs: 300000, graceMs: 30000, rateLimitCooldownMs: 3600000 }
+    ? { ttlMs: 900000, graceMs: 30000, rateLimitCooldownMs: 3600000 }
     : {};
 }
 
