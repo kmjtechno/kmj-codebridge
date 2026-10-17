@@ -27,8 +27,7 @@ async function main() {
     throw new Error(
       "USAGE: node scripts/repair-private-main-platform-repo.mjs --check ABSOLUTE_CONFIG | --apply ABSOLUTE_CONFIG EXPECTED_CONFIG_SHA256",
     );
-  if (process.platform !== "linux")
-    throw new Error("REPO_REPAIR_LINUX_ONLY");
+  if (process.platform !== "linux") throw new Error("REPO_REPAIR_LINUX_ONLY");
   const stat = fs.lstatSync(configPath);
   if (
     !stat.isFile() ||
@@ -123,9 +122,11 @@ async function main() {
   console.log("REPO_REPAIR_GATEWAY_RESTARTED=NO");
   console.log("REPO_REPAIR_LIVE_ACCESS_VERIFIED=NO");
 }
-main().catch((error) => stop(
-  typeof error?.message === "string" &&
-  /^[A-Z][A-Z0-9_: .-]{2,160}$/.test(error.message)
-    ? error.message
-    : "REPO_REPAIR_ABORTED",
-));
+main().catch((error) =>
+  stop(
+    typeof error?.message === "string" &&
+      /^[A-Z][A-Z0-9_: .-]{2,160}$/.test(error.message)
+      ? error.message
+      : "REPO_REPAIR_ABORTED",
+  ),
+);
