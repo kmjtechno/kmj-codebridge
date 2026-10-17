@@ -42,14 +42,10 @@ test("captured job status reuses browser QA receipt hash verifier fail-closed", 
       },
     ],
   };
-  const dispatch = createDispatcher(
-    config,
-    runner,
-    () => ({
-      features: ["read", "write", "execute"],
-      limits: { concurrent_jobs: 1 },
-    }),
-  );
+  const dispatch = createDispatcher(config, runner, () => ({
+    features: ["read", "write", "execute"],
+    limits: { concurrent_jobs: 1 },
+  }));
   const receiptKey = createHash("sha256")
     .update("kmj-main-platform:" + requestKey)
     .digest("hex");
