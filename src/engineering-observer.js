@@ -11,11 +11,7 @@ const KINDS = new Set([
   "repeated_work",
   "skill_gap",
 ]);
-const EVIDENCE = new Set([
-  "REPRODUCED",
-  "USER_CONFIRMED",
-  "UNVERIFIED",
-]);
+const EVIDENCE = new Set(["REPRODUCED", "USER_CONFIRMED", "UNVERIFIED"]);
 const ID = /^[A-Za-z0-9][A-Za-z0-9_.:-]{7,63}$/;
 const CAUSE = /^[A-Z][A-Z0-9_]{3,47}$/;
 const MAX_OBSERVATIONS = 32;
@@ -144,9 +140,7 @@ export function evaluateEngineeringObservations({
         distinctSessions: group.sessions.size,
         sessionsWithAssertedEvidence: group.verifiedSessions.size,
         eventKinds: [...group.kinds].sort(),
-        stage: repeatable
-          ? "STRUCTURAL_GUARD_REVIEW"
-          : "EVIDENCE_COLLECTION",
+        stage: repeatable ? "STRUCTURAL_GUARD_REVIEW" : "EVIDENCE_COLLECTION",
         action: repeatable
           ? "Propose a bounded, fail-closed guard with regression tests; review on an isolated branch."
           : "Gather verified examples across independent sessions before proposing a rule.",
