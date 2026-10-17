@@ -466,8 +466,8 @@ test("universal MCP clients can opt into compact batch receipts without losing a
   assert.ok(!JSON.stringify(compact).includes('content":"hello"'));
   assert.ok(JSON.stringify(compact).length < JSON.stringify(full).length);
 
-  const denied = body(
-    await client.callTool({
+  await expectRejected(
+    client.callTool({
       name: "fast_read_batch",
       arguments: {
         ...scoped,
@@ -476,8 +476,6 @@ test("universal MCP clients can opt into compact batch receipts without losing a
       },
     }),
   );
-  assert.equal(denied.results[0].ok, false);
-  assert.equal(denied.results[0].error, "FAST_READ_TOOL_NOT_ALLOWED");
 });
 
 test("responses are bounded for large files and broad searches", async (t) => {
