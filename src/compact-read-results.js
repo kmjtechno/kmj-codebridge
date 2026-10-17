@@ -112,7 +112,6 @@ export function compactReadBatchResult(row) {
   };
 }
 
-
 /**
  * Opt-in adaptive output. A compact receipt is returned only when it yields
  * a material model-visible byte saving. Small responses remain intact so
@@ -137,10 +136,7 @@ export function adaptiveReadBatchResult(row) {
 
   const compact = compactReadBatchResult(row);
   const compactBytes = Buffer.byteLength(JSON.stringify(compact), "utf8");
-  if (
-    fullBytes - compactBytes >= 192 &&
-    compactBytes * 5 <= fullBytes * 4
-  )
+  if (fullBytes - compactBytes >= 192 && compactBytes * 5 <= fullBytes * 4)
     return compact;
   return row;
 }
