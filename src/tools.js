@@ -3398,6 +3398,22 @@ export function createDispatcher(
                 },
               ]
             : []),
+          // CloudOS already has an authorized QA runner, but older installed
+          // agents report commands: [] and the shared checkout is dirty.
+          // Expose a fixed, supervisor-independent, HEAD-pinned test lane.
+          ...(p.id === "kmj-cloudos" && p.writable
+            ? [
+                {
+                  id: "cloudos_release_qa",
+                  category: "build",
+                  description:
+                    "Run CloudOS Python regression tests only in a detached, immutable-HEAD Git worktree; never the dirty shared checkout. This is NOT production release-gate credit.",
+                  risk: "TEST",
+                  approvalRequired: false,
+                  variants: ["full"],
+                },
+              ]
+            : []),
         ],
       };
     // An optional laneId resolves only to a worktree this project already
@@ -3413,6 +3429,67 @@ export function createDispatcher(
     const laneLabel = (label, laneId) =>
       laneId !== undefined ? `${label}@${laneId}` : label;
     if (name === "run_project_command") {
+      // The CloudOS project has no administrator-configured command profiles
+      // on its existing enrolled VPS, while the shared libvirt checkout is
+      // dirty. Keep this compatible with older MCP clients and require the
+      // existing execute grant. No root supervisor, shell, caller-selected
+      // path/ref/args or deployment is needed.
+      if (a.command === "cloudos_release_qa") {
+        if (
+          a.variant !== "full" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (p.id !== "kmj-cloudos" || !p.writable)
+          fail("CLOUDOS_QA_PROJECT_NOT_ALLOWED");
+        const lane = worktreeLanes().prepareCurrentHead(
+          p.id,
+          p.files.root,
+          "cloudos_qa",
+        );
+        const validate = () => {
+          const row = worktreeLanes()
+            .entries(p.id, p.files.root)
+            .find((item) => item.laneId === lane.laneId);
+          if (!row || row.head !== lane.head) fail("WORKTREE_HEAD_MISMATCH");
+          if (row.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
+          for (const name of [
+            "KMJ_CloudOS_Phase1_COMPLETE_Release_Gates_v1.2.yaml",
+            "KMJ_CloudOS_Phase2_COMPLETE_Release_Gates_v2.0.yaml",
+          ]) {
+            const file = path.join(row.path, name);
+            let stat;
+            try {
+              stat = fs.lstatSync(file);
+            } catch {
+              fail("CLOUDOS_QA_MANIFEST_MISSING");
+            }
+            if (!stat.isFile() || stat.isSymbolicLink())
+              fail("CLOUDOS_QA_MANIFEST_UNSAFE");
+          }
+          const testDir = path.join(row.path, "tests");
+          let stat;
+          try {
+            stat = fs.lstatSync(testDir);
+          } catch {
+            fail("CLOUDOS_QA_TESTS_MISSING");
+          }
+          if (!stat.isDirectory() || stat.isSymbolicLink())
+            fail("CLOUDOS_QA_TESTS_UNSAFE");
+          return row.path;
+        };
+        return runner.run({
+          project: p.id,
+          gate: `command:cloudos_release_qa:full:build@${lane.laneId}#${lane.head}`,
+          key: a.requestKey,
+          cwd: validate(),
+          beforeStart: validate,
+          command: "python3",
+          args: ["-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"],
+          timeoutMs: 120000,
+        });
+      }
       // Dependency setup is a separate opt-in action, not implicit CI logic.
       // The immutable HEAD is derived from the authorized checkout; npm only
       // runs in the existing private SHA-pinned detached lane.
@@ -3818,7 +3895,11 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command"
-        ? ["browser_public_qa", "main_platform_ui_deps"].includes(a.command)
+        ? [
+            "browser_public_qa",
+            "main_platform_ui_deps",
+            "cloudos_release_qa",
+          ].includes(a.command)
           ? "TEST"
           : commandRisk((p.commands ?? {})[a.command]?.category)
         : toolRisk(name, definition);
