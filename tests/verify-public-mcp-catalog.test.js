@@ -14,6 +14,7 @@ import {
   probeWithWarmup,
   verifyCatalogs,
   verifyCriticalToolSchemas,
+  verifyCriticalSchemaParity,
 } from "../scripts/verify-public-mcp-catalog.mjs";
 
 const validNames = () =>
@@ -86,6 +87,86 @@ test("a high tool count cannot hide missing agent coordination features", () => 
     (error) =>
       error.message === "MCP_CRITICAL_TOOL_MISSING" &&
       error.criticalTool === "coordination_post",
+  );
+});
+
+test("critical input schemas match even if JSON property key order differs", () => {
+  const render = parseToolCatalog(criticalBody());
+  const production = parseToolCatalog(criticalBody());
+  const a = render.tools.get("autopilot_complete").inputSchema;
+  const b = production.tools.get("autopilot_complete").inputSchema;
+  a.properties.leaseToken = { type: "string", format: "uuid" };
+  b.properties.leaseToken = { format: "uuid", type: "string" };
+  a.required = ["task", "device"];
+  b.required = ["device", "task"];
+  a.additionalProperties = false;
+  b.additionalProperties = false;
+  assert.equal(verifyCriticalSchemaParity(render, production), true);
+  production.tools.set("unrelated_optional_tool", {
+    name: "unrelated_optional_tool",
+    inputSchema: { type: "object", properties: {} },
+  });
+  production.names.add("unrelated_optional_tool");
+  assert.equal(verifyCriticalSchemaParity(render, production), true);
+});
+
+test("critical leaseToken format drift fails the cross-origin gate", () => {
+  const render = parseToolCatalog(criticalBody());
+  const production = parseToolCatalog(criticalBody());
+  render.tools.get("autopilot_complete").inputSchema.properties.leaseToken = {
+    type: "string",
+    format: "uuid",
+  };
+  production.tools.get("autopilot_complete").inputSchema.properties.leaseToken = {
+    type: "string",
+  };
+  assert.throws(
+    () => verifyCriticalSchemaParity(render, production),
+    (error) =>
+      error.message === "MCP_CRITICAL_SCHEMA_DRIFT" &&
+      error.criticalTool === "autopilot_complete",
+  );
+});
+
+test("critical requiredness and object closure drift fail safely", () => {
+  const render = parseToolCatalog(criticalBody());
+  const production = parseToolCatalog(criticalBody());
+  render.tools.get("autopilot_wait").inputSchema.required = [
+    "device",
+    "project",
+    "task",
+  ];
+  production.tools.get("autopilot_wait").inputSchema.required = [
+    "device",
+    "project",
+    "task",
+    "leaseToken",
+  ];
+  assert.throws(
+    () => verifyCriticalSchemaParity(render, production),
+    /MCP_CRITICAL_SCHEMA_DRIFT/,
+  );
+  production.tools.get("autopilot_wait").inputSchema.required = [
+    "task",
+    "project",
+    "device",
+  ];
+  render.tools.get("coordination_post").inputSchema.additionalProperties = false;
+  assert.throws(
+    () => verifyCriticalSchemaParity(render, production),
+    (error) =>
+      error.message === "MCP_CRITICAL_SCHEMA_DRIFT" &&
+      error.criticalTool === "coordination_post",
+  );
+});
+
+test("malformed critical required properties cannot report parity", () => {
+  const render = parseToolCatalog(criticalBody());
+  const production = parseToolCatalog(criticalBody());
+  render.tools.get("autopilot_checkpoint").inputSchema.required = "leaseToken";
+  assert.throws(
+    () => verifyCriticalSchemaParity(render, production),
+    /MCP_CRITICAL_SCHEMA_DRIFT/,
   );
 });
 
