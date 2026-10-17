@@ -117,7 +117,6 @@ tasks, resume/subscriptions, SSE/stdio and latest 2026-07-28 MCP wire
 format require separate compatibility testing. One URL does not magically
 connect to apps lacking any supported MCP/API/plugin channel.
 
-
 ## Adaptive output mode (source candidate)
 
 An optional `responseMode:"auto"` has been added to the same authenticated,
