@@ -24,8 +24,7 @@ function validateUnicode(prompt) {
     if (c === 0) invalid("INVALID_UNICODE");
     if (c >= 0xd800 && c <= 0xdbff) {
       const next = prompt.charCodeAt(i + 1);
-      if (!(next >= 0xdc00 && next <= 0xdfff))
-        invalid("INVALID_UNICODE");
+      if (!(next >= 0xdc00 && next <= 0xdfff)) invalid("INVALID_UNICODE");
       i += 1;
     } else if (c >= 0xdc00 && c <= 0xdfff) {
       invalid("INVALID_UNICODE");
@@ -118,7 +117,8 @@ export function planLargePrompt({
     !Number.isSafeInteger(chunkChars) ||
     chunkChars < MIN_CHUNK_CHARS ||
     chunkChars > MAX_CHUNK_CHARS ||
-    (ifNoneMatch !== null && (typeof ifNoneMatch !== "string" || !SHA.test(ifNoneMatch)))
+    (ifNoneMatch !== null &&
+      (typeof ifNoneMatch !== "string" || !SHA.test(ifNoneMatch)))
   )
     invalid("INVALID_REQUEST");
   const utf8Bytes = Buffer.byteLength(prompt, "utf8");
