@@ -245,14 +245,19 @@ def main():
             print("CANARY_RETIREMENT=BLOCKED_OR_ROLLED_BACK", file=sys.stderr)
             raise
 
-if __name__ == "__main__":
+def main_entry() -> int:
+    """Map expected completion to exit 0; never catch SystemExit(0) as failure."""
     try:
-        sys.exit(main())
-    except BaseException as e:
-        if isinstance(e, KeyboardInterrupt):
-            print("RETIREMENT_INTERRUPTED", file=sys.stderr)
-            sys.exit(130)
+        return main()
+    except KeyboardInterrupt:
+        print("RETIREMENT_INTERRUPTED", file=sys.stderr)
+        return 130
+    except Exception as e:
         print("RETIREMENT_ERROR=" + type(e).__name__ +
               (":" + str(e) if isinstance(e, RuntimeError) else ""),
               file=sys.stderr)
-        sys.exit(2)
+        return 2
+
+
+if __name__ == "__main__":
+    sys.exit(main_entry())
