@@ -3272,14 +3272,31 @@ export function createDispatcher(
     }
     if (name === "list_project_commands")
       return {
-        commands: Object.entries(p.commands ?? {}).map(([id, profile]) => ({
-          id,
-          category: profile.category,
-          description: profile.description,
-          risk: commandRisk(profile.category),
-          approvalRequired: approvalRequired(commandRisk(profile.category)),
-          variants: Object.keys(profile.variants),
-        })),
+        commands: [
+          ...Object.entries(p.commands ?? {}).map(([id, profile]) => ({
+            id,
+            category: profile.category,
+            description: profile.description,
+            risk: commandRisk(profile.category),
+            approvalRequired: approvalRequired(commandRisk(profile.category)),
+            variants: Object.keys(profile.variants),
+          })),
+          // First-party compatibility profile for clients whose captured MCP
+          // tool list omits the newer browser_qa_start operation.
+          ...(p.id === "kmj-main-platform" && p.writable
+            ? [
+                {
+                  id: "browser_public_qa",
+                  category: "build",
+                  description:
+                    "Start fixed-origin anonymous Chrome QA via the existing run_project_command tool. Nine private screenshots and SHA-256 receipts; no arbitrary URL, login, shell, or sandbox bypass.",
+                  risk: "TEST",
+                  approvalRequired: false,
+                  variants: ["start"],
+                },
+              ]
+            : []),
+        ],
       };
     // An optional laneId resolves only to a worktree this project already
     // prepared; the job label records the lane so receipts show where it ran.
@@ -3294,6 +3311,39 @@ export function createDispatcher(
     const laneLabel = (label, laneId) =>
       laneId !== undefined ? `${label}@${laneId}` : label;
     if (name === "run_project_command") {
+      // Use an already captured client command schema for the same fixed-origin
+      // browser job; no arbitrary scripts, paths, URL or terminal execution.
+      if (a.command === "browser_public_qa") {
+        if (
+          a.variant !== "start" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (p.id !== "kmj-main-platform" || !p.writable)
+          fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
+        if (!laneStateDir) fail("BROWSER_QA_STATE_UNAVAILABLE");
+        const script = fileURLToPath(
+          new URL("../scripts/browser-public-qa.mjs", import.meta.url),
+        );
+        if (!fs.existsSync(script)) fail("BROWSER_QA_RUNTIME_NOT_DEPLOYED");
+        const receiptKey = createHash("sha256")
+          .update(p.id + ":" + a.requestKey)
+          .digest("hex");
+        return runner.run({
+          project: p.id,
+          gate: "browser-qa:kmj-public",
+          key: a.requestKey,
+          cwd: p.files.root,
+          command: process.execPath,
+          args: [
+            script,
+            "kmj_public",
+            path.join(laneStateDir, "browser-qa", receiptKey),
+          ],
+          timeoutMs: 120000,
+        });
+      }
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
