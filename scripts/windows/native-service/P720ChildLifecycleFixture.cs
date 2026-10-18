@@ -14,10 +14,31 @@ namespace KmjCodeBridge.P720 {
     internal const string Graceful = "KMJ_P720_CHILD_LIFECYCLE_GRACEFUL=PASS";
     internal const string Timeout = "KMJ_P720_CHILD_LIFECYCLE_TIMEOUT_FENCED=PASS";
 
+    // The fixture control protocol is ASCII with a single LF terminator.
+    // Use the redirected raw stdin handle, not the .NET Framework console
+    // TextReader, so GUI-service console encoding cannot alter test bytes.
+    private static string ReadControl() {
+      Stream input = Console.OpenStandardInput();
+      byte[] buffer = new byte[8];
+      for (int i = 0; i < buffer.Length; i++) {
+        int next = input.ReadByte();
+        if (next < 0) return null;
+        if (next == 10) {
+          int count = i;
+          if (count > 0 && buffer[count - 1] == 13) count--;
+          return Encoding.ASCII.GetString(buffer, 0, count);
+        }
+        if (next > 127) return "INVALID";
+        buffer[i] = (byte)next;
+      }
+      return "INVALID";
+    }
+
     internal static int Child() {
       Console.WriteLine(Ready);
       Console.Out.Flush();
-      string instruction = Console.ReadLine();
+      string instruction = ReadControl();
+      if (instruction == null) return 6;
       if (String.Equals(instruction, "STOP", StringComparison.Ordinal)) return 0;
       if (String.Equals(instruction, "HOLD", StringComparison.Ordinal)) {
         Thread.Sleep(30000);
