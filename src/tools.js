@@ -3492,6 +3492,15 @@ export function createDispatcher(
                   approvalRequired: false,
                   variants: ["ci"],
                 },
+                {
+                  id: "main_platform_php_deps",
+                  category: "build",
+                  description:
+                    "Explicit, SHA-pinned PHP Composer install (ci) or Wayfinder route generation (routes) in the same private Main Platform CI worktree. Fixed argv, no Composer plugins/scripts, no production env/DB or shared checkout.",
+                  risk: "TEST",
+                  approvalRequired: false,
+                  variants: ["ci", "routes"],
+                },
               ]
             : []),
           // Host-specific read-only storage inventory without root/sudo or
@@ -3713,6 +3722,116 @@ export function createDispatcher(
             "--prefer-offline",
           ],
           timeoutMs: 180000,
+        });
+      }
+      // Separate explicit opt-in PHP setup for the SAME SHA-pinned, isolated
+      // Main Platform CI lane used by the npm profile. Never use the shared
+      // checkout and never accept caller-selected paths, refs or env vars.
+      if (a.command === "main_platform_php_deps") {
+        if (
+          !["ci", "routes"].includes(a.variant) ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (p.id !== "kmj-main-platform" || !p.writable)
+          fail("READ_ONLY_PROJECT");
+        const lane = worktreeLanes().prepareCurrentHead(
+          p.id,
+          p.files.root,
+          "mainplatform_ci",
+        );
+        const validate = () => {
+          const row = worktreeLanes()
+            .entries(p.id, p.files.root)
+            .find((item) => item.laneId === lane.laneId);
+          if (!row || row.head !== lane.head) fail("WORKTREE_HEAD_MISMATCH");
+          if (row.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
+          const appRoot = path.join(row.path, "apps", "platform");
+          const appStat = fs.lstatSync(appRoot);
+          if (!appStat.isDirectory() || appStat.isSymbolicLink())
+            fail("WORKTREE_APP_ROOT_UNSAFE");
+          const manifest = path.join(appRoot, "composer.json");
+          const lockfile = path.join(appRoot, "composer.lock");
+          for (const name of [manifest, lockfile]) {
+            let stat;
+            try {
+              stat = fs.lstatSync(name);
+            } catch {
+              fail("WORKTREE_COMPOSER_LOCK_MISSING");
+            }
+            if (
+              !stat.isFile() ||
+              stat.isSymbolicLink() ||
+              stat.size < (name === manifest ? 128 : 512) ||
+              stat.size > 5 * 1024 * 1024
+            )
+              fail("WORKTREE_COMPOSER_LOCK_UNSAFE");
+          }
+          let manifestData;
+          let lock;
+          try {
+            manifestData = JSON.parse(fs.readFileSync(manifest, "utf8"));
+            lock = JSON.parse(fs.readFileSync(lockfile, "utf8"));
+          } catch {
+            fail("WORKTREE_COMPOSER_LOCK_INVALID");
+          }
+          if (
+            manifestData.name !== "kmjtechno/kmj-main-platform" ||
+            manifestData.require?.["laravel/wayfinder"] === undefined ||
+            !/^[a-f0-9]{32}$/.test(lock["content-hash"] ?? "") ||
+            !Array.isArray(lock.packages) ||
+            !lock.packages.some((pkg) => pkg.name === "laravel/framework") ||
+            !lock.packages.some((pkg) => pkg.name === "laravel/wayfinder")
+          )
+            fail("WORKTREE_COMPOSER_LOCK_MISMATCH");
+          if (a.variant === "routes") {
+            const autoload = path.join(appRoot, "vendor", "autoload.php");
+            let stat;
+            try {
+              stat = fs.lstatSync(autoload);
+            } catch {
+              fail("WORKTREE_PHP_VENDOR_NOT_INSTALLED");
+            }
+            if (!stat.isFile() || stat.isSymbolicLink())
+              fail("WORKTREE_PHP_VENDOR_UNSAFE");
+          }
+          return row.path;
+        };
+        const cwd = validate();
+        return runner.run({
+          project: p.id,
+          gate: `command:main_platform_php_deps:${a.variant}:build@${lane.laneId}#${lane.head}`,
+          key: a.requestKey,
+          cwd,
+          beforeStart: validate,
+          command:
+            a.variant === "ci"
+              ? process.platform === "win32"
+                ? "composer.bat"
+                : "composer"
+              : "php",
+          args:
+            a.variant === "ci"
+              ? [
+                  "--no-cache",
+                  "--working-dir",
+                  "apps/platform",
+                  "install",
+                  "--no-interaction",
+                  "--no-progress",
+                  "--prefer-dist",
+                  "--no-plugins",
+                  "--no-scripts",
+                  "--no-ansi",
+                ]
+              : [
+                  "apps/platform/artisan",
+                  "wayfinder:generate",
+                  "--with-form",
+                  "--no-ansi",
+                ],
+          timeoutMs: a.variant === "ci" ? 300000 : 120000,
         });
       }
       // Use an already captured client command schema for the same fixed-origin
@@ -4120,6 +4239,7 @@ export function createDispatcher(
           : [
                 "browser_public_qa",
                 "main_platform_ui_deps",
+                "main_platform_php_deps",
                 "cloudos_release_qa",
               ].includes(a.command)
             ? "TEST"
