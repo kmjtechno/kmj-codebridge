@@ -489,6 +489,27 @@ const RISK_CLASSES = [
   "DESTRUCTIVE",
 ];
 
+
+const CLOUDOS_HOST_STORAGE_AUDIT_PYTHON = [
+  "import os,socket,subprocess,sys",
+  "if socket.gethostname().split('.')[0] != 'google-vps1': sys.exit('WRONG_HOST')",
+  "checks = (",
+  " ('DISK', ('df','-h','/')),",
+  " ('HOME_TOP', ('du','-xhd1','/home/info')),",
+  " ('CACHE', ('du','-xsh','/home/info/.cache','/home/info/.npm','/home/info/.local/share/Trash')),",
+  " ('HOST_DIRS', ('du','-xhd1','/var/lib','/var/log','/var/backups','/tmp')),",
+  " ('SERVICES', ('systemctl','is-active','kmj-cloudos-api.service','kmj-cloudos-worker.service','kmj-codebridge-cloudos.service')),",
+  ")",
+  "for name,argv in checks:",
+  " print('=== '+name+' ===',flush=True)",
+  " try:",
+  "  p=subprocess.run(argv,capture_output=True,text=True,timeout=45,check=False,env={'PATH':'/usr/sbin:/usr/bin:/sbin:/bin','LANG':'C'})",
+  "  for line in p.stdout.splitlines()[:60]: print(line[:240])",
+  "  print('READ_ONLY_CHECK_EXIT='+str(p.returncode),flush=True)",
+  " except (OSError,subprocess.TimeoutExpired): print('READ_ONLY_CHECK_UNAVAILABLE',flush=True)",
+  "print('CLOUDOS_HOST_STORAGE_AUDIT=COMPLETE')",
+].join("\n");
+
 function commandRisk(category) {
   return (
     {
@@ -3430,6 +3451,24 @@ export function createDispatcher(
                 },
               ]
             : []),
+          // Host-specific read-only storage inventory without root/sudo or
+          // arbitrary args; supported even when the privileged supervisor is
+          // not installed. Requires the existing project execute permission.
+          ...(p.id === "kmj-cloudos" &&
+          p.writable &&
+          config.id === "google-vps"
+            ? [
+                {
+                  id: "cloudos_host_storage_audit",
+                  category: "inspect",
+                  description:
+                    "Read fixed Google VPS disk and CloudOS service sizes without sudo, file changes, arbitrary shell, or production release credit.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["overview"],
+                },
+              ]
+            : []),
           // CloudOS already has an authorized QA runner, but older installed
           // agents report commands: [] and the shared checkout is dirty.
           // Expose a fixed, supervisor-independent, HEAD-pinned test lane.
@@ -3466,6 +3505,29 @@ export function createDispatcher(
       // dirty. Keep this compatible with older MCP clients and require the
       // existing execute grant. No root supervisor, shell, caller-selected
       // path/ref/args or deployment is needed.
+      if (a.command === "cloudos_host_storage_audit") {
+        if (
+          a.variant !== "overview" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-cloudos" ||
+          config.id !== "google-vps" ||
+          !p.writable
+        )
+          fail("CLOUDOS_HOST_AUDIT_NOT_AUTHORIZED");
+        return runner.run({
+          project: p.id,
+          gate: "command:cloudos_host_storage_audit:overview:inspect",
+          key: a.requestKey,
+          cwd: p.files.root,
+          command: "python3",
+          args: ["-I", "-B", "-c", CLOUDOS_HOST_STORAGE_AUDIT_PYTHON],
+          timeoutMs: 180000,
+        });
+      }
       if (a.command === "cloudos_release_qa") {
         if (
           a.variant !== "full" ||
@@ -4016,7 +4078,9 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command"
-        ? [
+        ? a.command === "cloudos_host_storage_audit"
+          ? "READ"
+          : [
             "browser_public_qa",
             "main_platform_ui_deps",
             "cloudos_release_qa",
