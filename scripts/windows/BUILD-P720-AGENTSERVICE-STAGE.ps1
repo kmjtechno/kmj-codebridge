@@ -87,15 +87,29 @@ try {
     throw 'SCM_HOST_SELFTEST_FAILED'
   }
   $gracefulOutput = & $Output '--lifecycle-self-test'
-  if ($LASTEXITCODE -ne 0 -or
+  $gracefulCode = $LASTEXITCODE
+  if ($gracefulCode -ne 0 -or
       [string]::Join([char]10,[string[]]@($gracefulOutput)) -notmatch
       'KMJ_P720_CHILD_LIFECYCLE_GRACEFUL=PASS') {
+    # Only fixed numeric status categories, never raw child stderr, paths or
+    # credentials from the service context.
+    Write-Output "KMJ_P720_SCM_GRACEFUL_EXIT_CLASS=$gracefulCode"
+    $failureMarker = [string]::Join(' ',[string[]]@($gracefulOutput))
+    if ($failureMarker -match 'KMJ_P720_CHILD_FIXTURE_FAILURE_CLASS=(\d{1,2})') {
+      Write-Output "KMJ_P720_SCM_GRACEFUL_FAILURE_CLASS=$($Matches[1])"
+    }
     throw 'SCM_HOST_GRACEFUL_FIXTURE_FAILED'
   }
   $timeoutOutput = & $Output '--lifecycle-timeout-self-test'
-  if ($LASTEXITCODE -ne 0 -or
+  $timeoutCode = $LASTEXITCODE
+  if ($timeoutCode -ne 0 -or
       [string]::Join([char]10,[string[]]@($timeoutOutput)) -notmatch
       'KMJ_P720_CHILD_LIFECYCLE_TIMEOUT_FENCED=PASS') {
+    Write-Output "KMJ_P720_SCM_TIMEOUT_EXIT_CLASS=$timeoutCode"
+    $failureMarker = [string]::Join(' ',[string[]]@($timeoutOutput))
+    if ($failureMarker -match 'KMJ_P720_CHILD_FIXTURE_FAILURE_CLASS=(\d{1,2})') {
+      Write-Output "KMJ_P720_SCM_TIMEOUT_FAILURE_CLASS=$($Matches[1])"
+    }
     throw 'SCM_HOST_TIMEOUT_FIXTURE_FAILED'
   }
   Write-Output 'KMJ_P720_SCM_HOST_BUILD=PASS'
