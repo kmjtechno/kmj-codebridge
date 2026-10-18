@@ -3,7 +3,8 @@ import { readJsonLimited } from "./http.js";
 import fs from "node:fs";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
-import { agentSchema } from "./config.js";
+import { enrolledAgentSchema } from "./config.js";
+import { resolveAgentGatewayCredential } from "./agent-gateway-credential.js";
 import { AgentUpdateGuard } from "./update-maintenance.js";
 import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
@@ -36,7 +37,10 @@ export async function startAgent(
   rawConfig,
   { createUpdateGuard = (options) => new AgentUpdateGuard(options) } = {},
 ) {
-  const c = agentSchema.parse(rawConfig);
+  const c = enrolledAgentSchema.parse(rawConfig);
+  // Validate the gateway's credential source before acquiring an agent lock,
+  // starting workers, or contacting the network. No credential is logged.
+  const gatewayCredential = await resolveAgentGatewayCredential(c);
   const url = new URL(c.gateway);
   if (
     url.protocol !== "https:" &&
@@ -282,7 +286,7 @@ export async function startAgent(
     const response = await fetch(new URL(endpoint, c.gateway), {
       method: "POST",
       headers: {
-        authorization: `Bearer ${c.token}`,
+        authorization: `Bearer ${gatewayCredential}`,
         "content-type": "application/json",
       },
       body: JSON.stringify(data),
