@@ -199,6 +199,15 @@ try {
       $exitCode = 0
     } else {
       Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_FILES_AND_PUBLIC_TLS=NOT_VERIFIED'
+      if ($resultValue -in @('AGENT_CONFIG_NOT_READABLE',
+          'SUPERVISOR_TOKEN_NOT_READABLE','AGENT_LOCK_NOT_READABLE')) {
+        # These are owner-scoped private paths. Do not relax ACLs, import
+        # the live agent credential, or mutate a working enrollment to
+        # make the LocalService canary pass.
+        Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_PRIVATE_RESOURCES=INACCESSIBLE'
+        Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_ACL_BROADENING=PROHIBITED'
+        Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_NEXT=SEPARATE_MANAGED_IDENTITY_ENROLLMENT_REVIEW'
+      }
       $exitCode = 3
     }
   }
