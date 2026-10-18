@@ -535,7 +535,7 @@ function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
   if (name === "supervisor_main_platform_production_activate") return "DEPLOY";
   if (name === "run_quality_gate") return "TEST";
-  if (name === "worktree_lane_prepare") return "GIT_WRITE";
+  if (name === "worktree_lane_prepare" || name === "worktree_lane_prepare_cached_main") return "GIT_WRITE";
   if (name === "worktree_lane_cleanup") return "DESTRUCTIVE";
   if (
     ["write_file", "edit_file", "write_files_atomic", "cancel_job"].includes(
@@ -923,6 +923,18 @@ export const definitions = {
       maxTokens: z.number().int().min(16).max(512).default(192),
       timeoutSeconds: z.number().int().min(5).max(90).default(45),
       localProcessingApproved: z.literal(true),
+    },
+    access: "execute",
+  },
+  worktree_lane_prepare_cached_main: {
+    title: "Prepare latest cached main in an isolated worktree",
+    description:
+      "Create a detached isolated lane at exactly the caller-verified origin/main SHA already cached locally. Never fetches, resets, cleans, or modifies the shared checkout; stale remote refs fail closed.",
+    input: {
+      ...scoped,
+      laneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
+      expectedRemoteHead: z.string().regex(/^[a-f0-9]{40}$/),
+      approveLocalGitCheckout: z.literal(true),
     },
     access: "execute",
   },
@@ -2137,6 +2149,22 @@ export function createDispatcher(
           p.files.root,
           a.laneId,
           a.expectedHead,
+        ),
+      };
+    }
+    if (name === "worktree_lane_prepare_cached_main") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      const capacity = runner.capacity(p.files.root);
+      if (capacity.blocked || capacity.effectiveMaxConcurrent < 1)
+        fail("WORKTREE_CAPACITY_BLOCKED");
+      return {
+        device: config.id,
+        project: p.id,
+        ...worktreeLanes().prepareCachedRemoteMain(
+          p.id,
+          p.files.root,
+          a.laneId,
+          a.expectedRemoteHead,
         ),
       };
     }

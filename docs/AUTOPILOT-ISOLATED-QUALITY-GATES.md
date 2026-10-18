@@ -41,3 +41,18 @@ Default `isolatedWorktree:false` keeps previous behavior, refusing dirty checkou
 - To test the feature: `node --test tests/autopilot-gate-worker.test.js`, `npm run check`, `npm test`, client/permission tests, then exact-head green CI on Windows and Linux. Finally run a harmless approved `fast` gate from the isolated lane while deliberately leaving the source checkout dirty, and verify the original file bytes remain unchanged.
 
 **Performance objective (unmeasured):** remove manual cleaning/reconciliation of repositories from the approved QA critical path. This optimizes developer throughput and safety, **not** local model tokens/sec or customer HTTP throughput.
+
+## Cached origin/main development lane (opt-in)
+
+Use `worktree_lane_prepare_cached_main` when a Windows/Linux source checkout
+contains another engineer's tracked or untracked edits and cannot fast-forward.
+First confirm the intended latest `origin/main` full SHA independently via the
+authorized GitHub connection. The agent compares it with its **existing local
+`refs/remotes/origin/main`** and creates a detached, clean lane only on an exact
+match, with a fixed Git argument vector and the existing four-lane quota.
+No Git fetch, reset, checkout of shared source, force-clean, merge, token
+propagation or production deployment is performed. Missing/stale local remote
+tracking refs are a genuine `WORKTREE_GIT_FAILED` /
+`WORKTREE_REMOTE_HEAD_MISMATCH` blocker requiring an separately authorized
+fetch process. Checkout filters in the approved repository can still run.
+This is a development-isolation capability, NOT an autonomous coding worker.
