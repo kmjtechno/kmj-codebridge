@@ -122,14 +122,16 @@ install -o info -g info -m 0600 "$STAGE" "$STAGE.owner" ||
   die STAGED_OWNERSHIP_FAILED
 mv -f -- "$STAGE.owner" "$STAGE"
 
-"$NODE" --input-type=module - "$STAGE" "$RUNTIME" <<'JS' ||
-  die NEW_CONFIG_SCHEMA_INVALID
+if ! "$NODE" --input-type=module - "$STAGE" "$RUNTIME" <<'JS'
 import fs from 'node:fs';
 import { pathToFileURL } from 'node:url';
 const config = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const module = await import(pathToFileURL(process.argv[3] + '/src/config.js').href);
 module.enrolledAgentSchema.parse(config);
 JS
+then
+  die NEW_CONFIG_SCHEMA_INVALID
+fi
 
 before_hash=$(sha256sum "$CONFIG" | cut -d' ' -f1)
 BACKUP="$(dirname "$CONFIG")/.kmj-cloudos-gate-backup-$(date -u +%Y%m%dT%H%M%SZ)"
