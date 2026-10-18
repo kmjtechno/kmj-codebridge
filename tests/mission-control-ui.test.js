@@ -324,14 +324,20 @@ test("optional Workspace renders scoped files and filters tracked diffs on click
   assert.equal(view.element("workspace-file-2").hidden, true);
   assert.equal(view.element("workspaceDiff").textContent, patch);
   view.element("workspace-file-1").handlers.click();
-  assert.equal(view.element("workspace-file-1").attributes["aria-pressed"], "true");
+  assert.equal(
+    view.element("workspace-file-1").attributes["aria-pressed"],
+    "true",
+  );
   assert.match(view.element("workspaceDiff").textContent, /new-doc/);
   assert.doesNotMatch(view.element("workspaceDiff").textContent, /\+new\n/);
 
   view.send({ product: "KMJ CodeBridge", project: "project1" });
   assert.equal(view.element("workspace-file-0").hidden, true);
   assert.equal(view.element("workspaceDiff").textContent, "");
-  assert.match(view.element("workspaceFilesHint").textContent, /includeWorkspace/);
+  assert.match(
+    view.element("workspaceFilesHint").textContent,
+    /includeWorkspace/,
+  );
 });
 
 test("no workspace data does not invent file availability or simulate a diff", () => {
@@ -342,7 +348,10 @@ test("no workspace data does not invent file availability or simulate a diff", (
     project: "project1",
     workspace: {
       source: "UNVERIFIED",
-      tree: { status: "AVAILABLE", entries: [{ path: "secret", type: "file" }] },
+      tree: {
+        status: "AVAILABLE",
+        entries: [{ path: "secret", type: "file" }],
+      },
       diff: { status: "AVAILABLE", patch: "secret=abc" },
     },
   });
