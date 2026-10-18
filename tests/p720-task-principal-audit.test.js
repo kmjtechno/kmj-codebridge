@@ -22,7 +22,10 @@ test("P720 full task audit resolves both identities to SID like the proven princ
   }
   assert.match(audit, /\$principalSid\s*=\s*SidOf\s+\$principalName/);
   assert.match(audit, /\$ownerSid\s+-and\s+\$principalSid/);
-  assert.doesNotMatch(audit, /\$ownerSid\s+-and\s+\$principalName\s+-ieq\s+\$ownerSid/);
+  assert.doesNotMatch(
+    audit,
+    /\$ownerSid\s+-and\s+\$principalName\s+-ieq\s+\$ownerSid/,
+  );
 });
 
 test("P720 task audit keeps every fail-closed gate and never activates a task", () => {
@@ -51,7 +54,9 @@ test(
   "P720 SID resolver treats account name and SID as the same owner but rejects different SIDs",
   { skip: process.platform !== "win32" },
   () => {
-    const fn = audit.match(/^function SidOf\(\[string\]\$Name\) \{[\s\S]*?^\}/m);
+    const fn = audit.match(
+      /^function SidOf\(\[string\]\$Name\) \{[\s\S]*?^\}/m,
+    );
     assert.ok(fn, "audited SID conversion function");
     const powerShell = [
       "$ErrorActionPreference = 'Stop'",
