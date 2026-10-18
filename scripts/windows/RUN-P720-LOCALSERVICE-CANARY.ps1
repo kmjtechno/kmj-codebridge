@@ -142,7 +142,7 @@ try {
       $state = (Get-ScheduledTask -TaskName $TaskName -TaskPath '\').State
       if ($info.LastRunTime -ge $startedAt.AddSeconds(-2) -and
           [string]$state -ne 'Running') {
-        $result = [int]$info.LastTaskResult
+        $result = [long]$info.LastTaskResult
         $done = $true
         break
       }
