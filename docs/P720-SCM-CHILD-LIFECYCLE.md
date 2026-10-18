@@ -11,14 +11,16 @@ credentials and native Supervisor are **never accessed or modified**.
 `P720ChildLifecycleFixture.cs` starts **only a copy of its own compiled
 Stage-0 service host** with the fixed `--fixture-child` argument. The fixture
 has no project or gateway awareness and reads no credentials. It emits a fixed
-ready marker, accepts `STOP` on redirected stdin for graceful exit, or
-`HOLD` to simulate a child that does not shut down within the deadline.
+ready marker and waits on a **one-shot scoped Windows named event** for
+cooperative exit. The `HOLD` mode simulates a child that ignores the event.
+The event name contains only a random GUID, uses the local-session namespace,
+and is validated on both sides. No stdin/console encodings or network ports
+are involved.
 
 The parent explicitly tracks the exact `System.Diagnostics.Process` it
-created. It sends the fixed STOP/HOLD instruction, waits at most
-8 seconds for graceful exit, validates the fixed ready marker from bounded
-fixture-only stdout after child completion, and tests a 500 ms timeout
-branch. Only that
+created. It signals its own fixed event and waits at most 8 seconds for
+graceful exit, validates the fixed ready marker from bounded fixture stdout
+after completion, and tests a 1.5-second timeout branch. Only that
 parent-owned **fixture** process may be terminated if it is unresponsive;
 the test must never enumerate Node processes or stop any existing agent.
 No process command line, username, token, file path or stderr is printed.
