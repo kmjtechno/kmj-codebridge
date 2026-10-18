@@ -18,11 +18,13 @@ function fixture({ state = "active" } = {}) {
         assert.equal(args[1], CLOUDOS, "only fixed CloudOS service is touched");
         if (args.includes("--property=LoadState"))
           return "LoadState=loaded\nActiveState=" + state + "\n";
-        return "ActiveState=" + state +
-          "\nSubState=running\nMainPID=42\nNRestarts=0\n";
+        return (
+          "ActiveState=" +
+          state +
+          "\nSubState=running\nMainPID=42\nNRestarts=0\n"
+        );
       }
-      if (binary === "/usr/bin/journalctl")
-        return "no credentials in output";
+      if (binary === "/usr/bin/journalctl") return "no credentials in output";
       throw Error("UNAPPROVED_BINARY");
     },
     restart: (unit) => restarts.push(unit),
@@ -50,7 +52,10 @@ test("Google supervisor status accepts only fixed CloudOS systemd unit", async (
   const result = await f.handler({ op: "status", service: "agent" });
   assert.equal(result.response.activeState, "active");
   assert.equal(result.response.service, "agent");
-  assert.equal(f.calls.every((call) => call.args[1] === CLOUDOS), true);
+  assert.equal(
+    f.calls.every((call) => call.args[1] === CLOUDOS),
+    true,
+  );
   await assert.rejects(
     f.handler({ op: "status", service: "gateway" }),
     /SUPERVISOR_SERVICE_NOT_ALLOWED/,
@@ -110,7 +115,7 @@ test("Google supervisor denies Main Platform and updater privileged RPCs", async
   ]) {
     await assert.rejects(
       f.handler(request),
-      /SUPERVISOR_(OPERATION_NOT_ALLOWED|INVALID_SUPERVISOR_REQUEST)/,
+      /(?:SUPERVISOR_OPERATION_NOT_ALLOWED|INVALID_SUPERVISOR_REQUEST)/,
     );
   }
   assert.equal(f.calls.length, 0);
