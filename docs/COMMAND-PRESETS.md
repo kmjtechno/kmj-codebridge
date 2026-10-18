@@ -10,7 +10,7 @@ Supported presets:
 - `main-platform-ui-ci` — opt-in fixed Main Platform frontend `npm --prefix apps/platform run check`, `types:check`, `build` variants; local source/build evidence only, never license issuance, migration or production deployment.
 - `python-standard` — requirements install plus pytest and compile verification.
 - `cargo-standard` — locked check/build/test/clippy/format-check plus formatter.
-- `windows-python-trial-qa` — explicit Windows-only, project-local Python trial doctor, regression tests, and non-interactive GUI smoke checks. The administrator first installs and reviews `scripts/codebridge-python-trial-qa.mjs` inside an *enrolled calibration project*, and explicitly enables the preset. Never execute this profile in an unrelated repository or elevated/background desktop session.
+- `windows-python-trial-qa` — explicit Windows-only, project-local Python trial doctor, regression tests, and non-interactive GUI smoke checks. The administrator first installs and reviews `scripts/codebridge-python-trial-qa.mjs` inside an _enrolled calibration project_, and explicitly enables the preset. Never execute this profile in an unrelated repository or elevated/background desktop session.
 - `go-standard` — test/vet/build plus formatter.
 - `cmake-standard` — configure into the fixed `.kmj-codebridge-build` directory, Debug/Release build and CTest with bounded parallelism. It never installs, publishes or signs.
 
