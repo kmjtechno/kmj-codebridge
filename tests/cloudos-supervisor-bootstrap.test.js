@@ -6,7 +6,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const file = path.join(root, "scripts/production/bootstrap-google-cloudos-supervisor.sh");
+const file = path.join(
+  root,
+  "scripts/production/bootstrap-google-cloudos-supervisor.sh",
+);
 const source = fs.readFileSync(file, "utf8");
 
 test(
@@ -47,7 +50,10 @@ test("root Supervisor imports only staged root-owned pinned source", () => {
   assert.match(source, /--ignore-scripts --no-audit --no-fund/);
   assert.match(source, /find "\$STAGE" -type f -exec chmod 0444/);
   assert.match(source, /ProtectHome=tmpfs/);
-  assert.match(source, /BindReadOnlyPaths=\/home\/info\/\.config\/kmj-codebridge \/home\/info\/kmj-cloudos/);
+  assert.match(
+    source,
+    /BindReadOnlyPaths=\/home\/info\/\.config\/kmj-codebridge \/home\/info\/kmj-cloudos/,
+  );
   assert.match(source, /Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=cloudos/);
   assert.doesNotMatch(source, /(?:git reset|git clean|curl.*\|\s*(?:bash|sh))/);
 });
