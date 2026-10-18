@@ -11,6 +11,10 @@ const build = fs.readFileSync(
   "scripts/windows/BUILD-P720-AGENTSERVICE-STAGE.ps1",
   "utf8",
 );
+const fixture = fs.readFileSync(
+  "scripts/windows/native-service/P720ChildLifecycleFixture.cs",
+  "utf8",
+);
 
 test("P720 SCM host is a real ServiceBase type and blocks activation", () => {
   assert.match(native, /class P720AgentService : ServiceBase/);
@@ -28,6 +32,27 @@ test("P720 SCM host is a real ServiceBase type and blocks activation", () => {
     /Process\.Start|ProcessStartInfo|TerminateProcess|CreateProcess|sc\.exe/i,
   );
   assert.doesNotMatch(native, /token|Bearer|password|Invoke-WebRequest/i);
+});
+
+test("SCM lifecycle fixture is isolated from any enrolled CodeBridge agent", () => {
+  assert.match(native, /throw new InvalidOperationException\(NotReadyCode\)/);
+  assert.match(native, /--lifecycle-self-test/);
+  assert.match(native, /--lifecycle-timeout-self-test/);
+  assert.match(native, /--fixture-child/);
+  assert.match(fixture, /Arguments = "--fixture-child"/);
+  assert.match(fixture, /Assembly\.GetExecutingAssembly\(\)\.Location/);
+  assert.match(fixture, /RedirectStandardInput = true/);
+  assert.match(fixture, /UseShellExecute = false/);
+  assert.match(fixture, /ProcessStartInfo/);
+  assert.match(fixture, /child\.WaitForExit\(expectTimeout \? 400 : 8000\)/);
+  assert.match(fixture, /if \(!child\.HasExited\)/);
+  assert.match(fixture, /KMJ_P720_CHILD_LIFECYCLE_GRACEFUL=PASS/);
+  assert.match(fixture, /KMJ_P720_CHILD_LIFECYCLE_TIMEOUT_FENCED=PASS/);
+  assert.doesNotMatch(fixture, /Process\.GetProcesses|node(?:\.exe)?|agent\.json|gatewayTokenFile/);
+  assert.doesNotMatch(fixture, /Stop-Process|taskkill|ServiceController|sc\.exe/i);
+  assert.match(build, /KMJ_P720_SCM_HOST_GRACEFUL_FIXTURE=PASS/);
+  assert.match(build, /KMJ_P720_SCM_HOST_TIMEOUT_FIXTURE=PASS/);
+  assert.ok(!/[^\x00-\x7f]/.test(fixture));
 });
 
 test("P720 SCM builder does not install services, change enrollment or touch current task", () => {
@@ -82,6 +107,8 @@ test(
     );
     assert.match(output, /KMJ_P720_SCM_HOST_BUILD=PASS/);
     assert.match(output, /KMJ_P720_SCM_HOST_SELFTEST=PASS/);
+    assert.match(output, /KMJ_P720_SCM_HOST_GRACEFUL_FIXTURE=PASS/);
+    assert.match(output, /KMJ_P720_SCM_HOST_TIMEOUT_FIXTURE=PASS/);
     assert.match(output, /KMJ_P720_SCM_HOST_SERVICE_REGISTERED=NO/);
     assert.match(output, /KMJ_P720_SCM_HOST_SERVICE_STARTED=NO/);
     assert.match(output, /KMJ_P720_SCM_HOST_PRODUCTION_READY=NO/);
