@@ -22,6 +22,7 @@ test(
       "mod.NAME='kvm03'",
       "with tempfile.TemporaryDirectory() as p:",
       "  root=pathlib.Path(p)",
+      "  mod.ROOT=root",
       "  mod.BACKUP_BASE=root",
       "  mod.REUSE_KVM03_SUBDIR='verified-test-kvm03'",
       "  d=root/mod.REUSE_KVM03_SUBDIR;d.mkdir(mode=0o700)",
