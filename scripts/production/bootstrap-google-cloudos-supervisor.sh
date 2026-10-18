@@ -149,7 +149,7 @@ git -C "$STAGE" -c core.hooksPath=/dev/null checkout -q --detach "$SOURCE_PIN" |
   die SOURCE_HEAD_CHANGED
 [[ "$("$node" -p 'require(process.argv[1]).name' "$STAGE/package.json")" == \
   @kmjtechno/codebridge ]] || die SOURCE_PACKAGE_MISMATCH
-"$npm" --prefix "$STAGE" ci --omit=dev --ignore-scripts --no-audit --no-fund ||
+env PATH="$(dirname "$node"):$PATH" "$npm" --prefix "$STAGE" ci --omit=dev --ignore-scripts --no-audit --no-fund ||
   die DEPENDENCY_INSTALL_FAILED
 "$node" --check "$STAGE/src/cli.js" || die CLI_PARSE_FAILED
 "$node" --test "$STAGE/tests/cloudos-supervisor-profile.test.js" ||
