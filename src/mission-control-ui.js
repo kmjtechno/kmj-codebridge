@@ -201,6 +201,12 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  var views=["overview","work","evidence","workspace"];
  var latest=null;
  function text(id,value){var el=document.getElementById(id);if(el)el.textContent=String(value===null||value===undefined?"—":value).slice(0,128);}
+ // Project patches are already redacted and bounded by the scoped gateway.
+ // Render plain text at that same 24-KiB limit; generic labels stay at 128.
+ function patchText(value){
+   var el=document.getElementById("workspaceDiff");
+   if(el)el.textContent=typeof value==="string"?value.slice(0,24576):"";
+ }
  function safeName(value){return typeof value==="string"&&/^[A-Za-z0-9_.:-]{1,128}$/.test(value)?value:"Not provided";}
  function count(value){return Number.isSafeInteger(value)&&value>=0&&value<=1000000?value:null;}
  function stat(value){return value===null?"—":value;}
@@ -261,7 +267,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      }
    }
    text("workspaceDiffTitle",selected+" · Tracked changes");
-   text("workspaceDiff",selectedPart||"No tracked diff for this file in the current bounded snapshot.");
+   patchText(selectedPart||"No tracked diff for this file in the current bounded snapshot.");
  }
  for(var fileIndex=0;fileIndex<12;fileIndex++){
    (function(index){
@@ -296,7 +302,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    text("workspaceDiffHint",selectedPatch!==null
      ? diff.truncated?"Tracked diff · truncated to safe UI limit":"Tracked diff · authorized repository"
      : "No verified tracked diff available.");
-   text("workspaceDiff",selectedPatch===null?"":selectedPatch||"Working tree has no tracked changes.");
+   patchText(selectedPatch===null?"":selectedPatch||"Working tree has no tracked changes.");
  }
  function render(input){
    var data=input&&input.structuredContent&&input.structuredContent.product==="KMJ CodeBridge"?input.structuredContent:input;
