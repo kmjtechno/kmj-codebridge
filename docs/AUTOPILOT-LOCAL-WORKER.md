@@ -65,3 +65,21 @@ shows `waiting` + `LOCAL_DRAFT_AWAITING_REVIEW` and a checkpoint with
   test matrix for Windows, Linux, macOS.
 - Human approval for billing, secrets, destructive production and public
   releases, and waiting when no free approved model is available.
+
+## On-device incomplete-response evidence (18 October 2026)
+
+A guarded CodeBridge `local_model_generate` call on the already-enrolled P720
+confirmed `qwen3:4b` returned a reasoning-style preamble and exhausted its
+256-token budget (about 54 generated tokens/s). A separate local-only
+`qwen2.5-coder:7b` call produced a short complete three-bullet response in
+52 generated tokens (about 33 tokens/s). Both reported `paidInference:false`
+and `cloudFallback:false`; neither proves general coding accuracy.
+
+For an unattended review-only worker, prefer a previously tested installed
+model that actually produces bounded visible instructions over a faster model
+that consumes the budget on a preamble. If Ollama reports `hitTokenLimit`
+or the response is truncated, the worker now persists
+`LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED` in both the checkpoint and task
+reason instead of marking the checkpoint `LOCAL_DRAFT_AWAITING_REVIEW`.
+No additional inference is retried automatically; no model is downloaded,
+no external endpoint is contacted, and no code is applied.

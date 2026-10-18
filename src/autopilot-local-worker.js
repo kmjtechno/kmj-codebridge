@@ -106,17 +106,20 @@ export class LocalAutopilotDraftWorker {
               wait("LOCAL_DRAFT_EMPTY_REVIEW_REQUIRED");
               continue;
             }
+            // An Ollama token-budget stop can yield only a preamble instead
+            // of the requested implementation guidance. Preserve the partial
+            // text for review but NEVER label it as a completed draft.
+            const outcome =
+              generated.hitTokenLimit || generated.truncated
+                ? "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED"
+                : "LOCAL_DRAFT_AWAITING_REVIEW";
             this.journal.checkpoint(claimed.id, project.id, {
               summary: generated.response,
-              next: "LOCAL_DRAFT_AWAITING_REVIEW",
+              next: outcome,
               leaseToken: claimed.leaseToken,
               modelUsage: localModelReceipt(model, "autopilot_local_worker"),
             });
-            wait(
-              generated.hitTokenLimit || generated.truncated
-                ? "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED"
-                : "LOCAL_DRAFT_AWAITING_REVIEW",
-            );
+            wait(outcome);
           } catch {
             // The task must never be silently completed on inference failure.
             // Wait rather than retrying endlessly or escalating to paid cloud.
