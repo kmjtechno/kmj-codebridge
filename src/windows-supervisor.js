@@ -9,7 +9,7 @@ import {
 } from "node:crypto";
 import { spawn } from "node:child_process";
 import { z } from "zod";
-import { agentSchema } from "./config.js";
+import { enrolledAgentSchema } from "./config.js";
 import { CodeBridgeError, fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
 import {
@@ -407,7 +407,7 @@ export function createWindowsSupervisorHandler({
       exactKeys(request, ["op", "service"]);
       if (request.service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       try {
-        agentSchema.parse(JSON.parse(readFile(config.agent.configPath)));
+        enrolledAgentSchema.parse(JSON.parse(readFile(config.agent.configPath)));
         return { response: { service: "agent", valid: true } };
       } catch (error) {
         return {
