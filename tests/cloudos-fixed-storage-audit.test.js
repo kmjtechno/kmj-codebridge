@@ -131,10 +131,10 @@ socket.gethostname=lambda: 'google-vps1'
 scenario=sys.argv[2]
 def simulated(argv,**kwargs):
     if argv[0] == 'systemctl':
-        return types.SimpleNamespace(returncode=1 if scenario == 'services' else 0,stdout='active\\nactive\\nactive\\n')
+        return types.SimpleNamespace(returncode=1 if scenario == 'services' else 0,stdout='active\nactive\nactive\n')
     if argv[0] == 'du':
-        return types.SimpleNamespace(returncode=1 if scenario == 'partial' else 0,stdout='1G\\t/sample\\n')
-    return types.SimpleNamespace(returncode=0,stdout='Filesystem Size Used Avail Use% Mounted on\\n')
+        return types.SimpleNamespace(returncode=1 if scenario == 'partial' else 0,stdout='1G\t/sample\n')
+    return types.SimpleNamespace(returncode=0,stdout='Filesystem Size Used Avail Use% Mounted on\n')
 subprocess.run=simulated
 exec(sys.argv[1], {'__name__':'__main__'})
 `;
