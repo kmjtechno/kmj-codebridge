@@ -107,9 +107,7 @@ test("private metadata and git/main content grant must both succeed", async () =
   assert.ok(seen.every((x) => x.method === "GET" && x.redirect === "error"));
   assert.ok(
     seen.every((x) =>
-      x.url.startsWith(
-        "https://api.github.com/repos/kmjtechno/kmj-cloudos",
-      ),
+      x.url.startsWith("https://api.github.com/repos/kmjtechno/kmj-cloudos"),
     ),
   );
 });
@@ -126,7 +124,9 @@ test("public repo, absent token, 404, and bad SHA never permit mutation", async 
     /REPO_REPAIR_PRIVATE_GRANT_NOT_PROVEN/,
   );
   await assert.rejects(
-    verifyCloudOSPrivateRepoGrant("x".repeat(40), async () => response({}, 404)),
+    verifyCloudOSPrivateRepoGrant("x".repeat(40), async () =>
+      response({}, 404),
+    ),
     /REPO_REPAIR_GRANT_NOT_PROVEN/,
   );
   let count = 0;
