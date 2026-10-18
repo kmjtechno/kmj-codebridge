@@ -48,8 +48,14 @@ test("SCM lifecycle fixture is isolated from any enrolled CodeBridge agent", () 
   assert.match(fixture, /if \(!child\.HasExited\)/);
   assert.match(fixture, /KMJ_P720_CHILD_LIFECYCLE_GRACEFUL=PASS/);
   assert.match(fixture, /KMJ_P720_CHILD_LIFECYCLE_TIMEOUT_FENCED=PASS/);
-  assert.doesNotMatch(fixture, /Process\.GetProcesses|node(?:\.exe)?|agent\.json|gatewayTokenFile/);
-  assert.doesNotMatch(fixture, /Stop-Process|taskkill|ServiceController|sc\.exe/i);
+  assert.doesNotMatch(
+    fixture,
+    /Process\.GetProcesses|node(?:\.exe)?|agent\.json|gatewayTokenFile/,
+  );
+  assert.doesNotMatch(
+    fixture,
+    /Stop-Process|taskkill|ServiceController|sc\.exe/i,
+  );
   assert.match(build, /KMJ_P720_SCM_HOST_GRACEFUL_FIXTURE=PASS/);
   assert.match(build, /KMJ_P720_SCM_HOST_TIMEOUT_FIXTURE=PASS/);
   assert.ok(!/[^\x00-\x7f]/.test(fixture));
