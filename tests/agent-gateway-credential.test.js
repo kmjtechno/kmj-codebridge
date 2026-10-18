@@ -89,7 +89,11 @@ test("unsafe gateway credential files fail closed without exposing secret or fil
   fs.chmodSync(file, 0o600);
 
   await assert.rejects(
-    () => resolveAgentGatewayCredential({ ...base, gatewayTokenFile: "relative.txt" }),
+    () =>
+      resolveAgentGatewayCredential({
+        ...base,
+        gatewayTokenFile: "relative.txt",
+      }),
     /AGENT_GATEWAY_CREDENTIAL_PATH_NOT_ABSOLUTE/,
   );
   if (process.platform !== "win32") {
