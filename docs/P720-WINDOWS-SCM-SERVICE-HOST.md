@@ -2,12 +2,12 @@
 
 P720 read-only inventory on 18 Oct 2026:
 
-| Field | Observed |
-| --- | --- |
-| DOMAIN_JOINED | False |
-| WINDOWS_PRODUCT_TYPE | 1 (workstation) |
-| SERVICE_NAME_AVAILABLE | True |
-| DOTNET_SERVICE_COMPILER_AVAILABLE | True |
+| Field                             | Observed        |
+| --------------------------------- | --------------- |
+| DOMAIN_JOINED                     | False           |
+| WINDOWS_PRODUCT_TYPE              | 1 (workstation) |
+| SERVICE_NAME_AVAILABLE            | True            |
+| DOTNET_SERVICE_COMPILER_AVAILABLE | True            |
 
 This supports compiling a Windows-native `System.ServiceProcess.ServiceBase`
 host with the built-in .NET Framework 4.x C# compiler. It does **not**
