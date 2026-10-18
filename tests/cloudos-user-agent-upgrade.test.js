@@ -33,13 +33,15 @@ test("CloudOS upgrade is fixed-host, pinned and preserves the agent enrollment",
     "kmj-codebridge-cloudos.service",
     "google-vps1",
     "/home/info/.config/kmj-codebridge/agent.json",
-    "6e3fd37136ebc284574fd1248492ad37f6fd4fcd",
+    "6e3a024797c6389e6a127c28d5b58dc8c016f9d5",
     "https://github.com/kmjtechno/kmj-codebridge.git",
     "check_jobs",
     "SOURCE_SHA_MISMATCH",
     "CLOUDOS_CHECKOUT_UNCHANGED=YES",
     "FRESH_GATEWAY_HEARTBEAT_MISSING",
     "AGENT_RUNTIME_ROLLBACK=START",
+    "CLOUDOS_SERVICES_NOT_ACTIVE_PRE",
+    "CLOUDOS_SERVICES_NOT_ACTIVE_POST",
   ])
     assert.ok(source.includes(text), text);
   assert.match(source, /git -C "\$STAGE" checkout -q --detach "\$PIN"/);
@@ -48,6 +50,17 @@ test("CloudOS upgrade is fixed-host, pinned and preserves the agent enrollment",
   assert.doesNotMatch(source, /(?:rm -rf|git reset|git clean).*kmj-cloudos/);
   assert.doesNotMatch(source, /curl\s*\|\s*bash/);
   assert.doesNotMatch(source, /systemctl (enable|disable).*supervisor/);
+  assert.match(source, /cloudos_services_healthy\(\)/);
+  assert.match(source, /kmj-cloudos-api\.service kmj-cloudos-worker\.service/);
+  assert.ok(
+    source.indexOf("CLOUDOS_SERVICES_NOT_ACTIVE_PRE") <
+      source.indexOf('mv -- "$RUNTIME" "$BACKUP"'),
+  );
+  assert.ok(
+    source.indexOf("CLOUDOS_SERVICES_NOT_ACTIVE_POST") <
+      source.indexOf("VERIFIED=1"),
+  );
+
 });
 
 test("new runtime goes live only after exact-source check, all tests and backup", () => {
