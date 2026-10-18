@@ -160,14 +160,12 @@ export class WorktreeLanes {
       "--verify",
       "refs/remotes/origin/main^{commit}",
     ]);
-    if (cached !== expectedRemoteHead)
-      fail("WORKTREE_REMOTE_HEAD_MISMATCH");
+    if (cached !== expectedRemoteHead) fail("WORKTREE_REMOTE_HEAD_MISMATCH");
     const rows = this.entries(project, repo);
     const target = path.join(this.folder(project), laneId);
     const reused = rows.find((row) => row.laneId === laneId);
     if (reused) {
-      if (reused.head !== expectedRemoteHead)
-        fail("WORKTREE_HEAD_MISMATCH");
+      if (reused.head !== expectedRemoteHead) fail("WORKTREE_HEAD_MISMATCH");
       return { ...reused, path: target, reused: true };
     }
     if (rows.length >= MAX_LANES || exists(target))

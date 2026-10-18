@@ -535,7 +535,11 @@ function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
   if (name === "supervisor_main_platform_production_activate") return "DEPLOY";
   if (name === "run_quality_gate") return "TEST";
-  if (name === "worktree_lane_prepare" || name === "worktree_lane_prepare_cached_main") return "GIT_WRITE";
+  if (
+    name === "worktree_lane_prepare" ||
+    name === "worktree_lane_prepare_cached_main"
+  )
+    return "GIT_WRITE";
   if (name === "worktree_lane_cleanup") return "DESTRUCTIVE";
   if (
     ["write_file", "edit_file", "write_files_atomic", "cancel_job"].includes(

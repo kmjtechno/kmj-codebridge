@@ -172,16 +172,36 @@ test("cached origin/main can be verified in a detached lane while local main is 
     () => lanes.prepareCachedRemoteMain("project1", x.repo, "stale", x.head),
     /WORKTREE_REMOTE_HEAD_MISMATCH/,
   );
-  const lane = lanes.prepareCachedRemoteMain("project1", x.repo, "current", remote);
+  const lane = lanes.prepareCachedRemoteMain(
+    "project1",
+    x.repo,
+    "current",
+    remote,
+  );
   assert.equal(lane.head, remote);
   assert.equal(lane.dirty, false);
   assert.equal(lane.reused, false);
   assert.equal(git(lane.path, "rev-parse", "HEAD"), remote);
-  assert.equal(fs.readFileSync(path.join(lane.path, "README.md"), "utf8"), "remote source\\n");
-  assert.equal(fs.readFileSync(path.join(x.repo, "README.md"), "utf8"), "LOCAL USER EDIT\\n");
-  assert.equal(fs.readFileSync(path.join(x.repo, "do-not-delete.txt"), "utf8"), "PRESERVE\\n");
-  assert.equal(lanes.prepareCachedRemoteMain("project1", x.repo, "current", remote).reused, true);
-  assert.equal(lanes.cleanup("project1", x.repo, "current", remote).released, true);
+  assert.equal(
+    fs.readFileSync(path.join(lane.path, "README.md"), "utf8"),
+    "remote source\\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(x.repo, "README.md"), "utf8"),
+    "LOCAL USER EDIT\\n",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(x.repo, "do-not-delete.txt"), "utf8"),
+    "PRESERVE\\n",
+  );
+  assert.equal(
+    lanes.prepareCachedRemoteMain("project1", x.repo, "current", remote).reused,
+    true,
+  );
+  assert.equal(
+    lanes.cleanup("project1", x.repo, "current", remote).released,
+    true,
+  );
 });
 
 test("cached origin/main is strict, opt-in, and refuses missing tracking ref", (t) => {
@@ -192,12 +212,15 @@ test("cached origin/main is strict, opt-in, and refuses missing tracking ref", (
     /WORKTREE_GIT_FAILED/,
   );
   assert.throws(
-    () => lanes.prepareCachedRemoteMain("project1", x.repo, "../escape", x.head),
+    () =>
+      lanes.prepareCachedRemoteMain("project1", x.repo, "../escape", x.head),
     /WORKTREE_INPUT_INVALID/,
   );
   assert.equal(definitions.worktree_lane_prepare_cached_main.access, "execute");
   assert.equal(
-    definitions.worktree_lane_prepare_cached_main.input.approveLocalGitCheckout.safeParse(undefined).success,
+    definitions.worktree_lane_prepare_cached_main.input.approveLocalGitCheckout.safeParse(
+      undefined,
+    ).success,
     false,
   );
 });
