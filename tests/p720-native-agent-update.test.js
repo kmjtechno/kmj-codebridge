@@ -29,7 +29,7 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   assert.match(source, /'LIVE_CHECKOUT_BYTES_CHANGED'/);
   assert.match(
     source,
-    /Get-FileHash -LiteralPath \$fullPath -Algorithm SHA256/,
+    /FileSha256 -Path \$fullPath/,
   );
   assert.match(
     source,
@@ -260,10 +260,15 @@ test(
     const match = source.match(
       /function SnapshotTrackedChanges \{[\s\S]*?\n\}/,
     );
+    const helper = source.match(
+      /function FileSha256\(\[string\]\$Path\) \{[\s\S]*?\n\}/,
+    );
     assert.ok(match);
+    assert.ok(helper);
     const script = [
       "$ErrorActionPreference = 'Stop'",
       "$repo = '" + repo.replaceAll("'", "''") + "'",
+      helper[0],
       match[0],
       "$first = SnapshotTrackedChanges",
       "if ($first.ModifiedCount -ne 1 -or $first.UntrackedCount -ne 1) { throw 'BAD_COUNTS' }",

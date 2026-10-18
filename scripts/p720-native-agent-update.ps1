@@ -60,6 +60,20 @@ function Git([string[]]$GitArgs) {
     return $result | Where-Object { $_ -is [string] }
 }
 
+function FileSha256([string]$Path) {
+    # Built-in .NET SHA256 avoids relying on auto-loaded PowerShell modules
+    # during isolated/no-profile Windows agent verification.
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    $stream = $null
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        return [BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '')
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+        $hasher.Dispose()
+    }
+}
+
 function SnapshotTrackedChanges {
     # Preserve unstaged tracked edits and explicitly opted-in untracked files.
     # Stage/rename/delete/conflicts/reparse paths fail closed.
@@ -118,7 +132,7 @@ function SnapshotTrackedChanges {
         if ($row.StartsWith('?? ') -and $item.Length -gt 8388608) {
             throw 'LIVE_CHECKOUT_UNTRACKED_FILE_TOO_LARGE'
         }
-        $digest = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
+        $digest = FileSha256 -Path $fullPath
         $digests += ($relative + ':' + $digest)
     }
     return @{
@@ -244,7 +258,7 @@ try {
             [IO.FileAttributes]::ReparsePoint)) {
         throw 'PRIVATE_AGENT_CONFIG_MISSING'
     }
-    $configDigest = (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
+    $configDigest = (FileSha256 -Path $configPath)
     $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
     AssertApprovedGateway ([string]$cfg.gateway)
     if (@($cfg.projects).Count -ne 1 -or
@@ -322,7 +336,7 @@ try {
         [int]$stillRunning[0].ProcessId -ne $oldPid) {
         throw 'SCOPED_AGENT_CHANGED_DURING_STAGING'
     }
-    if ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -cne
+    if ((FileSha256 -Path $configPath) -cne
         $configDigest) { throw 'PRIVATE_CONFIG_CHANGED_DURING_STAGING' }
     Write-Host 'STAGED_TESTS=PASS'
 
@@ -341,7 +355,7 @@ try {
     if (!(ConfirmRuntime $newPid $newEntry $startTime)) {
         throw 'NEW_AGENT_HEARTBEAT_NOT_VERIFIED'
     }
-    if ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -cne
+    if ((FileSha256 -Path $configPath) -cne
         $configDigest) { throw 'PRIVATE_CONFIG_CHANGED' }
     Write-Host ('NEW_AGENT_PID=' + $newPid)
     Write-Host 'ENROLLMENT_CONFIG_UNCHANGED=PASS'
