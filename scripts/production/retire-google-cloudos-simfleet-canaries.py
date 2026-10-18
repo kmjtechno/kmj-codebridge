@@ -42,6 +42,10 @@ MIN_FREE_AFTER_BACKUP = 4 * 1024 ** 3
 REUSE_KVM02_SUBDIR = "20261017T150330Z-kvm02"
 REUSE_KVM02_DIGEST = "51e3a3687c83b14b1d635c3f3a90443cc773a3c9bc6277ee724aeced03903482"
 
+# Observed by operator: 2026-10-18 complete staged guest archive. Not atomic.
+REUSE_KVM03_SUBDIR = "20261018T080147Z-kvm03"
+REUSE_KVM03_DIGEST = "cad6a717bc31c2e927d6daef68f1ffa19eebb79d62d78ac2f54cd7749c6f1a1b"
+
 
 def run(argv, timeout=30, ok=(0,)):
     p = subprocess.run(argv, check=False, stdout=subprocess.PIPE,
@@ -345,6 +349,38 @@ def existing_verified_kvm02_backup():
     return archive
 
 
+def existing_verified_kvm03_backup():
+    if NAME != "kvm03":
+        raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM02")
+    dest = BACKUP_BASE / REUSE_KVM03_SUBDIR
+    archive = dest / "kvm03.tar.gz"
+    manifest = dest / "SHA256SUMS"
+    for item in (dest, archive, manifest):
+        if item.is_symlink():
+            raise RuntimeError("EXISTING_BACKUP_SYMLINK_UNSAFE")
+        meta = item.stat()
+        if meta.st_uid != 0:
+            raise RuntimeError("EXISTING_BACKUP_OWNER_UNSAFE")
+        # Archive and checksum can be 0644 because the validated parent
+        # directory and the backup pool are both root-only 0700.
+        forbidden = 0o077 if item == dest else 0o022
+        if meta.st_mode & forbidden:
+            raise RuntimeError("EXISTING_BACKUP_PERMISSIONS_UNSAFE")
+    if not dest.is_dir() or not archive.is_file() or not manifest.is_file():
+        raise RuntimeError("EXISTING_BACKUP_TYPE_UNSAFE")
+    expected = REUSE_KVM03_DIGEST + "  kvm03.tar.gz\n"
+    if manifest.read_text(encoding="ascii") != expected:
+        raise RuntimeError("EXISTING_BACKUP_MANIFEST_MISMATCH")
+    with archive.open("rb") as stream:
+        actual = hashlib.file_digest(stream, "sha256").hexdigest()
+    if actual != REUSE_KVM02_DIGEST:
+        raise RuntimeError("EXISTING_BACKUP_CHECKSUM_MISMATCH")
+    validate_archive(archive)
+    print("EXISTING_KVM02_BACKUP_SHA256=PASS", flush=True)
+    print("EXISTING_KVM02_BACKUP_PATH=" + str(dest), flush=True)
+    return archive
+
+
 def remove_with_diagnostics(diag):
     """Capture machinectl's real stderr, classify it without leaking paths."""
     with diag.open("xb") as output:
@@ -426,6 +462,8 @@ def main():
                         help="reuse the pinned, SHA-verified kvm02 test backup; never archive again")
     parser.add_argument("--staged-backup-kvm03", action="store_true",
                         help="preserve kvm03 journal with a private stopped-guest filesystem copy")
+    parser.add_argument("--reuse-verified-kvm03", action="store_true",
+                        help="reuse pinned SHA-verified kvm03 archive; no new stage or backup")
     args = parser.parse_args()
     global NAME, IMAGE, UNIT
     NAME = args.guest
@@ -449,8 +487,11 @@ def main():
             raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM02")
         if args.staged_backup_kvm03 and NAME != "kvm03":
             raise RuntimeError("STAGING_ONLY_AUTHORIZED_FOR_KVM03")
-        if args.staged_backup_kvm03 and args.reuse_verified_kvm02:
+        if sum((args.staged_backup_kvm03, args.reuse_verified_kvm02,
+                args.reuse_verified_kvm03)) > 1:
             raise RuntimeError("CONFLICTING_BACKUP_STRATEGIES")
+        if args.reuse_verified_kvm03 and NAME != "kvm03":
+            raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM03")
         enabled = run(["systemctl", "is-enabled", UNIT], ok=(0, 1))
         if enabled not in ("enabled", "disabled"):
             raise RuntimeError("UNIT_ENABLEMENT_UNKNOWN")
@@ -462,11 +503,13 @@ def main():
         meta = BACKUP_BASE.lstat()
         if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o077:
             raise RuntimeError("BACKUP_BASE_PERMISSIONS_UNSAFE")
-        if args.reuse_verified_kvm02:
-            # Verify against the immutable operator-observed successful SHA
-            # BEFORE stopping a running guest; no additional tar output.
-            archive = existing_verified_kvm02_backup()
-            dest = BACKUP_BASE / REUSE_KVM02_SUBDIR
+        if args.reuse_verified_kvm02 or args.reuse_verified_kvm03:
+            # Verify full tar and pinned SHA before touching any guest service.
+            archive = (existing_verified_kvm02_backup()
+                       if args.reuse_verified_kvm02
+                       else existing_verified_kvm03_backup())
+            dest = BACKUP_BASE / (REUSE_KVM02_SUBDIR if args.reuse_verified_kvm02
+                                  else REUSE_KVM03_SUBDIR)
         else:
             dest = BACKUP_BASE / (
                 datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + NAME)
@@ -489,14 +532,14 @@ def main():
             if machine_state() != "absent":
                 raise RuntimeError("STOP_TIMEOUT")
             healthy()
-            if not args.reuse_verified_kvm02:
+            if not (args.reuse_verified_kvm02 or args.reuse_verified_kvm03):
                 archive = (staged_backup_guest(dest)
                            if args.staged_backup_kvm03 else backup_guest(dest))
             dependency_guard()
             healthy()
             if enabled == "enabled":
                 run(["systemctl", "disable", UNIT], timeout=30)
-            if args.reuse_verified_kvm02:
+            if args.reuse_verified_kvm02 or args.reuse_verified_kvm03:
                 stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
                 remove_with_diagnostics(
                     dest / ("machinectl-removal-diagnostic-" + stamp + ".log")
