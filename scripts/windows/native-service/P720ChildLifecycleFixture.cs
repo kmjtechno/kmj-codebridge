@@ -1,6 +1,6 @@
-// KMJ TECHNO - bounded fixture-only Windows child-process lifecycle proof.
-// This is NOT a CodeBridge agent launcher; it can execute only a copy of the
-// same Stage-0 SCM host as a harmless self-test process.
+// KMJ TECHNO - deterministic fixture-only Windows child lifecycle proof.
+// Never launches Node, executes an enrolled agent or changes any Windows task.
+// Only the same compiled Stage-0 service host is executed as a test fixture.
 using System;
 using System.Diagnostics;
 using System.IO;
@@ -25,63 +25,64 @@ namespace KmjCodeBridge.P720 {
       return 5;
     }
 
-    // Starts only this already-compiled Stage-0 host with a literal fixture
-    // argument; the real agent entrypoint, task, service, enrollment config,
-    // tokens and process command lines are never accessed.
+    private static int Error(int code) {
+      // A bounded fixed numeric class only. Never print paths, process
+      // arguments, identities, exception messages or child stderr.
+      Console.WriteLine("KMJ_P720_CHILD_FIXTURE_FAILURE_CLASS=" + code);
+      return code;
+    }
+
     internal static int Exercise(bool expectTimeout) {
       string binary = Path.GetFullPath(Assembly.GetExecutingAssembly().Location);
-      if (!File.Exists(binary)) return 12;
-      using (ManualResetEvent ready = new ManualResetEvent(false)) {
-        using (Process child = new Process()) {
-          child.StartInfo = new ProcessStartInfo {
-            FileName = binary,
-            Arguments = "--fixture-child",
-            WorkingDirectory = Path.GetDirectoryName(binary),
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-          };
-          child.EnableRaisingEvents = true;
-          child.OutputDataReceived += delegate(object sender, DataReceivedEventArgs e) {
-            if (String.Equals(e.Data, Ready, StringComparison.Ordinal)) ready.Set();
-          };
+      if (!File.Exists(binary)) return Error(12);
 
-          bool started = false;
-          try {
-            started = child.Start();
-            if (!started) return 13;
-            child.BeginOutputReadLine();
-            if (!ready.WaitOne(5000)) return 14;
+      using (Process child = new Process()) {
+        child.StartInfo = new ProcessStartInfo {
+          FileName = binary,
+          Arguments = "--fixture-child",
+          WorkingDirectory = Path.GetDirectoryName(binary),
+          UseShellExecute = false,
+          CreateNoWindow = true,
+          RedirectStandardInput = true,
+          RedirectStandardOutput = true,
+          RedirectStandardError = true
+        };
+        bool started = false;
+        try {
+          started = child.Start();
+          if (!started) return Error(13);
+          // This fixture writes only one fixed, short stdout line. Sending
+          // the stop request first avoids asynchronous EventDataReceived races;
+          // readiness is independently attested from stdout *after* exit.
+          child.StandardInput.WriteLine(expectTimeout ? "HOLD" : "STOP");
+          child.StandardInput.Flush();
+          bool exited = child.WaitForExit(expectTimeout ? 500 : 8000);
+          if (expectTimeout) {
+            if (exited) return Error(15);
+            // Terminate ONLY the exact fixture we spawned, never search
+            // for, stop, or kill any existing CodeBridge/Node agent.
+            child.Kill();
+            if (!child.WaitForExit(3000)) return Error(16);
+          } else {
+            if (!exited) return Error(14);
+            if (child.ExitCode != 0) return Error(17);
+          }
 
-            child.StandardInput.WriteLine(expectTimeout ? "HOLD" : "STOP");
-            child.StandardInput.Flush();
-            // A timed-out fixture is killed only through its owned Process
-            // handle; never enumerate or terminate any real Node agent.
-            bool exited = child.WaitForExit(expectTimeout ? 400 : 8000);
-            if (expectTimeout) {
-              if (exited) return 15;
-              child.Kill();
-              if (!child.WaitForExit(3000)) return 16;
-              Console.WriteLine(Timeout);
-              return 0;
-            }
-            if (!exited || child.ExitCode != 0) return 17;
-            Console.WriteLine(Graceful);
-            return 0;
-          } catch {
-            // Do not log user identities, command lines, paths or child data.
-            return 18;
-          } finally {
-            if (started) {
-              try {
-                if (!child.HasExited) {
-                  child.Kill();
-                  child.WaitForExit(3000);
-                }
-              } catch {}
-            }
+          string receipt = child.StandardOutput.ReadToEnd().Trim();
+          if (!String.Equals(receipt, Ready, StringComparison.Ordinal))
+            return Error(19);
+          Console.WriteLine(expectTimeout ? Timeout : Graceful);
+          return 0;
+        } catch {
+          return Error(18);
+        } finally {
+          if (started) {
+            try {
+              if (!child.HasExited) {
+                child.Kill();
+                child.WaitForExit(3000);
+              }
+            } catch {}
           }
         }
       }
