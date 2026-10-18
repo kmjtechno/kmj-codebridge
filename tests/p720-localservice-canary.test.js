@@ -43,8 +43,8 @@ test("P720 LocalService canary never starts an agent, exposes tokens or changes 
 });
 
 test("P720 LocalService canary uses an immutable source and a transient no-trigger task", () => {
-  assert.match(runner, /2f08280b998d809fea4bc8a8badd30fa8d069cce/);
-  assert.match(runner, /60848d3810f01364583abbdbc67c0fedf9540b9a/);
+  assert.match(runner, /9f767f124f7f53a841bed7f8ac0c26dc61b57ab3/);
+  assert.match(runner, /a81beea084f861532a80c69979b1f0b3c14361f9/);
   assert.match(runner, /\$git hash-object -- \$Tmp/);
   assert.match(runner, /\$git hash-object -- \$Dst/);
   assert.match(runner, /New-ScheduledTaskPrincipal.*-LogonType ServiceAccount/);
