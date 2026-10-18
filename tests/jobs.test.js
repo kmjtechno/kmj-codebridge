@@ -86,6 +86,30 @@ test("captures failure and enforces output cap", async (t) => {
   assert.ok(Buffer.byteLength(done.output) <= 32768);
   assert.equal(done.truncated, true);
 });
+test("verbose failures retain ending diagnostics without leaking secrets", async (t) => {
+  const { root, runner } = fixture(t);
+  const script = [
+    'process.stdout.write("BEGIN_GATE_CONTEXT\\n");',
+    'process.stdout.write("x".repeat(150000));',
+    'process.stdout.write("\\nACTUAL_FAILURE_AT_END token=extremelyprivatevalue\\n");',
+    "process.exitCode = 11;",
+  ].join("");
+  const job = runner.run(opts(root, "long-fail", script));
+  const done = await finished(runner, job.id);
+  assert.equal(done.exitCode, 11);
+  assert.equal(done.state, "failed");
+  assert.equal(done.truncated, true);
+  assert.match(done.output, /BEGIN_GATE_CONTEXT/);
+  assert.match(done.output, /output truncated; final diagnostic lines follow/);
+  assert.match(done.output, /ACTUAL_FAILURE_AT_END/);
+  assert.match(done.output, /token=\[REDACTED\]/);
+  assert.doesNotMatch(done.output, /extremelyprivatevalue/);
+  assert.ok(Buffer.byteLength(done.output) <= 32768);
+  const reload = new JobRunner(root);
+  assert.match(reload.get(job.id, "p1").output, /ACTUAL_FAILURE_AT_END/);
+  await reload.close();
+});
+
 test("timeout terminates the job", async (t) => {
   const { root, runner } = fixture(t);
   const j = runner.run({
