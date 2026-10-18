@@ -1898,7 +1898,6 @@ export function createSupervisorHandler({
       };
     }
 
-
     if (request.op === "main_platform_production_activate") {
       exactKeys(request, [
         "op",
