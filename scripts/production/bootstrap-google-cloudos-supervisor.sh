@@ -101,7 +101,7 @@ from pathlib import Path
 import sys
 pid,runtime,config=sys.argv[1:]
 args=[a.decode("utf-8","replace") for a in
-      (Path("/proc")/pid/"cmdline").read_bytes().split(b"\\0") if a]
+      (Path("/proc")/pid/"cmdline").read_bytes().split(b"\0") if a]
 assert str(Path(runtime)/"src/cli.js") in args
 assert "agent" in args and config in args
 PY
@@ -161,16 +161,21 @@ if ! pick_root_node; then
     die PREEXISTING_NODE_BUNDLE_UNTRUSTED
   NODE_STAGE=$(mktemp -d "$BASE/.node24-XXXXXXXX")
   archive="node-v24.21.0-linux-$node_arch.tar.xz"
-  curl -fsSL --proto '=https' --tlsv1.2 --retry 2     --connect-timeout 10 --max-time 180     -o "$NODE_STAGE/$archive"     "https://nodejs.org/download/release/v24.21.0/$archive" ||
+  curl -fsSL --proto '=https' --tlsv1.2 --retry 2 \
+    --connect-timeout 10 --max-time 180 \
+    -o "$NODE_STAGE/$archive" \
+    "https://nodejs.org/download/release/v24.21.0/$archive" ||
     die OFFICIAL_NODE_DOWNLOAD_FAILED
-  printf '%s  %s\\n' "$node_sha" "$NODE_STAGE/$archive" |
+  printf '%s  %s\n' "$node_sha" "$NODE_STAGE/$archive" |
     sha256sum -c - >/dev/null || die OFFICIAL_NODE_SHA256_MISMATCH
-  tar -xJf "$NODE_STAGE/$archive" -C "$NODE_STAGE"     --strip-components=1 --no-same-owner || die NODE_EXTRACT_FAILED
+  tar -xJf "$NODE_STAGE/$archive" -C "$NODE_STAGE" \
+    --strip-components=1 --no-same-owner || die NODE_EXTRACT_FAILED
   rm -f -- "$NODE_STAGE/$archive"
   chmod -R go-w "$NODE_STAGE"
   [[ -x "$NODE_STAGE/bin/node" && -e "$NODE_STAGE/bin/npm" ]] ||
     die NODE_BUNDLE_INCOMPLETE
-  find "$NODE_STAGE" -xdev \( -type d -o -type f \)     \( ! -user root -o -perm /022 \) -print -quit |
+  find "$NODE_STAGE" -xdev \( -type d -o -type f \) \
+    \( ! -user root -o -perm /022 \) -print -quit |
     grep -q . && die ROOT_NODE_BUNDLE_WRITABLE
   mv -T -- "$NODE_STAGE" "$node_dest" || die NODE_STAGE_COMMIT_FAILED
   NODE_STAGE=''
