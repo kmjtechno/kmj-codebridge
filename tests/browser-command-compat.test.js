@@ -50,7 +50,7 @@ test("captured command browser QA is an exact fixed-origin job", async (t) => {
   );
   assert.deepEqual(
     listing.commands.map((command) => command.id),
-    ["browser_public_qa", "main_platform_ui_deps"],
+    ["browser_public_qa", "main_platform_ui_deps", "main_platform_php_deps"],
   );
   assert.deepEqual(listing.commands[0].variants, ["start"]);
   assert.equal(listing.commands[0].risk, "TEST");
