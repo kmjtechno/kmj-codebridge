@@ -1179,6 +1179,21 @@ test("run_quality_gate with laneId runs inside the isolated worktree, never the 
     },
   });
   assert.equal(content(unknownLane).error, "WORKTREE_NOT_FOUND");
+
+  // A lane changed by another chat must never silently run user-defined
+  // quality gates. The shared checkout remains unaffected.
+  fs.writeFileSync(path.join(lane.path, "local-untracked.txt"), "dirty");
+  const dirtyLane = await client.callTool({
+    name: "run_quality_gate",
+    arguments: {
+      device: "d1",
+      project: "p1",
+      gate: "pwd",
+      requestKey: "pwd-dirty-lane",
+      laneId: "laneA",
+    },
+  });
+  assert.equal(content(dirtyLane).error, "WORKTREE_HAS_UNSAVED_WORK");
 });
 test("run_project_command with laneId runs the exact profile inside the isolated worktree", async (t) => {
   const { client, root } = await setup(t);
