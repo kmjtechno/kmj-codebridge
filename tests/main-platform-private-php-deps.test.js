@@ -6,7 +6,10 @@ import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { createDispatcher } from "../src/tools.js";
 
-function fixture(t, { project = "kmj-main-platform", writable = true, lock = true } = {}) {
+function fixture(
+  t,
+  { project = "kmj-main-platform", writable = true, lock = true } = {},
+) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-php-private-ci-"));
   const root = path.join(base, "repo");
   const state = path.join(base, "state");
@@ -27,7 +30,8 @@ function fixture(t, { project = "kmj-main-platform", writable = true, lock = tru
     path.join(app, "composer.json"),
     JSON.stringify({
       name: "kmjtechno/kmj-main-platform",
-      description: "SHA-pinned isolated-only Composer CI fixture with no scripts executed",
+      description:
+        "SHA-pinned isolated-only Composer CI fixture with no scripts executed",
       require: { "laravel/wayfinder": "^0.1.14" },
     }),
   );
@@ -84,7 +88,9 @@ test("fixed Composer install is explicit, plugin/script-free and isolated at exa
     { device: "d1", project: "kmj-main-platform" },
     ["read"],
   );
-  const profile = listed.commands.find((x) => x.id === "main_platform_php_deps");
+  const profile = listed.commands.find(
+    (x) => x.id === "main_platform_php_deps",
+  );
   assert.deepEqual(profile.variants, ["ci", "routes"]);
   assert.equal(profile.risk, "TEST");
 
@@ -92,7 +98,10 @@ test("fixed Composer install is explicit, plugin/script-free and isolated at exa
   assert.equal(queued.state, "queued");
   assert.equal(f.calls.length, 1);
   const job = f.calls[0];
-  assert.equal(job.command, process.platform === "win32" ? "composer.bat" : "composer");
+  assert.equal(
+    job.command,
+    process.platform === "win32" ? "composer.bat" : "composer",
+  );
   assert.deepEqual(job.args, [
     "--no-cache",
     "--working-dir",
@@ -110,21 +119,25 @@ test("fixed Composer install is explicit, plugin/script-free and isolated at exa
   assert.equal(job.cwd.startsWith(f.root), false);
   assert.equal(job.gate.includes(f.head), true);
   assert.equal(job.beforeStart(), job.cwd);
-  assert.equal(fs.readFileSync(path.join(f.root, "another-agent.txt"), "utf8"), "preserve");
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "another-agent.txt"), "utf8"),
+    "preserve",
+  );
   assert.equal(fs.existsSync(path.join(f.app, "vendor")), false);
 
-  fs.writeFileSync(path.join(job.cwd, "apps", "platform", "composer.lock"), "{}");
+  fs.writeFileSync(
+    path.join(job.cwd, "apps", "platform", "composer.lock"),
+    "{}",
+  );
   assert.throws(() => job.beforeStart(), /WORKTREE_HAS_UNSAVED_WORK/);
 });
 
 test("Wayfinder generation requires installed vendor and never calls a custom shell", async (t) => {
   const f = fixture(t);
   await assert.rejects(
-    f.dispatch(
-      "run_project_command",
-      input({ variant: "routes" }),
-      ["execute"],
-    ),
+    f.dispatch("run_project_command", input({ variant: "routes" }), [
+      "execute",
+    ]),
     /WORKTREE_PHP_VENDOR_NOT_INSTALLED/,
   );
   assert.equal(f.calls.length, 0);
