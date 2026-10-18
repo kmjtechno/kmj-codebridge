@@ -220,7 +220,7 @@ def classify_tar_failure(diag):
     return "OTHER_REVIEW_REQUIRED" if errors.strip() else "NO_STDERR_AVAILABLE"
 
 
-def backup_guest(dest):
+def backup_guest(dest, source_root=ROOT):
     # Failure evidence goes into a root-only log. Never leave a failed tar
     # stream taking another 1-4 GB on an already constrained Google VM.
     archive = dest / f"{NAME}.tar.gz"
@@ -231,7 +231,7 @@ def backup_guest(dest):
             os.fchmod(errors.fileno(), 0o600)
             proc = subprocess.run(
                 ["tar", "--numeric-owner", "--xattrs", "--acls",
-                 "--one-file-system", "-czf", "-", "-C", str(ROOT), NAME],
+                 "--one-file-system", "-czf", "-", "-C", str(source_root), NAME],
                 stdout=output, stderr=errors, timeout=900,
                 check=False,
             )
@@ -258,6 +258,60 @@ def backup_guest(dest):
             partial.unlink()
             print("THIS_ATTEMPT_UNVERIFIED_PARTIAL_REMOVED=YES", flush=True)
         raise
+
+def staged_backup_guest(dest):
+    """Full guest copy first, then tar a stable private tree.
+
+    Used ONLY for kvm03's host-journald metadata race. No journal paths
+    excluded or tar warnings ignored. The copy is best-effort, not an atomic
+    filesystem snapshot; source guest must already be stopped.
+    """
+    if NAME != "kvm03":
+        raise RuntimeError("STAGED_COPY_ONLY_AUTHORIZED_FOR_KVM03")
+    src_bytes = int(run(["du", "-sx", "-B1", str(IMAGE)],
+                        timeout=180).split()[0])
+    if src_bytes < 1 or avail() < src_bytes + MIN_FREE_AFTER_BACKUP + 536870912:
+        raise RuntimeError("INSUFFICIENT_STAGING_HEADROOM")
+    stage = dest / ".kvm03-staging-root"
+    if stage.exists() or stage.is_symlink():
+        raise RuntimeError("STAGING_DIRECTORY_ALREADY_EXISTS")
+    stage.mkdir(mode=0o700)
+    try:
+        log = dest / "copy-diagnostic.log"
+        with log.open("xb") as errors:
+            os.fchmod(errors.fileno(), 0o600)
+            proc = subprocess.run(
+                ["cp", "-a", "-x", "--reflink=auto", "--",
+                 str(IMAGE), str(stage / NAME)],
+                stdout=subprocess.DEVNULL, stderr=errors,
+                check=False, timeout=1200,
+                env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C"},
+            )
+        if proc.returncode != 0:
+            print("STAGING_COPY_EXIT_CODE=" + str(proc.returncode), flush=True)
+            print("STAGING_COPY_DIAGNOSTIC_LOG=" + str(log), flush=True)
+            raise RuntimeError("STAGING_COPY_FAILED")
+        copied = stage / NAME
+        meta = copied.lstat()
+        if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0:
+            raise RuntimeError("STAGED_ROOT_UNSAFE")
+        staged_bytes = int(run(["du", "-sx", "-B1", str(copied)],
+                               timeout=180).split()[0])
+        # Worst case uncompressed archive is near full source size. Stop
+        # before tar if the archive could reduce root free below 4 GiB.
+        if avail() < staged_bytes + MIN_FREE_AFTER_BACKUP + 268435456:
+            raise RuntimeError("INSUFFICIENT_ARCHIVE_HEADROOM_AFTER_STAGE")
+        print("STAGED_FULL_GUEST_COPY=PASS", flush=True)
+        print("STAGING_BYTES=" + str(staged_bytes), flush=True)
+        print("STAGING_JOURNAL_OMITTED=NO", flush=True)
+        print("STAGING_COPY_ATOMIC_SNAPSHOT=NO", flush=True)
+        return backup_guest(dest, source_root=stage)
+    finally:
+        # Private one-off source snapshot: never leave 4-8 GiB of staging
+        # data on a limited-space VPS after success or failure.
+        shutil.rmtree(stage)
+        print("STAGING_COPY_CLEANUP=PASS", flush=True)
+
 
 def existing_verified_kvm02_backup():
     if NAME != "kvm02":
@@ -370,6 +424,8 @@ def main():
                         help="retire ONLY the explicitly selected simulation guest")
     parser.add_argument("--reuse-verified-kvm02", action="store_true",
                         help="reuse the pinned, SHA-verified kvm02 test backup; never archive again")
+    parser.add_argument("--staged-backup-kvm03", action="store_true",
+                        help="preserve kvm03 journal with a private stopped-guest filesystem copy")
     args = parser.parse_args()
     global NAME, IMAGE, UNIT
     NAME = args.guest
@@ -391,6 +447,10 @@ def main():
             raise RuntimeError("INSUFFICIENT_BACKUP_HEADROOM")
         if args.reuse_verified_kvm02 and NAME != "kvm02":
             raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM02")
+        if args.staged_backup_kvm03 and NAME != "kvm03":
+            raise RuntimeError("STAGING_ONLY_AUTHORIZED_FOR_KVM03")
+        if args.staged_backup_kvm03 and args.reuse_verified_kvm02:
+            raise RuntimeError("CONFLICTING_BACKUP_STRATEGIES")
         enabled = run(["systemctl", "is-enabled", UNIT], ok=(0, 1))
         if enabled not in ("enabled", "disabled"):
             raise RuntimeError("UNIT_ENABLEMENT_UNKNOWN")
@@ -430,7 +490,8 @@ def main():
                 raise RuntimeError("STOP_TIMEOUT")
             healthy()
             if not args.reuse_verified_kvm02:
-                archive = backup_guest(dest)
+                archive = (staged_backup_guest(dest)
+                           if args.staged_backup_kvm03 else backup_guest(dest))
             dependency_guard()
             healthy()
             if enabled == "enabled":
