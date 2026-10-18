@@ -489,7 +489,6 @@ const RISK_CLASSES = [
   "DESTRUCTIVE",
 ];
 
-
 const CLOUDOS_HOST_STORAGE_AUDIT_PYTHON = [
   "import os,socket,subprocess,sys",
   "if socket.gethostname().split('.')[0] != 'google-vps1': sys.exit('WRONG_HOST')",
@@ -3454,9 +3453,7 @@ export function createDispatcher(
           // Host-specific read-only storage inventory without root/sudo or
           // arbitrary args; supported even when the privileged supervisor is
           // not installed. Requires the existing project execute permission.
-          ...(p.id === "kmj-cloudos" &&
-          p.writable &&
-          config.id === "google-vps"
+          ...(p.id === "kmj-cloudos" && p.writable && config.id === "google-vps"
             ? [
                 {
                   id: "cloudos_host_storage_audit",
@@ -3512,11 +3509,7 @@ export function createDispatcher(
           a.expectedHead !== undefined
         )
           fail("COMMAND_NOT_ALLOWED");
-        if (
-          p.id !== "kmj-cloudos" ||
-          config.id !== "google-vps" ||
-          !p.writable
-        )
+        if (p.id !== "kmj-cloudos" || config.id !== "google-vps" || !p.writable)
           fail("CLOUDOS_HOST_AUDIT_NOT_AUTHORIZED");
         return runner.run({
           project: p.id,
@@ -4081,12 +4074,12 @@ export function createDispatcher(
         ? a.command === "cloudos_host_storage_audit"
           ? "READ"
           : [
-            "browser_public_qa",
-            "main_platform_ui_deps",
-            "cloudos_release_qa",
-          ].includes(a.command)
-          ? "TEST"
-          : commandRisk((p.commands ?? {})[a.command]?.category)
+                "browser_public_qa",
+                "main_platform_ui_deps",
+                "cloudos_release_qa",
+              ].includes(a.command)
+            ? "TEST"
+            : commandRisk((p.commands ?? {})[a.command]?.category)
         : toolRisk(name, definition);
     const attempt = audit.append(p.id, {
       device: config.id,
