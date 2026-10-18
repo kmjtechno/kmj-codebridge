@@ -14,6 +14,11 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   assert.match(source, /ValidatePattern\('\^\[a-f0-9\]\{40\}\$'\)/);
   assert.match(source, /'UNTRUSTED_SOURCE_REMOTE'/);
   assert.match(source, /AllowTrackedDirtyCheckout/);
+  assert.match(source, /AllowUntrackedFiles/);
+  assert.match(source, /LIVE_CHECKOUT_UNTRACKED_APPROVAL_REQUIRED/);
+  assert.match(source, /LIVE_CHECKOUT_UNTRACKED_FILE_TOO_LARGE/);
+  assert.match(source, /UntrackedCount = \$untrackedCount/);
+  assert.match(source, /\$snapshot\.UntrackedCount -gt 0 -and !\$AllowUntrackedFiles/);
   assert.match(source, /function SnapshotTrackedChanges/);
   assert.match(source, /function AssertCheckoutUnchanged/);
   assert.match(source, /'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'/);
@@ -209,6 +214,57 @@ test(
     );
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.match(result.stdout, /RUNTIME_PID_BINDING=PASS/);
+  },
+);
+
+
+test(
+  "P720 dirty snapshot hashes regular untracked files and detects mutation without running an updater",
+  { skip: process.platform !== "win32" },
+  (t) => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "p720-untracked-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    const repo = path.join(temp, "repo");
+    fs.mkdirSync(repo);
+    const git = (args) => {
+      const result = spawnSync("git", ["-C", repo, ...args], {
+        shell: false,
+        windowsHide: true,
+        encoding: "utf8",
+        timeout: 12000,
+      });
+      assert.equal(result.status, 0, result.stderr);
+      return result.stdout.trim();
+    };
+    git(["init", "-q"]);
+    fs.writeFileSync(path.join(repo, "README.md"), "baseline\\n");
+    git(["add", "README.md"]);
+    git(["-c", "user.name=CI", "-c", "user.email=ci@example.invalid", "commit", "-qm", "baseline"]);
+    fs.writeFileSync(path.join(repo, "README.md"), "modified\\n");
+    fs.mkdirSync(path.join(repo, "docs"));
+    fs.writeFileSync(path.join(repo, "docs", "plan.md"), "KEEP PRIVATE DRAFT\\n");
+    const source = fs.readFileSync(updaterPath, "utf8");
+    const match = source.match(/function SnapshotTrackedChanges \{[\s\S]*?\n\}/);
+    assert.ok(match);
+    const script = [
+      "$ErrorActionPreference = 'Stop'",
+      "$repo = '" + repo.replaceAll("'", "''") + "'",
+      match[0],
+      "$first = SnapshotTrackedChanges",
+      "if ($first.ModifiedCount -ne 1 -or $first.UntrackedCount -ne 1) { throw 'BAD_COUNTS' }",
+      "Add-Content -LiteralPath (Join-Path $repo 'docs\\plan.md') -Value 'another line'",
+      "$second = SnapshotTrackedChanges",
+      "if ($first.Digests -ceq $second.Digests) { throw 'MUTATION_UNDETECTED' }",
+      "if ($first.Status -cne $second.Status) { throw 'UNEXPECTED_GIT_STATUS' }",
+      "Write-Output 'UNTRACKED_HASH_PRESERVATION=PASS'",
+    ].join("\n");
+    const result = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { shell: false, windowsHide: true, encoding: "utf8", timeout: 20000 },
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /UNTRACKED_HASH_PRESERVATION=PASS/);
   },
 );
 
