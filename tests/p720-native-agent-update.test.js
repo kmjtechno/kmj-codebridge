@@ -18,7 +18,10 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   assert.match(source, /LIVE_CHECKOUT_UNTRACKED_APPROVAL_REQUIRED/);
   assert.match(source, /LIVE_CHECKOUT_UNTRACKED_FILE_TOO_LARGE/);
   assert.match(source, /UntrackedCount = \$untrackedCount/);
-  assert.match(source, /\$snapshot\.UntrackedCount -gt 0 -and !\$AllowUntrackedFiles/);
+  assert.match(
+    source,
+    /\$snapshot\.UntrackedCount -gt 0 -and !\$AllowUntrackedFiles/,
+  );
   assert.match(source, /function SnapshotTrackedChanges/);
   assert.match(source, /function AssertCheckoutUnchanged/);
   assert.match(source, /'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'/);
@@ -217,7 +220,6 @@ test(
   },
 );
 
-
 test(
   "P720 dirty snapshot hashes regular untracked files and detects mutation without running an updater",
   { skip: process.platform !== "win32" },
@@ -239,12 +241,25 @@ test(
     git(["init", "-q"]);
     fs.writeFileSync(path.join(repo, "README.md"), "baseline\\n");
     git(["add", "README.md"]);
-    git(["-c", "user.name=CI", "-c", "user.email=ci@example.invalid", "commit", "-qm", "baseline"]);
+    git([
+      "-c",
+      "user.name=CI",
+      "-c",
+      "user.email=ci@example.invalid",
+      "commit",
+      "-qm",
+      "baseline",
+    ]);
     fs.writeFileSync(path.join(repo, "README.md"), "modified\\n");
     fs.mkdirSync(path.join(repo, "docs"));
-    fs.writeFileSync(path.join(repo, "docs", "plan.md"), "KEEP PRIVATE DRAFT\\n");
+    fs.writeFileSync(
+      path.join(repo, "docs", "plan.md"),
+      "KEEP PRIVATE DRAFT\\n",
+    );
     const source = fs.readFileSync(updaterPath, "utf8");
-    const match = source.match(/function SnapshotTrackedChanges \{[\s\S]*?\n\}/);
+    const match = source.match(
+      /function SnapshotTrackedChanges \{[\s\S]*?\n\}/,
+    );
     assert.ok(match);
     const script = [
       "$ErrorActionPreference = 'Stop'",

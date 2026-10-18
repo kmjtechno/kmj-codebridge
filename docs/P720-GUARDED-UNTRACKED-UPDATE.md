@@ -4,7 +4,7 @@ The old `UPDATE-P720-CODEBRIDGE.cmd` is pinned to an older reviewed release
 and **does not** enable untracked-file handling. Do not assume a source merge
 updates that launcher or an already-running Windows agent.
 
-The first-party `p720-native-agent-update.ps1` now accepts two *separate*
+The first-party `p720-native-agent-update.ps1` now accepts two _separate_
 explicit owner opt-ins: `-AllowTrackedDirtyCheckout` for ordinary tracked
 unstaged modifications and `-AllowUntrackedFiles` for bounded ordinary files
 visible in `git status --porcelain --untracked-files=all`.
