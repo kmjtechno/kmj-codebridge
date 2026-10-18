@@ -246,7 +246,6 @@ test("Windows visual QA preset is explicitly opt-in, scoped and never a general 
   assert.equal(enabled.commands.windows_visual_qa.variants.deploy, undefined);
 });
 
-
 test("Windows Python trial QA is opt-in, project-scoped and cannot execute shells or installers", () => {
   const baseline = agentSchema.parse(base).projects[0];
   assert.equal(baseline.commands.windows_python_trial_qa, undefined);
@@ -262,7 +261,10 @@ test("Windows Python trial QA is opt-in, project-scoped and cannot execute shell
   assert.equal(profile.command, "node");
   assert.deepEqual(Object.keys(profile.variants), ["doctor", "tests", "smoke"]);
   for (const [variant, spec] of Object.entries(profile.variants)) {
-    assert.deepEqual(spec.args, ["scripts/codebridge-python-trial-qa.mjs", variant]);
+    assert.deepEqual(spec.args, [
+      "scripts/codebridge-python-trial-qa.mjs",
+      variant,
+    ]);
     assert.ok(spec.timeoutMs <= 300000);
     assert.ok(spec.args.every((arg) => !/[;&|$\r\n]/.test(arg)));
   }
