@@ -342,7 +342,9 @@ test("optional Workspace renders scoped files and filters tracked diffs on click
 
 test("Workspace patch uses a separate 24 KiB plain-text budget without widening status labels", () => {
   const view = openCard();
-  const patch = "diff --git a/README.md b/README.md\\n" + "<img src=x onerror=alert(1)>".repeat(1300);
+  const patch =
+    "diff --git a/README.md b/README.md\\n" +
+    "<img src=x onerror=alert(1)>".repeat(1300);
   view.send({
     product: "KMJ CodeBridge",
     project: "project1",
@@ -357,12 +359,24 @@ test("Workspace patch uses a separate 24 KiB plain-text budget without widening 
     },
   });
   assert.equal(view.element("workspaceDiff").textContent.length, 24576);
-  assert.equal(view.element("workspaceDiff").textContent, patch.slice(0, 24576));
-  assert.equal(view.element("workspaceDiffHint").textContent.includes("truncated"), true);
+  assert.equal(
+    view.element("workspaceDiff").textContent,
+    patch.slice(0, 24576),
+  );
+  assert.equal(
+    view.element("workspaceDiffHint").textContent.includes("truncated"),
+    true,
+  );
   view.element("workspace-file-0").handlers.click();
   assert.equal(view.element("workspaceDiff").textContent.length, 24576);
-  assert.equal(view.element("workspace-file-0").attributes["aria-pressed"], "true");
-  assert.equal(view.element("workspaceDiff").textContent.includes("<img"), true);
+  assert.equal(
+    view.element("workspace-file-0").attributes["aria-pressed"],
+    "true",
+  );
+  assert.equal(
+    view.element("workspaceDiff").textContent.includes("<img"),
+    true,
+  );
 });
 
 test("no workspace data does not invent file availability or simulate a diff", () => {
