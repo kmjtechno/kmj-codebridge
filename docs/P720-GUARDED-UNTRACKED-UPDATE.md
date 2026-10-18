@@ -1,8 +1,13 @@
 # KMJ P720 — guarded dirty/untracked update without overwriting developer work
 
-The old `UPDATE-P720-CODEBRIDGE.cmd` is pinned to an older reviewed release
-and **does not** enable untracked-file handling. Do not assume a source merge
-updates that launcher or an already-running Windows agent.
+The upgraded `UPDATE-P720-CODEBRIDGE.cmd` pins its staged release to
+`76ccafd2982a501cfa2a49574a64ffd9afa82f4e`, whose first-party updater source and all required
+Windows/Ubuntu CodeBridge PR CI checks passed. The launcher passes both
+`-AllowTrackedDirtyCheckout` and `-AllowUntrackedFiles` and still refuses
+staged/conflicted/reparse/unsafe inputs. Download the whole reviewed source
+tree containing this new launcher and its sibling PowerShell script: an older
+ZIP still has the old launcher. A GitHub merge does not update a running
+Windows agent.
 
 The first-party `p720-native-agent-update.ps1` now accepts two _separate_
 explicit owner opt-ins: `-AllowTrackedDirtyCheckout` for ordinary tracked

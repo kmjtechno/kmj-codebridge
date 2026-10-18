@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 
 const updaterPath = path.resolve("scripts/p720-native-agent-update.ps1");
 const launcherPath = path.resolve("scripts/UPDATE-P720-CODEBRIDGE.cmd");
-const PINNED = "ff0afff981c3e0621b6c6d1e355e66a511c8720b";
+const PINNED = "76ccafd2982a501cfa2a49574a64ffd9afa82f4e";
 
 test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent switch", () => {
   const source = fs.readFileSync(updaterPath, "utf8");
@@ -291,10 +291,10 @@ test("one-click native launch requires pinned known reviewed SHA and sibling scr
   assert.match(source, /%~dp0p720-native-agent-update\.ps1/);
   assert.match(source, /-NoProfile -NonInteractive/);
   assert.match(source, /CODEBRIDGE_UPDATE_EXIT/);
-  assert.match(source, /-AllowTrackedDirtyCheckout/);
+  assert.match(source, /-AllowTrackedDirtyCheckout -AllowUntrackedFiles/);
   assert.match(
     source,
-    /Tracked-only unstaged edits are fingerprinted and preserved/,
+    /Opted-in tracked edits and bounded untracked files are SHA256-fingerprinted/,
   );
   assert.doesNotMatch(
     source,
