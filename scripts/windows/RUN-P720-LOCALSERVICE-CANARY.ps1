@@ -65,9 +65,10 @@ function AssertOriginal {
   }
 }
 function VerifyOurTask([object]$Task) {
+  $triggers = @($Task.Triggers | Where-Object { $null -ne $_ })
   if ((SidOf ([string]$Task.Principal.UserId)) -cne 'S-1-5-19' -or
       [string]$Task.Principal.LogonType -cne 'ServiceAccount' -or
-      @($Task.Triggers).Count -ne 0 -or @($Task.Actions).Count -ne 1 -or
+      $triggers.Count -ne 0 -or @($Task.Actions).Count -ne 1 -or
       [string]$Task.Actions[0].Arguments -cne $taskArgs) {
     throw 'CANARY_TASK_SCOPE_CHANGED'
   }
@@ -112,9 +113,9 @@ try {
     }
     New-Item -ItemType Directory -Path $Dir -ErrorAction Stop | Out-Null
     $created = $true
-    Copy-Item -LiteralPath $Tmp -Destination $Dst -ErrorAction Stop
     $aclResult = & icacls.exe $Dir '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)RX'
     if ($LASTEXITCODE -ne 0) { throw 'CANARY_DIRECTORY_ACL_FAILED' }
+    Copy-Item -LiteralPath $Tmp -Destination $Dst -ErrorAction Stop
     $aclResult = & icacls.exe $Dst '/inheritance:r' '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '*S-1-5-19:RX'
     if ($LASTEXITCODE -ne 0) { throw 'CANARY_FILE_ACL_FAILED' }
     $staged = (& $git hash-object -- $Dst)
