@@ -8,7 +8,7 @@ AGENT_USER=info
 BASE=/home/info/.local/share/kmj-codebridge
 RUNTIME=$BASE/runtime-v0.3.2-20261012
 CONFIG=/home/info/.config/kmj-codebridge/agent.json
-PIN=6e3fd37136ebc284574fd1248492ad37f6fd4fcd
+PIN=6e3a024797c6389e6a127c28d5b58dc8c016f9d5
 REPO=https://github.com/kmjtechno/kmj-codebridge.git
 STAGE=""
 BACKUP=""
@@ -44,9 +44,16 @@ trap finish EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
+cloudos_services_healthy() {
+  for service in kmj-cloudos-api.service kmj-cloudos-worker.service; do
+    systemctl is-active --quiet "$service" || return 1
+  done
+}
+
 [[ "$EUID" -eq 0 ]] || die ROOT_REQUIRED
 [[ "$(hostname)" == google-vps1 ]] || die WRONG_HOST
 [[ "$(systemctl show -p ActiveState --value "$UNIT")" == active ]] || die AGENT_NOT_ACTIVE
+cloudos_services_healthy || die CLOUDOS_SERVICES_NOT_ACTIVE_PRE
 [[ "$(systemctl show -p User --value "$UNIT")" == "$AGENT_USER" ]] || die SERVICE_USER_CHANGED
 [[ "$(systemctl show -p WorkingDirectory --value "$UNIT")" == "$RUNTIME" ]] || die RUNTIME_PATH_CHANGED
 [[ "$(systemctl show -p FragmentPath --value "$UNIT")" == /etc/systemd/system/kmj-codebridge-cloudos.service ]] || die UNIT_PATH_CHANGED
@@ -165,6 +172,7 @@ PY
   sleep 1
 done
 [[ "$CONNECTED" -eq 1 ]] || die FRESH_GATEWAY_HEARTBEAT_MISSING
+cloudos_services_healthy || die CLOUDOS_SERVICES_NOT_ACTIVE_POST
 [[ "$(sha256sum "$CONFIG" | cut -d' ' -f1)" == "$CONFIG_SHA" ]] || die ENROLLMENT_CHANGED_POST_RESTART
 VERIFIED=1
 echo "KMJ_CLOUDOS_AGENT_UPGRADE=PASS"
