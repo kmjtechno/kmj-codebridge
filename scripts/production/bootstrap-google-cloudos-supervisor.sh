@@ -3,6 +3,8 @@
 # NEVER execute the user-owned agent checkout with root privileges.
 set -Eeuo pipefail
 umask 077
+# Root-only deterministic command resolution; never import caller PATH.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 SOURCE_PIN=fa9340b958ce50000298282d65f3132596c16503
 AGENT_PIN=dea0a6e398cd4706ddc61e314174314b9a6f95ee
@@ -16,6 +18,7 @@ CONFIG=/home/info/.config/kmj-codebridge/agent.json
 RUNTIME=/home/info/.local/share/kmj-codebridge/runtime-v0.3.2-20261012
 BASE=/opt/kmj-codebridge-cloudos-supervisor
 STAGE=''
+NODE_STAGE=''
 BACKUP=''
 NEWCFG=''
 SERVICE_WRITTEN=0
@@ -48,6 +51,9 @@ finish() {
     fi
   fi
   [[ -z "$NEWCFG" ]] || rm -f -- "$NEWCFG"
+  if [[ -n "$NODE_STAGE" && "$NODE_STAGE" == "$BASE"/.node24-* && -d "$NODE_STAGE" ]]; then
+    rm -rf -- "$NODE_STAGE"
+  fi
   if [[ -n "$STAGE" && "$STAGE" == "$BASE"/.stage-* && -d "$STAGE" ]]; then
     rm -rf -- "$STAGE"
   fi
@@ -89,26 +95,97 @@ done
 
 pid=$(systemctl show -p MainPID --value "$UNIT")
 [[ "$pid" =~ ^[1-9][0-9]*$ ]] || die AGENT_PID_UNAVAILABLE
-node=$(readlink -e "/proc/$pid/exe")
-[[ "$node" == /usr/bin/* || "$node" == /usr/local/bin/* ||
-   "$node" == /opt/* ]] || die ROOT_MANAGED_NODE_REQUIRED
-[[ -x "$node" && "$(stat -Lc %u "$node")" == 0 ]] || die NODE_OWNER_UNSAFE
-[[ "$("$node" -p 'process.versions.node.split(".")[0]')" == 24 ]] ||
-  die NODE24_REQUIRED
-npm=$(command -v npm || true)
-[[ -n "$npm" && -x "$npm" && "$(stat -Lc %u "$npm")" == 0 ]] ||
-  die ROOT_OWNED_NPM_REQUIRED
-# Also verify all parent directories are root-owned and nonwritable:
-# an unprivileged user must not swap out the executable after preflight.
-python3 - "$node" "$npm" <<'PY' || die ROOT_EXECUTABLE_PATH_UNSAFE
-import pathlib,sys
-for argument in sys.argv[1:]:
-    p=pathlib.Path(argument).resolve(strict=True)
-    assert p.is_file()
-    for component in [p,*p.parents]:
-        meta=component.stat()
-        assert meta.st_uid==0 and not (meta.st_mode & 0o022)
+# The existing agent may correctly run an info-owned Node in /home/info.
+# We do NOT inherit that executable (nor chmod/chown it) into the root
+# supervisor. Verify agent identity separately from the privileged runtime.
+python3 - "$pid" "$RUNTIME" "$CONFIG" <<'PY' || die AGENT_PROCESS_IDENTITY_CHANGED
+from pathlib import Path
+import sys
+pid,runtime,config=sys.argv[1:]
+args=[a.decode("utf-8","replace") for a in
+      (Path("/proc")/pid/"cmdline").read_bytes().split(b"\0") if a]
+assert str(Path(runtime)/"src/cli.js") in args
+assert "agent" in args and config in args
 PY
+
+# Select only root-managed Node 24 + npm with nonwritable root-owned
+# executable and ancestor chains. No user-owned Node may execute root code.
+is_root_binary() {
+  python3 - "$1" <<'PY'
+import pathlib,sys
+try:
+    original=pathlib.Path(sys.argv[1])
+    assert original.is_absolute() and original.is_file()
+    resolved=original.resolve(strict=True)
+    for item in (original,resolved):
+        for entry in (item,*item.parents):
+            meta=entry.stat()
+            assert meta.st_uid==0 and not (meta.st_mode & 0o022)
+except (OSError,ValueError,AssertionError):
+    raise SystemExit(1)
+PY
+}
+pick_root_node() {
+  local dir
+  for dir in /opt/kmj-codebridge-node/bin /usr/local/bin /usr/bin "$BASE/node-v24.21.0-linux-$node_arch/bin"; do
+    [[ -x "$dir/node" && -e "$dir/npm" ]] || continue
+    is_root_binary "$dir/node" || continue
+    is_root_binary "$dir/npm" || continue
+    if [[ "$("$dir/node" -p 'process.versions.node.split(".")[0]' 2>/dev/null)" == 24 ]]; then
+      node="$dir/node"
+      npm="$dir/npm"
+      return 0
+    fi
+  done
+  return 1
+}
+
+case "$(uname -m)" in
+  x86_64)
+    node_arch=x64
+    node_sha=fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6
+    ;;
+  aarch64)
+    node_arch=arm64
+    node_sha=6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2
+    ;;
+  *) die NODE_ARCH_UNSUPPORTED ;;
+esac
+node=''
+npm=''
+if ! pick_root_node; then
+  # Official Node.js LTS checksum from its published SHASUMS256.txt.
+  # Installs alongside CodeBridge under /opt only, without replacing the
+  # user agent, system Node, or other applications' dependencies.
+  install -d -o root -g root -m 0755 "$BASE"
+  node_dest="$BASE/node-v24.21.0-linux-$node_arch"
+  [[ ! -e "$node_dest" && ! -L "$node_dest" ]] ||
+    die PREEXISTING_NODE_BUNDLE_UNTRUSTED
+  NODE_STAGE=$(mktemp -d "$BASE/.node24-XXXXXXXX")
+  archive="node-v24.21.0-linux-$node_arch.tar.xz"
+  curl -fsSL --proto '=https' --tlsv1.2 --retry 2 \
+    --connect-timeout 10 --max-time 180 \
+    -o "$NODE_STAGE/$archive" \
+    "https://nodejs.org/download/release/v24.21.0/$archive" ||
+    die OFFICIAL_NODE_DOWNLOAD_FAILED
+  printf '%s  %s\n' "$node_sha" "$NODE_STAGE/$archive" |
+    sha256sum -c - >/dev/null || die OFFICIAL_NODE_SHA256_MISMATCH
+  tar -xJf "$NODE_STAGE/$archive" -C "$NODE_STAGE" \
+    --strip-components=1 --no-same-owner || die NODE_EXTRACT_FAILED
+  rm -f -- "$NODE_STAGE/$archive"
+  chmod -R go-w "$NODE_STAGE"
+  [[ -x "$NODE_STAGE/bin/node" && -e "$NODE_STAGE/bin/npm" ]] ||
+    die NODE_BUNDLE_INCOMPLETE
+  find "$NODE_STAGE" -xdev \( -type d -o -type f \) \
+    \( ! -user root -o -perm /022 \) -print -quit |
+    grep -q . && die ROOT_NODE_BUNDLE_WRITABLE
+  mv -T -- "$NODE_STAGE" "$node_dest" || die NODE_STAGE_COMMIT_FAILED
+  NODE_STAGE=''
+  pick_root_node || die ROOT_NODE24_BUNDLE_INVALID
+fi
+[[ -n "$node" && -n "$npm" && "$("$node" -p 'process.versions.node.split(".")[0]')" == 24 ]] ||
+  die NODE24_REQUIRED
+echo "CLOUDOS_SUPERVISOR_ROOT_NODE=VERIFIED"
 avail=$(df -Pk /opt | awk 'NR==2 {print $4}')
 [[ "$avail" =~ ^[0-9]+$ && "$avail" -ge 8388608 ]] ||
   die BELOW_8GIB_DISK
