@@ -81,6 +81,7 @@ test(
       "for guest in ('kvm02','kvm03'):",
       "  mod.NAME=guest",
       "  with tempfile.TemporaryDirectory() as root:",
+      "    mod.ROOT=pathlib.Path(root)",
       "    for bad in (False,True):",
       "      fn=pathlib.Path(root)/('bad.tar.gz' if bad else 'good.tar.gz')",
       "      with tarfile.open(fn,'w:gz') as tf:",
