@@ -5,7 +5,12 @@ import os from "node:os";
 import path from "node:path";
 import { createDispatcher } from "../src/tools.js";
 
-function fixture(t, device = "google-vps", project = "kmj-cloudos", writable = true) {
+function fixture(
+  t,
+  device = "google-vps",
+  project = "kmj-cloudos",
+  writable = true,
+) {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cloudos-host-audit-"));
   t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
   const root = path.join(tmp, "repo");
@@ -53,11 +58,9 @@ test("host audit command is fixed, read-only and needs no supervisor", async (t)
   assert.deepEqual(profile.variants, ["overview"]);
   assert.equal(profile.risk, "READ");
   assert.equal(profile.approvalRequired, false);
-  const response = await f.dispatch(
-    "run_project_command",
-    f.request(),
-    ["execute"],
-  );
+  const response = await f.dispatch("run_project_command", f.request(), [
+    "execute",
+  ]);
   assert.equal(response.state, "queued");
   assert.equal(f.jobs.length, 1);
   const job = f.jobs[0];
