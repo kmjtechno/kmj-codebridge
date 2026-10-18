@@ -46,7 +46,10 @@ test("operator bootstrap is fenced to fixed GCE host and immutable source", () =
 
 test("root Supervisor imports only staged root-owned pinned source", () => {
   assert.match(source, /git -C "\$STAGE".*checkout -q --detach "\$SOURCE_PIN"/);
-  assert.match(source, /npm=.*command -v npm/);
+  assert.match(source, /pick_root_node/);
+  assert.match(source, /is_root_binary "\$dir\/node"/);
+  assert.match(source, /is_root_binary "\$dir\/npm"/);
+  assert.match(source, /env PATH="\$\(dirname "\$node"\):\$PATH" "\$npm"/);
   assert.match(source, /--ignore-scripts --no-audit --no-fund/);
   assert.match(source, /find "\$STAGE" -type f -exec chmod 0444/);
   assert.match(source, /ProtectHome=tmpfs/);
@@ -77,4 +80,29 @@ test("socket is user-owned, private and profile-scoped", () => {
   assert.match(source, /User=root/);
   assert.match(source, /RestrictAddressFamilies=AF_UNIX/);
   assert.match(source, /runuser -u info -- python3/);
+});
+
+test("user-owned agent Node is never imported into the privileged process", () => {
+  assert.match(source, /AGENT_PROCESS_IDENTITY_CHANGED/);
+  assert.match(source, /split\(b"\\0"\)/);
+  assert.doesNotMatch(source, /node=\$\(readlink -e "\/proc\/\$pid\/exe"\)/);
+  assert.doesNotMatch(source, /chmod.*\/home\/info\/.*node/);
+});
+
+test("fallback provisions only checksum-pinned official root-managed Node 24", () => {
+  assert.match(source, /node-v24\.21\.0-linux-\$node_arch/);
+  assert.match(source, /https:\/\/nodejs\.org\/download\/release\/v24\.21\.0\/\$archive/);
+  assert.match(
+    source,
+    /fd8e59d5a511510f6a298afb548f18c7d2b1be404d8b4a27d94fbe49f56cb2d6/,
+  );
+  assert.match(
+    source,
+    /6ad1325edbdb5649c379b75a237147a666c95d4f9ae8d340fef2d1575d289ad2/,
+  );
+  assert.match(source, /sha256sum -c - >\/dev\/null/);
+  assert.match(source, /OFFICIAL_NODE_SHA256_MISMATCH/);
+  assert.match(source, /ROOT_NODE24_BUNDLE_INVALID/);
+  assert.match(source, /NODE_STAGE/);
+  assert.match(source, /CLOUDOS_SUPERVISOR_ROOT_NODE=VERIFIED/);
 });
