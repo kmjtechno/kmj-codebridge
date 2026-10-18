@@ -37,6 +37,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "cargo-standard",
     "cmake-standard",
     "windows-visual-qa",
+    "windows-python-trial-qa",
     "go-standard",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
@@ -243,6 +244,33 @@ test("Windows visual QA preset is explicitly opt-in, scoped and never a general 
   assert.equal(enabled.commands.node_dev, undefined);
   assert.equal(enabled.commands.windows_visual_qa.variants.shell, undefined);
   assert.equal(enabled.commands.windows_visual_qa.variants.deploy, undefined);
+});
+
+
+test("Windows Python trial QA is opt-in, project-scoped and cannot execute shells or installers", () => {
+  const baseline = agentSchema.parse(base).projects[0];
+  assert.equal(baseline.commands.windows_python_trial_qa, undefined);
+
+  const enabled = agentSchema.parse({
+    ...base,
+    projects: [
+      { ...base.projects[0], commandPresets: ["windows-python-trial-qa"] },
+    ],
+  }).projects[0];
+  const profile = enabled.commands.windows_python_trial_qa;
+  assert.equal(profile.category, "build");
+  assert.equal(profile.command, "node");
+  assert.deepEqual(Object.keys(profile.variants), ["doctor", "tests", "smoke"]);
+  for (const [variant, spec] of Object.entries(profile.variants)) {
+    assert.deepEqual(spec.args, ["scripts/codebridge-python-trial-qa.mjs", variant]);
+    assert.ok(spec.timeoutMs <= 300000);
+    assert.ok(spec.args.every((arg) => !/[;&|$\r\n]/.test(arg)));
+  }
+  assert.equal(profile.variants.install, undefined);
+  assert.equal(profile.variants.deploy, undefined);
+  assert.equal(profile.variants.shell, undefined);
+  assert.equal(profile.variants.gui_launch, undefined);
+  assert.equal(enabled.commands.node_dev, undefined);
 });
 
 test("jobArchiveMaxEntries defaults to the archive's own default and stays bounded (issue #186)", () => {
