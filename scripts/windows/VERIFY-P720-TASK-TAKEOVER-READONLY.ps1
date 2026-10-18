@@ -215,10 +215,14 @@ try {
   AssertIdle
   Write-Output 'KMJ_TASK_TAKEOVER_LOCAL_JOURNALS=IDLE'
 
-  # No network probe is run under the task's S4U identity; that would require
-  # starting a task. A normal user agent heartbeat does not establish equivalent
-  # S4U outbound network access, secret decryption, or recovery permissions.
-  Write-Output 'KMJ_TASK_TAKEOVER_CANARY=S4U_NETWORK_SESSION_UNVERIFIED'
+  # Windows Task Scheduler S4U logon has no network or encrypted-file access.
+  # The prepared S4U task is structurally valid but cannot be promoted to an
+  # outbound gateway agent. This is a KNOWN incompatibility, not an untested
+  # canary. Require separately reviewed identity/logon redesign.
+  # https://learn.microsoft.com/en-us/windows/win32/taskschd/principal-logontype
+  Write-Output 'KMJ_TASK_TAKEOVER_LOGON=S4U_NETWORK_UNSUPPORTED'
+  Write-Output 'KMJ_TASK_TAKEOVER_BLOCKER=TAKEOVER_S4U_NETWORK_INCOMPATIBLE'
+  Write-Output 'KMJ_TASK_TAKEOVER_CANARY=NOT_RUN_UNSAFE_CONTEXT'
   Write-Output 'KMJ_TASK_TAKEOVER_HEARTBEAT=TASK_CONTEXT_NOT_PROVEN'
   Write-Output 'KMJ_TASK_TAKEOVER_ROLLBACK=NOT_EXECUTED'
   Write-Output 'KMJ_TASK_TAKEOVER_ACTIVATED=NO'
