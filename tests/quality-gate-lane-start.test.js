@@ -37,6 +37,7 @@ test("queued quality gate is pinned to a clean detached lane until actual start"
   const submitted = [];
   const runner = {
     maxConcurrent: 1,
+    capacity: () => ({ blocked: false, effectiveMaxConcurrent: 1 }),
     run: (spec) => {
       submitted.push(spec);
       return { id: "pending-gate-1", state: "queued", gate: spec.gate };
@@ -117,5 +118,8 @@ test("queued quality gate is pinned to a clean detached lane until actual start"
   assert.notEqual(git(lane.path, "rev-parse", "HEAD"), head);
   assert.throws(() => job.beforeStart(), /WORKTREE_HEAD_MISMATCH/);
   assert.equal(git(root, "rev-parse", "HEAD"), head);
-  assert.equal(fs.readFileSync(path.join(root, "tracked.txt"), "utf8"), "pinned\n");
+  assert.equal(
+    fs.readFileSync(path.join(root, "tracked.txt"), "utf8"),
+    "pinned\n",
+  );
 });
