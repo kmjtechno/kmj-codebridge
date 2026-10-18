@@ -222,6 +222,32 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  // Windows Python application QA is opt-in per authorized project. Only
+  // administrator-reviewed fixed project-local Node entrypoints are invoked.
+  // No shell, external path arguments, installer, interactive desktop takeover,
+  // or arbitrary process execution is exposed to an AI client.
+  "windows-python-trial-qa": freeze({
+    windows_python_trial_qa: freeze({
+      category: "build",
+      description:
+        "Run approved Windows Python project interpreter doctor, local tests, or non-interactive GUI smoke checks.",
+      command: "node",
+      variants: freeze({
+        doctor: freeze({
+          args: ["scripts/codebridge-python-trial-qa.mjs", "doctor"],
+          timeoutMs: 30000,
+        }),
+        tests: freeze({
+          args: ["scripts/codebridge-python-trial-qa.mjs", "tests"],
+          timeoutMs: 300000,
+        }),
+        smoke: freeze({
+          args: ["scripts/codebridge-python-trial-qa.mjs", "smoke"],
+          timeoutMs: 120000,
+        }),
+      }),
+    }),
+  }),
   "go-standard": freeze({
     go_verify: freeze({
       category: "build",
