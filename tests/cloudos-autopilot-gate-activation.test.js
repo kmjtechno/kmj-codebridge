@@ -49,11 +49,20 @@ test("does not touch dirty checkout or enable unapproved workers", () => {
   assert.match(source, /get\('autopilotRepairWorker'/);
   assert.match(source, /get\('autopilotLocalWorker'/);
   assert.match(source, /get\('autopilotCiWatch'/);
-  assert.match(source, /state\.stat\(\)\.st_uid==pwd\.getpwnam\('info'\)\.pw_uid/);
+  assert.match(
+    source,
+    /state\.stat\(\)\.st_uid==pwd\.getpwnam\('info'\)\.pw_uid/,
+  );
   assert.match(source, /ACTIVE_OR_PENDING_QA|CONFIG_OR_JOB_GUARD_FAILED/);
   assert.match(source, /DISK_BELOW_8GIB/);
-  assert.doesNotMatch(source, /(?:git reset|git clean|rm -rf|curl.*\|\s*(?:sh|bash))/);
-  assert.doesNotMatch(source, /(?:systemctl (?:stop|disable)|git push|npm install)/);
+  assert.doesNotMatch(
+    source,
+    /(?:git reset|git clean|rm -rf|curl.*\|\s*(?:sh|bash))/,
+  );
+  assert.doesNotMatch(
+    source,
+    /(?:systemctl (?:stop|disable)|git push|npm install)/,
+  );
 });
 
 test("validates complete new config, backs up, restarts and rolls back on failure", () => {
@@ -74,6 +83,9 @@ test("validates complete new config, backs up, restarts and rolls back on failur
     previous = position;
   }
   assert.match(source, /AUTOPILOT_CONFIG_ROLLBACK=START/);
-  assert.match(source, /install -o info -g info -m 0600 "\$BACKUP" "\$restore"/);
+  assert.match(
+    source,
+    /install -o info -g info -m 0600 "\$BACKUP" "\$restore"/,
+  );
   assert.match(source, /BACKUP_KEPT_FOR_ROLLBACK=YES/);
 });
