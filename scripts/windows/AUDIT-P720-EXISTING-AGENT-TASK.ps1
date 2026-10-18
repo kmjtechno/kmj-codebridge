@@ -24,6 +24,22 @@ Write-Output 'KMJ_AGENT_TASK_AUDIT_MODE=READ_ONLY'
 Write-Output 'KMJ_AGENT_TASK_AUDIT_WRITES=NONE'
 Write-Output 'KMJ_AGENT_TASK_AUDIT_COMMAND_LINES=HIDDEN'
 Write-Output 'KMJ_AGENT_TASK_AUDIT_SECRETS=HIDDEN'
+
+# Windows may store the same principal as an account alias, DOMAIN\\user, or a SID.
+# Compare resolved identities rather than only literal task principal strings.
+# Fail closed for distinct/unresolvable identities; never print either name or SID.
+function SidOf([string]$Name) {
+  if ([string]::IsNullOrWhiteSpace($Name)) { return $null }
+  try {
+    if ($Name.StartsWith('S-1-', [StringComparison]::OrdinalIgnoreCase)) {
+      return ([Security.Principal.SecurityIdentifier]::new($Name)).Value
+    }
+    return ([Security.Principal.NTAccount]::new($Name)).Translate(
+      [Security.Principal.SecurityIdentifier]
+    ).Value
+  } catch { return $null }
+}
+
 try {
   if ($env:OS -ne 'Windows_NT') { throw 'AGENT_TASK_AUDIT_WINDOWS_ONLY' }
   $task = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue
@@ -92,15 +108,12 @@ try {
     throw 'AGENT_TASK_AUDIT_AGENT_OWNER_UNKNOWN'
   }
   $ownerName = "$($owner.Domain)\$($owner.User)"
-  $ownerSid = $null
-  try {
-    $account = [Security.Principal.NTAccount]::new([string]$owner.Domain,[string]$owner.User)
-    $ownerSid = $account.Translate([Security.Principal.SecurityIdentifier]).Value
-  } catch {}
   $principalName = [string]$task.Principal.UserId
+  $ownerSid = SidOf $ownerName
+  $principalSid = SidOf $principalName
   $principalMatches = $principalName -ine '' -and
     ($principalName -ieq $ownerName -or
-     ($ownerSid -and $principalName -ieq $ownerSid))
+     ($ownerSid -and $principalSid -and $ownerSid -ieq $principalSid))
   $principalPolicy = ([string]$task.Principal.LogonType -eq 'S4U') -and
     ([string]$task.Principal.RunLevel -eq 'Limited')
   $principalValid = $principalMatches -and $principalPolicy
