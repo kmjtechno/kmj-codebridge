@@ -42,6 +42,9 @@ test("SCM lifecycle fixture is isolated from any enrolled CodeBridge agent", () 
   assert.match(fixture, /Arguments = "--fixture-child"/);
   assert.match(fixture, /Assembly\.GetExecutingAssembly\(\)\.Location/);
   assert.match(fixture, /RedirectStandardInput = true/);
+  assert.match(fixture, /Encoding\.ASCII\.GetBytes/);
+  assert.match(fixture, /child\.StandardInput\.BaseStream\.Write/);
+  assert.doesNotMatch(fixture, /child\.StandardInput\.WriteLine/);
   assert.match(fixture, /UseShellExecute = false/);
   assert.match(fixture, /ProcessStartInfo/);
   assert.match(fixture, /child\.WaitForExit\(expectTimeout \? 500 : 8000\)/);
