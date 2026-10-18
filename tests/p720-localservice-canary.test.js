@@ -17,14 +17,26 @@ test("P720 LocalService canary never starts an agent, exposes tokens or changes 
   assert.match(runner, /KMJ_P720_LOCALSERVICE_CANARY_AGENT_MUTATIONS=NONE/);
   assert.match(runner, /KMJ_P720_LOCALSERVICE_CANARY_TAKEOVER=NOT_PERFORMED/);
   assert.match(canary, /KMJ_P720_SERVICE_CANARY_AGENT_STARTED=NO/);
-  assert.match(canary, /KMJ_P720_SERVICE_CANARY_AUTHENTICATED_GATEWAY=UNPROVEN/);
+  assert.match(
+    canary,
+    /KMJ_P720_SERVICE_CANARY_AUTHENTICATED_GATEWAY=UNPROVEN/,
+  );
   assert.match(canary, /KMJ_P720_SERVICE_CANARY_TAKEOVER=NOT_AUTHORIZED/);
-  assert.doesNotMatch(canary, /\b(?:Start|Stop|Enable|Disable|Register|Unregister)-ScheduledTask\b/i);
+  assert.doesNotMatch(
+    canary,
+    /\b(?:Start|Stop|Enable|Disable|Register|Unregister)-ScheduledTask\b/i,
+  );
   assert.doesNotMatch(canary, /\b(?:Start|Stop)-Process\b/i);
-  assert.doesNotMatch(canary, /\b(?:Set-Content|Remove-Item|Set-Acl|New-Item)\b/i);
+  assert.doesNotMatch(
+    canary,
+    /\b(?:Set-Content|Remove-Item|Set-Acl|New-Item)\b/i,
+  );
   assert.doesNotMatch(runner, /\b(?:Start|Stop)-Process\b/i);
   assert.doesNotMatch(runner, /\b(?:Enable|Disable|Set)-ScheduledTask\b/i);
-  assert.doesNotMatch(runner, /\bNew-LocalUser\b|\bSet-LocalUser\b|\bnet user\b/i);
+  assert.doesNotMatch(
+    runner,
+    /\bNew-LocalUser\b|\bSet-LocalUser\b|\bnet user\b/i,
+  );
   assert.doesNotMatch(runner, /-Password\b|-Credential\b|Get-Credential\b/i);
   assert.ok(!/[^\x00-\x7f]/.test(runner), "runner is ASCII");
   assert.ok(!/[^\x00-\x7f]/.test(canary), "canary is ASCII");
@@ -41,12 +53,18 @@ test("P720 LocalService canary uses an immutable source and a transient no-trigg
   assert.match(runner, /Start-ScheduledTask -TaskName \$TaskName/);
   assert.match(runner, /Stop-ScheduledTask -TaskName \$TaskName/);
   assert.match(runner, /Unregister-ScheduledTask -TaskName \$TaskName/);
-  assert.doesNotMatch(runner, /Unregister-ScheduledTask -TaskName \$OriginalTask/);
+  assert.doesNotMatch(
+    runner,
+    /Unregister-ScheduledTask -TaskName \$OriginalTask/,
+  );
   assert.doesNotMatch(runner, /Start-ScheduledTask -TaskName \$OriginalTask/);
   assert.match(runner, /CANARY_TASK_MANUAL_REVIEW/);
   assert.match(runner, /CANARY_STAGE_MANUAL_REVIEW/);
   assert.match(canary, /S-1-5-19/);
-  assert.match(canary, /KMJ_P720_SERVICE_CANARY_BLOCKER=LOCALSERVICE_SID_REQUIRED/);
+  assert.match(
+    canary,
+    /KMJ_P720_SERVICE_CANARY_BLOCKER=LOCALSERVICE_SID_REQUIRED/,
+  );
   assert.match(canary, /Method = 'HEAD'/);
   assert.match(canary, /UseDefaultCredentials = \$false/);
   assert.match(canary, /FileReadableWithoutContents/);
