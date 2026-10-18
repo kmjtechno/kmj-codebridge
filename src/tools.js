@@ -3480,7 +3480,7 @@ export function createDispatcher(
           // CloudOS already has an authorized QA runner, but older installed
           // agents report commands: [] and the shared checkout is dirty.
           // Expose a fixed, supervisor-independent, HEAD-pinned test lane.
-          ...(p.id === "kmj-cloudos" && p.writable
+          ...(p.id === "kmj-cloudos" && p.writable && p.gates?.full
             ? [
                 {
                   id: "cloudos_release_qa",
@@ -3541,6 +3541,8 @@ export function createDispatcher(
           fail("COMMAND_NOT_ALLOWED");
         if (p.id !== "kmj-cloudos" || !p.writable)
           fail("CLOUDOS_QA_PROJECT_NOT_ALLOWED");
+        const approvedFullGate = p.gates?.full;
+        if (!approvedFullGate) fail("CLOUDOS_QA_GATE_NOT_CONFIGURED");
         const lane = worktreeLanes().prepareCurrentHead(
           p.id,
           p.files.root,
@@ -3578,14 +3580,12 @@ export function createDispatcher(
           return row.path;
         };
         return runner.run({
+          ...approvedFullGate,
           project: p.id,
           gate: `command:cloudos_release_qa:full:build@${lane.laneId}#${lane.head}`,
           key: a.requestKey,
           cwd: validate(),
           beforeStart: validate,
-          command: "python3",
-          args: ["-B", "-m", "pytest", "-q", "-p", "no:cacheprovider", "tests"],
-          timeoutMs: 120000,
         });
       }
       // Dependency setup is a separate opt-in action, not implicit CI logic.
