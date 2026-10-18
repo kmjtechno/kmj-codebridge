@@ -52,6 +52,21 @@ namespace KmjCodeBridge.P720 {
           String.Equals(args[0], "--self-test", StringComparison.Ordinal)) {
         return SelfTest();
       }
+      if (args.Length == 3 &&
+          String.Equals(args[0], "--fixture-child", StringComparison.Ordinal) &&
+          (String.Equals(args[1], "WAIT", StringComparison.Ordinal) ||
+           String.Equals(args[1], "HOLD", StringComparison.Ordinal)) &&
+          P720ChildLifecycleFixture.ValidEventName(args[2])) {
+        return P720ChildLifecycleFixture.Child(args[1], args[2]);
+      }
+      if (args.Length == 1 &&
+          String.Equals(args[0], "--lifecycle-self-test", StringComparison.Ordinal)) {
+        return P720ChildLifecycleFixture.Exercise(false);
+      }
+      if (args.Length == 1 &&
+          String.Equals(args[0], "--lifecycle-timeout-self-test", StringComparison.Ordinal)) {
+        return P720ChildLifecycleFixture.Exercise(true);
+      }
       if (args.Length > 0) {
         Console.Error.WriteLine("KMJ_P720_SERVICE_HOST_ARGUMENTS=REJECTED");
         return 2;
