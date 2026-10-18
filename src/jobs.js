@@ -490,13 +490,29 @@ export class JobRunner {
       killTimer: null,
       done: null,
       raw: "",
+      tail: Buffer.alloc(0),
+      seenBytes: 0,
     };
     this.active.set(j.id, active);
     const append = (chunk) => {
-      const room = 32768 - Buffer.byteLength(active.raw);
-      if (chunk.length > room) j.truncated = true;
-      if (room > 0) active.raw += chunk.subarray(0, room).toString("utf8");
-      j.output = redact(active.raw);
+      // Keep a short beginning for context AND the final failure diagnostics.
+      // A head-only capture hides the actual error after verbose PHPUnit runs.
+      // Both buffers are bounded regardless of child output volume.
+      const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+      const room = Math.max(0, 32768 - Buffer.byteLength(active.raw));
+      if (room > 0) active.raw += bytes.subarray(0, room).toString("utf8");
+      active.seenBytes += bytes.length;
+      active.tail =
+        bytes.length >= 20000
+          ? bytes.subarray(-20000)
+          : Buffer.concat([active.tail, bytes]).subarray(-20000);
+      if (active.seenBytes > 32768) j.truncated = true;
+      const bounded = j.truncated
+        ? active.raw.slice(0, 8192) +
+          "\n[...output truncated; final diagnostic lines follow...]\n" +
+          active.tail.toString("utf8")
+        : active.raw;
+      j.output = redact(bounded);
       if (Buffer.byteLength(j.output) > 32768)
         j.output = Buffer.from(j.output).subarray(0, 32764).toString("utf8");
     };
