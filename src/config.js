@@ -223,14 +223,13 @@ export const gatewaySchema = z
     }
     return config;
   });
-export const agentSchema = z
-  .object({
-    gateway: z.string().url(),
-    // Existing owner-enrolled inline tokens remain backward compatible.
-    // New dedicated service identities can use a separate private file.
-    token: z.string().min(32).optional(),
-    gatewayTokenFile: z.string().min(3).max(4096).optional(),
-    id,
+const agentConfigFields = z.object({
+  gateway: z.string().url(),
+  // Existing owner-enrolled inline tokens remain backward compatible.
+  // New dedicated service identities can use a separate private file.
+  token: z.string().min(32).optional(),
+  gatewayTokenFile: z.string().min(3).max(4096).optional(),
+  id,
   tenant: id,
   stateDir: z.string(),
   supervisorSocket: z.literal("/run/kmj-codebridge/supervisor.sock").optional(),
@@ -423,12 +422,12 @@ export const agentSchema = z
       keys: z.record(z.string()),
     }),
   ]),
-  })
-  .superRefine((agent, ctx) => {
-    if (Boolean(agent.token) === Boolean(agent.gatewayTokenFile))
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Exactly one gateway credential source is required",
-      });
-  });
+});
+export const agentSchema = agentConfigFields.superRefine((agent, ctx) => {
+  if (Boolean(agent.token) === Boolean(agent.gatewayTokenFile))
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Exactly one gateway credential source is required",
+    });
+});
 export const identifier = id;
