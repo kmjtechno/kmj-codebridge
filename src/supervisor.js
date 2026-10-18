@@ -15,6 +15,21 @@ const CONFIGS = {
   agent: "/etc/kmj-codebridge/agent.json",
   gateway: "/etc/kmj-codebridge/gateway.json",
 };
+// Only an explicitly pinned Google CloudOS supervisor unit may use this
+// profile. Default/Main Platform routing stays unchanged on every other host.
+const CLOUDOS_SUPERVISOR_PROFILE = "cloudos";
+const CLOUDOS_AGENT_UNIT = "kmj-codebridge-cloudos.service";
+const CLOUDOS_AGENT_CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
+const CLOUDOS_PROJECT_ID = "kmj-cloudos";
+const CLOUDOS_OPERATIONS = new Set([
+  "status",
+  "logs",
+  "config_validate",
+  "restart",
+  "device_status",
+  "project_status",
+  "disk_space",
+]);
 // The legacy Main Platform agent is enrolled with its own fixed config path. It is
 // selected only by the exact managed project id, never from caller-supplied paths.
 const MAIN_PLATFORM_PROJECT_ID = "kmj-main-platform";
@@ -100,7 +115,25 @@ function exactKeys(value, allowed) {
     fail("INVALID_SUPERVISOR_REQUEST");
 }
 
-function serviceUnit(service, run) {
+function serviceUnit(service, run, profile = "default") {
+  if (profile === CLOUDOS_SUPERVISOR_PROFILE) {
+    if (service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+    const fields = parseProperties(
+      run(SYSTEMCTL, [
+        "show",
+        CLOUDOS_AGENT_UNIT,
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--no-pager",
+      ]),
+    );
+    if (
+      fields.LoadState !== "loaded" ||
+      !["active", "inactive", "failed"].includes(fields.ActiveState)
+    )
+      fail("SUPERVISOR_SERVICE_UNAVAILABLE");
+    return CLOUDOS_AGENT_UNIT;
+  }
   const unit = SERVICES[service];
   if (!Object.hasOwn(SERVICES, service)) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
   const snapshot = (name) =>
@@ -1439,7 +1472,10 @@ export function createSupervisorHandler({
   exists = (target) => fs.existsSync(target),
   stat = (target) => fs.statSync(target),
   deviceStatus = defaultDeviceStatus,
+  profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
 } = {}) {
+  if (!["default", CLOUDOS_SUPERVISOR_PROFILE].includes(profile))
+    fail("SUPERVISOR_PROFILE_INVALID");
   const readUpdateState = () => {
     const readReleaseLink = (name) => {
       try {
@@ -1584,10 +1620,17 @@ export function createSupervisorHandler({
       "confirmation",
     ]);
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
+    // The Google VPS root supervisor cannot start Main Platform CI, update,
+    // production, gateway, or arbitrary privileged operations.
+    if (
+      profile === CLOUDOS_SUPERVISOR_PROFILE &&
+      !CLOUDOS_OPERATIONS.has(request.op)
+    )
+      fail("SUPERVISOR_OPERATION_NOT_ALLOWED");
 
     if (request.op === "status") {
       exactKeys(request, ["op", "service"]);
-      const unit = serviceUnit(request.service, run);
+      const unit = serviceUnit(request.service, run, profile);
       const output = run(SYSTEMCTL, [
         "show",
         unit,
@@ -1605,7 +1648,7 @@ export function createSupervisorHandler({
       const lines = request.lines ?? 80;
       if (!Number.isInteger(lines) || lines < 1 || lines > 200)
         fail("INVALID_SUPERVISOR_REQUEST");
-      const unit = serviceUnit(request.service, run);
+      const unit = serviceUnit(request.service, run, profile);
       const output = run(JOURNALCTL, [
         "-u",
         unit,
@@ -1632,9 +1675,11 @@ export function createSupervisorHandler({
         // serviceUnit fails closed for missing/ambiguous service states.
         const configPath =
           request.service === "agent" &&
-          serviceUnit("agent", run) === MAIN_PLATFORM_AGENT_SERVICE
+          serviceUnit("agent", run, profile) === MAIN_PLATFORM_AGENT_SERVICE
             ? MAIN_PLATFORM_AGENT_CONFIG
-            : CONFIGS[request.service];
+            : profile === CLOUDOS_SUPERVISOR_PROFILE
+              ? CLOUDOS_AGENT_CONFIG
+              : CONFIGS[request.service];
         const raw = JSON.parse(readFile(configPath));
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
@@ -1652,7 +1697,7 @@ export function createSupervisorHandler({
 
     if (request.op === "restart") {
       exactKeys(request, ["op", "service"]);
-      const unit = serviceUnit(request.service, run);
+      const unit = serviceUnit(request.service, run, profile);
       return {
         response: { service: request.service, accepted: true },
         afterSend: () => restart(unit),
@@ -1671,14 +1716,21 @@ export function createSupervisorHandler({
         !PROJECT_ID.test(request.projectId)
       )
         fail("INVALID_SUPERVISOR_REQUEST");
+      if (
+        profile === CLOUDOS_SUPERVISOR_PROFILE &&
+        request.projectId !== CLOUDOS_PROJECT_ID
+      )
+        fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
       let agentConfig;
       try {
         agentConfig = agentSchema.parse(
           JSON.parse(
             readFile(
-              request.projectId === MAIN_PLATFORM_PROJECT_ID
-                ? MAIN_PLATFORM_AGENT_CONFIG
-                : CONFIGS.agent,
+              profile === CLOUDOS_SUPERVISOR_PROFILE
+                ? CLOUDOS_AGENT_CONFIG
+                : request.projectId === MAIN_PLATFORM_PROJECT_ID
+                  ? MAIN_PLATFORM_AGENT_CONFIG
+                  : CONFIGS.agent,
             ),
           ),
         );
