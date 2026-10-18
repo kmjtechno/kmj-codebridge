@@ -40,11 +40,16 @@ test("P720 takeover readiness enforces task, agent and journal integrity", () =>
     "TAKEOVER_SUPERVISOR_TASK_NOT_RUNNING",
     "TAKEOVER_JOB_ACTIVE",
     "TAKEOVER_AUTOPILOT_ACTIVE",
-    "KMJ_TASK_TAKEOVER_CANARY=S4U_NETWORK_SESSION_UNVERIFIED",
+    "KMJ_TASK_TAKEOVER_LOGON=S4U_NETWORK_UNSUPPORTED",
+    "KMJ_TASK_TAKEOVER_BLOCKER=TAKEOVER_S4U_NETWORK_INCOMPATIBLE",
+    "KMJ_TASK_TAKEOVER_CANARY=NOT_RUN_UNSAFE_CONTEXT",
     "KMJ_TASK_TAKEOVER_HEARTBEAT=TASK_CONTEXT_NOT_PROVEN",
     "KMJ_TASK_TAKEOVER_ROLLBACK=NOT_EXECUTED",
   ])
     assert.ok(script.includes(part), part);
+  assert.doesNotMatch(script, /S4U_NETWORK_SESSION_UNVERIFIED/);
+  assert.match(script, /LogonType -cne 'S4U'/);
+  assert.match(script, /exit 3/);
   assert.match(script, /\$taskSid\s*=\s*SidOf/);
   assert.match(script, /\$ownerSid\s*=\s*SidOf/);
   assert.match(script, /KMJ_TASK_TAKEOVER_READY=NO'\s*\n\s*exit 3/);
