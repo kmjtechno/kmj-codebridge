@@ -94,6 +94,49 @@ test("local draft is saved and paused, never marked implemented", async (t) => {
   assert.equal(f.calls(), 1);
 });
 
+test("token-limited local model output is persisted but never marked review-ready", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue("auto-draft:qwen3-short-reasoning");
+  const original = f.worker.localModel;
+  f.worker.localModel = () => ({
+    ...original(),
+    generate: async () => ({
+      response: "I should think about the requested change...",
+      truncated: false,
+      hitTokenLimit: true,
+    }),
+  });
+  await f.worker.tick();
+  const state = f.journal.get(task.id, "repo");
+  assert.equal(state.state, "waiting");
+  assert.equal(state.lastReason, "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED");
+  assert.equal(state.checkpoint.next, "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED");
+  assert.equal(state.checkpoint.modelUsage.provider, "local-ollama");
+  assert.match(state.checkpoint.summary, /think about/);
+  // Restart/review cannot silently elevate an incomplete result to success.
+  await f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+});
+
+test("reply truncation independently makes local proposal incomplete", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue("auto-draft:truncated-review");
+  const original = f.worker.localModel;
+  f.worker.localModel = () => ({
+    ...original(),
+    generate: async () => ({
+      response: "partial response",
+      truncated: true,
+      hitTokenLimit: false,
+    }),
+  });
+  await f.worker.tick();
+  const state = f.journal.get(task.id, "repo");
+  assert.equal(state.state, "waiting");
+  assert.equal(state.lastReason, "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED");
+  assert.equal(state.checkpoint.next, "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED");
+});
+
 test("ordinary roadmap work is not taken or falsely finished", async (t) => {
   const f = fixture(t);
   const general = f.enqueue("mission:important-milestone");
