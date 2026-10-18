@@ -139,3 +139,93 @@ test("cache/ETag never widens repository allowlist", async (t) => {
   );
   assert.equal(calls, 0);
 });
+
+test("anonymous quota exhaustion blocks repeated reads until GitHub reset without spending extra requests", async (t) => {
+  let clock = 1800000000000;
+  t.mock.method(Date, "now", () => clock);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    if (calls === 1) {
+      return new Response(null, {
+        status: 403,
+        headers: {
+          "x-ratelimit-remaining": "0",
+          "x-ratelimit-reset": String(Math.floor((clock + 120000) / 1000)),
+        },
+      });
+    }
+    return Response.json(repository);
+  });
+  const bridge = createGitHubBridge({
+    ...base,
+    repositories: [repo, "kmjtechno/another-project"],
+  });
+  await assert.rejects(
+    bridge("github_repository", { repository: repo }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  await assert.rejects(
+    bridge("github_repository", { repository: "kmjtechno/another-project" }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  assert.equal(calls, 1, "quota block must be shared across allowed repositories");
+  clock += 119000;
+  await assert.rejects(
+    bridge("github_repository", { repository: repo }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  assert.equal(calls, 1);
+  clock += 1001;
+  const recovered = await bridge("github_repository", { repository: repo });
+  assert.equal(recovered.default_branch, "main");
+  assert.equal(calls, 2);
+});
+
+test("anonymous HTTP 429 retry-after enforces a bounded fail-closed cooldown", async (t) => {
+  let clock = 1800000000000;
+  t.mock.method(Date, "now", () => clock);
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    return new Response(null, {
+      status: 429,
+      headers: { "retry-after": "45" },
+    });
+  });
+  const bridge = createGitHubBridge(base);
+  await assert.rejects(
+    bridge("github_repository", { repository: repo }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  clock += 44000;
+  await assert.rejects(
+    bridge("github_repository", { repository: repo }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  assert.equal(calls, 1);
+  clock += 1001;
+  await assert.rejects(
+    bridge("github_repository", { repository: repo }),
+    /GITHUB_RATE_LIMIT/,
+  );
+  assert.equal(calls, 2);
+});
+
+test("HTTP 403 without quota evidence remains authorization denial and does not trip anonymous circuit", async (t) => {
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    if (calls === 1) return new Response(null, { status: 403 });
+    return Response.json(repository);
+  });
+  const bridge = createGitHubBridge(base);
+  await assert.rejects(
+    bridge("github_repository", { repository: repo }),
+    /GITHUB_AUTHORIZATION_FAILED/,
+  );
+  const result = await bridge("github_repository", { repository: repo });
+  assert.equal(result.default_branch, "main");
+  assert.equal(calls, 2);
+});
+
