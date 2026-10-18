@@ -17,10 +17,16 @@ test("P720 SCM host is a real ServiceBase type and blocks activation", () => {
   assert.match(native, /FixedServiceName = "KMJ-CodeBridge-P720-AgentService"/);
   assert.match(native, /protected override void OnStart\(string\[\] args\)/);
   assert.match(native, /throw new InvalidOperationException\(NotReadyCode\)/);
-  assert.match(native, /KMJ_P720_SERVICE_HOST_ACTIVATION=BLOCKED_UNVERIFIED_TAKEOVER/);
+  assert.match(
+    native,
+    /KMJ_P720_SERVICE_HOST_ACTIVATION=BLOCKED_UNVERIFIED_TAKEOVER/,
+  );
   assert.match(native, /ServiceBase\.Run\(new P720AgentService\(\)\)/);
   assert.match(native, /--self-test/);
-  assert.doesNotMatch(native, /Process\.Start|ProcessStartInfo|TerminateProcess|CreateProcess|sc\.exe/i);
+  assert.doesNotMatch(
+    native,
+    /Process\.Start|ProcessStartInfo|TerminateProcess|CreateProcess|sc\.exe/i,
+  );
   assert.doesNotMatch(native, /token|Bearer|password|Invoke-WebRequest/i);
 });
 
@@ -63,7 +69,15 @@ test(
     );
     const output = execFileSync(
       ps,
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script, "-Build"],
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script,
+        "-Build",
+      ],
       { encoding: "utf8", timeout: 90000 },
     );
     assert.match(output, /KMJ_P720_SCM_HOST_BUILD=PASS/);
