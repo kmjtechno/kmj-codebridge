@@ -43,7 +43,10 @@ test("authorized, bounded project file names and tracked patch are returned", ()
   assert.match(result.diff.patch, /^diff --git a\/src\/tools.js/);
   assert.equal(result.tree.truncated, false);
   assert.equal(result.diff.truncated, false);
-  assert.doesNotMatch(JSON.stringify(result), /DO_NOT_ECHO|UNSAFE_COMMAND_ARGUMENTS/);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /DO_NOT_ECHO|UNSAFE_COMMAND_ARGUMENTS/,
+  );
 });
 
 test("no trusted tool evidence remains UNKNOWN, not an empty repository", () => {
