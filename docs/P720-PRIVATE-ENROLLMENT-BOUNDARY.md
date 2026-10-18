@@ -43,7 +43,7 @@ by a broadly shared built-in account merely to turn a canary green.
 **Hard rejects for existing enrollment takeover:**
 
 - Do not add LocalService, NetworkService, Users, Everyone, or Authenticated
-  Users to the *existing* `agent.json`/private token/agent state ACL.
+  Users to the _existing_ `agent.json`/private token/agent state ACL.
 - Do not copy the existing owner enrollment token to a second identity,
   print secrets, allow a hidden secondary agent session, or modify the
   existing disabled `KMJ-CodeBridge-P720-Agent` task to avoid the block.
@@ -57,7 +57,7 @@ by a broadly shared built-in account merely to turn a canary green.
 
 **Preferred 24/7 architecture (requires new implementation and approval):**
 
-1. Select a *dedicated and isolated* Windows service identity after
+1. Select a _dedicated and isolated_ Windows service identity after
    checking whether the P720 is domain joined and which Windows service
    mechanisms are actually supported. A virtual service identity, where
    supported, belongs to an installed service; a Scheduled Task named like
@@ -77,7 +77,7 @@ by a broadly shared built-in account merely to turn a canary green.
 4. Implement a single-device lease/fence against simultaneous agent
    sessions; idle all active work and preserve the original owner-owned
    process/config/task in a rollback manifest before any promotion.
-5. Prove the managed identity can read its *own* new enrollment and fixed
+5. Prove the managed identity can read its _own_ new enrollment and fixed
    supervisor HMAC channel, write only its own state directory, and reach
    the outbound gateway. Observe a **fresh server-side authenticated
    heartbeat** from the intended identity, not a local file or an
