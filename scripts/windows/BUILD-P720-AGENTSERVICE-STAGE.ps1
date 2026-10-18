@@ -13,6 +13,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).Path
 $Source = Join-Path $PSScriptRoot 'native-service\P720AgentService.cs'
+$FixtureSource = Join-Path $PSScriptRoot 'native-service\P720ChildLifecycleFixture.cs'
 $Compiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 
 Write-Output 'KMJ_P720_SCM_HOST=STAGE_ZERO'
@@ -24,11 +25,14 @@ Write-Output 'KMJ_P720_SCM_ACTIVATION=BLOCKED_UNVERIFIED_TAKEOVER'
 try {
   if ($env:OS -ne 'Windows_NT') { throw 'SCM_HOST_WINDOWS_ONLY' }
   if (-not (Test-Path -LiteralPath $Source -PathType Leaf) -or
+      -not (Test-Path -LiteralPath $FixtureSource -PathType Leaf) -or
       -not (Test-Path -LiteralPath $Compiler -PathType Leaf)) {
     throw 'SCM_HOST_SOURCE_OR_COMPILER_MISSING'
   }
   $sourceInfo = Get-Item -LiteralPath $Source -ErrorAction Stop
-  if ($sourceInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+  $fixtureInfo = Get-Item -LiteralPath $FixtureSource -ErrorAction Stop
+  if (($sourceInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+      ($fixtureInfo.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
     throw 'SCM_HOST_SOURCE_REPARSE_POINT'
   }
 
@@ -68,7 +72,8 @@ try {
     '/optimize+',
     ('/out:' + $Output),
     '/reference:System.ServiceProcess.dll',
-    $Source
+    $Source,
+    $FixtureSource
   )
   $compilerResult = & $Compiler @args
   if ($LASTEXITCODE -ne 0 -or
@@ -81,7 +86,21 @@ try {
       'KMJ_P720_SERVICE_HOST_AGENT_STARTED=NO') {
     throw 'SCM_HOST_SELFTEST_FAILED'
   }
+  $gracefulOutput = & $Output '--lifecycle-self-test'
+  if ($LASTEXITCODE -ne 0 -or
+      [string]::Join([char]10,[string[]]@($gracefulOutput)) -notmatch
+      'KMJ_P720_CHILD_LIFECYCLE_GRACEFUL=PASS') {
+    throw 'SCM_HOST_GRACEFUL_FIXTURE_FAILED'
+  }
+  $timeoutOutput = & $Output '--lifecycle-timeout-self-test'
+  if ($LASTEXITCODE -ne 0 -or
+      [string]::Join([char]10,[string[]]@($timeoutOutput)) -notmatch
+      'KMJ_P720_CHILD_LIFECYCLE_TIMEOUT_FENCED=PASS') {
+    throw 'SCM_HOST_TIMEOUT_FIXTURE_FAILED'
+  }
   Write-Output 'KMJ_P720_SCM_HOST_BUILD=PASS'
+  Write-Output 'KMJ_P720_SCM_HOST_GRACEFUL_FIXTURE=PASS'
+  Write-Output 'KMJ_P720_SCM_HOST_TIMEOUT_FIXTURE=PASS'
   Write-Output 'KMJ_P720_SCM_HOST_SELFTEST=PASS'
   Write-Output 'KMJ_P720_SCM_HOST_SERVICE_REGISTERED=NO'
   Write-Output 'KMJ_P720_SCM_HOST_SERVICE_STARTED=NO'
