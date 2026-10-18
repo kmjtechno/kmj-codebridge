@@ -92,7 +92,7 @@ test("verbose failures retain ending diagnostics without leaking secrets", async
     'process.stdout.write("BEGIN_GATE_CONTEXT\\n");',
     'process.stdout.write("x".repeat(150000));',
     'process.stdout.write("\\nACTUAL_FAILURE_AT_END token=extremelyprivatevalue\\n");',
-    "process.exit(11);",
+    "process.exitCode = 11;",
   ].join("");
   const job = runner.run(opts(root, "long-fail", script));
   const done = await finished(runner, job.id);
