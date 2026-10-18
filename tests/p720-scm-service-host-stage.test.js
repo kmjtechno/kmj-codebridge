@@ -46,7 +46,10 @@ test("SCM lifecycle fixture is isolated from any enrolled CodeBridge agent", () 
   assert.match(fixture, /EventWaitHandle\.OpenExisting\(eventName\)/);
   assert.match(fixture, /ValidEventName\(eventName\)/);
   assert.match(fixture, /stop\.Set\(\)/);
-  assert.doesNotMatch(fixture, /Console\.ReadLine|OpenStandardInput|StandardInput\.BaseStream/);
+  assert.doesNotMatch(
+    fixture,
+    /Console\.ReadLine|OpenStandardInput|StandardInput\.BaseStream/,
+  );
   assert.match(fixture, /UseShellExecute = false/);
   assert.match(fixture, /ProcessStartInfo/);
   assert.match(fixture, /child\.WaitForExit\(expectTimeout \? 1500 : 8000\)/);
