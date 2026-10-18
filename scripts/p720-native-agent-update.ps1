@@ -82,9 +82,10 @@ function SnapshotTrackedChanges {
         }
         $relative = $row.Substring(3)
         # Accept only safe unquoted relative paths; refuse drive/ADS/path tricks.
+        $segments = @($relative.Split('/'))
         if ($relative -cnotmatch '^[A-Za-z0-9_./-]+$' -or
-            $relative.Split('/') -contains '..' -or
-            $relative.Split('/') -contains '.') {
+            $segments -contains '..' -or $segments -contains '.' -or
+            $segments -contains '') {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
         }
         if ($relative.StartsWith('"') -or $relative.Contains(' -> ') -or
@@ -95,9 +96,17 @@ function SnapshotTrackedChanges {
         # Normalize both sides through .NET's canonical Win32 path semantics.
         $child = $relative.Replace('/', [IO.Path]::DirectorySeparatorChar)
         $fullPath = [IO.Path]::GetFullPath([IO.Path]::Combine($canonicalRoot, $child))
-        if (!$fullPath.StartsWith($rootWithSlash,
-                [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        # The allowlisted nonempty relative components above prevent absolute
+        # paths and traversal. Forbid *intermediate* reparse-point directories
+        # as well as the final file: no junction may redirect outside root.
+        $folder = $canonicalRoot
+        for ($index = 0; $index -lt ($segments.Count - 1); $index++) {
+            $folder = [IO.Path]::Combine($folder, $segments[$index])
+            $parent = Get-Item -LiteralPath $folder -Force -ErrorAction Stop
+            if (!$parent.PSIsContainer -or
+                ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+            }
         }
         if (!(Test-Path -LiteralPath $fullPath -PathType Leaf)) {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
