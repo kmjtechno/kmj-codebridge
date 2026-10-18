@@ -47,9 +47,9 @@ test("CloudOS upgrade is fixed-host, pinned and preserves the agent enrollment",
   assert.match(source, /git -C "\$STAGE" checkout -q --detach "\$PIN"/);
   assert.match(source, /runuser -u "\$AGENT_USER"/);
   for (const operation of [
-    'rev-parse HEAD',
-    'remote get-url origin',
-    'status --porcelain --untracked-files=no',
+    "rev-parse HEAD",
+    "remote get-url origin",
+    "status --porcelain --untracked-files=no",
   ]) {
     assert.ok(
       source.includes(
