@@ -11,8 +11,10 @@ supervisor is present but says `restart.supported=false` and
 Scheduled Task is **Disabled**. A SHA-pinned independent audit run by the
 operator on 2026-10-18 verified `REUSABLE_DISABLED` and the same owner SID as
 the live agent. This only proves the task's metadata; it does **not** prove that
-executing under its S4U logon has equivalent local file/credential/network
-permissions or that switching processes will preserve a gateway connection.
+executing under its S4U logon has network or encrypted-file access. Windows
+Task Scheduler explicitly states S4U logons cannot access the network or
+encrypted files. The disabled task is structurally valid but unsuitable for
+this outbound gateway agent. https://learn.microsoft.com/en-us/windows/win32/taskschd/principal-logontype
 
 In particular: do not run the _different_
 `HANDOFF-P720-AGENT-SUPERVISOR.ps1 -Apply`. That script is for migration from
@@ -35,8 +37,11 @@ The script checks, without returning user names, tokens or raw command lines:
 - running Windows supervisor task, no active jobs or autopilot journal items.
 
 Results are deliberately fail-closed: exit **2** for failed local prerequisite,
-exit **3** if local checks pass but the S4U task-context network/credentials
-canary, fresh gateway heartbeat, and rollback proof are still missing. The
+exit **3** when all local metadata checks pass but the S4U logon is a **known
+network-incompatible identity** (`TAKEOVER_S4U_NETWORK_INCOMPATIBLE`).
+Do not attempt a network canary under S4U; no canary can remove the underlying
+Task Scheduler network/credential limitation. A future approved non-S4U
+identity, fresh gateway heartbeat, and rollback proof are still missing. The
 script **never returns ready=yes**, never changes a scheduled task, and never
 interrupts the active CodeBridge/CineCore agent.
 
@@ -45,9 +50,12 @@ It never inspects, repairs, activates or registers local tasks.
 
 ## Remaining engineering gates before _any_ controlled -Apply
 
-1. Establish S4U task-context access to the enrollment and token resources
-   and outbound gateway **without launching another agent**. An ordinary
-   interactive-user network probe does not satisfy this.
+1. Replace the **deployment design**, not the current task in place: choose an
+   operator-approved non-S4U identity. `InteractiveToken` can use an existing
+   logged-on user session (not unattended across logoff/reboot). A password
+   logon or dedicated service identity requires explicit credential/security
+   review; do not enter passwords or secrets into chat or repo. Verify that
+   identity's access to enrollment and outbound gateway before promotion.
 2. Implement an exact-process-owner takeover transaction that fences active
    work, snapshots known-good task/process settings and local state, and
    explicitly prevents simultaneous sessions of the same enrolled device.
@@ -56,9 +64,9 @@ It never inspects, repairs, activates or registers local tasks.
    files), before advertising restart support.
 4. On failure, restore the disabled-task state and original agent under the
    original identity, verify heartbeat, and report any rollback failure.
-5. Test genuine Windows scheduled-task lifecycle, S4U permissions, duplicate
-   registration refusal, old-agent exit, new-agent heartbeat and negative
-   rollback cases on the physical P720.
+5. Test genuine Windows scheduled-task lifecycle, non-S4U identity and
+   credential permissions, duplicate registration refusal, old-agent exit,
+   new-agent heartbeat and negative rollback cases on the physical P720.
 
 **No blind task enable/start, no stop-process from ChatGPT, no rewriting
 `agent.json`, no editing the dirty project worktree, and no upgrade through
