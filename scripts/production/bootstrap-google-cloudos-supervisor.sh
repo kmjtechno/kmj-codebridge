@@ -90,6 +90,17 @@ node=$(readlink -e "/proc/$pid/exe")
 npm=$(command -v npm || true)
 [[ -n "$npm" && -x "$npm" && "$(stat -Lc %u "$npm")" == 0 ]] ||
   die ROOT_OWNED_NPM_REQUIRED
+# Also verify all parent directories are root-owned and nonwritable:
+# an unprivileged user must not swap out the executable after preflight.
+python3 - "$node" "$npm" <<'PY' || die ROOT_EXECUTABLE_PATH_UNSAFE
+import pathlib,sys
+for argument in sys.argv[1:]:
+    p=pathlib.Path(argument).resolve(strict=True)
+    assert p.is_file()
+    for component in [p,*p.parents]:
+        meta=component.stat()
+        assert meta.st_uid==0 and not (meta.st_mode & 0o022)
+PY
 avail=$(df -Pk /opt | awk 'NR==2 {print $4}')
 [[ "$avail" =~ ^[0-9]+$ && "$avail" -ge 8388608 ]] ||
   die BELOW_8GIB_DISK
