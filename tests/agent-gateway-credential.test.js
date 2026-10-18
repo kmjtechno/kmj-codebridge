@@ -3,7 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { agentSchema } from "../src/config.js";
+import { agentSchema, enrolledAgentSchema } from "../src/config.js";
 import { resolveAgentGatewayCredential } from "../src/agent-gateway-credential.js";
 
 const TOKEN = "fixture-" + "k".repeat(48);
@@ -27,9 +27,14 @@ function setup(t) {
   return { dir, project, stateDir, file, base };
 }
 
+test("public agentSchema retains shape for Windows Supervisor schema consumers", () => {
+  assert.ok(agentSchema.shape.supervisorPipe);
+  assert.ok(agentSchema.shape.supervisorTokenFile);
+});
+
 test("gateway credential schema preserves existing inline enrollment", async (t) => {
   const { base } = setup(t);
-  const parsed = agentSchema.parse({ ...base, token: TOKEN });
+  const parsed = enrolledAgentSchema.parse({ ...base, token: TOKEN });
   assert.equal(await resolveAgentGatewayCredential(parsed), TOKEN);
   assert.equal(parsed.gatewayTokenFile, undefined);
 });
@@ -41,7 +46,7 @@ test("gateway credential schema rejects both or neither credential sources", (t)
     { ...base, token: TOKEN, gatewayTokenFile: file },
     { ...base, token: "too-short" },
   ]) {
-    assert.throws(() => agentSchema.parse(input));
+    assert.throws(() => enrolledAgentSchema.parse(input));
   }
 });
 
@@ -49,7 +54,7 @@ test("gateway credential file stays outside project/state and removes only a fin
   const { file, base } = setup(t);
   fs.writeFileSync(file, TOKEN + "\r\n", { mode: 0o600 });
   fs.chmodSync(file, 0o600);
-  const config = agentSchema.parse({ ...base, gatewayTokenFile: file });
+  const config = enrolledAgentSchema.parse({ ...base, gatewayTokenFile: file });
   if (process.platform === "win32") {
     assert.equal(
       await resolveAgentGatewayCredential(config, {
