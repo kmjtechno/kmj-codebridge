@@ -345,6 +345,25 @@ export function createGitHubBridge(config) {
   const cache = new Map();
   const pendingReads = new Map();
   let cacheEpoch = 0;
+  // Shared free-tier anonymous GitHub egress can exhaust its hourly quota.
+  // Suppress pointless follow-up requests, not errors or authorization checks.
+  let publicQuotaBlockedUntil = 0;
+  const markPublicQuotaBlocked = (headers) => {
+    if (!publicReadOnly) return;
+    const now = Date.now();
+    const reset = Number(headers.get("x-ratelimit-reset"));
+    const retry = Number(headers.get("retry-after"));
+    const budgetMs =
+      Number.isSafeInteger(reset) && reset * 1000 > now
+        ? reset * 1000 - now
+        : Number.isSafeInteger(retry) && retry > 0
+          ? retry * 1000
+          : 3600000;
+    publicQuotaBlockedUntil = Math.max(
+      publicQuotaBlockedUntil,
+      now + Math.max(30000, Math.min(3600000, budgetMs)),
+    );
+  };
   // Accept only bounded HTTP entity tags from the trusted GitHub origin.
   // Never echo entity tags to callers or persist them outside this process.
   const safeEtag = (value) =>
@@ -366,6 +385,8 @@ export function createGitHubBridge(config) {
     if (cached && Date.now() - cached.at < config.cacheSeconds * 1000)
       return Promise.resolve(cached.value);
     if (key && pendingReads.has(key)) return pendingReads.get(key);
+    if (publicReadOnly && Date.now() < publicQuotaBlockedUntil)
+      fail("GITHUB_RATE_LIMIT");
     const requestEpoch = cacheEpoch;
     const execute = async () => {
       const base = new URL(config.apiBase);
@@ -408,14 +429,19 @@ export function createGitHubBridge(config) {
           if (
             response.headers.get("x-ratelimit-remaining") === "0" ||
             response.headers.has("retry-after")
-          )
+          ) {
+            markPublicQuotaBlocked(response.headers);
             fail("GITHUB_RATE_LIMIT");
+          }
           fail("GITHUB_AUTHORIZATION_FAILED");
         }
         if (response.status === 404) fail("GITHUB_NOT_FOUND");
         if (response.status === 409 || response.status === 422)
           fail("GITHUB_CONFLICT");
-        if (response.status === 429) fail("GITHUB_RATE_LIMIT");
+        if (response.status === 429) {
+          markPublicQuotaBlocked(response.headers);
+          fail("GITHUB_RATE_LIMIT");
+        }
         fail("GITHUB_REQUEST_FAILED");
       }
       const value = await readJsonLimited(response.body, 262144);
@@ -449,6 +475,8 @@ export function createGitHubBridge(config) {
 
   const raw = async (repository, suffix) => {
     verifyRepo(repository);
+    if (publicReadOnly && Date.now() < publicQuotaBlockedUntil)
+      fail("GITHUB_RATE_LIMIT");
     const base = new URL(config.apiBase);
     const url = new URL(
       `repos/${safePath(repository)}${suffix ? "/" + suffix.replace(/^\//, "") : ""}`,
@@ -466,7 +494,18 @@ export function createGitHubBridge(config) {
       headers,
       signal: AbortSignal.timeout(10000),
     });
-    if (!response.ok) fail("GITHUB_REQUEST_FAILED");
+    if (!response.ok) {
+      if (
+        (response.status === 403 &&
+          (response.headers.get("x-ratelimit-remaining") === "0" ||
+            response.headers.has("retry-after"))) ||
+        response.status === 429
+      ) {
+        markPublicQuotaBlocked(response.headers);
+        fail("GITHUB_RATE_LIMIT");
+      }
+      fail("GITHUB_REQUEST_FAILED");
+    }
     const text = await readTextLimited(response.body, 65536);
     return bounded(text, 65536);
   };
