@@ -28,6 +28,7 @@ import {
 import { verifyEntitlement } from "./license.js";
 import { fail, publicError } from "./errors.js";
 import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
+import { singleFlightClose } from "./single-flight-close.js";
 import {
   AgentConnectionRecorder,
   gatewayFailureCode,
@@ -398,7 +399,7 @@ export async function startAgent(
     }
   })();
   return {
-    close: async () => {
+    close: singleFlightClose(async () => {
       stopped = true;
       activity.close();
       controller.abort();
@@ -410,6 +411,6 @@ export async function startAgent(
       continuationBridge.close();
       await runner.close();
       releaseAgentLock(agentLock);
-    },
+    }),
   };
 }
