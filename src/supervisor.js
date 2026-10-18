@@ -22,8 +22,13 @@ const CLOUDOS_AGENT_UNIT = "kmj-codebridge-cloudos.service";
 const CLOUDOS_AGENT_CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
 const CLOUDOS_PROJECT_ID = "kmj-cloudos";
 const CLOUDOS_OPERATIONS = new Set([
-  "status", "logs", "config_validate", "restart",
-  "device_status", "project_status", "disk_space",
+  "status",
+  "logs",
+  "config_validate",
+  "restart",
+  "device_status",
+  "project_status",
+  "disk_space",
 ]);
 // The legacy Main Platform agent is enrolled with its own fixed config path. It is
 // selected only by the exact managed project id, never from caller-supplied paths.
@@ -115,12 +120,17 @@ function serviceUnit(service, run, profile = "default") {
     if (service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
     const fields = parseProperties(
       run(SYSTEMCTL, [
-        "show", CLOUDOS_AGENT_UNIT,
-        "--property=LoadState", "--property=ActiveState", "--no-pager",
+        "show",
+        CLOUDOS_AGENT_UNIT,
+        "--property=LoadState",
+        "--property=ActiveState",
+        "--no-pager",
       ]),
     );
-    if (fields.LoadState !== "loaded" ||
-        !["active", "inactive", "failed"].includes(fields.ActiveState))
+    if (
+      fields.LoadState !== "loaded" ||
+      !["active", "inactive", "failed"].includes(fields.ActiveState)
+    )
       fail("SUPERVISOR_SERVICE_UNAVAILABLE");
     return CLOUDOS_AGENT_UNIT;
   }
@@ -1612,8 +1622,10 @@ export function createSupervisorHandler({
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
     // The Google VPS root supervisor cannot start Main Platform CI, update,
     // production, gateway, or arbitrary privileged operations.
-    if (profile === CLOUDOS_SUPERVISOR_PROFILE &&
-        !CLOUDOS_OPERATIONS.has(request.op))
+    if (
+      profile === CLOUDOS_SUPERVISOR_PROFILE &&
+      !CLOUDOS_OPERATIONS.has(request.op)
+    )
       fail("SUPERVISOR_OPERATION_NOT_ALLOWED");
 
     if (request.op === "status") {
@@ -1704,8 +1716,10 @@ export function createSupervisorHandler({
         !PROJECT_ID.test(request.projectId)
       )
         fail("INVALID_SUPERVISOR_REQUEST");
-      if (profile === CLOUDOS_SUPERVISOR_PROFILE &&
-          request.projectId !== CLOUDOS_PROJECT_ID)
+      if (
+        profile === CLOUDOS_SUPERVISOR_PROFILE &&
+        request.projectId !== CLOUDOS_PROJECT_ID
+      )
         fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
       let agentConfig;
       try {
