@@ -37,7 +37,7 @@ test("P720 LocalService canary uses an immutable source and a transient no-trigg
   assert.match(runner, /\$git hash-object -- \$Dst/);
   assert.match(runner, /New-ScheduledTaskPrincipal.*-LogonType ServiceAccount/);
   assert.match(runner, /VerifyOurTask/);
-  assert.match(runner, /@\(.*\.Triggers\)\.Count -ne 0/);
+  assert.match(runner, /\$triggers\.Count -ne 0/);
   assert.match(runner, /Start-ScheduledTask -TaskName \$TaskName/);
   assert.match(runner, /Stop-ScheduledTask -TaskName \$TaskName/);
   assert.match(runner, /Unregister-ScheduledTask -TaskName \$TaskName/);
@@ -60,7 +60,7 @@ test(
     for (const name of [runnerName, canaryName]) {
       const command =
         "$tokens=$null;$errors=$null;" +
-        "[Management.Automation.Language.Parser]::ParseFile('" +
+        "[System.Management.Automation.Language.Parser]::ParseFile('" +
         name.replace(/\//g, "\\") +
         "',[ref]$tokens,[ref]$errors)|Out-Null;" +
         "if($errors.Count -gt 0){exit 8};Write-Output 'PS_AST=PASS'";
