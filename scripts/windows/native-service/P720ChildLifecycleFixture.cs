@@ -5,6 +5,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Reflection;
+using System.Text;
 using System.Threading;
 
 namespace KmjCodeBridge.P720 {
@@ -54,8 +55,13 @@ namespace KmjCodeBridge.P720 {
           // This fixture writes only one fixed, short stdout line. Sending
           // the stop request first avoids asynchronous EventDataReceived races;
           // readiness is independently attested from stdout *after* exit.
-          child.StandardInput.WriteLine(expectTimeout ? "HOLD" : "STOP");
-          child.StandardInput.Flush();
+          // Write exactly ASCII bytes with LF. Avoid StreamWriter's console
+          // encoding/BOM behavior, which can alter a child control message.
+          byte[] instruction = Encoding.ASCII.GetBytes(expectTimeout ?
+            "HOLD\n" : "STOP\n");
+          child.StandardInput.BaseStream.Write(
+            instruction, 0, instruction.Length);
+          child.StandardInput.BaseStream.Flush();
           bool exited = child.WaitForExit(expectTimeout ? 500 : 8000);
           if (expectTimeout) {
             if (exited) return Error(15);
@@ -65,7 +71,12 @@ namespace KmjCodeBridge.P720 {
             if (!child.WaitForExit(3000)) return Error(16);
           } else {
             if (!exited) return Error(14);
-            if (child.ExitCode != 0) return Error(17);
+            if (child.ExitCode != 0) {
+              int exitCode = child.ExitCode;
+              // Diagnostic classes 21..29 are only fixture-defined exits.
+              return Error(exitCode >= 1 && exitCode <= 9 ?
+                20 + exitCode : 17);
+            }
           }
 
           string receipt = child.StandardOutput.ReadToEnd().Trim();
