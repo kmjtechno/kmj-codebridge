@@ -2,8 +2,8 @@
 
 Native CodeBridge GitHub tool calls for `kmjtechno/kmj-cloudos` returned
 `GITHUB_REPOSITORY_DENIED` on 2026-10-18, while the separately connected
-GitHub application could read CloudOS PRs. This means the *running CodeBridge
-gateway* does not authorize the exact CloudOS repository. It does not prove the
+GitHub application could read CloudOS PRs. This means the _running CodeBridge
+gateway_ does not authorize the exact CloudOS repository. It does not prove the
 gateway-held GitHub credential can access the repo.
 
 ## Protected gateway operator procedure
@@ -33,7 +33,7 @@ key material or actual config paths into ChatGPT.
    config. Verify a CloudOS read call, an unauthorized cross-repository denial
    and that Main Platform / CodeBridge repo scopes are unchanged.
 
-If CloudOS is temporarily **public**, this protected *private-grant* helper
+If CloudOS is temporarily **public**, this protected _private-grant_ helper
 refuses to claim that private GitHub App access is proven. Do not weaken its
 gate; re-review repository visibility and proper app installation scope.
 
