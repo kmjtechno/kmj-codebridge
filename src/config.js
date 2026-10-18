@@ -223,7 +223,7 @@ export const gatewaySchema = z
     }
     return config;
   });
-const agentConfigFields = z.object({
+export const agentSchema = z.object({
   gateway: z.string().url(),
   // Existing owner-enrolled inline tokens remain backward compatible.
   // New dedicated service identities can use a separate private file.
@@ -423,7 +423,9 @@ const agentConfigFields = z.object({
     }),
   ]),
 });
-export const agentSchema = agentConfigFields.superRefine((agent, ctx) => {
+// Runtime-only refinement keeps agentSchema.shape available to existing
+// Windows Supervisor field validators and other schema consumers.
+export const enrolledAgentSchema = agentSchema.superRefine((agent, ctx) => {
   if (Boolean(agent.token) === Boolean(agent.gatewayTokenFile))
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
