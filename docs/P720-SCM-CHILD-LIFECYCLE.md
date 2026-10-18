@@ -15,8 +15,10 @@ ready marker, accepts `STOP` on redirected stdin for graceful exit, or
 `HOLD` to simulate a child that does not shut down within the deadline.
 
 The parent explicitly tracks the exact `System.Diagnostics.Process` it
-created. It verifies the ready marker with a bounded wait, waits up to
-8 seconds for graceful exit, and tests a 400 ms timeout branch. Only that
+created. It sends the fixed STOP/HOLD instruction, waits at most
+8 seconds for graceful exit, validates the fixed ready marker from bounded
+fixture-only stdout after child completion, and tests a 500 ms timeout
+branch. Only that
 parent-owned **fixture** process may be terminated if it is unresponsive;
 the test must never enumerate Node processes or stop any existing agent.
 No process command line, username, token, file path or stderr is printed.
