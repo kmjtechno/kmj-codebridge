@@ -49,7 +49,10 @@ test("P720 takeover readiness enforces task, agent and journal integrity", () =>
   assert.match(script, /\$ownerSid\s*=\s*SidOf/);
   assert.match(script, /KMJ_TASK_TAKEOVER_READY=NO'\s*\n\s*exit 3/);
   assert.match(script, /KMJ_TASK_TAKEOVER_READY=NO'\s*\n\s*exit 2/);
-  assert.doesNotMatch(script, /Write-Output.*(?:\.CommandLine|supervisor\.token|\.UserId)/i);
+  assert.doesNotMatch(
+    script,
+    /Write-Output.*(?:\.CommandLine|supervisor\.token|\.UserId)/i,
+  );
 });
 
 test(
