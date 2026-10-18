@@ -22,8 +22,7 @@ function harness({ failOne = false } = {}) {
       if (failOne && args[1] === SERVICE_NAMES[0]) {
         throw Error("unavailable");
       }
-      const result =
-        args[1] === SERVICE_NAMES[0] ? "exit-code" : "success";
+      const result = args[1] === SERVICE_NAMES[0] ? "exit-code" : "success";
       return [
         "LoadState=loaded",
         "ActiveState=inactive",
@@ -45,7 +44,10 @@ test("pinned production maintenance inventory is read-only, categorical and not 
   assert.equal(response.mode, "READ_ONLY");
   assert.equal(response.scope, "kmj-main-platform");
   assert.deepEqual(Object.keys(response.services), [
-    "offsiteBackup", "healthCheck", "offsiteBackupTimer", "healthCheckTimer",
+    "offsiteBackup",
+    "healthCheck",
+    "offsiteBackupTimer",
+    "healthCheckTimer",
   ]);
   assert.equal(response.services.offsiteBackup.result, "exit-code");
   assert.equal(response.services.offsiteBackup.execMainStatus, "255");
@@ -71,7 +73,9 @@ test("maintenance status rejects caller-supplied shell, path, unit, variants or 
     { args: ["restart"] },
     { confirmation: "ACTIVATE_APPROVED_PRODUCTION_RELEASE" },
   ]) {
-    await assert.rejects(handle({ op: "main_platform_maintenance_status", ...injection }));
+    await assert.rejects(
+      handle({ op: "main_platform_maintenance_status", ...injection }),
+    );
   }
   assert.deepEqual(calls, []);
   assert.deepEqual(started, []);
