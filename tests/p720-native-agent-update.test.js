@@ -27,10 +27,7 @@ test("native updater is an opt-in SHA-pinned, scoped and rollback-guarded agent 
   assert.match(source, /'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'/);
   assert.match(source, /'LIVE_CHECKOUT_UNTRUSTED_PATH'/);
   assert.match(source, /'LIVE_CHECKOUT_BYTES_CHANGED'/);
-  assert.match(
-    source,
-    /FileSha256 -Path \$fullPath/,
-  );
+  assert.match(source, /FileSha256 -Path \$fullPath/);
   assert.match(
     source,
     /\$snapshot\.ModifiedCount -gt 0 -and !\$AllowTrackedDirtyCheckout/,
