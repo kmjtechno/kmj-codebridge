@@ -1701,6 +1701,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_maintenance_status: {
+    title: "Main Platform maintenance readiness",
+    description:
+      "Read fixed KMJ-elite backup and health one-shot/timer systemd states through the privileged Supervisor. No caller-selected units, shell, secrets, backup transfer, service restarts or production release approval.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_production_activate: {
     title: "Activate operator-approved Main Platform production release",
     description:
@@ -2985,6 +2992,12 @@ export function createDispatcher(
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
       return await supervisor.request({
         op: "main_platform_production_status",
+      });
+    }
+    if (name === "supervisor_main_platform_maintenance_status") {
+      if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_maintenance_status",
       });
     }
     if (name === "supervisor_main_platform_production_activate") {
