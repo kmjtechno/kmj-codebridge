@@ -73,7 +73,7 @@ NODE=$(readlink -f "/proc/$node_pid/exe")
 # Never touch another agent's work or an in-flight QA gate. Inspect only
 # bounded JSON receipts in the existing enrolled state directory.
 state=$(python3 - "$CONFIG" <<'PY'
-import json, pathlib, sys
+import json, pathlib, pwd, sys
 c=json.loads(pathlib.Path(sys.argv[1]).read_text())
 p=c.get('projects')
 assert isinstance(p,list) and len(p)==1 and p[0].get('id')=='kmj-cloudos'
@@ -82,9 +82,12 @@ assert p[0].get('autopilotGateWorker') in (None, {'enabled':True,'gates':['fast'
 assert not p[0].get('autopilotRepairWorker',{}).get('enabled')
 assert not p[0].get('autopilotLocalWorker',{}).get('enabled')
 assert not p[0].get('autopilotCiWatch',{}).get('enabled')
-state=pathlib.Path(c['stateDir']).resolve(strict=True)
+original=pathlib.Path(c['stateDir'])
+assert original.is_absolute() and not original.is_symlink()
+state=original.resolve(strict=True)
 assert state.is_dir() and state.is_relative_to(pathlib.Path('/home/info'))
-assert state.stat().st_uid==p[0].get('ownerUid',state.stat().st_uid)
+assert state.stat().st_uid==pwd.getpwnam('info').pw_uid
+assert (state/'jobs').is_dir() and not (state/'jobs').is_symlink()
 for f in (state/'jobs').glob('*.json'):
     assert f.is_file() and not f.is_symlink() and f.stat().st_size <= 262144
     j=json.loads(f.read_text())
