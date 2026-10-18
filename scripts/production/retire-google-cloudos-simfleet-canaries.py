@@ -351,7 +351,7 @@ def existing_verified_kvm02_backup():
 
 def existing_verified_kvm03_backup():
     if NAME != "kvm03":
-        raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM02")
+        raise RuntimeError("REUSE_ONLY_AUTHORIZED_FOR_KVM03")
     dest = BACKUP_BASE / REUSE_KVM03_SUBDIR
     archive = dest / "kvm03.tar.gz"
     manifest = dest / "SHA256SUMS"
@@ -373,11 +373,11 @@ def existing_verified_kvm03_backup():
         raise RuntimeError("EXISTING_BACKUP_MANIFEST_MISMATCH")
     with archive.open("rb") as stream:
         actual = hashlib.file_digest(stream, "sha256").hexdigest()
-    if actual != REUSE_KVM02_DIGEST:
+    if actual != REUSE_KVM03_DIGEST:
         raise RuntimeError("EXISTING_BACKUP_CHECKSUM_MISMATCH")
     validate_archive(archive)
-    print("EXISTING_KVM02_BACKUP_SHA256=PASS", flush=True)
-    print("EXISTING_KVM02_BACKUP_PATH=" + str(dest), flush=True)
+    print("EXISTING_KVM03_BACKUP_SHA256=PASS", flush=True)
+    print("EXISTING_KVM03_BACKUP_PATH=" + str(dest), flush=True)
     return archive
 
 
