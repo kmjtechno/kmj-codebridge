@@ -3,6 +3,8 @@
 # NEVER execute the user-owned agent checkout with root privileges.
 set -Eeuo pipefail
 umask 077
+# Root-only deterministic command resolution; never import caller PATH.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
 SOURCE_PIN=fa9340b958ce50000298282d65f3132596c16503
 AGENT_PIN=dea0a6e398cd4706ddc61e314174314b9a6f95ee
