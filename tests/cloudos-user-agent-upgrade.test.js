@@ -46,6 +46,19 @@ test("CloudOS upgrade is fixed-host, pinned and preserves the agent enrollment",
     assert.ok(source.includes(text), text);
   assert.match(source, /git -C "\$STAGE" checkout -q --detach "\$PIN"/);
   assert.match(source, /runuser -u "\$AGENT_USER"/);
+  for (const operation of [
+    'rev-parse HEAD',
+    'remote get-url origin',
+    'status --porcelain --untracked-files=no',
+  ]) {
+    assert.ok(
+      source.includes(
+        'runuser -u "$AGENT_USER" -- git -C "$STAGE" ' + operation,
+      ),
+      "stage Git must run as unprivileged agent: " + operation,
+    );
+  }
+
   assert.match(source, /CONFIG_SHA=/);
   assert.doesNotMatch(source, /(?:rm -rf|git reset|git clean).*kmj-cloudos/);
   assert.doesNotMatch(source, /curl\s*\|\s*bash/);
