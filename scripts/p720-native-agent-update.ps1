@@ -5,7 +5,8 @@ param(
     [Parameter(Mandatory = $true)]
     [ValidatePattern('^[a-f0-9]{40}$')]
     [string]$TargetSha,
-    [switch]$AllowTrackedDirtyCheckout
+    [switch]$AllowTrackedDirtyCheckout,
+    [switch]$AllowUntrackedFiles
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
@@ -59,27 +60,67 @@ function Git([string[]]$GitArgs) {
     return $result | Where-Object { $_ -is [string] }
 }
 
+function FileSha256([string]$Path) {
+    # Built-in .NET SHA256 avoids relying on auto-loaded PowerShell modules
+    # during isolated/no-profile Windows agent verification.
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    $stream = $null
+    try {
+        $stream = [IO.File]::OpenRead($Path)
+        return [BitConverter]::ToString($hasher.ComputeHash($stream)).Replace('-', '')
+    } finally {
+        if ($null -ne $stream) { $stream.Dispose() }
+        $hasher.Dispose()
+    }
+}
+
 function SnapshotTrackedChanges {
-    # Only ordinary unstaged tracked-file modifications are eligible.
-    # Stage/rename/delete/untracked/conflicted/symlink paths fail closed.
+    # Preserve unstaged tracked edits and explicitly opted-in untracked files.
+    # Stage/rename/delete/conflicts/reparse paths fail closed.
     $rows = @(& git.exe -C $repo -c core.quotePath=false status --porcelain=v1 --untracked-files=all)
     if ($LASTEXITCODE -ne 0) { throw 'LIVE_CHECKOUT_STATUS_FAILED' }
     if ($rows.Count -gt 64) { throw 'LIVE_CHECKOUT_DIRTY_LIMIT' }
     $digests = @()
-    $rootWithSlash = $repo.TrimEnd([char]92) + [IO.Path]::DirectorySeparatorChar
+    $trackedCount = 0
+    $untrackedCount = 0
+    $canonicalRoot = [IO.Path]::GetFullPath($repo).TrimEnd([char]92, [char]47)
+    $rootWithSlash = $canonicalRoot + [IO.Path]::DirectorySeparatorChar
     foreach ($row in $rows) {
-        if ($row.Length -lt 4 -or !$row.StartsWith(' M ')) {
+        if ($row.Length -lt 4) { throw 'LIVE_CHECKOUT_UNSUPPORTED_CHANGE' }
+        if ($row.StartsWith(' M ')) {
+            $trackedCount++
+        } elseif ($row.StartsWith('?? ')) {
+            $untrackedCount++
+        } else {
             throw 'LIVE_CHECKOUT_UNSUPPORTED_CHANGE'
         }
         $relative = $row.Substring(3)
+        # Accept only safe unquoted relative paths; refuse drive/ADS/path tricks.
+        $segments = @($relative.Split('/'))
+        if ($relative -cnotmatch '^[A-Za-z0-9_./-]+$' -or
+            $segments -contains '..' -or $segments -contains '.' -or
+            $segments -contains '') {
+            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        }
         if ($relative.StartsWith('"') -or $relative.Contains(' -> ') -or
             $relative.Contains([char]13) -or $relative.Contains([char]10)) {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
         }
-        $fullPath = [IO.Path]::GetFullPath((Join-Path $repo $relative))
-        if (!$fullPath.StartsWith($rootWithSlash,
-                [StringComparison]::OrdinalIgnoreCase)) {
-            throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+        # Avoid provider/current-directory interpretation of nested Git paths.
+        # Normalize both sides through .NET's canonical Win32 path semantics.
+        $child = $relative.Replace('/', [IO.Path]::DirectorySeparatorChar)
+        $fullPath = [IO.Path]::GetFullPath([IO.Path]::Combine($canonicalRoot, $child))
+        # The allowlisted nonempty relative components above prevent absolute
+        # paths and traversal. Forbid *intermediate* reparse-point directories
+        # as well as the final file: no junction may redirect outside root.
+        $folder = $canonicalRoot
+        for ($index = 0; $index -lt ($segments.Count - 1); $index++) {
+            $folder = [IO.Path]::Combine($folder, $segments[$index])
+            $parent = Get-Item -LiteralPath $folder -Force -ErrorAction Stop
+            if (!$parent.PSIsContainer -or
+                ($parent.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
+            }
         }
         if (!(Test-Path -LiteralPath $fullPath -PathType Leaf)) {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
@@ -88,13 +129,17 @@ function SnapshotTrackedChanges {
         if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
         }
-        $digest = (Get-FileHash -LiteralPath $fullPath -Algorithm SHA256).Hash
+        if ($row.StartsWith('?? ') -and $item.Length -gt 8388608) {
+            throw 'LIVE_CHECKOUT_UNTRACKED_FILE_TOO_LARGE'
+        }
+        $digest = FileSha256 -Path $fullPath
         $digests += ($relative + ':' + $digest)
     }
     return @{
         Status = ($rows -join [char]10)
         Digests = ($digests -join [char]10)
-        ModifiedCount = $rows.Count
+        ModifiedCount = $trackedCount
+        UntrackedCount = $untrackedCount
     }
 }
 function AssertCheckoutUnchanged {
@@ -213,7 +258,7 @@ try {
             [IO.FileAttributes]::ReparsePoint)) {
         throw 'PRIVATE_AGENT_CONFIG_MISSING'
     }
-    $configDigest = (Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash
+    $configDigest = (FileSha256 -Path $configPath)
     $cfg = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
     AssertApprovedGateway ([string]$cfg.gateway)
     if (@($cfg.projects).Count -ne 1 -or
@@ -239,7 +284,11 @@ try {
     if ($snapshot.ModifiedCount -gt 0 -and !$AllowTrackedDirtyCheckout) {
         throw 'LIVE_CHECKOUT_NOT_CLEAN'
     }
+    if ($snapshot.UntrackedCount -gt 0 -and !$AllowUntrackedFiles) {
+        throw 'LIVE_CHECKOUT_UNTRACKED_APPROVAL_REQUIRED'
+    }
     Write-Host ('TRACKED_DIRTY_FILES_PRESERVED=' + $snapshot.ModifiedCount)
+    Write-Host ('UNTRACKED_FILES_FINGERPRINTED=' + $snapshot.UntrackedCount)
     if (Test-Path -LiteralPath $release) { throw 'RELEASE_ALREADY_EXISTS' }
     $agents = @(ScopedAgents)
     if ($agents.Count -ne 1) { throw 'ONE_EXISTING_AGENT_REQUIRED' }
@@ -287,7 +336,7 @@ try {
         [int]$stillRunning[0].ProcessId -ne $oldPid) {
         throw 'SCOPED_AGENT_CHANGED_DURING_STAGING'
     }
-    if ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -cne
+    if ((FileSha256 -Path $configPath) -cne
         $configDigest) { throw 'PRIVATE_CONFIG_CHANGED_DURING_STAGING' }
     Write-Host 'STAGED_TESTS=PASS'
 
@@ -306,7 +355,7 @@ try {
     if (!(ConfirmRuntime $newPid $newEntry $startTime)) {
         throw 'NEW_AGENT_HEARTBEAT_NOT_VERIFIED'
     }
-    if ((Get-FileHash -LiteralPath $configPath -Algorithm SHA256).Hash -cne
+    if ((FileSha256 -Path $configPath) -cne
         $configDigest) { throw 'PRIVATE_CONFIG_CHANGED' }
     Write-Host ('NEW_AGENT_PID=' + $newPid)
     Write-Host 'ENROLLMENT_CONFIG_UNCHANGED=PASS'
