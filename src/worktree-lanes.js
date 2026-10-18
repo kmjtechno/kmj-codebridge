@@ -147,6 +147,37 @@ export class WorktreeLanes {
       fail("WORKTREE_CREATE_UNVERIFIED");
     return { ...verified, path: target, reused: false };
   }
+  // Prepare from a previously fetched, immutable origin/main commit without
+  // resetting, cleaning, fetching or even reading the shared checkout's
+  // uncommitted bytes. The caller MUST independently verify the remote SHA.
+  // A stale or absent local remote-tracking ref fails closed.
+  prepareCachedRemoteMain(project, root, laneId, expectedRemoteHead) {
+    if (!LANE.test(laneId) || !SHA.test(expectedRemoteHead))
+      fail("WORKTREE_INPUT_INVALID");
+    const repo = source(root);
+    const cached = git(repo, [
+      "rev-parse",
+      "--verify",
+      "refs/remotes/origin/main^{commit}",
+    ]);
+    if (cached !== expectedRemoteHead) fail("WORKTREE_REMOTE_HEAD_MISMATCH");
+    const rows = this.entries(project, repo);
+    const target = path.join(this.folder(project), laneId);
+    const reused = rows.find((row) => row.laneId === laneId);
+    if (reused) {
+      if (reused.head !== expectedRemoteHead) fail("WORKTREE_HEAD_MISMATCH");
+      return { ...reused, path: target, reused: true };
+    }
+    if (rows.length >= MAX_LANES || exists(target))
+      fail("WORKTREE_LIMIT_EXCEEDED");
+    git(repo, ["worktree", "add", "--detach", target, expectedRemoteHead]);
+    const verified = this.entries(project, repo).find(
+      (row) => row.laneId === laneId,
+    );
+    if (!verified || verified.head !== expectedRemoteHead)
+      fail("WORKTREE_CREATE_UNVERIFIED");
+    return { ...verified, reused: false };
+  }
   cleanup(project, root, laneId, expectedHead) {
     if (!LANE.test(laneId) || !SHA.test(expectedHead))
       fail("WORKTREE_INPUT_INVALID");
