@@ -343,7 +343,7 @@ test("optional Workspace renders scoped files and filters tracked diffs on click
 test("Workspace patch uses a separate 24 KiB plain-text budget without widening status labels", () => {
   const view = openCard();
   const patch =
-    "diff --git a/README.md b/README.md\\n" +
+    "diff --git a/README.md b/README.md\n" +
     "<img src=x onerror=alert(1)>".repeat(1300);
   view.send({
     product: "KMJ CodeBridge",
