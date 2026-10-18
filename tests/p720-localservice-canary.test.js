@@ -79,6 +79,22 @@ test("P720 LocalService canary uses an immutable source and a transient no-trigg
   assert.doesNotMatch(runner, /CANARY_EXECUTION_TIMEOUT/);
 });
 
+test("private enrollment denial is a security boundary, not a request for ACL broadening", () => {
+  assert.match(
+    runner,
+    /KMJ_P720_LOCALSERVICE_CANARY_PRIVATE_RESOURCES=INACCESSIBLE/,
+  );
+  assert.match(runner, /KMJ_P720_LOCALSERVICE_CANARY_ACL_BROADENING=PROHIBITED/);
+  assert.match(
+    runner,
+    /KMJ_P720_LOCALSERVICE_CANARY_NEXT=SEPARATE_MANAGED_IDENTITY_ENROLLMENT_REVIEW/,
+  );
+  assert.match(runner, /\$resultValue -in @\('AGENT_CONFIG_NOT_READABLE'/);
+  assert.doesNotMatch(runner, /icacls\.exe \$(?:Config|Root|Private|Token|Lock)\b/i);
+  assert.doesNotMatch(runner, /(?:Copy-Item|Move-Item|Set-Content)[^\n]*(?:agent\.json|supervisor\.token)/i);
+  assert.match(canary, /WriteReceipt 'result.txt' 'AGENT_CONFIG_NOT_READABLE'/);
+});
+
 test(
   "Windows PowerShell parses both canary scripts and the read-only selftest passes",
   { skip: process.platform !== "win32" },
