@@ -78,6 +78,7 @@ test(
       "with tempfile.TemporaryDirectory() as p:",
       "  root=pathlib.Path(p);mod.IMAGE=root/'kvm03';mod.IMAGE.mkdir()",
       "  mod.ROOT=root",
+      "  (mod.IMAGE/'synthetic-fixture.bin').write_bytes(b'KMJ' * 1024)",
       "  out=root/'backup';out.mkdir(mode=0o700)",
       "  original_run=subprocess.run",
       "  def failed_copy(argv,**kwargs):",
