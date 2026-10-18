@@ -1863,6 +1863,40 @@ export function createSupervisorHandler({
       exactKeys(request, ["op"]);
       return { response: productionReleaseState() };
     }
+    // Fixed, read-only production maintenance inventory. No caller-provided
+    // units, commands, paths or arguments; never triggers a systemd action.
+    // A successful individual probe does not grant production release credit.
+    if (request.op === "main_platform_maintenance_status") {
+      exactKeys(request, ["op"]);
+      const targets = {
+        offsiteBackup: "kmj-elite-offsite-backup.service",
+        healthCheck: "kmj-elite-health-check.service",
+        offsiteBackupTimer: "kmj-elite-offsite-backup.timer",
+        healthCheckTimer: "kmj-elite-health-check.timer",
+      };
+      const services = Object.fromEntries(
+        Object.entries(targets).map(([name, unit]) => [
+          name,
+          fixedUnitStatus(run, unit, [
+            "ActiveState",
+            "SubState",
+            "Result",
+            "ExecMainStatus",
+            "ExecMainExitTimestamp",
+          ]),
+        ]),
+      );
+      return {
+        response: {
+          mode: "READ_ONLY",
+          scope: "kmj-main-platform",
+          services,
+          recentBackupVerified: false,
+          restoreVerified: false,
+          productionReleaseApprovedByThisCheck: false,
+        },
+      };
+    }
 
     if (request.op === "main_platform_production_activate") {
       exactKeys(request, [
