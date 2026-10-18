@@ -18,7 +18,8 @@ BASE=/opt/kmj-codebridge-cloudos-supervisor
 STAGE=''
 BACKUP=''
 NEWCFG=''
-UNITS_INSTALLED=0
+SERVICE_WRITTEN=0
+SOCKET_WRITTEN=0
 CONFIG_CHANGED=0
 SUCCESS=0
 die() { echo "CLOUDOS_SUPERVISOR_BLOCKED=$1" >&2; exit 2; }
@@ -33,10 +34,15 @@ finish() {
       systemctl restart "$UNIT" >/dev/null 2>&1 || true
       echo "SUPERVISOR_CONFIG_ROLLBACK=ATTEMPTED"
     fi
-    if (( UNITS_INSTALLED == 1 )); then
+    if (( SOCKET_WRITTEN == 1 )); then
       systemctl disable --now "$SOCKET_UNIT" >/dev/null 2>&1 || true
+      rm -f -- "/etc/systemd/system/$SOCKET_UNIT"
+    fi
+    if (( SERVICE_WRITTEN == 1 )); then
       systemctl stop "$SERVICE_UNIT" >/dev/null 2>&1 || true
-      rm -f -- "/etc/systemd/system/$SOCKET_UNIT" "/etc/systemd/system/$SERVICE_UNIT"
+      rm -f -- "/etc/systemd/system/$SERVICE_UNIT"
+    fi
+    if (( SOCKET_WRITTEN == 1 || SERVICE_WRITTEN == 1 )); then
       systemctl daemon-reload >/dev/null 2>&1 || true
       echo "SUPERVISOR_NEW_UNITS_ROLLBACK=ATTEMPTED"
     fi
@@ -52,6 +58,8 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 [[ $# == 0 ]] || die UNEXPECTED_ARGUMENTS
 [[ "$(id -u)" == 0 ]] || die ROOT_REQUIRED
+exec 9>/run/lock/kmj-cloudos-supervisor-bootstrap.lock
+flock -n 9 || die ANOTHER_BOOTSTRAP_ACTIVE
 [[ "$(hostname -s)" == "$HOST" ]] || die WRONG_HOST
 [[ "$(curl -fsS --noproxy '*' --connect-timeout 2 --max-time 4 \
   -H 'Metadata-Flavor: Google' \
@@ -211,9 +219,14 @@ chmod 0644 "$temp_service" "$temp_socket"
 [[ ! -e "/etc/systemd/system/$SOCKET_UNIT" &&
    ! -e "/etc/systemd/system/$SERVICE_UNIT" ]] ||
   die CONCURRENT_SUPERVISOR_INSTALL
-mv -n "$temp_service" "/etc/systemd/system/$SERVICE_UNIT"
-mv -n "$temp_socket" "/etc/systemd/system/$SOCKET_UNIT"
-UNITS_INSTALLED=1
+ln -T "$temp_service" "/etc/systemd/system/$SERVICE_UNIT" ||
+  die SERVICE_INSTALL_RACE
+SERVICE_WRITTEN=1
+rm -f -- "$temp_service"
+ln -T "$temp_socket" "/etc/systemd/system/$SOCKET_UNIT" ||
+  die SOCKET_INSTALL_RACE
+SOCKET_WRITTEN=1
+rm -f -- "$temp_socket"
 systemctl daemon-reload
 systemd-analyze verify "$SERVICE_UNIT" "$SOCKET_UNIT" ||
   die SYSTEMD_UNIT_VERIFY_FAILED
