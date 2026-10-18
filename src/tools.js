@@ -518,7 +518,7 @@ const CLOUDOS_HOST_STORAGE_AUDIT_PYTHON = [
   "  else: partial=True",
   "print('CLOUDOS_HOST_STORAGE_AUDIT='+('BLOCKED' if critical_failed else 'PARTIAL' if partial else 'PASS'),flush=True)",
   "sys.exit(1 if critical_failed else 0)",
-].join("\n"););
+].join("\n");
 
 function commandRisk(category) {
   return (
