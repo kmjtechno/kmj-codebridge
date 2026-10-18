@@ -10,6 +10,7 @@ Supported presets:
 - `main-platform-ui-ci` — opt-in fixed Main Platform frontend `npm --prefix apps/platform run check`, `types:check`, `build` variants; local source/build evidence only, never license issuance, migration or production deployment.
 - `python-standard` — requirements install plus pytest and compile verification.
 - `cargo-standard` — locked check/build/test/clippy/format-check plus formatter.
+- `windows-python-trial-qa` — explicit Windows-only, project-local Python trial doctor, regression tests, and non-interactive GUI smoke checks. The administrator first installs and reviews `scripts/codebridge-python-trial-qa.mjs` inside an _enrolled calibration project_, and explicitly enables the preset. Never execute this profile in an unrelated repository or elevated/background desktop session.
 - `go-standard` — test/vet/build plus formatter.
 - `cmake-standard` — configure into the fixed `.kmj-codebridge-build` directory, Debug/Release build and CTest with bounded parallelism. It never installs, publishes or signs.
 
@@ -49,3 +50,32 @@ build ran. Use a lane on any device whose shared checkout holds uncommitted work
 5. GitHub branch protection and exact-head required checks **remain enforced**. Local verification cannot turn a hosted failed run into green, cannot be merged as a substitute for required GitHub checks, and cannot identify the GitHub vendor billing/runner root cause by itself.
 
 No auto-rerun loop, no metered compute purchase, no GitHub Actions self-hosted runner registration, no shell profile and no payment/database/deploy commands. Existing hardware has its own electricity/network costs; "$0" here means **no additional provider CI charges**.
+
+## KMJ Calibration Studio trial on Windows P720
+
+**First repair the interpreter discovery:** an online CodeBridge agent cannot make
+`D:\\KMJ-Calibration-Lab-UV\\.venv\\Scripts\\python.exe` appear on disk.
+The independently released calibration trial has its own read-only Python
+resolver and opt-in `uv` bootstrap. Run it locally in an interactive Windows
+user session and confirm the GUI before adding remote QA.
+
+For unattended, bounded project-only verification, enroll the **separate**
+KMJ Calibration Studio source tree as an authorized project root, then
+configure just `"commandPresets": ["windows-python-trial-qa"]` on that project.
+The approved project must contain a reviewed
+`scripts/codebridge-python-trial-qa.mjs` that accepts only:
+`doctor` (read-only interpreter check), `tests` (local regression tests), and
+`smoke` (non-interactive GUI smoke test). The AI client cannot specify an
+executable, cwd, environment, device path, Python arguments or shell command.
+The runner uses bounded job timeouts, redaction and job receipts.
+
+No installer, arbitrary file access, device-level GUI control, webcam activation,
+projector output, screen capture, credential exposure, code signing or publish
+is granted by this preset. The agent may run in Windows Session 0, so an
+interactive GUI **must** be launched locally by the signed-in operator using
+`OPEN-GUI.cmd`. A headless smoke failure on Session 0 is not proof the desktop
+app fails in the user's graphical session.
+
+Current deployment requires the agent's administrator to opt in and restart
+the pinned device runtime after review. Adding this source preset alone does
+not modify an installed agent, grant a project, or deploy a gateway.
