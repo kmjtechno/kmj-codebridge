@@ -16,7 +16,12 @@ function git(root, ...args) {
   }).trim();
 }
 
-function fixture(t, projectId = "kmj-cloudos", writable = true, hasFullGate = true) {
+function fixture(
+  t,
+  projectId = "kmj-cloudos",
+  writable = true,
+  hasFullGate = true,
+) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cloudos-qa-"));
   t.after(() =>
     fs.rmSync(home, { recursive: true, force: true, maxRetries: 5 }),
