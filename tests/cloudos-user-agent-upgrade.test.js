@@ -60,7 +60,6 @@ test("CloudOS upgrade is fixed-host, pinned and preserves the agent enrollment",
     source.indexOf("CLOUDOS_SERVICES_NOT_ACTIVE_POST") <
       source.indexOf("VERIFIED=1"),
   );
-
 });
 
 test("new runtime goes live only after exact-source check, all tests and backup", () => {
