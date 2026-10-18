@@ -17,8 +17,11 @@ This feature contains two scripts:
   the existing `agent.json`, `supervisor.token`, `state/agent.lock`,
   then performs a certificate-validated HEAD request to the public
   `https://kmjtechno.com/` origin. It never authenticates to the gateway,
-  starts an agent, prints identities, returns token bytes or changes files.
-  Returns 0 only if those limited checks pass. No credential handling.
+  starts an agent, prints identities or returns token bytes. It writes only
+  fixed, bounded, non-secret `started.txt` and `result.txt` receipts into
+  the newly created, temporary canary evidence directory, not into any
+  CodeBridge agent/config/lock/token path. Returns 0 only if those limited
+  checks pass. No credential handling.
 - `scripts/windows/RUN-P720-LOCALSERVICE-CANARY.ps1`: Administrator-only
   runner. Without parameters it checks that the pinned original agent is
   unique, its lock agrees, and the original Scheduled Task is disabled.
@@ -27,8 +30,12 @@ This feature contains two scripts:
   ProgramData directory, registers a **temporary no-trigger** task under
   LocalService, runs the _canary only_, queries the exit code and removes
   its own task and staged files after verifying task identity and hashes.
-  If a task or folder with its reserved name already exists, it refuses
-  instead of overwriting or deleting it.
+  It waits for both fixed receipts and a non-running task, rather than
+  guessing completion from a narrow Task Scheduler `LastRunTime` window.
+  It separately prints scheduler state/last result and task/file cleanup
+  outcomes; neither scheduler success nor process disappearance can replace
+  a well-formed result receipt. If a task or folder with its reserved name
+  already exists, it refuses instead of overwriting or deleting it.
 
 The runner is **not** a managed agent task installer. Its transient task
 never executes `node src/cli.js agent`, touches neither
@@ -37,8 +44,8 @@ edit any credential/config/dirty checkout, and is never configured to run
 at startup. Its cleanup leaves unrecognized or modified resources in place
 and reports `MANUAL_REVIEW` rather than deleting foreign objects.
 
-A canary code 0 is **limited proof** of file-open permission and public
-outbound HTTPS from LocalService. It does not prove the agent enrollment
+A canary code 0 with `PASS_LIMITED` receipt is **limited proof** of file-open
+permission and public outbound HTTPS from LocalService. It does not prove the agent enrollment
 credential works under that context, access to encrypted user data, HMAC
 authorization, task restart or rollback, a successful CodeBridge gateway
 session, or readiness for production cutover.
@@ -65,3 +72,19 @@ Sources:
 
 Related: #393; #526 (SID audit), #527 (read-only preflight),
 #528 (S4U network incompatibility).
+
+## P720 first-run evidence — 2026-10-18
+
+The first owner-executed SHA-pinned canary runner returned
+`CANARY_EXECUTION_TIMEOUT`, exit 2, while reporting
+`CANARY_CLEANUP=OWN_CANARY_FILES_REMOVED` and no original agent/task mutation.
+That outcome is **inconclusive**, not proof of LocalService permission or
+network failure. Source review found that the runner required Task Scheduler's
+`LastRunTime` to be within two seconds of the controller's start timestamp
+and did not retain a separate canary completion receipt. This revision
+supersedes the timing-only acceptance gate with bounded receipts and separate
+cleanup markers. Hosted Windows AST/unit tests do **not** substitute for the
+next physical Windows task run.
+
+Do not rerun the original SHA `5378ae081df63238dede47273a756122cf6d8946`
+with `-Apply`. Use only a subsequent reviewed and CI-green pinned revision.

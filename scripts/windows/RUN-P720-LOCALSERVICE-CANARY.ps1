@@ -19,15 +19,21 @@ $Pinned = 'e3587be842dcc701236b54a2e1de90238a5c3429'
 $Entry = Join-Path $Root "codebridge-releases\$Pinned\src\cli.js"
 $Config = Join-Path $Root 'private\p720-codebridge\agent.json'
 $Dir = Join-Path $env:ProgramData 'KMJ-P720-CodeBridge-LocalService-Canary'
+$EvidenceDir = Join-Path $Dir 'evidence'
+$StartedReceipt = Join-Path $EvidenceDir 'started.txt'
+$ResultReceipt = Join-Path $EvidenceDir 'result.txt'
 $Dst = Join-Path $Dir 'CANARY-P720-LOCALSERVICE.ps1'
-$Url = 'https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/3a1659a5bcad7ed1448711ad797c7fb38cf30322/scripts/windows/CANARY-P720-LOCALSERVICE.ps1'
-$Expected = '20ad7969a677df5a08f75557a3f286217d061f2c'
+$Url = 'https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/9f767f124f7f53a841bed7f8ac0c26dc61b57ab3/scripts/windows/CANARY-P720-LOCALSERVICE.ps1'
+$Expected = 'a81beea084f861532a80c69979b1f0b3c14361f9'
 $Tmp = Join-Path $env:TEMP ('kmj-p720-canary-' + $PID + '.ps1')
 $created = $false
+$evidenceCreated = $false
 $registered = $false
 $removed = $false
 $exitCode = 2
 $cleanup = 'NOT_NEEDED'
+$taskCleanup = 'NOT_NEEDED'
+$stageCleanup = 'NOT_NEEDED'
 $taskArgs = ''
 
 function SidOf([string]$Name) {
@@ -63,6 +69,17 @@ function AssertOriginal {
       [string]::IsNullOrWhiteSpace([string]$lock.owner)) {
     throw 'CANARY_AGENT_LOCK_CHANGED'
   }
+}
+function ReceiptValue([string]$Path, [string[]]$Allowed) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return $null }
+  $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+  if ($item.Length -gt 96 -or
+      ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+    throw 'CANARY_RECEIPT_UNTRUSTED'
+  }
+  $value = (Get-Content -LiteralPath $Path -Raw -ErrorAction Stop).Trim()
+  if ($value -notin $Allowed) { throw 'CANARY_RECEIPT_VALUE_INVALID' }
+  return $value
 }
 function VerifyOurTask([object]$Task) {
   $triggers = @($Task.Triggers | Where-Object { $null -ne $_ })
@@ -118,6 +135,10 @@ try {
     Copy-Item -LiteralPath $Tmp -Destination $Dst -ErrorAction Stop
     $aclResult = & icacls.exe $Dst '/inheritance:r' '/grant:r' '*S-1-5-18:F' '*S-1-5-32-544:F' '*S-1-5-19:RX'
     if ($LASTEXITCODE -ne 0) { throw 'CANARY_FILE_ACL_FAILED' }
+    New-Item -ItemType Directory -Path $EvidenceDir -ErrorAction Stop | Out-Null
+    $evidenceCreated = $true
+    $aclResult = & icacls.exe $EvidenceDir '/inheritance:r' '/grant:r' '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' '*S-1-5-19:(OI)(CI)M'
+    if ($LASTEXITCODE -ne 0) { throw 'CANARY_EVIDENCE_ACL_FAILED' }
     $staged = (& $git hash-object -- $Dst)
     if ($LASTEXITCODE -ne 0 -or [string]$staged -cne $Expected) {
       throw 'CANARY_STAGED_SOURCE_INVALID'
@@ -136,21 +157,44 @@ try {
     $startedAt = Get-Date
     Start-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
     $done = $false
-    for ($i = 0; $i -lt 40; $i++) {
+    $startedProof = $false
+    $resultValue = $null
+    $lastState = 'UNKNOWN'
+    $lastResult = -1
+    $schedulerStarted = $false
+    $allowedResult = @(
+      'PASS_LIMITED','AGENT_CONFIG_NOT_READABLE','SUPERVISOR_TOKEN_NOT_READABLE',
+      'AGENT_LOCK_NOT_READABLE','PUBLIC_GATEWAY_HTTPS_UNREACHABLE','UNCLASSIFIED'
+    )
+    for ($i = 0; $i -lt 45; $i++) {
       Start-Sleep -Seconds 1
+      $startedProof = ((ReceiptValue $StartedReceipt @('STARTED')) -eq 'STARTED')
+      $resultValue = ReceiptValue $ResultReceipt $allowedResult
       $info = Get-ScheduledTaskInfo -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
-      $state = (Get-ScheduledTask -TaskName $TaskName -TaskPath '\').State
-      if ($info.LastRunTime -ge $startedAt.AddSeconds(-2) -and
-          [string]$state -ne 'Running') {
-        $result = [long]$info.LastTaskResult
+      $lastState = [string](Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop).State
+      $lastResult = [long]$info.LastTaskResult
+      $schedulerStarted = ($info.LastRunTime -ge $startedAt.AddMinutes(-1))
+      # Only a local-service-authored bounded receipt proves what ran.
+      # Scheduler LastRunTime may lag or be unavailable: never claim success
+      # from its default HRESULT or from a non-running task state alone.
+      if ($resultValue -and $startedProof -and $lastState -ne 'Running') {
         $done = $true
         break
       }
     }
-    if (-not $done) { throw 'CANARY_EXECUTION_TIMEOUT' }
-    Write-Output "KMJ_P720_LOCALSERVICE_CANARY_TASK_RESULT=$result"
-    if ($result -eq 0) {
-      Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_FILES_AND_PUBLIC_TLS=PASS'
+    Write-Output "KMJ_P720_LOCALSERVICE_CANARY_START_RECEIPT=$startedProof"
+    Write-Output "KMJ_P720_LOCALSERVICE_CANARY_SCHEDULER_STARTED=$schedulerStarted"
+    Write-Output "KMJ_P720_LOCALSERVICE_CANARY_TASK_STATE=$lastState"
+    Write-Output "KMJ_P720_LOCALSERVICE_CANARY_SCHEDULER_RESULT=$lastResult"
+    if (-not $done) {
+      if ($startedProof) {
+        throw 'CANARY_STARTED_BUT_NO_COMPLETION_RECEIPT'
+      }
+      throw 'CANARY_TASK_LAUNCH_NOT_PROVEN'
+    }
+    Write-Output "KMJ_P720_LOCALSERVICE_CANARY_RESULT_RECEIPT=$resultValue"
+    if ($resultValue -ceq 'PASS_LIMITED') {
+      Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_FILES_AND_PUBLIC_TLS=PASS_LIMITED'
       Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_AUTH_AND_TAKEOVER=UNPROVEN'
       $exitCode = 0
     } else {
@@ -173,14 +217,37 @@ try {
       }
       Unregister-ScheduledTask -TaskName $TaskName -TaskPath '\' -Confirm:$false -ErrorAction Stop
       $removed = $true
+      $taskCleanup = 'REMOVED'
       $cleanup = 'CANARY_TASK_REMOVED'
     } catch {
+      $taskCleanup = 'MANUAL_REVIEW'
       $cleanup = 'CANARY_TASK_MANUAL_REVIEW'
       $exitCode = 4
     }
   }
   if ($created -and (-not $registered -or $removed)) {
     try {
+      if ($evidenceCreated) {
+        $items = @(Get-ChildItem -LiteralPath $EvidenceDir -Force -ErrorAction Stop)
+        foreach ($item in $items) {
+          if ($item.PSIsContainer -or
+              ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+              $item.Name -notin @('started.txt','result.txt')) {
+            throw 'CANARY_EVIDENCE_CLEANUP_UNTRUSTED'
+          }
+          $allowed = if ($item.Name -eq 'started.txt') {
+            @('STARTED')
+          } else {
+            @('PASS_LIMITED','AGENT_CONFIG_NOT_READABLE',
+              'SUPERVISOR_TOKEN_NOT_READABLE','AGENT_LOCK_NOT_READABLE',
+              'PUBLIC_GATEWAY_HTTPS_UNREACHABLE','UNCLASSIFIED')
+          }
+          $value = ReceiptValue $item.FullName $allowed
+          if (-not $value) { throw 'CANARY_EVIDENCE_CLEANUP_INVALID' }
+          Remove-Item -LiteralPath $item.FullName -Force -ErrorAction Stop
+        }
+        Remove-Item -LiteralPath $EvidenceDir -ErrorAction Stop
+      }
       if (Test-Path -LiteralPath $Dst -PathType Leaf) {
         $git = (Get-Command git.exe -ErrorAction Stop).Source
         $blob = (& $git hash-object -- $Dst)
@@ -190,8 +257,10 @@ try {
         Remove-Item -LiteralPath $Dst -Force -ErrorAction Stop
       }
       Remove-Item -LiteralPath $Dir -ErrorAction Stop
+      $stageCleanup = 'REMOVED'
       $cleanup = 'OWN_CANARY_FILES_REMOVED'
     } catch {
+      $stageCleanup = 'MANUAL_REVIEW'
       $cleanup = 'CANARY_STAGE_MANUAL_REVIEW'
       $exitCode = 4
     }
@@ -199,6 +268,8 @@ try {
   if (Test-Path -LiteralPath $Tmp -PathType Leaf) {
     Remove-Item -LiteralPath $Tmp -Force -ErrorAction SilentlyContinue
   }
+  Write-Output "KMJ_P720_LOCALSERVICE_CANARY_TASK_CLEANUP=$taskCleanup"
+  Write-Output "KMJ_P720_LOCALSERVICE_CANARY_STAGE_CLEANUP=$stageCleanup"
   Write-Output "KMJ_P720_LOCALSERVICE_CANARY_CLEANUP=$cleanup"
   Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_AGENT_MUTATIONS=NONE'
   Write-Output 'KMJ_P720_LOCALSERVICE_CANARY_TAKEOVER=NOT_PERFORMED'

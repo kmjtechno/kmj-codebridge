@@ -43,8 +43,8 @@ test("P720 LocalService canary never starts an agent, exposes tokens or changes 
 });
 
 test("P720 LocalService canary uses an immutable source and a transient no-trigger task", () => {
-  assert.match(runner, /3a1659a5bcad7ed1448711ad797c7fb38cf30322/);
-  assert.match(runner, /20ad7969a677df5a08f75557a3f286217d061f2c/);
+  assert.match(runner, /9f767f124f7f53a841bed7f8ac0c26dc61b57ab3/);
+  assert.match(runner, /a81beea084f861532a80c69979b1f0b3c14361f9/);
   assert.match(runner, /\$git hash-object -- \$Tmp/);
   assert.match(runner, /\$git hash-object -- \$Dst/);
   assert.match(runner, /New-ScheduledTaskPrincipal.*-LogonType ServiceAccount/);
@@ -69,6 +69,14 @@ test("P720 LocalService canary uses an immutable source and a transient no-trigg
   assert.match(canary, /UseDefaultCredentials = \$false/);
   assert.match(canary, /FileReadableWithoutContents/);
   assert.match(canary, /KMJ_P720_SERVICE_CANARY=PASS_LIMITED/);
+  assert.match(canary, /function WriteReceipt/);
+  assert.match(canary, /FileMode\]::CreateNew/);
+  assert.match(runner, /CANARY_STARTED_BUT_NO_COMPLETION_RECEIPT/);
+  assert.match(runner, /CANARY_TASK_LAUNCH_NOT_PROVEN/);
+  assert.match(runner, /KMJ_P720_LOCALSERVICE_CANARY_RESULT_RECEIPT=/);
+  assert.match(runner, /KMJ_P720_LOCALSERVICE_CANARY_TASK_CLEANUP=/);
+  assert.match(runner, /KMJ_P720_LOCALSERVICE_CANARY_STAGE_CLEANUP=/);
+  assert.doesNotMatch(runner, /CANARY_EXECUTION_TIMEOUT/);
 });
 
 test(

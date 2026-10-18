@@ -20,16 +20,43 @@ $Token = Join-Path $Private 'supervisor.token'
 $Lock = Join-Path $Private 'state\agent.lock'
 $GatewayOrigin = 'https://kmjtechno.com/'
 $LocalServiceSid = 'S-1-5-19'
+$ReceiptDir = Join-Path $env:ProgramData 'KMJ-P720-CodeBridge-LocalService-Canary\evidence'
+
+# Only two fixed short non-secret receipts may be written in the isolated canary
+# staging area. No config/token/lock writes, no command lines, no account names.
+function WriteReceipt([string]$Name, [string]$Value) {
+  if ($Name -notin @('started.txt','result.txt') -or
+      $Value -notin @('STARTED','PASS_LIMITED','AGENT_CONFIG_NOT_READABLE',
+        'SUPERVISOR_TOKEN_NOT_READABLE','AGENT_LOCK_NOT_READABLE',
+        'PUBLIC_GATEWAY_HTTPS_UNREACHABLE','UNCLASSIFIED')) {
+    throw 'CANARY_RECEIPT_INVALID'
+  }
+  $folder = Get-Item -LiteralPath $ReceiptDir -ErrorAction Stop
+  if (-not $folder.PSIsContainer -or
+      ($folder.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+    throw 'CANARY_RECEIPT_DIRECTORY_UNTRUSTED'
+  }
+  $output = Join-Path $ReceiptDir $Name
+  $file = [IO.File]::Open($output,[IO.FileMode]::CreateNew,
+    [IO.FileAccess]::Write,[IO.FileShare]::None)
+  try {
+    $bytes = [Text.Encoding]::ASCII.GetBytes($Value + [char]10)
+    $file.Write($bytes,0,$bytes.Length)
+    $file.Flush($true)
+  } finally {
+    $file.Dispose()
+  }
+}
 
 function FileReadableWithoutContents([string]$Path) {
-  $item = Get-Item -LiteralPath $Path -ErrorAction Stop
-  if ($item.PSIsContainer -or
-      ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
-      $item.Length -le 0) {
-    return $false
-  }
   $stream = $null
   try {
+    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    if ($item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+        $item.Length -le 0) {
+      return $false
+    }
     $stream = [IO.File]::Open(
       $Path,
       [IO.FileMode]::Open,
@@ -38,6 +65,8 @@ function FileReadableWithoutContents([string]$Path) {
     )
     return $stream.Length -gt 0
   } catch {
+    # LocalService's common AccessDenied / missing-private-path cases must
+    # become a bounded NOT_READABLE receipt rather than a controller timeout.
     return $false
   } finally {
     if ($null -ne $stream) { $stream.Dispose() }
@@ -100,30 +129,46 @@ try {
     exit 22
   }
 
+  WriteReceipt 'started.txt' 'STARTED'
+
   if (-not (FileReadableWithoutContents $Config)) {
+    WriteReceipt 'result.txt' 'AGENT_CONFIG_NOT_READABLE'
     Write-Output 'KMJ_P720_SERVICE_CANARY_BLOCKER=AGENT_CONFIG_NOT_READABLE'
     exit 23
   }
   if (-not (FileReadableWithoutContents $Token)) {
+    WriteReceipt 'result.txt' 'SUPERVISOR_TOKEN_NOT_READABLE'
     Write-Output 'KMJ_P720_SERVICE_CANARY_BLOCKER=SUPERVISOR_TOKEN_NOT_READABLE'
     exit 24
   }
   if (-not (FileReadableWithoutContents $Lock)) {
+    WriteReceipt 'result.txt' 'AGENT_LOCK_NOT_READABLE'
     Write-Output 'KMJ_P720_SERVICE_CANARY_BLOCKER=AGENT_LOCK_NOT_READABLE'
     exit 25
   }
 
   if (-not (PublicHttpsReachable)) {
+    WriteReceipt 'result.txt' 'PUBLIC_GATEWAY_HTTPS_UNREACHABLE'
     Write-Output 'KMJ_P720_SERVICE_CANARY_BLOCKER=PUBLIC_GATEWAY_HTTPS_UNREACHABLE'
     exit 26
   }
 
+  WriteReceipt 'result.txt' 'PASS_LIMITED'
   Write-Output 'KMJ_P720_SERVICE_CANARY_FILE_READ=PASS'
   Write-Output 'KMJ_P720_SERVICE_CANARY_PUBLIC_HTTPS=PASS'
   Write-Output 'KMJ_P720_SERVICE_CANARY=PASS_LIMITED'
   # Exit zero is NOT license to enable the disabled real agent task.
   exit 0
 } catch {
+  # Do not leak exception paths or token material. When the context reached
+  # STARTED, preserve a bounded classification even for unexpected failures.
+  try {
+    if (Test-Path -LiteralPath (Join-Path $ReceiptDir 'started.txt') -PathType Leaf) {
+      if (-not (Test-Path -LiteralPath (Join-Path $ReceiptDir 'result.txt'))) {
+        WriteReceipt 'result.txt' 'UNCLASSIFIED'
+      }
+    }
+  } catch {}
   Write-Output 'KMJ_P720_SERVICE_CANARY_BLOCKER=UNCLASSIFIED'
   exit 27
 }
