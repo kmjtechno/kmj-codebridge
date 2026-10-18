@@ -169,7 +169,11 @@ test("anonymous quota exhaustion blocks repeated reads until GitHub reset withou
     bridge("github_repository", { repository: "kmjtechno/another-project" }),
     /GITHUB_RATE_LIMIT/,
   );
-  assert.equal(calls, 1, "quota block must be shared across allowed repositories");
+  assert.equal(
+    calls,
+    1,
+    "quota block must be shared across allowed repositories",
+  );
   clock += 119000;
   await assert.rejects(
     bridge("github_repository", { repository: repo }),
@@ -228,4 +232,3 @@ test("HTTP 403 without quota evidence remains authorization denial and does not 
   assert.equal(result.default_branch, "main");
   assert.equal(calls, 2);
 });
-
