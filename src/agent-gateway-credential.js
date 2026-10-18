@@ -20,14 +20,12 @@ const isInside = (root, candidate) => {
  */
 export async function resolveAgentGatewayCredential(
   config,
-  {
-    platform = process.platform,
-    validateWindowsAcl = verifyTokenFileAcl,
-  } = {},
+  { platform = process.platform, validateWindowsAcl = verifyTokenFileAcl } = {},
 ) {
   const inline = typeof config.token === "string";
   const external = typeof config.gatewayTokenFile === "string";
-  if (inline === external) throw Error("AGENT_GATEWAY_CREDENTIAL_SOURCE_INVALID");
+  if (inline === external)
+    throw Error("AGENT_GATEWAY_CREDENTIAL_SOURCE_INVALID");
   if (inline) return config.token;
 
   const name = config.gatewayTokenFile;
@@ -39,7 +37,10 @@ export async function resolveAgentGatewayCredential(
     const expected = path.resolve(name);
     const canonical = (value) =>
       platform === "win32" ? value.toLowerCase() : value;
-    if (canonical(path.normalize(resolved)) !== canonical(path.normalize(expected)))
+    if (
+      canonical(path.normalize(resolved)) !==
+      canonical(path.normalize(expected))
+    )
       throw Error("AGENT_GATEWAY_CREDENTIAL_PATH_ALIAS");
 
     for (const project of config.projects ?? []) {
@@ -50,7 +51,12 @@ export async function resolveAgentGatewayCredential(
       throw Error("AGENT_GATEWAY_CREDENTIAL_INSIDE_STATE");
 
     const stat = fs.lstatSync(name);
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size < 32 || stat.size > 4098)
+    if (
+      !stat.isFile() ||
+      stat.isSymbolicLink() ||
+      stat.size < 32 ||
+      stat.size > 4098
+    )
       throw Error("AGENT_GATEWAY_CREDENTIAL_UNSAFE_FILE");
     if (platform === "win32") {
       const acl = await validateWindowsAcl(name);
