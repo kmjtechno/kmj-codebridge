@@ -29,19 +29,22 @@ function pythonCheck(title, statements) {
   });
 }
 
-pythonCheck("snap revision selection requires disabled and active replacement", [
-  "header='Name Version Rev Tracking Publisher Notes\\n'",
-  "lines='core24 2026 1643 stable canonical base,disabled\\ncore24 2026 1644 stable canonical base\\n'",
-  "rows=mod.parse_snap_list(header+lines)",
-  "assert mod.status_for(rows,'core24','1643')=='DISABLED_WITH_ACTIVE_REPLACEMENT'",
-  "assert mod.status_for(rows,'core24','1111')=='ABSENT'",
-  "try: mod.status_for(rows,'core24','1644')",
-  "except RuntimeError as e: assert str(e)=='TARGET_REVISION_IS_ACTIVE'",
-  "else: raise AssertionError('ACCEPTED_ACTIVE_REVISION')",
-  "try: mod.status_for({'core24':[('1643',True)]},'core24','1643')",
-  "except RuntimeError as e: assert str(e)=='ACTIVE_REPLACEMENT_MISSING'",
-  "else: raise AssertionError('ACCEPTED_NO_REPLACEMENT')",
-]);
+pythonCheck(
+  "snap revision selection requires disabled and active replacement",
+  [
+    "header='Name Version Rev Tracking Publisher Notes\\n'",
+    "lines='core24 2026 1643 stable canonical base,disabled\\ncore24 2026 1644 stable canonical base\\n'",
+    "rows=mod.parse_snap_list(header+lines)",
+    "assert mod.status_for(rows,'core24','1643')=='DISABLED_WITH_ACTIVE_REPLACEMENT'",
+    "assert mod.status_for(rows,'core24','1111')=='ABSENT'",
+    "try: mod.status_for(rows,'core24','1644')",
+    "except RuntimeError as e: assert str(e)=='TARGET_REVISION_IS_ACTIVE'",
+    "else: raise AssertionError('ACCEPTED_ACTIVE_REVISION')",
+    "try: mod.status_for({'core24':[('1643',True)]},'core24','1643')",
+    "except RuntimeError as e: assert str(e)=='ACTIVE_REPLACEMENT_MISSING'",
+    "else: raise AssertionError('ACCEPTED_NO_REPLACEMENT')",
+  ],
+);
 
 pythonCheck("malformed and ambiguous snap tables are rejected", [
   "for bad in ('', 'whatever here\\n', 'Name Version Rev Tracking Publisher Notes\\ncore24 hi\\n', 'Name Version Rev Tracking Publisher Notes\\ncore24 a nope track owner disabled\\n'):",
