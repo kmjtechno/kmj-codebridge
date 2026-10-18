@@ -69,7 +69,8 @@ function SnapshotTrackedChanges {
     $digests = @()
     $trackedCount = 0
     $untrackedCount = 0
-    $rootWithSlash = $repo.TrimEnd([char]92) + [IO.Path]::DirectorySeparatorChar
+    $canonicalRoot = [IO.Path]::GetFullPath($repo).TrimEnd([char]92, [char]47)
+    $rootWithSlash = $canonicalRoot + [IO.Path]::DirectorySeparatorChar
     foreach ($row in $rows) {
         if ($row.Length -lt 4) { throw 'LIVE_CHECKOUT_UNSUPPORTED_CHANGE' }
         if ($row.StartsWith(' M ')) {
@@ -90,7 +91,10 @@ function SnapshotTrackedChanges {
             $relative.Contains([char]13) -or $relative.Contains([char]10)) {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
         }
-        $fullPath = [IO.Path]::GetFullPath((Join-Path $repo $relative))
+        # Avoid provider/current-directory interpretation of nested Git paths.
+        # Normalize both sides through .NET's canonical Win32 path semantics.
+        $child = $relative.Replace('/', [IO.Path]::DirectorySeparatorChar)
+        $fullPath = [IO.Path]::GetFullPath([IO.Path]::Combine($canonicalRoot, $child))
         if (!$fullPath.StartsWith($rootWithSlash,
                 [StringComparison]::OrdinalIgnoreCase)) {
             throw 'LIVE_CHECKOUT_UNTRUSTED_PATH'
