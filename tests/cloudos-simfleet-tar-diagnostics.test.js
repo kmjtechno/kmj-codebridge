@@ -71,6 +71,7 @@ test(
       "mod.NAME='kvm03'",
       "with tempfile.TemporaryDirectory() as work:",
       "  dest=pathlib.Path(work)",
+      "  mod.ROOT=dest",
       "  def fake_tar(args,**kw):",
       "    with tarfile.open(fileobj=kw['stdout'],mode='w|gz') as tf:",
       "      for name in ('kvm03','kvm03/dev','kvm03/dev/pts','kvm03/etc'):",

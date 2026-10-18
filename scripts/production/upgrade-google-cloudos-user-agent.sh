@@ -129,9 +129,9 @@ echo "PRESERVE_ENROLLMENT=YES"
 echo "CLOUDOS_CHECKOUT_UNCHANGED=YES"
 runuser -u "$AGENT_USER" -- git clone -q --no-tags "$REPO" "$STAGE" || die CLONE_FAILED
 runuser -u "$AGENT_USER" -- git -C "$STAGE" checkout -q --detach "$PIN" || die PIN_MISSING
-[[ "$(git -C "$STAGE" rev-parse HEAD)" == "$PIN" ]] || die SOURCE_SHA_MISMATCH
-[[ "$(git -C "$STAGE" remote get-url origin)" == "$REPO" ]] || die SOURCE_ORIGIN_MISMATCH
-[[ -z "$(git -C "$STAGE" status --porcelain --untracked-files=no)" ]] || die SOURCE_DIRTY
+[[ "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" rev-parse HEAD)" == "$PIN" ]] || die SOURCE_SHA_MISMATCH
+[[ "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" remote get-url origin)" == "$REPO" ]] || die SOURCE_ORIGIN_MISMATCH
+[[ -z "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" status --porcelain --untracked-files=no)" ]] || die SOURCE_DIRTY
 [[ "$("$NODE" -p 'require(process.argv[1]).name' "$STAGE/package.json")" == @kmjtechno/codebridge ]] || die PACKAGE_MISMATCH
 
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" ci --ignore-scripts --no-audit --no-fund || die NPM_CI_FAILED
