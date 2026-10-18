@@ -25,7 +25,7 @@ This feature contains two scripts:
   With explicit `-Apply` it downloads the companion from an immutable
   commit and checks its exact Git blob, stages into a **new**, restricted
   ProgramData directory, registers a **temporary no-trigger** task under
-  LocalService, runs the *canary only*, queries the exit code and removes
+  LocalService, runs the _canary only_, queries the exit code and removes
   its own task and staged files after verifying task identity and hashes.
   If a task or folder with its reserved name already exists, it refuses
   instead of overwriting or deleting it.
@@ -46,8 +46,8 @@ session, or readiness for production cutover.
 ## Rollout restrictions
 
 Do not execute `-Apply` until reviewed and SHA-pinned source CI is green.
-Physical P720 operator approval is required to run the *new temporary
-canary task* under Administrator rights. That is a change to the host even
+Physical P720 operator approval is required to run the _new temporary
+canary task_ under Administrator rights. That is a change to the host even
 though it does not interrupt any existing agent. A connection to the P720
 through CodeBridge does not grant authority for arbitrary Windows Task
 Scheduler actions, so they must not be simulated or claimed to have run.
@@ -59,6 +59,7 @@ independently validated rollback. LocalService canary failure should block
 rather than cause broad permissions changes.
 
 Sources:
+
 - https://learn.microsoft.com/en-us/windows/win32/taskschd/principal-logontype
 - https://learn.microsoft.com/en-us/powershell/module/scheduledtasks/new-scheduledtaskprincipal
 
