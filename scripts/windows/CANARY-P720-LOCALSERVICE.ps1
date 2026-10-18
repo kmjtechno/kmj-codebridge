@@ -49,14 +49,14 @@ function WriteReceipt([string]$Name, [string]$Value) {
 }
 
 function FileReadableWithoutContents([string]$Path) {
-  $item = Get-Item -LiteralPath $Path -ErrorAction Stop
-  if ($item.PSIsContainer -or
-      ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
-      $item.Length -le 0) {
-    return $false
-  }
   $stream = $null
   try {
+    $item = Get-Item -LiteralPath $Path -ErrorAction Stop
+    if ($item.PSIsContainer -or
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+        $item.Length -le 0) {
+      return $false
+    }
     $stream = [IO.File]::Open(
       $Path,
       [IO.FileMode]::Open,
@@ -65,6 +65,8 @@ function FileReadableWithoutContents([string]$Path) {
     )
     return $stream.Length -gt 0
   } catch {
+    # LocalService's common AccessDenied / missing-private-path cases must
+    # become a bounded NOT_READABLE receipt rather than a controller timeout.
     return $false
   } finally {
     if ($null -ne $stream) { $stream.Dispose() }
@@ -158,8 +160,15 @@ try {
   # Exit zero is NOT license to enable the disabled real agent task.
   exit 0
 } catch {
-  # A failed receipt write must not leak exception paths or token material.
-  # A missing receipt is explicitly inconclusive in the controller.
+  # Do not leak exception paths or token material. When the context reached
+  # STARTED, preserve a bounded classification even for unexpected failures.
+  try {
+    if (Test-Path -LiteralPath (Join-Path $ReceiptDir 'started.txt') -PathType Leaf) {
+      if (-not (Test-Path -LiteralPath (Join-Path $ReceiptDir 'result.txt'))) {
+        WriteReceipt 'result.txt' 'UNCLASSIFIED'
+      }
+    }
+  } catch {}
   Write-Output 'KMJ_P720_SERVICE_CANARY_BLOCKER=UNCLASSIFIED'
   exit 27
 }
