@@ -61,7 +61,7 @@ test("validates complete new config, backs up, restarts and rolls back on failur
     "AUTOPILOT_GATE_PREFLIGHT=PASS",
     "enrolledAgentSchema.parse(config)",
     "before_hash=",
-    "BACKUP=",
+    'BACKUP="$(dirname "$CONFIG")/.kmj-cloudos-gate-backup-',
     'mv -f -- "$STAGE" "$CONFIG"',
     'systemctl restart "$UNIT" || die SERVICE_RESTART_FAILED',
     "NEW_AGENT_HEARTBEAT_MISSING",
