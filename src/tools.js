@@ -3871,11 +3871,36 @@ export function createDispatcher(
       const gate = p.gates[a.gate];
       if (!gate) fail("GATE_NOT_ALLOWED");
       if (!p.writable) fail("READ_ONLY_PROJECT");
+      // Capture the approved detached worktree identity before queueing.
+      // Revalidate immediately before execution, since another chat may
+      // modify the lane while the single permitted job slot is occupied.
+      const selected =
+        a.laneId === undefined
+          ? null
+          : worktreeLanes()
+              .entries(p.id, p.files.root)
+              .find((row) => row.laneId === a.laneId);
+      if (a.laneId !== undefined && !selected) fail("WORKTREE_NOT_FOUND");
+      const verifyLane = () => {
+        const row = worktreeLanes()
+          .entries(p.id, p.files.root)
+          .find((item) => item.laneId === a.laneId);
+        if (
+          !row ||
+          row.head !== selected.head ||
+          row.path !== selected.path
+        )
+          fail("WORKTREE_HEAD_MISMATCH");
+        if (row.dirty) fail("WORKTREE_HAS_UNSAVED_WORK");
+        return row.path;
+      };
+      const cwd = selected ? verifyLane() : p.files.root;
       return runner.run({
         project: p.id,
         gate: laneLabel(a.gate, a.laneId),
         key: a.requestKey,
-        cwd: laneCwd(a.laneId),
+        cwd,
+        ...(selected ? { beforeStart: verifyLane } : {}),
         ...gate,
       });
     }
