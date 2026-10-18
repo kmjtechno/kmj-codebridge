@@ -16,7 +16,7 @@ function git(root, ...args) {
   }).trim();
 }
 
-function fixture(t, projectId = "kmj-cloudos", writable = true) {
+function fixture(t, projectId = "kmj-cloudos", writable = true, hasFullGate = true) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cloudos-qa-"));
   t.after(() =>
     fs.rmSync(home, { recursive: true, force: true, maxRetries: 5 }),
@@ -55,9 +55,23 @@ function fixture(t, projectId = "kmj-cloudos", writable = true) {
   const config = {
     id: "d1",
     stateDir,
-    projects: [{ id: projectId, root, writable, gates: hasFullGate ? {
-      full: { command: "python3", args: ["-B", "-m", "unittest", "discover", "-s", "tests"], timeoutMs: 90000 },
-    } : {}, commands: {} }],
+    projects: [
+      {
+        id: projectId,
+        root,
+        writable,
+        gates: hasFullGate
+          ? {
+              full: {
+                command: "python3",
+                args: ["-B", "-m", "unittest", "discover", "-s", "tests"],
+                timeoutMs: 90000,
+              },
+            }
+          : {},
+        commands: {},
+      },
+    ],
   };
   const dispatch = createDispatcher(config, runner, () => ({
     features: ["read", "write", "execute"],
@@ -95,7 +109,14 @@ test("fixed CloudOS QA runs only on a clean detached exact-HEAD lane", async (t)
   assert.equal(job.project, "kmj-cloudos");
   assert.equal(job.key, "cloudos-safe-qa-01");
   assert.equal(job.command, "python3");
-  assert.deepEqual(job.args, ["-B", "-m", "unittest", "discover", "-s", "tests"]);
+  assert.deepEqual(job.args, [
+    "-B",
+    "-m",
+    "unittest",
+    "discover",
+    "-s",
+    "tests",
+  ]);
   assert.equal(job.timeoutMs, 90000);
   assert.match(
     job.gate,
@@ -172,11 +193,20 @@ test("missing required CloudOS files block queued QA from running", async (t) =>
   );
 });
 
-
 test("CloudOS fixed QA requires an administrator-approved full gate", async (t) => {
   const f = fixture(t, "kmj-cloudos", true, false);
-  const list = await f.dispatch("list_project_commands", { device: "d1", project: "kmj-cloudos" }, ["read"]);
-  assert.equal(list.commands.some((cmd) => cmd.id === "cloudos_release_qa"), false);
-  await assert.rejects(f.dispatch("run_project_command", f.input(), ["execute"]), /CLOUDOS_QA_GATE_NOT_CONFIGURED/);
+  const list = await f.dispatch(
+    "list_project_commands",
+    { device: "d1", project: "kmj-cloudos" },
+    ["read"],
+  );
+  assert.equal(
+    list.commands.some((cmd) => cmd.id === "cloudos_release_qa"),
+    false,
+  );
+  await assert.rejects(
+    f.dispatch("run_project_command", f.input(), ["execute"]),
+    /CLOUDOS_QA_GATE_NOT_CONFIGURED/,
+  );
   assert.equal(f.jobs.length, 0);
 });
