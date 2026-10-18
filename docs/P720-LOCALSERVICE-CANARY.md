@@ -65,6 +65,27 @@ single-agent ownership transfer, fresh server-observed heartbeat, and
 independently validated rollback. LocalService canary failure should block
 rather than cause broad permissions changes.
 
+## Final physical result: private config inaccessible (2026-10-18)
+
+The second, receipt-based, exact-merge-pinned physical P720 run **did launch**
+the LocalService task. Its `STARTED` receipt and Task Scheduler state agreed,
+and its `RESULT` receipt was `AGENT_CONFIG_NOT_READABLE` (task result 23,
+runner exit 3). Both the temporary task and the staged files reported
+`REMOVED`; original agents, source checkout and disabled S4U task were
+untouched. The HTTPS probe was not reached.
+
+This is a **security boundary**, not permission to expand file access or run
+the canary again. The current user-owned `agent.json` includes the enrolled
+agent bearer token (see `agentSchema` in `src/config.js`). Do **not** grant
+LocalService or other shared built-in identities access to that existing
+private configuration, token or state.
+
+For 24/7 unattended service startup, use an isolated service account,
+**separately approved enrollment**, service-specific ACLs, exclusive ownership
+fencing, a fresh authenticated gateway heartbeat and tested rollback. Do not
+turn the existing disabled S4U task on. See
+[P720 private enrollment boundary](P720-PRIVATE-ENROLLMENT-BOUNDARY.md).
+
 Sources:
 
 - https://learn.microsoft.com/en-us/windows/win32/taskschd/principal-logontype
