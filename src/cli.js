@@ -88,11 +88,22 @@ try {
     console.log(`KMJ CodeBridge ${mode} started; version ${version}.`);
     let closing = false;
     for (const sig of ["SIGINT", "SIGTERM"])
-      process.on(sig, async () => {
+      process.on(sig, () => {
         if (closing) return;
         closing = true;
-        await service.close();
-        process.exit(0);
+        void Promise.resolve()
+          .then(() => service.close())
+          .then(
+            () => process.exit(0),
+            () => {
+              // Never print a shutdown exception (it may include a path or
+              // credential) or acknowledge an unverified agent drain as PASS.
+              // Keep the process/lock disposition for operator diagnosis;
+              // do not force-kill workers when cleanup failed.
+              console.error("Graceful shutdown failed; cleanup not verified.");
+              process.exitCode = 1;
+            },
+          );
       });
   }
 } catch {
