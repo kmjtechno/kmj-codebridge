@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -116,3 +117,43 @@ test("host audit rejects overrides and wrong project/device", async (t) => {
   }
   assert.equal(f.jobs.length, 0);
 });
+
+test(
+  "host audit reports partial visibility without claiming full disk inventory, and blocks unhealthy services",
+  { skip: process.platform === "win32" },
+  async (t) => {
+    const f = fixture(t);
+    await f.dispatch("run_project_command", f.request(), ["execute"]);
+    const command = f.jobs[0].args[3];
+    const driver = String.raw`
+import sys,socket,subprocess,types
+socket.gethostname=lambda: 'google-vps1'
+scenario=sys.argv[2]
+def simulated(argv,**kwargs):
+    if argv[0] == 'systemctl':
+        return types.SimpleNamespace(returncode=1 if scenario == 'services' else 0,stdout='active\nactive\nactive\n')
+    if argv[0] == 'du':
+        return types.SimpleNamespace(returncode=1 if scenario == 'partial' else 0,stdout='1G\t/sample\n')
+    return types.SimpleNamespace(returncode=0,stdout='Filesystem Size Used Avail Use% Mounted on\n')
+subprocess.run=simulated
+exec(sys.argv[1], {'__name__':'__main__'})
+`;
+    const simulate = (scenario) =>
+      spawnSync("python3", ["-I", "-B", "-c", driver, command, scenario], {
+        timeout: 10000,
+        encoding: "utf8",
+      });
+    const healthy = simulate("healthy");
+    assert.equal(healthy.status, 0, healthy.stderr);
+    assert.match(healthy.stdout, /CLOUDOS_HOST_STORAGE_AUDIT=PASS/);
+    const partial = simulate("partial");
+    assert.equal(partial.status, 0, partial.stderr);
+    assert.match(partial.stdout, /READ_ONLY_CHECK_HOST_DIRS=PARTIAL/);
+    assert.match(partial.stdout, /CLOUDOS_HOST_STORAGE_AUDIT=PARTIAL/);
+    assert.doesNotMatch(partial.stdout, /CLOUDOS_HOST_STORAGE_AUDIT=PASS/);
+    const blocked = simulate("services");
+    assert.equal(blocked.status, 1, blocked.stderr);
+    assert.match(blocked.stdout, /READ_ONLY_CHECK_SERVICES=BLOCKED/);
+    assert.match(blocked.stdout, /CLOUDOS_HOST_STORAGE_AUDIT=BLOCKED/);
+  },
+);
