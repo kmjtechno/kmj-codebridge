@@ -45,14 +45,20 @@ test("synchronous shutdown exceptions become rejected promises", async () => {
     throw new Error("fixture");
   });
   await assert.rejects(close(), /fixture/);
-  assert.throws(() => singleFlightClose(null), /SHUTDOWN_CLOSE_FUNCTION_REQUIRED/);
+  assert.throws(
+    () => singleFlightClose(null),
+    /SHUTDOWN_CLOSE_FUNCTION_REQUIRED/,
+  );
 });
 
 test("agent and CLI never duplicate or falsely acknowledge lifecycle teardown", () => {
   const agent = fs.readFileSync("src/agent.js", "utf8");
   const cli = fs.readFileSync("src/cli.js", "utf8");
   assert.match(agent, /close: singleFlightClose\(async \(\) =>/);
-  assert.match(agent, /await runner\.close\(\);\s+releaseAgentLock\(agentLock\)/);
+  assert.match(
+    agent,
+    /await runner\.close\(\);\s+releaseAgentLock\(agentLock\)/,
+  );
   assert.match(cli, /if \(closing\) return/);
   assert.match(cli, /Promise\.resolve\(\)/);
   assert.match(cli, /\.then\(\(\) => service\.close\(\)\)/);
