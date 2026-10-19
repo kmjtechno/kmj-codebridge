@@ -309,14 +309,19 @@ test(
   "Windows PowerShell verifies registered old release and rejects extra arguments",
   { skip: process.platform !== "win32" },
   (t) => {
-    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "p720-managed-rollback-"));
+    const temp = fs.mkdtempSync(
+      path.join(os.tmpdir(), "p720-managed-rollback-"),
+    );
     t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
     const repo = path.join(temp, "checkout");
     const releases = path.join(temp, "releases");
     const config = path.join(temp, "agent.json");
     fs.mkdirSync(path.join(repo, "src"), { recursive: true });
     fs.mkdirSync(releases);
-    fs.writeFileSync(path.join(repo, "src", "cli.js"), "console.log('fixture');\n");
+    fs.writeFileSync(
+      path.join(repo, "src", "cli.js"),
+      "console.log('fixture');\n",
+    );
     fs.writeFileSync(config, "{}\n");
     const git = (args) => {
       const proc = spawnSync("git", args, {
@@ -330,8 +335,17 @@ test(
     };
     git(["-C", repo, "init", "-q"]);
     git(["-C", repo, "add", "."]);
-    git(["-C", repo, "-c", "user.name=CI", "-c", "user.email=ci@example.invalid",
-      "commit", "-qm", "fixture"]);
+    git([
+      "-C",
+      repo,
+      "-c",
+      "user.name=CI",
+      "-c",
+      "user.email=ci@example.invalid",
+      "commit",
+      "-qm",
+      "fixture",
+    ]);
     const oldSha = git(["-C", repo, "rev-parse", "HEAD"]);
     const oldRelease = path.join(releases, oldSha);
     git(["-C", repo, "worktree", "add", "--detach", oldRelease, oldSha]);
