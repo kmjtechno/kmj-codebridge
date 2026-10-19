@@ -33,6 +33,7 @@ import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 import { reviewRepairCandidate } from "./autopilot-repair-review.js";
 import {
   inspectBlockers,
+  isTrustedWindowsSupervisorStatus,
   BLOCKER_CODES,
   remediationTaskForBlocker,
 } from "./blocker-recovery.js";
@@ -2078,18 +2079,31 @@ export function createDispatcher(
         writable: p.writable,
       });
     if (name === "inspect_project" || name === "connection_doctor") {
-      // The filesystem preflight alone is never trusted as live Supervisor
-      // evidence. Probe only the fixed existing socket via the bounded,
-      // read-only status RPC; a timeout or invalid result stays unverified.
+      // Only a trusted read-only RPC can verify reachability.
+      // Windows HMAC named pipes are independent of the Linux socket probe.
       const doctorSocketObservation =
-        name === "connection_doctor"
-          ? observeSupervisorSocket({
-              configured: Boolean(config.supervisorSocket),
-            })
-          : null;
+        name !== "connection_doctor"
+          ? null
+          : process.platform === "win32"
+            ? {
+                state:
+                  config.supervisorPipe && config.supervisorTokenFile
+                    ? "WINDOWS_PIPE_CONFIGURED_UNVERIFIED"
+                    : "WINDOWS_PIPE_NOT_CONFIGURED",
+                observedPlatform: "win32",
+                socketExists: null,
+                authenticated: false,
+                noServiceMutation: true,
+              }
+            : observeSupervisorSocket({
+                configured: Boolean(config.supervisorSocket),
+              });
       let doctorSupervisorVerified = false;
       if (
-        doctorSocketObservation?.state === "SOCKET_PRESENT_UNVERIFIED" &&
+        [
+          "SOCKET_PRESENT_UNVERIFIED",
+          "WINDOWS_PIPE_CONFIGURED_UNVERIFIED",
+        ].includes(doctorSocketObservation?.state) &&
         typeof supervisor?.request === "function"
       ) {
         try {
@@ -2098,10 +2112,13 @@ export function createDispatcher(
             service: "agent",
           });
           doctorSupervisorVerified =
-            status?.activeState === "active" &&
-            status?.subState === "running" &&
-            Number.isSafeInteger(status?.mainPid) &&
-            status.mainPid > 0;
+            doctorSocketObservation?.state ===
+            "WINDOWS_PIPE_CONFIGURED_UNVERIFIED"
+              ? isTrustedWindowsSupervisorStatus(status)
+              : status?.activeState === "active" &&
+                status?.subState === "running" &&
+                Number.isSafeInteger(status?.mainPid) &&
+                status.mainPid > 0;
         } catch {
           // No warning payload, secrets, or false-positive health claims.
           doctorSupervisorVerified = false;
@@ -2137,7 +2154,10 @@ export function createDispatcher(
                 clientVisibleTools: a.clientVisibleTools ?? null,
                 // Only a successful trusted bounded Supervisor status RPC
                 // upgrades the filesystem observation into live health.
-                supervisorConfigured: Boolean(config.supervisorSocket),
+                supervisorConfigured: Boolean(
+                  config.supervisorSocket ||
+                    (config.supervisorPipe && config.supervisorTokenFile),
+                ),
                 supervisorObservation: doctorSocketObservation,
                 supervisorHealthVerified: doctorSupervisorVerified,
                 workerConfiguration: {

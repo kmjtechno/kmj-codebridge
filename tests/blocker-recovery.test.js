@@ -9,6 +9,7 @@ import { definitions, createDispatcher } from "../src/tools.js";
 import { observeSupervisorSocket } from "../src/supervisor-socket-observation.js";
 import {
   inspectBlockers,
+  isTrustedWindowsSupervisorStatus,
   remediationTaskForBlocker,
 } from "../src/blocker-recovery.js";
 
@@ -17,6 +18,7 @@ function fixture(
   runtimeSource = null,
   projectOptions = {},
   supervisorSocket = null,
+  nativeSupervisor = null,
 ) {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-blocker-recovery-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
@@ -35,6 +37,12 @@ function fixture(
       id: "device1",
       stateDir: path.join(base, "state"),
       ...(supervisorSocket ? { supervisorSocket } : {}),
+      ...(nativeSupervisor
+        ? {
+            supervisorPipe: "\\\\.\\pipe\\kmj-codebridge-supervisor-p720",
+            supervisorTokenFile: path.join(base, "supervisor.token"),
+          }
+        : {}),
       projects: [
         {
           id: "project1",
@@ -49,7 +57,7 @@ function fixture(
     runner,
     license,
     autopilot,
-    null,
+    nativeSupervisor,
     null,
     undefined,
     runtimeSource,
@@ -87,11 +95,17 @@ test("supervisor absent is diagnosed from runtime config without privilege escal
   assert.equal(report.blockerRecovery.supervisor.configured, false);
   assert.equal(report.blockerRecovery.supervisor.connectionVerified, false);
   const expectedCode =
-    process.platform === "linux"
-      ? "SUPERVISOR_NOT_CONFIGURED"
-      : "SUPERVISOR_UNSUPPORTED_PLATFORM";
+    process.platform === "win32"
+      ? "WINDOWS_SUPERVISOR_NOT_CONFIGURED"
+      : process.platform === "linux"
+        ? "SUPERVISOR_NOT_CONFIGURED"
+        : "SUPERVISOR_UNSUPPORTED_PLATFORM";
   const expectedStatus =
-    process.platform === "linux" ? "NOT_CONFIGURED" : "UNSUPPORTED_OS";
+    process.platform === "win32"
+      ? "WINDOWS_PIPE_NOT_CONFIGURED"
+      : process.platform === "linux"
+        ? "NOT_CONFIGURED"
+        : "UNSUPPORTED_OS";
   assert.equal(report.blockerRecovery.supervisor.status, expectedStatus);
   const issue = report.blockerRecovery.blockers.find(
     (entry) => entry.code === expectedCode,
@@ -125,7 +139,12 @@ test("configured supervisor does not imply a live privileged socket", async (t) 
       "Linux filesystem probe must distinguish actual socket state",
     );
   } else {
-    assert.equal(os, "UNSUPPORTED_OS");
+    assert.equal(
+      os,
+      process.platform === "win32"
+        ? "WINDOWS_PIPE_NOT_CONFIGURED"
+        : "UNSUPPORTED_OS",
+    );
   }
   assert.equal(report.blockerRecovery.taskActuallyClaimed, false);
 });
@@ -209,6 +228,102 @@ test("doctor rejects invalid or forged live Supervisor health evidence", () => {
       () => inspectBlockers(invalid),
       /INVALID_SUPERVISOR_LIVE_EVIDENCE/,
     );
+});
+
+test("Windows native Supervisor status needs trusted authenticated shape", () => {
+  const ready = {
+    service: "agent",
+    platform: "win32",
+    supervisor: "windows-native",
+    installed: true,
+    state: "unknown",
+    runtime: { commit: "a".repeat(40), source: "git-detached" },
+    restart: { supported: false },
+    update: { supported: false },
+  };
+  assert.equal(isTrustedWindowsSupervisorStatus(ready), true);
+  for (const forged of [
+    null,
+    { ...ready, supervisor: "linux" },
+    { ...ready, platform: "linux" },
+    { ...ready, service: "gateway" },
+    { ...ready, installed: false },
+    { ...ready, restart: { supported: "true" } },
+    { ...ready, update: { supported: true } },
+  ])
+    assert.equal(isTrustedWindowsSupervisorStatus(forged), false);
+});
+
+test("Windows native pipe is not conflated with unsupported Linux socket", () => {
+  const observation = {
+    state: "WINDOWS_PIPE_CONFIGURED_UNVERIFIED",
+    observedPlatform: "win32",
+    socketExists: null,
+    authenticated: false,
+    noServiceMutation: true,
+  };
+  const unseen = inspectBlockers({
+    supervisorConfigured: true,
+    supervisorObservation: observation,
+  });
+  assert.equal(unseen.supervisor.connectionVerified, false);
+  assert.ok(
+    unseen.blockers.some(
+      (entry) => entry.code === "WINDOWS_SUPERVISOR_HEALTH_NOT_VERIFIED",
+    ),
+  );
+  const verified = inspectBlockers({
+    supervisorConfigured: true,
+    supervisorObservation: observation,
+    supervisorHealthVerified: true,
+  });
+  assert.equal(verified.supervisor.status, "LIVE_STATUS_VERIFIED");
+  assert.equal(verified.supervisor.connectionVerified, true);
+  assert.ok(
+    !verified.blockers.some((entry) =>
+      entry.code.startsWith("WINDOWS_SUPERVISOR_"),
+    ),
+  );
+  assert.equal(verified.autonomousCodingProven, false);
+  assert.match(verified.supervisor.note, /does not prove/);
+});
+
+test("Windows connection doctor validates native pipe response without starting tasks", async (t) => {
+  if (process.platform !== "win32") return;
+  let calls = 0;
+  const supervisor = {
+    request: async ({ op, service }) => {
+      calls += 1;
+      assert.deepEqual({ op, service }, { op: "status", service: "agent" });
+      return {
+        service: "agent",
+        platform: "win32",
+        supervisor: "windows-native",
+        installed: true,
+        state: "unknown",
+        restart: { supported: false },
+        update: { supported: false },
+      };
+    },
+  };
+  const { dispatch, scope } = fixture(t, null, {}, null, supervisor);
+  const report = await dispatch("connection_doctor", scope, ["read"]);
+  assert.equal(calls, 1);
+  assert.equal(report.blockerRecovery.supervisor.connectionVerified, true);
+  assert.equal(
+    report.blockerRecovery.supervisor.status,
+    "LIVE_STATUS_VERIFIED",
+  );
+  assert.equal(report.blockerRecovery.autonomousCodingProven, false);
+  assert.equal(report.blockerRecovery.productionOrBillingModified, false);
+  supervisor.request = async () => ({ service: "agent", platform: "linux" });
+  const refused = await dispatch("connection_doctor", scope, ["read"]);
+  assert.equal(refused.blockerRecovery.supervisor.connectionVerified, false);
+  assert.ok(
+    refused.blockerRecovery.blockers.some(
+      (entry) => entry.code === "WINDOWS_SUPERVISOR_HEALTH_NOT_VERIFIED",
+    ),
+  );
 });
 
 test("Linux socket preflight never connects, deletes files or mutates state", () => {
