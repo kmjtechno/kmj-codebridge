@@ -216,9 +216,15 @@ test("status is truthful: runtime SHA, no update support, restart only with a ve
   assert.equal(response.platform, "win32");
   assert.equal(response.supervisor, "windows-native");
   assert.equal(response.runtime.commit, SHA);
+  assert.equal(response.runtimeScope, "configured-install-dir");
+  assert.deepEqual(response.activeProcessRuntime, {
+    verified: false,
+    reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+  });
   assert.equal(response.state, "Running");
   assert.equal(response.restart.supported, true);
   assert.equal(response.update.supported, false);
+  assert.equal(response.update.scope, "supervisor-command");
   assert.deepEqual(calls[0].slice(1), [
     "/Query",
     "/TN",
@@ -239,6 +245,8 @@ test("status reports no runtime commit instead of guessing", async (t) => {
   const { handler } = makeHandler(t, { revision: () => null });
   const { response } = await handler({ op: "status", service: "agent" });
   assert.equal(response.runtime, null);
+  assert.equal(response.runtimeScope, "configured-install-dir");
+  assert.equal(response.activeProcessRuntime.verified, false);
 });
 
 test("Linux-only and unknown operations are refused, never routed", async (t) => {

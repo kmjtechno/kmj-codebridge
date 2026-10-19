@@ -384,7 +384,14 @@ export function createWindowsSupervisorHandler({
           platform: "win32",
           supervisor: "windows-native",
           installed: exists(config.agent.installDir),
+          // Configured installation revision; NOT an attestation of the live
+          // agent process after an independently run Windows updater.
           runtime: rev ? { commit: rev.commit, source: rev.source } : null,
+          runtimeScope: "configured-install-dir",
+          activeProcessRuntime: {
+            verified: false,
+            reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+          },
           state: task.state,
           restart: {
             supported:
@@ -397,6 +404,7 @@ export function createWindowsSupervisorHandler({
           // Truthful: no Windows updater exists yet; do not imply one.
           update: {
             supported: false,
+            scope: "supervisor-command",
             reason: "WINDOWS_UPDATE_NOT_IMPLEMENTED",
           },
         },

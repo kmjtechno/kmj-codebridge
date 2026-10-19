@@ -23,6 +23,26 @@ refuses everything else with `SUPERVISOR_OPERATION_NOT_ALLOWED`.
 Callers choose only `projectId`, `sha` and `stage`. Executables, argv, cwd, environment, paths, task
 names and the pipe name come from the operator's config file. Unknown request keys are rejected.
 
+## Runtime attribution after an external P720 update
+
+`supervisor_status(agent).runtime` identifies the revision in the
+operator-configured `agent.installDir`. It does **not** attest to the active
+agent process. The additive `runtimeScope=configured-install-dir` and
+`activeProcessRuntime.verified=false` explicitly prevent treating it as the
+connected gateway session's live version.
+
+An independently owner-run guarded updater may install and connect a newer
+agent while the native supervisor observes an older configured directory.
+Correlate `connection_doctor.runtimeRevision`, the live gateway heartbeat,
+Windows PID/process identity and the trusted release provenance before calling
+the system reconciled. A PID change alone does not prove source identity.
+Never print raw process command lines, enrollment secrets or account names.
+
+Do not start a second agent, rewrite the supervisor config, restart Windows
+tasks, or discard dirty files just to make the two SHAs match. The existing
+`update.supported=false` is scoped to the **supervisor command** only; it does
+not negate the separate, manual P720 guarded updater.
+
 ## Authentication and ACLs
 
 Node cannot set a named-pipe DACL, so the pipe itself is **not** the security boundary. Every connection
