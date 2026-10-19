@@ -6,6 +6,35 @@ GitHub application could read CloudOS PRs. This means the _running CodeBridge
 gateway_ does not authorize the exact CloudOS repository. It does not prove the
 gateway-held GitHub credential can access the repo.
 
+## Render-hosted gateway: explicit scoped environment opt-in
+
+When the active gateway is hosted on Render and `github` comes from a
+protected environment-held config, there may be no operator-accessible
+`gateway.json` path. An owner may configure the exact switch
+`CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY=true` **only after** reviewing its
+existing authenticated GitHub proxy/app scope. This switch is off by
+default and adds only `kmjtechno/kmj-cloudos`; it does not change
+GitHub App installation permissions, token contents, unrelated repositories,
+public-read-only policy, OAuth scopes or CI/protected-branch rules.
+
+The hosted parser refuses this setting if the GitHub bridge is disabled,
+anonymous/public read-only, or missing an existing server-side tokenEnv.
+Changes to this variable cause a Render service redeploy: require a reviewed
+CI-green commit, an existing healthy deployment/rollback, and no unapproved
+paid resources. Confirm the **running** gateway's
+`github_connection_doctor({repository:"kmjtechno/kmj-cloudos"})`
+returns `read_ready` with `privateRepository=true`. The setting alone is
+**not** evidence the proxy/credential can read CloudOS. Test that an unrelated
+repository remains denied, preserve current CodeBridge/CineCore grants,
+and do not claim CloudOS production readiness from GitHub metadata.
+
+If the new exact repo is not `read_ready`, revert the environment flag to
+`false` using the existing operator rollback and investigate the upstream
+GitHub App installation/proxy permissions. Never replace the complete
+`CODEBRIDGE_GITHUB_REPOSITORIES` list with a guessed value; do not add a
+wildcard or expose token/config values to chat. The protected Linux gateway
+procedure below remains the supported path for an on-host config file.
+
 ## Protected gateway operator procedure
 
 Use the installed matching version of this source, an **authorized root

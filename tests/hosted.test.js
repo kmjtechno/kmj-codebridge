@@ -42,6 +42,87 @@ test("hosted config can enable the GitHub bridge from private environment settin
   });
 });
 
+test("hosted CloudOS opt-in adds exactly one repo without widening existing private grants", () => {
+  const secured = {
+    ...config,
+    github: {
+      apiBase: "https://existing-github-proxy.example/",
+      tokenEnv: "KMJ_GITHUB_PRIVATE_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-cinecore"],
+      cacheSeconds: 30,
+    },
+  };
+  const baseline = hostedConfig(JSON.stringify(secured), "10000", {});
+  assert.deepEqual(baseline.github.repositories, secured.github.repositories);
+
+  const optedIn = hostedConfig(JSON.stringify(secured), "10000", {
+    CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true",
+  });
+  assert.deepEqual(optedIn.github.repositories, [
+    "kmjtechno/kmj-codebridge",
+    "kmjtechno/kmj-cinecore",
+    "kmjtechno/kmj-cloudos",
+  ]);
+  assert.equal(optedIn.github.tokenEnv, secured.github.tokenEnv);
+  assert.equal(optedIn.github.apiBase, secured.github.apiBase);
+  assert.deepEqual(optedIn.users, baseline.users);
+
+  const alreadyGranted = {
+    ...secured,
+    github: {
+      ...secured.github,
+      repositories: [...secured.github.repositories, "kmjtechno/kmj-cloudos"],
+    },
+  };
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(alreadyGranted), "10000", {
+      CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true",
+    }).github.repositories,
+    alreadyGranted.github.repositories,
+  );
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(secured), "10000", {
+      CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "false",
+    }).github.repositories,
+    secured.github.repositories,
+  );
+});
+
+test("hosted CloudOS opt-in fails closed without a configured private GitHub credential", () => {
+  const env = { CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true" };
+  assert.throws(
+    () => hostedConfig(JSON.stringify(config), "10000", env),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        ...env,
+        CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+        CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "TRUE",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  const privateEnv = {
+    CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
+    CODEBRIDGE_GITHUB_PROXY_TOKEN: "x".repeat(48),
+    CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+    CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true",
+  };
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(config), "10000", privateEnv).github
+      .repositories,
+    ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-cloudos"],
+  );
+});
+
 test("hosted config supports explicit public read-only GitHub mode without a credential", () => {
   const parsed = hostedConfig(JSON.stringify(config), "10000", {
     CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
