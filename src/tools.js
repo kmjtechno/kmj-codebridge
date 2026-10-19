@@ -2112,7 +2112,8 @@ export function createDispatcher(
             service: "agent",
           });
           doctorSupervisorVerified =
-            doctorSocketObservation?.state === "WINDOWS_PIPE_CONFIGURED_UNVERIFIED"
+            doctorSocketObservation?.state ===
+            "WINDOWS_PIPE_CONFIGURED_UNVERIFIED"
               ? isTrustedWindowsSupervisorStatus(status)
               : status?.activeState === "active" &&
                 status?.subState === "running" &&
