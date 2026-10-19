@@ -215,7 +215,47 @@ function ResolvePreviousAgentSource([string]$commandLine) {
     $actualCommon = [IO.Path]::GetFullPath([IO.Path]::Combine($oldDir, $common.Trim()))
     $expectedCommon = [IO.Path]::GetFullPath((Join-Path $repo '.git'))
     if ($actualCommon -ine $expectedCommon) {
-        throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+        # Historical managed releases may be independently cloned rather
+        # than linked worktrees. Preserve rollback only for a verified Git
+        # clone housed entirely inside this immutable SHA release directory.
+        $standaloneGit = Join-Path $oldDir '.git'
+        if (!(Test-Path -LiteralPath $standaloneGit -PathType Container)) {
+            throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+        }
+        $gitItem = Get-Item -LiteralPath $standaloneGit -Force
+        if (!$gitItem.PSIsContainer -or
+            ($gitItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+        }
+        $expectedStandalone = [IO.Path]::GetFullPath($standaloneGit)
+        if ($actualCommon -ine $expectedStandalone) {
+            throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+        }
+        $gitDir = [string](& git.exe -C $oldDir rev-parse --absolute-git-dir)
+        if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($gitDir) -or
+            [IO.Path]::GetFullPath($gitDir.Trim()) -ine $expectedStandalone) {
+            throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+        }
+        $releaseOrigin = [string](& git.exe -C $oldDir remote get-url origin)
+        if ($LASTEXITCODE -ne 0 -or
+            $allowedOrigins -cnotcontains $releaseOrigin.Trim()) {
+            throw 'EXISTING_AGENT_RELEASE_ORIGIN_UNTRUSTED'
+        }
+        # Reject local edits before trusting the exact rollback entry point.
+        $trackedStatus = @(& git.exe -C $oldDir -c core.quotePath=false status --porcelain=v1 --untracked-files=no)
+        if ($LASTEXITCODE -ne 0 -or $trackedStatus.Count -ne 0) {
+            throw 'EXISTING_AGENT_RELEASE_TRACKED_DIRTY'
+        }
+        $expectedCliBlob = [string](& git.exe -C $oldDir rev-parse 'HEAD:src/cli.js')
+        if ($LASTEXITCODE -ne 0 -or
+            $expectedCliBlob.Trim() -notmatch '^[a-f0-9]{40}$') {
+            throw 'EXISTING_AGENT_RELEASE_CLI_UNTRUSTED'
+        }
+        $actualCliBlob = [string](& git.exe -C $oldDir hash-object -- 'src/cli.js')
+        if ($LASTEXITCODE -ne 0 -or
+            $actualCliBlob.Trim() -cne $expectedCliBlob.Trim()) {
+            throw 'EXISTING_AGENT_RELEASE_CLI_UNTRUSTED'
+        }
     }
     return @{
         Entry = $oldEntry
