@@ -198,7 +198,9 @@ export function inspectBlockers({
     socketState === "WINDOWS_PIPE_CONFIGURED_UNVERIFIED" &&
     !supervisorHealthVerified
   )
-    blockers.push(issue("WINDOWS_SUPERVISOR_HEALTH_NOT_VERIFIED", { socketState }));
+    blockers.push(
+      issue("WINDOWS_SUPERVISOR_HEALTH_NOT_VERIFIED", { socketState }),
+    );
   else if (socketState === "UNSUPPORTED_OS")
     blockers.push(issue("SUPERVISOR_UNSUPPORTED_PLATFORM", { socketState }));
   else if (socketState === "SOCKET_MISSING")
