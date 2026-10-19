@@ -20,8 +20,13 @@ test("Brevo Work-like preflight is explicitly a non-executing plan", () => {
 
 test("workflows cannot redirect onto unapproved URLs or pass secrets", () => {
   for (const value of [
-    undefined, null, "", "http://127.0.0.1",
-    "https://evil.example", "billing_upgrade", "brevo_domain_auth?token=ABC",
+    undefined,
+    null,
+    "",
+    "http://127.0.0.1",
+    "https://evil.example",
+    "billing_upgrade",
+    "brevo_domain_auth?token=ABC",
     "brevo_domain_auth\nhttps://localhost",
     { workflow: "brevo_domain_auth" },
   ]) {
@@ -47,7 +52,10 @@ test("no mutable global plan state survives caller edits", () => {
 });
 
 test("MCP preflight registration is read-only and separated from execution", () => {
-  const tools = fs.readFileSync(new URL("../src/tools.js", import.meta.url), "utf8");
+  const tools = fs.readFileSync(
+    new URL("../src/tools.js", import.meta.url),
+    "utf8",
+  );
   assert.match(tools, /browser_workflow_preflight:/);
   assert.match(tools, /if \(name === "browser_workflow_preflight"\)/);
   assert.match(tools, /browserWorkflowPreflight\(a\.workflow\)/);
