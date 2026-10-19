@@ -864,7 +864,10 @@ export const definitions = {
       ...scoped,
       lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
       requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      expectedRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
       objective: z.string().min(1).max(240),
       summary: z.string().min(1).max(1800),
       decisions: z.array(z.string().min(1).max(200)).max(10).default([]),
@@ -882,7 +885,10 @@ export const definitions = {
     input: {
       ...scoped,
       lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      ifNoneMatch: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
     },
     access: "read",
   },
@@ -2251,9 +2257,7 @@ export function createDispatcher(
       };
     if (name === "compact_session_save") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
-      const { requestKey, expectedRevision, objective, summary, decisions,
-        constraints, evidence, blockers, nextSteps } = a;
-      const saved = new CompactSessionStore(config.stateDir).save(p.id, a.lane, {
+      const {
         requestKey,
         expectedRevision,
         objective,
@@ -2263,7 +2267,22 @@ export function createDispatcher(
         evidence,
         blockers,
         nextSteps,
-      });
+      } = a;
+      const saved = new CompactSessionStore(config.stateDir).save(
+        p.id,
+        a.lane,
+        {
+          requestKey,
+          expectedRevision,
+          objective,
+          summary,
+          decisions,
+          constraints,
+          evidence,
+          blockers,
+          nextSteps,
+        },
+      );
       return {
         device: config.id,
         ...saved,
