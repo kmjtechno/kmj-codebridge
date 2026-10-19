@@ -3,6 +3,12 @@ import { localModelReceipt } from "./model-attribution.js";
 
 const DRAFT_TASK = /^auto-draft:[A-Za-z0-9._-]{1,100}$/;
 
+// Local model output is untrusted. Flag commands that could mutate the user's
+// shared checkout; review-only local drafts must never normalize destructive
+// Git advice into a "ready" engineering instruction.
+const SHARED_CHECKOUT_MUTATION =
+  /(?:^|[\n`])\s*(?:\d+[.)]\s*)?(?:[$>]\s*)?(?:git(?:\.exe)?\s+(?:checkout|switch|reset|clean|stash|pull|merge|rebase|fetch|add|commit|push)\b|rm\s+-rf\b|Remove-Item\b)/im;
+
 // This worker produces review-only, untrusted proposals. It does not apply
 // patches, run commands, publish code, mark tasks done or contact cloud APIs.
 export class LocalAutopilotDraftWorker {
@@ -92,6 +98,8 @@ export class LocalAutopilotDraftWorker {
               "KMJ CodeBridge offline engineering draft. Output UNTRUSTED advice only.",
               "Do not claim to have modified files, run tests, or merged code.",
               "Do not request credentials or attempt arbitrary commands.",
+              "Never propose Git checkout, merge, reset, stash, clean or edits in shared dirty worktrees.",
+              "Use only a fresh pinned isolated lane for any proposed code changes.",
               "Produce bounded implementation steps, potential risks and tests.",
               "TASK:",
               claimed.objective.slice(0, 3000),
@@ -112,7 +120,9 @@ export class LocalAutopilotDraftWorker {
             const outcome =
               generated.hitTokenLimit || generated.truncated
                 ? "LOCAL_DRAFT_INCOMPLETE_REVIEW_REQUIRED"
-                : "LOCAL_DRAFT_AWAITING_REVIEW";
+                : SHARED_CHECKOUT_MUTATION.test(generated.response)
+                  ? "LOCAL_DRAFT_UNSAFE_REVIEW_REQUIRED"
+                  : "LOCAL_DRAFT_AWAITING_REVIEW";
             this.journal.checkpoint(claimed.id, project.id, {
               summary: generated.response,
               next: outcome,
