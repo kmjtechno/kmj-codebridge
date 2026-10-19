@@ -99,7 +99,11 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     )
       fail("HOSTED_CONFIG_INVALID");
     if (cloudosOptIn === "true") {
-      if (!config.github || config.github.publicReadOnly || !config.github.tokenEnv)
+      if (
+        !config.github ||
+        config.github.publicReadOnly ||
+        !config.github.tokenEnv
+      )
         fail("HOSTED_CONFIG_INVALID");
       const existing = config.github.repositories;
       const repositories = existing.includes(EXACT_CLOUDOS_REPO)
