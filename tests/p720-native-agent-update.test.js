@@ -285,6 +285,90 @@ test(
   },
 );
 
+test("managed P720 release validation preserves exact rollback target", () => {
+  const source = fs.readFileSync(updaterPath, "utf8");
+  assert.match(source, /function ResolveApprovedExistingRelease/);
+  assert.match(source, /EXISTING_AGENT_RELEASE_COMMAND_NOT_APPROVED/);
+  assert.match(source, /EXISTING_AGENT_RELEASE_SHA_MISMATCH/);
+  assert.match(source, /EXISTING_AGENT_RELEASE_WORKTREE_UNVERIFIED/);
+  assert.match(source, /EXISTING_AGENT_RELEASE_REPARSE_PATH/);
+  assert.match(source, /EXISTING_MANAGED_RELEASE_SHA=/);
+  assert.match(source, /\$rollbackEntry = \[string\]\$prior.Entry/);
+  assert.match(source, /\$rollbackRoot = \[string\]\$prior.Root/);
+  assert.match(
+    source,
+    /StartScoped \$rollbackEntry \$rollbackRoot 'rollback-original'/,
+  );
+  assert.doesNotMatch(
+    source,
+    /\$rollbackPid = StartScoped \$oldEntry \$repo 'rollback-original'/,
+  );
+});
+
+test(
+  "Windows PowerShell verifies registered old release and rejects extra arguments",
+  { skip: process.platform !== "win32" },
+  (t) => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), "p720-managed-rollback-"));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    const repo = path.join(temp, "checkout");
+    const releases = path.join(temp, "releases");
+    const config = path.join(temp, "agent.json");
+    fs.mkdirSync(path.join(repo, "src"), { recursive: true });
+    fs.mkdirSync(releases);
+    fs.writeFileSync(path.join(repo, "src", "cli.js"), "console.log('fixture');\n");
+    fs.writeFileSync(config, "{}\n");
+    const git = (args) => {
+      const proc = spawnSync("git", args, {
+        shell: false,
+        encoding: "utf8",
+        windowsHide: true,
+        timeout: 30000,
+      });
+      assert.equal(proc.status, 0, proc.stderr);
+      return proc.stdout.trim();
+    };
+    git(["-C", repo, "init", "-q"]);
+    git(["-C", repo, "add", "."]);
+    git(["-C", repo, "-c", "user.name=CI", "-c", "user.email=ci@example.invalid",
+      "commit", "-qm", "fixture"]);
+    const oldSha = git(["-C", repo, "rev-parse", "HEAD"]);
+    const oldRelease = path.join(releases, oldSha);
+    git(["-C", repo, "worktree", "add", "--detach", oldRelease, oldSha]);
+    const source = fs.readFileSync(updaterPath, "utf8");
+    const helper = source.match(
+      /function ResolveApprovedExistingRelease\(\[string\]\$commandLine\) \{[\s\S]*?\n\}/,
+    );
+    assert.ok(helper);
+    const quote = (s) => s.replaceAll("'", "''");
+    const powershell = [
+      "$ErrorActionPreference='Stop'",
+      "$repo='" + quote(repo) + "'",
+      "$releases='" + quote(releases) + "'",
+      "$node='" + quote(process.execPath) + "'",
+      "$configPath='" + quote(config) + "'",
+      helper[0],
+      "$entry=Join-Path '" + quote(oldRelease) + "' 'src\\cli.js'",
+      "$line='\"'+$node+'\" \"'+$entry+'\" agent \"'+$configPath+'\"'",
+      "$v=ResolveApprovedExistingRelease $line",
+      "if($v.Sha -cne '" + oldSha + "') { throw 'WRONG_SHA' }",
+      "if($v.Entry -cne $entry) { throw 'WRONG_ROLLBACK_ENTRY' }",
+      "if($v.Root -cne (Split-Path -Parent (Split-Path -Parent $entry))) { throw 'WRONG_ROLLBACK_ROOT' }",
+      "$denied=$false",
+      "try { $null=ResolveApprovedExistingRelease ($line+' --extra') } catch { if($_.Exception.Message -eq 'EXISTING_AGENT_RELEASE_COMMAND_NOT_APPROVED') { $denied=$true } else { throw } }",
+      "if(!$denied) { throw 'EXTRA_ARGUMENT_ACCEPTED' }",
+      "Write-Output 'EXACT_MANAGED_RELEASE_PROVENANCE=PASS'",
+    ].join("\n");
+    const run = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", powershell],
+      { shell: false, timeout: 30000, windowsHide: true, encoding: "utf8" },
+    );
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.match(run.stdout, /EXACT_MANAGED_RELEASE_PROVENANCE=PASS/);
+  },
+);
+
 test("one-click native launch requires pinned known reviewed SHA and sibling script", () => {
   const source = fs.readFileSync(launcherPath, "utf8");
   assert.match(source, new RegExp(PINNED));
