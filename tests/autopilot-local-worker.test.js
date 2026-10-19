@@ -94,6 +94,60 @@ test("local draft is saved and paused, never marked implemented", async (t) => {
   assert.equal(f.calls(), 1);
 });
 
+test("local Ollama suggestions to change a shared dirty Git checkout are flagged for manual safety review", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue("auto-draft:dirty-checkout");
+  const local = f.worker.localModel;
+  f.worker.localModel = () => ({
+    ...local(),
+    generate: async () => ({
+      response: [
+        "Implementation Steps:",
+        "1. Isolate checkout:",
+        "```bash",
+        "git checkout -b isolated-main",
+        "git fetch origin",
+        "git merge origin/main",
+        "```",
+        "Follow with tests.",
+      ].join("\n"),
+      truncated: false,
+      hitTokenLimit: false,
+    }),
+  });
+  await f.worker.tick();
+  const result = f.journal.get(task.id, "repo");
+  assert.equal(result.state, "waiting");
+  assert.equal(result.lastReason, "LOCAL_DRAFT_UNSAFE_REVIEW_REQUIRED");
+  assert.equal(result.checkpoint.next, "LOCAL_DRAFT_UNSAFE_REVIEW_REQUIRED");
+  assert.match(result.checkpoint.summary, /git checkout -b isolated-main/);
+  assert.equal(result.checkpoint.modelUsage.paidInference, false);
+  // A replay never silently accepts or implements an unsafe local proposal.
+  await f.worker.tick();
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.next,
+    "LOCAL_DRAFT_UNSAFE_REVIEW_REQUIRED",
+  );
+});
+
+test("safe pinned private-lane engineering suggestions remain review-only", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue("auto-draft:pinned-private-lane");
+  const local = f.worker.localModel;
+  f.worker.localModel = () => ({
+    ...local(),
+    generate: async () => ({
+      response: "Inspect current Git SHA, propose a fresh pinned private lane, test and request a code review.",
+      truncated: false,
+      hitTokenLimit: false,
+    }),
+  });
+  await f.worker.tick();
+  const result = f.journal.get(task.id, "repo");
+  assert.equal(result.state, "waiting");
+  assert.equal(result.checkpoint.next, "LOCAL_DRAFT_AWAITING_REVIEW");
+});
+
 test("token-limited local model output is persisted but never marked review-ready", async (t) => {
   const f = fixture(t);
   const task = f.enqueue("auto-draft:qwen3-short-reasoning");
