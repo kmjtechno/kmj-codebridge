@@ -18,7 +18,8 @@ const FIELDS = Object.freeze({
   blockers: [8, 160],
   nextSteps: [6, 180],
 });
-const hash = (x) => createHash("sha256").update(JSON.stringify(x)).digest("hex");
+const hash = (x) =>
+  createHash("sha256").update(JSON.stringify(x)).digest("hex");
 
 function cleanText(value, limit) {
   if (
@@ -91,7 +92,9 @@ export function compactSessionHandoff(packet) {
     if (!packet[key].length) lines.push("- None recorded");
     for (const item of packet[key]) lines.push("- " + item);
   }
-  lines.push("Refresh live state with CodeBridge context_resume before new work.");
+  lines.push(
+    "Refresh live state with CodeBridge context_resume before new work.",
+  );
   return lines.join("\n");
 }
 
@@ -178,14 +181,12 @@ export class CompactSessionStore {
 
   save(project, lane, { requestKey, expectedRevision, ...draft }) {
     this.file(project, lane);
-    if (!ID.test(requestKey ?? ""))
-      fail("COMPACT_SESSION_INVALID_UPDATE");
+    if (!ID.test(requestKey ?? "")) fail("COMPACT_SESSION_INVALID_UPDATE");
     const safe = validateCompactDraft(draft);
     const current = this.read(project, lane);
     if (current?.requestKey === requestKey) {
       if (
-        JSON.stringify(safe) !==
-        JSON.stringify(validateCompactDraft(current))
+        JSON.stringify(safe) !== JSON.stringify(validateCompactDraft(current))
       )
         fail("COMPACT_SESSION_IDEMPOTENCY_CONFLICT");
       return { project, lane, revision: current.revision, reused: true };
