@@ -7,22 +7,49 @@ const WORKFLOWS = Object.freeze({
     origin: "https://app.brevo.com",
     domain: "kmjtechno.com",
     stages: Object.freeze([
-      ["check_free_plan", "read", "Confirm free plan; reject subscription upgrades"],
-      ["sign_in", "owner", "Owner signs in using isolated private browser profile"],
-      ["open_domains", "read", "Find sender domains without exposing session data"],
+      [
+        "check_free_plan",
+        "read",
+        "Confirm free plan; reject subscription upgrades",
+      ],
+      [
+        "sign_in",
+        "owner",
+        "Owner signs in using isolated private browser profile",
+      ],
+      [
+        "open_domains",
+        "read",
+        "Find sender domains without exposing session data",
+      ],
       ["add_domain", "approval", "Register kmjtechno.com as a sender domain"],
-      ["review_dns", "read", "Capture only provider-issued public DNS record names and values"],
-      ["apply_dns", "approval", "Apply specific approved records via scoped Cloudflare API"],
+      [
+        "review_dns",
+        "read",
+        "Capture only provider-issued public DNS record names and values",
+      ],
+      [
+        "apply_dns",
+        "approval",
+        "Apply specific approved records via scoped Cloudflare API",
+      ],
       ["verify_domain", "read", "Recheck provider domain authentication"],
-      ["smtp_activation", "approval", "Create/activate secret into server-side secret store, never chat"],
-      ["send_test", "approval", "Send one owner-consented inbox test, verify actual receipt"],
+      [
+        "smtp_activation",
+        "approval",
+        "Create/activate secret into server-side secret store, never chat",
+      ],
+      [
+        "send_test",
+        "approval",
+        "Send one owner-consented inbox test, verify actual receipt",
+      ],
     ]),
   }),
 });
 
 export function browserWorkflowPreflight(workflow) {
-  if (typeof workflow !== "string" ||
-      !Object.hasOwn(WORKFLOWS, workflow)) {
+  if (typeof workflow !== "string" || !Object.hasOwn(WORKFLOWS, workflow)) {
     throw Error("BROWSER_WORKFLOW_NOT_ALLOWLISTED");
   }
   const spec = WORKFLOWS[workflow];
