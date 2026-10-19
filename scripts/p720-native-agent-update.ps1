@@ -172,11 +172,11 @@ function ResolvePreviousAgentSource([string]$commandLine) {
     # additional release-path references and non-Git directories.
     $rootPattern = [regex]::Escape($releases.TrimEnd([char]92, [char]47))
     $pattern = $rootPattern + '[\\/](?<sha>[a-f0-9]{40})[\\/]src[\\/]cli\.js'
-    $matches = [regex]::Matches(
+    $releaseHits = [regex]::Matches
         $commandLine, $pattern,
         [Text.RegularExpressions.RegexOptions]::IgnoreCase
     )
-    if ($matches.Count -ne 1) {
+    if ($releaseHits.Count -ne 1) {
         throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
     }
     $unmatched = [regex]::Replace(
@@ -186,7 +186,7 @@ function ResolvePreviousAgentSource([string]$commandLine) {
     if ($unmatched -match 'codebridge-releases[\\/]') {
         throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
     }
-    $priorSha = $matches[0].Groups['sha'].Value.ToLowerInvariant()
+    $priorSha = $releaseHits[0].Groups['sha'].Value.ToLowerInvariant()
     if ($priorSha -ceq $TargetSha) {
         throw 'EXISTING_AGENT_ALREADY_ON_TARGET'
     }
