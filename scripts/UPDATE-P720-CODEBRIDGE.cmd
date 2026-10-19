@@ -1,7 +1,7 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
 rem Run only on enrolled P720. Uses first-party Git+Node, not ChatGPT plugins.
-set "SHA=76ccafd2982a501cfa2a49574a64ffd9afa82f4e"
+set "SHA=f7e397354aedda1a699485e4a2f871305925b4e5"
 if not exist "%~dp0p720-native-agent-update.ps1" (
   echo BLOCKED: Audited updater is missing beside this launcher.
   exit /b 2
