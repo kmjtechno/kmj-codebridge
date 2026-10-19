@@ -95,17 +95,19 @@ test("hosted CloudOS opt-in fails closed without a configured private GitHub cre
     /HOSTED_CONFIG_INVALID/,
   );
   assert.throws(
-    () => hostedConfig(JSON.stringify(config), "10000", {
-      ...env,
-      CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
-      CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
-    }),
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        ...env,
+        CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+        CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+      }),
     /HOSTED_CONFIG_INVALID/,
   );
   assert.throws(
-    () => hostedConfig(JSON.stringify(config), "10000", {
-      CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "TRUE",
-    }),
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "TRUE",
+      }),
     /HOSTED_CONFIG_INVALID/,
   );
   const privateEnv = {
@@ -115,7 +117,8 @@ test("hosted CloudOS opt-in fails closed without a configured private GitHub cre
     CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true",
   };
   assert.deepEqual(
-    hostedConfig(JSON.stringify(config), "10000", privateEnv).github.repositories,
+    hostedConfig(JSON.stringify(config), "10000", privateEnv).github
+      .repositories,
     ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-cloudos"],
   );
 });
