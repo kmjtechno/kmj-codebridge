@@ -24,6 +24,7 @@ import { planLargePrompt } from "./large-prompt-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { ChatContinuity } from "./chat-continuity.js";
+import { CompactSessionStore } from "./compact-session.js";
 import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
@@ -854,6 +855,36 @@ export const definitions = {
         .default("unknown"),
     },
     access: "write",
+  },
+  compact_session_save: {
+    title: "Compact current engineering session (durable checkpoint)",
+    description:
+      "Save a bounded structured, caller-authored session handoff for one authorized project/chat lane. Keeps objective, locked decisions and constraints, unverified evidence references, blockers and next steps. Rejects secrets, transcript dumps and stale revisions. Does not alter ChatGPT's model context window or automatically read chat history.",
+    input: {
+      ...scoped,
+      lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      expectedRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+      objective: z.string().min(1).max(240),
+      summary: z.string().min(1).max(1800),
+      decisions: z.array(z.string().min(1).max(200)).max(10).default([]),
+      constraints: z.array(z.string().min(1).max(200)).max(12).default([]),
+      evidence: z.array(z.string().min(1).max(180)).max(10).default([]),
+      blockers: z.array(z.string().min(1).max(160)).max(8).default([]),
+      nextSteps: z.array(z.string().min(1).max(180)).min(1).max(6),
+    },
+    access: "write",
+  },
+  compact_session_resume: {
+    title: "Resume compact engineering session",
+    description:
+      "Get a portable, versioned, caller-reported, concise handoff for an authorized project/chat lane. Supply ifNoneMatch for an unchanged-only reply. No secrets, ChatGPT history access, automatic wake, or claims of increased model context window.",
+    input: {
+      ...scoped,
+      lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      ifNoneMatch: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    },
+    access: "read",
   },
   chat_continuity_read: {
     title: "Read durable chat continuity checkpoint",
@@ -2217,6 +2248,39 @@ export function createDispatcher(
       return {
         device: config.id,
         ...coordination().post(p.id, a),
+      };
+    if (name === "compact_session_save") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      const { requestKey, expectedRevision, objective, summary, decisions,
+        constraints, evidence, blockers, nextSteps } = a;
+      const saved = new CompactSessionStore(config.stateDir).save(p.id, a.lane, {
+        requestKey,
+        expectedRevision,
+        objective,
+        summary,
+        decisions,
+        constraints,
+        evidence,
+        blockers,
+        nextSteps,
+      });
+      return {
+        device: config.id,
+        ...saved,
+        checkpointSaved: true,
+        contentTrusted: false,
+        hostContextWindowExtended: false,
+        followUpTool: "compact_session_resume",
+      };
+    }
+    if (name === "compact_session_resume")
+      return {
+        device: config.id,
+        ...new CompactSessionStore(config.stateDir).resume(
+          p.id,
+          a.lane,
+          a.ifNoneMatch,
+        ),
       };
     if (name === "chat_continuity_read")
       return { device: config.id, ...continuity().status(p.id, a.lane) };
