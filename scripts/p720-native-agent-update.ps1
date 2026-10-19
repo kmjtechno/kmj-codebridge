@@ -172,17 +172,11 @@ function ResolvePreviousAgentSource([string]$commandLine) {
     # additional release-path references and non-Git directories.
     $rootPattern = [regex]::Escape($releases.TrimEnd([char]92, [char]47))
     $pattern = $rootPattern + '[\\/](?<sha>[a-f0-9]{40})[\\/]src[\\/]cli\.js'
-    $releaseHits = [regex]::Matches
-        $commandLine, $pattern,
-        [Text.RegularExpressions.RegexOptions]::IgnoreCase
-    )
+    $releaseHits = [regex]::Matches($commandLine, $pattern, [Text.RegularExpressions.RegexOptions]::IgnoreCase)
     if ($releaseHits.Count -ne 1) {
         throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
     }
-    $unmatched = [regex]::Replace(
-        $commandLine, $pattern, '',
-        [Text.RegularExpressions.RegexOptions]::IgnoreCase
-    )
+    $unmatched = [regex]::Replace($commandLine, $pattern, '', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
     if ($unmatched -match 'codebridge-releases[\\/]') {
         throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
     }
@@ -218,9 +212,7 @@ function ResolvePreviousAgentSource([string]$commandLine) {
     if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($common)) {
         throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
     }
-    $actualCommon = [IO.Path]::GetFullPath(
-        [IO.Path]::Combine($oldDir, $common.Trim())
-    )
+    $actualCommon = [IO.Path]::GetFullPath([IO.Path]::Combine($oldDir, $common.Trim()))
     $expectedCommon = [IO.Path]::GetFullPath((Join-Path $repo '.git'))
     if ($actualCommon -ine $expectedCommon) {
         throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
