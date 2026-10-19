@@ -28,6 +28,16 @@ const SAFE_ACTIONS = Object.freeze({
     nextAction:
       "The Linux Unix-socket Supervisor does not run on Windows. Check the existing enrolled Windows user-mode updater and agent health, not systemd or Linux bootstrap scripts.",
   },
+  WINDOWS_SUPERVISOR_NOT_CONFIGURED: {
+    requiredCodeBridgeFeature: "WINDOWS_NATIVE_SUPERVISOR_BINDING",
+    nextAction:
+      "The Windows native supervisor is not configured on this agent. Inspect existing ACL-restricted named-pipe enrollment and operator-owned Windows task; never install or start a duplicate agent.",
+  },
+  WINDOWS_SUPERVISOR_HEALTH_NOT_VERIFIED: {
+    requiredCodeBridgeFeature: "WINDOWS_NATIVE_SUPERVISOR_READONLY_HEALTH",
+    nextAction:
+      "A Windows named pipe is configured but its authenticated status RPC is not verified. Check the existing native supervisor, ACL token and installed runtime; no task restart or credential exposure.",
+  },
   SUPERVISOR_SOCKET_MISSING: {
     requiredCodeBridgeFeature: "TRUSTED_LINUX_SUPERVISOR_SOCKET_BOOTSTRAP",
     nextAction:
@@ -88,6 +98,22 @@ function issue(code, evidence, source = "CODEBRIDGE_RUNTIME") {
  * @param {object} input
  * @returns {object} bounded advice, not an executing autopilot controller
  */
+// A named-pipe reply proves authenticated supervisor transport reachability,
+// not the identity/version of the connected agent process or restart safety.
+export function isTrustedWindowsSupervisorStatus(status) {
+  return (
+    status !== null &&
+    typeof status === "object" &&
+    status.platform === "win32" &&
+    status.supervisor === "windows-native" &&
+    status.service === "agent" &&
+    status.installed === true &&
+    typeof status.state === "string" &&
+    typeof status.restart?.supported === "boolean" &&
+    status.update?.supported === false
+  );
+}
+
 export function inspectBlockers({
   clientVisibleTools = null,
   workerConfiguration = {},
@@ -131,11 +157,16 @@ export function inspectBlockers({
     typeof supervisorHealthVerified !== "boolean" ||
     (supervisorHealthVerified &&
       (supervisorConfigured !== true ||
-        supervisorObservation?.state !== "SOCKET_PRESENT_UNVERIFIED"))
+        ![
+          "SOCKET_PRESENT_UNVERIFIED",
+          "WINDOWS_PIPE_CONFIGURED_UNVERIFIED",
+        ].includes(supervisorObservation?.state)))
   )
     throw new TypeError("INVALID_SUPERVISOR_LIVE_EVIDENCE");
   const socketStates = [
     "UNSUPPORTED_OS",
+    "WINDOWS_PIPE_NOT_CONFIGURED",
+    "WINDOWS_PIPE_CONFIGURED_UNVERIFIED",
     "NOT_CONFIGURED",
     "SOCKET_MISSING",
     "SOCKET_PRESENT_UNVERIFIED",
@@ -161,7 +192,14 @@ export function inspectBlockers({
       : supervisorConfigured === true
         ? "NOT_PROBED"
         : "UNKNOWN");
-  if (socketState === "UNSUPPORTED_OS")
+  if (socketState === "WINDOWS_PIPE_NOT_CONFIGURED")
+    blockers.push(issue("WINDOWS_SUPERVISOR_NOT_CONFIGURED", { socketState }));
+  else if (
+    socketState === "WINDOWS_PIPE_CONFIGURED_UNVERIFIED" &&
+    !supervisorHealthVerified
+  )
+    blockers.push(issue("WINDOWS_SUPERVISOR_HEALTH_NOT_VERIFIED", { socketState }));
+  else if (socketState === "UNSUPPORTED_OS")
     blockers.push(issue("SUPERVISOR_UNSUPPORTED_PLATFORM", { socketState }));
   else if (socketState === "SOCKET_MISSING")
     blockers.push(issue("SUPERVISOR_SOCKET_MISSING", { socketState }));
@@ -262,8 +300,8 @@ export function inspectBlockers({
       status: supervisorHealthVerified ? "LIVE_STATUS_VERIFIED" : socketStatus,
       filesystemObservation: socketState,
       note: supervisorHealthVerified
-        ? "Trusted agent read-only Supervisor status RPC returned healthy runtime evidence; this does not prove future uptime or autonomous worker readiness."
-        : "A socket path or file does not prove the privileged service is installed, authenticated or reachable.",
+        ? "A trusted read-only supervisor status RPC succeeded. Windows named-pipe reachability does not prove the connected agent process revision, restart rights, or autonomous coding."
+        : "A configured socket or Windows pipe alone does not prove authenticated Supervisor connectivity or service health.",
     },
     workerHealth: health,
     blockers,
