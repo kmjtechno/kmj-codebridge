@@ -174,12 +174,14 @@ function ResolveApprovedExistingRelease([string]$commandLine) {
     $normalized = $commandLine.Replace('/', '\')
     $root = [IO.Path]::GetFullPath($releases).TrimEnd([char]92, [char]47)
     $pattern = [regex]::Escape($root) + '\\(?<sha>[a-f0-9]{40})\\src\\cli\.js'
-    $hits = @([regex]::Matches($normalized, $pattern,
-        [Text.RegularExpressions.RegexOptions]::IgnoreCase))
-    if ($hits.Count -ne 1) {
+    # Use one .NET Match; PowerShell enumeration of MatchCollection
+    # differs by version and must never weaken the single-source rule.
+    $hit = [regex]::Match($normalized, $pattern,
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if (!$hit.Success -or $hit.NextMatch().Success) {
         throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
     }
-    $priorSha = $hits[0].Groups['sha'].Value.ToLowerInvariant()
+    $priorSha = $hit.Groups['sha'].Value.ToLowerInvariant()
     $priorRoot = Join-Path $root $priorSha
     $priorEntry = Join-Path $priorRoot 'src\cli.js'
     $allowed = '^\s*"?' + [regex]::Escape($node) +
