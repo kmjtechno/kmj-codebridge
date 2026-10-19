@@ -3,6 +3,7 @@
 Status: **Stage 0 PREVIEW ONLY, NOT DEPLOYED, NO USER SESSION**.
 
 ## Existing pieces
+
 - Pinned Moli 1.1.18 binary and `browser_fast_probe` are implemented for
   anonymous, fixed `kmj_public` URLs.
 - Chrome `browser_qa_start` is public-only; it does not click or authenticate.
@@ -11,6 +12,7 @@ Status: **Stage 0 PREVIEW ONLY, NOT DEPLOYED, NO USER SESSION**.
 - Dirty Windows P720 checkout and the main production agent stay untouched.
 
 ## New Stage 0 — minimal safe contract
+
 `browser_workflow_preflight({device,project,workflow:"brevo_domain_auth"})`
 only works for authorized `kmj-main-platform`, returns a deterministic
 non-executing plan and safety gates; no browser launch, account session,
@@ -23,6 +25,7 @@ approval for registration and Cloudflare record edits, private SMTP activation,
 then one consensual real inbox test. Paid-plan upgrade is always excluded.
 
 ## Stage 1 — browser/identity security (NOT IMPLEMENTED)
+
 - Administrator enrolls one browser-work capable device with explicit project
   grant and attaches a user-approved **separate** encrypted session/profile.
 - Use loopback-only Moli CDP endpoint (or locally installed Chrome fallback);
@@ -37,7 +40,8 @@ then one consensual real inbox test. Paid-plan upgrade is always excluded.
 - Manual MFA/OTP/passkey completion; no bypass or capture of recovery codes.
 
 ## Stage 2 — implementation (NOT IMPLEMENTED)
-- Chrome/Moli CDP compatibility tests with real authenticated *test accounts*.
+
+- Chrome/Moli CDP compatibility tests with real authenticated _test accounts_.
 - Brevo pages inspected after owner-controlled login: Free plan, sender domain,
   DNS verification. Never fabricate DNS values; read them from Brevo.
 - Cloudflare change preview with exact record IDs, no MX/A/nameserver changes,
@@ -49,6 +53,7 @@ then one consensual real inbox test. Paid-plan upgrade is always excluded.
   default browser access. Every operation remains within plan entitlements.
 
 ## Release gates
+
 Stage 0: `node --test tests/browser-workflow-preflight.test.js`,
 `npm run check`, `npm test`, `npm run scan:secrets`, exact-head CI.
 Then approved rollout of CodeBridge gateway/agent and live tool advertisement.
