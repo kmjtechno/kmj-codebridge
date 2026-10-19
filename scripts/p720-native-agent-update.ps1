@@ -173,15 +173,27 @@ function ResolveApprovedExistingRelease([string]$commandLine) {
     # Accept only an exact prior Node agent in a registered, SHA-named worktree.
     $normalized = $commandLine.Replace('/', '\')
     $root = [IO.Path]::GetFullPath($releases).TrimEnd([char]92, [char]47)
-    $pattern = [regex]::Escape($root) + '\\(?<sha>[a-f0-9]{40})\\src\\cli\.js'
-    # Use one .NET Match; PowerShell enumeration of MatchCollection
-    # differs by version and must never weaken the single-source rule.
-    $hit = [regex]::Match($normalized, $pattern,
-        [Text.RegularExpressions.RegexOptions]::IgnoreCase)
-    if (!$hit.Success -or $hit.NextMatch().Success) {
+    # Literal, case-insensitive rooted parsing is safer than relying on
+    # PowerShell/.NET regex escaping of arbitrary Windows temp drive paths.
+    # A second occurrence or anything other than a 40-hex SHA is rejected.
+    $prefix = $root + [IO.Path]::DirectorySeparatorChar
+    $at = $normalized.IndexOf($prefix,
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($at -lt 0) {
+        throw 'EXISTING_AGENT_RELEASE_ROOT_NOT_IN_COMMAND'
+    }
+    if ($normalized.IndexOf($prefix, ($at + 1),
+        [StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
     }
-    $priorSha = $hit.Groups['sha'].Value.ToLowerInvariant()
+    $suffix = $normalized.Substring($at + $prefix.Length)
+    if ($suffix.Length -lt 40) {
+        throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
+    }
+    $priorSha = $suffix.Substring(0, 40).ToLowerInvariant()
+    if ($priorSha -cnotmatch '^[a-f0-9]{40}$') {
+        throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
+    }
     $priorRoot = Join-Path $root $priorSha
     $priorEntry = Join-Path $priorRoot 'src\cli.js'
     $allowed = '^\s*"?' + [regex]::Escape($node) +
