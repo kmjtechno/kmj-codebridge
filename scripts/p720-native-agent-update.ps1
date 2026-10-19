@@ -155,6 +155,75 @@ function AssertCheckoutUnchanged {
     }
 }
 
+function ResolvePreviousAgentSource([string]$commandLine) {
+    # Existing agent may already run from a previously staged, immutable release.
+    # Never roll it back to the modified shared checkout by assumption.
+    $original = @{
+        Entry = (Join-Path $repo 'src\cli.js')
+        WorkDir = $repo
+        PreviousSha = $null
+    }
+    if ($commandLine -notmatch 'codebridge-releases[\\/]') {
+        return $original
+    }
+
+    # Accept exactly one Git-managed release below this hardcoded releases root.
+    # Reject arbitrary executable paths, symlinks, unexpected commit labels,
+    # additional release-path references and non-Git directories.
+    $rootPattern = [regex]::Escape($releases.TrimEnd([char]92, [char]47))
+    $pattern = $rootPattern + '[\\/](?<sha>[a-f0-9]{40})[\\/]src[\\/]cli\.js'
+    $releaseHits = [regex]::Matches($commandLine, $pattern, [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($releaseHits.Count -ne 1) {
+        throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
+    }
+    $unmatched = [regex]::Replace($commandLine, $pattern, '', [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($unmatched -match 'codebridge-releases[\\/]') {
+        throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
+    }
+    $priorSha = $releaseHits[0].Groups['sha'].Value.ToLowerInvariant()
+    if ($priorSha -ceq $TargetSha) {
+        throw 'EXISTING_AGENT_ALREADY_ON_TARGET'
+    }
+    $oldDir = Join-Path $releases $priorSha
+    $oldEntry = Join-Path $oldDir 'src\cli.js'
+    foreach ($folder in @($releases, $oldDir, (Join-Path $oldDir 'src'))) {
+        if (!(Test-Path -LiteralPath $folder -PathType Container) -or
+            ((Get-Item -LiteralPath $folder).Attributes -band
+                [IO.FileAttributes]::ReparsePoint)) {
+            throw 'EXISTING_AGENT_RELEASE_DIRECTORY_UNSAFE'
+        }
+    }
+    if (!(Test-Path -LiteralPath $oldEntry -PathType Leaf) -or
+        ((Get-Item -LiteralPath $oldEntry).Attributes -band
+            [IO.FileAttributes]::ReparsePoint)) {
+        throw 'EXISTING_AGENT_RELEASE_ENTRY_UNSAFE'
+    }
+    $actualHead = [string](& git.exe -C $oldDir rev-parse --verify HEAD)
+    if ($LASTEXITCODE -ne 0 -or $actualHead.Trim() -cne $priorSha) {
+        throw 'EXISTING_AGENT_RELEASE_SHA_MISMATCH'
+    }
+    $top = [string](& git.exe -C $oldDir rev-parse --show-toplevel)
+    if ($LASTEXITCODE -ne 0 -or
+        [IO.Path]::GetFullPath($top.Trim()) -ine
+            [IO.Path]::GetFullPath($oldDir)) {
+        throw 'EXISTING_AGENT_RELEASE_WORKTREE_MISMATCH'
+    }
+    $common = [string](& git.exe -C $oldDir rev-parse --git-common-dir)
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($common)) {
+        throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+    }
+    $actualCommon = [IO.Path]::GetFullPath([IO.Path]::Combine($oldDir, $common.Trim()))
+    $expectedCommon = [IO.Path]::GetFullPath((Join-Path $repo '.git'))
+    if ($actualCommon -ine $expectedCommon) {
+        throw 'EXISTING_AGENT_RELEASE_GIT_UNTRUSTED'
+    }
+    return @{
+        Entry = $oldEntry
+        WorkDir = $oldDir
+        PreviousSha = $priorSha
+    }
+}
+
 function ScopedAgents {
     $items = @(Get-CimInstance Win32_Process -Filter "Name = 'node.exe'" |
         Where-Object {
@@ -294,9 +363,9 @@ try {
     if ($agents.Count -ne 1) { throw 'ONE_EXISTING_AGENT_REQUIRED' }
     $oldPid = [int]$agents[0].ProcessId
     $oldCommand = [string]$agents[0].CommandLine
-    if ($oldCommand -match '[A-Za-z]:[\\/][^"]*codebridge-releases[\\/]') {
-        throw 'EXISTING_AGENT_RELEASE_PATH_REQUIRES_MANUAL_REVIEW'
-    }
+    $previous = ResolvePreviousAgentSource $oldCommand
+    $oldEntry = [string]$previous.Entry
+    $oldWorkDir = [string]$previous.WorkDir
     if ([string]$agents[0].ExecutablePath -ine $node) {
         throw 'EXISTING_NODE_RUNTIME_MISMATCH'
     }
@@ -314,6 +383,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw 'SHA_NOT_ON_ORIGIN_MAIN' }
     & git.exe -C $repo merge-base --is-ancestor $initialHead $TargetSha
     if ($LASTEXITCODE -ne 0) { throw 'TARGET_NOT_FAST_FORWARD' }
+    if ($null -ne $previous.PreviousSha) {
+        & git.exe -C $repo merge-base --is-ancestor $previous.PreviousSha $TargetSha
+        if ($LASTEXITCODE -ne 0) { throw 'PREVIOUS_RELEASE_NOT_ANCESTOR' }
+    }
 
     New-Item -ItemType Directory -Path $releases, $logs -Force | Out-Null
     Git -GitArgs @('worktree', 'add', '--detach', $release, $TargetSha) | Out-Null
@@ -360,7 +433,7 @@ try {
     Write-Host ('NEW_AGENT_PID=' + $newPid)
     Write-Host 'ENROLLMENT_CONFIG_UNCHANGED=PASS'
     Write-Host 'NEW_RUNTIME_HEARTBEAT=PASS'
-    Write-Host 'ROLLBACK_SOURCE=ORIGINAL_MAIN_UNMODIFIED'
+    Write-Host 'ROLLBACK_SOURCE=PREVIOUS_VERIFIED_AGENT_RUNTIME'
     $exitCode = 0
 } catch {
     Write-Host ('UPDATE_BLOCKED=' + [string]$_.Exception.Message)
@@ -376,8 +449,9 @@ try {
                 throw 'ROLLBACK_CONFLICT_OTHER_SCOPED_AGENT'
             }
             $rollbackTime = [datetime]::UtcNow
-            $oldEntry = Join-Path $repo 'src\cli.js'
-            $rollbackPid = StartScoped $oldEntry $repo 'rollback-original'
+            # Return to the EXACT agent source that was running before update,
+            # whether it was the shared checkout or an earlier managed release.
+            $rollbackPid = StartScoped $oldEntry $oldWorkDir 'rollback-previous'
             if (!(ConfirmRuntime $rollbackPid $oldEntry $rollbackTime)) {
                 throw 'ROLLBACK_HEARTBEAT_FAILED'
             }
