@@ -1,8 +1,9 @@
 # KMJ P720 — guarded dirty/untracked update without overwriting developer work
 
 The upgraded `UPDATE-P720-CODEBRIDGE.cmd` pins its staged release to
-`76ccafd2982a501cfa2a49574a64ffd9afa82f4e`, whose first-party updater source and all required
-Windows/Ubuntu CodeBridge PR CI checks passed. The launcher passes both
+`7a45309fb81ea955d3acc85d03f1b1bb331d0795`, which includes merged Compact Session PR 570 with exact-head 10/10
+Ubuntu/Windows post-merge CodeBridge checks PASS. The native updater source and
+the rollback verification tests in that release are CI green. The launcher passes both
 `-AllowTrackedDirtyCheckout` and `-AllowUntrackedFiles` and still refuses
 staged/conflicted/reparse/unsafe inputs. Download the whole reviewed source
 tree containing this new launcher and its sibling PowerShell script: an older
