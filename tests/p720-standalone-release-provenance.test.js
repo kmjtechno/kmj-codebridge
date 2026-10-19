@@ -20,7 +20,10 @@ test("managed standalone release trust remains restricted to an immutable local 
   assert.match(source, /rev-parse 'HEAD:src\/cli\.js'/);
   assert.match(source, /hash-object -- 'src\/cli\.js'/);
   assert.match(source, /PREVIOUS_RELEASE_NOT_ANCESTOR/);
-  assert.match(source, /StartScoped \$oldEntry \$oldWorkDir 'rollback-previous'/);
+  assert.match(
+    source,
+    /StartScoped \$oldEntry \$oldWorkDir 'rollback-previous'/,
+  );
   assert.doesNotMatch(source, /git\s+(?:reset|clean|push|pull)\s+--force/i);
 });
 
@@ -127,7 +130,14 @@ test(
     assert.match(dirty, /DIRTY_RELEASE_DENIED=PASS/);
 
     fs.writeFileSync(priorEntry, "export {};\n");
-    git("-C", standalone, "remote", "set-url", "origin", "https://evil.example/x");
+    git(
+      "-C",
+      standalone,
+      "remote",
+      "set-url",
+      "origin",
+      "https://evil.example/x",
+    );
     const wrongOrigin = runPowerShell([
       ...definitions,
       "$blocked = $false",
