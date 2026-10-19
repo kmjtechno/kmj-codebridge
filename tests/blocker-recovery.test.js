@@ -310,7 +310,10 @@ test("Windows connection doctor validates native pipe response without starting 
   const report = await dispatch("connection_doctor", scope, ["read"]);
   assert.equal(calls, 1);
   assert.equal(report.blockerRecovery.supervisor.connectionVerified, true);
-  assert.equal(report.blockerRecovery.supervisor.status, "LIVE_STATUS_VERIFIED");
+  assert.equal(
+    report.blockerRecovery.supervisor.status,
+    "LIVE_STATUS_VERIFIED",
+  );
   assert.equal(report.blockerRecovery.autonomousCodingProven, false);
   assert.equal(report.blockerRecovery.productionOrBillingModified, false);
   supervisor.request = async () => ({ service: "agent", platform: "linux" });
