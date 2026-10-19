@@ -280,8 +280,8 @@ test("Windows native pipe is not conflated with unsupported Linux socket", () =>
   assert.equal(verified.supervisor.status, "LIVE_STATUS_VERIFIED");
   assert.equal(verified.supervisor.connectionVerified, true);
   assert.ok(
-    !verified.blockers.some(
-      (entry) => entry.code.startsWith("WINDOWS_SUPERVISOR_"),
+    !verified.blockers.some((entry) =>
+      entry.code.startsWith("WINDOWS_SUPERVISOR_"),
     ),
   );
   assert.equal(verified.autonomousCodingProven, false);
