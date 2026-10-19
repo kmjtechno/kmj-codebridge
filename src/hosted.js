@@ -1,6 +1,7 @@
 import { gatewaySchema } from "./config.js";
 import { startGateway } from "./gateway.js";
 import { fail } from "./errors.js";
+const EXACT_CLOUDOS_REPO = "kmjtechno/kmj-cloudos";
 function hostedGitHubConfig(env) {
   const apiBase = env.CODEBRIDGE_GITHUB_API_BASE;
   const token = env.CODEBRIDGE_GITHUB_PROXY_TOKEN;
@@ -52,6 +53,15 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     )
       fail("HOSTED_CONFIG_INVALID");
     const parsed = JSON.parse(text);
+    // Render config is often an environment-held secret, not a writable file.
+    // This opt-in adds only the owner-approved CloudOS repo, never a wildcard.
+    const cloudosOptIn = env.CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY;
+    if (
+      cloudosOptIn !== undefined &&
+      cloudosOptIn !== "true" &&
+      cloudosOptIn !== "false"
+    )
+      fail("HOSTED_CONFIG_INVALID");
     const github = parsed.github ?? hostedGitHubConfig(env);
     let userIntrospection = parsed.userIntrospection;
     const userIntrospectionEndpoint =
@@ -76,7 +86,7 @@ export function hostedConfig(text, port = "10000", env = process.env) {
         };
       }
     }
-    const config = gatewaySchema.parse({
+    let config = gatewaySchema.parse({
       ...parsed,
       ...(github ? { github } : {}),
       ...(userIntrospection ? { userIntrospection } : {}),
@@ -88,6 +98,18 @@ export function hostedConfig(text, port = "10000", env = process.env) {
       !config.allowedHosts.includes(new URL(config.oauth.resource).hostname)
     )
       fail("HOSTED_CONFIG_INVALID");
+    if (cloudosOptIn === "true") {
+      if (!config.github || config.github.publicReadOnly || !config.github.tokenEnv)
+        fail("HOSTED_CONFIG_INVALID");
+      const existing = config.github.repositories;
+      const repositories = existing.includes(EXACT_CLOUDOS_REPO)
+        ? existing
+        : [...existing, EXACT_CLOUDOS_REPO];
+      config = gatewaySchema.parse({
+        ...config,
+        github: { ...config.github, repositories },
+      });
+    }
     return config;
   } catch {
     fail("HOSTED_CONFIG_INVALID");
