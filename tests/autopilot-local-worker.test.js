@@ -137,7 +137,8 @@ test("safe pinned private-lane engineering suggestions remain review-only", asyn
   f.worker.localModel = () => ({
     ...local(),
     generate: async () => ({
-      response: "Inspect current Git SHA, propose a fresh pinned private lane, test and request a code review.",
+      response:
+        "Inspect current Git SHA, propose a fresh pinned private lane, test and request a code review.",
       truncated: false,
       hitTokenLimit: false,
     }),
