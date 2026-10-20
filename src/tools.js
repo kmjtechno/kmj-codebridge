@@ -3703,14 +3703,16 @@ export function createDispatcher(
         const health = state?.services?.healthCheck;
         const safe = (unit) => ({
           installed: unit?.installed === true,
-          activeState:
-            ["active", "inactive", "failed"].includes(unit?.activeState)
-              ? unit.activeState
-              : "unknown",
-          result:
-            ["success", "exit-code", "signal", "timeout"].includes(unit?.result)
-              ? unit.result
-              : "unknown",
+          activeState: ["active", "inactive", "failed"].includes(
+            unit?.activeState,
+          )
+            ? unit.activeState
+            : "unknown",
+          result: ["success", "exit-code", "signal", "timeout"].includes(
+            unit?.result,
+          )
+            ? unit.result
+            : "unknown",
           execMainStatus:
             typeof unit?.execMainStatus === "string" &&
             /^(?:0|[1-9][0-9]{0,2})$/.test(unit.execMainStatus)
