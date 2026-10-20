@@ -143,6 +143,35 @@ The CodeBridge agent must separately have the documented
 protected enrollment. If missing, repair it with the existing guarded agent
 installer/rebind flow, never by pasting a token into chat.
 
+## Captured-client backup timer inventory (read-only compatibility)
+
+An already-connected ChatGPT/Claude client may not expose a newer
+`supervisor_main_platform_maintenance_status` tool in its captured catalog.
+On **KMJ-elite only**, an already-authorized, writable
+`kmj-elite-main-platform / kmj-main-platform` project can instead call the
+existing `run_project_command` tool with
+`command="main_platform_offsite_status"`, `variant="overview"` and a
+nonempty idempotent `requestKey`.
+
+The compatibility route invokes only the fixed privileged supervisor operation
+`main_platform_maintenance_status` and returns allowlisted unit states for the
+existing offsite-backup service/timer and health-check service. It refuses
+unknown variants, worktree lanes, SHA overrides, wrong devices/projects and
+missing supervisor. Although the inventory is classified `READ`,
+`run_project_command` requires the existing `execute` feature to invoke it;
+this does **not** grant any new shell or root operation.
+
+**Never** interpret a successful timer/service result as proof the current
+candidate was encrypted, copied to an independent host, decrypted, restored or
+approved. The response hardcodes
+`candidateEncryptedOffsiteVerified=false`,
+`independentRestoreVerified=false`, `rollbackVerified=false`, and
+`productionApprovalChanged=false`. The source patch does not change already
+installed agents or privileged supervisors: installer update, deployment and
+live-tool verification remain separate owner-approved operations. No backup
+service is started and no private key, path, target URL, secret, environment
+content or operator-selected process arguments can be requested.
+
 ## Prestage, verify backups and approve
 
 The fixed service expects an **already prepared** immutable, clean release:

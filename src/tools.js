@@ -3606,6 +3606,25 @@ export function createDispatcher(
                 },
               ]
             : []),
+          // Existing clients can invoke this fixed read-only supervisor
+          // inventory without recapturing a new MCP tool catalog. Unlike
+          // starting a backup, it NEVER starts a service or approves release.
+          ...(p.id === "kmj-main-platform" &&
+          p.writable &&
+          config.id === "kmj-elite-main-platform" &&
+          supervisor
+            ? [
+                {
+                  id: "main_platform_offsite_status",
+                  category: "inspect",
+                  description:
+                    "Read fixed KMJ-elite backup and health service/timer status via the approved root supervisor; no file contents, SSH access, transfer, restore, or release approval.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["overview"],
+                },
+              ]
+            : []),
           // Host-specific read-only storage inventory without root/sudo or
           // arbitrary args; supported even when the privileged supervisor is
           // not installed. Requires the existing project execute permission.
@@ -3658,6 +3677,62 @@ export function createDispatcher(
       // dirty. Keep this compatible with older MCP clients and require the
       // existing execute grant. No root supervisor, shell, caller-selected
       // path/ref/args or deployment is needed.
+      if (a.command === "main_platform_offsite_status") {
+        if (
+          a.variant !== "overview" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-main-platform" ||
+          config.id !== "kmj-elite-main-platform" ||
+          !p.writable
+        )
+          fail("MAIN_PLATFORM_OFFSITE_STATUS_NOT_AUTHORIZED");
+        if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+        // An installed supervisor returns fixed unit metadata only. Never
+        // trust it as backup, restore, offsite transfer, or rollback evidence.
+        // Avoid forwarding extra/unexpected fields from its response.
+        const received = await supervisor.request({
+          op: "main_platform_maintenance_status",
+        });
+        const state = received?.response ?? received;
+        const service = state?.services?.offsiteBackup;
+        const timer = state?.services?.offsiteBackupTimer;
+        const health = state?.services?.healthCheck;
+        const safe = (unit) => ({
+          installed: unit?.installed === true,
+          activeState: ["active", "inactive", "failed"].includes(
+            unit?.activeState,
+          )
+            ? unit.activeState
+            : "unknown",
+          result: ["success", "exit-code", "signal", "timeout"].includes(
+            unit?.result,
+          )
+            ? unit.result
+            : "unknown",
+          execMainStatus:
+            typeof unit?.execMainStatus === "string" &&
+            /^(?:0|[1-9][0-9]{0,2})$/.test(unit.execMainStatus)
+              ? unit.execMainStatus
+              : null,
+        });
+        return {
+          command: "main_platform_offsite_status",
+          mode: "READ_ONLY",
+          backupService: safe(service),
+          backupTimer: safe(timer),
+          healthCheck: safe(health),
+          // Always explicitly distinguish service success from independent
+          // proof of the current candidate's encrypted remote recovery.
+          candidateEncryptedOffsiteVerified: false,
+          independentRestoreVerified: false,
+          rollbackVerified: false,
+          productionApprovalChanged: false,
+        };
+      }
       if (a.command === "cloudos_host_storage_audit") {
         if (
           a.variant !== "overview" ||
