@@ -43,7 +43,7 @@ const criticalBody = (overrides = {}) => {
           key,
           {
             type: ["maxEntries", "recentJobs"].includes(key)
-              ? "number"
+              ? "integer"
               : "string",
           },
         ]),
@@ -119,8 +119,8 @@ test("workspace cursor, lane and bounded count schemas fail closed on omission o
     const wrong = parseToolCatalog(criticalBody());
     wrong.tools.get("chat_workspace_open").inputSchema.properties[property] = {
       type: ["maxEntries", "recentJobs"].includes(property)
-        ? "string"
-        : "number",
+        ? "number"
+        : "integer",
     };
     assert.throws(
       () => verifyCriticalToolSchemas(wrong),
@@ -144,6 +144,29 @@ test("workspace cursor, lane and bounded count schemas fail closed on omission o
       error.message === "MCP_CRITICAL_SCHEMA_DRIFT" &&
       error.criticalTool === "chat_workspace_open",
   );
+});
+
+test("real integer-bounded workspace input schema passes, unbounded decimal number does not", () => {
+  const published = parseToolCatalog(criticalBody());
+  for (const property of ["maxEntries", "recentJobs"]) {
+    assert.equal(
+      published.tools.get("chat_workspace_open").inputSchema.properties[property].type,
+      "integer",
+    );
+  }
+  assert.equal(verifyCriticalToolSchemas(published), true);
+  for (const property of ["maxEntries", "recentJobs"]) {
+    const decimal = parseToolCatalog(criticalBody());
+    decimal.tools.get("chat_workspace_open").inputSchema.properties[property] = {
+      type: "number",
+    };
+    assert.throws(
+      () => verifyCriticalToolSchemas(decimal),
+      (error) =>
+        error.message === "MCP_CRITICAL_SCHEMA_INVALID" &&
+        error.criticalTool === "chat_workspace_open",
+    );
+  }
 });
 
 test("a high tool count cannot hide missing agent coordination features", () => {
