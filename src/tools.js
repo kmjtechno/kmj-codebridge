@@ -1043,8 +1043,14 @@ export const definitions = {
       "One-call, read-only CodeBridge workspace for ordinary ChatGPT, Claude, Gemini, IDE or MCP chat clients: bounded authorized file explorer, frameworks, quality gates, recent job/task evidence, optional chat-lane checkpoint and local browser readiness. Use ifNoneMatch for an unchanged-only reply. No host transcript access, wake-up, autonomous approval, paid inference or unrestricted browser control.",
     input: {
       ...scoped,
-      lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/).default("main"),
-      ifNoneMatch: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+      lane: z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/)
+        .default("main"),
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
       maxEntries: z.number().int().min(5).max(40).default(30),
       recentJobs: z.number().int().min(1).max(8).default(5),
     },
