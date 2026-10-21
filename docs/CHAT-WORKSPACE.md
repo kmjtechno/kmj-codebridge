@@ -32,6 +32,21 @@ permissions and billing authority.
    Chrome/Moli agent. Interactive Playwright and arbitrary websites require
    separately reviewed origin/action grants; not part of this release.
 
+## Gateway compatibility for existing devices
+
+A freshly deployed CodeBridge gateway composes the four existing authorized
+read-only device calls `workspace_home`, `project_progress`,
+`compact_session_resume` and `browser_runtime_status` into one normal-chat
+result. This means an older enrolled agent can provide its available project
+explorer and job progress **without an unapproved agent restart**. If an older
+agent lacks the checkpoint or browser-status tool, those sections stay
+`UNAVAILABLE`. The gateway never inserts imagined file content, tasks,
+browser launches or a fake online state, and each subcall is reauthorized.
+
+Actual production availability still depends on which gateway the customer's
+MCP URL serves. Render's auto-deployment alone does not prove the KMJ website's
+reverse-proxied gateway or individual device agents have updated.
+
 ## Security and honest limits
 
 - **One MCP call, not an AI model.** CodeBridge cannot change host chat UI,
