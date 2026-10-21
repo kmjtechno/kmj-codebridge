@@ -84,9 +84,14 @@ test("critical tool schemas and lease-token fields are mandatory on each MCP ori
 
 test("public release refuses an old gateway without chat_workspace_open even with 100+ other tools", () => {
   const modern = validNames();
-  const old = new Set([...modern].filter((name) => name !== "chat_workspace_open"));
+  const old = new Set(
+    [...modern].filter((name) => name !== "chat_workspace_open"),
+  );
   assert.ok(old.size >= 100);
-  assert.throws(() => verifyCatalogs(modern, old), /MCP_REQUIRED_TOOLS_MISSING/);
+  assert.throws(
+    () => verifyCatalogs(modern, old),
+    /MCP_REQUIRED_TOOLS_MISSING/,
+  );
 
   const catalog = parseToolCatalog(criticalBody());
   catalog.names.delete("chat_workspace_open");
@@ -102,7 +107,9 @@ test("public release refuses an old gateway without chat_workspace_open even wit
 test("workspace cursor, lane and bounded count schemas fail closed on omission or type drift", () => {
   for (const property of ["lane", "ifNoneMatch", "maxEntries", "recentJobs"]) {
     const missing = parseToolCatalog(criticalBody());
-    delete missing.tools.get("chat_workspace_open").inputSchema.properties[property];
+    delete missing.tools.get("chat_workspace_open").inputSchema.properties[
+      property
+    ];
     assert.throws(
       () => verifyCriticalToolSchemas(missing),
       (error) =>
@@ -111,7 +118,9 @@ test("workspace cursor, lane and bounded count schemas fail closed on omission o
     );
     const wrong = parseToolCatalog(criticalBody());
     wrong.tools.get("chat_workspace_open").inputSchema.properties[property] = {
-      type: ["maxEntries", "recentJobs"].includes(property) ? "string" : "number",
+      type: ["maxEntries", "recentJobs"].includes(property)
+        ? "string"
+        : "number",
     };
     assert.throws(
       () => verifyCriticalToolSchemas(wrong),
@@ -123,7 +132,9 @@ test("workspace cursor, lane and bounded count schemas fail closed on omission o
 
   const render = parseToolCatalog(criticalBody());
   const production = parseToolCatalog(criticalBody());
-  production.tools.get("chat_workspace_open").inputSchema.properties.ifNoneMatch = {
+  production.tools.get(
+    "chat_workspace_open",
+  ).inputSchema.properties.ifNoneMatch = {
     type: "string",
     pattern: "^[a-f0-9]{32}$",
   };
