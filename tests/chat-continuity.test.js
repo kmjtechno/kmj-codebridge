@@ -6,6 +6,7 @@ import test from "node:test";
 import { ChatContinuity } from "../src/chat-continuity.js";
 import { createDispatcher, definitions } from "../src/tools.js";
 import { JobRunner } from "../src/jobs.js";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-multichat-"));
@@ -109,8 +110,8 @@ test("secret-like notes, paths, invalid scopes and conflicting idempotency fail 
   assert.equal(store.status("p1", "chat1").summary, original.summary);
 });
 
-test("corrupt or symlinked stored checkpoint is rejected, not silently overwritten", (t) => {
-  const { root, store } = fixture(t);
+test("corrupt stored checkpoint is rejected, not silently overwritten", (t) => {
+  const { store } = fixture(t);
   store.save("p1", "chat1", {
     requestKey: "save1",
     expectedRevision: null,
@@ -121,10 +122,27 @@ test("corrupt or symlinked stored checkpoint is rejected, not silently overwritt
   const file = store.file("p1", "chat1");
   fs.writeFileSync(file, "{");
   assert.throws(() => store.status("p1", "chat1"), /CHAT_CONTINUITY_CORRUPT/);
+});
+
+test("symlinked stored checkpoint is rejected when symlink fixtures are permitted", (t) => {
+  const { root, store } = fixture(t);
+  store.save("p1", "chat1", {
+    requestKey: "save1",
+    expectedRevision: null,
+    summary: "Verified progress",
+    next: "Continue",
+    blockers: [],
+  });
+  const file = store.file("p1", "chat1");
   fs.rmSync(file);
   const elsewhere = path.join(root, "elsewhere");
   fs.writeFileSync(elsewhere, "{}");
-  fs.symlinkSync(elsewhere, file);
+  if (!tryFileSymlink(t, elsewhere, file)) {
+    t.skip(
+      "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+    );
+    return;
+  }
   assert.throws(() => store.status("p1", "chat1"), /CHAT_CONTINUITY_CORRUPT/);
 });
 
