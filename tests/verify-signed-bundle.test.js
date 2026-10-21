@@ -6,6 +6,7 @@ import path from "node:path";
 import { createHash, generateKeyPairSync } from "node:crypto";
 import { buildSignedReleaseManifest } from "../scripts/sign-runtime-manifest.js";
 import { verifySignedReleaseBundle } from "../scripts/verify-signed-bundle.mjs";
+import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
 
 const REV = "a".repeat(40);
 const NAME = "kmj-codebridge-0.3.2-" + REV.slice(0, 12) + ".tar.gz";
@@ -125,13 +126,13 @@ test("rejects stale sequence and invalid minimumSequence", async (t) => {
 test("rejects symlinks for archive or signing inputs", async (t) => {
   const { options, dir } = fixture(t);
   const link = path.join(dir, "signed-manifest-link.json");
-  fs.symlinkSync(options.signedManifestPath, link);
+  if (!createSymlinkOrSkip(t, options.signedManifestPath, link)) return;
   await assert.rejects(
     verifySignedReleaseBundle({ ...options, signedManifestPath: link }),
     /BUNDLE_FILE_UNSAFE/,
   );
   const archiveLink = path.join(dir, "archive-link.tar.gz");
-  fs.symlinkSync(options.archivePath, archiveLink);
+  if (!createSymlinkOrSkip(t, options.archivePath, archiveLink)) return;
   await assert.rejects(
     verifySignedReleaseBundle({ ...options, archivePath: archiveLink }),
     /BUNDLE_MANIFEST_IDENTITY_MISMATCH|BUNDLE_FILE_UNSAFE/,
