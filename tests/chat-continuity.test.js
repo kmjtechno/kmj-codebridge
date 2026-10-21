@@ -6,7 +6,7 @@ import test from "node:test";
 import { ChatContinuity } from "../src/chat-continuity.js";
 import { createDispatcher, definitions } from "../src/tools.js";
 import { JobRunner } from "../src/jobs.js";
-import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 
 function fixture(t) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-multichat-"));
@@ -137,7 +137,10 @@ test("symlinked stored checkpoint is rejected when symlink fixtures are permitte
   fs.rmSync(file);
   const elsewhere = path.join(root, "elsewhere");
   fs.writeFileSync(elsewhere, "{}");
-  if (!createSymlinkOrSkip(t, elsewhere, file)) return;
+  if (!tryFileSymlink(t, elsewhere, file)) {
+      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
+      return;
+    }
   assert.throws(() => store.status("p1", "chat1"), /CHAT_CONTINUITY_CORRUPT/);
 });
 
