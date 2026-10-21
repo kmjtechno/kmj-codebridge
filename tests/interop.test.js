@@ -11,6 +11,10 @@ import { startGateway } from "../src/gateway.js";
 import { startAgent } from "../src/agent.js";
 import { VERSION } from "../src/version.js";
 import { definitions } from "../src/tools.js";
+import {
+  parseToolCatalog,
+  verifyCriticalToolSchemas,
+} from "../scripts/verify-public-mcp-catalog.mjs";
 
 // Vendor-neutral MCP interoperability contract. ChatGPT, Claude.ai, Claude
 // Desktop, Claude Code and future clients all speak standard MCP over
@@ -165,6 +169,14 @@ test("tools/list exposes one canonical contract with schemas and annotations", a
     // Static-bearer mode adds no client-specific metadata.
     assert.equal(tool._meta?.securitySchemes, undefined);
   }
+  // Run the release validator against JSON schemas published by the real
+  // official MCP SDK (not only fixtures). Zod z.number().int() must appear
+  // as JSON Schema type "integer", so a stale "number"-only gate fails CI.
+  const publicCatalog = parseToolCatalog(
+    JSON.stringify({ jsonrpc: "2.0", id: 1, result: { tools } }),
+  );
+  assert.equal(verifyCriticalToolSchemas(publicCatalog), true);
+
   const write = tools.find((x) => x.name === "write_file");
   assert.deepEqual(
     [...write.inputSchema.required].sort(),
