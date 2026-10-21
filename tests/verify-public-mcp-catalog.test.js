@@ -41,7 +41,11 @@ const criticalBody = (overrides = {}) => {
       properties: Object.fromEntries(
         (CRITICAL_TOOL_PROPERTIES[name] ?? []).map((key) => [
           key,
-          { type: "string" },
+          {
+            type: ["maxEntries", "recentJobs"].includes(key)
+              ? "number"
+              : "string",
+          },
         ]),
       ),
     },
@@ -76,6 +80,59 @@ test("critical tool schemas and lease-token fields are mandatory on each MCP ori
   assert.equal(requests[0].url, "https://kmjtechno.com/mcp");
   assert.equal(requests[0].options.headers.Authorization, undefined);
   assert.match(requests[0].options.body, /"method":"tools\/list"/);
+});
+
+test("public release refuses an old gateway without chat_workspace_open even with 100+ other tools", () => {
+  const modern = validNames();
+  const old = new Set([...modern].filter((name) => name !== "chat_workspace_open"));
+  assert.ok(old.size >= 100);
+  assert.throws(() => verifyCatalogs(modern, old), /MCP_REQUIRED_TOOLS_MISSING/);
+
+  const catalog = parseToolCatalog(criticalBody());
+  catalog.names.delete("chat_workspace_open");
+  catalog.tools.delete("chat_workspace_open");
+  assert.throws(
+    () => verifyCriticalToolSchemas(catalog),
+    (error) =>
+      error.message === "MCP_CRITICAL_TOOL_MISSING" &&
+      error.criticalTool === "chat_workspace_open",
+  );
+});
+
+test("workspace cursor, lane and bounded count schemas fail closed on omission or type drift", () => {
+  for (const property of ["lane", "ifNoneMatch", "maxEntries", "recentJobs"]) {
+    const missing = parseToolCatalog(criticalBody());
+    delete missing.tools.get("chat_workspace_open").inputSchema.properties[property];
+    assert.throws(
+      () => verifyCriticalToolSchemas(missing),
+      (error) =>
+        error.message === "MCP_CRITICAL_SCHEMA_MISSING" &&
+        error.criticalTool === "chat_workspace_open",
+    );
+    const wrong = parseToolCatalog(criticalBody());
+    wrong.tools.get("chat_workspace_open").inputSchema.properties[property] = {
+      type: ["maxEntries", "recentJobs"].includes(property) ? "string" : "number",
+    };
+    assert.throws(
+      () => verifyCriticalToolSchemas(wrong),
+      (error) =>
+        error.message === "MCP_CRITICAL_SCHEMA_INVALID" &&
+        error.criticalTool === "chat_workspace_open",
+    );
+  }
+
+  const render = parseToolCatalog(criticalBody());
+  const production = parseToolCatalog(criticalBody());
+  production.tools.get("chat_workspace_open").inputSchema.properties.ifNoneMatch = {
+    type: "string",
+    pattern: "^[a-f0-9]{32}$",
+  };
+  assert.throws(
+    () => verifyCriticalSchemaParity(render, production),
+    (error) =>
+      error.message === "MCP_CRITICAL_SCHEMA_DRIFT" &&
+      error.criticalTool === "chat_workspace_open",
+  );
 });
 
 test("a high tool count cannot hide missing agent coordination features", () => {
@@ -216,8 +273,8 @@ test("public MCP catalogs accept valid JSON and streaming SSE responses", () => 
   const sse = "event: message\ndata: " + body(names) + "\n\n";
   assert.deepEqual(parseToolNames(sse), names);
   assert.deepEqual(verifyCatalogs(names, names), {
-    renderCount: 103,
-    productionCount: 103,
+    renderCount: 104,
+    productionCount: 104,
   });
 });
 
@@ -234,7 +291,7 @@ test("known 101-versus-88 production drift fails closed", () => {
   const incompleteButLarge = new Set(
     [...render].filter((name) => name !== "local_model_generate"),
   );
-  assert.equal(incompleteButLarge.size, 102);
+  assert.equal(incompleteButLarge.size, 103);
   assert.throws(
     () => verifyCatalogs(render, incompleteButLarge),
     /MCP_REQUIRED_TOOLS_MISSING/,
@@ -267,7 +324,7 @@ test("public discovery uses only fixed OAuth-free origins and no tools/call", as
     return new Response(body(validNames()), { status: 200 });
   };
   const names = await probeCatalog(ENDPOINTS.production, request);
-  assert.equal(names.size, 103);
+  assert.equal(names.size, 104);
   assert.equal(calls.length, 1);
   assert.equal(calls[0].url, "https://kmjtechno.com/mcp");
   assert.equal(calls[0].options.method, "POST");
@@ -312,7 +369,7 @@ test("bounded cold-start transport retries never conceal malformed catalogs", as
     mockRequest,
     async (ms) => pauses.push(ms),
   );
-  assert.equal(names.size, 103);
+  assert.equal(names.size, 104);
   assert.equal(calls, 2);
   assert.deepEqual(pauses, [2000]);
 
