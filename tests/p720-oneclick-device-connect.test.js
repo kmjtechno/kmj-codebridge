@@ -35,7 +35,10 @@ test("connector never takes over or duplicates an existing enrolled agent", () =
     ps,
     /\b(?:Stop-Process|Register-ScheduledTask|Start-ScheduledTask|New-LocalUser|Invoke-Expression|Set-Content)\b/,
   );
-  assert.doesNotMatch(ps, /git(?:\.exe)?\b[^\n]*\b(?:reset|clean|pull|fetch|merge)\b/i);
+  assert.doesNotMatch(
+    ps,
+    /git(?:\.exe)?\b[^\n]*\b(?:reset|clean|pull|fetch|merge)\b/i,
+  );
   assert.doesNotMatch(cmd, /ExecutionPolicy Bypass|setx |schtasks \/create/i);
 });
 
@@ -64,16 +67,21 @@ test("Windows PowerShell parses and approves only known local scope", (t) => {
     "$ErrorActionPreference='Stop'",
     "$tokens=$null;$errors=$null",
     "[System.Management.Automation.Language.Parser]::ParseFile('" +
-      safe + "',[ref]$tokens,[ref]$errors) | Out-Null",
+      safe +
+      "',[ref]$tokens,[ref]$errors) | Out-Null",
     "if($errors.Count -gt 0) { exit 2 }",
     "& '" + safe + "' -SelfTest",
     "if($LASTEXITCODE -ne 0) { exit 3 }",
   ].join("; ");
-  const r = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", command], {
-    encoding: "utf8",
-    timeout: 20000,
-    windowsHide: true,
-  });
+  const r = spawnSync(
+    "powershell.exe",
+    ["-NoProfile", "-NonInteractive", "-Command", command],
+    {
+      encoding: "utf8",
+      timeout: 20000,
+      windowsHide: true,
+    },
+  );
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /DEVICE_CONNECT_SELFTEST=PASS/);
 });
