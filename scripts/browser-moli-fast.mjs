@@ -8,13 +8,10 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { allowedTarget, publicBrowserQa } from "./browser-public-qa.mjs";
+import { moliCandidates, selectInstalledBinary } from "../src/browser-runtime.js";
 
 export const MOLI_VERSION = "1.1.18";
-export const MOLI_CANDIDATES = Object.freeze(
-  process.platform === "win32"
-    ? ["C:\\ProgramData\\KMJ\\CodeBridge\\moli\\v1.1.18\\moli.exe"]
-    : ["/opt/kmj-codebridge-tools/moli/v1.1.18/bin/moli"],
-);
+export const MOLI_CANDIDATES = Object.freeze(moliCandidates());
 
 const SHA256 = (v) => createHash("sha256").update(v).digest("hex");
 const MAX_STDOUT = 1024 * 1024;
@@ -22,13 +19,7 @@ const TIMEOUT_MS = 14000;
 const ERROR_CODE = /^[A-Z][A-Z0-9_]{3,79}$/;
 
 export function selectedMoliBinary(candidates = MOLI_CANDIDATES) {
-  for (const candidate of candidates) {
-    try {
-      const stat = fs.lstatSync(candidate);
-      if (stat.isFile() && !stat.isSymbolicLink()) return candidate;
-    } catch {}
-  }
-  return null;
+  return selectInstalledBinary(candidates);
 }
 
 // JSON dump is used rather than semantic text so final URL and HTTP status
