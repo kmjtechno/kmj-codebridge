@@ -1,6 +1,7 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
 import { verifiedFastReceipt } from "./browser-fast-receipt.js";
 import { browserRuntimeStatus } from "./browser-runtime.js";
+import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1033,6 +1034,25 @@ export const definitions = {
     input: {
       ...scoped,
       maxEntries: z.number().int().min(1).max(100).default(50),
+    },
+    access: "read",
+  },
+  chat_workspace_open: {
+    title: "Open or resume a local-first AI chat workspace",
+    description:
+      "One-call, read-only CodeBridge workspace for ordinary ChatGPT, Claude, Gemini, IDE or MCP chat clients: bounded authorized file explorer, frameworks, quality gates, recent job/task evidence, optional chat-lane checkpoint and local browser readiness. Use ifNoneMatch for an unchanged-only reply. No host transcript access, wake-up, autonomous approval, paid inference or unrestricted browser control.",
+    input: {
+      ...scoped,
+      lane: z
+        .string()
+        .regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/)
+        .default("main"),
+      ifNoneMatch: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
+      maxEntries: z.number().int().min(5).max(40).default(30),
+      recentJobs: z.number().int().min(1).max(8).default(5),
     },
     access: "read",
   },
@@ -2499,6 +2519,52 @@ export function createDispatcher(
           environment,
         }),
       };
+    }
+    if (name === "chat_workspace_open") {
+      // Everything is obtained from this same authorized agent/project.
+      // Optional subsystems report UNAVAILABLE instead of inventing state.
+      let explorer = null;
+      let environment = null;
+      let progress = null;
+      let checkpoint = null;
+      let browser = null;
+      try {
+        explorer = p.files.tree("", 2, a.maxEntries);
+      } catch {}
+      try {
+        environment = detectProjectEnvironment(p.files);
+      } catch {}
+      try {
+        const sessions = runner.list(p.id, a.recentJobs);
+        progress = buildProjectProgress({
+          sessions,
+          autopilotState: autopilot ? autopilot.status(p.id, 1) : null,
+        });
+      } catch {}
+      if (laneStateDir) {
+        try {
+          checkpoint = new CompactSessionStore(laneStateDir).resume(
+            p.id,
+            a.lane,
+          );
+        } catch {}
+      }
+      try {
+        browser = browserRuntimeStatus();
+      } catch {}
+      return buildChatWorkspaceOpen({
+        device: config.id,
+        project: p.id,
+        lane: a.lane,
+        writable: p.writable,
+        environment,
+        explorer,
+        progress,
+        checkpoint,
+        browser,
+        qualityGates: Object.keys(p.gates),
+        ifNoneMatch: a.ifNoneMatch,
+      });
     }
     if (name === "workspace_home") {
       return {

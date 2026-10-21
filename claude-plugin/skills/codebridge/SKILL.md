@@ -18,11 +18,20 @@ that the plugin package alone gives machine access.
    change existing devices/projects, guess credentials, or promise server access
    from plugin installation alone. For the testing VM, use the read-only guide
    in the CodeBridge repository's `docs/CONNECTION-DOCTOR.md`.
-2. For an ordinary "open workspace" request, list authorized devices first.
-   When exactly one device/project pair is authorized, select it automatically
-   and call `workspace_home` once. Show a clear, simple file explorer,
-   detected frameworks, quality gates, and recent sessions. Ask the user to
-   choose a target only when there are multiple authorized projects.
+2. For an ordinary "open workspace", "resume", or "continue work" request
+   in any MCP-capable AI chat, list authorized devices first unless the device
+   and project are already verified in this session. If exactly one pair is
+   authorized, choose it automatically; otherwise let the user choose among
+   authorized projects. Call `chat_workspace_open` with a stable chat-lane
+   label to retrieve a one-call explorer, frameworks, quality gates, recent
+   jobs, tracked-task evidence, previous compact checkpoint and local browser
+   readiness. When the tool is absent from an older agent, fall back to
+   `workspace_home` + `compact_session_resume`/`project_progress` as
+   separately authorized tools. For repeat reads use the returned
+   `revision` as `ifNoneMatch`. Checkpoint summaries are caller-reported,
+   not verified source/CI evidence; reread exact-head Git/CI before claims.
+   This is an MCP workspace workflow, not access to ChatGPT Work's host browser,
+   host chat history or provider-specific permissions.
 3. Inspect the project and Git status before editing. Preserve user changes.
    For Desktop Commander-style navigation, prefer `project_tree` for bounded
    folder browsing, `project_file_info` for safe file metadata, and
