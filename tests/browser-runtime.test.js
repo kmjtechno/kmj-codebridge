@@ -90,8 +90,10 @@ test("browser child environment excludes secrets and cloud credentials on all OS
       HOME: "/home/owner",
     };
     for (const platform of ["linux", "win32", "darwin"]) {
+      const browserRoot = path.join(root, platform);
+      fs.mkdirSync(browserRoot, { mode: 0o700 });
       const env = createChromePrivateEnvironment(
-        path.join(root, platform),
+        browserRoot,
         parent,
         platform,
       );
