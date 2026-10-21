@@ -7,7 +7,11 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
-import { allowedTarget, publicBrowserQa } from "./browser-public-qa.mjs";
+import {
+  allowedTarget,
+  createChromePrivateEnvironment,
+  publicBrowserQa,
+} from "./browser-public-qa.mjs";
 import {
   moliCandidates,
   selectInstalledBinary,
@@ -52,21 +56,41 @@ export function parseMoliResult(raw, expectedUrl) {
   };
 }
 
+// Keep Moli as isolated as Chromium across Windows/macOS/Linux. No parent
+// process secrets, proxy credentials, or personal browser profiles are passed.
+export function createMoliPrivateEnvironment(
+  root,
+  baseEnv = process.env,
+  platform = process.platform,
+) {
+  const safe = createChromePrivateEnvironment(root, baseEnv, platform);
+  if (platform === "win32") {
+    return {
+      ...safe,
+      HOME: safe.USERPROFILE,
+      XDG_CONFIG_HOME: safe.APPDATA,
+      XDG_CACHE_HOME: safe.LOCALAPPDATA,
+      TMPDIR: safe.TEMP,
+    };
+  }
+  return safe;
+}
+
 export async function moliFetch(
   expectedUrl,
   { executable = selectedMoliBinary(), spawnFn = spawn } = {},
 ) {
+  // mcp callers cannot choose URLs. Keep the exported runtime equally strict
+  // so future internal uses cannot accidentally widen browsing authority.
+  const target = allowedTarget("kmj_public");
+  if (!target.paths.some((page) => target.origin + page === expectedUrl))
+    throw Error("MOLI_TARGET_NOT_ALLOWED");
   if (!executable) throw Error("MOLI_NOT_INSTALLED");
   if (process.platform !== "win32" && process.getuid?.() === 0)
     throw Error("MOLI_ROOT_UNSAFE");
   const work = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-moli-fast-"));
   try {
-    const env = {
-      PATH: process.env.PATH ?? "/usr/bin:/bin",
-      HOME: work,
-      XDG_CONFIG_HOME: work,
-      XDG_CACHE_HOME: work,
-    };
+    const env = createMoliPrivateEnvironment(work);
     return await new Promise((resolve, reject) => {
       // Fetch only allowlisted HTTPS origin; deny RFC1918/localhost redirects.
       const args = [
