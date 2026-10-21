@@ -27,6 +27,7 @@ test("engine discovery handles Windows, macOS and Linux without PATH execution",
     chromeCandidates("darwin").some((p) => p.includes("Google Chrome.app")),
   );
   assert.ok(chromeCandidates("linux").includes("/usr/bin/chromium"));
+  assert.ok(chromeCandidates("linux").includes("/opt/google/chrome/chrome"));
   assert.deepEqual(chromeCandidates("unsupported"), []);
   assert.ok(moliCandidates("darwin")[0].endsWith("/moli"));
   assert.ok(moliCandidates("win32")[0].endsWith("moli.exe"));
@@ -54,7 +55,9 @@ test("engine selection rejects symlink binaries and avoids leaked executable pat
       },
     });
     assert.equal(status.fidelity.available, true);
+    assert.equal(status.fidelity.launchVerified, false);
     assert.equal(status.fast.available, true);
+    assert.equal(status.fast.launchVerified, false);
     assert.equal(status.plan.textRead, "moli_then_chromium");
     assert.equal(status.plan.visualQa, "chromium");
     assert.equal(JSON.stringify(status).includes(root), false);
