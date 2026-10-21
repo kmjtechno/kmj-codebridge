@@ -8,8 +8,13 @@ test("gateway intercepts workspace open and reuses only four scoped read tools",
     new URL("../src/gateway.js", import.meta.url),
     "utf8",
   );
-  const start = source.indexOf("  async function getChatWorkspaceOpen(user, args)");
-  const end = source.indexOf("  async function getMultiChatSync(user, args)", start);
+  const start = source.indexOf(
+    "  async function getChatWorkspaceOpen(user, args)",
+  );
+  const end = source.indexOf(
+    "  async function getMultiChatSync(user, args)",
+    start,
+  );
   assert.ok(start >= 0 && end > start);
   const block = source.slice(start, end);
   assert.match(block, /authorize\(user, args, "read"\)/);
