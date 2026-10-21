@@ -92,11 +92,7 @@ test("browser child environment excludes secrets and cloud credentials on all OS
     for (const platform of ["linux", "win32", "darwin"]) {
       const browserRoot = path.join(root, platform);
       fs.mkdirSync(browserRoot, { mode: 0o700 });
-      const env = createChromePrivateEnvironment(
-        browserRoot,
-        parent,
-        platform,
-      );
+      const env = createChromePrivateEnvironment(browserRoot, parent, platform);
       assert.equal(env.PATH, parent.PATH);
       assert.equal(env.CODEBRIDGE_DEVICE_TOKEN, undefined);
       assert.equal(env.AWS_SECRET_ACCESS_KEY, undefined);
