@@ -8,7 +8,10 @@ import { createHash } from "node:crypto";
 import { spawn } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import { allowedTarget, publicBrowserQa } from "./browser-public-qa.mjs";
-import { moliCandidates, selectInstalledBinary } from "../src/browser-runtime.js";
+import {
+  moliCandidates,
+  selectInstalledBinary,
+} from "../src/browser-runtime.js";
 
 export const MOLI_VERSION = "1.1.18";
 export const MOLI_CANDIDATES = Object.freeze(moliCandidates());
