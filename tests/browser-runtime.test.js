@@ -11,6 +11,7 @@ import {
 } from "../src/browser-runtime.js";
 import { createChromePrivateEnvironment } from "../scripts/browser-public-qa.mjs";
 import { createDispatcher } from "../src/tools.js";
+import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
 
 test("engine discovery handles Windows, macOS and Linux without PATH execution", () => {
   const win = chromeCandidates("win32", {
@@ -33,17 +34,26 @@ test("engine discovery handles Windows, macOS and Linux without PATH execution",
   assert.ok(moliCandidates("win32")[0].endsWith("moli.exe"));
 });
 
-test("engine selection rejects symlink binaries and avoids leaked executable paths", () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-browser-choices-"));
+test("engine selection rejects symlink binaries", (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-browser-links-"));
   try {
     const program = path.join(root, "browser");
     const symlink = path.join(root, "browser-link");
     fs.writeFileSync(program, "fixture", { mode: 0o700 });
-    fs.symlinkSync(program, symlink);
+    if (!createSymlinkOrSkip(t, program, symlink)) return;
     assert.equal(selectInstalledBinary([symlink, program]), program);
     assert.equal(selectInstalledBinary([symlink]), null);
-    assert.equal(selectInstalledBinary(["/missing"]), null);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
 
+test("browser runtime rejects missing candidates and hides executable paths", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-browser-choices-"));
+  try {
+    const program = path.join(root, "browser");
+    fs.writeFileSync(program, "fixture", { mode: 0o700 });
+    assert.equal(selectInstalledBinary(["/missing"]), null);
     const stable = "/usr/bin/google-chrome";
     const fast = "/opt/kmj-codebridge-tools/moli/v1.1.18/bin/moli";
     const seen = new Set([stable, fast]);
