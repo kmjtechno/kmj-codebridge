@@ -81,6 +81,8 @@ codex mcp add kmj-codebridge --url https://kmjtechno.com/mcp
 
 **ChatGPT and other supported Streamable HTTP MCP clients:** add `https://kmjtechno.com/mcp` as a **remote MCP connector**, then complete the client-supported OAuth consent flow. Do **not** use the MCP URL as a Git marketplace source. AI tools are scoped to approved devices/projects; no blanket remote shell access.
 
+**Already enrolled on Windows P720?** Double-click `scripts/windows/CONNECT-P720-CODEBRIDGE.cmd` for a scoped, SHA-pinned reconnect without changing the dirty development checkout. [One-click device connection and first-time pairing requirements →](docs/ONE-CLICK-DEVICE-CONNECTION.md). This is a user-session reconnect, not an unattended Windows service.
+
 **[Full setup, safety checks, and reusable AI-assistant prompt →](docs/AI-CLIENT-QUICKSTART.md)**
 
 ---
