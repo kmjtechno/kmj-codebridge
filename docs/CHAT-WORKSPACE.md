@@ -11,8 +11,8 @@ permissions and billing authority.
 1. Connect the client's authenticated KMJ CodeBridge MCP server and verify
    `list_devices`. Choose an authorized device/project. A server marked
    "running" or discovered tools does not prove user OAuth authorization.
-2. In a normal chat ask: *Open my CodeBridge workspace and continue the
-   browser task*. The client calls:
+2. In a normal chat ask: _Open my CodeBridge workspace and continue the
+   browser task_. The client calls:
    `chat_workspace_open({device,project,lane:"browser-project"})`.
 3. A single device-scoped read returns a bounded project tree, frameworks,
    quality gates, task/job journal, optional compact-session checkpoint,
