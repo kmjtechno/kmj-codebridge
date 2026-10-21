@@ -181,8 +181,11 @@ Use this for any change to the production gateway that serves the customer-domai
 
    It exits non-zero unless the Render and customer-domain gateways both serve a
    complete tool catalog and report exactly that commit in `serverInfo.commit`
-   (`MCP_DEPLOYED_COMMIT_ASSERT=PASS`). An origin that reports no commit counts as
-   a failure, because it proves nothing.
+   (`MCP_DEPLOYED_COMMIT_ASSERT=PASS`). An origin that reports no commit,
+   only an abbreviated hash, or a different commit counts as a failure.
+   The Hosted Deployment Smoke also checks both live origins against the
+   workflow's exact full SHA. A source push before customer cutover may
+   intentionally remain red; never disable the check to hide that drift.
 
 6. **Roll back** to the recorded old release if the assertion or any health check
    fails, then re-run the assertion against the old SHA.
