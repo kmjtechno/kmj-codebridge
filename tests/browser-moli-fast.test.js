@@ -12,7 +12,7 @@ import {
   moliFetch,
   fastBrowserProbe,
 } from "../scripts/browser-moli-fast.mjs";
-import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 
 const expected = "https://kmjtechno.com/products";
 const sample = () =>
@@ -61,7 +61,10 @@ test("Moli pin and JSON probe are explicit about actual URL/status", () => {
 });
 
 test("Moli selection rejects missing candidates without symlink privileges", () => {
-  assert.equal(selectedMoliBinary([path.join(os.tmpdir(), "kmj-moli-no-such-binary")]), null);
+  assert.equal(
+    selectedMoliBinary([path.join(os.tmpdir(), "kmj-moli-no-such-binary")]),
+    null,
+  );
 });
 
 test("Moli selection rejects symlink candidates", (t) => {
@@ -70,7 +73,10 @@ test("Moli selection rejects symlink candidates", (t) => {
     const real = path.join(root, "moli");
     const sym = path.join(root, "moli-link");
     fs.writeFileSync(real, "fake binary");
-    if (!createSymlinkOrSkip(t, real, sym)) return;
+    if (!tryFileSymlink(t, real, sym)) {
+      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
+      return;
+    }
     assert.equal(selectedMoliBinary([sym, real]), real);
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
