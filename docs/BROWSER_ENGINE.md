@@ -4,18 +4,19 @@
 
 Do not build a new general-purpose browser or host a browser per customer on KMJ's VPS. Execute bounded browser work locally on the explicitly authorized CodeBridge device under the existing scoped job runner. CodeBridge Main Platform remains the customer identity and device authorization authority, not GitHub.
 
-| Workload | Preferred runtime | Status |
-| --- | --- | --- |
-| Anonymous semantic extraction of fixed public KMJ pages | Existing separately pinned Moli 1.1.18 | Implemented, bounded receipt |
-| Fixed public site screenshot, JS, viewport and layout QA | Local Chrome/Edge Chromium CDP pipe | Implemented, 9 screenshot hashes |
-| Browser runtime readiness and cross-platform discovery | Native CodeBridge MCP `browser_runtime_status` | This change |
-| Authorized form/click workflows across approved sites | Local `playwright-core` with site/action grants | Planned; **not implemented** |
-| AI-assisted page interaction | Optional planner over deterministic local Playwright actions | Research; no unrestricted model commands |
-| Lightpanda as a Chrome replacement | Not recommended as default while beta | No silent fallback or performance claim |
+| Workload                                                 | Preferred runtime                                            | Status                                   |
+| -------------------------------------------------------- | ------------------------------------------------------------ | ---------------------------------------- |
+| Anonymous semantic extraction of fixed public KMJ pages  | Existing separately pinned Moli 1.1.18                       | Implemented, bounded receipt             |
+| Fixed public site screenshot, JS, viewport and layout QA | Local Chrome/Edge Chromium CDP pipe                          | Implemented, 9 screenshot hashes         |
+| Browser runtime readiness and cross-platform discovery   | Native CodeBridge MCP `browser_runtime_status`               | This change                              |
+| Authorized form/click workflows across approved sites    | Local `playwright-core` with site/action grants              | Planned; **not implemented**             |
+| AI-assisted page interaction                             | Optional planner over deterministic local Playwright actions | Research; no unrestricted model commands |
+| Lightpanda as a Chrome replacement                       | Not recommended as default while beta                        | No silent fallback or performance claim  |
 
 Moli advertises lower resource consumption for many AI workloads, but is not pixel-for-pixel Chrome-compatible. Lightpanda's upstream describes it as beta. Only same-hardware, same-network repeatable benchmarks can establish CodeBridge-specific speed/reliability, so do not claim a winner based on third-party promotional numbers.
 
 Primary research:
+
 - [Moli (Rust; CDP/CLI/WebDriver; official benchmarks and compatibility caveats)](https://github.com/lexmount/moli)
 - [Playwright browsers and cross-engine testing](https://playwright.dev/docs/browsers)
 - [Official Microsoft Playwright MCP](https://github.com/microsoft/playwright-mcp)
