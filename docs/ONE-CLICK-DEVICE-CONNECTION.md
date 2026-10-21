@@ -10,7 +10,7 @@ The current supported installed runtime is an immutable detached Git release in 
 
 On double-click it:
 
-1. Reads the existing *private* P720 agent configuration without printing tokens and validates the exact canonical HTTPS gateway, device ID, single project, project root and state directory.
+1. Reads the existing _private_ P720 agent configuration without printing tokens and validates the exact canonical HTTPS gateway, device ID, single project, project root and state directory.
 2. Requires non-reparse paths, a clean tracked **release** checkout, trusted Git origin, full pinned SHA and installed Node dependencies. It does **not** require the user's separate main development checkout to be clean.
 3. Checks only the P720 config-scoped process. If one agent exists, reports `DEVICE_CONNECT=ALREADY_RUNNING` and does not start another; if multiple or a live conflicting lock exists, refuses to proceed. A stale lock is left for the agent's own proven-stale lock algorithm; never delete it manually.
 4. Requires HTTPS `/agent/health` without a token to return **401**, then starts **one** user-session agent from the installed pinned runtime, with logs under the owner-private state directory.
