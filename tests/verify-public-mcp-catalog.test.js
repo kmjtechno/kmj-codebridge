@@ -522,10 +522,10 @@ test("strict post-cutover assertion needs every origin on the exact expected com
     failedCommitAssertions(want, { render: want, production: want }),
     [],
   );
-  // A short deployed prefix of the expected commit is accepted.
+  // Only a full exact deployed SHA proves release acceptance.
   assert.deepEqual(
     failedCommitAssertions(want, { render: "e831671", production: want }),
-    [],
+    ["render"],
   );
   // Stale, unknown and unrelated commits all fail; unknown proves nothing.
   assert.deepEqual(
