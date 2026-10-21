@@ -7,7 +7,7 @@ import {
   assessReleaseEvidence,
   readReleaseEvidence,
 } from "../scripts/release-acceptance-gate.mjs";
-import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 
 const SHA = "a".repeat(40);
 const SECOND = "b".repeat(40);
@@ -185,6 +185,9 @@ test("evidence reader rejects symlinked files", (t) => {
   const file = path.join(temp, "evidence.json");
   const link = path.join(temp, "link.json");
   fs.writeFileSync(file, JSON.stringify(goodEvidence()));
-  if (!createSymlinkOrSkip(t, file, link)) return;
+  if (!tryFileSymlink(t, file, link)) {
+      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
+      return;
+    }
   assert.throws(() => readReleaseEvidence(link), /EVIDENCE_FILE_INVALID/);
 });
