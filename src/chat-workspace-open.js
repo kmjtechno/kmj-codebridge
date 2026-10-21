@@ -10,17 +10,19 @@ const safePath = (value) =>
   value.length <= 512 &&
   !/[\\:\x00-\x1f]/.test(value) &&
   !value.startsWith("/") &&
-  value.split("/").every(
-    (part) =>
-      part.length > 0 &&
-      part !== "." &&
-      part !== ".." &&
-      !/^(?:\.git|\.env(?:\..*)?|\.ssh|node_modules|\.codebridge-.*)$/i.test(part),
-  );
+  value
+    .split("/")
+    .every(
+      (part) =>
+        part.length > 0 &&
+        part !== "." &&
+        part !== ".." &&
+        !/^(?:\.git|\.env(?:\..*)?|\.ssh|node_modules|\.codebridge-.*)$/i.test(
+          part,
+        ),
+    );
 const safeLabel = (value, limit = 100) =>
-  typeof value === "string" && value.length <= limit
-    ? redact(value)
-    : null;
+  typeof value === "string" && value.length <= limit ? redact(value) : null;
 const safeNames = (names, limit = 24) =>
   Array.isArray(names)
     ? names
