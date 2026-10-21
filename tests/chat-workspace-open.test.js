@@ -100,7 +100,9 @@ test("snapshot contains only bounded workspace facts, never raw tool metadata", 
       nextReadyTaskId: null,
       attention: ["AUTOPILOT_JOURNAL_UNAVAILABLE"],
       jobs: {
-        recent: [{ id: "job-1", gate: "check", state: "succeeded", exitCode: 0 }],
+        recent: [
+          { id: "job-1", gate: "check", state: "succeeded", exitCode: 0 },
+        ],
       },
     },
     checkpoint: {
@@ -132,7 +134,10 @@ function fixture(t) {
   fs.mkdirSync(repo);
   fs.mkdirSync(other);
   fs.mkdirSync(stateDir);
-  fs.writeFileSync(path.join(repo, "package.json"), '{"name":"workspace-test"}');
+  fs.writeFileSync(
+    path.join(repo, "package.json"),
+    '{"name":"workspace-test"}',
+  );
   fs.writeFileSync(path.join(repo, "README.md"), "safe public content");
   const runner = {
     maxConcurrent: 1,
@@ -166,12 +171,21 @@ function fixture(t) {
       id: "device1",
       stateDir,
       projects: [
-        { id: "project1", root: repo, writable: true, gates: { fast: [] }, commands: {} },
+        {
+          id: "project1",
+          root: repo,
+          writable: true,
+          gates: { fast: [] },
+          commands: {},
+        },
         { id: "other", root: other, writable: false, gates: {}, commands: {} },
       ],
     },
     runner,
-    () => ({ features: ["read", "write", "execute"], limits: { concurrent_jobs: 1 } }),
+    () => ({
+      features: ["read", "write", "execute"],
+      limits: { concurrent_jobs: 1 },
+    }),
   );
   return { dispatch };
 }
@@ -185,7 +199,9 @@ test("ordinary chat can open and resume a project in one scoped read-only call",
   assert.equal(opened.checkpoint.status, "NONE");
   assert.equal(opened.progress.taskTrackingAvailable, false);
   assert.equal(opened.progress.recentJobs[0].id, "job-1");
-  assert.ok(opened.workspace.explorer.entries.some((x) => x.path === "README.md"));
+  assert.ok(
+    opened.workspace.explorer.entries.some((x) => x.path === "README.md"),
+  );
   assert.equal(opened.hostLimitations.chatTranscriptCaptured, false);
   assert.equal(definitions.chat_workspace_open.access, "read");
 
@@ -209,7 +225,10 @@ test("ordinary chat can open and resume a project in one scoped read-only call",
   const resumed = await dispatch("chat_workspace_open", input, ["read"]);
   assert.equal(resumed.checkpoint.status, "SAVED");
   assert.equal(resumed.checkpoint.objective, "Resume browser Work milestone");
-  assert.equal(resumed.checkpoint.nextSteps[0], "Review the current exact head");
+  assert.equal(
+    resumed.checkpoint.nextSteps[0],
+    "Review the current exact head",
+  );
   assert.notEqual(resumed.revision, opened.revision);
   const unchanged = await dispatch(
     "chat_workspace_open",
