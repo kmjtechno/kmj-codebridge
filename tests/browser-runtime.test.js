@@ -41,7 +41,9 @@ test("engine selection rejects symlink binaries", (t) => {
     const symlink = path.join(root, "browser-link");
     fs.writeFileSync(program, "fixture", { mode: 0o700 });
     if (!tryFileSymlink(t, program, symlink)) {
-      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
+      t.skip(
+        "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+      );
       return;
     }
     assert.equal(selectInstalledBinary([symlink, program]), program);
