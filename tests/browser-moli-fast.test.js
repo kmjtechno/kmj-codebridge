@@ -74,7 +74,9 @@ test("Moli selection rejects symlink candidates", (t) => {
     const sym = path.join(root, "moli-link");
     fs.writeFileSync(real, "fake binary");
     if (!tryFileSymlink(t, real, sym)) {
-      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
+      t.skip(
+        "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+      );
       return;
     }
     assert.equal(selectedMoliBinary([sym, real]), real);
