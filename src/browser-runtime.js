@@ -49,6 +49,10 @@ export function chromeCandidates(
     ];
   if (platform === "linux")
     return [
+      "/opt/google/chrome/chrome",
+      "/opt/microsoft/msedge/msedge",
+      "/usr/lib/chromium/chromium",
+      "/usr/lib64/chromium/chromium",
       "/usr/bin/google-chrome",
       "/usr/bin/google-chrome-stable",
       "/usr/bin/microsoft-edge",
@@ -92,6 +96,7 @@ export function browserRuntimeStatus({
       engine: "chromium_cdp",
       installed: Boolean(fidelity),
       available: Boolean(fidelity),
+      launchVerified: false,
       mode: "anonymous_ephemeral_profile",
       supportedWork: "fixed_public_visual_qa",
     },
@@ -100,6 +105,7 @@ export function browserRuntimeStatus({
       pinnedVersion: BROWSER_FAST_VERSION,
       installed: Boolean(fast),
       available: Boolean(fast),
+      launchVerified: false,
       supportedWork: "fixed_public_semantic_probe",
     },
     plan: {
