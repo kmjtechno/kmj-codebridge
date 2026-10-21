@@ -19,7 +19,10 @@ test("engine discovery handles Windows, macOS and Linux without PATH execution",
   assert.ok(win.some((p) => p.includes("Microsoft\\Edge")));
   assert.ok(win.some((p) => p.includes("Users\\tester")));
   assert.ok(win.every((p) => p.endsWith(".exe")));
-  assert.equal(chromeCandidates("win32", { LOCALAPPDATA: "relative" }).length, 4);
+  assert.equal(
+    chromeCandidates("win32", { LOCALAPPDATA: "relative" }).length,
+    4,
+  );
   assert.ok(
     chromeCandidates("darwin").some((p) => p.includes("Google Chrome.app")),
   );
@@ -84,7 +87,11 @@ test("browser child environment excludes secrets and cloud credentials on all OS
       HOME: "/home/owner",
     };
     for (const platform of ["linux", "win32", "darwin"]) {
-      const env = createChromePrivateEnvironment(root, parent, platform);
+      const env = createChromePrivateEnvironment(
+        path.join(root, platform),
+        parent,
+        platform,
+      );
       assert.equal(env.PATH, parent.PATH);
       assert.equal(env.CODEBRIDGE_DEVICE_TOKEN, undefined);
       assert.equal(env.AWS_SECRET_ACCESS_KEY, undefined);
@@ -115,7 +122,9 @@ test("MCP browser readiness uses an authorized project and cannot launch a brows
     {
       id: "device1",
       stateDir: home,
-      projects: [{ id: "project1", root, writable: false, gates: {}, commands: {} }],
+      projects: [
+        { id: "project1", root, writable: false, gates: {}, commands: {} },
+      ],
     },
     {
       run: () => {
