@@ -21,6 +21,21 @@ Runs via existing bounded JobRunner, one agent slot; no added shell, arbitrary U
 - The Windows binary has independent asset checksum and must be separately pinned and approved; Linux shell installer does not run on Windows.
 - Runtime release needs signed/staged CodeBridge update with rollback proof, exact head CI and connected clients refresh. Do not run unreleased scripts on production.
 
+## Cross-platform isolation hardening
+
+Moli uses the same minimal child-environment allowlist as Chromium, including
+private browser directories. On Windows it receives isolated `USERPROFILE`,
+`APPDATA`, `LOCALAPPDATA`, `TEMP` and `TMP` plus private HOME/XDG aliases;
+Linux/macOS receive private HOME/XDG/TMPDIR. Parent CodeBridge tokens, cloud
+credentials, browser profiles, proxy secrets and other process environment
+variables are never inherited. This does not make Moli a universal
+authenticated browser; that requires separately approved user sessions.
+
+The executable entry point itself now rejects any URL outside the three
+fixed `kmj_public` pages before launching Moli. An internal caller cannot
+accidentally use this fast path as an arbitrary-URL fetcher. Browser installation
+and customer-device rollout remain separate, operator-approved steps.
+
 ## Security / performance criteria
 
 - Fixed URLs only; no cookies, credentials, arbitrary JavaScript, CDP debug port or private network access; ephemeral HOME/cache.

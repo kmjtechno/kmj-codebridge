@@ -3,10 +3,13 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { EventEmitter } from "node:events";
 import {
   MOLI_VERSION,
   parseMoliResult,
   selectedMoliBinary,
+  createMoliPrivateEnvironment,
+  moliFetch,
   fastBrowserProbe,
 } from "../scripts/browser-moli-fast.mjs";
 
@@ -69,6 +72,113 @@ test("Moli selection rejects symlink and missing candidates", () => {
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("Moli private environment isolates parent tokens and works on every OS", () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-moli-env-"));
+  try {
+    for (const platform of ["win32", "darwin", "linux"]) {
+      const dir = path.join(root, platform);
+      fs.mkdirSync(dir);
+      const env = createMoliPrivateEnvironment(
+        dir,
+        {
+          PATH: "/bin",
+          SYSTEMROOT: "C:\\Windows",
+          CODEBRIDGE_DEVICE_TOKEN: "sensitive_device_token",
+          AWS_SECRET_ACCESS_KEY: "secret_cloud_key",
+          HTTP_PROXY: "http://proxy-secret.example:8080",
+          HOME: "/private/owner",
+        },
+        platform,
+      );
+      assert.equal(env.PATH, "/bin");
+      assert.equal(env.CODEBRIDGE_DEVICE_TOKEN, undefined);
+      assert.equal(env.AWS_SECRET_ACCESS_KEY, undefined);
+      assert.equal(env.HTTP_PROXY, undefined);
+      assert.ok(!JSON.stringify(env).includes("sensitive_device_token"));
+      assert.ok(!JSON.stringify(env).includes("secret_cloud_key"));
+      assert.ok(!JSON.stringify(env).includes("proxy-secret"));
+      assert.ok(!JSON.stringify(env).includes("/private/owner"));
+      assert.ok(env.HOME.startsWith(dir));
+      assert.ok(env.XDG_CONFIG_HOME.startsWith(dir));
+      assert.ok(env.XDG_CACHE_HOME.startsWith(dir));
+      if (platform === "win32") {
+        assert.equal(env.USERPROFILE, env.HOME);
+        assert.ok(env.TEMP.startsWith(dir));
+        assert.ok(env.APPDATA.startsWith(dir));
+        assert.ok(env.LOCALAPPDATA.startsWith(dir));
+      }
+      assert.ok(fs.statSync(env.HOME).isDirectory());
+    }
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Moli refuses nonapproved URLs before launching an executable", async () => {
+  let launched = false;
+  const spawnFn = () => {
+    launched = true;
+    throw Error("must not execute");
+  };
+  for (const url of [
+    "https://example.com/",
+    "https://kmjtechno.com/admin",
+    "http://169.254.169.254/",
+    "file:///etc/passwd",
+    "https://kmjtechno.com/products?next=https://evil.invalid",
+  ]) {
+    await assert.rejects(
+      moliFetch(url, { executable: "test-moli", spawnFn }),
+      /MOLI_TARGET_NOT_ALLOWED/,
+    );
+  }
+  assert.equal(launched, false);
+});
+
+test(
+  "Moli fixed public job uses isolated child environment without secrets",
+  { skip: process.platform !== "win32" && process.getuid?.() === 0 },
+  async () => {
+    let options;
+    let args;
+    let executable;
+    const spawnFn = (binary, argv, opts) => {
+      executable = binary;
+      args = argv;
+      options = opts;
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.kill = () => true;
+      queueMicrotask(() => {
+        child.stdout.emit("data", Buffer.from(sample(), "utf8"));
+        child.emit("close", 0);
+      });
+      return child;
+    };
+    const result = await moliFetch(expected, {
+      executable: "test-moli",
+      spawnFn,
+    });
+    assert.equal(result.httpStatus, 200);
+    assert.equal(executable, "test-moli");
+    assert.deepEqual(args.slice(-1), [expected]);
+    assert.ok(args.includes("--block-private-networks"));
+    assert.ok(args.includes("--disable-subframes"));
+    assert.equal(options.shell, false);
+    assert.equal(options.env.CODEBRIDGE_DEVICE_TOKEN, undefined);
+    assert.equal(options.env.AWS_SECRET_ACCESS_KEY, undefined);
+    assert.ok(options.env.HOME);
+    assert.ok(options.env.TMPDIR);
+    assert.equal(options.env.HTTP_PROXY, undefined);
+    if (process.platform === "win32") {
+      assert.ok(options.env.APPDATA);
+      assert.ok(options.env.USERPROFILE);
+      assert.ok(options.env.TEMP);
+    }
+    assert.match(result.sha256, /^[0-9a-f]{64}$/);
+  },
+);
 
 test(
   "Moli fast lane stores bounded public metadata, never raw page HTML",
