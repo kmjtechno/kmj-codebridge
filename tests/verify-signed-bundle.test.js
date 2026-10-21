@@ -127,18 +127,22 @@ test("rejects symlinks for archive or signing inputs", async (t) => {
   const { options, dir } = fixture(t);
   const link = path.join(dir, "signed-manifest-link.json");
   if (!tryFileSymlink(t, options.signedManifestPath, link)) {
-      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
-      return;
-    }
+    t.skip(
+      "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+    );
+    return;
+  }
   await assert.rejects(
     verifySignedReleaseBundle({ ...options, signedManifestPath: link }),
     /BUNDLE_FILE_UNSAFE/,
   );
   const archiveLink = path.join(dir, "archive-link.tar.gz");
   if (!tryFileSymlink(t, options.archivePath, archiveLink)) {
-      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
-      return;
-    }
+    t.skip(
+      "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+    );
+    return;
+  }
   await assert.rejects(
     verifySignedReleaseBundle({ ...options, archivePath: archiveLink }),
     /BUNDLE_MANIFEST_IDENTITY_MISMATCH|BUNDLE_FILE_UNSAFE/,
