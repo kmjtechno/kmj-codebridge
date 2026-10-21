@@ -32,7 +32,7 @@
     "doctor:claude": "node scripts/diagnose-claude-oauth.mjs"
   },
   "dependencies": {
-    "@modelcontextprotocol/sdk": "1.31.0",
+    "@modelcontextprotocol/sdk": "1.32.1",
     "jose": "6.2.12",
     "zod": "^3.25.76"
   },
