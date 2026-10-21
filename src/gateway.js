@@ -1,5 +1,6 @@
 import { buildMissionActivity } from "./mission-control-activity.js";
 import { buildMissionWorkspace } from "./mission-control-workspace.js";
+import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
 import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
 import { createUserIntrospector } from "./user-access.js";
 import {
@@ -671,6 +672,44 @@ export async function startGateway(rawConfig) {
       : packet;
   }
 
+  async function getChatWorkspaceOpen(user, args) {
+    authorize(user, args, "read");
+    const scope = { device: args.device, project: args.project };
+    // Gateway composition works on older enrolled agents without forcing
+    // a risky unattended runtime restart. Every subcall is scoped, read-only,
+    // independently authorized, and sanitized by the shared summary builder.
+    const read = async (name, input) => {
+      try {
+        return decodeForwardedResult(await forward(user, name, input));
+      } catch (error) {
+        return { ok: false, error: publicError(error).error };
+      }
+    };
+    const [home, progress, checkpoint, browser] = await Promise.all([
+      read("workspace_home", {
+        ...scope,
+        maxDepth: 2,
+        maxEntries: args.maxEntries,
+        recentJobs: args.recentJobs,
+      }),
+      read("project_progress", { ...scope, recentJobs: args.recentJobs }),
+      read("compact_session_resume", { ...scope, lane: args.lane }),
+      read("browser_runtime_status", scope),
+    ]);
+    return buildChatWorkspaceOpen({
+      ...scope,
+      lane: args.lane,
+      writable: home.ok ? home.value?.writable : null,
+      environment: home.ok ? home.value?.environment : null,
+      explorer: home.ok ? home.value?.explorer : null,
+      qualityGates: home.ok ? home.value?.qualityGates : null,
+      progress: progress.ok ? progress.value : null,
+      checkpoint: checkpoint.ok ? checkpoint.value : null,
+      browser: browser.ok ? browser.value : null,
+      ifNoneMatch: args.ifNoneMatch,
+    });
+  }
+
   async function getMultiChatSync(user, args) {
     authorize(user, args, "read");
     const scope = { device: args.device, project: args.project };
@@ -1256,6 +1295,13 @@ export async function startGateway(rawConfig) {
               }
               if (name === "compact_work_brief") {
                 const result = await getCompactWorkBrief(user, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(result) }],
+                  structuredContent: result,
+                };
+              }
+              if (name === "chat_workspace_open") {
+                const result = await getChatWorkspaceOpen(user, args);
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                   structuredContent: result,
