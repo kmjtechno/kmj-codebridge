@@ -5,6 +5,7 @@ export const REQUIRED_TOOLS = Object.freeze([
   "chat_lane_release",
   "chat_lane_reserve",
   "chat_lane_status",
+  "chat_workspace_open",
   "compact_work_brief",
   "fleet_overview",
   "local_model_generate",
@@ -20,6 +21,14 @@ export const REQUIRED_TOOLS = Object.freeze([
 // Count alone is never sufficient: different origins may legitimately carry
 // different hosted-only integrations, but these tools must exist on both.
 export const CRITICAL_TOOL_PROPERTIES = Object.freeze({
+  chat_workspace_open: [
+    "device",
+    "project",
+    "lane",
+    "ifNoneMatch",
+    "maxEntries",
+    "recentJobs",
+  ],
   coordination_list: ["device", "project", "limit", "after"],
   coordination_post: [
     "device",
@@ -143,10 +152,16 @@ export function verifyCriticalToolSchemas(catalog) {
       if (!Object.hasOwn(schema.properties, property))
         throw criticalError("MCP_CRITICAL_SCHEMA_MISSING", name);
     }
-    for (const sensitive of ["leaseToken"]) {
+    for (const [property, type] of [
+      ["leaseToken", "string"],
+      ["lane", "string"],
+      ["ifNoneMatch", "string"],
+      ["maxEntries", "number"],
+      ["recentJobs", "number"],
+    ]) {
       if (
-        requiredProperties.includes(sensitive) &&
-        schema.properties[sensitive]?.type !== "string"
+        requiredProperties.includes(property) &&
+        schema.properties[property]?.type !== type
       )
         throw criticalError("MCP_CRITICAL_SCHEMA_INVALID", name);
     }
