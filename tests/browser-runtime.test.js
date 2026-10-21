@@ -11,7 +11,7 @@ import {
 } from "../src/browser-runtime.js";
 import { createChromePrivateEnvironment } from "../scripts/browser-public-qa.mjs";
 import { createDispatcher } from "../src/tools.js";
-import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
+import { tryFileSymlink } from "./windows-symlink-capability.js";
 
 test("engine discovery handles Windows, macOS and Linux without PATH execution", () => {
   const win = chromeCandidates("win32", {
@@ -40,7 +40,10 @@ test("engine selection rejects symlink binaries", (t) => {
     const program = path.join(root, "browser");
     const symlink = path.join(root, "browser-link");
     fs.writeFileSync(program, "fixture", { mode: 0o700 });
-    if (!createSymlinkOrSkip(t, program, symlink)) return;
+    if (!tryFileSymlink(t, program, symlink)) {
+      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
+      return;
+    }
     assert.equal(selectInstalledBinary([symlink, program]), program);
     assert.equal(selectInstalledBinary([symlink]), null);
   } finally {
