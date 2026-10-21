@@ -348,6 +348,7 @@ test(
     const result = lines(out);
     assert.equal(ok, false);
     assert.equal(result.FAILURE, "DIRECT_CRITICAL_SCHEMA_INVALID");
+    assert.equal(result.FAILURE_TOOL, "coordination_list");
     assert.equal(result.ROLLBACK, "PASS");
     assert.equal(h.state.restarts, 2);
     assert.equal(h.state.commit, OLD_SHA);
