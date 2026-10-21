@@ -150,16 +150,19 @@ test("real integer-bounded workspace input schema passes, unbounded decimal numb
   const published = parseToolCatalog(criticalBody());
   for (const property of ["maxEntries", "recentJobs"]) {
     assert.equal(
-      published.tools.get("chat_workspace_open").inputSchema.properties[property].type,
+      published.tools.get("chat_workspace_open").inputSchema.properties[
+        property
+      ].type,
       "integer",
     );
   }
   assert.equal(verifyCriticalToolSchemas(published), true);
   for (const property of ["maxEntries", "recentJobs"]) {
     const decimal = parseToolCatalog(criticalBody());
-    decimal.tools.get("chat_workspace_open").inputSchema.properties[property] = {
-      type: "number",
-    };
+    decimal.tools.get("chat_workspace_open").inputSchema.properties[property] =
+      {
+        type: "number",
+      };
     assert.throws(
       () => verifyCriticalToolSchemas(decimal),
       (error) =>
