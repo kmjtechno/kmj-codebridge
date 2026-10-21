@@ -138,9 +138,11 @@ test("symlinked stored checkpoint is rejected when symlink fixtures are permitte
   const elsewhere = path.join(root, "elsewhere");
   fs.writeFileSync(elsewhere, "{}");
   if (!tryFileSymlink(t, elsewhere, file)) {
-      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
-      return;
-    }
+    t.skip(
+      "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+    );
+    return;
+  }
   assert.throws(() => store.status("p1", "chat1"), /CHAT_CONTINUITY_CORRUPT/);
 });
 
