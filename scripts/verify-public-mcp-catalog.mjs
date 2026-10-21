@@ -299,16 +299,14 @@ export function compareDeployedCommit(expectedSha, deployed) {
 }
 
 // Strict post-cutover assertion (opt-in via EXPECT_DEPLOYED_COMMIT): every
-// fixed origin must report exactly the expected commit. "unknown" cannot prove
+// fixed origin must report the full exact 40-hex commit. Short prefixes,
+// missing values and mismatches cannot prove production parity. "unknown" cannot prove
 // anything, so it fails too. Returns the failing labels; empty means PASS.
 export function failedCommitAssertions(expectedSha, observed) {
   if (typeof expectedSha !== "string" || !FULL_SHA.test(expectedSha))
     throw new Error("MCP_EXPECTED_COMMIT_INVALID");
   return Object.entries(observed)
-    .filter(
-      ([, deployed]) =>
-        compareDeployedCommit(expectedSha, deployed) !== "current",
-    )
+    .filter(([, deployed]) => deployed !== expectedSha)
     .map(([label]) => label);
 }
 
