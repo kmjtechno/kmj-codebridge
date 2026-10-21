@@ -186,8 +186,10 @@ test("evidence reader rejects symlinked files", (t) => {
   const link = path.join(temp, "link.json");
   fs.writeFileSync(file, JSON.stringify(goodEvidence()));
   if (!tryFileSymlink(t, file, link)) {
-      t.skip("Windows cannot create symlink fixture; security assertion NOT EXECUTED");
-      return;
-    }
+    t.skip(
+      "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+    );
+    return;
+  }
   assert.throws(() => readReleaseEvidence(link), /EVIDENCE_FILE_INVALID/);
 });
