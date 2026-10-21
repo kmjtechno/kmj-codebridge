@@ -4108,8 +4108,7 @@ export function createDispatcher(
         timeoutMs: variant.timeoutMs,
       });
     }
-    if (name === "browser_runtime_status")
-      return browserRuntimeStatus();
+    if (name === "browser_runtime_status") return browserRuntimeStatus();
     if (name === "browser_fast_probe") {
       if (p.id !== "kmj-main-platform" || !p.writable)
         fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
