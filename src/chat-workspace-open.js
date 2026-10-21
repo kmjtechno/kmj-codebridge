@@ -77,12 +77,13 @@ export function buildChatWorkspaceOpen({
     lane,
     source: "AUTHORIZED_DEVICE_LOCAL_PROJECT",
     workspace: {
-      writable: writable === true,
+      writable: typeof writable === "boolean" ? writable : null,
       explorer: {
-        status: explorer ? "AVAILABLE" : "UNAVAILABLE",
+        status: Array.isArray(explorer?.entries) ? "AVAILABLE" : "UNAVAILABLE",
         entries,
         truncated:
-          explorer && typeof explorer.truncated === "boolean"
+          Array.isArray(explorer?.entries) &&
+          typeof explorer.truncated === "boolean"
             ? explorer.truncated || explorer.entries.length > 40
             : null,
       },
