@@ -152,12 +152,15 @@ export function verifyCriticalToolSchemas(catalog) {
       if (!Object.hasOwn(schema.properties, property))
         throw criticalError("MCP_CRITICAL_SCHEMA_MISSING", name);
     }
+    // z.number().int() is published by MCP/Zod as JSON Schema "integer",
+    // not "number". Enforce exact integer contracts; never weaken to
+    // accepting unbounded decimals or strings at the public release gate.
     for (const [property, type] of [
       ["leaseToken", "string"],
       ["lane", "string"],
       ["ifNoneMatch", "string"],
-      ["maxEntries", "number"],
-      ["recentJobs", "number"],
+      ["maxEntries", "integer"],
+      ["recentJobs", "integer"],
     ]) {
       if (
         requiredProperties.includes(property) &&
