@@ -66,6 +66,28 @@ as `current`, `stale` or `unknown` against the commit under test, because an
 identical tool catalog does not prove an identical gateway (for example, a
 per-tool timeout fix changes behavior without changing tool names).
 
+### Immutable gateway candidate staging
+
+To prepare the public VPS gateway deployment, an operator can use
+`scripts/stage-gateway-candidate.sh` from a reviewed and pinned source commit:
+
+```bash
+sudo bash scripts/stage-gateway-candidate.sh <exact-green-main-40-hex-SHA>
+```
+
+The helper runs only as root on KMJ-elite with the existing `kmjcode`
+service healthy. It stages the fixed public CodeBridge repository at the
+specified SHA into a new, non-overwriting candidate directory; runs
+`npm ci --ignore-scripts`, `npm run check`, `npm test`, and
+`npm run scan:secrets` under the restricted service account; checks the
+clean exact commit and prints the separate guarded cutover dry-run command.
+
+It **never** restarts the gateway, changes OAuth, touches device enrollment,
+overwrites a candidate, modifies Nginx or runs `--apply`.
+A successful stage is not production acceptance: separately inspect active
+jobs, private backup/rollback state and run the existing cutover controller
+in dry-run before an explicitly approved apply.
+
 ### Guarded gateway cutover controller (operator-run, root on the gateway host)
 
 `scripts/gateway-cutover.mjs` implements the checklist below for the VPS gateway
