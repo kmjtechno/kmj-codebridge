@@ -6,6 +6,11 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
+import {
+  chromeCandidates,
+  selectInstalledBinary,
+} from "../src/browser-runtime.js";
+export { chromeCandidates } from "../src/browser-runtime.js";
 
 export const TARGETS = Object.freeze({
   kmj_public: Object.freeze({
@@ -21,18 +26,6 @@ export const VIEWPORTS = Object.freeze([
 export function allowedTarget(name) {
   if (!Object.hasOwn(TARGETS, name)) throw Error("BROWSER_TARGET_NOT_ALLOWED");
   return TARGETS[name];
-}
-export function chromeCandidates(platform = process.platform) {
-  return platform === "win32"
-    ? [
-        "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
-        "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
-      ]
-    : [
-        "/usr/bin/google-chrome",
-        "/usr/bin/chromium",
-        "/usr/bin/chromium-browser",
-      ];
 }
 export function assess(sample) {
   const failures = [];
@@ -72,33 +65,56 @@ export async function measureAfterTextReady(
 // Chrome started by a hardened systemd agent cannot rely on a writable
 // service HOME. Keep Chrome/XDG state inside its per-run private tmp tree.
 // No global process.env changes, root-mode launch or sandbox opt-out.
-export function createChromePrivateEnvironment(root, baseEnv = process.env) {
+export function createChromePrivateEnvironment(
+  root,
+  baseEnv = process.env,
+  platform = process.platform,
+) {
   const home = path.join(root, "home");
   const config = path.join(root, "config");
   const cache = path.join(root, "cache");
-  for (const directory of [home, config, cache])
+  const temporary = path.join(root, "tmp");
+  for (const directory of [home, config, cache, temporary])
     fs.mkdirSync(directory, { mode: 0o700 });
+  // Do not pass CodeBridge device credentials, cloud API keys, proxy auth or
+  // arbitrary parent process variables into untrusted browser child processes.
+  const safe = {};
+  for (const key of [
+    "PATH",
+    "LANG",
+    "LC_ALL",
+    "TZ",
+    "SYSTEMROOT",
+    "SystemRoot",
+    "WINDIR",
+    "COMSPEC",
+    "PATHEXT",
+  ])
+    if (typeof baseEnv[key] === "string") safe[key] = baseEnv[key];
+  if (platform === "win32")
+    return {
+      ...safe,
+      USERPROFILE: home,
+      LOCALAPPDATA: config,
+      APPDATA: config,
+      TEMP: temporary,
+      TMP: temporary,
+    };
   return {
-    ...baseEnv,
+    ...safe,
     HOME: home,
     XDG_CONFIG_HOME: config,
     XDG_CACHE_HOME: cache,
+    TMPDIR: temporary,
   };
 }
-
 export async function publicBrowserQa(targetName, outputDir) {
   const target = allowedTarget(targetName);
   if (!path.isAbsolute(outputDir) || outputDir.includes("\0"))
     throw Error("BROWSER_OUTPUT_INVALID");
   if (process.platform !== "win32" && process.getuid?.() === 0)
     throw Error("BROWSER_ROOT_UNSAFE");
-  const browserBinary = chromeCandidates().find((p) => {
-    try {
-      return fs.statSync(p).isFile();
-    } catch {
-      return false;
-    }
-  });
+  const browserBinary = selectInstalledBinary(chromeCandidates());
   if (!browserBinary) throw Error("BROWSER_BINARY_NOT_INSTALLED");
   if (fs.existsSync(outputDir)) throw Error("BROWSER_RECEIPT_COLLISION");
   fs.mkdirSync(outputDir, { recursive: true, mode: 0o700 });
@@ -106,10 +122,7 @@ export async function publicBrowserQa(targetName, outputDir) {
     path.join(os.tmpdir(), "kmj-public-chrome-"),
   );
   const profile = path.join(profileRoot, "profile");
-  const chromeEnv =
-    process.platform === "win32"
-      ? process.env
-      : createChromePrivateEnvironment(profileRoot);
+  const chromeEnv = createChromePrivateEnvironment(profileRoot);
   const browser = spawn(
     browserBinary,
     [

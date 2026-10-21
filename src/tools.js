@@ -1,5 +1,6 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
 import { verifiedFastReceipt } from "./browser-fast-receipt.js";
+import { browserRuntimeStatus } from "./browser-runtime.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1166,6 +1167,13 @@ export const definitions = {
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
     },
     access: "write",
+  },
+  browser_runtime_status: {
+    title: "Local browser engine readiness",
+    description:
+      "Read-only, credential-free readiness of locally installed Chromium/Edge and pinned Moli engines for this authorized device. Shows deterministic text/visual QA selection and honest limitations, never executable paths, profiles, environment secrets, cookies or remote browser endpoints. No browser launches, downloads or cloud calls.",
+    input: scoped,
+    access: "read",
   },
   browser_fast_probe: {
     title: "Fast public browser probe (Moli with Chrome fallback)",
@@ -4100,6 +4108,7 @@ export function createDispatcher(
         timeoutMs: variant.timeoutMs,
       });
     }
+    if (name === "browser_runtime_status") return browserRuntimeStatus();
     if (name === "browser_fast_probe") {
       if (p.id !== "kmj-main-platform" || !p.writable)
         fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
