@@ -22,6 +22,7 @@ import os from "node:os";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import {
+  CRITICAL_TOOL_PROPERTIES,
   REQUIRED_TOOLS,
   parseServerCommit,
   parseToolCatalog,
@@ -383,8 +384,16 @@ function verifyServing(options, deps) {
     // Check all three post-cutover origins; rollback uses the original catalog.
     try {
       verifyCriticalToolSchemas(seen.catalog);
-    } catch {
-      throw new CutoverError(`${label}_CRITICAL_SCHEMA_INVALID`);
+    } catch (error) {
+      const failure = new CutoverError(`${label}_CRITICAL_SCHEMA_INVALID`);
+      // A static reviewed tool name is safe to report. Never log the full
+      // public response, tool arguments, OAuth configuration or tokens.
+      if (
+        typeof error.criticalTool === "string" &&
+        Object.hasOwn(CRITICAL_TOOL_PROPERTIES, error.criticalTool)
+      )
+        failure.criticalTool = error.criticalTool;
+      throw failure;
     }
     check(seen.commit === options.targetSha, `${label}_COMMIT_MISMATCH`);
   }
@@ -557,6 +566,7 @@ export async function runCutover(options, deps = realDeps()) {
     } catch (error) {
       say("CUTOVER", "FAIL");
       say("FAILURE", error.code ?? "UNEXPECTED_ERROR");
+      if (error.criticalTool) say("FAILURE_TOOL", error.criticalTool);
       say("ROLLBACK", "STARTING");
       try {
         await rollback(options, deps, ctx, dropIn, previous, restarted);
