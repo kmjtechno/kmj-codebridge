@@ -1,5 +1,6 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
 import { verifiedFastReceipt } from "./browser-fast-receipt.js";
+import { browserWorkflowPreflight } from "./browser-workflow-preflight.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -1166,6 +1167,16 @@ export const definitions = {
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
     },
     access: "write",
+  },
+  browser_workflow_preflight: {
+    title: "Safe Moli/Chrome browser Work workflow preflight",
+    description:
+      "Read-only plan for a fixed allowlisted KMJ Main Platform Brevo Free sender-domain workflow. Reports human login/approval gates; does NOT launch a browser, retrieve sessions, send mail, change Cloudflare DNS, accept scripts or purchase plans.",
+    input: {
+      ...scoped,
+      workflow: z.literal("brevo_domain_auth"),
+    },
+    access: "read",
   },
   browser_fast_probe: {
     title: "Fast public browser probe (Moli with Chrome fallback)",
@@ -4099,6 +4110,15 @@ export function createDispatcher(
         args: variant.args,
         timeoutMs: variant.timeoutMs,
       });
+    }
+    if (name === "browser_workflow_preflight") {
+      if (p.id !== "kmj-main-platform")
+        fail("BROWSER_WORKFLOW_PROJECT_NOT_ALLOWED");
+      return {
+        device: config.id,
+        project: p.id,
+        ...browserWorkflowPreflight(a.workflow),
+      };
     }
     if (name === "browser_fast_probe") {
       if (p.id !== "kmj-main-platform" || !p.writable)
