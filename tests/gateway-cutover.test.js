@@ -193,7 +193,7 @@ function host(t, tweak = {}) {
                         property,
                         {
                           type: ["maxEntries", "recentJobs"].includes(property)
-                            ? "number"
+                            ? "integer"
                             : "string",
                         },
                       ]),
