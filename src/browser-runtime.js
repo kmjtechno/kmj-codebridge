@@ -5,7 +5,8 @@ import path from "node:path";
 
 export const BROWSER_FAST_VERSION = "1.1.18";
 const MOLI_LINUX = "/opt/kmj-codebridge-tools/moli/v1.1.18/bin/moli";
-const MOLI_WINDOWS = "C:\\ProgramData\\KMJ\\CodeBridge\\moli\\v1.1.18\\moli.exe";
+const MOLI_WINDOWS =
+  "C:\\ProgramData\\KMJ\\CodeBridge\\moli\\v1.1.18\\moli.exe";
 
 export function chromeCandidates(
   platform = process.platform,
