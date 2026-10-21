@@ -7,6 +7,7 @@ import {
   assessReleaseEvidence,
   readReleaseEvidence,
 } from "../scripts/release-acceptance-gate.mjs";
+import { createSymlinkOrSkip } from "./support/symlink-fixture.js";
 
 const SHA = "a".repeat(40);
 const SECOND = "b".repeat(40);
@@ -168,15 +169,22 @@ test("unknown or malformed evidence is never considered ready", () => {
   }
 });
 
-test("evidence reader rejects symlinks and oversized files", (t) => {
+test("evidence reader accepts valid input and rejects oversized files", (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "release-gate-"));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const file = path.join(temp, "evidence.json");
+  fs.writeFileSync(file, JSON.stringify(goodEvidence()));
+  assert.equal(readReleaseEvidence(file).schema, 1);
+  fs.writeFileSync(file, Buffer.alloc(256 * 1024 + 1));
+  assert.throws(() => readReleaseEvidence(file), /EVIDENCE_FILE_INVALID/);
+});
+
+test("evidence reader rejects symlinked files", (t) => {
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), "release-gate-"));
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const file = path.join(temp, "evidence.json");
   const link = path.join(temp, "link.json");
   fs.writeFileSync(file, JSON.stringify(goodEvidence()));
-  fs.symlinkSync(file, link);
-  assert.equal(readReleaseEvidence(file).schema, 1);
+  if (!createSymlinkOrSkip(t, file, link)) return;
   assert.throws(() => readReleaseEvidence(link), /EVIDENCE_FILE_INVALID/);
-  fs.writeFileSync(file, Buffer.alloc(256 * 1024 + 1));
-  assert.throws(() => readReleaseEvidence(file), /EVIDENCE_FILE_INVALID/);
 });
