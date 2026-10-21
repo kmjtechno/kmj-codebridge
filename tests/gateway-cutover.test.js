@@ -189,7 +189,14 @@ function host(t, tweak = {}) {
                             property === "after"
                           ),
                       )
-                      .map((property) => [property, { type: "string" }]),
+                      .map((property) => [
+                        property,
+                        {
+                          type: ["maxEntries", "recentJobs"].includes(property)
+                            ? "number"
+                            : "string",
+                        },
+                      ]),
                   );
                   return { name, inputSchema: { type: "object", properties } };
                 }),
