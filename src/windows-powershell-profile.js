@@ -83,7 +83,7 @@ export function verifyApprovedPowerShellScript(cwd, approval) {
     // normalized back to LF, not different code, whitespace, or encoding.
     const decoded = bytes.toString("utf8");
     const isUtf8 = Buffer.from(decoded, "utf8").equals(bytes);
-    const normalized = decoded.replace(/\\r\\n/g, "\\n");
+    const normalized = decoded.replace(/\r\n/g, "\n");
     const canonical = isUtf8 && normalized !== decoded
       ? createHash("sha256").update(Buffer.from(normalized, "utf8")).digest("hex")
       : null;
