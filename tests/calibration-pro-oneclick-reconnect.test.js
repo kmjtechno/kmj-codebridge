@@ -24,7 +24,8 @@ test("Calibration Pro owner double click is narrowly scoped to existing enrollme
     "RUNTIME_TRACKED_CHANGES",
     "NODE24_REQUIRED",
     "CALIBRATION_RECONNECT_SELFTEST=PASS",
-  ]) assert.ok(ps.includes(marker), "Missing safety marker: " + marker);
+  ])
+    assert.ok(ps.includes(marker), "Missing safety marker: " + marker);
   assert.match(ps, /System\.Windows\.Forms\.OpenFileDialog/);
   assert.match(ps, /\$picker\.ShowDialog\(\)/);
   assert.match(ps, /param\(\[string\]\$ConfigPath/);
@@ -47,9 +48,18 @@ test("Reconnect never edits owner files, exports secrets, self-repairs or starts
   assert.match(ps, /StatusCode -ne 401/);
   assert.match(ps, /ENROLLMENT=UNCHANGED/);
   assert.match(ps, /OWNER_CHECKOUT=UNTOUCHED/);
-  assert.doesNotMatch(ps, /\b(?:Stop-Process|Register-ScheduledTask|Start-ScheduledTask|Invoke-Expression|Set-Content|Remove-Item|Remove-File|Invoke-RestMethod)\b/i);
-  assert.doesNotMatch(ps, /git(?:\.exe)?\b[^\n]*(?:\breset\b|\bclean\b|\bpull\b|\bfetch\b|\bmerge\b)/i);
-  assert.doesNotMatch(ps, /GITHUB_TOKEN|gh auth token|OPENAI_API_KEY|-ExecutionPolicy Bypass/);
+  assert.doesNotMatch(
+    ps,
+    /\b(?:Stop-Process|Register-ScheduledTask|Start-ScheduledTask|Invoke-Expression|Set-Content|Remove-Item|Remove-File|Invoke-RestMethod)\b/i,
+  );
+  assert.doesNotMatch(
+    ps,
+    /git(?:\.exe)?\b[^\n]*(?:\breset\b|\bclean\b|\bpull\b|\bfetch\b|\bmerge\b)/i,
+  );
+  assert.doesNotMatch(
+    ps,
+    /GITHUB_TOKEN|gh auth token|OPENAI_API_KEY|-ExecutionPolicy Bypass/,
+  );
 });
 
 test("Native Windows PowerShell parser and fake-scope negative tests pass", (t) => {
@@ -61,7 +71,9 @@ test("Native Windows PowerShell parser and fake-scope negative tests pass", (t) 
   const script = [
     "$ErrorActionPreference='Stop'",
     "$tokens=$null;$errors=$null",
-    "[System.Management.Automation.Language.Parser]::ParseFile('" + safe + "',[ref]$tokens,[ref]$errors) | Out-Null",
+    "[System.Management.Automation.Language.Parser]::ParseFile('" +
+      safe +
+      "',[ref]$tokens,[ref]$errors) | Out-Null",
     "if($errors.Count -gt 0) { exit 2 }",
     "& '" + safe + "' -SelfTest",
     "if($LASTEXITCODE -ne 0) { exit 3 }",
