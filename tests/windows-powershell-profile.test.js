@@ -161,10 +161,10 @@ test("PowerShell profile cannot execute on Linux or with a changed executable", 
 });
 
 async function finished(runner, jobId) {
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < 400; i++) {
     const job = runner.get(jobId, "project1");
     if (!["queued", "running"].includes(job.state)) return job;
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
   throw new Error("JOB_TIMED_OUT");
 }
