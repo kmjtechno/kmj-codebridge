@@ -536,8 +536,8 @@ export class JobRunner {
     j.startedAt = new Date().toISOString();
     this.persist(j);
     const env = jobEnvironment();
-    // Classic Windows PowerShell needs an actual stdin pipe/EOF in some
-    // noninteractive hosts; NUL-backed "ignore" can stall before output.
+    // Give the approved PowerShell 7 process a closed stdin pipe rather
+    // than allowing terminal input or an interactive session.
     // This is not an interactive terminal: the pipe is immediately closed.
     const powershellStdin =
       process.platform === "win32" &&
