@@ -84,11 +84,13 @@ export function verifyApprovedPowerShellScript(cwd, approval) {
     const decoded = bytes.toString("utf8");
     const isUtf8 = Buffer.from(decoded, "utf8").equals(bytes);
     const normalized = decoded.replace(/\r\n/g, "\n");
-    const canonical = isUtf8 && normalized !== decoded
-      ? createHash("sha256").update(Buffer.from(normalized, "utf8")).digest("hex")
-      : null;
-    if (canonical !== approval.sha256)
-      fail("POWERSHELL_SCRIPT_HASH_MISMATCH");
+    const canonical =
+      isUtf8 && normalized !== decoded
+        ? createHash("sha256")
+            .update(Buffer.from(normalized, "utf8"))
+            .digest("hex")
+        : null;
+    if (canonical !== approval.sha256) fail("POWERSHELL_SCRIPT_HASH_MISMATCH");
   }
   return resolved;
 }
