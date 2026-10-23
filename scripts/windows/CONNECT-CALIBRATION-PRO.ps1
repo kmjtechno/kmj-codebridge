@@ -1,7 +1,7 @@
 # KMJ TECHNO - guarded reconnect for the already enrolled Calibration Pro device.
 # Current user only; never install, re-pair, copy tokens, kill agents or edit projects.
 [CmdletBinding()]
-param([string]$ConfigPath, [switch]$CheckOnly, [switch]$SelfTest)
+param([string]$ConfigPath, [switch]$CheckOnly, [switch]$SelfTest, [switch]$AutoDiscover)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -127,6 +127,48 @@ try {
     if (ApprovedScope $test) { throw 'SELFTEST_FOREIGN_DEVICE_ACCEPTED' }
     Write-Output 'CALIBRATION_RECONNECT_SELFTEST=PASS'
     exit 0
+  }
+
+  # Only known local/private stores are searched, never public user folders.
+  # Never disclose matched paths, bearer secrets or partial configurations.
+  if ($AutoDiscover -and [string]::IsNullOrWhiteSpace($ConfigPath)) {
+    $scanRoots = @(
+      (Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge'),
+      'D:\KMJ-HyperSpeed\private',
+      'E:\KMJ\private',
+      'E:\KMJ\CodeBridge-HomeOffice\private'
+    )
+    $matches = @{}
+    foreach ($scanRoot in $scanRoots) {
+      if (!(Test-Path -LiteralPath $scanRoot -PathType Container)) { continue }
+      $rootItem = Get-Item -LiteralPath $scanRoot -ErrorAction SilentlyContinue
+      if (!$rootItem -or ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        continue
+      }
+      $files = @(Get-ChildItem -LiteralPath $scanRoot -Filter 'agent.json' -File -Recurse -Depth 4 -ErrorAction SilentlyContinue)
+      foreach ($candidate in $files) {
+        try {
+          $candidatePath = [IO.Path]::GetFullPath($candidate.FullName)
+          if (-not (PrivatePath $candidatePath)) { continue }
+          Assert-TrustedPath $candidatePath $false
+          if ($candidate.Length -gt 262144) { continue }
+          $inspected = Get-Content -LiteralPath $candidatePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+          if (ApprovedScope $inspected) {
+            $matches[$candidatePath.ToLowerInvariant()] = $candidatePath
+          }
+        } catch {
+          # A malformed or unreadable candidate must not disclose data.
+        }
+      }
+    }
+    if ($matches.Count -gt 1) { throw 'MULTIPLE_SCOPED_ENROLLMENTS_SELECT_MANUALLY' }
+    if ($matches.Count -eq 1) {
+      $ConfigPath = @($matches.Values)[0]
+      Write-Output 'CALIBRATION_ENROLLMENT_DISCOVERY=SCOPED_MATCH'
+    } else {
+      Write-Output 'CALIBRATION_ENROLLMENT_DISCOVERY=NO_MATCH_IN_KNOWN_PRIVATE_STORES'
+      Write-Output 'CALIBRATION_ENROLLMENT_NEXT=CHOOSE_EXISTING_AGENT_OR_PAIR_AFTER_PLATFORM_RELEASE'
+    }
   }
 
   # A single file selection replaces pasting private paths into a terminal.
