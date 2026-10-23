@@ -541,7 +541,7 @@ export class JobRunner {
     // This is not an interactive terminal: the pipe is immediately closed.
     const powershellStdin =
       process.platform === "win32" &&
-      path.win32.basename(command).toLowerCase() === "powershell.exe";
+      path.win32.basename(command).toLowerCase() === "pwsh.exe";
     const child = spawn(command, args, {
       cwd,
       env,
