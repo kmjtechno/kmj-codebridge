@@ -18,7 +18,10 @@ export function redact(text) {
       "[REDACTED PRIVATE KEY]",
     );
 }
-export function jobEnvironment(source = process.env, platform = process.platform) {
+export function jobEnvironment(
+  source = process.env,
+  platform = process.platform,
+) {
   // Only standard OS paths needed for native build tools may be inherited.
   const env = {
     PATH: source.PATH ?? "",
@@ -42,7 +45,8 @@ export function jobEnvironment(source = process.env, platform = process.platform
         value.length > 0 &&
         value.length <= 4096 &&
         !/[\x00-\x1f]/.test(value)
-      ) env[key] = value;
+      )
+        env[key] = value;
     }
   }
   return env;
