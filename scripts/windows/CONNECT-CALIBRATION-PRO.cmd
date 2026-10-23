@@ -9,7 +9,7 @@ where powershell.exe >nul 2>&1
 if errorlevel 1 goto :blocked
 set "SCRIPT=%~dp0CONNECT-CALIBRATION-PRO.ps1"
 if not exist "%SCRIPT%" goto :blocked
-powershell.exe -NoProfile -STA -ExecutionPolicy RemoteSigned -File "%SCRIPT%"
+powershell.exe -NoProfile -STA -ExecutionPolicy RemoteSigned -File "%SCRIPT%" -AutoDiscover
 set "RESULT=%ERRORLEVEL%"
 echo.
 echo Result: %RESULT%
