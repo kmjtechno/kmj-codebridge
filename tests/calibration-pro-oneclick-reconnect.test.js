@@ -12,6 +12,14 @@ const cmd = fs.readFileSync(cmdFile, "utf8");
 test("Calibration Pro owner double click is narrowly scoped to existing enrollment", () => {
   assert.match(cmd, /%~dp0CONNECT-CALIBRATION-PRO\.ps1/);
   assert.match(cmd, /-NoProfile -STA -ExecutionPolicy RemoteSigned -File/);
+  assert.match(cmd, /-AutoDiscover/);
+  assert.match(ps, /CALIBRATION_ENROLLMENT_DISCOVERY=SCOPED_MATCH/);
+  assert.match(ps, /CALIBRATION_ENROLLMENT_DISCOVERY=NO_MATCH_IN_KNOWN_PRIVATE_STORES/);
+  assert.match(ps, /MULTIPLE_SCOPED_ENROLLMENTS_SELECT_MANUALLY/);
+  assert.match(ps, /ApprovedScope \$inspected/);
+  assert.match(ps, /Assert-TrustedPath \$candidatePath \$false/);
+  assert.match(ps, /PrivatePath \$candidatePath/);
+  assert.match(ps, /Get-ChildItem[^\n]*-Filter 'agent\.json'[^\n]*-Depth 4/);
   assert.doesNotMatch(cmd, /ExecutionPolicy Bypass|schtasks|setx |npm |git /i);
   for (const marker of [
     "kmj-homeoffice-desktop-5fvjmet",
