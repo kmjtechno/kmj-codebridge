@@ -18,6 +18,36 @@ export function redact(text) {
       "[REDACTED PRIVATE KEY]",
     );
 }
+export function jobEnvironment(source = process.env, platform = process.platform) {
+  // Only standard OS paths needed for native build tools may be inherited.
+  const env = {
+    PATH: source.PATH ?? "",
+    SystemRoot: source.SystemRoot ?? "",
+    LANG: "C.UTF-8",
+    CI: "true",
+  };
+  if (platform === "win32") {
+    for (const key of [
+      "TEMP",
+      "TMP",
+      "USERPROFILE",
+      "APPDATA",
+      "LOCALAPPDATA",
+      "HOMEDRIVE",
+      "HOMEPATH",
+    ]) {
+      const value = source[key];
+      if (
+        typeof value === "string" &&
+        value.length > 0 &&
+        value.length <= 4096 &&
+        !/[\x00-\x1f]/.test(value)
+      ) env[key] = value;
+    }
+  }
+  return env;
+}
+
 const MIN_FREE_MEMORY_BYTES = 128 * 1024 * 1024;
 const MIN_FREE_DISK_BYTES = 512 * 1024 * 1024;
 const CONSTRAINED_MEMORY_RATIO = 0.1;
@@ -468,36 +498,7 @@ export class JobRunner {
     j.state = "running";
     j.startedAt = new Date().toISOString();
     this.persist(j);
-    // Deliberately exclude gateway tokens, credentials and inherited application secrets.
-    const env = {
-      PATH: process.env.PATH ?? "",
-      SystemRoot: process.env.SystemRoot ?? "",
-      LANG: "C.UTF-8",
-      CI: "true",
-    };
-    // Windows native toolchains need these standard OS directories even in
-    // unattended, no-profile sessions. Keep application settings out of
-    // the child process environment.
-    if (process.platform === "win32") {
-      for (const key of [
-        "TEMP",
-        "TMP",
-        "USERPROFILE",
-        "APPDATA",
-        "LOCALAPPDATA",
-        "HOMEDRIVE",
-        "HOMEPATH",
-      ]) {
-        const value = process.env[key];
-        if (
-          typeof value === "string" &&
-          value.length > 0 &&
-          value.length <= 4096 &&
-          !/[\x00-\x1f]/.test(value)
-        )
-          env[key] = value;
-      }
-    }
+    const env = jobEnvironment();
     const child = spawn(command, args, {
       cwd,
       env,
