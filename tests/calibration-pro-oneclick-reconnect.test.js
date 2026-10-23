@@ -14,7 +14,10 @@ test("Calibration Pro owner double click is narrowly scoped to existing enrollme
   assert.match(cmd, /-NoProfile -STA -ExecutionPolicy RemoteSigned -File/);
   assert.match(cmd, /-AutoDiscover/);
   assert.match(ps, /CALIBRATION_ENROLLMENT_DISCOVERY=SCOPED_MATCH/);
-  assert.match(ps, /CALIBRATION_ENROLLMENT_DISCOVERY=NO_MATCH_IN_KNOWN_PRIVATE_STORES/);
+  assert.match(
+    ps,
+    /CALIBRATION_ENROLLMENT_DISCOVERY=NO_MATCH_IN_KNOWN_PRIVATE_STORES/,
+  );
   assert.match(ps, /MULTIPLE_SCOPED_ENROLLMENTS_SELECT_MANUALLY/);
   assert.match(ps, /ApprovedScope \$inspected/);
   assert.match(ps, /Assert-TrustedPath \$candidatePath \$false/);
