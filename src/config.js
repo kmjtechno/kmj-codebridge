@@ -375,6 +375,15 @@ export const agentSchema = z.object({
                         .min(10)
                         .max(300000)
                         .default(30000),
+                      // Admin-pinned local Windows script, not a chat-provided
+                      // shell string. Revalidated before the queued job starts.
+                      powershellScript: z
+                        .object({
+                          path: z.string().min(5).max(240),
+                          sha256: digest,
+                        })
+                        .strict()
+                        .optional(),
                     }),
                   )
                   .refine((variants) => Object.keys(variants).length > 0),
@@ -383,6 +392,20 @@ export const agentSchema = z.object({
             .default({}),
         })
         .superRefine((project, ctx) => {
+          for (const profile of Object.values(project.commands ?? {})) {
+            const usesApprovedPowerShell = Object.values(
+              profile.variants ?? {},
+            ).some((variant) => variant.powershellScript !== undefined);
+            if (
+              usesApprovedPowerShell &&
+              (profile.command !== "powershell.exe" ||
+                !["build", "write"].includes(profile.category))
+            )
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message: "PowerShell script profiles require an approved, bounded Windows build/write command",
+              });
+          }
           if (
             project.autopilotCiWatch?.enabled &&
             (!project.writable ||
