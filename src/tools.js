@@ -4131,8 +4131,7 @@ export function createDispatcher(
       const autoLanePrefix =
         a.command === "main_platform_ui_ci"
           ? "mainplatform_ci"
-          : a.command === "calibration_v4_qa" &&
-              p.id === "kmj-calibration-pro"
+          : a.command === "calibration_v4_qa" && p.id === "kmj-calibration-pro"
             ? "calibration_v4_qa"
             : null;
       const autoLane =
