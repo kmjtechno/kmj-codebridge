@@ -75,10 +75,21 @@ export function verifyApprovedPowerShellScript(cwd, approval) {
     fail("POWERSHELL_SCRIPT_PATH_UNSAFE");
   const stat = regularFile(resolved);
   if (stat.size < 1 || stat.size > 65536) fail("POWERSHELL_SCRIPT_SIZE_UNSAFE");
-  const actual = createHash("sha256")
-    .update(fs.readFileSync(resolved))
-    .digest("hex");
-  if (actual !== approval.sha256) fail("POWERSHELL_SCRIPT_HASH_MISMATCH");
+  const bytes = fs.readFileSync(resolved);
+  const raw = createHash("sha256").update(bytes).digest("hex");
+  if (raw !== approval.sha256) {
+    // Git for Windows can check out a committed LF .ps1 with CRLF when
+    // core.autocrlf is enabled. Accept ONLY the same UTF-8 script with CRLF
+    // normalized back to LF, not different code, whitespace, or encoding.
+    const decoded = bytes.toString("utf8");
+    const isUtf8 = Buffer.from(decoded, "utf8").equals(bytes);
+    const normalized = decoded.replace(/\\r\\n/g, "\\n");
+    const canonical = isUtf8 && normalized !== decoded
+      ? createHash("sha256").update(Buffer.from(normalized, "utf8")).digest("hex")
+      : null;
+    if (canonical !== approval.sha256)
+      fail("POWERSHELL_SCRIPT_HASH_MISMATCH");
+  }
   return resolved;
 }
 
