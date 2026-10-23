@@ -148,9 +148,8 @@ try {
             id = $project
             root = $ProjectRoot
             writable = $true
-            gates = @{
-                calibration_v4_qa = @{ command='python'; args=@('-B','tools/verify.py'); timeoutMs=300000 }
-            }
+            gates = @{}
+            commandPresets = @('calibration-v4-software-qa')
         })
         license = @{ mode='free' }
     }
