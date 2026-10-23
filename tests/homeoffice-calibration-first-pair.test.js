@@ -27,6 +27,7 @@ test("first-pair launcher is Home Office only and requires owner-browser approva
     "HOMEOFFICE_PAIR_SELFTEST=PASS",
     "OWNER_APPROVED_PRIVATE_ENROLLMENT_SAVED",
     "CHECK_CONNECTION_OVERVIEW",
+    "calibration-v4-software-qa",
   ]) assert.ok(ps.includes(marker), "Safety marker missing: " + marker);
 
   assert.match(ps, /Get-ChildItem[^\n]*-Filter 'agent\.json'/);
