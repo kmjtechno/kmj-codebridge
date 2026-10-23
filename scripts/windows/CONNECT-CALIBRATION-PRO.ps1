@@ -138,7 +138,7 @@ try {
       'E:\KMJ\private',
       'E:\KMJ\CodeBridge-HomeOffice\private'
     )
-    $matches = @{}
+    $foundConfigs = @{}
     foreach ($scanRoot in $scanRoots) {
       if (!(Test-Path -LiteralPath $scanRoot -PathType Container)) { continue }
       $rootItem = Get-Item -LiteralPath $scanRoot -ErrorAction SilentlyContinue
@@ -154,16 +154,16 @@ try {
           if ($candidate.Length -gt 262144) { continue }
           $inspected = Get-Content -LiteralPath $candidatePath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
           if (ApprovedScope $inspected) {
-            $matches[$candidatePath.ToLowerInvariant()] = $candidatePath
+            $foundConfigs[$candidatePath.ToLowerInvariant()] = $candidatePath
           }
         } catch {
           # A malformed or unreadable candidate must not disclose data.
         }
       }
     }
-    if ($matches.Count -gt 1) { throw 'MULTIPLE_SCOPED_ENROLLMENTS_SELECT_MANUALLY' }
-    if ($matches.Count -eq 1) {
-      $ConfigPath = @($matches.Values)[0]
+    if ($foundConfigs.Count -gt 1) { throw 'MULTIPLE_SCOPED_ENROLLMENTS_SELECT_MANUALLY' }
+    if ($foundConfigs.Count -eq 1) {
+      $ConfigPath = @($foundConfigs.Values)[0]
       Write-Output 'CALIBRATION_ENROLLMENT_DISCOVERY=SCOPED_MATCH'
     } else {
       Write-Output 'CALIBRATION_ENROLLMENT_DISCOVERY=NO_MATCH_IN_KNOWN_PRIVATE_STORES'
