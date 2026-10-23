@@ -115,8 +115,7 @@ export function approvedPowerShellInvocation({
     fail("POWERSHELL_SYSTEM_ROOT_INVALID");
   // Fixed system-drive PowerShell 7 location. No environment-controlled
   // ProgramFiles root, PATH search, caller-chosen binary or remote installer.
-  if (!/^[A-Za-z]:\\/.test(systemRoot))
-    fail("POWERSHELL_SYSTEM_ROOT_INVALID");
+  if (!/^[A-Za-z]:\\/.test(systemRoot)) fail("POWERSHELL_SYSTEM_ROOT_INVALID");
   const binary = path.win32.join(
     path.win32.parse(systemRoot).root,
     "Program Files",
