@@ -380,7 +380,7 @@ export const agentSchema = z.object({
                       // shell string. Revalidated before the queued job starts.
                       powershellScript: z
                         .object({
-                          path: z.string().min(5).max(240),
+                          path: z.string().min(5).max(240).refine(validApprovedScriptPath),
                           sha256: digest,
                         })
                         .strict()
