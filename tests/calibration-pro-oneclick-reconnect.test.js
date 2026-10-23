@@ -27,7 +27,7 @@ test("Calibration Pro owner double click is narrowly scoped to existing enrollme
   ]) assert.ok(ps.includes(marker), "Missing safety marker: " + marker);
   assert.match(ps, /System\.Windows\.Forms\.OpenFileDialog/);
   assert.match(ps, /\$picker\.ShowDialog\(\)/);
-  assert.match(ps, /-ConfigPath/);
+  assert.match(ps, /param\(\[string\]\$ConfigPath/);
   assert.match(ps, /PrivatePath \$ConfigPath/);
 });
 
