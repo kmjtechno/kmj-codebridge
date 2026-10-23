@@ -38,6 +38,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "cmake-standard",
     "windows-visual-qa",
     "windows-python-trial-qa",
+    "calibration-v4-software-qa",
     "go-standard",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
@@ -273,6 +274,32 @@ test("Windows Python trial QA is opt-in, project-scoped and cannot execute shell
   assert.equal(profile.variants.shell, undefined);
   assert.equal(profile.variants.gui_launch, undefined);
   assert.equal(enabled.commands.node_dev, undefined);
+});
+
+test("Calibration Pro V4 QA is opt-in, SHA-pinned, and hardware fail-closed", () => {
+  const normal = agentSchema.parse(base).projects[0];
+  assert.equal(normal.commands.calibration_v4_qa, undefined);
+  const project = agentSchema.parse({
+    ...base,
+    projects: [{ ...base.projects[0], commandPresets: ["calibration-v4-software-qa"] }],
+  }).projects[0];
+  const profile = project.commands.calibration_v4_qa;
+  assert.equal(profile.category, "build");
+  assert.equal(profile.command, process.platform === "win32" ? "python" : "python3");
+  assert.deepEqual(Object.keys(profile.variants), ["full"]);
+  assert.deepEqual(profile.variants.full.args, ["tools/verify.py"]);
+  assert.equal(profile.variants.full.timeoutMs, 300000);
+  for (const unsafe of ["scan", "release", "publish", "install", "deploy", "shell"])
+    assert.equal(profile.variants[unsafe], undefined);
+  assert.equal(commandRequiresIsolatedLane("calibration_v4_qa"), true);
+  const source = fs.readFileSync(new URL("../src/tools.js", import.meta.url), "utf8");
+  for (const required of [
+    "commandRequiresIsolatedLane(a.command)",
+    'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
+    'if (lane.head !== selectedHead) fail("WORKTREE_HEAD_MISMATCH")',
+    'if (lane.dirty) fail("WORKTREE_HAS_UNSAVED_WORK")',
+    "beforeStart: verify",
+  ]) assert.ok(source.includes(required), "Missing isolation guard: " + required);
 });
 
 test("jobArchiveMaxEntries defaults to the archive's own default and stays bounded (issue #186)", () => {
