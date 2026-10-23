@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validApprovedScriptPath } from "./windows-powershell-profile.js";
 import { COMMAND_PRESET_IDS, expandCommandPresets } from "./command-presets.js";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
