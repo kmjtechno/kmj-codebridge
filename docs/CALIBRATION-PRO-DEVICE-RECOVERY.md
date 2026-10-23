@@ -1,6 +1,6 @@
 # KMJ Calibration Pro — existing Windows agent one-click reconnect
 
-The current authorized CodeBridge fleet reported `GATEWAY_REGISTRATION_MISSING` for `kmj-homeoffice-desktop-5fvjmet / kmj-calibration-pro` on 2026-10-23. Source changes, GitHub merges, and a live *other* device cannot start a powered-off or disconnected Windows PC.
+The current authorized CodeBridge fleet reported `GATEWAY_REGISTRATION_MISSING` for `kmj-homeoffice-desktop-5fvjmet / kmj-calibration-pro` on 2026-10-23. Source changes, GitHub merges, and a live _other_ device cannot start a powered-off or disconnected Windows PC.
 
 ## Owner action once (not a PowerShell command)
 
