@@ -15,8 +15,7 @@ import {
   approvedPowerShellInvocation,
 } from "../src/windows-powershell-profile.js";
 
-const digest = (content) =>
-  createHash("sha256").update(content).digest("hex");
+const digest = (content) => createHash("sha256").update(content).digest("hex");
 
 const base = {
   gateway: "https://gateway.example.test",
@@ -25,28 +24,30 @@ const base = {
   tenant: "tenant1",
   stateDir: "/tmp/agent-state",
   license: { mode: "free" },
-  projects: [{
-    id: "project1",
-    root: "/tmp/project",
-    writable: true,
-    gates: {},
-    commands: {
-      approved_windows_qa: {
-        category: "build",
-        command: "powershell.exe",
-        variants: {
-          run: {
-            args: ["-Mode", "Inspect"],
-            timeoutMs: 20000,
-            powershellScript: {
-              path: "scripts/approved-qa.ps1",
-              sha256: "a".repeat(64),
+  projects: [
+    {
+      id: "project1",
+      root: "/tmp/project",
+      writable: true,
+      gates: {},
+      commands: {
+        approved_windows_qa: {
+          category: "build",
+          command: "powershell.exe",
+          variants: {
+            run: {
+              args: ["-Mode", "Inspect"],
+              timeoutMs: 20000,
+              powershellScript: {
+                path: "scripts/approved-qa.ps1",
+                sha256: "a".repeat(64),
+              },
             },
           },
         },
       },
     },
-  }],
+  ],
 };
 
 test("admin schema keeps a SHA-pinned PowerShell script without adding shell tools", () => {
@@ -61,7 +62,8 @@ test("admin schema keeps a SHA-pinned PowerShell script without adding shell too
   inspect.projects[0].commands.approved_windows_qa.category = "inspect";
   assert.throws(() => agentSchema.parse(inspect), /PowerShell script profiles/);
   const noHash = structuredClone(base);
-  noHash.projects[0].commands.approved_windows_qa.variants.run.powershellScript.sha256 = "not-a-digest";
+  noHash.projects[0].commands.approved_windows_qa.variants.run.powershellScript.sha256 =
+    "not-a-digest";
   assert.throws(() => agentSchema.parse(noHash));
 });
 
@@ -80,7 +82,8 @@ test("PowerShell script selection refuses traversal, UNC, alternate streams and 
     "scripts/run.ps1/extra",
     "scripts/$env.ps1",
     "scripts/.ps1/../evil.ps1",
-  ]) assert.equal(validApprovedScriptPath(unsafe), false, unsafe);
+  ])
+    assert.equal(validApprovedScriptPath(unsafe), false, unsafe);
 });
 
 test("script bytes, hardlinks, and symlink paths are verified fail-closed", (t) => {
@@ -93,7 +96,8 @@ test("script bytes, hardlinks, and symlink paths are verified fail-closed", (t) 
   const spec = { path: "scripts/qa.ps1", sha256: digest(bytes) };
   assert.equal(verifyApprovedPowerShellScript(root, spec), file);
   assert.throws(
-    () => verifyApprovedPowerShellScript(root, { ...spec, sha256: "0".repeat(64) }),
+    () =>
+      verifyApprovedPowerShellScript(root, { ...spec, sha256: "0".repeat(64) }),
     /POWERSHELL_SCRIPT_HASH_MISMATCH/,
   );
   fs.writeFileSync(file, "Write-Output 'MODIFIED'\n");
@@ -125,12 +129,13 @@ test("script bytes, hardlinks, and symlink paths are verified fail-closed", (t) 
 
 test("PowerShell profile cannot execute on Linux or with a changed executable", () => {
   assert.throws(
-    () => approvedPowerShellInvocation({
-      cwd: "/tmp",
-      profile: base.projects[0].commands.approved_windows_qa,
-      variant: base.projects[0].commands.approved_windows_qa.variants.run,
-      platform: "linux",
-    }),
+    () =>
+      approvedPowerShellInvocation({
+        cwd: "/tmp",
+        profile: base.projects[0].commands.approved_windows_qa,
+        variant: base.projects[0].commands.approved_windows_qa.variants.run,
+        platform: "linux",
+      }),
     /POWERSHELL_WINDOWS_ONLY/,
   );
   assert.equal(
@@ -184,44 +189,55 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
   const runner = new JobRunner(path.join(state, "jobs"));
   t.after(async () => {
     await runner.close();
-    fs.rmSync(home, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    fs.rmSync(home, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
   });
   const dispatch = createDispatcher(
     {
       id: "d1",
       stateDir: state,
-      projects: [{
-        id: "project1",
-        root,
-        writable: true,
-        commands: {
-          local_windows_qa: {
-            category: "build",
-            command: "powershell.exe",
-            variants: {
-              verify: {
-                args: [],
-                timeoutMs: 20000,
-                powershellScript: {
-                  path: "scripts/verify.ps1",
-                  sha256: digest(approved),
+      projects: [
+        {
+          id: "project1",
+          root,
+          writable: true,
+          commands: {
+            local_windows_qa: {
+              category: "build",
+              command: "powershell.exe",
+              variants: {
+                verify: {
+                  args: [],
+                  timeoutMs: 20000,
+                  powershellScript: {
+                    path: "scripts/verify.ps1",
+                    sha256: digest(approved),
+                  },
                 },
               },
             },
           },
         },
-      }],
+      ],
     },
     runner,
     () => ({ features: ["execute"], limits: { concurrent_jobs: 1 } }),
   );
-  const job = await dispatch("run_project_command", {
-    device: "d1",
-    project: "project1",
-    command: "local_windows_qa",
-    variant: "verify",
-    requestKey: "windows-native-dev-qa",
-  }, ["execute"]);
+  const job = await dispatch(
+    "run_project_command",
+    {
+      device: "d1",
+      project: "project1",
+      command: "local_windows_qa",
+      variant: "verify",
+      requestKey: "windows-native-dev-qa",
+    },
+    ["execute"],
+  );
   const final = await finished(runner, job.id);
   assert.equal(final.state, "succeeded", final.output);
   assert.equal(final.exitCode, 0);
@@ -234,15 +250,22 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
   assert.equal(fs.readFileSync(dirty, "utf8"), "PRESERVE_ME");
 
   // A modified script in the prepared lane must not run with the old approval.
-  fs.writeFileSync(path.join(lanes[0].path, "scripts", "verify.ps1"), "Write-Output 'EVIL'\n");
+  fs.writeFileSync(
+    path.join(lanes[0].path, "scripts", "verify.ps1"),
+    "Write-Output 'EVIL'\n",
+  );
   await assert.rejects(
-    dispatch("run_project_command", {
-      device: "d1",
-      project: "project1",
-      command: "local_windows_qa",
-      variant: "verify",
-      requestKey: "windows-native-dev-tamper",
-    }, ["execute"]),
+    dispatch(
+      "run_project_command",
+      {
+        device: "d1",
+        project: "project1",
+        command: "local_windows_qa",
+        variant: "verify",
+        requestKey: "windows-native-dev-tamper",
+      },
+      ["execute"],
+    ),
     /WORKTREE_HAS_UNSAVED_WORK/,
   );
 });
