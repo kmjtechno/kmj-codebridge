@@ -10,6 +10,7 @@ import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
 import { commandRequiresIsolatedLane } from "./command-presets.js";
+import { approvedPowerShellInvocation } from "./windows-powershell-profile.js";
 import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
@@ -1942,7 +1943,7 @@ export const definitions = {
   run_project_command: {
     title: "Run project command",
     description:
-      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci and project-scoped calibration_v4_qa profiles automatically pin a detached private worktree to the checkout's exact HEAD when laneId/expectedHead are omitted; neither executes from the shared checkout. Other profiles retain their existing lane rules.",
+      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci, project-scoped calibration_v4_qa, and explicitly administrator-approved SHA-pinned Windows PowerShell scripts automatically use detached private worktrees at exact HEAD when laneId/expectedHead are omitted. PowerShell script paths and SHA-256 are fixed in the agent profile; chat clients cannot choose or upload commands/scripts/argv.",
     input: {
       ...scoped,
       command: identifier,
@@ -4128,12 +4129,15 @@ export function createDispatcher(
       // authorized checkout's exact HEAD. Calibration auto-preparation is
       // restricted to the enrolled Calibration Pro project, never Studio or
       // an unrelated CMake source tree. The caller supplies no ref or path.
+      const isPinnedPowerShell = variant.powershellScript !== undefined;
       const autoLanePrefix =
         a.command === "main_platform_ui_ci"
           ? "mainplatform_ci"
           : a.command === "calibration_v4_qa" && p.id === "kmj-calibration-pro"
             ? "calibration_v4_qa"
-            : null;
+            : isPinnedPowerShell
+              ? "windows_ps_" + a.command.slice(0, 15)
+              : null;
       const autoLane =
         autoLanePrefix !== null &&
         a.laneId === undefined &&
@@ -4147,7 +4151,9 @@ export function createDispatcher(
       const selectedLaneId = autoLane?.laneId ?? a.laneId;
       const selectedHead = autoLane?.head ?? a.expectedHead;
       const pinned =
-        commandRequiresIsolatedLane(a.command) || selectedHead !== undefined;
+        commandRequiresIsolatedLane(a.command) ||
+        isPinnedPowerShell ||
+        selectedHead !== undefined;
       if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED");
       if (pinned && !selectedHead) fail("WORKTREE_EXPECTED_HEAD_REQUIRED");
       const verify = () => {
@@ -4160,6 +4166,26 @@ export function createDispatcher(
         return lane.path;
       };
       const cwd = pinned ? verify() : laneCwd(selectedLaneId);
+      const approvedPowerShell = isPinnedPowerShell
+        ? approvedPowerShellInvocation({ cwd, profile, variant })
+        : null;
+      const beforeStart = () => {
+        const verifiedCwd = pinned ? verify() : cwd;
+        if (isPinnedPowerShell) {
+          // SHA, path and reparse checks are repeated AFTER the queue wait.
+          const current = approvedPowerShellInvocation({
+            cwd: verifiedCwd,
+            profile,
+            variant,
+          });
+          if (
+            current.command !== approvedPowerShell.command ||
+            JSON.stringify(current.args) !==
+              JSON.stringify(approvedPowerShell.args)
+          )
+            fail("POWERSHELL_SCRIPT_CHANGED_BEFORE_START");
+        }
+      };
       let gate =
         laneLabel(
           `command:${a.command}:${a.variant}:${profile.category}`,
@@ -4173,9 +4199,9 @@ export function createDispatcher(
         gate,
         key: a.requestKey,
         cwd,
-        ...(pinned ? { beforeStart: verify } : {}),
-        command: profile.command,
-        args: variant.args,
+        ...(pinned || isPinnedPowerShell ? { beforeStart } : {}),
+        command: approvedPowerShell?.command ?? profile.command,
+        args: approvedPowerShell?.args ?? variant.args,
         timeoutMs: variant.timeoutMs,
       });
     }

@@ -18,6 +18,73 @@ export function redact(text) {
       "[REDACTED PRIVATE KEY]",
     );
 }
+export function jobEnvironment(
+  source = process.env,
+  platform = process.platform,
+) {
+  // Only standard OS paths needed for native build tools may be inherited.
+  const env = {
+    PATH: source.PATH ?? "",
+    SystemRoot: source.SystemRoot ?? "",
+    LANG: "C.UTF-8",
+    CI: "true",
+  };
+  if (platform === "win32") {
+    // Windows PowerShell 5.1 expects its system module and command processor
+    // locations during startup. Construct them from SystemRoot instead of
+    // inheriting arbitrary user-controlled module/search directories.
+    const windowsRoot = source.SystemRoot ?? "";
+    if (path.win32.isAbsolute(windowsRoot)) {
+      env.windir = windowsRoot;
+      env.ComSpec = path.win32.join(windowsRoot, "System32", "cmd.exe");
+      env.PSModulePath = path.win32.join(
+        path.win32.parse(windowsRoot).root,
+        "Program Files",
+        "PowerShell",
+        "7",
+        "Modules",
+      );
+    }
+    for (const key of [
+      "TEMP",
+      "TMP",
+      "USERPROFILE",
+      "APPDATA",
+      "LOCALAPPDATA",
+      "HOMEDRIVE",
+      "HOMEPATH",
+      "ALLUSERSPROFILE",
+      "CommonProgramFiles",
+      "CommonProgramFiles(x86)",
+      "COMPUTERNAME",
+      "NUMBER_OF_PROCESSORS",
+      "OS",
+      "PATHEXT",
+      "PROCESSOR_ARCHITECTURE",
+      "PROCESSOR_IDENTIFIER",
+      "ProgramData",
+      "ProgramFiles",
+      "ProgramFiles(x86)",
+      "ProgramW6432",
+      "PUBLIC",
+      "SESSIONNAME",
+      "USERDOMAIN",
+      "USERNAME",
+      "SystemDrive",
+    ]) {
+      const value = source[key];
+      if (
+        typeof value === "string" &&
+        value.length > 0 &&
+        value.length <= 4096 &&
+        !/[\x00-\x1f]/.test(value)
+      )
+        env[key] = value;
+    }
+  }
+  return env;
+}
+
 const MIN_FREE_MEMORY_BYTES = 128 * 1024 * 1024;
 const MIN_FREE_DISK_BYTES = 512 * 1024 * 1024;
 const CONSTRAINED_MEMORY_RATIO = 0.1;
@@ -468,21 +535,22 @@ export class JobRunner {
     j.state = "running";
     j.startedAt = new Date().toISOString();
     this.persist(j);
-    // Deliberately exclude gateway tokens, credentials and inherited application secrets.
-    const env = {
-      PATH: process.env.PATH ?? "",
-      SystemRoot: process.env.SystemRoot ?? "",
-      LANG: "C.UTF-8",
-      CI: "true",
-    };
+    const env = jobEnvironment();
+    // Give the approved PowerShell 7 process a closed stdin pipe rather
+    // than allowing terminal input or an interactive session.
+    // This is not an interactive terminal: the pipe is immediately closed.
+    const powershellStdin =
+      process.platform === "win32" &&
+      path.win32.basename(command).toLowerCase() === "pwsh.exe";
     const child = spawn(command, args, {
       cwd,
       env,
       shell: false,
       detached: process.platform !== "win32",
       windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [powershellStdin ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    if (powershellStdin) child.stdin.end();
     const active = {
       child,
       reason: null,

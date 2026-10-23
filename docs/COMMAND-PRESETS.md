@@ -30,7 +30,7 @@ Example:
 
 Presets are opt-in. They do not inspect package metadata, execute automatically, or turn repository scripts into new permissions. An explicit administrator command with the same profile ID overrides the preset. Runtime execution remains project-root confined, bounded by the job runner, cancellable, redacted, audited, and subject to the existing risk policy.
 
-No preset exposes `sh`, `bash`, PowerShell, `cmd`, or a generic terminal. Repository scripts can still execute project code when the administrator explicitly enables the relevant preset/profile, so untrusted repositories should remain read-only or use stricter isolation.
+No built-in preset exposes `sh`, `bash`, PowerShell, `cmd`, or a generic terminal. Separately, a local administrator may configure [SHA-pinned Windows PowerShell project scripts](WINDOWS-IDE-POWERSHELL-PROFILES.md) as explicit `pwsh.exe` build/write profiles. The script path and content digest are fixed at configuration time, and CodeBridge uses an isolated worktree with before-start verification. This does not grant a raw terminal. Repository scripts can still execute project code when the administrator explicitly enables the relevant preset/profile, so untrusted repositories should remain read-only or use stricter isolation.
 
 ## Isolated worktree execution
 

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { validApprovedScriptPath } from "./windows-powershell-profile.js";
 import { COMMAND_PRESET_IDS, expandCommandPresets } from "./command-presets.js";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
@@ -375,6 +376,19 @@ export const agentSchema = z.object({
                         .min(10)
                         .max(300000)
                         .default(30000),
+                      // Admin-pinned local Windows script, not a chat-provided
+                      // shell string. Revalidated before the queued job starts.
+                      powershellScript: z
+                        .object({
+                          path: z
+                            .string()
+                            .min(5)
+                            .max(240)
+                            .refine(validApprovedScriptPath),
+                          sha256: digest,
+                        })
+                        .strict()
+                        .optional(),
                     }),
                   )
                   .refine((variants) => Object.keys(variants).length > 0),
@@ -383,6 +397,21 @@ export const agentSchema = z.object({
             .default({}),
         })
         .superRefine((project, ctx) => {
+          for (const profile of Object.values(project.commands ?? {})) {
+            const usesApprovedPowerShell = Object.values(
+              profile.variants ?? {},
+            ).some((variant) => variant.powershellScript !== undefined);
+            if (
+              usesApprovedPowerShell &&
+              (profile.command !== "pwsh.exe" ||
+                !["build", "write"].includes(profile.category))
+            )
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                message:
+                  "PowerShell script profiles require an approved, bounded Windows build/write command",
+              });
+          }
           if (
             project.autopilotCiWatch?.enabled &&
             (!project.writable ||
