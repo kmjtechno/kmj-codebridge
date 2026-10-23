@@ -11,6 +11,7 @@ Supported presets:
 - `python-standard` — requirements install plus pytest and compile verification.
 - `cargo-standard` — locked check/build/test/clippy/format-check plus formatter.
 - `windows-python-trial-qa` — explicit Windows-only, project-local Python trial doctor, regression tests, and non-interactive GUI smoke checks. The administrator first installs and reviews `scripts/codebridge-python-trial-qa.mjs` inside an _enrolled calibration project_, and explicitly enables the preset. Never execute this profile in an unrelated repository or elevated/background desktop session.
+- `calibration-v4-software-qa` — explicit Calibration Pro V4 `calibration_v4_qa:full` profile invokes the existing `python tools/verify.py` from a clean SHA-pinned detached worktree. It configures/builds/tests both Debug and Release; no projector/camera activation, physical acceptance, candidate promotion, signing, deployment or publishing.
 - `go-standard` — test/vet/build plus formatter.
 - `cmake-standard` — configure into the fixed `.kmj-codebridge-build` directory, Debug/Release build and CTest with bounded parallelism. It never installs, publishes or signs.
 
@@ -79,3 +80,18 @@ app fails in the user's graphical session.
 Current deployment requires the agent's administrator to opt in and restart
 the pinned device runtime after review. Adding this source preset alone does
 not modify an installed agent, grant a project, or deploy a gateway.
+
+## Calibration Pro: remote QA without repeated PowerShell commands
+
+This preset is a **source change, not a deployed Windows agent**. Before use, the already authorized `kmj-calibration-pro` device must have a verified fresh authenticated connection and its administrator must opt in by setting `"commandPresets": ["calibration-v4-software-qa"]` **only** on that enrolled C++ project. Do not overwrite an existing private agent config from chat, share tokens, alter a second project's scope, or change the separate `kmj-calibration-studio` Python trial profile.
+
+After operator-approved enrollment and project opt-in, the AI client uses CodeBridge tools, not PowerShell:
+
+1. `connection_overview` and `project_snapshot`: require the authorized device/project to be `READY`; read current branch/HEAD/dirty state.
+2. `worktree_lane_prepare`: create a separate detached QA lane at the **actual current 40-hex HEAD** with `approveLocalGitCheckout=true`. For PR #15, the approved checkout must point to that exact PR's current head; do not confuse an older local branch with the PR.
+3. `run_project_command`: `command="calibration_v4_qa"`, `variant="full"`, the returned `laneId` and `expectedHead`, plus a stable `requestKey`. The CodeBridge runner executes the two CMake/CTest modes through the existing project-owned `tools/verify.py`, without caller-supplied shell, argv or paths.
+4. `get_job_status`: record the real agent/job/HEAD/result, including nonzero/timeout. Dirty/moved lanes refuse execution, including at delayed job start. The user need not type any shell commands for subsequent test cycles.
+
+**Required safety separation:** Software PASS is not optical or hardware acceptance. Owner-observed 29/29 CTests from another SHA never proves the proposed PR #15 head. Physical T07 must still pass the frozen measured-surface/unmeasured-eligible thresholds, held-out optical verification, identity-bound atomic package promotion, reload and fault-injection, with human operator consent and connected equipment. Failed candidates never replace `release.kmjpkg2`. No automatic merging, hardware scanning, file deletion, self-hosted GitHub runners, paid models or production installation is included.
+
+**Current operational blocker:** If the device is `GATEWAY_REGISTRATION_MISSING`, remote tools cannot install, start, or repair the PC agent. A one-time locally trusted pairing/reconnect and authenticated account-side grant are required; Source/PR creation alone is not connection or production proof.

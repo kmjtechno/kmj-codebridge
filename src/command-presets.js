@@ -248,6 +248,24 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  // Explicit opt-in for the KMJ Calibration Pro V4 C++ project only.
+  // The existing project-owned deterministic verifier configures, builds, and
+  // tests Debug AND Release. It cannot scan hardware, promote a calibration
+  // package, bypass optical gates, sign or publish a release.
+  "calibration-v4-software-qa": freeze({
+    calibration_v4_qa: freeze({
+      category: "build",
+      description:
+        "Run KMJ Calibration Pro V4 deterministic Debug/Release CMake and CTest software verification in a SHA-pinned detached worktree; never scan or release hardware.",
+      command: process.platform === "win32" ? "python" : "python3",
+      variants: freeze({
+        full: freeze({
+          args: ["tools/verify.py"],
+          timeoutMs: 300000,
+        }),
+      }),
+    }),
+  }),
   "go-standard": freeze({
     go_verify: freeze({
       category: "build",
@@ -273,7 +291,7 @@ const PRESETS = freeze({
 // Fail closed on the production/main checkout even after an administrator
 // explicitly enables the Main Platform frontend CI profile.
 export function commandRequiresIsolatedLane(commandId) {
-  return commandId === "main_platform_ui_ci";
+  return ["main_platform_ui_ci", "calibration_v4_qa"].includes(commandId);
 }
 
 export const COMMAND_PRESET_IDS = Object.freeze(Object.keys(PRESETS));
