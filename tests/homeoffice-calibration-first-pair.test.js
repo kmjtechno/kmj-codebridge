@@ -13,7 +13,10 @@ const cmd = fs.readFileSync(cmdPath, "utf8");
 test("first-pair launcher is Home Office only and requires owner-browser approval", () => {
   assert.match(cmd, /%~dp0PAIR-HOMEOFFICE-CALIBRATION\.ps1/);
   assert.match(cmd, /-NoProfile -STA -ExecutionPolicy RemoteSigned -File/);
-  assert.doesNotMatch(cmd, /ExecutionPolicy Bypass|RunAs|schtasks|npm |git |setx /i);
+  assert.doesNotMatch(
+    cmd,
+    /ExecutionPolicy Bypass|RunAs|schtasks|npm |git |setx /i,
+  );
   for (const marker of [
     "kmj-homeoffice-desktop-5fvjmet",
     "kmj-calibration-pro",
@@ -28,7 +31,8 @@ test("first-pair launcher is Home Office only and requires owner-browser approva
     "OWNER_APPROVED_PRIVATE_ENROLLMENT_SAVED",
     "CHECK_CONNECTION_OVERVIEW",
     "calibration-v4-software-qa",
-  ]) assert.ok(ps.includes(marker), "Safety marker missing: " + marker);
+  ])
+    assert.ok(ps.includes(marker), "Safety marker missing: " + marker);
 
   assert.match(ps, /Get-ChildItem[^\n]*-Filter 'agent\.json'/);
   assert.match(ps, /Trusted-Git \$ProjectRoot \$origins/);
@@ -38,7 +42,10 @@ test("first-pair launcher is Home Office only and requires owner-browser approva
   assert.match(ps, /Private-Acl \$configFile \$false/);
   assert.match(ps, /CONNECT-CALIBRATION-PRO\.ps1/);
   assert.doesNotMatch(ps, /['"]D:\\KMJ-HyperSpeed\\projects\\kmj-codebridge/);
-  assert.doesNotMatch(ps, /\b(?:Stop-Process|Remove-Item|Clear-Content|Set-Service|Start-Service|Register-ScheduledTask|Set-Date|Invoke-Expression)\b/i);
+  assert.doesNotMatch(
+    ps,
+    /\b(?:Stop-Process|Remove-Item|Clear-Content|Set-Service|Start-Service|Register-ScheduledTask|Set-Date|Invoke-Expression)\b/i,
+  );
 });
 
 test("first-pair payload stays private and does not bypass production approval", () => {
@@ -48,8 +55,14 @@ test("first-pair payload stays private and does not bypass production approval",
   assert.match(ps, /BLOCKED_OWNER_APPROVAL_OR_PLATFORM_GATEWAY/);
   assert.match(ps, /ACCOUNT_SIDE_READY=CHECK_CONNECTION_OVERVIEW/);
   assert.match(ps, /grant\.agent\.token/);
-  assert.doesNotMatch(ps, /Write-(?:Output|Host)[^\n]*(?:\$grant\.agent\.token|\$configFile|\$enrollment)/i);
-  assert.doesNotMatch(ps, /git(?:\.exe)?\b[^\n]*(?:\breset\b|\bclean\b|\bpull\b|\bfetch\b|\bmerge\b)/i);
+  assert.doesNotMatch(
+    ps,
+    /Write-(?:Output|Host)[^\n]*(?:\$grant\.agent\.token|\$configFile|\$enrollment)/i,
+  );
+  assert.doesNotMatch(
+    ps,
+    /git(?:\.exe)?\b[^\n]*(?:\breset\b|\bclean\b|\bpull\b|\bfetch\b|\bmerge\b)/i,
+  );
 });
 
 test("native Windows PowerShell parses first-pair script and rejects P720 scope", (t) => {
@@ -62,14 +75,17 @@ test("native Windows PowerShell parses first-pair script and rejects P720 scope"
     "$ErrorActionPreference='Stop'",
     "$tokens=$null;$errors=$null",
     "[System.Management.Automation.Language.Parser]::ParseFile('" +
-      escaped + "',[ref]$tokens,[ref]$errors) | Out-Null",
+      escaped +
+      "',[ref]$tokens,[ref]$errors) | Out-Null",
     "if($errors.Count -gt 0) { exit 2 }",
     "& '" + escaped + "' -SelfTest",
     "if($LASTEXITCODE -ne 0) { exit 3 }",
   ].join("; ");
-  const child = spawnSync("powershell.exe",
+  const child = spawnSync(
+    "powershell.exe",
     ["-NoProfile", "-NonInteractive", "-Command", script],
-    { encoding: "utf8", timeout: 20000, windowsHide: true });
+    { encoding: "utf8", timeout: 20000, windowsHide: true },
+  );
   assert.equal(child.status, 0, child.stdout + child.stderr);
   assert.match(child.stdout, /HOMEOFFICE_PAIR_SELFTEST=PASS/);
 });
