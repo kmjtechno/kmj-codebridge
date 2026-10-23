@@ -30,6 +30,21 @@ export function jobEnvironment(
     CI: "true",
   };
   if (platform === "win32") {
+    // Windows PowerShell 5.1 expects its system module and command processor
+    // locations during startup. Construct them from SystemRoot instead of
+    // inheriting arbitrary user-controlled module/search directories.
+    const windowsRoot = source.SystemRoot ?? "";
+    if (path.win32.isAbsolute(windowsRoot)) {
+      env.windir = windowsRoot;
+      env.ComSpec = path.win32.join(windowsRoot, "System32", "cmd.exe");
+      env.PSModulePath = path.win32.join(
+        windowsRoot,
+        "System32",
+        "WindowsPowerShell",
+        "v1.0",
+        "Modules",
+      );
+    }
     for (const key of [
       "TEMP",
       "TMP",
