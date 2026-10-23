@@ -19,7 +19,7 @@ A trusted administrator installs a Windows CodeBridge agent under a **least-priv
     "windows_qa": {
       "category": "build",
       "description": "Approved Windows project verification",
-      "command": "powershell.exe",
+      "command": "pwsh.exe",
       "variants": {
         "verify": {
           "args": [],
@@ -55,7 +55,7 @@ run_project_command(
 get_job_status(device, project, job=<returned id>, waitMs=10000)
 ```
 
-PowerShell is launched through Windows' own `System32/WindowsPowerShell/v1.0/powershell.exe` with `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File <approved script>` and only the administrator-fixed argument array. The chat client does **not** submit a command string, executable, environment, working directory, `-EncodedCommand`, path, or arbitrary arguments. Runtime uses `spawn(shell=false)`, a sanitized environment, bounded timeouts and output, cancellable jobs and durable, redacted receipts. A fixed PowerShell script itself executes project code and has the privileges of the local CodeBridge user: **file containment of command side effects is not an OS sandbox**. Only install vetted project scripts and do not run an agent as local Administrator.
+PowerShell is launched through Windows' installed `Program Files/PowerShell/7/pwsh.exe` with `-NoLogo -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File <approved script>` and only the administrator-fixed argument array. The chat client does **not** submit a command string, executable, environment, working directory, `-EncodedCommand`, path, or arbitrary arguments. Runtime uses `spawn(shell=false)`, a sanitized environment, bounded timeouts and output, cancellable jobs and durable, redacted receipts. A fixed PowerShell script itself executes project code and has the privileges of the local CodeBridge user: **file containment of command side effects is not an OS sandbox**. Only install vetted project scripts and do not run an agent as local Administrator.
 
 When `laneId`/`expectedHead` are absent, CodeBridge automatically prepares a clean detached Git worktree at the **actual local current HEAD**. This protects the user's separate dirty checkout, does not reset or clean tracked/untracked changes, and gives the job an exact SHA receipt. A script hash/path and lane HEAD are checked before queuing **and again immediately before starting**. Reusing a pinned lane after its source changed fails closed. Existing four-lane quota applies; extra worktrees are not deleted automatically.
 
