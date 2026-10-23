@@ -244,7 +244,10 @@ test("Calibration Pro QA auto-pins HEAD in one tool call without touching owner 
   assert.ok(result.gate.endsWith("#" + head));
   assert.match(result.gate, /calibration_v4_qa_/);
   assert.match(result.output, /CALIBRATION_QA_EXECUTED=/);
-  const lanes = new WorktreeLanes(state).status("kmj-calibration-pro", root).lanes;
+  const lanes = new WorktreeLanes(state).status(
+    "kmj-calibration-pro",
+    root,
+  ).lanes;
   assert.equal(lanes.length, 1);
   assert.equal(lanes[0].head, head);
   assert.equal(lanes[0].dirty, false);
