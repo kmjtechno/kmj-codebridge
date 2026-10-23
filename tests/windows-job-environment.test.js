@@ -23,7 +23,7 @@ test("native Windows build jobs receive only standard OS directories", () => {
   assert.equal(win.SystemRoot, "C:\\Windows");
   assert.equal(
     win.PSModulePath,
-    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
+    "C:\\Program Files\\PowerShell\\7\\Modules",
   );
   assert.equal(win.windir, "C:\\Windows");
   assert.equal(win.ComSpec, "C:\\Windows\\System32\\cmd.exe");
