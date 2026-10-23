@@ -197,7 +197,17 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
   const head = git("rev-parse", "HEAD");
   const dirty = path.join(root, "owner-untracked.txt");
   fs.writeFileSync(dirty, "PRESERVE_ME");
-  const runner = new JobRunner(path.join(state, "jobs"));
+  // Exercise the real Windows executable, but avoid sharing a flaky
+  // GitHub-hosted runner's unrelated CPU/memory pressure in this fixture.
+  const runner = new JobRunner(path.join(state, "jobs"), {
+    resourceProbe: () => ({
+      cpuCount: 8,
+      loadOne: 0,
+      totalMemoryBytes: 16 * 1024 ** 3,
+      freeMemoryBytes: 8 * 1024 ** 3,
+      freeDiskBytes: 50 * 1024 ** 3,
+    }),
+  });
   t.after(async () => {
     await runner.close();
     fs.rmSync(home, {
