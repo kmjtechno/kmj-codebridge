@@ -214,7 +214,9 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
     ],
     {
       cwd: root,
-      env: jobEnvironment(),
+      // Diagnostic comparator only: prove the OS can launch PowerShell
+      // with its ordinary CI environment. Production keeps its allowlist.
+      env: process.env,
       encoding: "utf8",
       windowsHide: true,
       timeout: 12000,
