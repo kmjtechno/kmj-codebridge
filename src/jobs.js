@@ -475,6 +475,29 @@ export class JobRunner {
       LANG: "C.UTF-8",
       CI: "true",
     };
+    // Windows native toolchains need these standard OS directories even in
+    // unattended, no-profile sessions. Keep application settings out of
+    // the child process environment.
+    if (process.platform === "win32") {
+      for (const key of [
+        "TEMP",
+        "TMP",
+        "USERPROFILE",
+        "APPDATA",
+        "LOCALAPPDATA",
+        "HOMEDRIVE",
+        "HOMEPATH",
+      ]) {
+        const value = process.env[key];
+        if (
+          typeof value === "string" &&
+          value.length > 0 &&
+          value.length <= 4096 &&
+          !/[\x00-\x1f]/.test(value)
+        )
+          env[key] = value;
+      }
+    }
     const child = spawn(command, args, {
       cwd,
       env,
