@@ -4,10 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { agentSchema } from "../src/config.js";
 import { createDispatcher } from "../src/tools.js";
-import { JobRunner } from "../src/jobs.js";
+import { JobRunner, jobEnvironment } from "../src/jobs.js";
 import { WorktreeLanes } from "../src/worktree-lanes.js";
 import {
   validApprovedScriptPath,
@@ -194,6 +194,45 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
   fs.writeFileSync(path.join(root, "scripts", "verify.ps1"), approved);
   git("add", ".");
   git("commit", "-qm", "approved powerShell QA");
+  // Distinguish native PowerShell startup from CodeBridge queue/runner behavior.
+  const native = spawnSync(
+    path.win32.join(
+      process.env.SystemRoot,
+      "System32",
+      "WindowsPowerShell",
+      "v1.0",
+      "powershell.exe",
+    ),
+    [
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "RemoteSigned",
+      "-File",
+      path.join(root, "scripts", "verify.ps1"),
+    ],
+    {
+      cwd: root,
+      env: jobEnvironment(),
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 12000,
+    },
+  );
+  assert.equal(
+    native.status,
+    0,
+    "Native PowerShell probe: status=" +
+      native.status +
+      " signal=" +
+      native.signal +
+      " stdout=" +
+      String(native.stdout).slice(-200) +
+      " stderr=" +
+      String(native.stderr).slice(-200),
+  );
+  assert.match(native.stdout, /WINDOWS_IDE_POWERSHELL_PASS/);
   const head = git("rev-parse", "HEAD");
   const dirty = path.join(root, "owner-untracked.txt");
   fs.writeFileSync(dirty, "PRESERVE_ME");
@@ -260,7 +299,14 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
     ["execute"],
   );
   const final = await finished(runner, job.id);
-  assert.equal(final.state, "succeeded", final.output);
+  assert.equal(
+    final.state,
+    "succeeded",
+    "job=" + final.state +
+      " code=" + final.exitCode +
+      " durationMs=" + final.durationMs +
+      " output=" + String(final.output).slice(-800),
+  );
   assert.equal(final.exitCode, 0);
   assert.match(final.output, /WINDOWS_IDE_POWERSHELL_PASS/);
   assert.ok(final.gate.endsWith("#" + head));
