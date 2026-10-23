@@ -149,3 +149,111 @@ test("maximum-length lane receipts remain readable after archival", async (t) =>
   assert.equal(archived.gate, done.gate);
   assert.ok(archived.gate.includes(x.head));
 });
+
+test("Calibration Pro QA auto-pins HEAD in one tool call without touching owner changes", async (t) => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "cb-calibration-auto-"));
+  const root = path.join(home, "repo");
+  const state = path.join(home, "state");
+  fs.mkdirSync(root);
+  fs.mkdirSync(state);
+  const git = (...args) =>
+    execFileSync("git", args, {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+    }).trim();
+  git("init", "-q");
+  git("config", "user.name", "QA");
+  git("config", "user.email", "qa@example.invalid");
+  fs.writeFileSync(path.join(root, "tracked.txt"), "keep");
+  git("add", ".");
+  git("commit", "-qm", "exact-head baseline");
+  const head = git("rev-parse", "HEAD");
+  // A shared checkout can hold untracked owner work. It must not be cleaned.
+  const dirty = path.join(root, "owner-private-notes.txt");
+  fs.writeFileSync(dirty, "never delete me");
+
+  const runner = new JobRunner(path.join(state, "jobs"));
+  t.after(async () => {
+    await runner.close();
+    fs.rmSync(home, {
+      recursive: true,
+      force: true,
+      maxRetries: 5,
+      retryDelay: 100,
+    });
+  });
+  const fixedProfile = {
+    category: "build",
+    command: process.execPath,
+    variants: {
+      full: {
+        args: ["-e", "console.log('CALIBRATION_QA_EXECUTED=' + process.cwd())"],
+        timeoutMs: 5000,
+      },
+    },
+  };
+  const dispatch = createDispatcher(
+    {
+      id: "d1",
+      stateDir: state,
+      projects: [
+        {
+          id: "kmj-calibration-pro",
+          root,
+          writable: true,
+          commands: { calibration_v4_qa: fixedProfile },
+        },
+        {
+          id: "kmj-calibration-studio",
+          root,
+          writable: true,
+          commands: { calibration_v4_qa: fixedProfile },
+        },
+      ],
+    },
+    runner,
+    () => ({ features: ["execute"], limits: { concurrent_jobs: 1 } }),
+  );
+
+  const projectCommand = (project, requestKey) =>
+    dispatch(
+      "run_project_command",
+      {
+        device: "d1",
+        project,
+        command: "calibration_v4_qa",
+        variant: "full",
+        requestKey,
+      },
+      ["execute"],
+    );
+  await assert.rejects(
+    projectCommand("kmj-calibration-studio", "wrong-project"),
+    /WORKTREE_LANE_REQUIRED/,
+  );
+  const job = await projectCommand("kmj-calibration-pro", "qa-current-head");
+  let result;
+  for (let i = 0; i < 150; i++) {
+    result = runner.get(job.id, "kmj-calibration-pro");
+    if (!["queued", "running"].includes(result.state)) break;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.equal(result.state, "succeeded");
+  assert.equal(result.exitCode, 0);
+  assert.ok(result.gate.endsWith("#" + head));
+  assert.match(result.gate, /calibration_v4_qa_/);
+  assert.match(result.output, /CALIBRATION_QA_EXECUTED=/);
+  const lanes = new WorktreeLanes(state).status(
+    "kmj-calibration-pro",
+    root,
+  ).lanes;
+  assert.equal(lanes.length, 1);
+  assert.equal(lanes[0].head, head);
+  assert.equal(lanes[0].dirty, false);
+  assert.ok(result.output.includes(lanes[0].path));
+  assert.notEqual(lanes[0].path, root);
+  assert.equal(fs.readFileSync(dirty, "utf8"), "never delete me");
+  assert.equal(fs.readFileSync(path.join(root, "tracked.txt"), "utf8"), "keep");
+  assert.equal(git("rev-parse", "HEAD"), head);
+});

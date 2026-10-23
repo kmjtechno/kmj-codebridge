@@ -1942,7 +1942,7 @@ export const definitions = {
   run_project_command: {
     title: "Run project command",
     description:
-      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci profile automatically pins a detached private worktree to the checkout's exact HEAD when laneId/expectedHead are omitted; it never executes from the shared checkout. Other profiles retain their existing lane rules.",
+      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci and project-scoped calibration_v4_qa profiles automatically pin a detached private worktree to the checkout's exact HEAD when laneId/expectedHead are omitted; neither executes from the shared checkout. Other profiles retain their existing lane rules.",
     input: {
       ...scoped,
       command: identifier,
@@ -4124,19 +4124,24 @@ export function createDispatcher(
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
       if (profile.category !== "inspect" && !p.writable)
         fail("READ_ONLY_PROJECT");
-      // Chat clients with a reduced connected-tool snapshot cannot always call
-      // worktree_lane_prepare. Only this opt-in, fixed UI CI profile may
-      // prepare a private detached worktree on its own. This derives the exact
-      // SHA from the approved checkout; no caller-supplied branch, ref or path
-      // is accepted, and it never builds in the shared/production checkout.
+      // Opt-in fixed CI profiles can derive an isolated QA lane from the
+      // authorized checkout's exact HEAD. Calibration auto-preparation is
+      // restricted to the enrolled Calibration Pro project, never Studio or
+      // an unrelated CMake source tree. The caller supplies no ref or path.
+      const autoLanePrefix =
+        a.command === "main_platform_ui_ci"
+          ? "mainplatform_ci"
+          : a.command === "calibration_v4_qa" && p.id === "kmj-calibration-pro"
+            ? "calibration_v4_qa"
+            : null;
       const autoLane =
-        a.command === "main_platform_ui_ci" &&
+        autoLanePrefix !== null &&
         a.laneId === undefined &&
         a.expectedHead === undefined
           ? worktreeLanes().prepareCurrentHead(
               p.id,
               p.files.root,
-              "mainplatform_ci",
+              autoLanePrefix,
             )
           : null;
       const selectedLaneId = autoLane?.laneId ?? a.laneId;
