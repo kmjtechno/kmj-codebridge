@@ -9,7 +9,11 @@ const PART = /^[A-Za-z0-9_.-]{1,100}$/;
 // A script is selected by an administrator-authored profile, never by a chat
 // argument. Prevent traversal and ADS/UNC/drive syntax even before resolving.
 export function validApprovedScriptPath(value) {
-  if (typeof value !== "string" || value.length > 240 || !value.endsWith(".ps1"))
+  if (
+    typeof value !== "string" ||
+    value.length > 240 ||
+    !value.endsWith(".ps1")
+  )
     return false;
   const parts = value.split("/");
   return (
@@ -32,8 +36,11 @@ function regularFile(file) {
 }
 
 export function verifyApprovedPowerShellScript(cwd, approval) {
-  if (!approval || !validApprovedScriptPath(approval.path) ||
-      !SHA256.test(approval.sha256 ?? ""))
+  if (
+    !approval ||
+    !validApprovedScriptPath(approval.path) ||
+    !SHA256.test(approval.sha256 ?? "")
+  )
     fail("POWERSHELL_PROFILE_INVALID");
   let root;
   try {
@@ -57,8 +64,7 @@ export function verifyApprovedPowerShellScript(cwd, approval) {
     } catch {
       fail("POWERSHELL_SCRIPT_NOT_FOUND");
     }
-    if (stat.isSymbolicLink())
-      fail("POWERSHELL_SCRIPT_PATH_UNSAFE");
+    if (stat.isSymbolicLink()) fail("POWERSHELL_SCRIPT_PATH_UNSAFE");
     if (i < parts.length - 1 && !stat.isDirectory())
       fail("POWERSHELL_SCRIPT_PATH_UNSAFE");
     if (i === parts.length - 1) regularFile(cursor);
@@ -68,9 +74,10 @@ export function verifyApprovedPowerShellScript(cwd, approval) {
   if (!relative || relative.startsWith("..") || path.isAbsolute(relative))
     fail("POWERSHELL_SCRIPT_PATH_UNSAFE");
   const stat = regularFile(resolved);
-  if (stat.size < 1 || stat.size > 65536)
-    fail("POWERSHELL_SCRIPT_SIZE_UNSAFE");
-  const actual = createHash("sha256").update(fs.readFileSync(resolved)).digest("hex");
+  if (stat.size < 1 || stat.size > 65536) fail("POWERSHELL_SCRIPT_SIZE_UNSAFE");
+  const actual = createHash("sha256")
+    .update(fs.readFileSync(resolved))
+    .digest("hex");
   if (actual !== approval.sha256) fail("POWERSHELL_SCRIPT_HASH_MISMATCH");
   return resolved;
 }
@@ -86,13 +93,19 @@ export function approvedPowerShellInvocation({
 }) {
   if (!variant?.powershellScript) return null;
   if (platform !== "win32") fail("POWERSHELL_WINDOWS_ONLY");
-  if (profile?.command !== "powershell.exe" ||
-      !["build", "write"].includes(profile.category))
+  if (
+    profile?.command !== "powershell.exe" ||
+    !["build", "write"].includes(profile.category)
+  )
     fail("POWERSHELL_PROFILE_UNTRUSTED_COMMAND");
   if (!systemRoot || !path.win32.isAbsolute(systemRoot))
     fail("POWERSHELL_SYSTEM_ROOT_INVALID");
   const binary = path.win32.join(
-    systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
+    systemRoot,
+    "System32",
+    "WindowsPowerShell",
+    "v1.0",
+    "powershell.exe",
   );
   let binaryInfo;
   try {
@@ -106,8 +119,13 @@ export function approvedPowerShellInvocation({
   return {
     command: binary,
     args: [
-      "-NoLogo", "-NoProfile", "-NonInteractive",
-      "-ExecutionPolicy", "RemoteSigned", "-File", script,
+      "-NoLogo",
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "RemoteSigned",
+      "-File",
+      script,
       ...variant.args,
     ],
   };
