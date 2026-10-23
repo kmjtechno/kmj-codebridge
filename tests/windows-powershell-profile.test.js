@@ -95,6 +95,17 @@ test("script bytes, hardlinks, and symlink paths are verified fail-closed", (t) 
   fs.writeFileSync(file, bytes);
   const spec = { path: "scripts/qa.ps1", sha256: digest(bytes) };
   assert.equal(verifyApprovedPowerShellScript(root, spec), file);
+  // Native Git for Windows checkouts can convert committed LF to CRLF.
+  // Only that byte-equivalent normalization may reuse the approval.
+  const crlf = bytes.replace(/\n/g, "\r\n");
+  fs.writeFileSync(file, crlf);
+  assert.equal(verifyApprovedPowerShellScript(root, spec), file);
+  fs.writeFileSync(file, crlf.replace("SAFE", "UNAPPROVED"));
+  assert.throws(
+    () => verifyApprovedPowerShellScript(root, spec),
+    /POWERSHELL_SCRIPT_HASH_MISMATCH/,
+  );
+  fs.writeFileSync(file, bytes);
   assert.throws(
     () =>
       verifyApprovedPowerShellScript(root, { ...spec, sha256: "0".repeat(64) }),
