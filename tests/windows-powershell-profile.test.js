@@ -302,10 +302,14 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
   assert.equal(
     final.state,
     "succeeded",
-    "job=" + final.state +
-      " code=" + final.exitCode +
-      " durationMs=" + final.durationMs +
-      " output=" + String(final.output).slice(-800),
+    "job=" +
+      final.state +
+      " code=" +
+      final.exitCode +
+      " durationMs=" +
+      final.durationMs +
+      " output=" +
+      String(final.output).slice(-800),
   );
   assert.equal(final.exitCode, 0);
   assert.match(final.output, /WINDOWS_IDE_POWERSHELL_PASS/);
