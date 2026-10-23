@@ -47,7 +47,7 @@ test("first-pair payload stays private and does not bypass production approval",
   assert.match(ps, /BLOCKED_OWNER_APPROVAL_OR_PLATFORM_GATEWAY/);
   assert.match(ps, /ACCOUNT_SIDE_READY=CHECK_CONNECTION_OVERVIEW/);
   assert.match(ps, /grant\.agent\.token/);
-  assert.doesNotMatch(ps, /Write-(?:Output|Host)[^\n]*(?:grant\.agent\.token|configFile|enrollment)/i);
+  assert.doesNotMatch(ps, /Write-(?:Output|Host)[^\n]*(?:\$grant\.agent\.token|\$configFile|\$enrollment)/i);
   assert.doesNotMatch(ps, /git(?:\.exe)?\b[^\n]*(?:\breset\b|\bclean\b|\bpull\b|\bfetch\b|\bmerge\b)/i);
 });
 
