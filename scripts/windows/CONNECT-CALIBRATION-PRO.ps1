@@ -23,7 +23,12 @@ function Assert-TrustedPath([string]$Path, [bool]$Directory) {
   if (-not [IO.Path]::IsPathRooted($Path)) { throw 'PATH_MUST_BE_ABSOLUTE' }
   $item = Get-Item -LiteralPath $Path -ErrorAction Stop
   if ($item.PSIsContainer -ne $Directory) { throw 'PATH_TYPE_MISMATCH' }
+  if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+    throw 'REPARSE_PATH_BLOCKED'
+  }
+  # FileInfo has Directory but not Parent. Walk ancestors from its directory.
   $cursor = $item
+  if (-not $Directory) { $cursor = $item.Directory }
   while ($null -ne $cursor) {
     if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) {
       throw 'REPARSE_PATH_BLOCKED'
