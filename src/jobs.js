@@ -38,10 +38,10 @@ export function jobEnvironment(
       env.windir = windowsRoot;
       env.ComSpec = path.win32.join(windowsRoot, "System32", "cmd.exe");
       env.PSModulePath = path.win32.join(
-        windowsRoot,
-        "System32",
-        "WindowsPowerShell",
-        "v1.0",
+        path.win32.parse(windowsRoot).root,
+        "Program Files",
+        "PowerShell",
+        "7",
         "Modules",
       );
     }
