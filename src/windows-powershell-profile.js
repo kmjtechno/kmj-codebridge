@@ -107,7 +107,7 @@ export function approvedPowerShellInvocation({
   if (!variant?.powershellScript) return null;
   if (platform !== "win32") fail("POWERSHELL_WINDOWS_ONLY");
   if (
-    profile?.command !== "powershell.exe" ||
+    profile?.command !== "pwsh.exe" ||
     !["build", "write"].includes(profile.category)
   )
     fail("POWERSHELL_PROFILE_UNTRUSTED_COMMAND");
