@@ -15,11 +15,18 @@ test("native Windows build jobs receive only standard OS directories", () => {
     HOMEPATH: "\\Users\\operator",
     MY_APP_SECRET: "private-value",
     OPENAI_API_KEY: "private-value",
+    PSModulePath: "C:\\UntrustedModules",
   };
   const win = jobEnvironment(source, "win32");
   assert.equal(win.TEMP, "C:\\Temp");
   assert.equal(win.APPDATA, source.APPDATA);
   assert.equal(win.SystemRoot, "C:\\Windows");
+  assert.equal(
+    win.PSModulePath,
+    "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\Modules",
+  );
+  assert.equal(win.windir, "C:\\Windows");
+  assert.equal(win.ComSpec, "C:\\Windows\\System32\\cmd.exe");
   assert.equal(win.CI, "true");
   assert.equal(win.LANG, "C.UTF-8");
   assert.equal(Object.hasOwn(win, "MY_APP_SECRET"), false);
