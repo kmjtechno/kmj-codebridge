@@ -380,7 +380,11 @@ export const agentSchema = z.object({
                       // shell string. Revalidated before the queued job starts.
                       powershellScript: z
                         .object({
-                          path: z.string().min(5).max(240).refine(validApprovedScriptPath),
+                          path: z
+                            .string()
+                            .min(5)
+                            .max(240)
+                            .refine(validApprovedScriptPath),
                           sha256: digest,
                         })
                         .strict()
@@ -404,7 +408,8 @@ export const agentSchema = z.object({
             )
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
-                message: "PowerShell script profiles require an approved, bounded Windows build/write command",
+                message:
+                  "PowerShell script profiles require an approved, bounded Windows build/write command",
               });
           }
           if (
