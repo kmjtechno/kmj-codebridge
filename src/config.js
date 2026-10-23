@@ -403,7 +403,7 @@ export const agentSchema = z.object({
             ).some((variant) => variant.powershellScript !== undefined);
             if (
               usesApprovedPowerShell &&
-              (profile.command !== "powershell.exe" ||
+              (profile.command !== "pwsh.exe" ||
                 !["build", "write"].includes(profile.category))
             )
               ctx.addIssue({
