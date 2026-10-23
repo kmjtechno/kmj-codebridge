@@ -94,7 +94,14 @@ export function approvedPowerShellInvocation({
   const binary = path.win32.join(
     systemRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe"
   );
-  regularFile(binary);
+  let binaryInfo;
+  try {
+    binaryInfo = fs.lstatSync(binary);
+  } catch {
+    fail("POWERSHELL_BINARY_NOT_FOUND");
+  }
+  if (!binaryInfo.isFile() || binaryInfo.isSymbolicLink())
+    fail("POWERSHELL_BINARY_UNTRUSTED");
   const script = verifyApprovedPowerShellScript(cwd, variant.powershellScript);
   return {
     command: binary,
