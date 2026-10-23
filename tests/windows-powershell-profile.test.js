@@ -33,7 +33,7 @@ const base = {
       commands: {
         approved_windows_qa: {
           category: "build",
-          command: "powershell.exe",
+          command: "pwsh.exe",
           variants: {
             run: {
               args: ["-Mode", "Inspect"],
@@ -197,11 +197,11 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
   // Distinguish native PowerShell startup from CodeBridge queue/runner behavior.
   const native = spawnSync(
     path.win32.join(
-      process.env.SystemRoot,
-      "System32",
-      "WindowsPowerShell",
-      "v1.0",
-      "powershell.exe",
+      path.win32.parse(process.env.SystemRoot).root,
+      "Program Files",
+      "PowerShell",
+      "7",
+      "pwsh.exe",
     ),
     [
       "-NoLogo",
@@ -270,7 +270,7 @@ test("Windows CodeBridge IDE runs approved local PowerShell without modifying di
           commands: {
             local_windows_qa: {
               category: "build",
-              command: "powershell.exe",
+              command: "pwsh.exe",
               variants: {
                 verify: {
                   args: [],
