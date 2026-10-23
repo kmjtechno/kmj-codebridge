@@ -281,25 +281,44 @@ test("Calibration Pro V4 QA is opt-in, SHA-pinned, and hardware fail-closed", ()
   assert.equal(normal.commands.calibration_v4_qa, undefined);
   const project = agentSchema.parse({
     ...base,
-    projects: [{ ...base.projects[0], commandPresets: ["calibration-v4-software-qa"] }],
+    projects: [
+      { ...base.projects[0], commandPresets: ["calibration-v4-software-qa"] },
+    ],
   }).projects[0];
   const profile = project.commands.calibration_v4_qa;
   assert.equal(profile.category, "build");
-  assert.equal(profile.command, process.platform === "win32" ? "python" : "python3");
+  assert.equal(
+    profile.command,
+    process.platform === "win32" ? "python" : "python3",
+  );
   assert.deepEqual(Object.keys(profile.variants), ["full"]);
   assert.deepEqual(profile.variants.full.args, ["tools/verify.py"]);
   assert.equal(profile.variants.full.timeoutMs, 300000);
-  for (const unsafe of ["scan", "release", "publish", "install", "deploy", "shell"])
+  for (const unsafe of [
+    "scan",
+    "release",
+    "publish",
+    "install",
+    "deploy",
+    "shell",
+  ])
     assert.equal(profile.variants[unsafe], undefined);
   assert.equal(commandRequiresIsolatedLane("calibration_v4_qa"), true);
-  const source = fs.readFileSync(new URL("../src/tools.js", import.meta.url), "utf8");
+  const source = fs.readFileSync(
+    new URL("../src/tools.js", import.meta.url),
+    "utf8",
+  );
   for (const required of [
     "commandRequiresIsolatedLane(a.command)",
     'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
     'if (lane.head !== selectedHead) fail("WORKTREE_HEAD_MISMATCH")',
     'if (lane.dirty) fail("WORKTREE_HAS_UNSAVED_WORK")',
     "beforeStart: verify",
-  ]) assert.ok(source.includes(required), "Missing isolation guard: " + required);
+  ])
+    assert.ok(
+      source.includes(required),
+      "Missing isolation guard: " + required,
+    );
 });
 
 test("jobArchiveMaxEntries defaults to the archive's own default and stays bounded (issue #186)", () => {
