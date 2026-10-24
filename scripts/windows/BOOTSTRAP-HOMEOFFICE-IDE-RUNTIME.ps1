@@ -4,7 +4,7 @@ param([switch]$CheckOnly, [switch]$SelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $device = 'DESKTOP-5FVJMET'
-$sha = '9dc0ae25648c33a62631fdd35068e6b60820637d'
+$sha = '9f74b7a88a3bc4f163f43c04328fe753db094354'
 $origin = 'https://github.com/kmjtechno/kmj-codebridge.git'
 $validOrigins = @($origin, 'https://github.com/kmjtechno/kmj-codebridge', 'git@github.com:kmjtechno/kmj-codebridge.git')
 $dest = 'E:\KMJ\CodeBridge-HomeOffice'

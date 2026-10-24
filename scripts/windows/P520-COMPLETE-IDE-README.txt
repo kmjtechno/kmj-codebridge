@@ -11,7 +11,7 @@ mark on ONLY the bootstrap PS1. It does not bypass Windows
 execution policies or auto-approve device enrollment.
 
 Expected bootstrap SHA-256:
-0727698F0945D0D5EB83F88B68C341FF4D616B3AD8F82B28E8BB1DF45683A540
+85D862D68C2384949367F85D34C169DE1F09DE2FE09D93EA57810F9D941A3675
 
 First-time pairing still requires official owner browser approval.
 P520 gateway READY is checked separately. Do not share agent.json,
