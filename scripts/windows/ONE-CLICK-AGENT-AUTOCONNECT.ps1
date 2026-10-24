@@ -96,6 +96,10 @@ try {
             $shortcut.Save()
             $actual = $shell.CreateShortcut($dummy)
             if (!(VerifyShortcut $actual $ps $args $fixture)) {
+                $t = ExpectPath ([string]$actual.TargetPath) $ps
+                $a = [string]$actual.Arguments -ceq $args
+                $w = ExpectPath ([string]$actual.WorkingDirectory) $fixture
+                Write-Output ('KMJ_SELFTEST_LINK_FLAGS=TARGET_' + [int][bool]$t + '_ARGS_' + [int][bool]$a + '_WORKDIR_' + [int][bool]$w)
                 throw 'AUTOCONNECT_SELFTEST_SHORTCUT_INVALID'
             }
             if (VerifyShortcut $actual $ps ($args + ' -Unexpected') $fixture) {
