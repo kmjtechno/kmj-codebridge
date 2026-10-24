@@ -41,7 +41,7 @@ test("one click has no embedded credentials or shell override", () => {
   assert.doesNotMatch(source, /-RunOpticalBench|-ScanProjector/i);
 });
 
-test("older checkout lacking auto-connect skips without native Git pathspec failure", () => {
+test("legacy checkout with missing launcher skips safely", () => {
   assert.doesNotMatch(source, /ls-files --error-unmatch/);
   assert.ok(source.includes("ls-tree -r --name-only HEAD -- @req"));
   assert.ok(source.includes("scripts/windows/CONNECT-CALIBRATION-PRO.ps1"));
@@ -54,7 +54,9 @@ test("older checkout lacking auto-connect skips without native Git pathspec fail
 });
 
 test("Windows command stays within the CMD character limit", () => {
-  const commandLine = source.split("\n").find((line) => line.includes("-Command "));
+  const commandLine = source
+    .split("\n")
+    .find((line) => line.includes("-Command "));
   assert.ok(commandLine);
   assert.ok(commandLine.length < 8191);
 });
