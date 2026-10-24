@@ -31,3 +31,34 @@ test("IDE launcher cannot self-approve, elevate, deploy or rewrite project check
     /-RunOpticalBench|ScanProjector|PROJECTOR_PATTERN/i,
   );
 });
+
+const installerCmd = fs.readFileSync(
+  path.resolve("scripts/windows/START-KMJ-CALIBRATION-IDE.cmd"),
+  "utf8",
+);
+const bootstrapPs1 = fs.readFileSync(
+  path.resolve("scripts/windows/BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1"),
+);
+
+test("downloaded P520 installer verifies exact SHA-256 before per-file unblock", async () => {
+  const { createHash } = await import("node:crypto");
+  const pinned = createHash("sha256").update(bootstrapPs1).digest("hex").toUpperCase();
+  assert.match(installerCmd, /DESKTOP-5FVJMET/);
+  assert.ok(installerCmd.includes("'" + pinned + "'"), "installer content hash must match audited source");
+  assert.match(installerCmd, /Get-FileHash -LiteralPath \\$p -Algorithm SHA256/);
+  assert.match(installerCmd, /Unblock-File -LiteralPath \\$p -ErrorAction Stop/);
+  assert.ok(installerCmd.indexOf("Get-FileHash") < installerCmd.indexOf("Unblock-File"));
+  assert.match(installerCmd, /if errorlevel 1 goto :integrity_blocked/);
+  assert.match(installerCmd, /SCRIPT_SHA256_MISMATCH/);
+  assert.match(installerCmd, /SCRIPT_REPARSE_DENIED/);
+  assert.match(installerCmd, /-ExecutionPolicy RemoteSigned -File "%INSTALLER%"/);
+});
+
+test("installer does not disable script security or auto-pair another device", () => {
+  assert.doesNotMatch(
+    installerCmd,
+    /-ExecutionPolicy (?:Bypass|Unrestricted)|Set-ExecutionPolicy|Unblock-File -Path ["']?\\*|Start-Process.*RunAs|schtasks|DESKTOP-K3AHHEM/i,
+  );
+  assert.doesNotMatch(installerCmd, /-Device P720|Remove-Item|git reset|git clean/i);
+  assert.match(installerCmd, /EXECUTION_POLICY_CHANGED=NO/);
+});
