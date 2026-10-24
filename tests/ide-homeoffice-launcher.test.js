@@ -86,8 +86,16 @@ test("installer labels are after normal execution and wrong PC fails closed", ()
     installerCmd.lastIndexOf("\n:integrity_blocked\n") >
       installerCmd.indexOf("exit /b %RC%"),
   );
-  for (const label of ["unsupported_os", "wrong_host", "missing_script", "missing_powershell"]) {
-    assert.equal((installerCmd.match(new RegExp("^:" + label + "$", "gm")) || []).length, 1);
+  for (const label of [
+    "unsupported_os",
+    "wrong_host",
+    "missing_script",
+    "missing_powershell",
+  ]) {
+    assert.equal(
+      (installerCmd.match(new RegExp("^:" + label + "$", "gm")) || []).length,
+      1,
+    );
   }
   assert.equal((installerCmd.match(/^:integrity_blocked$/gm) || []).length, 1);
 });
