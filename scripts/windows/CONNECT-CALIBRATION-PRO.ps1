@@ -1,7 +1,7 @@
 # KMJ TECHNO - guarded reconnect for the already enrolled Calibration Pro device.
 # Current user only; never install, re-pair, copy tokens, kill agents or edit projects.
 [CmdletBinding()]
-param([string]$ConfigPath, [switch]$CheckOnly, [switch]$SelfTest, [switch]$AutoDiscover)
+param([string]$ConfigPath, [switch]$CheckOnly, [switch]$SelfTest, [switch]$AutoDiscover, [switch]$NoPicker)
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
@@ -172,6 +172,9 @@ try {
   }
 
   # A single file selection replaces pasting private paths into a terminal.
+  if ([string]::IsNullOrWhiteSpace($ConfigPath) -and $NoPicker) {
+    throw 'SCOPED_ENROLLMENT_NOT_FOUND_NONINTERACTIVE'
+  }
   if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     Add-Type -AssemblyName System.Windows.Forms
     $picker = New-Object System.Windows.Forms.OpenFileDialog

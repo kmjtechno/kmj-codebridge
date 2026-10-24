@@ -1,0 +1,44 @@
+name: CodeBridge Windows AutoConnect QA
+
+on:
+  pull_request:
+    paths:
+      - "scripts/windows/ONE-CLICK-AGENT-AUTOCONNECT.ps1"
+      - "scripts/windows/ONE-CLICK-HOMEOFFICE-CONNECT.cmd"
+      - "scripts/windows/ONE-CLICK-P720-CONNECT.cmd"
+      - "scripts/windows/DISABLE-HOMEOFFICE-AUTOCONNECT.cmd"
+      - "scripts/windows/DISABLE-P720-AUTOCONNECT.cmd"
+      - "scripts/windows/CONNECT-CALIBRATION-PRO.ps1"
+      - "tests/windows-oneclick-agent-autostart.test.js"
+      - ".github/workflows/windows-agent-autoconnect-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/windows/ONE-CLICK-AGENT-AUTOCONNECT.ps1"
+      - "scripts/windows/ONE-CLICK-HOMEOFFICE-CONNECT.cmd"
+      - "scripts/windows/ONE-CLICK-P720-CONNECT.cmd"
+      - "scripts/windows/DISABLE-HOMEOFFICE-AUTOCONNECT.cmd"
+      - "scripts/windows/DISABLE-P720-AUTOCONNECT.cmd"
+      - "scripts/windows/CONNECT-CALIBRATION-PRO.ps1"
+      - "tests/windows-oneclick-agent-autostart.test.js"
+      - ".github/workflows/windows-agent-autoconnect-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  scoped-windows-autostart:
+    name: autoconnect (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Safe Windows local scoped auto reconnect and disposable link fixture
+        run: node --test tests/windows-oneclick-agent-autostart.test.js
