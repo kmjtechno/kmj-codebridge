@@ -6,14 +6,14 @@ This is **CodeBridge agent lifecycle only**. It does not develop or update Calib
 
 Use an **updated trusted CodeBridge checkout with its dependencies already installed** on the Windows device:
 
-| This Windows device | Double-click |
-| --- | --- |
+| This Windows device           | Double-click                                       |
+| ----------------------------- | -------------------------------------------------- |
 | Home Office `DESKTOP-5FVJMET` | `scripts/windows/ONE-CLICK-HOMEOFFICE-CONNECT.cmd` |
-| Lenovo P720 `DESKTOP-K3AHHEM` | `scripts/windows/ONE-CLICK-P720-CONNECT.cmd` |
+| Lenovo P720 `DESKTOP-K3AHHEM` | `scripts/windows/ONE-CLICK-P720-CONNECT.cmd`       |
 
 The two identities are deliberately separate. A launcher refuses the other machine. Each performs the existing scoped and guarded reconnect, then creates **one current-user Windows Startup shortcut**. That means the same approved agent is automatically launched **when the owner signs in to Windows again**. It does not start an agent before a Windows user logs in and does not guarantee recovery from unexpected crashes while the user is already signed in.
 
-Home Office: The reconnect script searches its known private directories for an **existing** correctly-scoped enrollment. For safe unattended startup it uses `-AutoDiscover -NoPicker` and will never show a file dialog. Only during the *initial deliberate one-click setup*, when no matching enrollment is found in the known private locations, it may invoke the existing owner browser-approved pairing wizard. No silent new device is created. If a private enrollment exists elsewhere, use the legacy/manual approved reconnect rather than create a duplicate. The Home Office launcher never uses the P720 enrollment.
+Home Office: The reconnect script searches its known private directories for an **existing** correctly-scoped enrollment. For safe unattended startup it uses `-AutoDiscover -NoPicker` and will never show a file dialog. Only during the _initial deliberate one-click setup_, when no matching enrollment is found in the known private locations, it may invoke the existing owner browser-approved pairing wizard. No silent new device is created. If a private enrollment exists elsewhere, use the legacy/manual approved reconnect rather than create a duplicate. The Home Office launcher never uses the P720 enrollment.
 
 P720: Requires the existing approved P720 enrollment and pinned CodeBridge runtime and explicitly refuses a concurrently enabled legacy `KMJ-CodeBridge-P720-Agent` Scheduled Task. It does not change that task, stop a supervisor, change a Windows service, or invent missing pairing credentials. Existing enrolled P720 projects other than CodeBridge are outside this shortcut's scope.
 
