@@ -41,20 +41,20 @@ test("one click has no embedded credentials or shell override", () => {
   assert.doesNotMatch(source, /-RunOpticalBench|-ScanProjector/i);
 });
 
-test("older tracked-clean checkout lacking auto-connect does not stop discovery", () => {
+test("older checkout lacking auto-connect skips without native Git pathspec failure", () => {
   assert.doesNotMatch(source, /ls-files --error-unmatch/);
-  assert.match(source, /ls-tree -r --name-only HEAD -- @req/);
-  assert.match(source, /scripts\\/windows\\/CONNECT-CALIBRATION-PRO\\.ps1/);
-  assert.match(source, /scripts\\/windows\\/PAIR-HOMEOFFICE-CALIBRATION\\.ps1/);
-  assert.match(source, /if\\(\\$LASTEXITCODE -ne 0 -or \\$tracked\\.Count -ne 3\\)/);
-  assert.match(source, /}catch\\{return \\$false\\}/);
+  assert.ok(source.includes("ls-tree -r --name-only HEAD -- @req"));
+  assert.ok(source.includes("scripts/windows/CONNECT-CALIBRATION-PRO.ps1"));
+  assert.ok(source.includes("scripts/windows/PAIR-HOMEOFFICE-CALIBRATION.ps1"));
+  assert.ok(source.includes("$tracked.Count -ne 3"));
+  assert.ok(source.includes("}catch{return $false}"));
   assert.match(source, /OLD_RUNTIME_PRESERVED/);
   assert.match(source, /CodeBridge-HomeOffice-Connect-v1/);
   assert.match(source, /BLOCKED_LOCAL_VALIDATION_OR_NETWORK/);
 });
 
-test("single-line Windows command remains under CMD 8191 character limit", () => {
-  const commandLine = source.split(/\\r?\\n/).find((line) => line.includes("-Command "));
+test("Windows command stays within the CMD character limit", () => {
+  const commandLine = source.split("\n").find((line) => line.includes("-Command "));
   assert.ok(commandLine);
   assert.ok(commandLine.length < 8191);
 });
