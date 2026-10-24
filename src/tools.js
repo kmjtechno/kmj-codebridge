@@ -1968,7 +1968,10 @@ export const definitions = {
       variant: identifier,
       requestKey: z.string().min(1).max(128),
       laneId: laneIdentifier.optional(),
-      expectedHead: z.string().regex(/^[a-f0-9]{40}$/).optional(),
+      expectedHead: z
+        .string()
+        .regex(/^[a-f0-9]{40}$/)
+        .optional(),
       waitMs: z.number().int().min(0).max(10000).default(2500),
     },
     access: "execute",
@@ -3780,35 +3783,48 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       if (!profile || !Object.hasOwn(profile.variants ?? {}, a.variant))
         fail("IDE_COMMAND_NOT_CONFIGURED");
-      const existing = await dispatchCore("run_project_command", {
-        device: a.device,
-        project: p.id,
-        command: a.command,
-        variant: a.variant,
-        requestKey: a.requestKey,
-        ...(a.laneId === undefined ? {} : { laneId: a.laneId }),
-        ...(a.expectedHead === undefined
-          ? {} : { expectedHead: a.expectedHead }),
-      }, permissions);
+      const existing = await dispatchCore(
+        "run_project_command",
+        {
+          device: a.device,
+          project: p.id,
+          command: a.command,
+          variant: a.variant,
+          requestKey: a.requestKey,
+          ...(a.laneId === undefined ? {} : { laneId: a.laneId }),
+          ...(a.expectedHead === undefined
+            ? {}
+            : { expectedHead: a.expectedHead }),
+        },
+        permissions,
+      );
       if (!existing || typeof existing.id !== "string")
         fail("IDE_JOB_UNAVAILABLE");
-      const state = await dispatchCore("get_job_status", {
-        device: a.device,
-        project: p.id,
-        job: existing.id,
-        waitMs: a.waitMs,
-        tailChars: 8192,
-      }, permissions);
+      const state = await dispatchCore(
+        "get_job_status",
+        {
+          device: a.device,
+          project: p.id,
+          job: existing.id,
+          waitMs: a.waitMs,
+          tailChars: 8192,
+        },
+        permissions,
+      );
       return compactIdeJobReceipt(state);
     }
     if (name === "ide_job_receipt") {
-      const state = await dispatchCore("get_job_status", {
-        device: a.device,
-        project: p.id,
-        job: a.job,
-        waitMs: a.waitMs,
-        tailChars: 8192,
-      }, permissions);
+      const state = await dispatchCore(
+        "get_job_status",
+        {
+          device: a.device,
+          project: p.id,
+          job: a.job,
+          waitMs: a.waitMs,
+          tailChars: 8192,
+        },
+        permissions,
+      );
       return compactIdeJobReceipt(state);
     }
     if (name === "run_project_command") {
@@ -4582,7 +4598,7 @@ export function createDispatcher(
     if (!p) return dispatchCore(name, input, permissions);
 
     const risk =
-      (name === "run_project_command" || name === "ide_run_project_task")
+      name === "run_project_command" || name === "ide_run_project_task"
         ? a.command === "cloudos_host_storage_audit"
           ? "READ"
           : [
