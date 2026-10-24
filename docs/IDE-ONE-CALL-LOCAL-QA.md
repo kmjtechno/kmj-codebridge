@@ -45,3 +45,11 @@ For a new ZIP delivered via browser, Windows may attach an Internet-zone mark to
 This is a trust decision for the reviewed pinned release, not a digital signature. If Group Policy requires `AllSigned`, do not override it: obtain an organization-signed trusted installer. A hash mismatch means use a clean, official replacement rather than weakening protection. Running the CMD cannot by itself prove that P520 is connected; check `connection_overview` for `READY`.
 
 Do not edit the bootstrap PS1 without updating the pinned SHA-256 and reviewing both changes. Do not run scripts from an untrusted ZIP.
+
+## Complete ZIP distribution — P520 hotfix
+
+A previous **incomplete** ZIP had only `START-KMJ-CALIBRATION-IDE.cmd` and a README, with **no** `BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1`. Extracting that ZIP in a fresh directory caused `BLOCKED_WRONG_HOST_OR_SCRIPT_MISSING`. This is a packaging omission, not proof of a bad Windows hostname or an offline gateway.
+
+For every **complete** P520 installer ZIP, bundle both reviewed files in the **same ZIP root** (plus README), and validate the PS1 SHA-256 before publishing. Use `scripts/windows/PACKAGE-P520-CALIBRATION-IDE.ps1` in a trusted developer checkout. Reject any incomplete or stale bundle. The launcher now displays separate wrong-host, missing-bootstrap, unsupported-OS and missing-PowerShell diagnostics; it performs a per-file SHA-256 check before and after unblocking, without changing execution policy.
+
+Owners should extract the complete ZIP to a new directory and double-click the CMD. Neither a successful local bootstrap nor GitHub CI can attest `connection_overview=READY`; owner browser approval and authenticated device checks are independent steps.
