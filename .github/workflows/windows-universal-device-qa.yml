@@ -1,0 +1,38 @@
+name: CodeBridge Universal Windows Pairing QA
+
+on:
+  pull_request:
+    paths:
+      - "scripts/windows/ONE-CLICK-ANY-DEVICE.ps1"
+      - "scripts/windows/CONNECT-ANY-DEVICE.cmd"
+      - "scripts/windows/DISABLE-ANY-DEVICE-AUTOSTART.cmd"
+      - "tests/windows-universal-device-onboarding.test.js"
+      - ".github/workflows/windows-universal-device-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/windows/ONE-CLICK-ANY-DEVICE.ps1"
+      - "scripts/windows/CONNECT-ANY-DEVICE.cmd"
+      - "scripts/windows/DISABLE-ANY-DEVICE-AUTOSTART.cmd"
+      - "tests/windows-universal-device-onboarding.test.js"
+      - ".github/workflows/windows-universal-device-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  universal:
+    name: universal (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-24.04]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Verify generic per-PC owner-approved scope and disposable shortcut
+        run: node --test tests/windows-universal-device-onboarding.test.js
