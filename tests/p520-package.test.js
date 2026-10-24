@@ -33,15 +33,23 @@ test("reviewed complete P520 IDE ZIP includes CMD, PS1 and README together", (t)
     const length = archive.readUInt32LE(cursor + 18);
     const nameLength = archive.readUInt16LE(cursor + 26);
     const extraLength = archive.readUInt16LE(cursor + 28);
-    const name = archive.subarray(cursor + 30, cursor + 30 + nameLength).toString("ascii");
+    const name = archive
+      .subarray(cursor + 30, cursor + 30 + nameLength)
+      .toString("ascii");
     assert.equal(name, expectedName);
     observed.push(name);
     const start = cursor + 30 + nameLength + extraLength;
     const payload = archive.subarray(start, start + length);
     assert.equal(payload.length, length);
     if (name === "BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1") {
-      const sha = createHash("sha256").update(payload).digest("hex").toUpperCase();
-      assert.equal(sha, "D867A1F0131CCE424B0FA90AAA91A847ECFA404088409E341E9B1DF161AC60F5");
+      const sha = createHash("sha256")
+        .update(payload)
+        .digest("hex")
+        .toUpperCase();
+      assert.equal(
+        sha,
+        "D867A1F0131CCE424B0FA90AAA91A847ECFA404088409E341E9B1DF161AC60F5",
+      );
     }
     cursor = start + length;
   }
@@ -51,6 +59,10 @@ test("reviewed complete P520 IDE ZIP includes CMD, PS1 and README together", (t)
     cwd: process.cwd(),
     encoding: "utf8",
   });
-  assert.notEqual(second.status, 0, "a release ZIP must never be silently overwritten");
+  assert.notEqual(
+    second.status,
+    0,
+    "a release ZIP must never be silently overwritten",
+  );
   assert.deepEqual(fs.readFileSync(output), archive);
 });
