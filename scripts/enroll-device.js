@@ -31,6 +31,7 @@ try {
     permissions: ["read", "write", "execute"],
   };
   const handle = await beginDeviceEnrollment(base, request);
+  console.log("ENROLLMENT_STAGE=REQUEST_CREATED");
   console.log("KMJ CodeBridge device approval required.");
   console.log(
     `Open: ${handle.verification_uri_complete ?? handle.verification_uri}`,
@@ -52,6 +53,7 @@ try {
     break;
   }
   if (!approved) throw Error("ENROLLMENT_EXPIRED");
+  console.log("ENROLLMENT_STAGE=APPROVAL_RECEIVED");
 
   const parent = fs.realpathSync(path.dirname(path.resolve(output)));
   const target = path.join(parent, path.basename(output));
@@ -71,6 +73,7 @@ try {
   } finally {
     fs.closeSync(fd);
   }
+  console.log("ENROLLMENT_STAGE=PRIVATE_GRANT_SAVED");
   console.log("Device approved and enrollment credential stored securely.");
 } catch (error) {
   // Print a bounded diagnostic code only. Never print verifier, device code,

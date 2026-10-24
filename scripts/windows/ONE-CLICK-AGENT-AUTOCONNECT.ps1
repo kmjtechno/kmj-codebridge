@@ -72,7 +72,24 @@ function InvokeTrusted([string]$Target,[string[]]$Arguments,[bool]$Interactive) 
     # enrollment helper never displays the permanent device bearer token.
     # Never enter this branch from the silent sign-in reconnect.
     if ($Interactive -and [IO.Path]::GetFileName($Target) -ceq $pairName) {
-        & $systemPs @head @Arguments
+        # The outer $outcome assignment must not swallow the owner browser
+        # verification URL or temporary user code. Host output is visible
+        # immediately while only the bounded status object is returned.
+        & $systemPs @head @Arguments | ForEach-Object {
+            $line = [string]$_
+            if ($line.Length -le 2200 -and (
+                $line -match '^Open: https://kmjtechno[.]com/[^\s]{1,2100}$' -or
+                $line -match '^Pairing code: [A-Za-z0-9-]{4,32}$' -or
+                $line -match '^KMJ CodeBridge device approval required[.]$' -or
+                $line -match '^Waiting for approval[.] No device credential will be printed[.]$' -or
+                $line -match '^Device approved and enrollment credential stored securely[.]$' -or
+                $line -match '^(PUBLIC_AGENT_AUTH_CHALLENGE|OWNER_PC_SCOPE|CALIBRATION_ORIGIN|CODEBRIDGE_RUNTIME)=[A-Z0-9_:]+$' -or
+                $line -match '^HOMEOFFICE_PAIR=[A-Z0-9_:]+$' -or
+                $line -match '^ENROLLMENT_STAGE=(REQUEST_CREATED|APPROVAL_RECEIVED|PRIVATE_GRANT_SAVED)$'
+            )) {
+                Write-Host $line
+            }
+        }
         return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Lines = @() }
     }
     # Reconnect diagnostics are sanitized before they reach the console.
