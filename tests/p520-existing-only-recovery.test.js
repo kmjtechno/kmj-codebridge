@@ -6,14 +6,20 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 
 const psPath = path.resolve("scripts/windows/RECOVER-P520-EXISTING-ONLY.ps1");
-const cmdPath = path.resolve("scripts/windows/START-KMJ-P520-EXISTING-ONLY.cmd");
+const cmdPath = path.resolve(
+  "scripts/windows/START-KMJ-P520-EXISTING-ONLY.cmd",
+);
 const ps = fs.readFileSync(psPath, "utf8");
 const cmd = fs.readFileSync(cmdPath, "utf8");
-const expected = "6610643B27ECBB903ECAA91BF1DDDBF591DE344226FA8E3ECC5CA93E9C3C9276";
+const expected =
+  "6610643B27ECBB903ECAA91BF1DDDBF591DE344226FA8E3ECC5CA93E9C3C9276";
 
 test("P520 existing-only double-click launcher pins exact reviewed SHA256", () => {
   assert.equal(
-    createHash("sha256").update(fs.readFileSync(psPath)).digest("hex").toUpperCase(),
+    createHash("sha256")
+      .update(fs.readFileSync(psPath))
+      .digest("hex")
+      .toUpperCase(),
     expected,
   );
   assert.ok(cmd.includes(expected));
@@ -23,7 +29,10 @@ test("P520 existing-only double-click launcher pins exact reviewed SHA256", () =
   assert.match(cmd, /SCRIPT_CHANGED/);
   assert.match(cmd, /-ExecutionPolicy RemoteSigned/);
   assert.match(cmd, /KMJ_P520_RECOVERY_EXIT=/);
-  assert.doesNotMatch(cmd, /ExecutionPolicy Bypass|Set-ExecutionPolicy|schtasks|curl|invoke-webrequest|token\s*=/i);
+  assert.doesNotMatch(
+    cmd,
+    /ExecutionPolicy Bypass|Set-ExecutionPolicy|schtasks|curl|invoke-webrequest|token\s*=/i,
+  );
 });
 
 test("P520 existing-only recovery never registers another device or changes project files", () => {
@@ -51,7 +60,14 @@ test(
   () => {
     const p = spawnSync(
       "powershell.exe",
-      ["-NoProfile", "-ExecutionPolicy", "RemoteSigned", "-File", psPath, "-SelfTest"],
+      [
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        psPath,
+        "-SelfTest",
+      ],
       { encoding: "utf8", timeout: 15000, windowsHide: true },
     );
     assert.equal(p.status, 0, p.stdout + p.stderr);
