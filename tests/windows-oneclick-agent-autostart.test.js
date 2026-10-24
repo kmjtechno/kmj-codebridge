@@ -49,9 +49,15 @@ test("one-click installer only reconnects known approved Windows devices", () =>
 });
 
 test("startup launcher is opt-in, noninteractive on logon, exact-scoped, and reversible", () => {
-  assert.match(code, /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/);
+  assert.match(
+    code,
+    /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/,
+  );
   assert.match(code, /New-Object -ComObject WScript.Shell/);
-  assert.match(code, /-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File/);
+  assert.match(
+    code,
+    /-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File/,
+  );
   assert.match(code, /if \(\$AtLogon\) \{/);
   assert.match(code, /if \(\$RemoveAutoStart\) \{/);
   assert.match(code, /Remove-Item -LiteralPath \$shortcutPath/);
@@ -65,14 +71,20 @@ test("startup launcher is opt-in, noninteractive on logon, exact-scoped, and rev
     assert.match(cmd, /%~dp0ONE-CLICK-AGENT-AUTOCONNECT\.ps1/);
     assert.match(cmd, new RegExp("-Device " + scope + "\\b"));
     assert.equal(cmd.includes("-RemoveAutoStart"), disable);
-    assert.doesNotMatch(cmd, /ExecutionPolicy Bypass|schtasks|curl|git clone|token\s*=/i);
+    assert.doesNotMatch(
+      cmd,
+      /ExecutionPolicy Bypass|schtasks|curl|git clone|token\s*=/i,
+    );
   }
   const reconnect = fs.readFileSync(
     "scripts/windows/CONNECT-CALIBRATION-PRO.ps1",
     "utf8",
   );
   assert.match(reconnect, /\[switch\]\$NoPicker/);
-  assert.match(reconnect, /if \(\[string\]::IsNullOrWhiteSpace\(\$ConfigPath\) -and \$NoPicker\)/);
+  assert.match(
+    reconnect,
+    /if \(\[string\]::IsNullOrWhiteSpace\(\$ConfigPath\) -and \$NoPicker\)/,
+  );
   assert.match(reconnect, /SCOPED_ENROLLMENT_NOT_FOUND_NONINTERACTIVE/);
 });
 
@@ -116,6 +128,9 @@ test(
       { shell: false, windowsHide: true, encoding: "utf8", timeout: 15000 },
     );
     assert.equal(denied.status, 2, denied.stdout + denied.stderr);
-    assert.match(denied.stdout, /KMJ_AUTOCONNECT=BLOCKED:AUTOCONNECT_WRONG_WINDOWS_DEVICE/);
+    assert.match(
+      denied.stdout,
+      /KMJ_AUTOCONNECT=BLOCKED:AUTOCONNECT_WRONG_WINDOWS_DEVICE/,
+    );
   },
 );
