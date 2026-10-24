@@ -49,7 +49,10 @@ test("separate device launcher choices keep existing enrollment boundaries", () 
     const cmd = fs.readFileSync("scripts/windows/" + file, "utf8");
     assert.match(cmd, /%~dp0CODEBRIDGE-DEVICE-DOCTOR\.ps1/);
     assert.match(cmd, new RegExp("-Device " + mode + "\\b"));
-    assert.match(cmd, /-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned/);
+    assert.match(
+      cmd,
+      /-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned/,
+    );
     assert.doesNotMatch(
       cmd,
       /ExecutionPolicy Bypass|git\s+clone|curl\b|token\s*=|Set-Content|Start-Service/i,
