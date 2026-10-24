@@ -7,13 +7,7 @@ echo Exact-commit clean runtime installation if missing; no overwrite.
 echo Owner browser approval required for first device pairing.
 echo Camera, projectors, production and calibration source are not changed.
 echo.
-if /I not "%OS%"=="Windows_NT" goto :integrity_blocked
-echo IDE_SETUP=BLOCKED_INSTALLER_INTEGRITY_OR_EXECUTION_POLICY
-echo Verify this setup archive came from the approved KMJ TECHNO release.
-echo A system-enforced AllSigned policy requires an authorized signed installer.
-pause
-exit /b 3
-:blocked
+if /I not "%OS%"=="Windows_NT" goto :blocked
 if /I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :blocked
 set "INSTALLER=%~dp0BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1"
 if not exist "%INSTALLER%" goto :blocked
@@ -31,6 +25,12 @@ echo Actual ChatGPT connection still requires account-side READY verification.
 echo Never share private agent configs, credentials or verbose logs.
 pause
 exit /b %RC%
+:integrity_blocked
+echo IDE_SETUP=BLOCKED_INSTALLER_INTEGRITY_OR_EXECUTION_POLICY
+echo Verify this setup archive came from the approved KMJ TECHNO release.
+echo A system-enforced AllSigned policy requires an authorized signed installer.
+pause
+exit /b 3
 :blocked
 echo IDE_SETUP=BLOCKED_WRONG_HOST_OR_SCRIPT_MISSING
 pause
