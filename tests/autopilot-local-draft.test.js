@@ -73,7 +73,7 @@ test("explicit owner approval is required; draft checkpoints avoid repeated loca
   };
   await assert.rejects(
     dispatch("autopilot_local_draft", payload, ["execute"]),
-    /invalid_type|invalid_literal|Invalid literal value/i,
+    /invalid_type|invalid_literal|invalid_value|Invalid literal value/i,
   );
   await assert.rejects(
     dispatch(
