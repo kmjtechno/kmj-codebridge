@@ -84,22 +84,8 @@ function InvokeTrusted([string]$Target,[string[]]$Arguments,[bool]$Interactive) 
                 $line -match '^Waiting for approval[.] No device credential will be printed[.]$' -or
                 $line -match '^Device approved and enrollment credential stored securely[.]$' -or
                 $line -match '^(PUBLIC_AGENT_AUTH_CHALLENGE|OWNER_PC_SCOPE|CALIBRATION_ORIGIN|CODEBRIDGE_RUNTIME)=[A-Z0-9_:]+$' -or
-                $line -match '^HOMEOFFICE_PAIR=[A-Z0-9_:]+
-            )) {
-                Write-Host $line
-            }
-        }
-        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Lines = @() }
-    }
- -or
-                $line -match '^ENROLLMENT_STAGE=(REQUEST_CREATED|APPROVAL_RECEIVED|PRIVATE_GRANT_SAVED)
-            )) {
-                Write-Host $line
-            }
-        }
-        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Lines = @() }
-    }
-
+                $line -match '^HOMEOFFICE_PAIR=[A-Z0-9_:]+$' -or
+                $line -match '^ENROLLMENT_STAGE=(REQUEST_CREATED|APPROVAL_RECEIVED|PRIVATE_GRANT_SAVED)$'
             )) {
                 Write-Host $line
             }
