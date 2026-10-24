@@ -9,6 +9,8 @@ const ALLOWED_PREFIXES = [
 ];
 const ALLOWED_KEYS = new Set(["EXACT_SOURCE_SHA", "EXACT_UI_SOURCE_SHA"]);
 const SENSITIVE = /(?:TOKEN|SECRET|PASSWORD|CREDENTIAL|PRIVATE|BEARER|AUTH|API_KEY|KEY_FILE)/i;
+const SAFE_STATUS = /^(?:PASS|FAIL|YES|NO|NONE|UNKNOWN|PENDING|BLOCKED|UNTOUCHED|NOT_RUN|NOT_VERIFIED|NO_RELEASE|PASS_[0-9]{1,3}_OF_[0-9]{1,3})$/;
+const EXACT_SHA = /^[a-f0-9]{40}$/;
 const MAX_MARKERS = 16;
 const MAX_OUTPUT_BYTES = 32768;
 
@@ -32,6 +34,10 @@ export function compactIdeJobReceipt(job) {
       ALLOWED_KEYS.has(key) ||
       ALLOWED_PREFIXES.some((prefix) => key.startsWith(prefix))
     )) continue;
+    // A broad key allowlist is not permission to echo arbitrary secret values.
+    // Only bounded predefined statuses or pinned SHAs survive into chat.
+    if (ALLOWED_KEYS.has(key) ? !EXACT_SHA.test(value) : !SAFE_STATUS.test(value))
+      continue;
     markers.push({ key, value });
   }
   const selected = markers.slice(-MAX_MARKERS);
