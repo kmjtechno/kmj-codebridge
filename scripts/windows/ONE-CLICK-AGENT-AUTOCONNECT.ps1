@@ -67,7 +67,15 @@ function InvokeTrusted([string]$Target,[string[]]$Arguments,[bool]$Interactive) 
     $head = @('-NoProfile')
     if ($Interactive) { $head += '-STA' } else { $head += '-NonInteractive' }
     $head += @('-ExecutionPolicy','RemoteSigned','-File',$Target)
-    # Filter child output to fixed status keys; no command lines or private paths.
+    # A deliberate first-pairing action must show the owner the browser
+    # verification URI and short-lived user code ON THIS PC. The official
+    # enrollment helper never displays the permanent device bearer token.
+    # Never enter this branch from the silent sign-in reconnect.
+    if ($Interactive -and [IO.Path]::GetFileName($Target) -ceq $pairName) {
+        & $systemPs @head @Arguments
+        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Lines = @() }
+    }
+    # Reconnect diagnostics are sanitized before they reach the console.
     $lines = @(& $systemPs @head @Arguments 2>$null)
     $exit = $LASTEXITCODE
     $safe = @($lines | Where-Object {
