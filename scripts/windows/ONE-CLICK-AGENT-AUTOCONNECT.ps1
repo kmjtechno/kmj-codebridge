@@ -74,7 +74,6 @@ function InvokeTrusted([string]$Target,[string[]]$Arguments,[bool]$Interactive) 
         $_ -is [string] -and $_.Length -le 180 -and
         $_ -match '^(CALIBRATION_RECONNECT|DEVICE_CONNECT|HOMEOFFICE_PAIR|CALIBRATION_ENROLLMENT_DISCOVERY|NO_DUPLICATE_AGENT|DUPLICATE_AGENT_STARTED|ACCOUNT_GRANT|ENROLLMENT|OWNER_CHECKOUT|DIRTY_CHECKOUT)=[A-Z0-9_:]+$'
     })
-    foreach ($line in $safe) { Write-Output $line }
     return [pscustomobject]@{ ExitCode = $exit; Lines = $safe }
 }
 
@@ -168,11 +167,13 @@ try {
     # A login task must NEVER pair/create a device. Existing already-approved
     # credentials stay in their original private file. No duplicate agent starts.
     $outcome = InvokeTrusted $connect $extra (!$AtLogon)
+    foreach ($line in @($outcome.Lines)) { Write-Output $line }
     if ($outcome.ExitCode -ne 0 -and !$AtLogon -and $Device -eq 'HomeOffice' -and
         @($outcome.Lines) -contains 'CALIBRATION_ENROLLMENT_DISCOVERY=NO_MATCH_IN_KNOWN_PRIVATE_STORES') {
         $pair = Join-Path $PSScriptRoot $pairName
         Write-Output 'KMJ_AUTOCONNECT=OWNER_BROWSER_PAIRING_REQUIRED'
         $outcome = InvokeTrusted $pair @() $true
+        foreach ($line in @($outcome.Lines)) { Write-Output $line }
     }
     if ($outcome.ExitCode -ne 0) {
         throw 'AUTOCONNECT_SCOPED_RECONNECT_NOT_VERIFIED'
