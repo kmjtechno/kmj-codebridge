@@ -68,7 +68,7 @@ test("installer labels are after normal execution and wrong PC fails closed", ()
     installerCmd,
     /if \/I not "%OS%"=="Windows_NT" goto :blocked\nif \/I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :blocked/,
   );
-  assert.ok(installerCmd.lastIndexOf("\\n:integrity_blocked\\n") > installerCmd.indexOf("exit /b %RC%"));
+  assert.ok(installerCmd.lastIndexOf("\n:integrity_blocked\n") > installerCmd.indexOf("exit /b %RC%"));
   assert.equal((installerCmd.match(/^:blocked$/gm) || []).length, 1);
   assert.equal((installerCmd.match(/^:integrity_blocked$/gm) || []).length, 1);
 });
