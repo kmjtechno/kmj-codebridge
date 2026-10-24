@@ -11,6 +11,7 @@ From a **trusted, clean, fully installed** CodeBridge checkout on `DESKTOP-5FVJM
 ## New MCP tools after connected agent runtime is deployed
 
 `ide_run_project_task` (execute+read permission):
+
 - Inputs: `device`, `project`, approved `command` profile, exact named `variant`, stable `requestKey`, optional detached `laneId`, optional `expectedHead` and bounded `waitMs`.
 - Uses the **same** policy-enforced `run_project_command` backend (including SHA-pinned isolated-lane handling for `calibration_v4_qa`), immediately reads job state using the existing `get_job_status` mechanism and returns a compact receipt.
 - **Never accepts** raw PowerShell, CMD, bash, arbitrary executables, argv, environment, cwd or timeouts from an AI client. An owner can add a separately approved and SHA-256-pinned local PowerShell build profile under the existing reviewed security model; this is not unrestricted terminal access.
@@ -18,7 +19,7 @@ From a **trusted, clean, fully installed** CodeBridge checkout on `DESKTOP-5FVJM
 
 `ide_job_receipt` (read permission): retrieves one authorized project job's bounded status, so users no longer copy/paste terminal output. Retry idempotently using `requestKey` and follow a job by its opaque `job` ID.
 
-Receipts include local job ID, state, exit code, `executionSucceeded`, up to 16 simple allowlisted QA markers and a SHA-256 checksum of the bounded log tail. They *never* echo raw log text or credentials; if deeper debugging is necessary, the already existing bounded/redacted `get_job_status` tool remains available. Printed markers are **untrusted claims by the test executable**, not proof that actual hardware, product safety or a release passed. `approvalOrDeploymentProven=false` always.
+Receipts include local job ID, state, exit code, `executionSucceeded`, up to 16 simple allowlisted QA markers and a SHA-256 checksum of the bounded log tail. They _never_ echo raw log text or credentials; if deeper debugging is necessary, the already existing bounded/redacted `get_job_status` tool remains available. Printed markers are **untrusted claims by the test executable**, not proof that actual hardware, product safety or a release passed. `approvalOrDeploymentProven=false` always.
 
 ## Example intended conversation workflow
 
@@ -31,7 +32,7 @@ No copied PowerShell block. If the owner has not paired the agent, report `GATEW
 - One writer per checkout, isolated lanes for approved profile execution, no Git reset/clean or mutation of original modified calibration sources.
 - Deterministic local runner: resource/timeout limits, cancel, audit, redaction and idempotency from existing CodeBridge.
 - No free-form remote terminal, privilege escalation, arbitrary file upload, unapproved scripts, self-hosted GitHub runner, third-party paid dependency or unsafe production cutover.
-- Reverse-analysis of VIOSO 7 is reference material for *independent* product design only; do not copy vendor decompiled code, private keys or licensing mechanisms. Earlier findings suggest eight independently implementable wizard stages: topology, camera, ROI, pattern registration, solve, warp/blend, verification, save/export. Their actual completion and quality require separate KMJ engineering and physical QA.
+- Reverse-analysis of VIOSO 7 is reference material for _independent_ product design only; do not copy vendor decompiled code, private keys or licensing mechanisms. Earlier findings suggest eight independently implementable wizard stages: topology, camera, ROI, pattern registration, solve, warp/blend, verification, save/export. Their actual completion and quality require separate KMJ engineering and physical QA.
 
 ## Installation and proof
 
