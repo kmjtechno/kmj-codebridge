@@ -22,6 +22,17 @@ test("any Windows PC can enroll without a hard-coded PC or project identity", ()
   assert.match(content, /LockedACL \$config \$false/);
   assert.match(content, /KMJ_UNIVERSAL=OWNER_BROWSER_APPROVAL_REQUIRED/);
   assert.match(content, /-Wait -PassThru -NoNewWindow/);
+  assert.match(content, /function FindKnownApproved/);
+  assert.match(content, /FindKnownApproved \$projectRoot \$projectId/);
+  assert.match(content, /DEVICE_EXISTING_PROJECT_ENROLLMENT_USE_RECONNECT/);
+  assert.match(content, /KMJ_UNIVERSAL=EXISTING_SCOPED_AGENT_AUTO_SELECTED/);
+  assert.match(content, /function AssertEmptyRetryState/);
+  assert.match(content, /AssertEmptyRetryState \$base \$state/);
+  assert.match(content, /DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED/);
+  assert.match(content, /KMJ_UNIVERSAL=EMPTY_CANCELLED_PAIRING_RETRY/);
+  assert.match(content, /LockedACL \$config \$false/);
+  assert.doesNotMatch(content, /Remove-Item -LiteralPath \$base/);
+  assert.doesNotMatch(content, /Remove-Item -LiteralPath \$enrollment/);
   assert.doesNotMatch(content, /DESKTOP-5FVJMET|DESKTOP-K3AHHEM/);
 });
 
@@ -106,6 +117,7 @@ test(
     );
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /KMJ_UNIVERSAL_SELFTEST=PASS/);
+    assert.match(r.stdout, /KMJ_UNIVERSAL_RETRY_SELFTEST=PASS/);
     assert.match(r.stdout, /REAL_STARTUP_CHANGED=NO/);
     const blocked = spawnSync(
       "powershell.exe",
