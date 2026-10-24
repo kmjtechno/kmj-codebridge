@@ -4,7 +4,7 @@
 
 ## Current blocker (verified 2026-10-24)
 
-For `kmj-homeoffice-desktop-5fvjmet / kmj-calibration-pro`, the account grant exists, but the gateway reports `GATEWAY_REGISTRATION_MISSING`. **No new server-side tool can run on that PC before actual device pairing/registration and an online agent.** P720 is a different device, and cloud/production agents must not be substituted for physical Home Office QA.
+For the owner-operated **Home Office P520** (`DESKTOP-5FVJMET`), with `kmj-homeoffice-desktop-5fvjmet / kmj-calibration-pro`, the account grant exists, but the gateway reports `GATEWAY_REGISTRATION_MISSING`. **No new server-side tool can run on that PC before actual device pairing/registration and an online agent.** P720 is a different, currently unused device. Do not substitute it or cloud/production agents for P520 QA.
 
 From a **trusted, clean, fully installed** CodeBridge checkout on `DESKTOP-5FVJMET`, the owner may double-click `scripts/windows/ONE-CLICK-CALIBRATION-IDE.cmd`. It calls the existing `ONE-CLICK-AGENT-AUTOCONNECT.ps1 -Device HomeOffice` first, then the existing **read-only** device doctor; if first-time pairing is needed, the owner approves it in the browser. It cannot silently approve device grants, bypass the production gateway release gate, install dependencies, change DNS, create credentials when forbidden, or touch projectors. A click alone is **not** account-side READY; verify `connection_overview` before claiming success.
 
@@ -37,3 +37,11 @@ No copied PowerShell block. If the owner has not paired the agent, report `GATEW
 ## Installation and proof
 
 The GitHub PR does not automatically update devices or the live MCP gateway. First review/test this change on Node 24+, merge after green source/unit CI, install/update **signed trusted** CodeBridge agent and plugin runtime using the existing guarded updater, then pair the Home Office PC (owner approval). Prove `connection_overview=READY` and run a small authorized test before claiming no-log-paste working end to end.
+
+## Trusted downloaded ZIP: Windows RemoteSigned recovery
+
+For a new ZIP delivered via browser, Windows may attach an Internet-zone mark to `BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1` even though the owner double-clicks `START-KMJ-CALIBRATION-IDE.cmd`. The launcher now verifies the exact **SHA-256** of this reviewed bootstrap script and rejects altered scripts and reparse-point files. **Only after a matching hash**, it clears the downloaded-file mark **for that one script**, then launches using `RemoteSigned`. The source-hash pin is also validated by a Node regression test in CI. The launcher never changes user/machine execution policy, does not use `Bypass`, never auto-approves enrollment and does not connect to P720.
+
+This is a trust decision for the reviewed pinned release, not a digital signature. If Group Policy requires `AllSigned`, do not override it: obtain an organization-signed trusted installer. A hash mismatch means use a clean, official replacement rather than weakening protection. Running the CMD cannot by itself prove that P520 is connected; check `connection_overview` for `READY`.
+
+Do not edit the bootstrap PS1 without updating the pinned SHA-256 and reviewing both changes. Do not run scripts from an untrusted ZIP.
