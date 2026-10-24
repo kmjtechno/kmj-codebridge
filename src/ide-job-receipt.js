@@ -25,7 +25,7 @@ export function compactIdeJobReceipt(job) {
     ? job.output.slice(-MAX_OUTPUT_BYTES) : "";
   const markers = [];
   for (const raw of output.split(/\r?\n/)) {
-    const match = /^([A-Z][A-Z0-9_]{2,63})=([A-Za-z0-9_.:-]{1,80})$/.exec(raw.trim());
+    const match = /^([A-Z][A-Za-z0-9_]{2,63})=([A-Za-z0-9_.:-]{1,80})$/.exec(raw.trim());
     if (!match) continue;
     const [, key, value] = match;
     if (SENSITIVE.test(key) || !(
