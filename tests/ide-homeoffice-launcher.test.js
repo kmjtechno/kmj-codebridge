@@ -18,7 +18,16 @@ test("IDE launcher checks exact Home Office PC and invokes only approved scripts
 });
 
 test("IDE launcher cannot self-approve, elevate, deploy or rewrite project checkout", () => {
-  assert.doesNotMatch(source, /ExecutionPolicy Bypass|RunAs|schtasks|\b(?:curl|wget|npm|git|powershell -enc|setx|reg add|net user)\b/i);
-  assert.doesNotMatch(source, /\b(?:reset|clean|force-push|Remove-Item|Set-Date|Set-Service|Install-Service|Restart-Service)\b/i);
-  assert.doesNotMatch(source, /-RunOpticalBench|ScanProjector|PROJECTOR_PATTERN/i);
+  assert.doesNotMatch(
+    source,
+    /ExecutionPolicy Bypass|RunAs|schtasks|\b(?:curl|wget|npm|git|powershell -enc|setx|reg add|net user)\b/i,
+  );
+  assert.doesNotMatch(
+    source,
+    /\b(?:reset|clean|force-push|Remove-Item|Set-Date|Set-Service|Install-Service|Restart-Service)\b/i,
+  );
+  assert.doesNotMatch(
+    source,
+    /-RunOpticalBench|ScanProjector|PROJECTOR_PATTERN/i,
+  );
 });
