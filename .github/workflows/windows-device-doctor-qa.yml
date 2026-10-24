@@ -1,0 +1,38 @@
+name: CodeBridge Windows Device Doctor QA
+
+on:
+  pull_request:
+    paths:
+      - "scripts/windows/CODEBRIDGE-DEVICE-DOCTOR.ps1"
+      - "scripts/windows/CHECK-HOMEOFFICE-CODEBRIDGE.cmd"
+      - "scripts/windows/CHECK-P720-CODEBRIDGE.cmd"
+      - "tests/windows-device-connection-doctor.test.js"
+      - ".github/workflows/windows-device-doctor-qa.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/windows/CODEBRIDGE-DEVICE-DOCTOR.ps1"
+      - "scripts/windows/CHECK-HOMEOFFICE-CODEBRIDGE.cmd"
+      - "scripts/windows/CHECK-P720-CODEBRIDGE.cmd"
+      - "tests/windows-device-connection-doctor.test.js"
+      - ".github/workflows/windows-device-doctor-qa.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  doctor:
+    name: doctor (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Verify credential-safe diagnostic and native Windows selftest
+        run: node --test tests/windows-device-connection-doctor.test.js
