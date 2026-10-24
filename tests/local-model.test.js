@@ -130,7 +130,7 @@ test("explicit local processing approval and read/execute scopes are enforced", 
       },
       ["execute"],
     ),
-    /invalid_type|invalid_literal|invalid_union|Invalid literal value/i,
+    /invalid_type|invalid_literal|invalid_union|invalid_value|Invalid literal value/i,
   );
   await assert.rejects(
     dispatch(
