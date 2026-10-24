@@ -23,7 +23,10 @@ test("one click invokes pinned code with approval", () => {
   assert.match(source, /-Device HomeOffice/);
   assert.match(source, /9dc0ae25648c33a62631fdd35068e6b60820637d/);
   assert.match(source, /npm\.Source ci --ignore-scripts --no-audit --no-fund/);
-  assert.match(source, /CODEBRIDGE_GATEWAY_READY' 'NOT_ATTESTED_VERIFY_IN_CHAT/);
+  assert.match(
+    source,
+    /CODEBRIDGE_GATEWAY_READY' 'NOT_ATTESTED_VERIFY_IN_CHAT/,
+  );
   assert.doesNotMatch(
     source,
     /ExecutionPolicy Bypass|Set-ExecutionPolicy|RunAs|git reset|git clean|schtasks/i,
