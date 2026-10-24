@@ -8,7 +8,10 @@ $sha = '9dc0ae25648c33a62631fdd35068e6b60820637d'
 $origin = 'https://github.com/kmjtechno/kmj-codebridge.git'
 $validOrigins = @($origin, 'https://github.com/kmjtechno/kmj-codebridge', 'git@github.com:kmjtechno/kmj-codebridge.git')
 $dest = 'E:\KMJ\CodeBridge-HomeOffice'
-$candidates = @($dest, 'E:\KMJ\CodeBridge', 'E:\KMJ\kmj-codebridge', 'D:\KMJ-HyperSpeed')
+# A previously occupied checkout is never renamed, modified, or removed.
+# Place new trusted runtime in a predictable SHA-named sibling directory instead.
+$isolatedDest = Join-Path 'E:\KMJ' ('CodeBridge-HomeOffice-' + $sha.Substring(0,12))
+$candidates = @($dest, $isolatedDest, 'E:\KMJ\CodeBridge', 'E:\KMJ\kmj-codebridge', 'D:\KMJ-HyperSpeed')
 function Mark([string]$K,[string]$V) { Write-Output ($K + '=' + $V) }
 function OrdinaryDirectory([string]$Path) {
     $item = Get-Item -LiteralPath $Path -ErrorAction Stop
@@ -66,7 +69,16 @@ try {
         }
     }
     if ($null -eq $runtime) {
-        if (Test-Path -LiteralPath $dest) { throw 'EXISTING_DESTINATION_NOT_OVERWRITTEN' }
+        $installDest = $dest
+        if (Test-Path -LiteralPath $dest) {
+            # Existing primary path may be dirty, a different revision, or incomplete.
+            # Preserve it exactly and refuse symlinks/reparse points.
+            OrdinaryDirectory $dest
+            Mark 'KMJ_IDE_PREVIOUS_RUNTIME' 'UNVERIFIED_PRESERVED_UNCHANGED'
+            $installDest = $isolatedDest
+            if (Test-Path -LiteralPath $isolatedDest) { throw 'ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE' }
+            Mark 'KMJ_IDE_NEW_RUNTIME' 'SHA_NAMED_ISOLATED_SIBLING'
+        }
         if ($CheckOnly) {
             Mark 'KMJ_IDE_RUNTIME' 'INSTALL_REQUIRED'
             Mark 'HOST_CHANGES' 'NONE'
@@ -91,10 +103,10 @@ try {
             if ($LASTEXITCODE -ne 0) { throw 'NPM_LOCKFILE_INSTALL_FAILED' }
         } finally { Pop-Location }
         if (!(TrustedRuntime $stage $git)) { throw 'STAGED_RUNTIME_UNTRUSTED' }
-        if (Test-Path -LiteralPath $dest) { throw 'DESTINATION_APPEARED_NO_OVERWRITE' }
-        Move-Item -LiteralPath $stage -Destination $dest -ErrorAction Stop
-        if (!(TrustedRuntime $dest $git)) { throw 'PROMOTION_VERIFY_FAILED' }
-        $runtime = $dest
+        if (Test-Path -LiteralPath $installDest) { throw 'DESTINATION_APPEARED_NO_OVERWRITE' }
+        Move-Item -LiteralPath $stage -Destination $installDest -ErrorAction Stop
+        if (!(TrustedRuntime $installDest $git)) { throw 'PROMOTION_VERIFY_FAILED' }
+        $runtime = $installDest
         Mark 'KMJ_IDE_INSTALL' 'PINNED_RUNTIME_READY'
     }
     Mark 'KMJ_IDE_SOURCE_SHA' $sha

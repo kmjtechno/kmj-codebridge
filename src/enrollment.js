@@ -79,7 +79,21 @@ export async function beginDeviceEnrollment(base, request, options = {}) {
       ? AbortSignal.any([options.signal, AbortSignal.timeout(10000)])
       : AbortSignal.timeout(10000),
   });
-  if (response.status !== 201) fail("ENROLLMENT_UNAVAILABLE");
+  if (response.status !== 201) {
+    // Do not read or print an untrusted response body, request challenge,
+    // enrollment codes or credentials. Differentiate safe HTTP categories
+    // so owners know whether the server route/feature gate needs attention.
+    const code = {
+      401: "ENROLLMENT_ACCESS_DENIED",
+      403: "ENROLLMENT_ACCESS_DENIED",
+      404: "ENROLLMENT_ROUTE_MISSING",
+      405: "ENROLLMENT_METHOD_UNAVAILABLE",
+      422: "ENROLLMENT_REQUEST_REJECTED",
+      429: "ENROLLMENT_RATE_LIMITED",
+      503: "ENROLLMENT_SERVER_UNAVAILABLE",
+    }[response.status];
+    fail(code ?? "ENROLLMENT_UNAVAILABLE");
+  }
   const data = beginSchema.parse(await readJsonLimited(response.body, 16384));
   const verification = new URL(data.verification_uri);
   if (

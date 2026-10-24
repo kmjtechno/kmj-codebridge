@@ -45,3 +45,19 @@ For a new ZIP delivered via browser, Windows may attach an Internet-zone mark to
 This is a trust decision for the reviewed pinned release, not a digital signature. If Group Policy requires `AllSigned`, do not override it: obtain an organization-signed trusted installer. A hash mismatch means use a clean, official replacement rather than weakening protection. Running the CMD cannot by itself prove that P520 is connected; check `connection_overview` for `READY`.
 
 Do not edit the bootstrap PS1 without updating the pinned SHA-256 and reviewing both changes. Do not run scripts from an untrusted ZIP.
+
+## Complete ZIP distribution — P520 hotfix
+
+A previous **incomplete** ZIP had only `START-KMJ-CALIBRATION-IDE.cmd` and a README, with **no** `BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1`. Extracting that ZIP in a fresh directory caused `BLOCKED_WRONG_HOST_OR_SCRIPT_MISSING`. This is a packaging omission, not proof of a bad Windows hostname or an offline gateway.
+
+For every **complete** P520 installer ZIP, bundle both reviewed files in the **same ZIP root** (plus README), and validate the PS1 SHA-256 before publishing. Use `scripts/package-p520-ide.js` in a trusted developer checkout with `node scripts/package-p520-ide.js --out P520-IDE-COMPLETE.zip`. Reject any incomplete or stale bundle. The launcher now displays separate wrong-host, missing-bootstrap, unsupported-OS and missing-PowerShell diagnostics; it performs a per-file SHA-256 check before and after unblocking, without changing execution policy.
+
+Owners should extract the complete ZIP to a new directory and double-click the CMD. Neither a successful local bootstrap nor GitHub CI can attest `connection_overview=READY`; owner browser approval and authenticated device checks are independent steps.
+
+## Home Office P520: occupied pre-existing runtime, no destructive recovery (2026-10-24)
+
+Actual owner report: `IDE_CURRENT_WINDOWS_HOST=DESKTOP-5FVJMET`, `IDE_BOOTSTRAP_SHA256=PASS`, then `KMJ_IDE_BOOTSTRAP=BLOCKED:EXISTING_DESTINATION_NOT_OVERWRITTEN`. This confirms the host and package integrity; it does **not** prove what is inside the pre-existing runtime. Never recommend wiping, renaming, `git clean`, `git reset`, overwriting, or taking ownership of its files.
+
+The new bootstrap preserves the occupied untrusted `E:\KMJ\CodeBridge-HomeOffice` folder and, after validating the directory is not a symlink/reparse point, installs the exact pinned clean checkout in `E:\KMJ\CodeBridge-HomeOffice-9dc0ae25648c` if that sibling does not exist. Existing verified pinned runtimes, including a previously installed verified sibling, are reused; an occupied but **unverified** sibling triggers `ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE` instead of changing it. Installer ZIP and launcher must pin the **new** bootstrap SHA-256 `0727698F0945D0D5EB83F88B68C341FF4D616B3AD8F82B28E8BB1DF45683A540`. Offline ZIP completeness and hash are separate from Windows run and authenticated connection proof.
+
+This non-destructive install does not change old agents, calibration project files, gateway deployment or device grants. Gateway `GATEWAY_REGISTRATION_MISSING` remains an independent owner-browser pairing step.

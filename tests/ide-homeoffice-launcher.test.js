@@ -80,12 +80,65 @@ test("installer does not disable script security or auto-pair another device", (
 test("installer labels are after normal execution and wrong PC fails closed", () => {
   assert.match(
     installerCmd,
-    /if \/I not "%OS%"=="Windows_NT" goto :blocked\nif \/I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :blocked/,
+    /if \/I not "%OS%"=="Windows_NT" goto :unsupported_os\necho IDE_CURRENT_WINDOWS_HOST=%COMPUTERNAME%\nif \/I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :wrong_host/,
   );
   assert.ok(
     installerCmd.lastIndexOf("\n:integrity_blocked\n") >
       installerCmd.indexOf("exit /b %RC%"),
   );
-  assert.equal((installerCmd.match(/^:blocked$/gm) || []).length, 1);
+  for (const label of [
+    "unsupported_os",
+    "wrong_host",
+    "missing_script",
+    "missing_powershell",
+  ]) {
+    assert.equal(
+      (installerCmd.match(new RegExp("^:" + label + "$", "gm")) || []).length,
+      1,
+    );
+  }
   assert.equal((installerCmd.match(/^:integrity_blocked$/gm) || []).length, 1);
+});
+
+test("P520 installer names missing ZIP files and wrong Windows host separately", () => {
+  assert.match(installerCmd, /IDE_SETUP=BLOCKED_BOOTSTRAP_SCRIPT_MISSING/);
+  assert.match(installerCmd, /IDE_SETUP=BLOCKED_WRONG_HOST/);
+  assert.match(installerCmd, /IDE_SETUP=BLOCKED_WINDOWS_POWERSHELL_MISSING/);
+  assert.match(installerCmd, /IDE_SETUP=BLOCKED_NOT_WINDOWS/);
+  assert.match(installerCmd, /SCRIPT_ALLSIGNED_REQUIRES_SIGNATURE/);
+  assert.match(installerCmd, /SCRIPT_CHANGED_DURING_UNBLOCK/);
+  assert.doesNotMatch(installerCmd, /BLOCKED_WRONG_HOST_OR_SCRIPT_MISSING/);
+});
+
+const installerBootstrap = fs.readFileSync(
+  path.resolve("scripts/windows/BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1"),
+  "utf8",
+);
+
+test("pre-existing untrusted P520 runtime is preserved; new exact-SHA install uses separate sibling", () => {
+  assert.ok(installerBootstrap.includes("$isolatedDest = Join-Path 'E:\\KMJ'"));
+  assert.match(installerBootstrap, /\$sha\.Substring\(0,12\)/);
+  assert.match(
+    installerBootstrap,
+    /KMJ_IDE_PREVIOUS_RUNTIME.*UNVERIFIED_PRESERVED_UNCHANGED/,
+  );
+  assert.match(installerBootstrap, /OrdinaryDirectory \$dest/);
+  assert.match(
+    installerBootstrap,
+    /ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE/,
+  );
+  assert.match(installerBootstrap, /\$installDest = \$isolatedDest/);
+  assert.match(
+    installerBootstrap,
+    /Move-Item -LiteralPath \$stage -Destination \$installDest/,
+  );
+  assert.match(installerBootstrap, /TrustedRuntime \$installDest \$git/);
+  assert.doesNotMatch(
+    installerBootstrap,
+    /EXISTING_DESTINATION_NOT_OVERWRITTEN/,
+  );
+  assert.doesNotMatch(
+    installerBootstrap,
+    /Remove-Item|git reset|git clean|\b-Force\b/,
+  );
 });

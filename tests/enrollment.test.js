@@ -218,3 +218,30 @@ test("redemption reports allowlisted server fault but never echoes arbitrary bod
       !String(error.message).includes("secret"),
   );
 });
+
+test("initial enrollment distinguishes safe HTTP server failures without leaking response bodies", async () => {
+  for (const [status, expected] of [
+    [401, "ENROLLMENT_ACCESS_DENIED"],
+    [403, "ENROLLMENT_ACCESS_DENIED"],
+    [404, "ENROLLMENT_ROUTE_MISSING"],
+    [405, "ENROLLMENT_METHOD_UNAVAILABLE"],
+    [422, "ENROLLMENT_REQUEST_REJECTED"],
+    [429, "ENROLLMENT_RATE_LIMITED"],
+    [503, "ENROLLMENT_SERVER_UNAVAILABLE"],
+    [500, "ENROLLMENT_UNAVAILABLE"],
+  ]) {
+    await assert.rejects(
+      beginDeviceEnrollment(base, request, {
+        fetch: async () =>
+          Response.json(
+            { secret: "DO_NOT_ECHO", token: "never-return-server-error-body" },
+            { status },
+          ),
+      }),
+      (error) =>
+        error.code === expected &&
+        !String(error.message).includes("DO_NOT_ECHO") &&
+        !String(error.message).includes("token"),
+    );
+  }
+});
