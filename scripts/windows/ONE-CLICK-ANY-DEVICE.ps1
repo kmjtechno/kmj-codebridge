@@ -327,7 +327,11 @@ try {
     throw 'DEVICE_NODE24_REQUIRED'
   }
   if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
-    if ($AtLogon -or $DisableAutoStart) { throw 'DEVICE_UNATTENDED_REQUIRES_EXACT_CONFIG' }
+    if ($AtLogon) { throw 'DEVICE_UNATTENDED_REQUIRES_EXACT_CONFIG' }
+    if ($DisableAutoStart) {
+      $ConfigPath = ChooseExisting
+      if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
+    } else {
     Add-Type -AssemblyName System.Windows.Forms
     $choice = [System.Windows.Forms.MessageBox]::Show(
       'Already connected a KMJ CodeBridge agent on this PC? YES: choose its existing private agent.json. NO: pair a new Git project with your owner browser.',
@@ -342,6 +346,7 @@ try {
       if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
     } else {
       $ConfigPath = FirstPair
+    }
     }
   }
   $ConfigPath = [IO.Path]::GetFullPath($ConfigPath)
