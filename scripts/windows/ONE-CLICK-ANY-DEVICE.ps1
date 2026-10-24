@@ -145,10 +145,15 @@ function FirstPair {
   LockedACL $state $true
   $enrollment = Join-Path $base 'enrollment.json'
   $config = Join-Path $base 'agent.json'
-  Write-Output 'KMJ_UNIVERSAL=OWNER_BROWSER_APPROVAL_REQUIRED'
-  # Official helper exposes only short-lived pairing code and approved HTTPS URL.
-  & node.exe (Join-Path $repo 'scripts\enroll-device.js') $gateway $id $projectId $projectRoot $enrollment
-  if ($LASTEXITCODE -ne 0) { throw 'DEVICE_BROWSER_APPROVAL_DENIED_OR_EXPIRED' }
+  Write-Host 'KMJ_UNIVERSAL=OWNER_BROWSER_APPROVAL_REQUIRED'
+  # Use NoNewWindow so owner sees ONLY the official browser URL/short-lived code.
+  # Start-Process prevents those native stdout lines entering the function's
+  # return value (which must contain only the private config path).
+  $tool = Join-Path $repo 'scripts\enroll-device.js'
+  $quoted = '"' + $tool + '" "' + $gateway + '" "' + $id + '" "' +
+      $projectId + '" "' + $projectRoot + '" "' + $enrollment + '"'
+  $worker = Start-Process -FilePath $node -ArgumentList $quoted -WorkingDirectory $repo -Wait -PassThru -NoNewWindow
+  if ($worker.ExitCode -ne 0) { throw 'DEVICE_BROWSER_APPROVAL_DENIED_OR_EXPIRED' }
   LockedACL $enrollment $false
   $grant = Get-Content -LiteralPath $enrollment -Raw | ConvertFrom-Json -ErrorAction Stop
   if ([string]$grant.agent.id -cne $id -or
@@ -178,7 +183,7 @@ function FirstPair {
     $stream.Flush($true)
   } finally { $stream.Dispose() }
   LockedACL $config $false
-  Write-Output 'KMJ_UNIVERSAL=OWNER_APPROVED_PRIVATE_CONFIG_CREATED'
+  Write-Host 'KMJ_UNIVERSAL=OWNER_APPROVED_PRIVATE_CONFIG_CREATED'
   return $config
 }
 function UniqueProcesses([string]$Value) {
@@ -260,8 +265,10 @@ function VerifyShortcut($Link,[string]$Target,[string]$Arguments,[string]$Dir) {
     ([IO.Path]::GetFullPath([string]$Link.WorkingDirectory) -ieq [IO.Path]::GetFullPath($Dir))
 }
 function ShortcutFile([string]$Value,[string]$Folder) {
-  $key = [Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($Value.ToLowerInvariant()))
-  $hash = [Convert]::ToHexString($key).Substring(0,16).ToLowerInvariant()
+  $sha = [Security.Cryptography.SHA256]::Create()
+  try { $key = $sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($Value.ToLowerInvariant())) }
+  finally { $sha.Dispose() }
+  $hash = [BitConverter]::ToString($key).Replace('-','').Substring(0,16).ToLowerInvariant()
   return Join-Path $Folder ('KMJ CodeBridge Device ' + $hash + '.lnk')
 }
 try {
