@@ -47,7 +47,7 @@ test("automatic startup reuses exact private config, blocks duplicates and is re
   ]) assert.ok(content.includes(marker), marker);
   assert.match(content, /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/);
   assert.match(content, /-AtLogon -ConfigPath/);
-  assert.match(content, /if \(\$AtLogon -or \$DisableAutoStart\)/);
+  assert.match(content, /if \(\$AtLogon\) \{/);
   assert.match(content, /if \(\$DisableAutoStart\) \{/);
   assert.match(content, /Remove-Item -LiteralPath \$file/);
   for (const forbidden of [
