@@ -17,7 +17,7 @@ test("self-contained download has distinct PC and runtime checks", () => {
   assert.doesNotMatch(source, /BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME\.ps1/);
 });
 
-test("one click uses restricted, owner-approved reconnect and exact pinned fresh clone", () => {
+test("one click invokes pinned code with approval", () => {
   assert.match(source, /-ExecutionPolicy RemoteSigned/);
   assert.match(source, /ONE-CLICK-AGENT-AUTOCONNECT\.ps1/);
   assert.match(source, /-Device HomeOffice/);
@@ -30,7 +30,7 @@ test("one click uses restricted, owner-approved reconnect and exact pinned fresh
   );
 });
 
-test("one click does not embed any enrollment credentials or arbitrary command parameter", () => {
+test("one click has no embedded credentials or shell override", () => {
   assert.doesNotMatch(
     source,
     /deviceToken|bearerToken|enrollment\.json|Set-Content|ConvertTo-Json|reg add/i,
