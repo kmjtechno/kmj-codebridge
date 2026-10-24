@@ -118,12 +118,27 @@ const installerBootstrap = fs.readFileSync(
 test("pre-existing untrusted P520 runtime is preserved; new exact-SHA install uses separate sibling", () => {
   assert.ok(installerBootstrap.includes("$isolatedDest = Join-Path 'E:\\KMJ'"));
   assert.match(installerBootstrap, /\$sha\.Substring\(0,12\)/);
-  assert.match(installerBootstrap, /KMJ_IDE_PREVIOUS_RUNTIME.*UNVERIFIED_PRESERVED_UNCHANGED/);
+  assert.match(
+    installerBootstrap,
+    /KMJ_IDE_PREVIOUS_RUNTIME.*UNVERIFIED_PRESERVED_UNCHANGED/,
+  );
   assert.match(installerBootstrap, /OrdinaryDirectory \$dest/);
-  assert.match(installerBootstrap, /ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE/);
+  assert.match(
+    installerBootstrap,
+    /ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE/,
+  );
   assert.match(installerBootstrap, /\$installDest = \$isolatedDest/);
-  assert.match(installerBootstrap, /Move-Item -LiteralPath \$stage -Destination \$installDest/);
+  assert.match(
+    installerBootstrap,
+    /Move-Item -LiteralPath \$stage -Destination \$installDest/,
+  );
   assert.match(installerBootstrap, /TrustedRuntime \$installDest \$git/);
-  assert.doesNotMatch(installerBootstrap, /EXISTING_DESTINATION_NOT_OVERWRITTEN/);
-  assert.doesNotMatch(installerBootstrap, /Remove-Item|git reset|git clean|\b-Force\b/);
+  assert.doesNotMatch(
+    installerBootstrap,
+    /EXISTING_DESTINATION_NOT_OVERWRITTEN/,
+  );
+  assert.doesNotMatch(
+    installerBootstrap,
+    /Remove-Item|git reset|git clean|\b-Force\b/,
+  );
 });
