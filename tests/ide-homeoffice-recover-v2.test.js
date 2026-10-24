@@ -21,20 +21,36 @@ test("Home Office v2 one-click must verify immutable correct source", () => {
 });
 
 test("only owner-approved re-pair follows explicit stale registration revocation", () => {
-  assert.ok(source.includes("BLOCKED_EXISTING_PRIVATE_ENROLLMENT_REVIEW_REQUIRED"));
+  assert.ok(
+    source.includes("BLOCKED_EXISTING_PRIVATE_ENROLLMENT_REVIEW_REQUIRED"),
+  );
   assert.ok(source.includes("homeoffice-calibration-pro\\agent.json"));
   assert.ok(source.includes("homeoffice-calibration-pro\\enrollment.json"));
   assert.ok(source.includes("choice /C YN /N /M"));
-  assert.ok(source.includes("if errorlevel 2 goto :owner_confirmation_missing"));
-  assert.ok(source.includes("OWNER_REVOKE_CONFIRMATION=YES_AT_CONSOLE_NOT_SERVER_VERIFIED"));
-  assert.ok(source.includes("https://kmjtechno.com/services/kmj-codebridge#codebridge-device-control"));
+  assert.ok(
+    source.includes("if errorlevel 2 goto :owner_confirmation_missing"),
+  );
+  assert.ok(
+    source.includes(
+      "OWNER_REVOKE_CONFIRMATION=YES_AT_CONSOLE_NOT_SERVER_VERIFIED",
+    ),
+  );
+  assert.ok(
+    source.includes(
+      "https://kmjtechno.com/services/kmj-codebridge#codebridge-device-control",
+    ),
+  );
   assert.ok(source.includes("BLOCKED_PC_ID_MISMATCH"));
   assert.ok(source.includes("ACCOUNT_SIDE_READY") === false);
-  assert.ok(source.includes("CODEBRIDGE_GATEWAY_READY' 'NOT_ATTESTED_VERIFY_IN_CHAT"));
+  assert.ok(
+    source.includes("CODEBRIDGE_GATEWAY_READY' 'NOT_ATTESTED_VERIFY_IN_CHAT"),
+  );
 });
 
 test("safe cmd constraints and owner privacy hold", () => {
-  const commandLine = source.split("\n").find((line) => line.includes("-Command \""));
+  const commandLine = source
+    .split("\n")
+    .find((line) => line.includes('-Command "'));
   assert.ok(commandLine);
   assert.ok(commandLine.length < 8191);
   assert.ok(!source.includes("agent.token"));
