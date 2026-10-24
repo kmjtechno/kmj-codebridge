@@ -120,6 +120,58 @@ function KnownGitRoot([string]$Value) {
     throw 'DEVICE_PROJECT_ORIGIN_REQUIRED'
   }
 }
+# Bounded discovery in known owner-private stores. No token leaves this process.
+function FindKnownApproved([string]$ProjectRoot = '',[string]$ProjectId = '') {
+  $stores = @(
+    (Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\private'),
+    'D:\KMJ-HyperSpeed\private',
+    'E:\KMJ\private',
+    'E:\KMJ\CodeBridge-HomeOffice\private'
+  )
+  $seen = @{}
+  foreach ($store in $stores) {
+    if (!(Test-Path -LiteralPath $store -PathType Container)) { continue }
+    try { Ordinary $store $true } catch { continue }
+    $files = @(Get-ChildItem -LiteralPath $store -File -Filter 'agent.json' -Recurse -Depth 6 -ErrorAction SilentlyContinue)
+    foreach ($file in $files) {
+      if ($file.Length -gt 262144 -or !(PrivateFile $file.FullName)) { continue }
+      try {
+        $full = [IO.Path]::GetFullPath($file.FullName)
+        Ordinary $full $false
+        $candidate = Get-Content -LiteralPath $full -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (!(ValidScope $candidate)) { continue }
+        if ($ProjectRoot -ne '') {
+          $matching = @($candidate.projects | Where-Object {
+            [string]$_.id -ceq $ProjectId -and
+            [IO.Path]::GetFullPath([string]$_.root) -ieq $ProjectRoot
+          })
+          if ($matching.Count -ne 1) { continue }
+        }
+        $key = $full.ToLowerInvariant()
+        if (!$seen.ContainsKey($key)) {
+          $seen[$key] = $true
+          Write-Output $full
+        }
+      } catch {
+        # Foreign, unreadable, linked or malformed candidates are excluded.
+      }
+    }
+  }
+}
+
+# Only a previous cancelled pairing with an EMPTY state folder may resume.
+function AssertEmptyRetryState([string]$Base,[string]$State) {
+  Ordinary $Base $true
+  $items = @(Get-ChildItem -LiteralPath $Base -Force -ErrorAction Stop)
+  if ($items.Count -ne 1 -or $items[0].Name -cne 'state') {
+    throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED'
+  }
+  Ordinary $State $true
+  if (@(Get-ChildItem -LiteralPath $State -Force -ErrorAction Stop).Count -ne 0) {
+    throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED'
+  }
+}
+
 function FirstPair {
   # Manual owner action only; NEVER called by Windows Startup.
   $projectRoot = SelectProject
@@ -128,19 +180,28 @@ function FirstPair {
   if ($projectId -notmatch '^[A-Za-z0-9_-]{1,48}$') {
     throw 'DEVICE_PROJECT_ID_UNSUPPORTED'
   }
+  if (@(FindKnownApproved $projectRoot $projectId).Count -gt 0) {
+    throw 'DEVICE_EXISTING_PROJECT_ENROLLMENT_USE_RECONNECT'
+  }
   $prefix = 'kmj-' + $projectId
   $maxPrefix = 63 - $hostSlug.Length
   if ($maxPrefix -lt 6) { throw 'DEVICE_HOSTNAME_TOO_LONG' }
   if ($prefix.Length -gt $maxPrefix) { $prefix = $prefix.Substring(0,$maxPrefix) }
   $id = $prefix + '-' + $hostSlug
   $base = Join-Path $privateRoot $id
-  if (Test-Path -LiteralPath $base) { throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED' }
-  if (!(Test-Path -LiteralPath $privateRoot)) {
-    New-Item -ItemType Directory -Path $privateRoot -Force -ErrorAction Stop | Out-Null
-  }
   $state = Join-Path $base 'state'
-  New-Item -ItemType Directory -Path $base,$state -ErrorAction Stop | Out-Null
-  LockedACL $privateRoot $true
+  if (!(Test-Path -LiteralPath $privateRoot)) {
+    New-Item -ItemType Directory -Path $privateRoot -ErrorAction Stop | Out-Null
+    LockedACL $privateRoot $true
+  } else {
+    Ordinary $privateRoot $true
+  }
+  if (Test-Path -LiteralPath $base) {
+    AssertEmptyRetryState $base $state
+    Write-Host 'KMJ_UNIVERSAL=EMPTY_CANCELLED_PAIRING_RETRY'
+  } else {
+    New-Item -ItemType Directory -Path $base,$state -ErrorAction Stop | Out-Null
+  }
   LockedACL $base $true
   LockedACL $state $true
   $enrollment = Join-Path $base 'enrollment.json'
@@ -301,6 +362,24 @@ try {
       if (!(ValidScope $fakeCfg)) { throw 'DEVICE_TEST_VALID_SCOPE_REJECTED' }
       $fakeCfg.id = 'kmj-device-another-pc'
       if (ValidScope $fakeCfg) { throw 'DEVICE_TEST_FOREIGN_HOST_ALLOWED' }
+      # Prove a cancelled empty enrollment can be retried but a credential,
+      # log or other content is never deleted or silently resumed.
+      $pairBase = Join-Path $dir 'cancelled-pair'
+      $pairState = Join-Path $pairBase 'state'
+      New-Item -ItemType Directory -Path $pairState -Force -ErrorAction Stop | Out-Null
+      AssertEmptyRetryState $pairBase $pairState
+      $credentialFixture = Join-Path $pairBase 'enrollment.json'
+      [IO.File]::WriteAllText($credentialFixture, 'DO_NOT_OVERWRITE')
+      $blocked = $false
+      try { AssertEmptyRetryState $pairBase $pairState }
+      catch {
+        if ($_.Exception.Message -ne 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED') { throw }
+        $blocked = $true
+      }
+      if (!$blocked -or [IO.File]::ReadAllText($credentialFixture) -cne 'DO_NOT_OVERWRITE') {
+        throw 'DEVICE_TEST_EXISTING_ENROLLMENT_NOT_PRESERVED'
+      }
+      Write-Output 'KMJ_UNIVERSAL_RETRY_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_SELFTEST=PASS'
       Write-Output 'REAL_STARTUP_CHANGED=NO'
     } finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
@@ -336,7 +415,13 @@ try {
   if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     if ($AtLogon) { throw 'DEVICE_UNATTENDED_REQUIRES_EXACT_CONFIG' }
     if ($DisableAutoStart) {
-      $ConfigPath = ChooseExisting
+      $known = @(FindKnownApproved)
+      if ($known.Count -eq 1) {
+        $ConfigPath = $known[0]
+        Write-Host 'KMJ_UNIVERSAL=EXISTING_SCOPED_AGENT_AUTO_SELECTED'
+      } else {
+        $ConfigPath = ChooseExisting
+      }
       if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
     } else {
     Add-Type -AssemblyName System.Windows.Forms
@@ -349,7 +434,13 @@ try {
       throw 'DEVICE_OWNER_CANCELLED'
     }
     if ($choice -eq [System.Windows.Forms.DialogResult]::Yes) {
-      $ConfigPath = ChooseExisting
+      $known = @(FindKnownApproved)
+      if ($known.Count -eq 1) {
+        $ConfigPath = $known[0]
+        Write-Host 'KMJ_UNIVERSAL=EXISTING_SCOPED_AGENT_AUTO_SELECTED'
+      } else {
+        $ConfigPath = ChooseExisting
+      }
       if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
     } else {
       $ConfigPath = FirstPair
