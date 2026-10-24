@@ -46,9 +46,9 @@ function ShortcutArgs([string]$AbsoluteScript,[string]$Scope) {
     return '-NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File "' +
         $AbsoluteScript + '" -Device ' + $Scope + ' -AtLogon'
 }
-function VerifyShortcut($Shortcut,[string]$Exe,[string]$Args,[string]$WorkingDir) {
+function VerifyShortcut($Shortcut,[string]$Exe,[string]$ExpectedArguments,[string]$WorkingDir) {
     return (ExpectPath ([string]$Shortcut.TargetPath) $Exe) -and
-        ([string]$Shortcut.Arguments -ceq $Args) -and
+        ([string]$Shortcut.Arguments -ceq $ExpectedArguments) -and
         (ExpectPath ([string]$Shortcut.WorkingDirectory) $WorkingDir)
 }
 function CheckLegacyTask {
