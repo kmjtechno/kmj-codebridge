@@ -135,7 +135,20 @@ try {
     if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) {
         throw 'AUTOCONNECT_RUNTIME_TRACKED_CHANGES'
     }
-    CheckLegacyTask
+    # A tracked-clean checkout must contain each executable script in HEAD.
+    # Git --untracked-files=no alone cannot establish this provenance.
+    $approvedScripts = @(
+        'scripts/windows/ONE-CLICK-AGENT-AUTOCONNECT.ps1',
+        ('scripts/windows/' + $connectName)
+    )
+    if ($Device -eq 'HomeOffice') {
+        $approvedScripts += 'scripts/windows/PAIR-HOMEOFFICE-CALIBRATION.ps1'
+    }
+    $null = & $git -C $repo ls-files --error-unmatch -- @approvedScripts 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'AUTOCONNECT_UNTRACKED_LAUNCHER_SCRIPT'
+    }
+    if (!$RemoveAutoStart) { CheckLegacyTask }
 
     $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
     RequireOrdinary $ps $false
