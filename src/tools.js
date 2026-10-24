@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { identifier } from "./config.js";
 import { commandRequiresIsolatedLane } from "./command-presets.js";
 import { approvedPowerShellInvocation } from "./windows-powershell-profile.js";
+import { compactIdeJobReceipt } from "./ide-job-receipt.js";
 import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
@@ -1957,6 +1958,35 @@ export const definitions = {
     },
     access: "execute",
   },
+  ide_run_project_task: {
+    title: "IDE: run approved project task with compact receipt",
+    description:
+      "Run an existing administrator-approved command profile in an authorized project, with exact-head isolated lane rules inherited from run_project_command. Wait briefly and return a small redacted QA receipt instead of pasted terminal logs. Never accepts shell, free-form argv, cwd, environment, script body, repo URL or deployment override. Requires connected device and read+execute grants.",
+    input: {
+      ...scoped,
+      command: identifier,
+      variant: identifier,
+      requestKey: z.string().min(1).max(128),
+      laneId: laneIdentifier.optional(),
+      expectedHead: z
+        .string()
+        .regex(/^[a-f0-9]{40}$/)
+        .optional(),
+      waitMs: z.number().int().min(0).max(10000).default(2500),
+    },
+    access: "execute",
+  },
+  ide_job_receipt: {
+    title: "IDE: compact project job result",
+    description:
+      "Return compact verified local runner state plus bounded redacted project-reported QA markers for one authorized job, without sending the full terminal log. Does not convert printed PASS text into physical or release approval.",
+    input: {
+      ...scoped,
+      job: identifier,
+      waitMs: z.number().int().min(0).max(10000).default(0),
+    },
+    access: "read",
+  },
   run_quality_gate: {
     title: "Run quality gate",
     description:
@@ -3746,6 +3776,57 @@ export function createDispatcher(
     };
     const laneLabel = (label, laneId) =>
       laneId !== undefined ? `${label}@${laneId}` : label;
+    if (name === "ide_run_project_task") {
+      // Only already-approved configured profiles. Do not expose the special
+      // built-in supervisors or any caller-specified executable/shell.
+      if (!permissions.includes("read")) fail("ACCESS_DENIED");
+      const profile = (p.commands ?? {})[a.command];
+      if (!profile || !Object.hasOwn(profile.variants ?? {}, a.variant))
+        fail("IDE_COMMAND_NOT_CONFIGURED");
+      const existing = await dispatchCore(
+        "run_project_command",
+        {
+          device: a.device,
+          project: p.id,
+          command: a.command,
+          variant: a.variant,
+          requestKey: a.requestKey,
+          ...(a.laneId === undefined ? {} : { laneId: a.laneId }),
+          ...(a.expectedHead === undefined
+            ? {}
+            : { expectedHead: a.expectedHead }),
+        },
+        permissions,
+      );
+      if (!existing || typeof existing.id !== "string")
+        fail("IDE_JOB_UNAVAILABLE");
+      const state = await dispatchCore(
+        "get_job_status",
+        {
+          device: a.device,
+          project: p.id,
+          job: existing.id,
+          waitMs: a.waitMs,
+          tailChars: 8192,
+        },
+        permissions,
+      );
+      return compactIdeJobReceipt(state);
+    }
+    if (name === "ide_job_receipt") {
+      const state = await dispatchCore(
+        "get_job_status",
+        {
+          device: a.device,
+          project: p.id,
+          job: a.job,
+          waitMs: a.waitMs,
+          tailChars: 8192,
+        },
+        permissions,
+      );
+      return compactIdeJobReceipt(state);
+    }
     if (name === "run_project_command") {
       // The CloudOS project has no administrator-configured command profiles
       // on its existing enrolled VPS, while the shared libvirt checkout is
@@ -4517,7 +4598,7 @@ export function createDispatcher(
     if (!p) return dispatchCore(name, input, permissions);
 
     const risk =
-      name === "run_project_command"
+      name === "run_project_command" || name === "ide_run_project_task"
         ? a.command === "cloudos_host_storage_audit"
           ? "READ"
           : [
