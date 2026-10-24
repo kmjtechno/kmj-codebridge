@@ -100,8 +100,8 @@ test("MCP dispatcher reuses policy-gated, idempotent project command; no raw she
   assert.match(source, /ide_run_project_task: \{/);
   assert.match(source, /ide_job_receipt: \{/);
   assert.match(source, /if \(name === "ide_run_project_task"\) \{/);
-  assert.match(source, /dispatchCore\("run_project_command"/);
-  assert.match(source, /dispatchCore\("get_job_status"/);
+  assert.match(source, /dispatchCore\s*\(\s*"run_project_command"/);
+  assert.match(source, /dispatchCore\s*\(\s*"get_job_status"/);
   assert.match(source, /IDE_COMMAND_NOT_CONFIGURED/);
   assert.match(source, /permissions\.includes\("read"\)/);
   assert.doesNotMatch(
