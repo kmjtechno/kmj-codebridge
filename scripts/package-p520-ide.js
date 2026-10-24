@@ -9,8 +9,14 @@ const EXPECTED_BOOTSTRAP_SHA256 =
   "D867A1F0131CCE424B0FA90AAA91A847ECFA404088409E341E9B1DF161AC60F5";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const files = [
-  ["START-KMJ-CALIBRATION-IDE.cmd", "scripts/windows/START-KMJ-CALIBRATION-IDE.cmd"],
-  ["BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1", "scripts/windows/BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1"],
+  [
+    "START-KMJ-CALIBRATION-IDE.cmd",
+    "scripts/windows/START-KMJ-CALIBRATION-IDE.cmd",
+  ],
+  [
+    "BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1",
+    "scripts/windows/BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1",
+  ],
   ["READ-ME-FIRST.txt", "scripts/windows/P520-COMPLETE-IDE-README.txt"],
 ];
 
@@ -25,7 +31,8 @@ function crc32(bytes) {
   for (const b of bytes) c = table[(c ^ b) & 255] ^ (c >>> 8);
   return (c ^ 0xffffffff) >>> 0;
 }
-const sha256 = (bytes) => createHash("sha256").update(bytes).digest("hex").toUpperCase();
+const sha256 = (bytes) =>
+  createHash("sha256").update(bytes).digest("hex").toUpperCase();
 function zip(entries) {
   const local = [];
   const central = [];
@@ -66,13 +73,20 @@ function zip(entries) {
 
 function main() {
   const args = process.argv.slice(2);
-  if (args.length !== 2 || args[0] !== "--out" || !args[1].toLowerCase().endsWith(".zip")) {
-    throw new Error("Usage: node scripts/package-p520-ide.js --out NEW-FILE.zip");
+  if (
+    args.length !== 2 ||
+    args[0] !== "--out" ||
+    !args[1].toLowerCase().endsWith(".zip")
+  ) {
+    throw new Error(
+      "Usage: node scripts/package-p520-ide.js --out NEW-FILE.zip",
+    );
   }
   const entries = files.map(([name, relative]) => {
     const full = path.join(root, relative);
     const st = fs.lstatSync(full);
-    if (!st.isFile() || st.isSymbolicLink()) throw new Error("UNTRUSTED_PACKAGE_INPUT");
+    if (!st.isFile() || st.isSymbolicLink())
+      throw new Error("UNTRUSTED_PACKAGE_INPUT");
     return [name, fs.readFileSync(full)];
   });
   const script = entries[1][1];
@@ -85,7 +99,10 @@ function main() {
   ) {
     throw new Error("P520_INSTALLER_INTEGRITY_FAILED");
   }
-  fs.writeFileSync(path.resolve(args[1]), zip(entries), { flag: "wx", mode: 0o600 });
+  fs.writeFileSync(path.resolve(args[1]), zip(entries), {
+    flag: "wx",
+    mode: 0o600,
+  });
   process.stdout.write("P520_IDE_PACKAGE=COMPLETE\nBOOTSTRAP_SHA256=PASS\n");
   process.stdout.write("P520_DEVICE_CONNECTION=NOT_ATTESTED\n");
 }
