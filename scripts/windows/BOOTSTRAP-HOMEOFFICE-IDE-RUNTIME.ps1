@@ -32,7 +32,7 @@ function TrustedRuntime([string]$Root,[string]$Git) {
     if ($LASTEXITCODE -ne 0 -or $head.Trim() -cne $sha) { return $false }
     $dirty = @(& $Git --no-optional-locks -C $Root status --porcelain=v1 --untracked-files=no)
     if ($LASTEXITCODE -ne 0 -or $dirty.Count -ne 0) { return $false }
-    return Test-Path -LiteralPath (Join-Path $Root 'node_modules\zod\package.json') -PathType Leaf
+    return (Test-Path -LiteralPath (Join-Path $Root 'node_modules\zod\package.json') -PathType Leaf)
 }
 try {
     if ($SelfTest) {
