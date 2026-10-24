@@ -116,8 +116,15 @@ const installerBootstrap = fs.readFileSync(
 );
 
 test("P520 retry pins merged non-generic enrollment diagnostic source", () => {
-  assert.ok(installerBootstrap.includes("$sha = '9f74b7a88a3bc4f163f43c04328fe753db094354'"));
-  assert.doesNotMatch(installerBootstrap, /\$sha = '9dc0ae25648c33a62631fdd35068e6b60820637d'/);
+  assert.ok(
+    installerBootstrap.includes(
+      "$sha = '9f74b7a88a3bc4f163f43c04328fe753db094354'",
+    ),
+  );
+  assert.doesNotMatch(
+    installerBootstrap,
+    /\$sha = '9dc0ae25648c33a62631fdd35068e6b60820637d'/,
+  );
 });
 
 test("pre-existing untrusted P520 runtime is preserved; new exact-SHA install uses separate sibling", () => {
