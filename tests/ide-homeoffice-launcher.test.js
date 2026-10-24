@@ -116,7 +116,7 @@ const installerBootstrap = fs.readFileSync(
 );
 
 test("pre-existing untrusted P520 runtime is preserved; new exact-SHA install uses separate sibling", () => {
-  assert.match(installerBootstrap, /\$isolatedDest = Join-Path 'E:\\\\KMJ'/);
+  assert.ok(installerBootstrap.includes("$isolatedDest = Join-Path 'E:\\KMJ'"));
   assert.match(installerBootstrap, /\$sha\.Substring\(0,12\)/);
   assert.match(installerBootstrap, /KMJ_IDE_PREVIOUS_RUNTIME.*UNVERIFIED_PRESERVED_UNCHANGED/);
   assert.match(installerBootstrap, /OrdinaryDirectory \$dest/);
