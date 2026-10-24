@@ -233,8 +233,8 @@ function RunApprovedAgent([string]$Value,$Cfg,[string]$Node) {
   $stdout = Join-Path ([string]$Cfg.stateDir) ('oneclick-'+$n+'.out.log')
   $stderr = Join-Path ([string]$Cfg.stateDir) ('oneclick-'+$n+'.err.log')
   $after = [datetime]::UtcNow
-  $args = '"' + $entry + '" agent "' + $Value + '"'
-  $child = Start-Process -FilePath $Node -ArgumentList $args -WorkingDirectory $repo -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+  $commandArgs = '"' + $entry + '" agent "' + $Value + '"'
+  $child = Start-Process -FilePath $Node -ArgumentList $commandArgs -WorkingDirectory $repo -WindowStyle Hidden -PassThru -RedirectStandardOutput $stdout -RedirectStandardError $stderr
   for ($attempt=0; $attempt -lt 40; $attempt++) {
     Start-Sleep -Seconds 2
     $child.Refresh()
