@@ -44,8 +44,12 @@ test("automatic startup reuses exact private config, blocks duplicates and is re
     "KMJ_UNIVERSAL=AUTOSTART_DISABLED",
     "KMJ_UNIVERSAL=SIGN_IN_RECONNECT_INVOKED",
     "ACCOUNT_READY=CHECK_AUTHENTICATED_CONNECTION_OVERVIEW",
-  ]) assert.ok(content.includes(marker), marker);
-  assert.match(content, /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/);
+  ])
+    assert.ok(content.includes(marker), marker);
+  assert.match(
+    content,
+    /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/,
+  );
   assert.match(content, /-AtLogon -ConfigPath/);
   assert.match(content, /if \(\$AtLogon\) \{/);
   assert.match(content, /if \(\$DisableAutoStart\) \{/);
@@ -63,11 +67,12 @@ test("automatic startup reuses exact private config, blocks duplicates and is re
     /\bgit\s+clean\b/i,
     /\bGITHUB_TOKEN\b/,
     /\bOPENAI_API_KEY\b/,
-  ]) assert.doesNotMatch(content, forbidden);
+  ])
+    assert.doesNotMatch(content, forbidden);
 });
 
 test("standalone one-click connect and opt-out wrappers use only local bundled source", () => {
-  for (const [name,disable] of [
+  for (const [name, disable] of [
     ["CONNECT-ANY-DEVICE.cmd", false],
     ["DISABLE-ANY-DEVICE-AUTOSTART.cmd", true],
   ]) {
@@ -75,7 +80,10 @@ test("standalone one-click connect and opt-out wrappers use only local bundled s
     assert.match(cmd, /%~dp0ONE-CLICK-ANY-DEVICE\.ps1/);
     assert.match(cmd, /-NoProfile -STA -ExecutionPolicy RemoteSigned -File/);
     assert.equal(cmd.includes("-DisableAutoStart"), disable);
-    assert.doesNotMatch(cmd, /ExecutionPolicy Bypass|schtasks|curl|git clone|token\s*=/i);
+    assert.doesNotMatch(
+      cmd,
+      /ExecutionPolicy Bypass|schtasks|curl|git clone|token\s*=/i,
+    );
   }
 });
 
@@ -83,17 +91,35 @@ test(
   "native Windows PowerShell 5: disposable link and foreign-device negative scope",
   { skip: process.platform !== "win32" },
   () => {
-    const r = spawnSync("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
-      "-File", script, "-SelfTest",
-    ], { encoding: "utf8", windowsHide: true, shell: false, timeout: 30000 });
+    const r = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        script,
+        "-SelfTest",
+      ],
+      { encoding: "utf8", windowsHide: true, shell: false, timeout: 30000 },
+    );
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /KMJ_UNIVERSAL_SELFTEST=PASS/);
     assert.match(r.stdout, /REAL_STARTUP_CHANGED=NO/);
-    const blocked = spawnSync("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
-      "-File", script, "-AtLogon",
-    ], { encoding: "utf8", windowsHide: true, shell: false, timeout: 15000 });
+    const blocked = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        script,
+        "-AtLogon",
+      ],
+      { encoding: "utf8", windowsHide: true, shell: false, timeout: 15000 },
+    );
     assert.equal(blocked.status, 2, blocked.stdout + blocked.stderr);
     assert.match(blocked.stdout, /KMJ_UNIVERSAL=BLOCKED:/);
   },
