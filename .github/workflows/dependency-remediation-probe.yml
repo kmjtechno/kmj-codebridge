@@ -31,6 +31,8 @@ jobs:
         run: |
           npm run check
           npm test
+      - name: Show exact non-secret dependency lock delta for review
+        run: git --no-pager diff -- package.json package-lock.json
       - name: Preserve candidate dependency manifests for review
         if: always()
         uses: actions/upload-artifact@v7.0.2
