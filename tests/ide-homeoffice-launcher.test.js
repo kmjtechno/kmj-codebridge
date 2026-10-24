@@ -42,16 +42,27 @@ const bootstrapPs1 = fs.readFileSync(
 
 test("downloaded P520 installer verifies exact SHA-256 before per-file unblock", async () => {
   const { createHash } = await import("node:crypto");
-  const pinned = createHash("sha256").update(bootstrapPs1).digest("hex").toUpperCase();
+  const pinned = createHash("sha256")
+    .update(bootstrapPs1)
+    .digest("hex")
+    .toUpperCase();
   assert.match(installerCmd, /DESKTOP-5FVJMET/);
-  assert.ok(installerCmd.includes("'" + pinned + "'"), "installer content hash must match audited source");
+  assert.ok(
+    installerCmd.includes("'" + pinned + "'"),
+    "installer content hash must match audited source",
+  );
   assert.match(installerCmd, /Get-FileHash -LiteralPath \$p -Algorithm SHA256/);
   assert.match(installerCmd, /Unblock-File -LiteralPath \$p -ErrorAction Stop/);
-  assert.ok(installerCmd.indexOf("Get-FileHash") < installerCmd.indexOf("Unblock-File"));
+  assert.ok(
+    installerCmd.indexOf("Get-FileHash") < installerCmd.indexOf("Unblock-File"),
+  );
   assert.match(installerCmd, /if errorlevel 1 goto :integrity_blocked/);
   assert.match(installerCmd, /SCRIPT_SHA256_MISMATCH/);
   assert.match(installerCmd, /SCRIPT_REPARSE_DENIED/);
-  assert.match(installerCmd, /-ExecutionPolicy RemoteSigned -File "%INSTALLER%"/);
+  assert.match(
+    installerCmd,
+    /-ExecutionPolicy RemoteSigned -File "%INSTALLER%"/,
+  );
 });
 
 test("installer does not disable script security or auto-pair another device", () => {
@@ -59,7 +70,10 @@ test("installer does not disable script security or auto-pair another device", (
     installerCmd,
     /-ExecutionPolicy (?:Bypass|Unrestricted)|Set-ExecutionPolicy|Unblock-File -Path ["']?\\*|Start-Process.*RunAs|schtasks|DESKTOP-K3AHHEM/i,
   );
-  assert.doesNotMatch(installerCmd, /-Device P720|Remove-Item|git reset|git clean/i);
+  assert.doesNotMatch(
+    installerCmd,
+    /-Device P720|Remove-Item|git reset|git clean/i,
+  );
   assert.match(installerCmd, /EXECUTION_POLICY_CHANGED=NO/);
 });
 
@@ -68,7 +82,10 @@ test("installer labels are after normal execution and wrong PC fails closed", ()
     installerCmd,
     /if \/I not "%OS%"=="Windows_NT" goto :blocked\nif \/I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :blocked/,
   );
-  assert.ok(installerCmd.lastIndexOf("\n:integrity_blocked\n") > installerCmd.indexOf("exit /b %RC%"));
+  assert.ok(
+    installerCmd.lastIndexOf("\n:integrity_blocked\n") >
+      installerCmd.indexOf("exit /b %RC%"),
+  );
   assert.equal((installerCmd.match(/^:blocked$/gm) || []).length, 1);
   assert.equal((installerCmd.match(/^:integrity_blocked$/gm) || []).length, 1);
 });
