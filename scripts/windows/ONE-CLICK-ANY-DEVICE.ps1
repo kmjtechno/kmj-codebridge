@@ -159,6 +159,19 @@ function FindKnownApproved([string]$ProjectRoot = '',[string]$ProjectId = '') {
   }
 }
 
+# Only a previous cancelled pairing with an EMPTY state folder may resume.
+function AssertEmptyRetryState([string]$Base,[string]$State) {
+  Ordinary $Base $true
+  $items = @(Get-ChildItem -LiteralPath $Base -Force -ErrorAction Stop)
+  if ($items.Count -ne 1 -or $items[0].Name -cne 'state') {
+    throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED'
+  }
+  Ordinary $State $true
+  if (@(Get-ChildItem -LiteralPath $State -Force -ErrorAction Stop).Count -ne 0) {
+    throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED'
+  }
+}
+
 function FirstPair {
   # Manual owner action only; NEVER called by Windows Startup.
   $projectRoot = SelectProject
@@ -184,15 +197,7 @@ function FirstPair {
     Ordinary $privateRoot $true
   }
   if (Test-Path -LiteralPath $base) {
-    Ordinary $base $true
-    $items = @(Get-ChildItem -LiteralPath $base -Force -ErrorAction Stop)
-    if ($items.Count -ne 1 -or $items[0].Name -cne 'state') {
-      throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED'
-    }
-    Ordinary $state $true
-    if (@(Get-ChildItem -LiteralPath $state -Force -ErrorAction Stop).Count -ne 0) {
-      throw 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED'
-    }
+    AssertEmptyRetryState $base $state
     Write-Host 'KMJ_UNIVERSAL=EMPTY_CANCELLED_PAIRING_RETRY'
   } else {
     New-Item -ItemType Directory -Path $base,$state -ErrorAction Stop | Out-Null
@@ -357,6 +362,24 @@ try {
       if (!(ValidScope $fakeCfg)) { throw 'DEVICE_TEST_VALID_SCOPE_REJECTED' }
       $fakeCfg.id = 'kmj-device-another-pc'
       if (ValidScope $fakeCfg) { throw 'DEVICE_TEST_FOREIGN_HOST_ALLOWED' }
+      # Prove a cancelled empty enrollment can be retried but a credential,
+      # log or other content is never deleted or silently resumed.
+      $pairBase = Join-Path $dir 'cancelled-pair'
+      $pairState = Join-Path $pairBase 'state'
+      New-Item -ItemType Directory -Path $pairState -Force -ErrorAction Stop | Out-Null
+      AssertEmptyRetryState $pairBase $pairState
+      $credentialFixture = Join-Path $pairBase 'enrollment.json'
+      [IO.File]::WriteAllText($credentialFixture, 'DO_NOT_OVERWRITE')
+      $blocked = $false
+      try { AssertEmptyRetryState $pairBase $pairState }
+      catch {
+        if ($_.Exception.Message -ne 'DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED') { throw }
+        $blocked = $true
+      }
+      if (!$blocked -or [IO.File]::ReadAllText($credentialFixture) -cne 'DO_NOT_OVERWRITE') {
+        throw 'DEVICE_TEST_EXISTING_ENROLLMENT_NOT_PRESERVED'
+      }
+      Write-Output 'KMJ_UNIVERSAL_RETRY_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_SELFTEST=PASS'
       Write-Output 'REAL_STARTUP_CHANGED=NO'
     } finally { Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue }
