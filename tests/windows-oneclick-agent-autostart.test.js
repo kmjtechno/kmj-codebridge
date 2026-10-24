@@ -28,7 +28,10 @@ test("one-click installer only reconnects known approved Windows devices", () =>
   ]) {
     assert.ok(code.includes(tag), "Missing safety check: " + tag);
   }
-  assert.match(code, /\$Interactive -and \[IO.Path\]::GetFileName\(\$Target\) -ceq \$pairName/);
+  assert.match(
+    code,
+    /\$Interactive -and \[IO.Path\]::GetFileName\(\$Target\) -ceq \$pairName/,
+  );
   assert.match(code, /\$AtLogon/);
   assert.match(code, /\$RemoveAutoStart/);
   assert.match(code, /-AutoDiscover','-NoPicker/);
