@@ -236,7 +236,8 @@ test("restart/resume with an existing coding checkpoint never replays model gene
   await f.worker.tick();
   assert.equal(f.generated(), 1);
   const running = f.journal.get(task.id, "repo");
-  f.journal.wait(task.id, "repo", "simulated restart", running.lease.token);
+  const internal = f.journal.state.tasks.find((entry) => entry.id === task.id);
+  f.journal.wait(task.id, "repo", "simulated restart", internal.lease.token);
   f.journal.resume(task.id, "repo");
   const restarted = f.makeWorker();
   await restarted.tick();
