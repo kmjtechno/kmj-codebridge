@@ -388,7 +388,12 @@ export class LocalFirstCodingWorker {
                 .status(project.id, project.root)
                 .lanes.find((item) => item.laneId === laneId);
               if (entry && entry.head === parsed.expectedHead && !entry.dirty) {
-                this.lanes.cleanup(project.id, project.root, laneId, parsed.expectedHead);
+                this.lanes.cleanup(
+                  project.id,
+                  project.root,
+                  laneId,
+                  parsed.expectedHead,
+                );
               }
             } catch {
               // Never remove a lane unless the lane manager proves it is pristine.
