@@ -2224,7 +2224,8 @@ export function createDispatcher(
                   repair: p.autopilotRepairWorker?.enabled === true,
                   githubCiWatch: p.autopilotCiWatch?.enabled === true,
                   localDraft: p.autopilotLocalWorker?.enabled === true,
-                  coding: p.autopilotCodingWorker?.enabled === true &&
+                  coding:
+                    p.autopilotCodingWorker?.enabled === true &&
                     p.autopilotCodingWorker?.localProcessingApproved === true,
                 },
                 workerStarted:
@@ -2234,14 +2235,18 @@ export function createDispatcher(
                         if (!observed || observed.agentRunning !== true)
                           return null;
                         return Object.fromEntries(
-                          ["gate", "repair", "githubCiWatch", "localDraft", "coding"].map(
-                            (kind) => [
-                              kind,
-                              Array.isArray(observed[kind])
-                                ? observed[kind].includes(p.id)
-                                : false,
-                            ],
-                          ),
+                          [
+                            "gate",
+                            "repair",
+                            "githubCiWatch",
+                            "localDraft",
+                            "coding",
+                          ].map((kind) => [
+                            kind,
+                            Array.isArray(observed[kind])
+                              ? observed[kind].includes(p.id)
+                              : false,
+                          ]),
                         );
                       })()
                     : null,
@@ -3069,9 +3074,11 @@ export function createDispatcher(
             loopStarted: observed("localDraft"),
           },
           coding: {
-            configured: p.autopilotCodingWorker?.enabled === true &&
+            configured:
+              p.autopilotCodingWorker?.enabled === true &&
               p.autopilotCodingWorker?.localProcessingApproved === true,
-            localProcessingApproved: p.autopilotCodingWorker?.localProcessingApproved === true,
+            localProcessingApproved:
+              p.autopilotCodingWorker?.localProcessingApproved === true,
             loopStarted: observed("coding"),
           },
         },
