@@ -84,7 +84,6 @@ export function validateCodingPatch(
     Buffer.byteLength(patch, "utf8") > MAX_PATCH_BYTES ||
     patch.includes("\0") ||
     !patch.startsWith("diff --git ") ||
-    patch.includes(String.fromCharCode(96).repeat(3)) ||
     /^(?:new file mode|deleted file mode|old mode|new mode|rename from|rename to|copy from|copy to)\b/m.test(
       patch,
     ) ||
