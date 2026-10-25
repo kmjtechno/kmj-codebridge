@@ -274,6 +274,18 @@ export class LocalFirstCodingWorker {
             continue;
           }
 
+          const modelUsage = localModelReceipt(config.model, "autopilot_coding_worker");
+          this.journal.checkpoint(task.id, project.id, {
+            summary: JSON.stringify({
+              status: "LOCAL_CODE_OUTPUT_REQUIRES_VALIDATION",
+              laneId,
+              expectedHead: parsed.expectedHead,
+            }),
+            next: "LOCAL_CODE_OUTPUT_REQUIRES_VALIDATION",
+            leaseToken: task.leaseToken,
+            modelUsage,
+          });
+
           if (!generated.response?.trim() || generated.hitTokenLimit || generated.truncated) {
             wait("LOCAL_CODING_OUTPUT_INCOMPLETE_REVIEW_REQUIRED");
             continue;
