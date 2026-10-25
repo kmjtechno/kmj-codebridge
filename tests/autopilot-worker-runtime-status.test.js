@@ -27,7 +27,16 @@ function fixture(t, workerSource, codingConfigured = false) {
         autopilotRepairWorker: { enabled: true, recipes: {} },
         autopilotCiWatch: { enabled: true },
         autopilotLocalWorker: { enabled: false },
-        ...(codingConfigured ? { autopilotCodingWorker: { enabled: true, localProcessingApproved: true, model: "qwen3:4b", recipes: {} } } : {}),
+        ...(codingConfigured
+          ? {
+              autopilotCodingWorker: {
+                enabled: true,
+                localProcessingApproved: true,
+                model: "qwen3:4b",
+                recipes: {},
+              },
+            }
+          : {}),
       },
     ],
   };
@@ -52,15 +61,19 @@ function fixture(t, workerSource, codingConfigured = false) {
 }
 
 test("runtime status shows started loops distinctly from configuration", async (t) => {
-  const f = fixture(t, () => ({
-    gate: ["project1"],
-    repair: ["project1"],
-    githubCiWatch: [],
-    localDraft: [],
-    coding: ["project1"],
-    agentRunning: true,
-    token: "hidden-token-not-for-output",
-  }), true);
+  const f = fixture(
+    t,
+    () => ({
+      gate: ["project1"],
+      repair: ["project1"],
+      githubCiWatch: [],
+      localDraft: [],
+      coding: ["project1"],
+      agentRunning: true,
+      token: "hidden-token-not-for-output",
+    }),
+    true,
+  );
   const r = await f.dispatch(
     "autopilot_worker_runtime_status",
     { device: "device1", project: "project1" },
