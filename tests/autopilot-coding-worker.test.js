@@ -107,7 +107,7 @@ function fixture(t, overrides = {}) {
     root,
     writable: true,
     gates: {
-      check: { command: "node", args: ["--test"], timeoutMs: 1000 },
+      check: { command: "node", args: ["--test"], timeoutMs: 1000, autopilotCodingSafe: true },
     },
     autopilotCodingWorker: {
       enabled: overrides.enabled !== false,
@@ -289,6 +289,17 @@ test("offline model, missing execute permission, or resource pressure leaves tas
   }
 });
 
+test("an unapproved verification gate cannot be executed even when the coding recipe exists", async (t) => {
+  const f = fixture(t);
+  f.project.gates.check.autopilotCodingSafe = false;
+  const task = f.enqueue();
+  await f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(f.journal.get(task.id, "repo").lastReason, "LOCAL_CODING_RECIPE_INVALID");
+  assert.equal(f.generated(), 0);
+  assert.equal(f.starts.length, 0);
+});
+
 test("disabled worker or absent local-processing consent cannot start coding", async (t) => {
   for (const options of [{ enabled: false }, { consent: false }]) {
     const f = fixture(t, options);
@@ -388,7 +399,7 @@ test("config requires explicit consent and keeps context files within the edit a
         id: "repo",
         root: "/tmp/repo",
         writable: true,
-        gates: { check: { command: "node", args: [], timeoutMs: 1000 } },
+        gates: { check: { command: "node", args: [], timeoutMs: 1000, autopilotCodingSafe: true } },
         autopilotCodingWorker: {
           enabled: true,
           localProcessingApproved: true,
@@ -405,6 +416,12 @@ test("config requires explicit consent and keeps context files within the edit a
     ],
   };
   assert.equal(agentSchema.safeParse(base).success, true);
+  const noSafeGate = structuredClone(base);
+  noSafeGate.projects[0].gates.check.autopilotCodingSafe = false;
+  assert.equal(agentSchema.safeParse(noSafeGate).success, false);
+  const missingExplicitGateApproval = structuredClone(base);
+  delete missingExplicitGateApproval.projects[0].gates.check.autopilotCodingSafe;
+  assert.equal(agentSchema.safeParse(missingExplicitGateApproval).success, false);
   const noConsent = structuredClone(base);
   noConsent.projects[0].autopilotCodingWorker.localProcessingApproved = false;
   assert.equal(agentSchema.safeParse(noConsent).success, false);
