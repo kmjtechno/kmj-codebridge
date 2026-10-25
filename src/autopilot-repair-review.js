@@ -7,6 +7,7 @@ import {
   parseRepairTask,
   verifyRepairCandidate,
 } from "./autopilot-repair-worker.js";
+import { parseCodingTask } from "./autopilot-coding-worker.js";
 
 const MAX_PREVIEW_CHARS = 24000;
 
@@ -19,7 +20,14 @@ export function reviewRepairCandidate({
   taskId,
   includePatch = false,
 }) {
-  if (!project?.writable || !project.autopilotRepairWorker?.recipes)
+  const repairRecipes = project?.autopilotRepairWorker?.recipes;
+  const codingConfig = project?.autopilotCodingWorker;
+  const codingRecipes =
+    codingConfig?.enabled === true &&
+    codingConfig?.localProcessingApproved === true
+      ? codingConfig.recipes
+      : null;
+  if (!project?.writable || (!repairRecipes && !codingRecipes))
     fail("AUTOPILOT_REPAIR_NOT_CONFIGURED");
   const task = journal.get(taskId, project.id);
   if (
@@ -28,8 +36,11 @@ export function reviewRepairCandidate({
     task.checkpoint?.next !== "VERIFIED_PATCH_AWAITING_REVIEW"
   )
     fail("AUTOPILOT_REPAIR_NOT_VERIFIED");
-  const spec = parseRepairTask(task.key, project.autopilotRepairWorker.recipes);
+  const repairSpec = repairRecipes ? parseRepairTask(task.key, repairRecipes) : null;
+  const codingSpec = codingRecipes ? parseCodingTask(task.key, codingRecipes) : null;
+  const spec = repairSpec ?? codingSpec;
   if (!spec) fail("AUTOPILOT_REPAIR_RECIPE_UNAVAILABLE");
+  const recipeConfig = repairSpec ? repairRecipes[spec.recipe] : codingRecipes[spec.recipe];
   let evidence;
   try {
     evidence = JSON.parse(task.checkpoint.summary);
@@ -38,7 +49,7 @@ export function reviewRepairCandidate({
   }
   if (
     evidence?.status !== "VERIFIED_PATCH_AWAITING_REVIEW" ||
-    !/^repair_[a-f0-9]{32}$/.test(evidence.laneId ?? "") ||
+    !/^(?:repair|coding)_[a-f0-9]{32}$/.test(evidence.laneId ?? "") ||
     evidence.expectedHead !== spec.expectedHead ||
     !Array.isArray(evidence.files) ||
     evidence.files.length > 20 ||
@@ -59,10 +70,7 @@ export function reviewRepairCandidate({
   )
     fail("AUTOPILOT_REPAIR_LANE_CHANGED");
   const lane = matches[0];
-  const patch = verifyRepairCandidate(
-    lane.path,
-    project.autopilotRepairWorker.recipes[spec.recipe].paths,
-  );
+  const patch = verifyRepairCandidate(lane.path, recipeConfig.paths);
   if (
     !patch ||
     patch.sha256 !== evidence.patchSha256 ||
@@ -101,10 +109,7 @@ export function reviewRepairCandidate({
         },
       },
     );
-    const refreshed = verifyRepairCandidate(
-      lane.path,
-      project.autopilotRepairWorker.recipes[spec.recipe].paths,
-    );
+    const refreshed = verifyRepairCandidate(lane.path, recipeConfig.paths);
     if (
       !refreshed ||
       refreshed.sha256 !== evidence.patchSha256 ||
@@ -135,6 +140,7 @@ export function reviewRepairCandidate({
     task: task.id,
     project: project.id,
     recipe: spec.recipe,
+    candidateType: repairSpec ? "deterministic-repair" : "local-first-code",
     laneId: evidence.laneId,
     expectedHead: spec.expectedHead,
     files: patch.files,
