@@ -17,8 +17,12 @@ configuration. It requires all of the following:
   administrator-approved **verifyGate**, an edit-path allowlist, and one
   to twelve exact tracked **contextPaths**. Every context path must also be in
   the edit allowlist.
-- The project must be writable. The verify gate must already exist in
-  administrator-owned project gates and must be a non-destructive test gate.
+- The project must be writable. Its named verification gate must be a
+  reviewed, non-destructive test gate in administrator-owned `gates`, with
+  **`autopilotCodingSafe: true` explicitly set on that gate**. The default is
+  `false`, so an arbitrary existing build, deployment, migration or shell
+  gate cannot become an autonomous coding verifier merely by being named.
+  Review the complete command/args and permissions before granting this flag.
 
 Example values (not a drop-in full agent configuration):
 
