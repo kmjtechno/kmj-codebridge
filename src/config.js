@@ -346,19 +346,20 @@ export const agentSchema = z.object({
                     "Local code generation requires explicit administrator consent",
                 });
               }
-              for (const [name, recipe] of Object.entries(worker.recipes)) {
-                if (
-                  new Set(recipe.contextPaths).size !==
-                  recipe.contextPaths.length
-                ) {
+              for (const [name, recipe] of Object.entries(worker.recipes ?? {})) {
+                const contextPaths = Array.isArray(recipe?.contextPaths)
+                  ? recipe.contextPaths
+                  : [];
+                const editPaths = Array.isArray(recipe?.paths) ? recipe.paths : [];
+                if (new Set(contextPaths).size !== contextPaths.length) {
                   ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["recipes", name, "contextPaths"],
                     message: "Context file paths must be unique",
                   });
                 }
-                for (const file of recipe.contextPaths) {
-                  const allowed = recipe.paths.some((entry) =>
+                for (const file of contextPaths) {
+                  const allowed = editPaths.some((entry) =>
                     entry.endsWith("/")
                       ? file.startsWith(entry)
                       : file === entry,
@@ -538,7 +539,7 @@ export const agentSchema = z.object({
               });
             }
             for (const [name, recipe] of Object.entries(
-              project.autopilotCodingWorker.recipes,
+              project.autopilotCodingWorker.recipes ?? {},
             )) {
               if (!Object.hasOwn(project.gates, recipe.verifyGate)) {
                 ctx.addIssue({
