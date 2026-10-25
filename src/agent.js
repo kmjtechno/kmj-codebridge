@@ -227,7 +227,13 @@ export async function startAgent(
     localModel,
     lanes: new WorktreeLanes(state),
   });
-  workers = [gateWorker, repairWorker, ciWatchWorker, localDraftWorker, codingWorker];
+  workers = [
+    gateWorker,
+    repairWorker,
+    ciWatchWorker,
+    localDraftWorker,
+    codingWorker,
+  ];
   const continuationBridge = startOptionalAutopilotContinuationBridge({
     journal: autopilot,
     stateDir: state,
