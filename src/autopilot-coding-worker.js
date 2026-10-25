@@ -352,7 +352,7 @@ export class LocalFirstCodingWorker {
             recipe = recipes[parsed.recipe];
           if (
             !recipe ||
-            !project.gates[recipe.verifyGate] ||
+            project.gates?.[recipe.verifyGate]?.autopilotCodingSafe !== true ||
             recipe.paths.some(
               (value) => !safeRelativePath(value.replace(/\/$/, "")),
             ) ||
@@ -531,7 +531,13 @@ export class LocalFirstCodingWorker {
           });
 
           try {
-            const gate = project.gates[recipe.verifyGate];
+            const gate = project.gates?.[recipe.verifyGate];
+            // Recheck after asynchronous local generation: even a previously
+            // valid recipe cannot launch a gate whose explicit approval was revoked.
+            if (gate?.autopilotCodingSafe !== true) {
+              wait("LOCAL_CODING_VERIFY_GATE_NOT_SAFE_REVIEW_REQUIRED");
+              continue;
+            }
             const job = this.runner.run({
               project: project.id,
               gate: recipe.verifyGate,
