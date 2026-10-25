@@ -216,11 +216,11 @@ test("coding worker applies a local patch only in a fresh exact-SHA lane and pau
   assert.notEqual(f.starts[0].cwd, f.root);
   assert.equal(git(f.starts[0].cwd, "rev-parse", "HEAD"), f.head);
   assert.equal(
-    fs.readFileSync(path.join(f.starts[0].cwd, "src", "app.js"), "utf8"),
+    fs.readFileSync(path.join(f.starts[0].cwd, "src", "app.js"), "utf8").replace(/\r\n/g, "\n"),
     "export const value = 2;\n",
   );
   assert.equal(
-    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8").replace(/\r\n/g, "\n"),
     "export const value = 1;\n",
   );
   assert.equal(fs.readFileSync(dirty, "utf8"), "preserve");
