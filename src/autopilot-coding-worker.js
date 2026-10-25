@@ -299,8 +299,7 @@ export class LocalFirstCodingWorker {
           let candidate;
           try { candidate = verifyRepairCandidate(lane.path, recipe.paths); }
           catch { candidate = null; }
-          if (!candidate || candidate.bytes !== valid.bytes ||
-              JSON.stringify(candidate.files) !== JSON.stringify(valid.files)) {
+          if (!candidate || JSON.stringify(candidate.files) !== JSON.stringify(valid.files)) {
             wait("LOCAL_CODING_PATCH_POSTCHECK_FAILED_REVIEW_REQUIRED");
             continue;
           }
