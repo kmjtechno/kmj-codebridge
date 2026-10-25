@@ -12,6 +12,27 @@ The account can see the Home Office project grant, but gateway reports `GATEWAY_
 2. Verify a private, fully installed CodeBridge Git release with Node 24+ and dependencies. Use a clean trusted runtime at an immutable reviewed SHA; do not execute a downloaded script from an untrusted folder.
 3. The original owner Calibration Pro Git checkout is `E:\KMJ\Codex\KMJ CalibrationNew`. Dirty/untracked user files are **never cleaned or reset**.
 
+## Public origin compatibility gate (prevents ghost grants)
+
+The newer enrollment CLI makes a credential-free, bounded HTTPS
+`GET /api/codebridge/v1/device-enrollments/readiness` request **before**
+`POST /api/codebridge/v1/device-enrollments`. A compatible,
+properly configured Main Platform responds with
+`{"pairing_config":"ready","protocol":2}`. A legacy live
+release returns HTTP 404 (`PAIRING_SERVER_FIX_NOT_LIVE`); an
+invalid/missing public-agent origin returns HTTP 503
+(`PAIRING_PUBLIC_ORIGIN_NOT_READY`). Both **block**
+creating a new device pairing, which prevents repeatedly producing orphan
+device grants. This check never sends credentials, changes an existing grant,
+enrolls a device, or proves a live gateway heartbeat. A successful probe
+means only server configuration compatibility; real owner authorization,
+one-time verifier-bound redemption and the private agent heartbeat still
+must finish before account-side READY can be claimed.
+
+The API probe must be deployed to the protected Main Platform release
+before upgrading Windows pairers to require it. Do not disable this gate
+to make an outdated server look compatible.
+
 ## One-click first pairing
 
 On the **Home Office PC**, not P720, double-click `scripts/windows/PAIR-HOMEOFFICE-CALIBRATION.cmd` in that trusted CodeBridge release, using the normal Windows account. Do not run Administrator.

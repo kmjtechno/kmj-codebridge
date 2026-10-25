@@ -7,6 +7,7 @@ import {
   beginDeviceEnrollment,
   pollDeviceEnrollment,
 } from "../src/enrollment.js";
+import { assertEnrollmentServerReady } from "../src/enrollment-readiness.js";
 
 const [base, device, projectId, projectRoot, output] = process.argv.slice(2);
 if (!base || !device || !projectId || !projectRoot || !output) {
@@ -30,6 +31,8 @@ try {
     },
     permissions: ["read", "write", "execute"],
   };
+  await assertEnrollmentServerReady(base);
+  console.log("ENROLLMENT_SERVER_COMPATIBILITY=PASS_NOT_DEVICE_READY");
   const handle = await beginDeviceEnrollment(base, request);
   console.log("ENROLLMENT_STAGE=REQUEST_CREATED");
   console.log("KMJ CodeBridge device approval required.");
