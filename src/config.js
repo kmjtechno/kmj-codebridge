@@ -298,7 +298,11 @@ export const agentSchema = z.object({
                               (value) =>
                                 !value.startsWith("/") &&
                                 !value.includes("\\") &&
-                                !value.split("/").some((part) => part === "." || part === ".."),
+                                !value
+                                  .split("/")
+                                  .some(
+                                    (part) => part === "." || part === "..",
+                                  ),
                               "Safe relative edit path required",
                             ),
                         )
@@ -313,7 +317,11 @@ export const agentSchema = z.object({
                               (value) =>
                                 !value.startsWith("/") &&
                                 !value.includes("\\") &&
-                                !value.split("/").some((part) => part === "." || part === ".."),
+                                !value
+                                  .split("/")
+                                  .some(
+                                    (part) => part === "." || part === "..",
+                                  ),
                               "Safe exact relative context file required",
                             ),
                         )
@@ -334,11 +342,15 @@ export const agentSchema = z.object({
                 ctx.addIssue({
                   code: z.ZodIssueCode.custom,
                   path: ["localProcessingApproved"],
-                  message: "Local code generation requires explicit administrator consent",
+                  message:
+                    "Local code generation requires explicit administrator consent",
                 });
               }
               for (const [name, recipe] of Object.entries(worker.recipes)) {
-                if (new Set(recipe.contextPaths).size !== recipe.contextPaths.length) {
+                if (
+                  new Set(recipe.contextPaths).size !==
+                  recipe.contextPaths.length
+                ) {
                   ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["recipes", name, "contextPaths"],
@@ -347,13 +359,16 @@ export const agentSchema = z.object({
                 }
                 for (const file of recipe.contextPaths) {
                   const allowed = recipe.paths.some((entry) =>
-                    entry.endsWith("/") ? file.startsWith(entry) : file === entry,
+                    entry.endsWith("/")
+                      ? file.startsWith(entry)
+                      : file === entry,
                   );
                   if (!allowed) {
                     ctx.addIssue({
                       code: z.ZodIssueCode.custom,
                       path: ["recipes", name, "contextPaths"],
-                      message: "Every context file must be within the edit allowlist",
+                      message:
+                        "Every context file must be within the edit allowlist",
                     });
                     break;
                   }
@@ -518,15 +533,24 @@ export const agentSchema = z.object({
               ctx.addIssue({
                 code: z.ZodIssueCode.custom,
                 path: ["autopilotCodingWorker", "enabled"],
-                message: "Local-first coding requires a writable isolated project",
+                message:
+                  "Local-first coding requires a writable isolated project",
               });
             }
-            for (const [name, recipe] of Object.entries(project.autopilotCodingWorker.recipes)) {
+            for (const [name, recipe] of Object.entries(
+              project.autopilotCodingWorker.recipes,
+            )) {
               if (!Object.hasOwn(project.gates, recipe.verifyGate)) {
                 ctx.addIssue({
                   code: z.ZodIssueCode.custom,
-                  path: ["autopilotCodingWorker", "recipes", name, "verifyGate"],
-                  message: "Coding recipe requires an existing administrator-approved verification gate",
+                  path: [
+                    "autopilotCodingWorker",
+                    "recipes",
+                    name,
+                    "verifyGate",
+                  ],
+                  message:
+                    "Coding recipe requires an existing administrator-approved verification gate",
                 });
               }
             }
