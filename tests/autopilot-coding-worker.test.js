@@ -290,6 +290,7 @@ test("out-of-allowlist patch is rejected without applying or running the verific
     "LOCAL_CODING_PATCH_REJECTED_REVIEW_REQUIRED",
   );
   assert.equal(f.starts.length, 0);
+  assert.equal(f.lanes.status("repo", f.root).lanes.length, 0);
   assert.equal(
     fs.readFileSync(path.join(f.root, "README.md"), "utf8"),
     "preserve this file\n",
