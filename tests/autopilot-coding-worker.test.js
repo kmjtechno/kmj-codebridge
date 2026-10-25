@@ -256,6 +256,20 @@ test("coding worker applies a local patch only in a fresh exact-SHA lane and pau
   assert.equal(f.starts.length, 1);
 });
 
+test("stale exact SHA is rejected before local model generation", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue("auto-code:feature:" + "b".repeat(40));
+  await f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "LOCAL_CODING_LANE_PREPARATION_FAILED",
+  );
+  assert.equal(f.generated(), 0);
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.lanes.status("repo", f.root).lanes.length, 0);
+});
+
 test("offline model, missing execute permission, or resource pressure leaves task queued", async (t) => {
   for (const options of [
     { offline: true },
@@ -302,17 +316,23 @@ test("out-of-allowlist patch is rejected without applying or running the verific
 });
 
 test("incomplete or failed model generation is paused and never silently retried after a checkpoint", async (t) => {
-  const f = fixture(t, {
-    generated: { response: PATCH, truncated: true, hitTokenLimit: false },
-  });
-  const task = f.enqueue();
-  await f.worker.tick();
-  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
-  assert.equal(
-    f.journal.get(task.id, "repo").lastReason,
-    "LOCAL_CODING_OUTPUT_INCOMPLETE_REVIEW_REQUIRED",
-  );
-  assert.equal(f.starts.length, 0);
+  for (const options of [
+    { generated: { response: PATCH, truncated: true, hitTokenLimit: false } },
+    { generationFails: true },
+  ]) {
+    const f = fixture(t, options);
+    const task = f.enqueue();
+    await f.worker.tick();
+    assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+    assert.equal(
+      f.journal.get(task.id, "repo").lastReason,
+      options.generationFails
+        ? "LOCAL_CODING_GENERATION_FAILED_REVIEW_REQUIRED"
+        : "LOCAL_CODING_OUTPUT_INCOMPLETE_REVIEW_REQUIRED",
+    );
+    assert.equal(f.starts.length, 0);
+    assert.equal(f.lanes.status("repo", f.root).lanes.length, 0);
+  }
 });
 
 test("restart/resume with an existing coding checkpoint never replays model generation", async (t) => {
@@ -332,6 +352,20 @@ test("restart/resume with an existing coding checkpoint never replays model gene
     f.journal.get(task.id, "repo").lastReason,
     "PREVIOUS_LOCAL_CODING_REQUIRES_REVIEW",
   );
+});
+
+test("failed verification gate leaves the candidate unpublishable", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  await f.worker.tick();
+  f.jobs.get("job-1").state = "failed";
+  f.jobs.get("job-1").exitCode = 1;
+  await f.worker.tick();
+  const result = f.journal.get(task.id, "repo");
+  assert.equal(result.state, "waiting");
+  assert.equal(result.lastReason, "LOCAL_CODE_VERIFY_FAILED_REVIEW_REQUIRED");
+  assert.notEqual(result.lastReason, "VERIFIED_PATCH_AWAITING_REVIEW");
+  assert.equal(fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"), "export const value = 1;\n");
 });
 
 test("config requires explicit consent and keeps context files within the edit allowlist", () => {
