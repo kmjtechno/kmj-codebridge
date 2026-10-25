@@ -316,7 +316,6 @@ export class LocalFirstCodingWorker {
             continue;
           }
 
-          const modelUsage = localModelReceipt(config.model, "autopilot_coding_worker");
           const evidence = {
             status: "LOCAL_CODE_VERIFY_RUNNING", laneId, expectedHead: parsed.expectedHead,
             files: candidate.files, patchBytes: candidate.bytes, patchSha256: candidate.sha256,
