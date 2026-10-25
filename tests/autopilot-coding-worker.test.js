@@ -353,4 +353,10 @@ test("config requires explicit consent and keeps context files within the edit a
     "README.md",
   ];
   assert.equal(agentSchema.safeParse(outside).success, false);
+  const missingGate = structuredClone(base);
+  missingGate.projects[0].autopilotCodingWorker.recipes.feature.verifyGate = "missing";
+  assert.equal(agentSchema.safeParse(missingGate).success, false);
+  const missingRecipes = structuredClone(base);
+  delete missingRecipes.projects[0].autopilotCodingWorker.recipes;
+  assert.equal(agentSchema.safeParse(missingRecipes).success, false);
 });
