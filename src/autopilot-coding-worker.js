@@ -382,6 +382,19 @@ export class LocalFirstCodingWorker {
             continue;
           }
 
+          const releaseLaneIfPristine = () => {
+            try {
+              const entry = this.lanes
+                .status(project.id, project.root)
+                .lanes.find((item) => item.laneId === laneId);
+              if (entry && entry.head === parsed.expectedHead && !entry.dirty) {
+                this.lanes.cleanup(project.id, project.root, laneId, parsed.expectedHead);
+              }
+            } catch {
+              // Never remove a lane unless the lane manager proves it is pristine.
+            }
+          };
+
           // Durable no-replay fence before model generation or file mutation.
           this.journal.checkpoint(task.id, project.id, {
             summary: JSON.stringify({
@@ -397,6 +410,7 @@ export class LocalFirstCodingWorker {
           try {
             context = readContext(lane.path, recipe);
           } catch {
+            releaseLaneIfPristine();
             wait("LOCAL_CODING_CONTEXT_REJECTED_REVIEW_REQUIRED");
             continue;
           }
@@ -423,6 +437,7 @@ export class LocalFirstCodingWorker {
               timeoutSeconds: config.timeoutSeconds,
             });
           } catch {
+            releaseLaneIfPristine();
             wait("LOCAL_CODING_GENERATION_FAILED_REVIEW_REQUIRED");
             continue;
           }
@@ -447,6 +462,7 @@ export class LocalFirstCodingWorker {
             generated.hitTokenLimit ||
             generated.truncated
           ) {
+            releaseLaneIfPristine();
             wait("LOCAL_CODING_OUTPUT_INCOMPLETE_REVIEW_REQUIRED");
             continue;
           }
@@ -456,6 +472,7 @@ export class LocalFirstCodingWorker {
             existingPaths: context.existingPaths,
           });
           if (!valid) {
+            releaseLaneIfPristine();
             wait("LOCAL_CODING_PATCH_REJECTED_REVIEW_REQUIRED");
             continue;
           }
@@ -470,6 +487,7 @@ export class LocalFirstCodingWorker {
             git(lane.path, ["apply"], Buffer.from(generated.response));
             verifyBaseHead(lane.path, parsed.expectedHead);
           } catch {
+            releaseLaneIfPristine();
             wait("LOCAL_CODING_PATCH_APPLY_FAILED_REVIEW_REQUIRED");
             continue;
           }
