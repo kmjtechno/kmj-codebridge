@@ -14,6 +14,7 @@ import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
 import { startGitHubCiWatchWorker } from "./autopilot-ci-watch-worker.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
+import { startLocalFirstCodingWorker } from "./autopilot-coding-worker.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
 import {
@@ -216,7 +217,17 @@ export async function startAgent(
     localModel,
     runner,
   });
-  workers = [gateWorker, repairWorker, ciWatchWorker, localDraftWorker];
+  const codingWorker = startLocalFirstCodingWorker({
+    activity,
+    canStart: () => activity.canStart(),
+    projects: c.projects,
+    journal: autopilot,
+    runner,
+    licenseProvider,
+    localModel,
+    lanes: new WorktreeLanes(state),
+  });
+  workers = [gateWorker, repairWorker, ciWatchWorker, localDraftWorker, codingWorker];
   const continuationBridge = startOptionalAutopilotContinuationBridge({
     journal: autopilot,
     stateDir: state,
@@ -230,6 +241,7 @@ export async function startAgent(
     repair: repairWorker.enabledProjects,
     githubCiWatch: ciWatchWorker.enabledProjects,
     localDraft: localDraftWorker.enabledProjects,
+    coding: codingWorker.enabledProjects,
     continuation: continuationBridge.projects,
     continuationStatus: (project) => continuationBridge.status(project),
     get agentRunning() {
