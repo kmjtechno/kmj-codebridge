@@ -365,7 +365,10 @@ test("failed verification gate leaves the candidate unpublishable", async (t) =>
   assert.equal(result.state, "waiting");
   assert.equal(result.lastReason, "LOCAL_CODE_VERIFY_FAILED_REVIEW_REQUIRED");
   assert.notEqual(result.lastReason, "VERIFIED_PATCH_AWAITING_REVIEW");
-  assert.equal(fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"), "export const value = 1;\n");
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    "export const value = 1;\n",
+  );
 });
 
 test("config requires explicit consent and keeps context files within the edit allowlist", () => {
