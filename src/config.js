@@ -346,11 +346,15 @@ export const agentSchema = z.object({
                     "Local code generation requires explicit administrator consent",
                 });
               }
-              for (const [name, recipe] of Object.entries(worker.recipes ?? {})) {
+              for (const [name, recipe] of Object.entries(
+                worker.recipes ?? {},
+              )) {
                 const contextPaths = Array.isArray(recipe?.contextPaths)
                   ? recipe.contextPaths
                   : [];
-                const editPaths = Array.isArray(recipe?.paths) ? recipe.paths : [];
+                const editPaths = Array.isArray(recipe?.paths)
+                  ? recipe.paths
+                  : [];
                 if (new Set(contextPaths).size !== contextPaths.length) {
                   ctx.addIssue({
                     code: z.ZodIssueCode.custom,
