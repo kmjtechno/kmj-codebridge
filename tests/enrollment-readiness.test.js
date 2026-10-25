@@ -9,7 +9,10 @@ test("new Main Platform explicitly advertises compatible config without device r
   const result = await assertEnrollmentServerReady(base, {
     fetch: async (url, opts) => {
       calls += 1;
-      assert.equal(String(url), base + "/api/codebridge/v1/device-enrollments/readiness");
+      assert.equal(
+        String(url),
+        base + "/api/codebridge/v1/device-enrollments/readiness",
+      );
       assert.equal(opts.method, "GET");
       assert.equal(opts.redirect, "error");
       assert.equal(opts.body, undefined);
@@ -38,7 +41,10 @@ test("missing origin and service gate fail closed without parsing private body",
     await assert.rejects(
       assertEnrollmentServerReady(base, {
         fetch: async () =>
-          Response.json({ token: "SECRET_IGNORE", device_code: "SECRET_IGNORE" }, { status }),
+          Response.json(
+            { token: "SECRET_IGNORE", device_code: "SECRET_IGNORE" },
+            { status },
+          ),
       }),
       (e) => e.code === code && !String(e.message).includes("SECRET_IGNORE"),
     );
@@ -47,13 +53,18 @@ test("missing origin and service gate fail closed without parsing private body",
 
 test("readiness schema is strict and does not equate config with online agent", async () => {
   for (const payload of [
-    {}, null, [], { pairing_config: "ready" },
+    {},
+    null,
+    [],
+    { pairing_config: "ready" },
     { pairing_config: "ready", protocol: 1 },
     { pairing_config: "unavailable", protocol: 2 },
     { pairing_config: true, protocol: 2 },
   ]) {
     await assert.rejects(
-      assertEnrollmentServerReady(base, { fetch: async () => Response.json(payload) }),
+      assertEnrollmentServerReady(base, {
+        fetch: async () => Response.json(payload),
+      }),
       (e) => e.code === "PAIRING_READINESS_SCHEMA",
     );
   }
@@ -80,9 +91,13 @@ test("preflight rejects untrusted origins before network contact", async () => {
 test("network errors and empty or oversized bodies return bounded safe categories", async () => {
   await assert.rejects(
     assertEnrollmentServerReady(base, {
-      fetch: async () => { throw new Error("SECRET_INTERNAL_ROUTE"); },
+      fetch: async () => {
+        throw new Error("SECRET_INTERNAL_ROUTE");
+      },
     }),
-    (e) => e.code === "PAIRING_READINESS_NETWORK" && !String(e.message).includes("SECRET"),
+    (e) =>
+      e.code === "PAIRING_READINESS_NETWORK" &&
+      !String(e.message).includes("SECRET"),
   );
   await assert.rejects(
     assertEnrollmentServerReady(base, {
@@ -92,7 +107,8 @@ test("network errors and empty or oversized bodies return bounded safe categorie
   );
   await assert.rejects(
     assertEnrollmentServerReady(base, {
-      fetch: async () => new Response(JSON.stringify({ notes: "X".repeat(3000) })),
+      fetch: async () =>
+        new Response(JSON.stringify({ notes: "X".repeat(3000) })),
     }),
     (e) => e.code === "PAIRING_READINESS_SCHEMA",
   );
