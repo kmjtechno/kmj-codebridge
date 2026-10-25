@@ -262,6 +262,9 @@ export const agentSchema = z.object({
                 command: z.string().min(1),
                 args: z.array(z.string()).default([]),
                 timeoutMs: z.number().int().min(10).max(300000).default(30000),
+                // Default-deny: opt in only a reviewed, non-destructive test gate.
+                // This is not the generic execute permission for project gates.
+                autopilotCodingSafe: z.boolean().default(false),
               }),
             )
             .default({}),
@@ -549,7 +552,8 @@ export const agentSchema = z.object({
                 !recipe ||
                 typeof recipe !== "object" ||
                 typeof recipe.verifyGate !== "string" ||
-                !Object.hasOwn(project.gates, recipe.verifyGate)
+                !Object.hasOwn(project.gates, recipe.verifyGate) ||
+                project.gates[recipe.verifyGate]?.autopilotCodingSafe !== true
               ) {
                 ctx.addIssue({
                   code: z.ZodIssueCode.custom,
@@ -560,7 +564,7 @@ export const agentSchema = z.object({
                     "verifyGate",
                   ],
                   message:
-                    "Coding recipe requires an existing administrator-approved verification gate",
+                    "Coding recipe requires a gate explicitly marked autopilotCodingSafe after non-destructive command review",
                 });
               }
             }
