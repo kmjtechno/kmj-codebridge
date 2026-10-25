@@ -125,7 +125,11 @@ function fixture(t, overrides = {}) {
     },
   };
   const licenseProvider = () => ({
-    features: overrides.noExecute ? ["read", "write"] : ["execute"],
+    features: overrides.noExecute
+      ? ["read", "write"]
+      : overrides.noWrite
+        ? ["read", "execute"]
+        : ["write", "execute"],
     limits: { concurrent_jobs: 1 },
   });
   const makeWorker = () =>
