@@ -162,6 +162,20 @@ function fixture(t, overrides = {}) {
   };
 }
 
+test("patch validator allows code-fence text inside an otherwise valid source diff", () => {
+  const patch = PATCH.replace(
+    "+export const value = 2;",
+    "+export const value = 2; // " + String.fromCharCode(96).repeat(3),
+  );
+  assert.ok(
+    validateCodingPatch(patch, {
+      paths: ["src/"],
+      contextPaths: ["src/app.js"],
+      existingPaths: new Set(["src/app.js"]),
+    }),
+  );
+});
+
 test("task parser requires configured recipe and full immutable SHA", () => {
   assert.deepEqual(
     parseCodingTask("auto-code:feature:" + HEAD, { feature: {} }),
