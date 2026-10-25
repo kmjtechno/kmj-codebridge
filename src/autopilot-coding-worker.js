@@ -311,7 +311,11 @@ export class LocalFirstCodingWorker {
           )
             continue;
           const entitlement = this.licenseProvider();
-          if (!entitlement.features.includes("execute")) continue;
+          if (
+            !entitlement.features.includes("write") ||
+            !entitlement.features.includes("execute")
+          )
+            continue;
           this.runner.maxConcurrent = entitlement.limits.concurrent_jobs;
           const capacity = this.runner.capacity(project.root);
           if (
