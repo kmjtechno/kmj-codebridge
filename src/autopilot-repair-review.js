@@ -36,11 +36,17 @@ export function reviewRepairCandidate({
     task.checkpoint?.next !== "VERIFIED_PATCH_AWAITING_REVIEW"
   )
     fail("AUTOPILOT_REPAIR_NOT_VERIFIED");
-  const repairSpec = repairRecipes ? parseRepairTask(task.key, repairRecipes) : null;
-  const codingSpec = codingRecipes ? parseCodingTask(task.key, codingRecipes) : null;
+  const repairSpec = repairRecipes
+    ? parseRepairTask(task.key, repairRecipes)
+    : null;
+  const codingSpec = codingRecipes
+    ? parseCodingTask(task.key, codingRecipes)
+    : null;
   const spec = repairSpec ?? codingSpec;
   if (!spec) fail("AUTOPILOT_REPAIR_RECIPE_UNAVAILABLE");
-  const recipeConfig = repairSpec ? repairRecipes[spec.recipe] : codingRecipes[spec.recipe];
+  const recipeConfig = repairSpec
+    ? repairRecipes[spec.recipe]
+    : codingRecipes[spec.recipe];
   let evidence;
   try {
     evidence = JSON.parse(task.checkpoint.summary);
