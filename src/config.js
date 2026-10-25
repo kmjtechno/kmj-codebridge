@@ -513,6 +513,24 @@ export const agentSchema = z.object({
               message:
                 "CI watch needs a writable project and enabled repair recipe",
             });
+          if (project.autopilotCodingWorker?.enabled) {
+            if (!project.writable) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["autopilotCodingWorker", "enabled"],
+                message: "Local-first coding requires a writable isolated project",
+              });
+            }
+            for (const [name, recipe] of Object.entries(project.autopilotCodingWorker.recipes)) {
+              if (!Object.hasOwn(project.gates, recipe.verifyGate)) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["autopilotCodingWorker", "recipes", name, "verifyGate"],
+                  message: "Coding recipe requires an existing administrator-approved verification gate",
+                });
+              }
+            }
+          }
         })
         .transform((project) => ({
           ...project,
