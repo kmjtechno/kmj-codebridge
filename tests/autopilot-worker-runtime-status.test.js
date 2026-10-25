@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createDispatcher, definitions } from "../src/tools.js";
 import { AutopilotJournal } from "../src/autopilot.js";
 
-function fixture(t, workerSource) {
+function fixture(t, workerSource, codingConfigured = false) {
   const base = fs.mkdtempSync(
     path.join(os.tmpdir(), "codebridge-worker-status-"),
   );
@@ -27,7 +27,7 @@ function fixture(t, workerSource) {
         autopilotRepairWorker: { enabled: true, recipes: {} },
         autopilotCiWatch: { enabled: true },
         autopilotLocalWorker: { enabled: false },
-        autopilotCodingWorker: { enabled: true, localProcessingApproved: true, model: "qwen3:4b", recipes: {} },
+        ...(codingConfigured ? { autopilotCodingWorker: { enabled: true, localProcessingApproved: true, model: "qwen3:4b", recipes: {} } } : {}),
       },
     ],
   };
@@ -60,7 +60,7 @@ test("runtime status shows started loops distinctly from configuration", async (
     coding: ["project1"],
     agentRunning: true,
     token: "hidden-token-not-for-output",
-  }));
+  }), true);
   const r = await f.dispatch(
     "autopilot_worker_runtime_status",
     { device: "device1", project: "project1" },
