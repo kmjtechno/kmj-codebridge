@@ -274,6 +274,93 @@ export const agentSchema = z.object({
             })
             .strict()
             .optional(),
+          autopilotCodingWorker: z
+            .object({
+              enabled: z.boolean().default(false),
+              // Explicit administrator consent is mandatory before local source
+              // files can be sent to the already-running loopback model.
+              localProcessingApproved: z.boolean().default(false),
+              model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
+              maxTokens: z.number().int().min(64).max(512).default(384),
+              timeoutSeconds: z.number().int().min(5).max(90).default(45),
+              recipes: z
+                .record(
+                  z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+                  z
+                    .object({
+                      verifyGate: id,
+                      paths: z
+                        .array(
+                          z
+                            .string()
+                            .regex(/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?$/)
+                            .refine(
+                              (value) =>
+                                !value.startsWith("/") &&
+                                !value.includes("\\") &&
+                                !value.split("/").some((part) => part === "." || part === ".."),
+                              "Safe relative edit path required",
+                            ),
+                        )
+                        .min(1)
+                        .max(20),
+                      contextPaths: z
+                        .array(
+                          z
+                            .string()
+                            .regex(/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/)
+                            .refine(
+                              (value) =>
+                                !value.startsWith("/") &&
+                                !value.includes("\\") &&
+                                !value.split("/").some((part) => part === "." || part === ".."),
+                              "Safe exact relative context file required",
+                            ),
+                        )
+                        .min(1)
+                        .max(12),
+                    })
+                    .strict(),
+                )
+                .refine(
+                  (recipes) =>
+                    Object.keys(recipes).length > 0 &&
+                    Object.keys(recipes).length <= 8,
+                ),
+            })
+            .strict()
+            .superRefine((worker, ctx) => {
+              if (worker.enabled && worker.localProcessingApproved !== true) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["localProcessingApproved"],
+                  message: "Local code generation requires explicit administrator consent",
+                });
+              }
+              for (const [name, recipe] of Object.entries(worker.recipes)) {
+                if (new Set(recipe.contextPaths).size !== recipe.contextPaths.length) {
+                  ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["recipes", name, "contextPaths"],
+                    message: "Context file paths must be unique",
+                  });
+                }
+                for (const file of recipe.contextPaths) {
+                  const allowed = recipe.paths.some((entry) =>
+                    entry.endsWith("/") ? file.startsWith(entry) : file === entry,
+                  );
+                  if (!allowed) {
+                    ctx.addIssue({
+                      code: z.ZodIssueCode.custom,
+                      path: ["recipes", name, "contextPaths"],
+                      message: "Every context file must be within the edit allowlist",
+                    });
+                    break;
+                  }
+                }
+              }
+            })
+            .optional(),
           autopilotCiWatch: z
             .object({
               enabled: z.boolean().default(false),
