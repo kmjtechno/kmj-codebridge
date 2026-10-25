@@ -1661,7 +1661,7 @@ export const definitions = {
   autopilot_repair_candidate: {
     title: "Review SHA-verified isolated repair candidate",
     description:
-      "Read only: verify a previously completed repair gate checkpoint, exact detached worktree, safe allowed file diff, SHA-256 and redacted optional preview. Never applies, commits, publishes or deploys a patch.",
+      "Read only: verify a previously completed deterministic repair or local-first coding checkpoint, exact detached worktree, safe allowlisted diff, SHA-256 and optional redacted preview. Never applies, commits, publishes or deploys a patch.",
     input: {
       ...scoped,
       task: identifier,
@@ -1672,7 +1672,7 @@ export const definitions = {
   autopilot_worker_runtime_status: {
     title: "Read real agent worker startup status",
     description:
-      "Report configured versus actually started long-running CodeBridge gate, isolated repair, GitHub CI watcher and offline draft worker loops for this enrolled project. No secrets, tokens, commands or false deployment claims.",
+      "Report configured versus actually started CodeBridge gate, isolated repair, GitHub CI watcher, offline draft and local-first coding worker loops for this enrolled project. No secrets, tokens, commands or false deployment claims.",
     input: scoped,
     access: "read",
   },
@@ -2224,6 +2224,8 @@ export function createDispatcher(
                   repair: p.autopilotRepairWorker?.enabled === true,
                   githubCiWatch: p.autopilotCiWatch?.enabled === true,
                   localDraft: p.autopilotLocalWorker?.enabled === true,
+                  coding: p.autopilotCodingWorker?.enabled === true &&
+                    p.autopilotCodingWorker?.localProcessingApproved === true,
                 },
                 workerStarted:
                   typeof workerRuntimeSource === "function"
@@ -2232,7 +2234,7 @@ export function createDispatcher(
                         if (!observed || observed.agentRunning !== true)
                           return null;
                         return Object.fromEntries(
-                          ["gate", "repair", "githubCiWatch", "localDraft"].map(
+                          ["gate", "repair", "githubCiWatch", "localDraft", "coding"].map(
                             (kind) => [
                               kind,
                               Array.isArray(observed[kind])
@@ -3065,6 +3067,12 @@ export function createDispatcher(
           localDraft: {
             configured: p.autopilotLocalWorker?.enabled === true,
             loopStarted: observed("localDraft"),
+          },
+          coding: {
+            configured: p.autopilotCodingWorker?.enabled === true &&
+              p.autopilotCodingWorker?.localProcessingApproved === true,
+            localProcessingApproved: p.autopilotCodingWorker?.localProcessingApproved === true,
+            loopStarted: observed("coding"),
           },
         },
         note: "Loop started is not evidence of successful CI polling, a completed fix, service uptime or deployment.",
