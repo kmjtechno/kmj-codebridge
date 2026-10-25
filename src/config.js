@@ -541,7 +541,12 @@ export const agentSchema = z.object({
             for (const [name, recipe] of Object.entries(
               project.autopilotCodingWorker.recipes ?? {},
             )) {
-              if (!Object.hasOwn(project.gates, recipe.verifyGate)) {
+              if (
+                !recipe ||
+                typeof recipe !== "object" ||
+                typeof recipe.verifyGate !== "string" ||
+                !Object.hasOwn(project.gates, recipe.verifyGate)
+              ) {
                 ctx.addIssue({
                   code: z.ZodIssueCode.custom,
                   path: [
