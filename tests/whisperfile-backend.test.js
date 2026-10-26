@@ -57,7 +57,10 @@ test("approved WAV bytes only, multipart inference, untrusted transcript", async
   const { port, hits } = await serverFor(t, (req, res) => {
     assert.equal(req.url, "/inference");
     assert.equal(req.method, "POST");
-    assert.match(req.headers["content-type"], /^multipart\/form-data; boundary=kmj-/);
+    assert.match(
+      req.headers["content-type"],
+      /^multipart\/form-data; boundary=kmj-/,
+    );
     const received = [];
     req.on("data", (chunk) => received.push(chunk));
     req.on("end", () => {
@@ -148,10 +151,15 @@ test("refuses redirect and invalid transcriptions without external calls", async
 test("one local transcription in flight, lease releases safely", async (t) => {
   let signalStarted;
   let finish;
-  const started = new Promise((done) => { signalStarted = done; });
-  const gate = new Promise((done) => { finish = done; });
+  const started = new Promise((done) => {
+    signalStarted = done;
+  });
+  const gate = new Promise((done) => {
+    finish = done;
+  });
   const { port } = await serverFor(t, async (req, res) => {
-    for await (const _chunk of req) {}
+    for await (const _chunk of req) {
+    }
     signalStarted();
     await gate;
     json(res, { text: "ready" });
