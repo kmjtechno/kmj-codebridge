@@ -294,7 +294,7 @@ test("Browsentic local preparation is opt-in and cannot silently change owner en
   ]) {
     assert.ok(script.includes(marker), marker);
   }
-  assert.match(script, /"browsentic":"0\\.9\\.0"/);
+  assert.ok(script.includes('"browsentic":"0.9.0"'));
   assert.match(script, /--ignore-scripts/);
   assert.doesNotMatch(
     script,
