@@ -1380,8 +1380,11 @@ export async function startGateway(rawConfig) {
             }
           },
         );
-      if (config.oauth)
-        mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
+      // Use one canonical public JSON-Schema converter in both OAuth and
+      // non-OAuth modes. SDK default discovery on Zod v4 omits
+      // additionalProperties:false, whereas the protected origin publishes
+      // the closed contract. Keep authorization and handlers unchanged.
+      mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
           tools: Object.entries(allDefinitions).map(([name, d]) => {
             const input = normalizeObjectSchema(d.input);
             const security = toolSecurityMeta(config.oauth, d.access);
@@ -1395,9 +1398,9 @@ export async function startGateway(rawConfig) {
                     pipeStrategy: "input",
                   })
                 : { type: "object", properties: {} },
-              // Keep the public tools/list icon consistent with serverInfo
-              // and the registered tool even when the SDK omits tool icons.
-              icons: clientIcons,
+              // Preserve legacy non-OAuth discovery presentation while
+              // keeping owner-approved icons on the protected customer path.
+              ...(config.oauth ? { icons: clientIcons } : {}),
               annotations: {
                 title: d.title,
                 readOnlyHint: d.access === "read",
@@ -1406,7 +1409,7 @@ export async function startGateway(rawConfig) {
                 openWorldHint:
                   name === "run_quality_gate" || name.startsWith("github_"),
               },
-              ...(name === "render_codebridge_status"
+              ...(config.oauth && name === "render_codebridge_status"
                 ? {
                     _meta: {
                       ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
