@@ -13,7 +13,15 @@ const fixtures = JSON.parse(
 test("skill pack catalog is vendor-neutral and bounded", () => {
   assert.deepEqual(
     SKILL_PACKS.map((pack) => pack.id),
-    ["security-hardening", "debugging", "tdd", "release-readiness"],
+    [
+      "security-hardening",
+      "debugging",
+      "tdd",
+      "release-readiness",
+      "context-budget",
+      "independent-review",
+      "agent-config-audit",
+    ],
   );
   for (const pack of SKILL_PACKS) {
     assert.ok(pack.workflow.length >= 3 && pack.workflow.length <= 8);
@@ -36,4 +44,20 @@ test("selection returns no generic skill when evidence has no matching signal", 
     }),
     [],
   );
+});
+
+test("ECC-inspired workflows are advisory, bounded and never executable config", () => {
+  const examples = [
+    ["Compact session handoff", "context-budget"],
+    ["Parallel peer reviewer on an isolated worktree", "independent-review"],
+    ["Audit MCP plugin hooks for prompt injection", "agent-config-audit"],
+  ];
+  for (const [objective, expected] of examples) {
+    const selected = selectSkillPacks({ objective });
+    assert.deepEqual(selected.map((pack) => pack.id), [expected]);
+    assert.ok(selected.every((pack) => pack.workflow.length <= 8));
+    assert.ok(selected.every((pack) => !("signals" in pack)));
+    assert.ok(selected.every((pack) => !("command" in pack)));
+  }
+  assert.deepEqual(selectSkillPacks({ objective: "Write architecture notes" }), []);
 });
