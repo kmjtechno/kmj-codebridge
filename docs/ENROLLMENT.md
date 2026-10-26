@@ -171,6 +171,15 @@ Main Platform version exposes and verifies them end-to-end.
 ## Installer persistence and update policy
 
 - Fresh configuration is created mode 0600.
+- Before requesting owner approval, the Node enrollment CLI exclusively reserves
+  the intended private output (`wx`), checks its existing file identity, and
+  rejects missing/unwritable parents or existing credentials without redeeming
+  a one-time server grant. A denied/expired/failed request cleans the empty
+  reservation. Successful redemption writes and fsyncs the same descriptor;
+  a conflicting path replacement fails closed. A crash can leave an empty or
+  partial reserved file requiring owner-supervised cleanup, not a silent retry.
+  Windows privacy additionally depends on the selected parent directory ACL;
+  POSIX mode 0600 alone does not assert Windows ACL isolation.
 - Existing valid credentials and project bindings are preserved on rerun; the configured agent gateway may be repaired to the requested production gateway without re-pairing.
 - Invalid existing configuration is never silently overwritten.
 - Runtime updates are staged in a new directory.

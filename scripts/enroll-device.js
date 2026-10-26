@@ -8,6 +8,7 @@ import {
   pollDeviceEnrollment,
 } from "../src/enrollment.js";
 import { assertEnrollmentServerReady } from "../src/enrollment-readiness.js";
+import { reserveEnrollmentOutput } from "../src/enrollment-output.js";
 
 const [base, device, projectId, projectRoot, output] = process.argv.slice(2);
 if (!base || !device || !projectId || !projectRoot || !output) {
@@ -16,6 +17,7 @@ if (!base || !device || !projectId || !projectRoot || !output) {
   );
   process.exit(2);
 }
+let reservedOutput;
 try {
   const root = fs.realpathSync(projectRoot);
   const request = {
@@ -31,6 +33,9 @@ try {
     },
     permissions: ["read", "write", "execute"],
   };
+  // Reserve before sending a one-time approval request. A missing, occupied,
+  // or unwritable destination must fail without consuming a device grant.
+  reservedOutput = reserveEnrollmentOutput(output);
   await assertEnrollmentServerReady(base);
   console.log("ENROLLMENT_SERVER_COMPATIBILITY=PASS_NOT_DEVICE_READY");
   const handle = await beginDeviceEnrollment(base, request);
@@ -58,27 +63,18 @@ try {
   if (!approved) throw Error("ENROLLMENT_EXPIRED");
   console.log("ENROLLMENT_STAGE=APPROVAL_RECEIVED");
 
-  const parent = fs.realpathSync(path.dirname(path.resolve(output)));
-  const target = path.join(parent, path.basename(output));
-  const fd = fs.openSync(target, "wx", 0o600);
-  try {
-    fs.writeFileSync(
-      fd,
-      JSON.stringify({
-        gateway: approved.gateway ?? null,
-        agent: approved.agent,
-        projects: approved.projects,
-        permissions: approved.permissions,
-        credential_expires_at: approved.credential_expires_at ?? null,
-      }) + "\n",
-    );
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
-  }
+  reservedOutput.commit({
+    gateway: approved.gateway ?? null,
+    agent: approved.agent,
+    projects: approved.projects,
+    permissions: approved.permissions,
+    credential_expires_at: approved.credential_expires_at ?? null,
+  });
+  reservedOutput = undefined;
   console.log("ENROLLMENT_STAGE=PRIVATE_GRANT_SAVED");
   console.log("Device approved and enrollment credential stored securely.");
 } catch (error) {
+  reservedOutput?.abort();
   // Print a bounded diagnostic code only. Never print verifier, device code,
   // response body, request URL with secrets, or the device bearer credential.
   const safeCode =
