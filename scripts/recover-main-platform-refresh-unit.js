@@ -19,6 +19,15 @@ const pins = {
   "scripts/setup-main-platform-agent.sh":
     "b53308821ac33d3e9b51d3927e41c8f43c6e421c",
 };
+export function verifyDevelopmentAgent(unit) {
+  if (
+    unit.WorkingDirectory?.startsWith("/opt/kmj-codebridge-stable/") ||
+    unit.DropInPaths?.includes("99-kmj-signed-runtime.conf")
+  )
+    throw Error("SIGNED_RUNTIME_REQUIRES_SIGNED_UPDATER");
+  if (unit.WorkingDirectory !== runtime || unit.DropInPaths !== "")
+    throw Error("DEVELOPMENT_RUNTIME_NOT_VERIFIED");
+}
 export function verifyUnitInventory(inventory) {
   if (
     Object.keys(inventory).sort().join(",") !==
@@ -137,6 +146,23 @@ function preflight() {
     "KMJ-elite"
   )
     throw Error("WRONG_HOST");
+  const agentOutput = execFileSync(
+    "/usr/bin/systemctl",
+    [
+      "show",
+      "kmj-codebridge-kmj-main-platform.service",
+      "--property=WorkingDirectory,DropInPaths",
+    ],
+    { encoding: "utf8", timeout: 10000 },
+  );
+  const agentUnit = {};
+  for (const line of agentOutput.trim().split("\n")) {
+    const i = line.indexOf("=");
+    if (i < 1 || Object.hasOwn(agentUnit, line.slice(0, i)))
+      throw Error("DEVELOPMENT_RUNTIME_NOT_VERIFIED");
+    agentUnit[line.slice(0, i)] = line.slice(i + 1);
+  }
+  verifyDevelopmentAgent(agentUnit);
   for (const dir of [
     "/opt",
     runtime,
