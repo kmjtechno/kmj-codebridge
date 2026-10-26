@@ -4,6 +4,7 @@ import { readJsonLimited } from "./http.js";
 import { fail } from "./errors.js";
 
 const READY_PATH = "/api/codebridge/v1/device-enrollments/readiness";
+const AGENT_HEALTH_PATH = "/agent/health";
 
 export async function assertEnrollmentServerReady(base, options = {}) {
   let origin;
@@ -57,5 +58,35 @@ export async function assertEnrollmentServerReady(base, options = {}) {
   ) {
     fail("PAIRING_READINESS_SCHEMA");
   }
+  // Main Platform readiness validates configuration, not whether an actual
+  // public gateway route is mounted and enforces agent authentication. Check
+  // that BEFORE creating a short-lived pairing or a stranded server grant.
+  // This request is anonymous; never read its response body or send a token.
+  let challenge;
+  try {
+    challenge = await (options.fetch ?? fetch)(
+      new URL(AGENT_HEALTH_PATH, origin),
+      {
+        method: "POST",
+        redirect: "error",
+        credentials: "omit",
+        headers: {
+          accept: "application/json",
+          "content-type": "application/json",
+        },
+        body: "{}",
+        signal: options.signal
+          ? AbortSignal.any([options.signal, AbortSignal.timeout(10000)])
+          : AbortSignal.timeout(10000),
+      },
+    );
+  } catch {
+    fail("PAIRING_AGENT_ROUTE_NETWORK");
+  }
+  // The real CodeBridge gateway challenges anonymous POST /agent/health
+  // with 401. A 200 is an unsafe unprotected route, not success.
+  if (challenge.status === 200) fail("PAIRING_AGENT_ROUTE_UNPROTECTED");
+  if (challenge.status !== 401) fail("PAIRING_AGENT_ROUTE_UNAVAILABLE");
+
   return { state: "configured_not_device_ready" };
 }
