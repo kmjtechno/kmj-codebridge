@@ -130,6 +130,15 @@ function criticalError(code, name) {
   return error;
 }
 
+function criticalParityError(name, field, kind) {
+  const error = criticalError("MCP_CRITICAL_SCHEMA_DRIFT", name);
+  // The field comes from the fixed allowlist and kind from our own branch.
+  // Never log submitted property schemas, upstream data or credentials.
+  error.criticalField = field;
+  error.driftKind = kind;
+  return error;
+}
+
 export function verifyCriticalToolSchemas(catalog) {
   if (!(catalog?.names instanceof Set) || !(catalog?.tools instanceof Map))
     throw new Error("MCP_CATALOG_INCOMPLETE");
@@ -199,17 +208,19 @@ export function verifyCriticalSchemaParity(render, production) {
       !Array.isArray(requiredA) ||
       !Array.isArray(requiredB) ||
       requiredA.some((key) => typeof key !== "string") ||
-      requiredB.some((key) => typeof key !== "string") ||
-      (a.additionalProperties ?? null) !== (b.additionalProperties ?? null)
+      requiredB.some((key) => typeof key !== "string")
     )
-      throw criticalError("MCP_CRITICAL_SCHEMA_DRIFT", name);
+      throw criticalParityError(name, "required", "invalid_required");
+    if ((a.additionalProperties ?? null) !== (b.additionalProperties ?? null))
+      throw criticalParityError(name, "additionalProperties", "closure");
     for (const property of properties) {
       if (
         JSON.stringify(canonicalSchema(a.properties[property])) !==
-          JSON.stringify(canonicalSchema(b.properties[property])) ||
-        requiredA.includes(property) !== requiredB.includes(property)
+        JSON.stringify(canonicalSchema(b.properties[property]))
       )
-        throw criticalError("MCP_CRITICAL_SCHEMA_DRIFT", name);
+        throw criticalParityError(name, property, "schema");
+      if (requiredA.includes(property) !== requiredB.includes(property))
+        throw criticalParityError(name, property, "requiredness");
     }
   }
   return true;
@@ -399,7 +410,23 @@ async function main() {
       Object.hasOwn(CRITICAL_TOOL_PROPERTIES, error.criticalTool)
         ? error.criticalTool
         : "unknown";
-    console.error(`MCP_CRITICAL_PARITY=FAIL tool=${tool}`);
+    const field =
+      typeof error.criticalField === "string" &&
+      (CRITICAL_TOOL_PROPERTIES[tool]?.includes(error.criticalField) ||
+        ["required", "additionalProperties"].includes(error.criticalField))
+        ? error.criticalField
+        : "unknown";
+    const kind = [
+      "schema",
+      "requiredness",
+      "closure",
+      "invalid_required",
+    ].includes(error.driftKind)
+      ? error.driftKind
+      : "unknown";
+    console.error(
+      `MCP_CRITICAL_PARITY=FAIL tool=${tool} field=${field} kind=${kind}`,
+    );
     throw error;
   }
   console.log(
