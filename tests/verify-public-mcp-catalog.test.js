@@ -204,6 +204,37 @@ test("critical input schemas match even if JSON property key order differs", () 
   assert.equal(verifyCriticalSchemaParity(render, production), true);
 });
 
+test("schema drift diagnostics identify only a fixed critical property and category", () => {
+  const cases = [
+    { field: "ifNoneMatch", kind: "schema", mutate: (schema) => {
+      schema.properties.ifNoneMatch.pattern = "^[a-f0-9]{32}$";
+    } },
+    { field: "recentJobs", kind: "requiredness", mutate: (schema) => {
+      schema.required = ["recentJobs"];
+    } },
+    { field: "additionalProperties", kind: "closure", mutate: (schema) => {
+      schema.additionalProperties = false;
+    } },
+    { field: "required", kind: "invalid_required", mutate: (schema) => {
+      schema.required = "recentJobs";
+    } },
+  ];
+  for (const scenario of cases) {
+    const render = parseToolCatalog(criticalBody());
+    const production = parseToolCatalog(criticalBody());
+    scenario.mutate(production.tools.get("chat_workspace_open").inputSchema);
+    assert.throws(
+      () => verifyCriticalSchemaParity(render, production),
+      (error) =>
+        error.message === "MCP_CRITICAL_SCHEMA_DRIFT" &&
+        error.criticalTool === "chat_workspace_open" &&
+        error.criticalField === scenario.field &&
+        error.driftKind === scenario.kind &&
+        !("inputSchema" in error),
+    );
+  }
+});
+
 test("critical leaseToken format drift fails the cross-origin gate", () => {
   const render = parseToolCatalog(criticalBody());
   const production = parseToolCatalog(criticalBody());
