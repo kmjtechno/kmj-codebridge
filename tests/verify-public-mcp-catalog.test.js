@@ -5,6 +5,7 @@ import {
   ENDPOINTS,
   REQUIRED_TOOLS,
   compareDeployedCommit,
+  criticalObjectClosure,
   failedCommitAssertions,
   parseServerCommit,
   parseToolCatalog,
@@ -249,6 +250,23 @@ test("schema drift diagnostics identify only a fixed critical property and categ
         !("inputSchema" in error),
     );
   }
+});
+
+test("critical object closure witnesses are bounded and never contain schema values", () => {
+  const catalog = parseToolCatalog(criticalBody());
+  const tool = "chat_workspace_open";
+  const schema = catalog.tools.get(tool).inputSchema;
+  assert.equal(criticalObjectClosure(catalog, tool), "unspecified");
+  schema.additionalProperties = false;
+  assert.equal(criticalObjectClosure(catalog, tool), "closed");
+  schema.additionalProperties = true;
+  assert.equal(criticalObjectClosure(catalog, tool), "open");
+  schema.additionalProperties = { $ref: "secret value must not be echoed" };
+  assert.equal(criticalObjectClosure(catalog, tool), "nonboolean");
+  assert.throws(
+    () => criticalObjectClosure(catalog, "not_approved_tool"),
+    /MCP_CRITICAL_TOOL_MISSING/,
+  );
 });
 
 test("critical leaseToken format drift fails the cross-origin gate", () => {
