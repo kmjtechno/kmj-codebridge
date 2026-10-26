@@ -39,7 +39,8 @@ export function approvedScope(c) {
     c.projects.length !== 1 ||
     c.projects[0]?.id !== PROJECT ||
     !path.isAbsolute(c.projects[0]?.root)
-  ) return false;
+  )
+    return false;
   const inline = typeof c.token === "string" && c.token.length > 0;
   const external = typeof c.gatewayTokenFile === "string";
   if (inline === external) return false;
@@ -102,7 +103,10 @@ function git(cwd, ...args) {
 function originCheck(root, allowed, requireClean = false) {
   ordinary(root, "directory");
   const actualRoot = git(root, "rev-parse", "--show-toplevel");
-  if (path.normalize(actualRoot).toLowerCase() !== path.normalize(root).toLowerCase()) {
+  if (
+    path.normalize(actualRoot).toLowerCase() !==
+    path.normalize(root).toLowerCase()
+  ) {
     throw Error("GIT_ROOT_MISMATCH");
   }
   if (!allowed.has(git(root, "remote", "get-url", "origin"))) {
@@ -111,7 +115,10 @@ function originCheck(root, allowed, requireClean = false) {
   if (!/^[a-f0-9]{40}$/.test(git(root, "rev-parse", "HEAD"))) {
     throw Error("RUNTIME_COMMIT_NOT_PINNED");
   }
-  if (requireClean && git(root, "status", "--porcelain", "--untracked-files=no")) {
+  if (
+    requireClean &&
+    git(root, "status", "--porcelain", "--untracked-files=no")
+  ) {
     throw Error("RUNTIME_DIRTY");
   }
 }
@@ -137,7 +144,8 @@ function scanKnownPrivateFiles() {
         if (item.isSymbolicLink()) continue;
         const child = path.join(dir, item.name);
         if (item.isDirectory() && depth < 4) stack.push([child, depth + 1]);
-        if (!item.isFile() || item.name.toLowerCase() !== "agent.json") continue;
+        if (!item.isFile() || item.name.toLowerCase() !== "agent.json")
+          continue;
         if (!privatePath(child)) continue;
         ordinary(child, "file");
         const normalized = child.toLowerCase();
@@ -150,7 +158,8 @@ function scanKnownPrivateFiles() {
           throw Error("PRIVATE_CONFIG_CORRUPT");
         }
         if (candidate?.id === DEVICE) {
-          if (!approvedScope(candidate)) throw Error("PRIVATE_DEVICE_SCOPE_MISMATCH");
+          if (!approvedScope(candidate))
+            throw Error("PRIVATE_DEVICE_SCOPE_MISMATCH");
           matches.push({ file: child, config: candidate });
         }
       }
@@ -205,13 +214,18 @@ function freshHeartbeat(state, launchedAfter) {
   ordinary(file, "file");
   const record = JSON.parse(fs.readFileSync(file, "utf8"));
   const time = Date.parse(record?.connectedAt);
-  return Number.isFinite(time) &&
+  return (
+    Number.isFinite(time) &&
     time >= launchedAfter - 2000 &&
-    time <= Date.now() + 10000;
+    time <= Date.now() + 10000
+  );
 }
 
 async function main() {
-  if (process.argv.length > 3 || (process.argv[2] && process.argv[2] !== "--check-only")) {
+  if (
+    process.argv.length > 3 ||
+    (process.argv[2] && process.argv[2] !== "--check-only")
+  ) {
     throw Error("ARGUMENTS_INVALID");
   }
   if (process.platform !== "win32" || process.env.OS !== "Windows_NT") {
@@ -241,7 +255,9 @@ async function main() {
   if (config.gatewayTokenFile) ordinary(config.gatewayTokenFile, "file");
   const lockedPid = existingLock(state);
   if (lockedPid !== null) {
-    console.log("CALIBRATION_RECONNECT=PROCESS_EXISTS_ACCOUNT_READY_UNVERIFIED");
+    console.log(
+      "CALIBRATION_RECONNECT=PROCESS_EXISTS_ACCOUNT_READY_UNVERIFIED",
+    );
     console.log("NEXT=CHECK_CODEBRIDGE_CONNECTION_OVERVIEW");
     return;
   }
@@ -257,15 +273,17 @@ async function main() {
   // CodeBridge agent. No PowerShell, shell evaluation, task registration,
   // credential writes, process termination or project source modification.
   const since = Date.now();
-  const child = spawn(process.execPath, [
-    path.join(ROOT, "src", "cli.js"), "agent", file,
-  ], {
-    cwd: ROOT,
-    detached: true,
-    windowsHide: true,
-    shell: false,
-    stdio: "ignore",
-  });
+  const child = spawn(
+    process.execPath,
+    [path.join(ROOT, "src", "cli.js"), "agent", file],
+    {
+      cwd: ROOT,
+      detached: true,
+      windowsHide: true,
+      shell: false,
+      stdio: "ignore",
+    },
+  );
   if (!Number.isSafeInteger(child.pid) || child.pid <= 0) {
     throw Error("AGENT_START_FAILED");
   }
@@ -283,7 +301,10 @@ async function main() {
   throw Error("AUTHENTICATED_HEARTBEAT_TIMEOUT");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   main().catch((error) => {
     // Only allow bounded internal error codes, never paths, credentials,
     // stack traces, private filenames, HTTP bodies or local agent logs.
