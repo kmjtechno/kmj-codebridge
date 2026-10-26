@@ -19,6 +19,37 @@ const pins = {
   "scripts/setup-main-platform-agent.sh":
     "b53308821ac33d3e9b51d3927e41c8f43c6e421c",
 };
+export function verifyUnitInventory(inventory) {
+  if (
+    Object.keys(inventory).sort().join(",") !==
+      "DropInPaths,FragmentPath,LoadState" ||
+    inventory.DropInPaths !== "" ||
+    !(
+      (inventory.LoadState === "not-found" && inventory.FragmentPath === "") ||
+      (inventory.LoadState === "loaded" && inventory.FragmentPath === unitFile)
+    )
+  )
+    throw Error("EFFECTIVE_UNIT_CONFLICT");
+}
+function inspectRefreshUnit() {
+  const output = execFileSync(
+    "/usr/bin/systemctl",
+    [
+      "show",
+      "kmj-codebridge-main-platform-refresh.service",
+      "--property=LoadState,FragmentPath,DropInPaths",
+    ],
+    { encoding: "utf8", timeout: 10000 },
+  );
+  const inventory = {};
+  for (const line of output.trim().split("\n")) {
+    const i = line.indexOf("=");
+    if (i < 1 || Object.hasOwn(inventory, line.slice(0, i)))
+      throw Error("EFFECTIVE_UNIT_CONFLICT");
+    inventory[line.slice(0, i)] = line.slice(i + 1);
+  }
+  verifyUnitInventory(inventory);
+}
 function protectedFile(file, privateFile = false) {
   const st = fs.lstatSync(file);
   if (
@@ -151,6 +182,7 @@ function preflight() {
     { encoding: "utf8", timeout: 10000 },
   ).trim();
   if (unit !== "loaded") throw Error("EXISTING_AGENT_UNIT_REQUIRED");
+  inspectRefreshUnit();
 }
 function main() {
   if (
@@ -164,12 +196,13 @@ function main() {
     console.log("KMJ_REFRESH_RECOVERY=CHECK_ONLY_NO_CHANGES");
     return;
   }
-  const result = publishMissingUnit(unitFile, () =>
+  const result = publishMissingUnit(unitFile, () => {
     execFileSync("/usr/bin/systemctl", ["daemon-reload"], {
       timeout: 30000,
       stdio: "pipe",
-    }),
-  );
+    });
+    inspectRefreshUnit();
+  });
   console.log("KMJ_REFRESH_UNIT=" + result.toUpperCase());
   console.log("KMJ_AGENT_RESTART=NOT_ATTEMPTED");
   console.log("KMJ_PRODUCTION_CHANGE=NONE");
