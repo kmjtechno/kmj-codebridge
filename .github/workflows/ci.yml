@@ -44,6 +44,42 @@ jobs:
         if: matrix.os == 'ubuntu-24.04'
         run: npm audit --omit=dev --audit-level=high
       - run: npm run check
+      # The Node/Prettier suites cannot parse Windows PowerShell source. The
+      # reviewed P520 ZIP must pass the actual Windows PowerShell 5.1 parser
+      # before its installer is ever described as verified.
+      - name: Parse complete P520 ZIP on Windows PowerShell 5.1
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $archive = Join-Path $env:RUNNER_TEMP 'kmj-p520-parser.zip'
+          $unpacked = Join-Path $env:RUNNER_TEMP 'kmj-p520-parser'
+          node scripts/package-p520-ide.js --out $archive
+          if ($LASTEXITCODE -ne 0) { throw 'P520_PACKAGE_BUILD_FAILED' }
+          Expand-Archive -LiteralPath $archive -DestinationPath $unpacked -ErrorAction Stop
+          $script = Join-Path $unpacked 'BOOTSTRAP-HOMEOFFICE-IDE-RUNTIME.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            $script, [ref]$tokens, [ref]$parseErrors
+          )
+          if (@($parseErrors).Count -ne 0) {
+            foreach ($parseError in $parseErrors) {
+              Write-Output ('P520_PARSE_ERROR=' + $parseError.ErrorId)
+            }
+            throw 'P520_POWERSHELL_PARSER_FAILED'
+          }
+          # A negative control proves the parser gate actually catches this
+          # specific regression (an unterminated regex string).
+          $badTokens = $null
+          $badErrors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseInput(
+            "Where-Object { `$_.Name -match '^node(?:[-._].+)?", [ref]$badTokens, [ref]$badErrors
+          )
+          if (@($badErrors).Count -eq 0) {
+            throw 'P520_PARSER_NEGATIVE_CONTROL_FAILED'
+          }
+          Write-Output 'P520_POWERSHELL5_PARSER=PASS'
       # Formats every path `npm run check` covers, so a failed check shows the
       # exact diff for whichever file broke it rather than three fixed files.
       - name: Print exact formatting diff on failed checks
