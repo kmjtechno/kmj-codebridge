@@ -8,10 +8,37 @@ import {
   publishMissingUnit,
   unitText,
   verifyUnitInventory,
+  verifyDevelopmentAgent,
 } from "../scripts/recover-main-platform-refresh-unit.js";
 
 const test = (name, fn) =>
   nodeTest(name, { skip: process.platform !== "linux" }, fn);
+
+test("development recovery refuses signed stable runtime before source staging", () => {
+  for (const unit of [
+    { WorkingDirectory: "/opt/kmj-codebridge-stable/current", DropInPaths: "" },
+    {
+      WorkingDirectory: "/opt/kmj-codebridge-agent",
+      DropInPaths:
+        "/etc/systemd/system/kmj-codebridge-kmj-main-platform.service.d/99-kmj-signed-runtime.conf",
+    },
+  ])
+    assert.throws(
+      () => verifyDevelopmentAgent(unit),
+      /SIGNED_RUNTIME_REQUIRES_SIGNED_UPDATER/,
+    );
+  assert.throws(
+    () =>
+      verifyDevelopmentAgent({ WorkingDirectory: "/unknown", DropInPaths: "" }),
+    /DEVELOPMENT_RUNTIME_NOT_VERIFIED/,
+  );
+  assert.doesNotThrow(() =>
+    verifyDevelopmentAgent({
+      WorkingDirectory: "/opt/kmj-codebridge-agent",
+      DropInPaths: "",
+    }),
+  );
+});
 
 test("refuses effective vendor units and systemd drop-ins", () => {
   for (const inventory of [
