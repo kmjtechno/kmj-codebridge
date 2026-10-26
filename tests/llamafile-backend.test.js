@@ -183,7 +183,7 @@ test("local-only integration does not change production tools, start services or
   assert.equal(status.available, false);
   assert.equal(status.modelExecution, "NOT_EXECUTED");
   const source = fs.readFileSync("src/llamafile-backend.js", "utf8");
-  assert.match(source, /hostname: "127\\.0\\.0\\.1"/);
+  assert.match(source, /hostname: "127\.0\.0\.1"/);
   assert.doesNotMatch(
     source,
     /https:\/\/|spawn\(|exec\(|execFile\(|listen\(|fetch\(/i,
