@@ -1637,9 +1637,15 @@ test("MCP server defaults to the pinned icon and honors custom icon override", a
   ]);
   const defaultTools = await defaultClient.listTools();
   assert.ok(defaultTools.tools.length > 0);
+  assert.equal(
+    defaultTools.tools.find((tool) => tool.name === "chat_workspace_open")
+      ?.inputSchema?.additionalProperties,
+    false,
+    "the unprotected gateway must advertise the same closed input contract as OAuth",
+  );
   assert.ok(
     defaultTools.tools.every((tool) => tool.icons === undefined),
-    "the installed SDK does not forward registered tool icons on non-OAuth catalog",
+    "non-OAuth catalog keeps its existing icon presentation",
   );
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));
@@ -1682,6 +1688,11 @@ test("MCP server defaults to the pinned icon and honors custom icon override", a
   // the hosted OAuth tools/list override is verified in auth.test.js.
   const advertisedTools = await client.listTools();
   assert.ok(advertisedTools.tools.length >= 10);
+  assert.equal(
+    advertisedTools.tools.find((tool) => tool.name === "chat_workspace_open")
+      ?.inputSchema?.additionalProperties,
+    false,
+  );
   assert.ok(advertisedTools.tools.every((tool) => tool.icons === undefined));
 });
 
