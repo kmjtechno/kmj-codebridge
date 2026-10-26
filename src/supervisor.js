@@ -1590,11 +1590,29 @@ export function createSupervisorHandler({
     );
     const nginx = fixedUnitStatus(run, "nginx.service", ["ActiveState"]);
     const phpFpm = fixedUnitStatus(run, "php8.4-fpm.service", ["ActiveState"]);
+    // Read-only, fixed-code blockers. Never mutate/renew an approval to
+    // conceal a mismatch, and never treat status as backup/restore evidence.
+    const activationBlockers = [
+      ...(!approval ? ["PROTECTED_APPROVAL_MISSING_OR_INVALID"] : []),
+      ...(currentRelease === null ? ["CURRENT_RELEASE_INVALID"] : []),
+      ...(approval &&
+      currentRelease !== null &&
+      currentRelease !== approval.expectedCurrentRelease
+        ? ["PROTECTED_EXPECTED_CURRENT_RELEASE_MISMATCH"]
+        : []),
+      ...(!deployService.installed ? ["RELEASE_UNIT_NOT_INSTALLED"] : []),
+      ...(deployService.installed && deployService.activeState !== "inactive"
+        ? ["RELEASE_UNIT_NOT_IDLE"]
+        : []),
+      ...(nginx.activeState !== "active" ? ["NGINX_NOT_ACTIVE"] : []),
+      ...(phpFpm.activeState !== "active" ? ["PHP_FPM_NOT_ACTIVE"] : []),
+    ];
     return {
       currentRelease,
       approvedSha: approval?.approvedSha ?? null,
       expectedCurrentRelease: approval?.expectedCurrentRelease ?? null,
       approvalReady: approval !== null,
+      activationBlockers,
       releaseUnit: deployService,
       nginxActive: nginx.activeState === "active",
       phpFpmActive: phpFpm.activeState === "active",
