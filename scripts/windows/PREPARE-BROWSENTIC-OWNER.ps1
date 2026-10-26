@@ -74,7 +74,7 @@ try {
         New-Item -ItemType Directory -Path $stage -ErrorAction Stop | Out-Null
         Ordinary $stage $true
         $manifest = '{"private":true,"name":"kmj-browsentic-local","version":"0.0.0","dependencies":{"browsentic":"0.9.0"}}'
-        [IO.File]::WriteAllText((Join-Path $stage 'package.json'), $manifest, (New-Object Text.UTF8Encoding($false)))
+        [IO.File]::WriteAllText((Join-Path $stage 'package.json'), $manifest, [Text.UTF8Encoding]::new($false))
         Write-Host 'BROWSENTIC_PREPARE=PINNED_NPM_INSTALL'
         & $npm install --prefix $stage --ignore-scripts --no-audit --no-fund --registry=https://registry.npmjs.org/
         if ($LASTEXITCODE -ne 0) { throw 'BROWSENTIC_NPM_INSTALL_FAILED' }

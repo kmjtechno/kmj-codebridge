@@ -4,6 +4,7 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   assertApprovedPage,
   browserAgenticReadiness,
@@ -248,4 +249,39 @@ test("dispatch requires owner configuration and project scope", async (t) => {
     ]),
     /PROJECT_NOT_FOUND/,
   );
+});
+
+test("PowerShell 5.1 parses optional Browsentic owner preparation without executing it", {
+  skip: process.platform !== "win32",
+}, () => {
+  const scriptPath = path.resolve("scripts/windows/PREPARE-BROWSENTIC-OWNER.ps1");
+  const result = spawnSync("powershell.exe", [
+    "-NoProfile",
+    "-NonInteractive",
+    "-Command",
+    "$tokens=$null;$issues=$null;[System.Management.Automation.Language.Parser]::ParseFile($env:KMJ_BROWSER_PREP_SCRIPT,[ref]$tokens,[ref]$issues)|Out-Null;if($issues.Count -gt 0){exit 2};Write-Output 'BROWSENTIC_PS_PARSE_PASS'",
+  ], {
+    shell: false,
+    windowsHide: true,
+    encoding: "utf8",
+    timeout: 15000,
+    env: { ...process.env, KMJ_BROWSER_PREP_SCRIPT: scriptPath },
+  });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stdout, /BROWSENTIC_PS_PARSE_PASS/);
+});
+
+test("Browsentic local preparation is opt-in and cannot silently change owner enrollment", () => {
+  const script = fs.readFileSync("scripts/windows/PREPARE-BROWSENTIC-OWNER.ps1", "utf8");
+  for (const marker of [
+    "BROWSENTIC_ENTRY_SHA256=",
+    "BROWSENTIC_AGENT_CONFIG_CHANGED=NO",
+    "BROWSENTIC_OWNER_BROWSER_PAIRING=PENDING_EXPLICIT_OWNER_ACTION",
+    "BROWSENTIC_PRODUCTION_ACTIVATED=NO",
+  ]) {
+    assert.ok(script.includes(marker), marker);
+  }
+  assert.match(script, /"browsentic":"0\.9\.0"/);
+  assert.match(script, /--ignore-scripts/);
+  assert.doesNotMatch(script, /Set-ExecutionPolicy|Enable-ScheduledTask|Set-Service|git reset|git clean|iex|Invoke-Expression/);
 });
