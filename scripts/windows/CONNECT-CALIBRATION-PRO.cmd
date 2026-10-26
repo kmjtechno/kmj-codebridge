@@ -2,8 +2,8 @@
 setlocal EnableExtensions DisableDelayedExpansion
 title KMJ TECHNO - Home Office Calibration Pro Reconnect
 echo KMJ TECHNO ^| SECURE HOME OFFICE EXISTING AGENT RECONNECT
-echo Node 24+ only. No PowerShell policy change or new pairing.
-echo No token export, downloads, services, installer or project edits.
+echo Node 24+ only. Existing enrolled device reconnect only.
+echo No credential export, downloads, service changes or project edits.
 echo.
 if /I not "%OS%"=="Windows_NT" goto :blocked
 if /I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :blocked
