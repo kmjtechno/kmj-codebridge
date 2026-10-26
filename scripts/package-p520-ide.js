@@ -6,7 +6,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const EXPECTED_BOOTSTRAP_SHA256 =
-  "85D862D68C2384949367F85D34C169DE1F09DE2FE09D93EA57810F9D941A3675";
+  "A83B2053FA358D31978DA987C8C2C49AE58E03C63E84311917EA4D66CDC055B2";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const files = [
   [
