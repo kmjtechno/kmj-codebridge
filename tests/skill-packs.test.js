@@ -13,7 +13,16 @@ const fixtures = JSON.parse(
 test("skill pack catalog is vendor-neutral and bounded", () => {
   assert.deepEqual(
     SKILL_PACKS.map((pack) => pack.id),
-    ["security-hardening", "debugging", "tdd", "release-readiness"],
+    [
+      "security-hardening",
+      "debugging",
+      "tdd",
+      "release-readiness",
+      "search-visibility",
+      "ai-answer-visibility",
+      "content-discovery",
+      "conversion-measurement",
+    ],
   );
   for (const pack of SKILL_PACKS) {
     assert.ok(pack.workflow.length >= 3 && pack.workflow.length <= 8);

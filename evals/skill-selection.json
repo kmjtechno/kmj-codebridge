@@ -53,5 +53,67 @@
       "tdd",
       "release-readiness"
     ]
+  },
+  {
+    "name": "technical SEO audit",
+    "input": {
+      "objective": "Audit sitemap canonical hreflang metadata and indexing issues",
+      "changedFiles": [
+        "apps/platform/public/robots.txt"
+      ]
+    },
+    "expected": [
+      "search-visibility"
+    ]
+  },
+  {
+    "name": "GEO fact checking",
+    "input": {
+      "objective": "Improve GEO citations in Perplexity for our software products",
+      "changedFiles": [
+        "docs/products.md"
+      ]
+    },
+    "expected": [
+      "ai-answer-visibility"
+    ]
+  },
+  {
+    "name": "keyword content research",
+    "input": {
+      "objective": "Create keyword research and editorial content briefs",
+      "changedFiles": [
+        "docs/marketing/brief.md"
+      ]
+    },
+    "expected": [
+      "content-discovery"
+    ]
+  },
+  {
+    "name": "signup conversion audit",
+    "input": {
+      "objective": "Audit GA4 conversion attribution for signup funnel",
+      "changedFiles": [
+        "docs/marketing/report.md"
+      ]
+    },
+    "expected": [
+      "conversion-measurement"
+    ]
+  },
+  {
+    "name": "multiple marketing tracks",
+    "input": {
+      "objective": "Improve SEO metadata and GEO citations with keyword content",
+      "changedFiles": [
+        "docs/marketing/campaign.md"
+      ]
+    },
+    "expected": [
+      "search-visibility",
+      "ai-answer-visibility",
+      "content-discovery"
+    ]
   }
 ]
