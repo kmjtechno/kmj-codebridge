@@ -54,10 +54,16 @@ test("ECC-inspired workflows are advisory, bounded and never executable config",
   ];
   for (const [objective, expected] of examples) {
     const selected = selectSkillPacks({ objective });
-    assert.deepEqual(selected.map((pack) => pack.id), [expected]);
+    assert.deepEqual(
+      selected.map((pack) => pack.id),
+      [expected],
+    );
     assert.ok(selected.every((pack) => pack.workflow.length <= 8));
     assert.ok(selected.every((pack) => !("signals" in pack)));
     assert.ok(selected.every((pack) => !("command" in pack)));
   }
-  assert.deepEqual(selectSkillPacks({ objective: "Write architecture notes" }), []);
+  assert.deepEqual(
+    selectSkillPacks({ objective: "Write architecture notes" }),
+    [],
+  );
 });
