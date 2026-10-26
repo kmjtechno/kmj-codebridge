@@ -100,6 +100,25 @@ test("configured user introspection is authoritative over stale static subjects"
   });
 });
 
+test("OAuth rejects dynamic introspection identities that do not match the signed token subject", async () => {
+  for (const resolved of [
+    {
+      id: "bob",
+      subject: "other-subject",
+      permissions: ["read", "write", "execute"],
+    },
+    { id: "bob", permissions: ["read", "write", "execute"] },
+    { id: "bob", subject: null, permissions: ["read", "write", "execute"] },
+  ]) {
+    const introspected = createOAuthVerifier(
+      config,
+      users,
+      async () => resolved,
+    );
+    assert.equal(await introspected("Bearer " + (await token())), null);
+  }
+});
+
 test("OAuth verifier loads and caches public keys from a remote JWKS endpoint", async () => {
   let requests = 0;
   const server = createServer((request, response) => {

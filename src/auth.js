@@ -29,7 +29,14 @@ export function createOAuthVerifier(config, users, resolveUser) {
       const user = resolveUser
         ? await resolveUser(authorization, payload.sub)
         : users.find((u) => u.subject === payload.sub);
-      if (!user || typeof payload.scope !== "string") return null;
+      // The signed token subject is the identity boundary. A stale or buggy
+      // dynamic resolver must never substitute another account's ACL.
+      if (
+        !user ||
+        user.subject !== payload.sub ||
+        typeof payload.scope !== "string"
+      )
+        return null;
       const granted = new Set(payload.scope.split(" "));
       const filterPermissions = (permissions) =>
         permissions.filter((permission) =>
