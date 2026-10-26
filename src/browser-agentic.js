@@ -5,26 +5,55 @@ import { createHash } from "node:crypto";
 
 export const BROWSENTIC_VERSION = "0.9.0";
 
-export function pinnedBrowsenticEntry(platform = process.platform) {
-  if (platform === "win32")
-    return "C:\\ProgramData\\KMJ\\CodeBridge\\browsentic\\v0.9.0\\node_modules\\browsentic\\dist\\cli.js";
+export function pinnedBrowsenticEntry(
+  platform = process.platform,
+  env = process.env,
+) {
+  if (platform === "win32") {
+    // The Browser session and the CodeBridge agent must belong to the same
+    // signed-in Windows user. Never require machine-wide ProgramData writes.
+    if (!path.win32.isAbsolute(env.LOCALAPPDATA ?? "")) return null;
+    return path.win32.join(
+      env.LOCALAPPDATA,
+      "KMJ",
+      "CodeBridge",
+      "browsentic",
+      "v0.9.0",
+      "node_modules",
+      "browsentic",
+      "dist",
+      "cli.js",
+    );
+  }
   if (platform === "linux")
     return "/opt/kmj-codebridge-tools/browsentic/v0.9.0/node_modules/browsentic/dist/cli.js";
   return null;
 }
 
 export function verifyBrowsenticEntry(expected, options = {}) {
-  const entry = pinnedBrowsenticEntry(options.platform);
+  const platform = options.platform ?? process.platform;
+  const entry = pinnedBrowsenticEntry(platform, options.env ?? process.env);
+  const paths = platform === "win32" ? path.win32 : path.posix;
   const lstat = options.lstat ?? fs.lstatSync;
   const read = options.read ?? fs.readFileSync;
   if (!entry || !/^[a-f0-9]{64}$/.test(expected ?? ""))
     throw Error("BROWSENTIC_PIN_NOT_APPROVED");
   try {
-    const pkg = path.join(path.dirname(path.dirname(entry)), "package.json");
+    const pkg = paths.join(paths.dirname(paths.dirname(entry)), "package.json");
     for (const file of [entry, pkg]) {
       const stat = lstat(file);
       if (!stat.isFile() || stat.isSymbolicLink())
         throw Error("BROWSENTIC_PIN_INVALID");
+    }
+    // The executable may be ordinary but a parent could point outside the
+    // reviewed installation. Do not follow any directory symlink/junction.
+    for (let dir = paths.dirname(entry); ; ) {
+      const stat = lstat(dir);
+      if (!stat.isDirectory() || stat.isSymbolicLink())
+        throw Error("BROWSENTIC_LINKED_DIRECTORY_DENIED");
+      const parent = paths.dirname(dir);
+      if (parent === dir) break;
+      dir = parent;
     }
     const meta = JSON.parse(read(pkg, "utf8"));
     if (meta.name !== "browsentic" || meta.version !== BROWSENTIC_VERSION)
@@ -50,7 +79,10 @@ export function browserAgenticReadiness(config = {}, options = {}) {
     engine: "browsentic_mcp",
     pinnedVersion: BROWSENTIC_VERSION,
     enabled,
-    packageVerified: approved,
+    // Checking only dist/cli.js plus version is NOT a full transitive-package
+    // integrity attestation. Never represent it as one.
+    entrySha256Verified: approved,
+    packageVerified: false,
     browserPairingVerified: false,
     liveProbeVerified: false,
     supportedWork: "owner_opt_in_read_only_element_counts",
