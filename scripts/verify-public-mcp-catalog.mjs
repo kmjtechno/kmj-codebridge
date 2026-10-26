@@ -416,12 +416,17 @@ async function main() {
         ["required", "additionalProperties"].includes(error.criticalField))
         ? error.criticalField
         : "unknown";
-    const kind = ["schema", "requiredness", "closure", "invalid_required"].includes(
-      error.driftKind,
-    )
+    const kind = [
+      "schema",
+      "requiredness",
+      "closure",
+      "invalid_required",
+    ].includes(error.driftKind)
       ? error.driftKind
       : "unknown";
-    console.error(`MCP_CRITICAL_PARITY=FAIL tool=${tool} field=${field} kind=${kind}`);
+    console.error(
+      `MCP_CRITICAL_PARITY=FAIL tool=${tool} field=${field} kind=${kind}`,
+    );
     throw error;
   }
   console.log(
