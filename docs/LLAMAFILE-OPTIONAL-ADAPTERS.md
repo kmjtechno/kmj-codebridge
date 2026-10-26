@@ -9,13 +9,13 @@ This work is intentionally deferred behind KMJ Main Platform P520 onboarding.
 - [Mozilla AI llamafile](https://github.com/mozilla-ai/llamafile)
   (reviewed release: **v0.10.6**, 2026-09-15): the documented local
   OpenAI-compatible **GET /v1/models** and **POST /v1/chat/completions**.
-  \`createLlamafileLocalBackend\` in \`src/llamafile-backend.js\` is a
+  `createLlamafileLocalBackend` in `src/llamafile-backend.js` is a
   disabled-by-default, single-flight, bounded **draft-text** adapter. The
   backend does **not** execute model-suggested tool calls or write code.
 - [whisperfile HTTP server](https://github.com/mozilla-ai/llamafile/blob/main/docs/whisperfile/server.md):
   documented **GET /health**, **POST /inference** for owner-provided WAV
-  bytes. \`createWhisperfileLocalBackend\` in
-  \`src/whisperfile-backend.js\` is a separate disabled-by-default source
+  bytes. `createWhisperfileLocalBackend` in
+  `src/whisperfile-backend.js` is a separate disabled-by-default source
   adapter for **future Kristi speech input**, not microphone capture, voice
   playback, or a currently working Kristi feature.
 
@@ -24,18 +24,18 @@ the owner-local configurable ports default to 8080 (LLM) and 8081
 (voice), which must be different if both are tested. Their ports are
 **never taken from MCP/chat payloads**. Both reject non-200 responses,
 redirects, oversized bodies and invalid responses, and require
-\`localProcessingApproved: true\` for each generation/transcription.
+`localProcessingApproved: true` for each generation/transcription.
 The adapters never call remote URLs, proxy settings or DNS.
 
 ## Non-negotiable privacy and resource policy
 
-- They are **not registered in \`src/tools.js\`**, the production gateway,
-  \`ModelFabric\`, \`smart-model-router\`, the agent startup path, or the
+- They are **not registered in `src/tools.js`**, the production gateway,
+  `ModelFabric`, `smart-model-router`, the agent startup path, or the
   current **Ollama local-model fallback**. Importing alone starts nothing.
 - **Loopback is not service identity verification.** An untrusted service
   listening at the chosen local port can proxy requests to cloud or spend
   money. The adapters therefore return
-  \`backendIdentityVerified: false\` and do **not** attest zero billing.
+  `backendIdentityVerified: false` and do **not** attest zero billing.
   Operator must verify binary hashes, listener identity, actual bind
   address, OS process provenance and network isolation separately.
 - Never send secrets, proprietary project source or microphone content before
@@ -60,10 +60,10 @@ The adapters never call remote URLs, proxy settings or DNS.
 ## When to implement end-to-end (separate reviewed PR)
 
 1. **P0 first:** guarded KMJ Main Platform release/live
-   \`GET /api/codebridge/v1/device-enrollments/readiness\` must return
-   HTTP 200 + \`{"pairing_config":"ready","protocol":2}\`.
-   P520 \`kmj-homeoffice-desktop-5fvjmet\` must complete independent
-   authorized \`connection_overview = READY\` and an authenticated agent
+   `GET /api/codebridge/v1/device-enrollments/readiness` must return
+   HTTP 200 + `{"pairing_config":"ready","protocol":2}`.
+   P520 `kmj-homeoffice-desktop-5fvjmet` must complete independent
+   authorized `connection_overview = READY` and an authenticated agent
    heartbeat. **Never bypass browser owner approval, release manifest
    protections or project allowlists.** P720 remains offline.
 2. Operator inventories **actual P520** CPU/RAM/GPU, Calibration Pro
@@ -88,7 +88,7 @@ The adapters never call remote URLs, proxy settings or DNS.
 
 ## Minimal developer-only contract
 
-\`\`\`js
+```js
 import { createLlamafileLocalBackend } from "../src/llamafile-backend.js";
 import { createWhisperfileLocalBackend } from "../src/whisperfile-backend.js";
 
@@ -96,8 +96,8 @@ const inference = createLlamafileLocalBackend(); // enabled:false
 const voice = createWhisperfileLocalBackend(); // enabled:false
 console.log(await inference.status(), await voice.status());
 // Neither call opens a socket or initiates model downloads.
-\`\`\`
+```
 
-Unit regression checks: \`node --test tests/llamafile-backend.test.js
-tests/whisperfile-backend.test.js\`. CI uses **stub servers on 127.0.0.1**.
+Unit regression checks: `node --test tests/llamafile-backend.test.js
+tests/whisperfile-backend.test.js`. CI uses **stub servers on 127.0.0.1**.
 Successful CI does not mean hardware support or a live P520 installation.
