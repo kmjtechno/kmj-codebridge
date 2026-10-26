@@ -58,7 +58,7 @@ Owners should extract the complete ZIP to a new directory and double-click the C
 
 Actual owner report: `IDE_CURRENT_WINDOWS_HOST=DESKTOP-5FVJMET`, `IDE_BOOTSTRAP_SHA256=PASS`, then `KMJ_IDE_BOOTSTRAP=BLOCKED:EXISTING_DESTINATION_NOT_OVERWRITTEN`. This confirms the host and package integrity; it does **not** prove what is inside the pre-existing runtime. Never recommend wiping, renaming, `git clean`, `git reset`, overwriting, or taking ownership of its files.
 
-The new bootstrap preserves the occupied untrusted `E:\KMJ\CodeBridge-HomeOffice` folder and, after validating the directory is not a symlink/reparse point, installs the exact pinned clean checkout in `E:\KMJ\CodeBridge-HomeOffice-9dc0ae25648c` if that sibling does not exist. Existing verified pinned runtimes, including a previously installed verified sibling, are reused; an occupied but **unverified** sibling triggers `ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE` instead of changing it. Installer ZIP and launcher must pin the **new** bootstrap SHA-256 `A83B2053FA358D31978DA987C8C2C49AE58E03C63E84311917EA4D66CDC055B2`. Offline ZIP completeness and hash are separate from Windows run and authenticated connection proof.
+The new bootstrap preserves the occupied untrusted `E:\KMJ\CodeBridge-HomeOffice` folder and, after validating the directory is not a symlink/reparse point, installs the exact pinned clean checkout in `E:\KMJ\CodeBridge-HomeOffice-9dc0ae25648c` if that sibling does not exist. Existing verified pinned runtimes, including a previously installed verified sibling, are reused; an occupied but **unverified** sibling triggers `ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE` instead of changing it. Installer ZIP and launcher must pin the **new** bootstrap SHA-256 `B1F0A6972FE6246760E0AE5D590E883F6B668D55129E8E9D2216698221E1AD9F`. Offline ZIP completeness and hash are separate from Windows run and authenticated connection proof.
 
 This non-destructive install does not change old agents, calibration project files, gateway deployment or device grants. Gateway `GATEWAY_REGISTRATION_MISSING` remains an independent owner-browser pairing step.
 
@@ -68,7 +68,7 @@ Use the **complete** GitHub Actions `KMJ-P520-HomeOffice-OneClick` artifact
 produced by `CodeBridge CI`. Extract its inner ZIP and double-click
 `START-KMJ-CALIBRATION-IDE.cmd` **only** on `DESKTOP-5FVJMET`. It verifies the
 pinned bootstrap SHA-256
-`A83B2053FA358D31978DA987C8C2C49AE58E03C63E84311917EA4D66CDC055B2`.
+`B1F0A6972FE6246760E0AE5D590E883F6B668D55129E8E9D2216698221E1AD9F`.
 The bootstrap checks existing Node 24+ and npm from PATH or bounded
 `%LOCALAPPDATA%\KMJ-CaliPro\toolchains\node*` locations without changing
 user/machine PATH; only its own process/children see the selected Node.
