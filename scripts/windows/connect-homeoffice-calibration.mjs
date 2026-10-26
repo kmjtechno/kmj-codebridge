@@ -24,7 +24,11 @@ const PROJECT_ORIGINS = new Set([
 ]);
 
 export function privatePath(p) {
-  return typeof p === "string" && /(^|[\\/])private[\\/]/i.test(p);
+  if (typeof p !== "string") return false;
+  const normalized = /^[A-Za-z]:[\\/]/.test(p) || p.startsWith("\\\\")
+    ? path.win32.normalize(p)
+    : path.normalize(p);
+  return /(^|[\\/])private[\\/]/i.test(normalized);
 }
 
 export function approvedScope(c) {
