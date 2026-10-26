@@ -76,14 +76,15 @@ export function reviewProviderCosts({
       : null;
   return {
     comparisonStatus:
-      reference && eligible.length > 1 ? "COMPARABLE_QUOTES" : "INSUFFICIENT_QUOTES",
+      reference && eligible.length > 1
+        ? "COMPARABLE_QUOTES"
+        : "INSUFFICIENT_QUOTES",
     modelSpec,
     billingUnit,
     referenceProvider,
     quotes: eligible,
     cheapest,
-    illustrativeSavingsPct:
-      eligible.length > 1 ? illustrativeSavingsPct : null,
+    illustrativeSavingsPct: eligible.length > 1 ? illustrativeSavingsPct : null,
     excluded,
     provenance: "CALLER_SUPPLIED_NOT_INDEPENDENTLY_VERIFIED",
     billableExecutionAuthorized: false,
