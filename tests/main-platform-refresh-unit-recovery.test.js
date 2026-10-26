@@ -7,10 +7,46 @@ import { spawnSync } from "node:child_process";
 import {
   publishMissingUnit,
   unitText,
+  verifyUnitInventory,
 } from "../scripts/recover-main-platform-refresh-unit.js";
 
 const test = (name, fn) =>
   nodeTest(name, { skip: process.platform !== "linux" }, fn);
+
+test("refuses effective vendor units and systemd drop-ins", () => {
+  for (const inventory of [
+    {
+      LoadState: "loaded",
+      FragmentPath: "/usr/lib/systemd/system/owner.service",
+      DropInPaths: "",
+    },
+    {
+      LoadState: "loaded",
+      FragmentPath:
+        "/etc/systemd/system/kmj-codebridge-main-platform-refresh.service",
+      DropInPaths:
+        "/run/systemd/system/kmj-codebridge-main-platform-refresh.service.d/override.conf",
+    },
+    { LoadState: "masked", FragmentPath: "/dev/null", DropInPaths: "" },
+    {
+      LoadState: "not-found",
+      FragmentPath: "",
+      DropInPaths: "",
+      Extra: "unknown",
+    },
+  ])
+    assert.throws(
+      () => verifyUnitInventory(inventory),
+      /EFFECTIVE_UNIT_CONFLICT/,
+    );
+  assert.doesNotThrow(() =>
+    verifyUnitInventory({
+      LoadState: "not-found",
+      FragmentPath: "",
+      DropInPaths: "",
+    }),
+  );
+});
 
 function fixture(t) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "refresh-unit-test-"));
