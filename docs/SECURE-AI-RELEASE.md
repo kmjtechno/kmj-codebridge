@@ -1,17 +1,17 @@
 # Secure AI Coding — release gate
 
-Based on the five layers and six review steps in the *Secure Vibe Coding* guide.
+Based on the five layers and six review steps in the _Secure Vibe Coding_ guide.
 This applies equally to human- and AI-authored code.
 
 ## CodeBridge checklist
 
-| Layer | Mandatory evidence | Existing controls |
-| --- | --- | --- |
-| Server-side validation | Invalid input fails closed | Zod schemas and bounded requests |
-| Login and API abuse resistance | Limits, authentication and scope checks | Gateway rate limits and MCP OAuth tests |
-| Password storage | No new customer password store | Established external OAuth issuer |
-| Safe errors | No tokens or stack traces exposed | Public error mapping and secret scanning |
-| Established auth | Token identity, expiry, audience, issuer and ACL verified | src/auth.js and tests/auth.test.js |
+| Layer                          | Mandatory evidence                                        | Existing controls                        |
+| ------------------------------ | --------------------------------------------------------- | ---------------------------------------- |
+| Server-side validation         | Invalid input fails closed                                | Zod schemas and bounded requests         |
+| Login and API abuse resistance | Limits, authentication and scope checks                   | Gateway rate limits and MCP OAuth tests  |
+| Password storage               | No new customer password store                            | Established external OAuth issuer        |
+| Safe errors                    | No tokens or stack traces exposed                         | Public error mapping and secret scanning |
+| Established auth               | Token identity, expiry, audience, issuer and ACL verified | src/auth.js and tests/auth.test.js       |
 
 ## Required pre-release review
 
