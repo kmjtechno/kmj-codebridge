@@ -11,6 +11,7 @@ import { readJsonLimited } from "./http.js";
 import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
@@ -39,6 +40,23 @@ import {
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
 import { buildContextResume, unchangedResume } from "./context-resume.js";
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
+// The critical workflow and lease tools reject extra top-level arguments
+// at runtime, exactly as both public MCP catalogs advertise.
+const CRITICAL_CLOSED_TOOLS = new Set([
+  "chat_workspace_open",
+  "coordination_list",
+  "coordination_post",
+  "autopilot_claim",
+  "autopilot_checkpoint",
+  "autopilot_wait",
+  "autopilot_complete",
+]);
+function toolInputContract(name, definition) {
+  return CRITICAL_CLOSED_TOOLS.has(name)
+    ? z.strictObject(definition.input)
+    : definition.input;
+}
+
 // Render injects RENDER_GIT_COMMIT. Non-Render deploys (e.g. the VPS gateway
 // behind the customer-domain /mcp) set CODEBRIDGE_SOURCE_COMMIT at deploy time,
 // so a gateway publishing an unchanged tool catalog from an older commit is
@@ -1021,7 +1039,7 @@ export async function startGateway(rawConfig) {
           {
             title: d.title,
             description: d.description,
-            inputSchema: d.input,
+            inputSchema: toolInputContract(name, d),
             // Advertise the same pinned/validated icon as serverInfo.
             // Hosts may choose to ignore this metadata.
             icons: clientIcons,
@@ -1386,7 +1404,7 @@ export async function startGateway(rawConfig) {
       // the closed contract. Keep authorization and handlers unchanged.
       mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
           tools: Object.entries(allDefinitions).map(([name, d]) => {
-            const input = normalizeObjectSchema(d.input);
+            const input = normalizeObjectSchema(toolInputContract(name, d));
             const security = toolSecurityMeta(config.oauth, d.access);
             return {
               name,
