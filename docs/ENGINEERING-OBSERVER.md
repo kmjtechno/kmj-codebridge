@@ -58,7 +58,7 @@ Each event has exactly these seven fields:
 ## v3.8-inspired candidate review (opt-in, backward compatible)
 
 When the existing authorized caller includes `observations`, the same
-deterministic analysis also returns two *review-only* lists:
+deterministic analysis also returns two _review-only_ lists:
 
 - `newSkillCandidates`: only explicit `skill_gap` observations propose a
   possible new skill design. A matching existing skill is the **context** of
