@@ -11,6 +11,7 @@ import { readJsonLimited } from "./http.js";
 import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { z } from "zod";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ListToolsRequestSchema } from "@modelcontextprotocol/sdk/types.js";
 import { normalizeObjectSchema } from "@modelcontextprotocol/sdk/server/zod-compat.js";
@@ -39,6 +40,23 @@ import {
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
 import { buildContextResume, unchangedResume } from "./context-resume.js";
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
+// The critical workflow and lease tools reject extra top-level arguments
+// at runtime, exactly as both public MCP catalogs advertise.
+const CRITICAL_CLOSED_TOOLS = new Set([
+  "chat_workspace_open",
+  "coordination_list",
+  "coordination_post",
+  "autopilot_claim",
+  "autopilot_checkpoint",
+  "autopilot_wait",
+  "autopilot_complete",
+]);
+function toolInputContract(name, definition) {
+  return CRITICAL_CLOSED_TOOLS.has(name)
+    ? z.strictObject(definition.input)
+    : definition.input;
+}
+
 // Render injects RENDER_GIT_COMMIT. Non-Render deploys (e.g. the VPS gateway
 // behind the customer-domain /mcp) set CODEBRIDGE_SOURCE_COMMIT at deploy time,
 // so a gateway publishing an unchanged tool catalog from an older commit is
@@ -1021,7 +1039,7 @@ export async function startGateway(rawConfig) {
           {
             title: d.title,
             description: d.description,
-            inputSchema: d.input,
+            inputSchema: toolInputContract(name, d),
             // Advertise the same pinned/validated icon as serverInfo.
             // Hosts may choose to ignore this metadata.
             icons: clientIcons,
@@ -1380,44 +1398,47 @@ export async function startGateway(rawConfig) {
             }
           },
         );
-      if (config.oauth)
-        mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
-          tools: Object.entries(allDefinitions).map(([name, d]) => {
-            const input = normalizeObjectSchema(d.input);
-            const security = toolSecurityMeta(config.oauth, d.access);
-            return {
-              name,
+      // Use one canonical public JSON-Schema converter in both OAuth and
+      // non-OAuth modes. SDK default discovery on Zod v4 omits
+      // additionalProperties:false, whereas the protected origin publishes
+      // the closed contract. Keep authorization and handlers unchanged.
+      mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
+        tools: Object.entries(allDefinitions).map(([name, d]) => {
+          const input = normalizeObjectSchema(toolInputContract(name, d));
+          const security = toolSecurityMeta(config.oauth, d.access);
+          return {
+            name,
+            title: d.title,
+            description: d.description,
+            inputSchema: input
+              ? toJsonSchemaCompat(input, {
+                  strictUnions: true,
+                  pipeStrategy: "input",
+                })
+              : { type: "object", properties: {} },
+            // Preserve legacy non-OAuth discovery presentation while
+            // keeping owner-approved icons on the protected customer path.
+            ...(config.oauth ? { icons: clientIcons } : {}),
+            annotations: {
               title: d.title,
-              description: d.description,
-              inputSchema: input
-                ? toJsonSchemaCompat(input, {
-                    strictUnions: true,
-                    pipeStrategy: "input",
-                  })
-                : { type: "object", properties: {} },
-              // Keep the public tools/list icon consistent with serverInfo
-              // and the registered tool even when the SDK omits tool icons.
-              icons: clientIcons,
-              annotations: {
-                title: d.title,
-                readOnlyHint: d.access === "read",
-                destructiveHint: d.access !== "read",
-                idempotentHint: d.access === "read",
-                openWorldHint:
-                  name === "run_quality_gate" || name.startsWith("github_"),
-              },
-              ...(name === "render_codebridge_status"
-                ? {
-                    _meta: {
-                      ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
-                      "openai/outputTemplate": KMJ_STATUS_RESOURCE_URI,
-                    },
-                  }
-                : {}),
-              ...security,
-            };
-          }),
-        }));
+              readOnlyHint: d.access === "read",
+              destructiveHint: d.access !== "read",
+              idempotentHint: d.access === "read",
+              openWorldHint:
+                name === "run_quality_gate" || name.startsWith("github_"),
+            },
+            ...(config.oauth && name === "render_codebridge_status"
+              ? {
+                  _meta: {
+                    ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
+                    "openai/outputTemplate": KMJ_STATUS_RESOURCE_URI,
+                  },
+                }
+              : {}),
+            ...security,
+          };
+        }),
+      }));
 
       mcp.registerResource(
         "KMJ CodeBridge status card",
