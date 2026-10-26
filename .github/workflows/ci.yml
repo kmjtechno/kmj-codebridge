@@ -112,6 +112,8 @@ jobs:
           node scripts/package-claude.js https://codebridge.example.invalid/mcp --auth bearer-env --out "$RUNNER_TEMP/pkg/claude-env"
           # Separate customer-facing package: no tokens, real production OAuth endpoint.
           node scripts/package-claude.js https://kmjtechno.com/mcp --out "$RUNNER_TEMP/pkg/claude-production"
+      - name: Build isolated OpenAI public-directory candidate (not published)
+        run: node scripts/package-openai-directory.mjs --out "$RUNNER_TEMP/pkg/openai-directory"
       - name: Credential scan of repository and packages
         run: npm run scan:secrets -- "$RUNNER_TEMP/pkg"
       - name: Build release-candidate evidence
@@ -133,6 +135,13 @@ jobs:
         with:
           subject-path: ${{ runner.temp }}/release-candidate/runtime/*.tar.gz
           sbom-path: ${{ runner.temp }}/release-candidate/sbom.cdx.json
+      - name: Upload OpenAI public-directory review ZIP
+        uses: actions/upload-artifact@v7.0.2
+        with:
+          name: kmj-codebridge-openai-directory-candidate
+          path: ${{ runner.temp }}/pkg/openai-directory/kmj-codebridge-openai-directory.zip
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload canonical Claude OAuth marketplace
         uses: actions/upload-artifact@v7.0.2
         with:
