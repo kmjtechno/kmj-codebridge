@@ -1,22 +1,29 @@
 @echo off
 setlocal EnableExtensions DisableDelayedExpansion
-title KMJ TECHNO - Reconnect Existing Calibration Pro
-echo KMJ TECHNO ^| CALIBRATION PRO DEVICE RECONNECT
-echo Existing owner enrollment only. No reset, install, hardware scan or token export.
+title KMJ TECHNO - Home Office Calibration Pro Reconnect
+echo KMJ TECHNO ^| SECURE HOME OFFICE EXISTING AGENT RECONNECT
+echo Node 24+ only. Existing enrolled device reconnect only.
+echo No credential export, downloads, service changes or project edits.
 echo.
 if /I not "%OS%"=="Windows_NT" goto :blocked
-where powershell.exe >nul 2>&1
-if errorlevel 1 goto :blocked
-set "SCRIPT=%~dp0CONNECT-CALIBRATION-PRO.ps1"
-if not exist "%SCRIPT%" goto :blocked
-powershell.exe -NoProfile -STA -ExecutionPolicy RemoteSigned -File "%SCRIPT%" -AutoDiscover
+if /I not "%COMPUTERNAME%"=="DESKTOP-5FVJMET" goto :blocked
+where node.exe >nul 2>&1
+if errorlevel 1 goto :node_missing
+set "NODE_SCRIPT=%~dp0connect-homeoffice-calibration.mjs"
+if not exist "%NODE_SCRIPT%" goto :blocked
+node.exe "%NODE_SCRIPT%"
 set "RESULT=%ERRORLEVEL%"
 echo.
-echo Result: %RESULT%
-echo Verify the device grant using CodeBridge connection_overview.
+echo CALIBRATION_NODE_RECONNECT_EXIT=%RESULT%
+echo Verify READY in authenticated CodeBridge connection_overview.
+echo Do not share agent.json, enrollment.json or raw logs.
 pause
 exit /b %RESULT%
+:node_missing
+echo CALIBRATION_RECONNECT=BLOCKED_NODE24_NOT_INSTALLED
+pause
+exit /b 2
 :blocked
-echo CALIBRATION_RECONNECT=BLOCKED:WINDOWS_OR_SCRIPT_MISSING
+echo CALIBRATION_RECONNECT=BLOCKED_WRONG_PC_OR_TRUSTED_RUNTIME
 pause
 exit /b 2

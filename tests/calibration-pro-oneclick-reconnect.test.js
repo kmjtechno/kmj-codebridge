@@ -10,9 +10,13 @@ const ps = fs.readFileSync(psFile, "utf8");
 const cmd = fs.readFileSync(cmdFile, "utf8");
 
 test("Calibration Pro owner double click is narrowly scoped to existing enrollment", () => {
-  assert.match(cmd, /%~dp0CONNECT-CALIBRATION-PRO\.ps1/);
-  assert.match(cmd, /-NoProfile -STA -ExecutionPolicy RemoteSigned -File/);
-  assert.match(cmd, /-AutoDiscover/);
+  // Default double click no longer depends on unsigned PowerShell scripts.
+  assert.match(cmd, /%~dp0connect-homeoffice-calibration\.mjs/);
+  assert.match(cmd, /node\.exe "%NODE_SCRIPT%"/);
+  assert.doesNotMatch(
+    cmd,
+    /powershell|ExecutionPolicy|schtasks|git clone|curl/i,
+  );
   assert.match(ps, /CALIBRATION_ENROLLMENT_DISCOVERY=SCOPED_MATCH/);
   assert.match(
     ps,
