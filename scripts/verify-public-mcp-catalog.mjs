@@ -196,6 +196,17 @@ function canonicalSchema(value) {
   );
 }
 
+// Public MCP discovery is unauthenticated; report only fixed classifications
+// of the object-closure flag, never remote schemas or user input.
+export function criticalObjectClosure(catalog, tool) {
+  if (!Object.hasOwn(CRITICAL_TOOL_PROPERTIES, tool))
+    throw new Error("MCP_CRITICAL_TOOL_MISSING");
+  const value = catalog?.tools?.get(tool)?.inputSchema?.additionalProperties;
+  if (value === true) return "open";
+  if (value === false) return "closed";
+  return value === undefined ? "unspecified" : "nonboolean";
+}
+
 export function verifyCriticalSchemaParity(render, production) {
   verifyCriticalToolSchemas(render);
   verifyCriticalToolSchemas(production);
@@ -427,6 +438,20 @@ async function main() {
     console.error(
       `MCP_CRITICAL_PARITY=FAIL tool=${tool} field=${field} kind=${kind}`,
     );
+    if (field === "additionalProperties") {
+      console.error(
+        `MCP_ORIGIN_CLOSURE render=${criticalObjectClosure(render, tool)} production=${criticalObjectClosure(production, tool)}`,
+      );
+    }
+    for (const [origin, endpoint] of Object.entries(ENDPOINTS)) {
+      let commit = null;
+      try {
+        commit = await probeServerCommit(endpoint);
+      } catch {
+        // Diagnostic only: absence must not weaken the parity gate.
+      }
+      console.error(`MCP_ORIGIN_COMMIT ${origin}=${commit ?? "unknown"}`);
+    }
     throw error;
   }
   console.log(
