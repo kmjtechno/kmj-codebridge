@@ -20,11 +20,11 @@ The existing read-only `skill_recommendations` tool now selects three
 additional, bounded, deterministic workflow packs based on explicit
 objective/file/failure tokens:
 
-| Pack | Intended use | Native CodeBridge tools |
-| --- | --- | --- |
-| `context-budget` | Small context and resumable handoff | `compact_work_brief`, `fast_context`, `context_pack`, `compact_session_save`, `compact_session_resume` |
-| `independent-review` | Nonconflicting work and independent verification | `chat_lane_status`, `chat_lane_reserve`, `worktree_lane_prepare`, `run_quality_gate` |
-| `agent-config-audit` | Review MCP/hook/plugin trust boundaries | Existing scoped reads, secret scans, policy checks and negative tests |
+| Pack                 | Intended use                                     | Native CodeBridge tools                                                                                |
+| -------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------ |
+| `context-budget`     | Small context and resumable handoff              | `compact_work_brief`, `fast_context`, `context_pack`, `compact_session_save`, `compact_session_resume` |
+| `independent-review` | Nonconflicting work and independent verification | `chat_lane_status`, `chat_lane_reserve`, `worktree_lane_prepare`, `run_quality_gate`                   |
+| `agent-config-audit` | Review MCP/hook/plugin trust boundaries          | Existing scoped reads, secret scans, policy checks and negative tests                                  |
 
 All packs return **advice and expected evidence only**; selection performs no
 file write, AI inference, network call, command execution or runtime hook
