@@ -70,6 +70,8 @@ test("private-path, process lock and untrusted ambiguity fail closed", () => {
   assert.equal(privatePath("C:\\KMJ\\private\\agent.json"), true);
   assert.equal(privatePath("/kmj/private/agent.json"), true);
   assert.equal(privatePath("/kmj/public/agent.json"), false);
+  assert.equal(privatePath("C:\\\\KMJ\\\\private\\\\..\\\\public\\\\agent.json"), false);
+  assert.equal(privatePath("/kmj/private/../public/agent.json"), false);
   assert.equal(lockPid("12345"), 12345);
   assert.equal(lockPid('{"pid":7421,"owner":"test"}'), 7421);
   for (const bad of ["0", "-3", "garbage", '{"pid":0}', '{"pid":-5}']) {
