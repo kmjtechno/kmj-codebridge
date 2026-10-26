@@ -32,9 +32,11 @@ CodeBridge caller. This is OBSERVATION_ONLY, NOT a visual or functional PASS.
    same-OS-user permission boundary. Do not use curl|sh, iex or @latest.
 2. Install the exact reviewed v0.9.0 npm package in an isolated fixed path:
    Linux: /opt/kmj-codebridge-tools/browsentic/v0.9.0/node_modules/browsentic/
-   Windows: C:\ProgramData\KMJ\CodeBridge\browsentic\v0.9.0\node_modules\browsentic/
-   Inspect all directory ACLs, reject symlinks and record installation provenance.
-   No automatic package installation is added to CodeBridge.
+   Windows: %LOCALAPPDATA%\KMJ\CodeBridge\browsentic\v0.9.0\node_modules\browsentic/
+   Inspect parent paths/ACLs and reject symlinks/junctions. The Windows path is
+   current-user scoped (no admin/ProgramData required). A reviewed optional
+   prepare script is available under scripts/windows/; it does not silently
+   approve a browser connection or update private agent.json.
 3. The local CodeBridge agent must run under a user with an explicitly
    approved, paired Browsentic browser extension. Never copy owner browser
    profiles/cookies into a server service account or bypass pairing.
@@ -42,6 +44,8 @@ CodeBridge caller. This is OBSERVATION_ONLY, NOT a visual or functional PASS.
    through the agent configuration:
    browserAgentic: { enabled: true, entrySha256: "<exact lowercase SHA-256>" }
    This is default-off; the command refuses execution without both fields.
+   The readiness report intentionally distinguishes entrySha256Verified from
+   full transitive-package integrity: packageVerified stays false.
 5. Smoke browser_runtime_status and browser_agentic_observe on the enrolled
    owner device. Confirm actual MCP pairing, route pin, filtered result,
    denial tests, timeout, negative cases, and operator revocation.
@@ -60,3 +64,15 @@ debugging interfaces and unattended write override are not exposed to
 CodeBridge. None is safe to silently inherit from a third-party MCP bridge.
 Keep CodeBridge's working Chromium/Moli engines; there is no evidence they
 are redundant. Only remove a proven dead path after real usage/rollback audit.
+
+## Optional Windows owner-local preparation
+
+Run `scripts/windows/PREPARE-BROWSENTIC-OWNER.ps1` from the already
+trusted pinned CodeBridge checkout in the current Windows user session. It
+resolves the existing portable Node 24+, installs *only* Browsentic 0.9.0
+into a fresh private isolated versioned directory using `npm --ignore-scripts`,
+and reports the entry SHA-256 for a separately approved config pin. It never
+modifies device pairing, admin policy, startup services, the system PATH,
+existing installs, or production. It cannot attest the entire dependency
+closure or prove that a browser extension is paired; preserve the npm lockfile
+from the installed directory for provenance review.

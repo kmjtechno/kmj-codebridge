@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import {
@@ -10,6 +11,7 @@ import {
   observeWithReadOnlyCalls,
   pageUrl,
   pinnedBrowsenticEntry,
+  verifyBrowsenticEntry,
 } from "../src/browser-agentic.js";
 import { createDispatcher } from "../src/tools.js";
 
@@ -22,6 +24,63 @@ test("Browsentic opt-in is disabled without operator-approved exact pin", () => 
   assert.equal(browserAgenticReadiness().packageVerified, false);
   assert.match(pinnedBrowsenticEntry("linux"), /v0\.9\.0/);
   assert.equal(pinnedBrowsenticEntry("unsupported"), null);
+});
+
+test("Windows user-scoped Browsentic path requires existing local profile", () => {
+  const env = { LOCALAPPDATA: "C:\\Users\\Owner\\AppData\\Local" };
+  const entry = pinnedBrowsenticEntry("win32", env);
+  assert.equal(
+    entry,
+    "C:\\Users\\Owner\\AppData\\Local\\KMJ\\CodeBridge\\browsentic\\v0.9.0\\node_modules\\browsentic\\dist\\cli.js",
+  );
+  assert.equal(pinnedBrowsenticEntry("win32", {}), null);
+  assert.equal(pinnedBrowsenticEntry("win32", { LOCALAPPDATA: "." }), null);
+});
+
+test("full parent-directory junction check and entry checksum fail closed", () => {
+  const env = { LOCALAPPDATA: "C:\\Users\\Owner\\AppData\\Local" };
+  const entry = pinnedBrowsenticEntry("win32", env);
+  const parent = path.win32.dirname(entry);
+  const pkg = path.win32.join(path.win32.dirname(parent), "package.json");
+  const contents = Buffer.from("test-cli");
+  const expected = createHash("sha256").update(contents).digest("hex");
+  const regularFile = {
+    isFile: () => true,
+    isDirectory: () => false,
+    isSymbolicLink: () => false,
+  };
+  const normalFolder = {
+    isFile: () => false,
+    isDirectory: () => true,
+    isSymbolicLink: () => false,
+  };
+  const fakeLstat = (p) => ([entry, pkg].includes(p) ? regularFile : normalFolder);
+  const fakeRead = (p) =>
+    p === entry
+      ? contents
+      : JSON.stringify({ name: "browsentic", version: "0.9.0" });
+  const opts = { platform: "win32", env, lstat: fakeLstat, read: fakeRead };
+  assert.equal(verifyBrowsenticEntry(expected, opts), entry);
+  assert.throws(
+    () => verifyBrowsenticEntry(expected, {
+      ...opts,
+      lstat: (p) =>
+        p === parent
+          ? { ...normalFolder, isSymbolicLink: () => true }
+          : fakeLstat(p),
+    }),
+    /BROWSENTIC_PIN_UNVERIFIED/,
+  );
+  assert.throws(
+    () => verifyBrowsenticEntry("0".repeat(64), opts),
+    /BROWSENTIC_PIN_UNVERIFIED/,
+  );
+  const readiness = browserAgenticReadiness(
+    { enabled: true, entrySha256: expected },
+    opts,
+  );
+  assert.equal(readiness.entrySha256Verified, true);
+  assert.equal(readiness.packageVerified, false);
 });
 
 test("only exact KMJ HTTPS public/admin paths without query or auth are accepted", () => {
