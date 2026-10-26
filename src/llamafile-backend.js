@@ -1,8 +1,9 @@
 import http from "node:http";
 
-// Optional local-only inference adapter. Not wired into MCP tool discovery or
-// auto-routing: the device owner must explicitly opt in after compatibility
-// checks. Llamafile's published AMD gfx1151 performance is NOT a P720 benchmark.
+// Optional source-only Mozilla AI llamafile inference adapter.
+// Not registered in MCP or AI routing; the owner must opt in only after
+// independently verifying the local service, model license and hardware.
+// Loopback access does NOT establish server identity or billing safety.
 const MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,95}$/;
 const MAX_RESPONSE_BYTES = 65536;
 const MAX_MODELS = 32;
