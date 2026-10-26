@@ -211,12 +211,38 @@ try {
   Assert-TrustedPath $runtime $true
   Assert-TrustedPath $entry $false
   Assert-TrustedPath (Join-Path $runtime 'node_modules\zod\package.json') $false
-  $node = (Get-Command node.exe -ErrorAction Stop).Source
   $null = Get-Command git.exe -ErrorAction Stop
-  Assert-TrustedPath $node $false
-  $nodeVersion = [string](& $node --version)
-  if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(\d+)\.' -or
-      [int]$Matches[1] -lt 24) { throw 'NODE24_REQUIRED' }
+  # This launcher is also called by the CURRENT USER Startup shortcut. The
+  # one-click bootstrap's process-scoped PATH does not survive the next logon.
+  $nodeCandidates = New-Object 'System.Collections.Generic.List[string]'
+  $pathNode = Get-Command node.exe -ErrorAction SilentlyContinue
+  if ($pathNode) { $nodeCandidates.Add([string]$pathNode.Source) }
+  $toolchains = Join-Path $env:LOCALAPPDATA 'KMJ-CaliPro\toolchains'
+  if (Test-Path -LiteralPath $toolchains -PathType Container) {
+    Assert-TrustedPath $toolchains $true
+    $nodeCandidates.Add((Join-Path $toolchains 'node.exe'))
+    foreach ($folder in @(Get-ChildItem -LiteralPath $toolchains -Directory -ErrorAction Stop |
+      Where-Object { $_.Name -match '^node(?:[-._].+)?$' } |
+      Select-Object -First 12)) {
+      $nodeCandidates.Add((Join-Path $folder.FullName 'node.exe'))
+      $nodeCandidates.Add((Join-Path $folder.FullName 'bin\node.exe'))
+    }
+  }
+  $node = $null
+  foreach ($candidate in @($nodeCandidates | Select-Object -Unique)) {
+    if (!(Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+    try {
+      Assert-TrustedPath $candidate $false
+      $nodeVersion = [string](& $candidate --version 2>$null)
+      if ($LASTEXITCODE -ne 0 -or $nodeVersion -notmatch '^v(\d+)\.' -or
+          [int]$Matches[1] -lt 24) { continue }
+      $node = $candidate
+      break
+    } catch { continue }
+  }
+  if (!$node) { throw 'NODE24_REQUIRED' }
+  Write-Output 'CALIBRATION_NODE24=EXISTING_VERIFIED'
+  Write-Output 'WINDOWS_GLOBAL_PATH_CHANGED=NO'
   $head = GitValue $runtime @('rev-parse','--verify','HEAD')
   if ($head -notmatch '^[0-9a-f]{40}$') { throw 'SOURCE_SHA_INVALID' }
   $origin = GitValue $runtime @('remote','get-url','origin')

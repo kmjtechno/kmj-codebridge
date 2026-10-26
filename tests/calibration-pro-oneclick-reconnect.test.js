@@ -49,6 +49,14 @@ test("Calibration Pro owner double click is narrowly scoped to existing enrollme
   assert.match(ps, /\$picker\.ShowDialog\(\)/);
   assert.match(ps, /param\(\[string\]\$ConfigPath/);
   assert.match(ps, /PrivatePath \$ConfigPath/);
+  // Startup has a fresh PATH, unlike the download/setup process. An already
+  // installed owner-scoped Node 24 LTS must be found without system edits.
+  assert.match(ps, /KMJ-CaliPro\\toolchains/);
+  assert.match(ps, /Get-ChildItem -LiteralPath \$toolchains -Directory/);
+  assert.match(ps, /Assert-TrustedPath \$candidate \$false/);
+  assert.match(ps, /CALIBRATION_NODE24=EXISTING_VERIFIED/);
+  assert.match(ps, /WINDOWS_GLOBAL_PATH_CHANGED=NO/);
+  assert.doesNotMatch(ps, /setx|Set-ExecutionPolicy|Install-Module/i);
 });
 
 test("Reconnect never edits owner files, exports secrets, self-repairs or starts a second agent", () => {
