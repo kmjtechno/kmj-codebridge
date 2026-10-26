@@ -11,6 +11,14 @@ unrestricted automatic fixer. Use it to replace guessing about CI failures.
 - GitHub Actions: github_actions_failed_job_triage requires exact PR number,
   exact current head SHA, failed job ID and matching job SHA. It refuses
   successful, pending, stale or unrelated jobs.
+  It streams up to 4 MiB once and retains the last 18 unique sanitized
+  diagnostic lines, rather than rejecting the whole job log at 64 KiB.
+  Lines longer than 400 characters and private-key blocks are discarded.
+  `sourceBytesRead` counts processed input bytes; `sourceComplete` reports
+  whether EOF was reached. `truncated` also covers dropped long lines and
+  evicted diagnostics. These fields never attest complete diagnostic
+  coverage or a verified root cause. The ordinary raw-log tool retains
+  its existing 64 KiB hard limit and behavior.
 - Shared src/ci-triage.js: classifies PHPStan, Pint, PHPUnit, TypeScript, JS
   formatting, permissions and rate limits; gives a short stable fingerprint,
   suggests an existing configured verification gate role and next action.
@@ -39,6 +47,23 @@ repair. Respect free-only policies and GitHub/CircleCI quotas.
 This is _source implementation_. The gateway version must be deployed and
 its protected CircleCI token and output-host allowlist installed before
 claiming CircleCI diagnostic MCP functionality is live.
+
+## Performance and upstream scope
+
+This change removes an observed oversized-log failure from the existing
+triage path; it makes no claim about provider tokens, credits, or wall-clock
+speedups. No additional runtime package, paid API or self-hosted runner is
+introduced. Input is not persisted and no log text is sent to an LLM.
+
+The repository review considered the upstream
+[MCP TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk),
+[GitHub Actions toolkit](https://github.com/actions/toolkit),
+[ripgrep](https://github.com/BurntSushi/ripgrep) and
+[ast-grep](https://github.com/ast-grep/ast-grep). CodeBridge already uses
+the MCP SDK. The other packages are not added or copied into this fix:
+native search and structural rewrites would need separate project-policy,
+binary provenance and measured-benefit work. The streaming implementation
+is original CodeBridge code using Node built-ins and the existing sanitizer.
 
 ## Pending full autonomy
 
