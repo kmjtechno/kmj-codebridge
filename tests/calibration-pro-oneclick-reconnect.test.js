@@ -12,7 +12,11 @@ const cmd = fs.readFileSync(cmdFile, "utf8");
 test("Calibration Pro owner double click is narrowly scoped to existing enrollment", () => {
   // Default double click no longer depends on unsigned PowerShell scripts.
   assert.match(cmd, /%~dp0connect-homeoffice-calibration\.mjs/);
-  assert.match(cmd, /node\.exe "%NODE_SCRIPT%"/);
+  assert.match(cmd, /"%NODE_EXE%" "%NODE_SCRIPT%"/);
+  assert.match(cmd, /KMJ-CaliPro\\toolchains\\node\*/);
+  assert.match(cmd, /:consider_node/);
+  assert.match(cmd, /process\.versions\.node/);
+  assert.match(cmd, />= 24/);
   assert.doesNotMatch(
     cmd,
     /powershell|ExecutionPolicy|schtasks|git clone|curl/i,
