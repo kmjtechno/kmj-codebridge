@@ -13,20 +13,22 @@ export async function inspectOwnerBrowser(target, sha256, factory) {
   // The CLI is a separately reviewed operator-installed fixed-version package.
   // No npx, remote installer, arbitrary executable, shell, URL or user args.
   const entry = verifyBrowsenticEntry(sha256);
-  const create = factory ?? (async () => {
-    const client = new Client(
-      { name: "kmj-codebridge-readonly", version: "0.3.2" },
-      { capabilities: {} },
-    );
-    const transport = new StdioClientTransport({
-      command: process.execPath,
-      args: [entry, "mcp"],
-      env: browsenticChildEnvironment(),
-      stderr: "pipe",
+  const create =
+    factory ??
+    (async () => {
+      const client = new Client(
+        { name: "kmj-codebridge-readonly", version: "0.3.2" },
+        { capabilities: {} },
+      );
+      const transport = new StdioClientTransport({
+        command: process.execPath,
+        args: [entry, "mcp"],
+        env: browsenticChildEnvironment(),
+        stderr: "pipe",
+      });
+      await client.connect(transport);
+      return client;
     });
-    await client.connect(transport);
-    return client;
-  });
   let client;
   try {
     client = await create();
@@ -56,7 +58,9 @@ if (
       "BROWSENTIC_MCP_RESULT_INVALID",
       "BROWSENTIC_ARGUMENTS_INVALID",
     ]);
-    console.error(allowed.has(error?.message) ? error.message : "BROWSENTIC_NOT_READY");
+    console.error(
+      allowed.has(error?.message) ? error.message : "BROWSENTIC_NOT_READY",
+    );
     process.exitCode = 2;
   }
 }

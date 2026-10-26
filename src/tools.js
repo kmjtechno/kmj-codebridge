@@ -4316,7 +4316,10 @@ export function createDispatcher(
     if (name === "browser_agentic_observe") {
       if (p.id !== "kmj-main-platform" || !p.writable)
         fail("BROWSER_AGENTIC_PROJECT_NOT_ALLOWED");
-      if (config.browserAgentic?.enabled !== true || !config.browserAgentic.entrySha256)
+      if (
+        config.browserAgentic?.enabled !== true ||
+        !config.browserAgentic.entrySha256
+      )
         fail("BROWSER_AGENTIC_OWNER_OPT_IN_REQUIRED");
       const script = fileURLToPath(
         new URL("../scripts/browser-browsentic-observe.mjs", import.meta.url),

@@ -237,7 +237,10 @@ export const agentSchema = z.object({
   browserAgentic: z
     .object({
       enabled: z.boolean().default(false),
-      entrySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+      entrySha256: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .optional(),
     })
     .strict()
     .refine((v) => !v.enabled || Boolean(v.entrySha256), {

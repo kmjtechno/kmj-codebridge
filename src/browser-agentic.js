@@ -54,7 +54,11 @@ export function browserAgenticReadiness(config = {}, options = {}) {
     browserPairingVerified: false,
     liveProbeVerified: false,
     supportedWork: "owner_opt_in_read_only_element_counts",
-    unsupported: ["unattended_writes", "generic_mcp_calls", "headless_visual_qa"],
+    unsupported: [
+      "unattended_writes",
+      "generic_mcp_calls",
+      "headless_visual_qa",
+    ],
   };
 }
 
@@ -77,7 +81,9 @@ export function assertApprovedPage(value) {
     url.hash ||
     /%|\\/.test(url.pathname) ||
     !(
-      ["/", "/login", "/products", "/admin", "/super-admin"].includes(url.pathname) ||
+      ["/", "/login", "/products", "/admin", "/super-admin"].includes(
+        url.pathname,
+      ) ||
       url.pathname.startsWith("/admin/") ||
       url.pathname.startsWith("/super-admin/")
     )
@@ -90,10 +96,22 @@ export function unpackMcpText(result) {
   if (result?.isError || !Array.isArray(result?.content))
     throw Error("BROWSENTIC_MCP_RESULT_INVALID");
   const items = result.content.filter((part) => part?.type === "text");
-  if (items.length !== 1 || typeof items[0].text !== "string" || items[0].text.length > 150000)
+  if (
+    items.length !== 1 ||
+    typeof items[0].text !== "string" ||
+    items[0].text.length > 150000
+  )
     throw Error("BROWSENTIC_MCP_RESULT_INVALID");
   try {
-    const parsed = JSON.parse(items[0].text);
+    const value = items[0].text;
+    // Browsentic intentionally fences all page-authored MCP data.
+    // Strictly recognize the canonical wrapper; never run or forward its text.
+    const fenced = value.match(
+      /^Untrusted page content follows\.[^\n]*\n<<<untrusted-page-data:([a-f0-9]{12})>>>\n([\s\S]*)\n<<<\/untrusted-page-data:\1>>>$/,
+    );
+    if (value.startsWith("Untrusted page content follows.") && !fenced)
+      throw Error("invalid fence");
+    const parsed = JSON.parse(fenced ? fenced[2] : value);
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
       throw Error("invalid");
     return parsed;
@@ -114,7 +132,9 @@ export function pageUrl(payload) {
 }
 
 function boundedCount(value) {
-  return Number.isInteger(value) && value >= 0 && value <= 100000 ? value : null;
+  return Number.isInteger(value) && value >= 0 && value <= 100000
+    ? value
+    : null;
 }
 
 export async function observeWithReadOnlyCalls(call) {
@@ -146,9 +166,21 @@ export async function observeWithReadOnlyCalls(call) {
 export function browsenticChildEnvironment(parent = process.env) {
   const result = {};
   for (const key of [
-    "PATH", "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "APPDATA",
-    "LOCALAPPDATA", "PROGRAMDATA", "SYSTEMROOT", "WINDIR", "TEMP", "TMP",
-    "TMPDIR", "LANG", "LC_ALL",
+    "PATH",
+    "HOME",
+    "USERPROFILE",
+    "HOMEDRIVE",
+    "HOMEPATH",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "PROGRAMDATA",
+    "SYSTEMROOT",
+    "WINDIR",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "LANG",
+    "LC_ALL",
   ])
     if (typeof parent[key] === "string") result[key] = parent[key];
   return result;
