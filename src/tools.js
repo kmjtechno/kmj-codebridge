@@ -1,6 +1,7 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
 import { verifiedFastReceipt } from "./browser-fast-receipt.js";
 import { browserRuntimeStatus } from "./browser-runtime.js";
+import { browserAgenticReadiness } from "./browser-agentic.js";
 import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -1189,6 +1190,17 @@ export const definitions = {
       expectedHash: z.string().regex(/^[a-f0-9]{64}$/),
     },
     access: "write",
+  },
+  browser_agentic_observe: {
+    title: "Owner-approved Browsentic read-only browser observation",
+    description:
+      "Optional SHA-pinned local Browsentic MCP observation of the already-open KMJ Main Platform browser tab. Checks exact HTTPS origin and path; returns only bounded element counts, not text, URLs with secrets, screenshots, cookies, credentials or interactive actions. Operator must enable and pair separately. Not visual QA.",
+    input: {
+      ...scoped,
+      target: z.literal("kmj_owner_browser"),
+      requestKey: z.string().min(1).max(128),
+    },
+    access: "execute",
   },
   browser_runtime_status: {
     title: "Local browser engine readiness",
@@ -4301,7 +4313,33 @@ export function createDispatcher(
         timeoutMs: variant.timeoutMs,
       });
     }
-    if (name === "browser_runtime_status") return browserRuntimeStatus();
+    if (name === "browser_agentic_observe") {
+      if (p.id !== "kmj-main-platform" || !p.writable)
+        fail("BROWSER_AGENTIC_PROJECT_NOT_ALLOWED");
+      if (
+        config.browserAgentic?.enabled !== true ||
+        !config.browserAgentic.entrySha256
+      )
+        fail("BROWSER_AGENTIC_OWNER_OPT_IN_REQUIRED");
+      const script = fileURLToPath(
+        new URL("../scripts/browser-browsentic-observe.mjs", import.meta.url),
+      );
+      if (!fs.existsSync(script)) fail("BROWSER_AGENTIC_RUNTIME_NOT_DEPLOYED");
+      return runner.run({
+        project: p.id,
+        gate: "browser-agentic:read-only",
+        key: a.requestKey,
+        cwd: p.files.root,
+        command: process.execPath,
+        args: [script, "kmj_owner_browser", config.browserAgentic.entrySha256],
+        timeoutMs: 45000,
+      });
+    }
+    if (name === "browser_runtime_status")
+      return {
+        ...browserRuntimeStatus(),
+        agentic: browserAgenticReadiness(config.browserAgentic),
+      };
     if (name === "browser_fast_probe") {
       if (p.id !== "kmj-main-platform" || !p.writable)
         fail("BROWSER_QA_PROJECT_NOT_ALLOWED");
