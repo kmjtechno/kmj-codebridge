@@ -48,87 +48,17 @@ try {
     $gitTool = Get-Command git.exe -ErrorAction SilentlyContinue
     if (!$gitTool) { throw 'GIT_REQUIRED' }
     $git = $gitTool.Source
-    # Prefer an already installed Node 24+ with npm. The Home Office portable
-    # LTS intentionally has no machine-wide PATH changes.
-    $nodeCandidates = New-Object System.Collections.Generic.List[string]
+    # Use an installed Node 24+ alongside npm. Portable LTS may not be on PATH.
+    $nodeCandidates = New-Object 'System.Collections.Generic.List[string]'
     $pathNode = Get-Command node.exe -ErrorAction SilentlyContinue
-    if ($pathNode) { $nodeCandidates.Add($pathNode.Source) }
+    if ($pathNode) { $nodeCandidates.Add([string]$pathNode.Source) }
     $toolchains = Join-Path $env:LOCALAPPDATA 'KMJ-CaliPro\toolchains'
     if (Test-Path -LiteralPath $toolchains -PathType Container) {
         OrdinaryDirectory $toolchains
         $nodeCandidates.Add((Join-Path $toolchains 'node.exe'))
         foreach ($folder in @(Get-ChildItem -LiteralPath $toolchains -Directory -ErrorAction Stop |
-            Where-Object { $_.Name -match '^node(?:[-._].+)?    OrdinaryDirectory 'E:\KMJ'
-    $runtime = $null
-    foreach ($candidate in $candidates) {
-        try {
-            if (TrustedRuntime $candidate $git) {
-                $runtime = $candidate
-                Mark 'KMJ_IDE_RUNTIME' 'EXISTING_TRUSTED_PINNED_CLEAN'
-                break
-            }
-        } catch {
-            if ($candidate -ieq $dest) { throw }
-        }
-    }
-    if ($null -eq $runtime) {
-        $installDest = $dest
-        if (Test-Path -LiteralPath $dest) {
-            # Existing primary path may be dirty, a different revision, or incomplete.
-            # Preserve it exactly and refuse symlinks/reparse points.
-            OrdinaryDirectory $dest
-            Mark 'KMJ_IDE_PREVIOUS_RUNTIME' 'UNVERIFIED_PRESERVED_UNCHANGED'
-            $installDest = $isolatedDest
-            if (Test-Path -LiteralPath $isolatedDest) { throw 'ISOLATED_DESTINATION_OCCUPIED_NO_OVERWRITE' }
-            Mark 'KMJ_IDE_NEW_RUNTIME' 'SHA_NAMED_ISOLATED_SIBLING'
-        }
-        if ($CheckOnly) {
-            Mark 'KMJ_IDE_RUNTIME' 'INSTALL_REQUIRED'
-            Mark 'HOST_CHANGES' 'NONE'
-            exit 2
-        }
-        $stage = Join-Path 'E:\KMJ' ('CodeBridge-HomeOffice-stage-' + [guid]::NewGuid().ToString('N'))
-        if (Test-Path -LiteralPath $stage) { throw 'STAGE_PATH_COLLISION' }
-        Mark 'KMJ_IDE_INSTALL' 'FETCHING_PINNED_GITHUB_SOURCE'
-        & $git clone --depth 1 --no-checkout --single-branch --branch main --no-tags $origin $stage 1>$null
-        if ($LASTEXITCODE -ne 0) { throw 'GIT_CLONE_FAILED' }
-        OrdinaryDirectory $stage
-        & $git -C $stage fetch --depth 1 --no-tags origin $sha 1>$null
-        if ($LASTEXITCODE -ne 0) { throw 'PINNED_FETCH_FAILED' }
-        & $git -C $stage checkout --detach $sha 1>$null
-        if ($LASTEXITCODE -ne 0) { throw 'PINNED_CHECKOUT_FAILED' }
-        $head = [string]((& $git -C $stage rev-parse HEAD) | Select-Object -First 1)
-        if ($head.Trim() -cne $sha) { throw 'COMMIT_HASH_MISMATCH' }
-        Mark 'KMJ_IDE_INSTALL' 'INSTALLING_LOCKED_DEPENDENCIES_NO_SCRIPTS'
-        Push-Location -LiteralPath $stage
-        try {
-            & $npm ci --ignore-scripts --no-audit --no-fund 1>$null
-            if ($LASTEXITCODE -ne 0) { throw 'NPM_LOCKFILE_INSTALL_FAILED' }
-        } finally { Pop-Location }
-        if (!(TrustedRuntime $stage $git)) { throw 'STAGED_RUNTIME_UNTRUSTED' }
-        if (Test-Path -LiteralPath $installDest) { throw 'DESTINATION_APPEARED_NO_OVERWRITE' }
-        Move-Item -LiteralPath $stage -Destination $installDest -ErrorAction Stop
-        if (!(TrustedRuntime $installDest $git)) { throw 'PROMOTION_VERIFY_FAILED' }
-        $runtime = $installDest
-        Mark 'KMJ_IDE_INSTALL' 'PINNED_RUNTIME_READY'
-    }
-    Mark 'KMJ_IDE_SOURCE_SHA' $sha
-    if ($CheckOnly) { Mark 'KMJ_IDE_CONNECT' 'NOT_STARTED_CHECK_ONLY'; exit 0 }
-    $launcher = Join-Path $runtime 'scripts\windows\ONE-CLICK-AGENT-AUTOCONNECT.ps1'
-    if (!(Test-Path -LiteralPath $launcher -PathType Leaf)) { throw 'APPROVED_LAUNCHER_MISSING' }
-    & powershell.exe -NoProfile -STA -ExecutionPolicy RemoteSigned -File $launcher -Device HomeOffice
-    if ($LASTEXITCODE -ne 0) { throw 'OWNER_PAIRING_OR_RECONNECT_NOT_VERIFIED' }
-    Mark 'KMJ_IDE_CONNECT' 'LOCAL_SCRIPT_COMPLETED'
-    Mark 'ACCOUNT_SIDE_READY' 'NOT_ATTESTED_CHECK_CODEBRIDGE'
-} catch {
-    $reason = [string]$_.Exception.Message
-    if ($reason -cnotmatch '^[A-Z][A-Z0-9_]{2,100}$') { $reason = 'LOCAL_INSTALL_PRECONDITION_FAILED' }
-    Mark 'KMJ_IDE_BOOTSTRAP' ('BLOCKED:' + $reason)
-    Mark 'CALIBRATION_AND_EXISTING_AGENTS' 'UNTOUCHED'
-    Mark 'OWNER_APPROVAL_BYPASSED' 'NO'
-    exit 2
-}
- } | Select-Object -First 12)) {
+            Where-Object { $_.Name -match '^node(?:[-._].+)?$' } |
+            Select-Object -First 12)) {
             $nodeCandidates.Add((Join-Path $folder.FullName 'node.exe'))
             $nodeCandidates.Add((Join-Path $folder.FullName 'bin\node.exe'))
         }
@@ -151,8 +81,6 @@ try {
                 [int]$Matches[1] -lt 24) { continue }
             $node = $candidate
             $npm = $npmCandidate
-            # Process/child scope only, so approved reconnect scripts can
-            # resolve node.exe. No user/system PATH or execution policy edit.
             $env:PATH = $folder + [IO.Path]::PathSeparator + $env:PATH
             break
         } catch { continue }
