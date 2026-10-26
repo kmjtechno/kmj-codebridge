@@ -80,7 +80,10 @@ test("private-path, process lock and untrusted ambiguity fail closed", () => {
 test("double click requires only Node, no PowerShell policy override", () => {
   assert.match(cmd, /node\.exe "%NODE_SCRIPT%"/);
   assert.match(cmd, /%~dp0connect-homeoffice-calibration\.mjs/);
-  assert.doesNotMatch(cmd, /powershell|ExecutionPolicy|schtasks|curl|git clone/i);
+  assert.doesNotMatch(
+    cmd,
+    /powershell|ExecutionPolicy|schtasks|curl|git clone/i,
+  );
   assert.match(source, /PUBLIC_GATEWAY_NOT_AUTH_PROTECTED/);
   assert.match(source, /response\.status !== 401/);
   assert.match(source, /EXISTING_ENROLLMENT_NOT_FOUND/);
