@@ -233,6 +233,17 @@ export const agentSchema = z.object({
   id,
   tenant: id,
   stateDir: z.string(),
+  // Explicit owner/operator approval. Disabled by default and SHA-pinned.
+  browserAgentic: z
+    .object({
+      enabled: z.boolean().default(false),
+      entrySha256: z.string().regex(/^[a-f0-9]{64}$/).optional(),
+    })
+    .strict()
+    .refine((v) => !v.enabled || Boolean(v.entrySha256), {
+      message: "Pinned Browsentic entry checksum required for opt-in",
+    })
+    .optional(),
   supervisorSocket: z.literal("/run/kmj-codebridge/supervisor.sock").optional(),
   // Windows-native supervisor: fixed-prefix named pipe plus the path of the
   // ACL-restricted secret file. Both or neither; never combined with the
