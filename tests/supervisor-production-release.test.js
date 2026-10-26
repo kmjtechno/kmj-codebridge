@@ -84,6 +84,7 @@ test("production inventory reports only bounded status and safe release identity
   assert.equal(result.approvedSha, SHA);
   assert.equal(result.expectedCurrentRelease, RELEASE);
   assert.equal(result.readyToActivate, true);
+  assert.deepEqual(result.activationBlockers, []);
   assert.equal(result.releaseUnit.installed, true);
   assert.equal(result.nginxActive, true);
   assert.equal(result.phpFpmActive, true);
@@ -181,4 +182,48 @@ test("activation rejects mismatched old-release and candidate SHA even when host
     }),
     /SUPERVISOR_PRODUCTION_RELEASE_MISMATCH/,
   );
+});
+
+test("release readiness explains actual mismatches without approving or starting deployment", async () => {
+  const cases = [
+    {
+      options: {
+        symlink: "/home/kmjprod/releases/platform-8070dad72c55",
+      },
+      expected: ["PROTECTED_EXPECTED_CURRENT_RELEASE_MISMATCH"],
+    },
+    {
+      options: { file: null },
+      expected: ["PROTECTED_APPROVAL_MISSING_OR_INVALID"],
+    },
+    {
+      options: { symlink: "/tmp/other" },
+      expected: ["CURRENT_RELEASE_INVALID"],
+    },
+    {
+      options: { unitInstalled: false },
+      expected: ["RELEASE_UNIT_NOT_INSTALLED"],
+    },
+    {
+      options: { service: "active" },
+      expected: ["RELEASE_UNIT_NOT_IDLE"],
+    },
+    {
+      options: { nginx: "inactive", php: "failed" },
+      expected: ["NGINX_NOT_ACTIVE", "PHP_FPM_NOT_ACTIVE"],
+    },
+  ];
+  for (const { options, expected } of cases) {
+    const { handle, started } = harness(options);
+    const status = (await handle({ op: "main_platform_production_status" }))
+      .response;
+    assert.equal(status.readyToActivate, false);
+    assert.deepEqual(status.activationBlockers, expected);
+    assert.doesNotMatch(
+      JSON.stringify(status.activationBlockers),
+      /\/etc\/|\/root\/|\.json|token|PRIVATE_SECRET/i,
+    );
+    await assert.rejects(handle(activate));
+    assert.deepEqual(started, []);
+  }
 });
