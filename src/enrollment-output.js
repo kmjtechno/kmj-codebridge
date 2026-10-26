@@ -37,7 +37,8 @@ export function reserveEnrollmentOutput(output) {
             !current.isSymbolicLink() &&
             current.dev === identity.dev &&
             current.ino === identity.ino
-          ) fs.unlinkSync(target);
+          )
+            fs.unlinkSync(target);
         } catch {
           // Never report a successful preflight after failure.
         }
