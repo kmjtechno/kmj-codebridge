@@ -69,7 +69,7 @@ are redundant. Only remove a proven dead path after real usage/rollback audit.
 
 Run `scripts/windows/PREPARE-BROWSENTIC-OWNER.ps1` from the already
 trusted pinned CodeBridge checkout in the current Windows user session. It
-resolves the existing portable Node 24+, installs *only* Browsentic 0.9.0
+resolves the existing portable Node 24+, installs _only_ Browsentic 0.9.0
 into a fresh private isolated versioned directory using `npm --ignore-scripts`,
 and reports the entry SHA-256 for a separately approved config pin. It never
 modifies device pairing, admin policy, startup services, the system PATH,

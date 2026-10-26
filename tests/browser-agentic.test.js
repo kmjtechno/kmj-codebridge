@@ -54,7 +54,8 @@ test("full parent-directory junction check and entry checksum fail closed", () =
     isDirectory: () => true,
     isSymbolicLink: () => false,
   };
-  const fakeLstat = (p) => ([entry, pkg].includes(p) ? regularFile : normalFolder);
+  const fakeLstat = (p) =>
+    [entry, pkg].includes(p) ? regularFile : normalFolder;
   const fakeRead = (p) =>
     p === entry
       ? contents
@@ -62,13 +63,14 @@ test("full parent-directory junction check and entry checksum fail closed", () =
   const opts = { platform: "win32", env, lstat: fakeLstat, read: fakeRead };
   assert.equal(verifyBrowsenticEntry(expected, opts), entry);
   assert.throws(
-    () => verifyBrowsenticEntry(expected, {
-      ...opts,
-      lstat: (p) =>
-        p === parent
-          ? { ...normalFolder, isSymbolicLink: () => true }
-          : fakeLstat(p),
-    }),
+    () =>
+      verifyBrowsenticEntry(expected, {
+        ...opts,
+        lstat: (p) =>
+          p === parent
+            ? { ...normalFolder, isSymbolicLink: () => true }
+            : fakeLstat(p),
+      }),
     /BROWSENTIC_PIN_UNVERIFIED/,
   );
   assert.throws(
