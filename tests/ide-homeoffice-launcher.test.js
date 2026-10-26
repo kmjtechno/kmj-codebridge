@@ -118,7 +118,7 @@ const installerBootstrap = fs.readFileSync(
 test("P520 retry pins merged non-generic enrollment diagnostic source", () => {
   assert.ok(
     installerBootstrap.includes(
-      "$sha = '9f74b7a88a3bc4f163f43c04328fe753db094354'",
+      "$sha = '0a1fcd6804a70e915ecf66df0d4a7786f5270f02'",
     ),
   );
   assert.doesNotMatch(
