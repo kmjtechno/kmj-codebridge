@@ -43,8 +43,14 @@ test("public ZIP staging preserves branding and excludes local execution", (t) =
   assert.equal(manifest.name, "kmj-codebridge");
   assert.equal(manifest.extensions["com.openai"].apps, undefined);
   assert.equal(manifest.extensions["com.openai"].hooks, undefined);
-  assert.equal(manifest.extensions["com.openai"].review.test_cases.positive.length, 5);
-  assert.equal(manifest.extensions["com.openai"].review.test_cases.negative.length, 3);
+  assert.equal(
+    manifest.extensions["com.openai"].review.test_cases.positive.length,
+    5,
+  );
+  assert.equal(
+    manifest.extensions["com.openai"].review.test_cases.negative.length,
+    3,
+  );
   assert.deepEqual(mcp.mcpServers, {
     codebridge: { type: "streamable-http", url: DIRECTORY_MCP_URL },
   });
