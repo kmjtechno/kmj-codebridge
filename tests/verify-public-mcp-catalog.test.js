@@ -206,18 +206,34 @@ test("critical input schemas match even if JSON property key order differs", () 
 
 test("schema drift diagnostics identify only a fixed critical property and category", () => {
   const cases = [
-    { field: "ifNoneMatch", kind: "schema", mutate: (schema) => {
-      schema.properties.ifNoneMatch.pattern = "^[a-f0-9]{32}$";
-    } },
-    { field: "recentJobs", kind: "requiredness", mutate: (schema) => {
-      schema.required = ["recentJobs"];
-    } },
-    { field: "additionalProperties", kind: "closure", mutate: (schema) => {
-      schema.additionalProperties = false;
-    } },
-    { field: "required", kind: "invalid_required", mutate: (schema) => {
-      schema.required = "recentJobs";
-    } },
+    {
+      field: "ifNoneMatch",
+      kind: "schema",
+      mutate: (schema) => {
+        schema.properties.ifNoneMatch.pattern = "^[a-f0-9]{32}$";
+      },
+    },
+    {
+      field: "recentJobs",
+      kind: "requiredness",
+      mutate: (schema) => {
+        schema.required = ["recentJobs"];
+      },
+    },
+    {
+      field: "additionalProperties",
+      kind: "closure",
+      mutate: (schema) => {
+        schema.additionalProperties = false;
+      },
+    },
+    {
+      field: "required",
+      kind: "invalid_required",
+      mutate: (schema) => {
+        schema.required = "recentJobs";
+      },
+    },
   ];
   for (const scenario of cases) {
     const render = parseToolCatalog(criticalBody());
