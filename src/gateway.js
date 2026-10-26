@@ -1403,42 +1403,42 @@ export async function startGateway(rawConfig) {
       // additionalProperties:false, whereas the protected origin publishes
       // the closed contract. Keep authorization and handlers unchanged.
       mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
-          tools: Object.entries(allDefinitions).map(([name, d]) => {
-            const input = normalizeObjectSchema(toolInputContract(name, d));
-            const security = toolSecurityMeta(config.oauth, d.access);
-            return {
-              name,
+        tools: Object.entries(allDefinitions).map(([name, d]) => {
+          const input = normalizeObjectSchema(toolInputContract(name, d));
+          const security = toolSecurityMeta(config.oauth, d.access);
+          return {
+            name,
+            title: d.title,
+            description: d.description,
+            inputSchema: input
+              ? toJsonSchemaCompat(input, {
+                  strictUnions: true,
+                  pipeStrategy: "input",
+                })
+              : { type: "object", properties: {} },
+            // Preserve legacy non-OAuth discovery presentation while
+            // keeping owner-approved icons on the protected customer path.
+            ...(config.oauth ? { icons: clientIcons } : {}),
+            annotations: {
               title: d.title,
-              description: d.description,
-              inputSchema: input
-                ? toJsonSchemaCompat(input, {
-                    strictUnions: true,
-                    pipeStrategy: "input",
-                  })
-                : { type: "object", properties: {} },
-              // Preserve legacy non-OAuth discovery presentation while
-              // keeping owner-approved icons on the protected customer path.
-              ...(config.oauth ? { icons: clientIcons } : {}),
-              annotations: {
-                title: d.title,
-                readOnlyHint: d.access === "read",
-                destructiveHint: d.access !== "read",
-                idempotentHint: d.access === "read",
-                openWorldHint:
-                  name === "run_quality_gate" || name.startsWith("github_"),
-              },
-              ...(config.oauth && name === "render_codebridge_status"
-                ? {
-                    _meta: {
-                      ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
-                      "openai/outputTemplate": KMJ_STATUS_RESOURCE_URI,
-                    },
-                  }
-                : {}),
-              ...security,
-            };
-          }),
-        }));
+              readOnlyHint: d.access === "read",
+              destructiveHint: d.access !== "read",
+              idempotentHint: d.access === "read",
+              openWorldHint:
+                name === "run_quality_gate" || name.startsWith("github_"),
+            },
+            ...(config.oauth && name === "render_codebridge_status"
+              ? {
+                  _meta: {
+                    ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
+                    "openai/outputTemplate": KMJ_STATUS_RESOURCE_URI,
+                  },
+                }
+              : {}),
+            ...security,
+          };
+        }),
+      }));
 
       mcp.registerResource(
         "KMJ CodeBridge status card",
