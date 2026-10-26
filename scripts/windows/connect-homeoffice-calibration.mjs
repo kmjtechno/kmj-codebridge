@@ -25,9 +25,10 @@ const PROJECT_ORIGINS = new Set([
 
 export function privatePath(p) {
   if (typeof p !== "string") return false;
-  const normalized = /^[A-Za-z]:[\\/]/.test(p) || p.startsWith("\\\\")
-    ? path.win32.normalize(p)
-    : path.normalize(p);
+  const normalized =
+    /^[A-Za-z]:[\\/]/.test(p) || p.startsWith("\\\\")
+      ? path.win32.normalize(p)
+      : path.normalize(p);
   return /(^|[\\/])private[\\/]/i.test(normalized);
 }
 
