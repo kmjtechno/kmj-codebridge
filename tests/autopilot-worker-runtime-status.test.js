@@ -6,7 +6,7 @@ import { test } from "node:test";
 import { createDispatcher, definitions } from "../src/tools.js";
 import { AutopilotJournal } from "../src/autopilot.js";
 
-function fixture(t, workerSource) {
+function fixture(t, workerSource, codingConfigured = false) {
   const base = fs.mkdtempSync(
     path.join(os.tmpdir(), "codebridge-worker-status-"),
   );
@@ -27,6 +27,16 @@ function fixture(t, workerSource) {
         autopilotRepairWorker: { enabled: true, recipes: {} },
         autopilotCiWatch: { enabled: true },
         autopilotLocalWorker: { enabled: false },
+        ...(codingConfigured
+          ? {
+              autopilotCodingWorker: {
+                enabled: true,
+                localProcessingApproved: true,
+                model: "qwen3:4b",
+                recipes: {},
+              },
+            }
+          : {}),
       },
     ],
   };
@@ -51,14 +61,19 @@ function fixture(t, workerSource) {
 }
 
 test("runtime status shows started loops distinctly from configuration", async (t) => {
-  const f = fixture(t, () => ({
-    gate: ["project1"],
-    repair: ["project1"],
-    githubCiWatch: [],
-    localDraft: [],
-    agentRunning: true,
-    token: "hidden-token-not-for-output",
-  }));
+  const f = fixture(
+    t,
+    () => ({
+      gate: ["project1"],
+      repair: ["project1"],
+      githubCiWatch: [],
+      localDraft: [],
+      coding: ["project1"],
+      agentRunning: true,
+      token: "hidden-token-not-for-output",
+    }),
+    true,
+  );
   const r = await f.dispatch(
     "autopilot_worker_runtime_status",
     { device: "device1", project: "project1" },
@@ -78,6 +93,11 @@ test("runtime status shows started loops distinctly from configuration", async (
     configured: false,
     loopStarted: false,
   });
+  assert.deepEqual(r.workers.coding, {
+    configured: true,
+    localProcessingApproved: true,
+    loopStarted: true,
+  });
   assert.doesNotMatch(JSON.stringify(r), /hidden-token-not-for-output/);
   assert.match(r.note, /not evidence/);
 });
@@ -93,6 +113,8 @@ test("unconfigured process status never fabricates started workers", async (t) =
   assert.equal(r.processAvailable, false);
   assert.equal(r.workers.repair.loopStarted, null);
   assert.equal(r.workers.repair.configured, true);
+  assert.equal(r.workers.coding.configured, false);
+  assert.equal(r.workers.coding.loopStarted, null);
 });
 
 test("read authorization and device/project isolation are retained", async (t) => {
@@ -101,6 +123,7 @@ test("read authorization and device/project isolation are retained", async (t) =
     repair: [],
     githubCiWatch: [],
     localDraft: [],
+    coding: [],
     agentRunning: true,
   }));
   assert.equal(definitions.autopilot_worker_runtime_status.access, "read");

@@ -61,7 +61,7 @@ const SAFE_ACTIONS = Object.freeze({
   NO_AUTONOMOUS_CODING_EXECUTOR: {
     requiredCodeBridgeFeature: "LEASE_BOUND_LOCAL_FIRST_CODING_EXECUTOR",
     nextAction:
-      "Qualify an authorized isolated worker with actual lease, local/free model consent, allowlisted edits, exact-head gates and restart evidence; queue alone is not coding.",
+      "Verify the installed coding-worker revision, explicit local consent, live configured local model, one lease-bound exact-SHA patch, independent verification gate and restart recovery. Keep this blocker until runtime evidence proves the complete path; queue or loop startup alone is not coding.",
   },
   CI_NO_RUNNER_STEPS: {
     requiredCodeBridgeFeature:
@@ -239,7 +239,7 @@ export function inspectBlockers({
       ),
     );
 
-  const workers = ["gate", "repair", "githubCiWatch", "localDraft"];
+  const workers = ["gate", "repair", "githubCiWatch", "localDraft", "coding"];
   const health = {};
   for (const kind of workers) {
     const configured = workerConfiguration[kind] === true;

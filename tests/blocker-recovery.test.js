@@ -463,6 +463,7 @@ test("configured but not started worker never implies a coder", () => {
   });
   assert.equal(report.workerHealth.gate.loopStarted, true);
   assert.equal(report.workerHealth.localDraft.loopStarted, false);
+  assert.equal(report.workerHealth.coding.configured, false);
   assert.equal(
     report.blockers.some(
       (item) =>

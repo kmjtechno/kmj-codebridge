@@ -262,6 +262,9 @@ export const agentSchema = z.object({
                 command: z.string().min(1),
                 args: z.array(z.string()).default([]),
                 timeoutMs: z.number().int().min(10).max(300000).default(30000),
+                // Default-deny: opt in only a reviewed, non-destructive test gate.
+                // This is not the generic execute permission for project gates.
+                autopilotCodingSafe: z.boolean().default(false),
               }),
             )
             .default({}),
@@ -273,6 +276,113 @@ export const agentSchema = z.object({
               timeoutSeconds: z.number().int().min(5).max(90).default(45),
             })
             .strict()
+            .optional(),
+          autopilotCodingWorker: z
+            .object({
+              enabled: z.boolean().default(false),
+              // Explicit administrator consent is mandatory before local source
+              // files can be sent to the already-running loopback model.
+              localProcessingApproved: z.boolean().default(false),
+              model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
+              maxTokens: z.number().int().min(64).max(512).default(384),
+              timeoutSeconds: z.number().int().min(5).max(90).default(45),
+              recipes: z
+                .record(
+                  z.string().regex(/^[A-Za-z0-9_-]{1,40}$/),
+                  z
+                    .object({
+                      verifyGate: id,
+                      paths: z
+                        .array(
+                          z
+                            .string()
+                            .regex(/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*\/?$/)
+                            .refine(
+                              (value) =>
+                                !value.startsWith("/") &&
+                                !value.includes("\\") &&
+                                !value
+                                  .split("/")
+                                  .some(
+                                    (part) => part === "." || part === "..",
+                                  ),
+                              "Safe relative edit path required",
+                            ),
+                        )
+                        .min(1)
+                        .max(20),
+                      contextPaths: z
+                        .array(
+                          z
+                            .string()
+                            .regex(/^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/)
+                            .refine(
+                              (value) =>
+                                !value.startsWith("/") &&
+                                !value.includes("\\") &&
+                                !value
+                                  .split("/")
+                                  .some(
+                                    (part) => part === "." || part === "..",
+                                  ),
+                              "Safe exact relative context file required",
+                            ),
+                        )
+                        .min(1)
+                        .max(12),
+                    })
+                    .strict(),
+                )
+                .refine(
+                  (recipes) =>
+                    Object.keys(recipes).length > 0 &&
+                    Object.keys(recipes).length <= 8,
+                ),
+            })
+            .strict()
+            .superRefine((worker, ctx) => {
+              if (worker.enabled && worker.localProcessingApproved !== true) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["localProcessingApproved"],
+                  message:
+                    "Local code generation requires explicit administrator consent",
+                });
+              }
+              for (const [name, recipe] of Object.entries(
+                worker.recipes ?? {},
+              )) {
+                const contextPaths = Array.isArray(recipe?.contextPaths)
+                  ? recipe.contextPaths
+                  : [];
+                const editPaths = Array.isArray(recipe?.paths)
+                  ? recipe.paths
+                  : [];
+                if (new Set(contextPaths).size !== contextPaths.length) {
+                  ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["recipes", name, "contextPaths"],
+                    message: "Context file paths must be unique",
+                  });
+                }
+                for (const file of contextPaths) {
+                  const allowed = editPaths.some((entry) =>
+                    entry.endsWith("/")
+                      ? file.startsWith(entry)
+                      : file === entry,
+                  );
+                  if (!allowed) {
+                    ctx.addIssue({
+                      code: z.ZodIssueCode.custom,
+                      path: ["recipes", name, "contextPaths"],
+                      message:
+                        "Every context file must be within the edit allowlist",
+                    });
+                    break;
+                  }
+                }
+              }
+            })
             .optional(),
           autopilotCiWatch: z
             .object({
@@ -426,6 +536,39 @@ export const agentSchema = z.object({
               message:
                 "CI watch needs a writable project and enabled repair recipe",
             });
+          if (project.autopilotCodingWorker?.enabled) {
+            if (!project.writable) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["autopilotCodingWorker", "enabled"],
+                message:
+                  "Local-first coding requires a writable isolated project",
+              });
+            }
+            for (const [name, recipe] of Object.entries(
+              project.autopilotCodingWorker.recipes ?? {},
+            )) {
+              if (
+                !recipe ||
+                typeof recipe !== "object" ||
+                typeof recipe.verifyGate !== "string" ||
+                !Object.hasOwn(project.gates, recipe.verifyGate) ||
+                project.gates[recipe.verifyGate]?.autopilotCodingSafe !== true
+              ) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: [
+                    "autopilotCodingWorker",
+                    "recipes",
+                    name,
+                    "verifyGate",
+                  ],
+                  message:
+                    "Coding recipe requires a gate explicitly marked autopilotCodingSafe after non-destructive command review",
+                });
+              }
+            }
+          }
         })
         .transform((project) => ({
           ...project,

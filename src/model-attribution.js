@@ -6,6 +6,7 @@ const OPERATIONS = new Set([
   "local_model_generate",
   "autopilot_local_draft",
   "autopilot_local_worker",
+  "autopilot_coding_worker",
 ]);
 
 export function localModelReceipt(model, operation) {

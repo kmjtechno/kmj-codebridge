@@ -13,7 +13,8 @@ export function canQueueAutopilotGate(key, permissions) {
     Array.isArray(permissions) &&
     ((!key.startsWith("auto-gate:") &&
       !key.startsWith("auto-draft:") &&
-      !key.startsWith("auto-repair:")) ||
+      !key.startsWith("auto-repair:") &&
+      !key.startsWith("auto-code:")) ||
       permissions.includes("execute"))
   );
 }
