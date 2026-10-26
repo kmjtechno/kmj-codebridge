@@ -2,12 +2,13 @@ import { z } from "zod";
 import { readJsonLimited, readTextLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
-import { sanitizeCiLog, safeCiStepName, triageCiFailure } from "./ci-triage.js";
+import { safeCiStepName, triageCiFailure } from "./ci-triage.js";
 import {
   classifyActionsJob,
   diagnoseActionsRun,
 } from "./ci-execution-evidence.js";
 import { VERSION } from "./version.js";
+import { readCiLogDiagnostics } from "./ci-log-stream.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const branchName = z
@@ -473,7 +474,7 @@ export function createGitHubBridge(config) {
     return pending;
   };
 
-  const raw = async (repository, suffix) => {
+  const raw = async (repository, suffix, diagnostics = false) => {
     verifyRepo(repository);
     if (publicReadOnly && Date.now() < publicQuotaBlockedUntil)
       fail("GITHUB_RATE_LIMIT");
@@ -506,6 +507,7 @@ export function createGitHubBridge(config) {
       }
       fail("GITHUB_REQUEST_FAILED");
     }
+    if (diagnostics) return readCiLogDiagnostics(response.body);
     const text = await readTextLimited(response.body, 65536);
     return bounded(text, 65536);
   };
@@ -968,8 +970,11 @@ export function createGitHubBridge(config) {
       if (job.head_sha !== a.expectedHeadSha) fail("GITHUB_HEAD_MISMATCH");
       if (job.conclusion !== "failure" || job.status !== "completed")
         fail("GITHUB_JOB_NOT_FAILED");
-      const output = await raw(a.repository, `actions/jobs/${a.jobId}/logs`);
-      const parsed = sanitizeCiLog(output.text ?? "");
+      const parsed = await raw(
+        a.repository,
+        `actions/jobs/${a.jobId}/logs`,
+        true,
+      );
       const diagnosis = triageCiFailure({
         lines: parsed.lines,
         stepName: job.name,
@@ -983,7 +988,9 @@ export function createGitHubBridge(config) {
         name: safeCiStepName(job.name),
         conclusion: "failure",
         lines: parsed.lines,
-        truncated: parsed.truncated || output.truncated === true,
+        truncated: parsed.truncated,
+        sourceComplete: parsed.sourceComplete,
+        sourceBytesRead: parsed.sourceBytesRead,
         diagnosis,
         action: "READ_ONLY_DIAGNOSTIC",
       };

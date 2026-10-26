@@ -33,9 +33,10 @@ function setup(t, options = {}) {
     }
     if (target.endsWith("/actions/jobs/202/logs")) {
       return new Response(
-        "PHPStan error: Model property does not exist\n" +
-          "Authorization: Bearer dangerous-hidden-value\n" +
-          "error TS2339: a second issue\n",
+        options.log ??
+          "PHPStan error: Model property does not exist\n" +
+            "Authorization: Bearer dangerous-hidden-value\n" +
+            "error TS2339: a second issue\n",
         { status: 200 },
       );
     }
@@ -112,4 +113,44 @@ test("GitHub job analysis refuses an unauthorized repository", async (t) => {
     /GITHUB_REPOSITORY_DENIED/,
   );
   assert.equal(f.paths.length, 0);
+});
+
+test("large job logs retain final diagnostics instead of BODY_TOO_LARGE", async (t) => {
+  const log =
+    "ordinary build progress\n".repeat(12000) +
+    "Authorization: Bearer dangerous-hidden-value\n" +
+    "error TS2339: final compiler failure\n";
+  const { call } = setup(t, { log });
+  const result = await call("github_actions_failed_job_triage", args);
+  assert.deepEqual(result.lines, ["error TS2339: final compiler failure"]);
+  assert.equal(result.sourceComplete, true);
+  assert.equal(result.sourceBytesRead, Buffer.byteLength(log));
+  assert.equal(result.diagnosis.category, "TYPESCRIPT");
+  assert.doesNotMatch(JSON.stringify(result), /dangerous-hidden-value/);
+});
+
+test("diagnostics retain the last eighteen unique failures with explicit truncation", async (t) => {
+  const log = Array.from(
+    { length: 30 },
+    (_, i) => `error E${1000 + i}: build failure ${i}\n`,
+  ).join("");
+  const { call } = setup(t, { log });
+  const result = await call("github_actions_failed_job_triage", args);
+  assert.equal(result.lines.length, 18);
+  assert.equal(result.lines.at(-1), "error E1029: build failure 29");
+  assert.equal(result.truncated, true);
+  assert.equal(result.sourceComplete, true);
+});
+
+test("unbounded job logs stop at four MiB without claiming full evidence", async (t) => {
+  const log =
+    "ordinary progress\n".repeat(300000) +
+    "error TS2339: unread final failure\n";
+  const { call } = setup(t, { log });
+  const result = await call("github_actions_failed_job_triage", args);
+  assert.equal(result.sourceBytesRead, 4 * 1024 * 1024);
+  assert.equal(result.sourceComplete, false);
+  assert.equal(result.truncated, true);
+  assert.equal(result.diagnosis.rootCauseVerified, false);
+  assert.deepEqual(result.lines, []);
 });
