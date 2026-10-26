@@ -9,18 +9,32 @@ test("new Main Platform explicitly advertises compatible config without device r
   const result = await assertEnrollmentServerReady(base, {
     fetch: async (url, opts) => {
       calls += 1;
-      assert.equal(
-        String(url),
-        base + "/api/codebridge/v1/device-enrollments/readiness",
-      );
-      assert.equal(opts.method, "GET");
+      if (calls === 1) {
+        assert.equal(
+          String(url),
+          base + "/api/codebridge/v1/device-enrollments/readiness",
+        );
+        assert.equal(opts.method, "GET");
+        assert.equal(opts.redirect, "error");
+        assert.equal(opts.body, undefined);
+        return Response.json({ pairing_config: "ready", protocol: 2 });
+      }
+      assert.equal(calls, 2);
+      assert.equal(String(url), base + "/agent/health");
+      assert.equal(opts.method, "POST");
       assert.equal(opts.redirect, "error");
-      assert.equal(opts.body, undefined);
-      return Response.json({ pairing_config: "ready", protocol: 2 });
+      assert.equal(opts.credentials, "omit");
+      assert.deepEqual(opts.headers, {
+        accept: "application/json",
+        "content-type": "application/json",
+      });
+      assert.equal(opts.body, "{}");
+      // The body must never be read or logged by the no-token preflight.
+      return new Response("SENSITIVE_IGNORE", { status: 401 });
     },
   });
   assert.deepEqual(result, { state: "configured_not_device_ready" });
-  assert.equal(calls, 1);
+  assert.equal(calls, 2);
 });
 
 test("legacy production returns 404 and pairing must stop before device creation", async () => {
@@ -68,6 +82,52 @@ test("readiness schema is strict and does not equate config with online agent", 
       (e) => e.code === "PAIRING_READINESS_SCHEMA",
     );
   }
+});
+
+test("configured Laravel but missing or unprotected agent route blocks pairing", async () => {
+  for (const [status, code] of [
+    [200, "PAIRING_AGENT_ROUTE_UNPROTECTED"],
+    [302, "PAIRING_AGENT_ROUTE_UNAVAILABLE"],
+    [403, "PAIRING_AGENT_ROUTE_UNAVAILABLE"],
+    [404, "PAIRING_AGENT_ROUTE_UNAVAILABLE"],
+    [405, "PAIRING_AGENT_ROUTE_UNAVAILABLE"],
+    [503, "PAIRING_AGENT_ROUTE_UNAVAILABLE"],
+  ]) {
+    let calls = 0;
+    await assert.rejects(
+      assertEnrollmentServerReady(base, {
+        fetch: async () => {
+          calls += 1;
+          return calls === 1
+            ? Response.json({ pairing_config: "ready", protocol: 2 })
+            : new Response("SENSITIVE_IGNORE", { status });
+        },
+      }),
+      (error) =>
+        error.code === code &&
+        !String(error.message).includes("SENSITIVE_IGNORE"),
+    );
+    assert.equal(calls, 2);
+  }
+});
+
+test("gateway network failures stop pairing after valid Laravel config", async () => {
+  let calls = 0;
+  await assert.rejects(
+    assertEnrollmentServerReady(base, {
+      fetch: async () => {
+        calls += 1;
+        if (calls === 1) {
+          return Response.json({ pairing_config: "ready", protocol: 2 });
+        }
+        throw Error("SENSITIVE_INTERNAL_CONNECTION");
+      },
+    }),
+    (error) =>
+      error.code === "PAIRING_AGENT_ROUTE_NETWORK" &&
+      !String(error.message).includes("SENSITIVE"),
+  );
+  assert.equal(calls, 2);
 });
 
 test("preflight rejects untrusted origins before network contact", async () => {
