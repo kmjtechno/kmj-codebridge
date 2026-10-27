@@ -15,7 +15,7 @@ b851bb24cc5a846e3fc95a96893483f0dfd6540c91bc37d93a4f91aefd0ef53b.
 The exact helper SHA-256 is
 1191b0ebff956e64da17e52b6dd65b43afe3c80bdad21900a4c719d941da5be7.
 
-The *installer itself* is added in a later source commit; do not treat the
+The _installer itself_ is added in a later source commit; do not treat the
 PR #648 merge SHA as its installer SHA. Before any root action, the owner must
 review the installer from an exact, green, immutable commit and independently
 verify the downloaded archive and installer bytes. The two source-file hashes
