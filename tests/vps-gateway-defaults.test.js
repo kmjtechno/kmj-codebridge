@@ -48,3 +48,27 @@ test("new credentials reject cross-gateway enrollment before storing the token",
     );
   }
 });
+
+test("fresh Windows P720 pairing rejects cross-host enrollment credentials", () => {
+  for (const script of [
+    "scripts/setup-p720-codebridge.ps1",
+    "scripts/setup-p720-ide.ps1",
+    "scripts/setup-p720-cinecore.ps1",
+    "scripts/enroll-p720-omnidesk.ps1",
+  ]) {
+    const source = read(script);
+    const marker = source.indexOf("ENROLLMENT_GATEWAY_MISMATCH");
+    assert.ok(marker > 0, script + " must reject cross-host enrollment");
+    const approvalGuard = source.slice(Math.max(0, marker - 360), marker);
+    assert.match(approvalGuard, /https:\/\/kmjtechno\.com/);
+    assert.doesNotMatch(
+      approvalGuard,
+      /kmj-codebridge-gateway\.onrender\.com/,
+      script + " must not accept fresh Render-bound grants",
+    );
+    assert.match(
+      source.slice(marker),
+      /gateway = 'https:\/\/kmjtechno\.com\/?'/,
+    );
+  }
+});

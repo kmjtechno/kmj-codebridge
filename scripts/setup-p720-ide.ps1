@@ -127,9 +127,10 @@ try {
             if (@($grant.permissions) -cnotcontains $permission) { throw 'GRANT_PERMISSION_MISMATCH' }
         }
         $returned = [string]$grant.gateway
-        if ($returned -ne '' -and $returned.TrimEnd('/') -notin @(
-            'https://kmjtechno.com', 'https://kmj-codebridge-gateway.onrender.com'
-        )) { throw 'UNTRUSTED_ENROLLMENT_GATEWAY' }
+        # Never rebind a newly issued credential across gateway origins.
+        if ($returned -ne '' -and $returned.TrimEnd('/') -ne 'https://kmjtechno.com') {
+            throw 'ENROLLMENT_GATEWAY_MISMATCH'
+        }
 
         $tempBuild = Join-Path $base 'tmp\ide-build'
         $gates = @{

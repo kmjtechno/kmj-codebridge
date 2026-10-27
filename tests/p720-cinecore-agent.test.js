@@ -36,10 +36,7 @@ test("CineCore gateway fails closed and never forwards token to unknown host", (
     source,
     /Status 'PASS' 'VPS agent gateway HTTPS\/authentication probe HTTP 401\.'/,
   );
-  assert.match(
-    source,
-    /Unexpected enrollment gateway; refusing forwarding of device token/,
-  );
+  assert.match(source, /ENROLLMENT_GATEWAY_MISMATCH/);
   assert.match(source, /gateway = 'https:\/\/kmjtechno\.com\/'/);
   assert.match(source, /Protect-Folder \$private/);
   assert.match(source, /Protect-File \$config/);

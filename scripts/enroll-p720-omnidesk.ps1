@@ -98,7 +98,9 @@ try {
         Require (@($grant.projects | Where-Object { $_.id -ceq $projectId }).Count -eq 1) 'APPROVAL_PROJECT_MISMATCH'
         foreach ($p in @('read','write','execute')) { Require ($grant.permissions -contains $p) 'APPROVAL_SCOPE_INCOMPLETE' }
         Require ([string]$grant.agent.token -ne '' -and [string]$grant.agent.tenant -ne '') 'APPROVAL_CREDENTIAL_MISSING'
-        Require ([string]$grant.gateway -in @('', 'https://kmjtechno.com', 'https://kmjtechno.com/', 'https://kmj-codebridge-gateway.onrender.com')) 'APPROVAL_GATEWAY_UNKNOWN'
+        # The optional legacy gateway field may be blank; if present it must
+        # agree with the VPS that will receive this device credential.
+        Require ([string]$grant.gateway -in @('', 'https://kmjtechno.com', 'https://kmjtechno.com/')) 'ENROLLMENT_GATEWAY_MISMATCH'
         $cfg = @{
             gateway = 'https://kmjtechno.com/'
             token = [string]$grant.agent.token

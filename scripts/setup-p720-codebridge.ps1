@@ -96,12 +96,11 @@ try {
         Protect-File $enrollment
         $grant = Get-Content -LiteralPath $enrollment -Raw | ConvertFrom-Json
         $returnedGateway = [string]$grant.gateway
-        # Never route the user-controlled credential to an unknown endpoint.
-        # The old optional enrollment field and Render fallback are supported only
-        # as legacy metadata. The signed-in ChatGPT gateway actually runs on VPS.
+        # Fresh pairing must bind to the canonical VPS. A Render-issued
+        # gateway value is not proof that this credential can be used on VPS.
         if (![string]::IsNullOrWhiteSpace($returnedGateway) -and
-            $returnedGateway.TrimEnd('/') -notin @('https://kmjtechno.com', 'https://kmj-codebridge-gateway.onrender.com')) {
-            throw 'Enrollment returned an unexpected agent gateway; refusing secret forwarding.'
+            $returnedGateway.TrimEnd('/') -ne 'https://kmjtechno.com') {
+            throw 'ENROLLMENT_GATEWAY_MISMATCH'
         }
         Confirm-VpsGateway
         $gateway = 'https://kmjtechno.com'
