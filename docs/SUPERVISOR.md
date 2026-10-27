@@ -77,7 +77,7 @@ The Supervisor checks only these fixed units:
 - `kmj-codebridge-auto-update.service` — signed updater availability
 - `kmj-codebridge-development-ci.service` — reserved future non-root development runner
 
-The readiness probe accepts only `LoadState=loaded` as evidence of an installed unit. A masked, unknown, malformed, or absent systemd state fails closed. Even for a loaded unit, `developmentUnitSecurityVerified=false`, `developmentWorkerReady=false`, and `signedUpdaterVerified=false` remain explicit until independent root-owned unit/hash/canary and live worker attestation. A green source PR or a systemd unit name is not a verified privileged development capability.
+Only `LoadState=loaded` counts as installed; masked, malformed, unknown and absent states fail closed. Root-owned unit/hash attestation is reported separately from `developmentWorkerReady=false` and `signedUpdaterVerified=false`. A loaded unit is not evidence of a running coding worker or signed updater. Fixed probe start still requires separate explicit approval and a valid root-owned attestation.
 
 This status response sets `unrestrictedRoot=false`,
 `projectCodeRunsAsRoot=false`, `brokerStartAuthorized=false`, and
@@ -118,3 +118,38 @@ Main Platform operation.
 No bypass of signed CodeBridge license limits, no new paid inference and no
 unverified 'live' claims. Until all gates complete, the root development
 executor must remain **disabled**.
+
+### Root-owned non-root probe attestation — implementation phase 2
+
+The separate `supervisor_development_ci_start` action requires an explicit
+`START_PINNED_NONROOT_DEV_PROBE` confirmation, the enrolled
+`kmj-elite-main-platform/kmj-main-platform` scope, the normal CodeBridge
+`execute` grant, and `PRIVILEGED` risk classification. It starts **only**
+`kmj-codebridge-development-ci.service`—not a generic shell, unit,
+repository, URL, path, Git SHA or arbitrary command.
+
+The Supervisor checks the **effective** systemd user, hardening flags,
+immutable unit path, no drop-ins, installed unit bytes, root ownership and
+SHA-256 of the exact installed helper. These checks are repeated **after**
+its acknowledgement before it asks systemd to start the fixed unit. Any
+stale, missing, changed, running or unsafe unit fails closed.
+
+The committed `scripts/production/kmj-codebridge-development-ci.service`
+and `scripts/production/kmj-codebridge-dev-probe.py` are installer **inputs**,
+not an installer. They are not copied into privileged paths by the MCP
+agent, a GitHub merge, or this pull request. An administrator must independently
+review, sign and install them in root-controlled paths with a dedicated
+`kmjdevci` non-root account and private state directory. Existing production
+services, root login, firewall, backup and protected release are unaffected.
+
+The Python helper performs only a no-network, read-only `git rev-parse`
+on the fixed Main Platform checkout and emits one bounded revision receipt;
+it does **not** edit source, install packages, execute project hooks, run
+AI inference or demonstrate autonomous coding. A future independent
+lease-bound coding worker must use isolated project worktrees and must never
+inherit the Supervisor's root credentials or cross the protected release gate.
+
+The installed KMJ-elite agent still needs a signed canary/rollback upgrade
+and live root-unit attestation before any new MCP tool is available there.
+Do not mark this feature live based solely on source CI or the helper's
+presence in GitHub.
