@@ -86,7 +86,7 @@ function fixture(overrides = {}) {
     ...args,
     start: (service) => started.push(service),
   });
-  return { args, supervisor, calls, started };
+  return { args, supervisor, calls, started, props };
 }
 
 test("pinned unit and helper are exactly the source contract", () => {
@@ -181,17 +181,13 @@ test("CloudOS supervisor cannot start another project's development unit", async
 });
 
 test("start callback reattests and refuses changed effective service", async () => {
-  const { supervisor, args, started } = fixture();
+  const { supervisor, props, started } = fixture();
   const first = await supervisor({
     op: "development_ci_start",
     confirmation: "START_PINNED_NONROOT_DEV_PROBE",
   });
   assert.equal(first.response.accepted, true);
-  // This test changes the backing source's behavior after ACK to exercise a
-  // real delay, rather than blindly assuming an earlier check is sufficient.
-  args.run = () => "LoadState=not-found";
-  // Handler captured the original function. Reattach through its source by
-  // poisoning its properties indirectly in the following scenario.
-  assert.equal(typeof first.afterSend, "function");
+  props.User = "root";
+  first.afterSend();
   assert.deepEqual(started, []);
 });
