@@ -1703,11 +1703,29 @@ export function createSupervisorHandler({
         else gatewaySchema.parse(raw);
         return { response: { service: request.service, valid: true } };
       } catch (error) {
+        let reason = classifySupervisorConfigError(error);
+        // The sole running KMJ-elite gateway may be the separately enrolled
+        // stage unit, whose private config was inherited during cutover.
+        // Do not mislabel that distinct runtime config as missing or read a
+        // caller-/process-selected path. This is NOT a validation PASS.
+        if (request.service === "gateway" && reason === "CONFIG_FILE_MISSING") {
+          try {
+            if (
+              serviceUnit("gateway", run, profile) ===
+              "kmj-codebridge-gateway-stage.service"
+            ) {
+              reason = "STAGE_GATEWAY_CONFIG_NOT_VERIFIED";
+            }
+          } catch {
+            // Missing/ambiguous service information cannot authorize a
+            // different config read; preserve the canonical error instead.
+          }
+        }
         return {
           response: {
             service: request.service,
             valid: false,
-            reason: classifySupervisorConfigError(error),
+            reason,
           },
         };
       }

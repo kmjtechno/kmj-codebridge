@@ -57,3 +57,9 @@ Software update and rollback are **not yet exposed as Supervisor RPCs** because 
 5. fixed Supervisor restart plus authenticated agent/gateway health probes on the live immutable runtime layout, including a fault-injection rollback drill.
 
 Until that sequence is merged and live-tested, installer rerun is the supported repair/update path and the Supervisor must not accept caller-selected commands, paths, URLs or service names.
+
+### Main Platform: stage gateway configuration diagnosis
+
+On a host that runs `kmj-codebridge-gateway-stage.service`, `supervisor_status(gateway)` selects the sole active stage unit. The standard `/etc/kmj-codebridge/gateway.json` may be absent even while that unit is healthy. If `supervisor_config_validate(gateway)` finds the standard config absent and **confirms the sole selected unit is the stage gateway**, it returns `valid=false, reason=STAGE_GATEWAY_CONFIG_NOT_VERIFIED`. This is **not** a gateway outage and **not** a schema-validation PASS for its runtime credential file.
+
+This read-only diagnostic deliberately does **not** infer, follow or open a path from `systemctl`, `/proc`, a CLI argument, a unit drop-in or a user-provided value. Only the fixed authorized config is read. Genuine stage runtime credential inspection must occur separately through an owner-approved privileged procedure; never copy credentials or silently fall back to agent secrets.

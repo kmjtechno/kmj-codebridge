@@ -130,3 +130,50 @@ test("gateway config cannot fall back to privileged agent config", async () => {
   });
   assert.deepEqual(seen, [gateway]);
 });
+
+test("active stage gateway reports unverified config instead of missing canonical config", async () => {
+  const readPaths = [];
+  const handler = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-gateway-stage.service"
+        ? "LoadState=loaded\nActiveState=active\n"
+        : "LoadState=not-found\nActiveState=inactive\n",
+    readFile: (path) => {
+      readPaths.push(path);
+      const error = new Error("PRIVATE_GATEWAY_CREDENTIAL");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+  const result = await handler({ op: "config_validate", service: "gateway" });
+  assert.deepEqual(result.response, {
+    service: "gateway",
+    valid: false,
+    reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
+  });
+  assert.deepEqual(readPaths, [gateway]);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
+  );
+});
+
+test("standard gateway with missing config still reports canonical missing file", async () => {
+  const handler = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-gateway.service"
+        ? "LoadState=loaded\nActiveState=active\n"
+        : "LoadState=not-found\nActiveState=inactive\n",
+    readFile: () => {
+      const error = new Error("missing");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+  const result = await handler({ op: "config_validate", service: "gateway" });
+  assert.deepEqual(result.response, {
+    service: "gateway",
+    valid: false,
+    reason: "CONFIG_FILE_MISSING",
+  });
+});
