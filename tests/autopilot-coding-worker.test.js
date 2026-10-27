@@ -62,11 +62,15 @@ function fixture(t, overrides = {}) {
   const starts = [];
   let generated = 0;
   const model = {
-    status: async () => ({
-      available: !overrides.offline,
-      activeRequest: false,
-      models: overrides.offline ? [] : ["qwen3:4b"],
-    }),
+    status: async () => {
+      overrides.onStatus?.();
+      if (overrides.statusResponse) await overrides.statusResponse;
+      return {
+        available: !overrides.offline,
+        activeRequest: false,
+        models: overrides.offline ? [] : ["qwen3:4b"],
+      };
+    },
     generate: async () => {
       generated++;
       overrides.onGenerate?.();
@@ -293,6 +297,86 @@ test("offline model, missing execute permission, or resource pressure leaves tas
     assert.equal(f.journal.get(task.id, "repo").state, "queued");
     assert.equal(f.starts.length, 0);
     assert.equal(f.generated(), 0);
+  }
+});
+
+test("authorization revoked during asynchronous model status cannot claim or generate", async (t) => {
+  const scenarios = [
+    [
+      "local consent",
+      (f) => {
+        f.project.autopilotCodingWorker.localProcessingApproved = false;
+      },
+    ],
+    [
+      "project write approval",
+      (f) => {
+        f.project.writable = false;
+      },
+    ],
+    [
+      "execute entitlement",
+      (_f, options) => {
+        options.noExecute = true;
+      },
+    ],
+    [
+      "write entitlement",
+      (_f, options) => {
+        options.noWrite = true;
+      },
+    ],
+    [
+      "maintenance admission",
+      (_f, options) => {
+        options.paused = true;
+      },
+    ],
+    [
+      "worker disabled",
+      (f) => {
+        f.project.autopilotCodingWorker.enabled = false;
+      },
+    ],
+    [
+      "worker configuration replaced",
+      (f) => {
+        f.project.autopilotCodingWorker = {
+          ...f.project.autopilotCodingWorker,
+        };
+      },
+    ],
+  ];
+  for (const [reason, revoke] of scenarios) {
+    let releaseStatus;
+    let notifyStatusStarted;
+    const statusStarted = new Promise((resolve) => {
+      notifyStatusStarted = resolve;
+    });
+    const statusResponse = new Promise((resolve) => {
+      releaseStatus = resolve;
+    });
+    const options = {
+      statusResponse,
+      onStatus: () => notifyStatusStarted(),
+    };
+    const f = fixture(t, options);
+    const task = f.enqueue();
+    const running = f.worker.tick();
+    await statusStarted;
+    revoke(f, options);
+    releaseStatus();
+    await running;
+
+    assert.equal(f.journal.get(task.id, "repo").state, "queued", reason);
+    assert.equal(f.generated(), 0, reason);
+    assert.equal(f.starts.length, 0, reason);
+    assert.equal(f.lanes.status("repo", f.root).lanes.length, 0, reason);
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      reason,
+    );
   }
 });
 
