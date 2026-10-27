@@ -40,13 +40,36 @@ function setup() {
     [prodLink]: "/home/kmjprod/releases/platform-8070dad72c55",
   };
   const overrides = {};
+  const directoryOverrides = {};
+  const missingDirectories = new Set();
+  const directories = new Set([
+    "/",
+    "/etc",
+    "/etc/kmj-codebridge",
+    "/etc/systemd",
+    "/etc/systemd/system",
+    "/usr",
+    "/usr/local",
+    "/usr/local/libexec",
+    "/usr/local/libexec/kmj-codebridge",
+  ]);
   const started = [];
   let state = "inactive",
     dropin = "",
+    needReload = "no",
     nginx = "active",
     socket = true;
   const handle = createSupervisorHandler({
     lstat: (p) => {
+      if (directories.has(p) && !missingDirectories.has(p)) {
+        const value = directoryOverrides[p] ?? {};
+        return {
+          isDirectory: () => true,
+          isSymbolicLink: () => value.symlink ?? false,
+          uid: value.uid ?? 0,
+          mode: value.mode ?? 0o40755,
+        };
+      }
       if (Object.hasOwn(files, p)) {
         const value = overrides[p] ?? {};
         return {
@@ -75,6 +98,8 @@ function setup() {
           unit +
           "\nDropInPaths=" +
           dropin +
+          "\nNeedDaemonReload=" +
+          needReload +
           "\n"
         );
       return (
@@ -91,12 +116,17 @@ function setup() {
     links,
     approval,
     overrides,
+    directoryOverrides,
+    missingDirectories,
     started,
     unitState: (x) => {
       state = x;
     },
     dropIns: (x) => {
       dropin = x;
+    },
+    needReload: (x) => {
+      needReload = x;
     },
     nginx: (x) => {
       nginx = x;
@@ -187,6 +217,24 @@ test("staging fails closed on every privileged trust boundary", async () => {
       x.dropIns("/etc/systemd/system/override.conf");
     },
     (x) => {
+      x.needReload("yes");
+    },
+    (x) => {
+      x.needReload("");
+    },
+    (x) => {
+      x.directoryOverrides["/usr/local/libexec"] = { mode: 0o40777 };
+    },
+    (x) => {
+      x.directoryOverrides["/etc/kmj-codebridge"] = { uid: 1000 };
+    },
+    (x) => {
+      x.directoryOverrides["/etc/systemd"] = { symlink: true };
+    },
+    (x) => {
+      x.missingDirectories.add("/usr/local/libexec/kmj-codebridge");
+    },
+    (x) => {
       x.nginx("failed");
     },
     (x) => {
@@ -211,4 +259,25 @@ test("post-ACK pointer drift prevents fixed unit from starting", async () => {
   x.links[stageLink] = "/home/kmjstage/releases/" + next + "/apps/platform";
   ack.afterSend();
   assert.deepEqual(x.started, []);
+});
+
+test("post-ACK runner replacement and stale systemd cache block start", async () => {
+  for (const mutate of [
+    (x) => {
+      x.files[root] += "# changed after acknowledgement\n";
+    },
+    (x) => {
+      x.needReload("yes");
+    },
+    (x) => {
+      x.directoryOverrides["/usr/local/libexec"] = { mode: 0o40777 };
+    },
+  ]) {
+    const x = setup();
+    const ack = await x.handle(request);
+    assert.equal(ack.response.accepted, true);
+    mutate(x);
+    ack.afterSend();
+    assert.deepEqual(x.started, []);
+  }
 });
