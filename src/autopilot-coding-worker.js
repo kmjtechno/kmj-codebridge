@@ -361,6 +361,25 @@ export class LocalFirstCodingWorker {
           )
             continue;
 
+          // model.status() is asynchronous. Consent or project/license grants
+          // may have been revoked while it was pending. Do not claim a task,
+          // read source context or send a prompt after that revocation.
+          let authorizedAfterStatus = false;
+          try {
+            const currentEntitlement = this.licenseProvider();
+            authorizedAfterStatus =
+              this.canStart() &&
+              project.writable === true &&
+              project.autopilotCodingWorker === config &&
+              config.enabled === true &&
+              config.localProcessingApproved === true &&
+              currentEntitlement.features?.includes("write") === true &&
+              currentEntitlement.features?.includes("execute") === true;
+          } catch {
+            // Invalid or unavailable grants fail closed.
+          }
+          if (!authorizedAfterStatus) continue;
+
           const task = this.journal.claim(project.id, {
             holder: "local-first-coding-worker",
             eligible: (candidate) =>
