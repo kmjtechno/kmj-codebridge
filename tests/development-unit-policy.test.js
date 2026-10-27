@@ -35,7 +35,10 @@ const helper = fs.readFileSync(
   "utf8",
 );
 const unit = fs.readFileSync(
-  new URL("../scripts/production/kmj-codebridge-development-ci.service", import.meta.url),
+  new URL(
+    "../scripts/production/kmj-codebridge-development-ci.service",
+    import.meta.url,
+  ),
   "utf8",
 );
 function fixture(overrides = {}) {
@@ -49,18 +52,24 @@ function fixture(overrides = {}) {
     assert.equal(args[1], DEVELOPMENT_UNIT);
     assert.equal(args.at(-1), "--no-pager");
     return [
-      ...args.filter((arg) => arg.startsWith("--property=")).map(
-        (arg) => {
+      ...args
+        .filter((arg) => arg.startsWith("--property="))
+        .map((arg) => {
           const name = arg.slice("--property=".length);
           return `${name}=${props[name] ?? ""}`;
-        },
-      ),
+        }),
       ...(overrides.extraLines ?? []),
     ].join("\n");
   };
   const lstat = (file) => {
-    if (![DEVELOPMENT_UNIT_PATH, DEVELOPMENT_HELPER_PATH,
-      "/etc/systemd/system", "/usr/local/libexec"].includes(file))
+    if (
+      ![
+        DEVELOPMENT_UNIT_PATH,
+        DEVELOPMENT_HELPER_PATH,
+        "/etc/systemd/system",
+        "/usr/local/libexec",
+      ].includes(file)
+    )
       throw Error("UNEXPECTED_PATH");
     const dir = file.endsWith("system") || file.endsWith("libexec");
     const bad = overrides.badMetadataPath === file;
@@ -75,10 +84,8 @@ function fixture(overrides = {}) {
     };
   };
   const readFile = (file) => {
-    if (file === DEVELOPMENT_UNIT_PATH)
-      return overrides.unit ?? unit;
-    if (file === DEVELOPMENT_HELPER_PATH)
-      return overrides.helper ?? helper;
+    if (file === DEVELOPMENT_UNIT_PATH) return overrides.unit ?? unit;
+    if (file === DEVELOPMENT_HELPER_PATH) return overrides.helper ?? helper;
     throw Error("UNEXPECTED_FILE");
   };
   const args = { run: handleProps, lstat, readFile };
@@ -91,8 +98,10 @@ function fixture(overrides = {}) {
 
 test("pinned unit and helper are exactly the source contract", () => {
   assert.equal(unit, DEVELOPMENT_UNIT_CONTENT);
-  assert.equal(createHash("sha256").update(helper).digest("hex"),
-    DEVELOPMENT_HELPER_SHA256);
+  assert.equal(
+    createHash("sha256").update(helper).digest("hex"),
+    DEVELOPMENT_HELPER_SHA256,
+  );
   assert.match(helper, /os.geteuid\(\) == 0/);
   assert.doesNotMatch(unit, /^User=root$/m);
   assert.match(unit, /^ProtectSystem=strict$/m);
@@ -124,7 +133,10 @@ test("pinned root-owned non-root probe attests and starts fixed unit only", asyn
 test("hardening bypass, wrong ownership, changed helper, active service all fail closed", async () => {
   const scenarios = [
     [{ properties: { User: "root" } }, "UNIT_PROPERTIES_UNSAFE"],
-    [{ properties: { DropInPaths: "/etc/systemd/system/override.conf" } }, "UNIT_PROPERTIES_UNSAFE"],
+    [
+      { properties: { DropInPaths: "/etc/systemd/system/override.conf" } },
+      "UNIT_PROPERTIES_UNSAFE",
+    ],
     [{ properties: { NoNewPrivileges: "no" } }, "UNIT_PROPERTIES_UNSAFE"],
     [{ properties: { ReadWritePaths: "/etc" } }, "UNIT_PROPERTIES_UNSAFE"],
     [{ properties: { ActiveState: "active" } }, "UNIT_NOT_IDLE"],
