@@ -38,7 +38,7 @@ test("CineCore gateway fails closed and never forwards token to unknown host", (
   );
   assert.match(
     source,
-    /Unexpected enrollment gateway; refusing forwarding of device token/,
+    /ENROLLMENT_GATEWAY_MISMATCH/,
   );
   assert.match(source, /gateway = 'https:\/\/kmjtechno\.com\/'/);
   assert.match(source, /Protect-Folder \$private/);
