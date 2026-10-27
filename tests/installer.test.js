@@ -20,7 +20,7 @@ test("fresh installer uses secure enrollment and never requires manual agent tok
   assert.match(script, /scripts\/enroll-device\.js/);
   assert.match(
     script,
-    /CODEBRIDGE_GATEWAY:-https:\/\/kmj-codebridge-gateway\.onrender\.com/,
+    /CODEBRIDGE_GATEWAY:-https:\/\/kmjtechno\.com/,
   );
   assert.match(script, /CODEBRIDGE_ENROLLMENT_BASE/);
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
@@ -154,11 +154,11 @@ test("installer provisions a restricted socket-activated supervisor", () => {
   assert.match(script, /\{op:"status",service:"agent"\}/);
 });
 
-test("installer uses the enrollment-returned gateway for a fresh device and repairs an existing gateway", () => {
+test("installer rejects unexpected enrollment gateways and repairs existing gateway safely", () => {
   assert.match(script, /typeof result\.gateway === "string"/);
-  assert.match(script, /const gateway =/);
-  assert.match(script, /result\.gateway/);
-  assert.match(script, /: process\.env\.GATEWAY/);
+  assert.match(script, /const gateway = process\.env\.GATEWAY/);
+  assert.match(script, /ENROLLMENT_GATEWAY_MISMATCH/);
+  assert.match(script, /approved\.origin !== expected\.origin/);
   assert.match(script, /have_config == 1/);
   assert.match(script, /c\.gateway!==process\.env\.GATEWAY/);
 });
