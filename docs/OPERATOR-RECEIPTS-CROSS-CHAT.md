@@ -10,7 +10,7 @@ Example for KMJ Main Platform: `runtime_inspect` / `node_version` and `main_plat
 
 ## 2. Owner-only commands produce read-on-next-chat receipts
 
-Privileged host maintenance remains owner-run with SHA256-pinned scripts, explicit consent and the protected supervisor guard. When the owner runs a fixed, reviewed operation, a project-specific adapter may export *only allowlisted status markers* to an authorized project path. No secrets, raw terminal transcript, arbitrary executable path, systemd command, deployment approval or private .env value is accepted.
+Privileged host maintenance remains owner-run with SHA256-pinned scripts, explicit consent and the protected supervisor guard. When the owner runs a fixed, reviewed operation, a project-specific adapter may export _only allowlisted status markers_ to an authorized project path. No secrets, raw terminal transcript, arbitrary executable path, systemd command, deployment approval or private .env value is accepted.
 
 First KMJ Main Platform adapter (reviewed source + CI, initially staged, NOT enabled as an unattended system service):
 
