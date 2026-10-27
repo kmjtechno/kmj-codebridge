@@ -11,6 +11,7 @@ import {
   assess,
   createChromePrivateEnvironment,
   measureAfterTextReady,
+  measureAfterImagesReady,
 } from "../scripts/browser-public-qa.mjs";
 
 test("browser test destinations and viewports are fixed", () => {
@@ -199,4 +200,68 @@ test("browser compatibility profile uses captured commands without widening exec
   assert.match(src, /command: process\.execPath/);
   assert.match(src, /"kmj_public"/);
   assert.match(src, /timeoutMs: 120000/);
+});
+
+test("mobile lazy images settle within bounded retry without suppressing actual failures", async () => {
+  let now = 0;
+  let checks = 0;
+  const samples = [
+    { pendingImages: 27, failedImages: 0, brokenImages: 27 },
+    { pendingImages: 8, failedImages: 0, brokenImages: 8 },
+    { pendingImages: 0, failedImages: 0, brokenImages: 0 },
+  ];
+  const settled = await measureAfterImagesReady(async () => samples[checks++], {
+    timeoutMs: 3000,
+    pollMs: 200,
+    clock: () => now,
+    sleep: async (ms) => {
+      now += ms;
+    },
+  });
+  assert.deepEqual(settled, samples[2]);
+  assert.equal(checks, 3);
+  assert.equal(now, 400);
+
+  // A missing or undecodable resource is never silently accepted.
+  const failed = await measureAfterImagesReady(
+    async () => {
+      throw Error("must not retry hard failure");
+    },
+    { initial: { pendingImages: 0, failedImages: 1, brokenImages: 1 } },
+  );
+  assert.equal(failed.brokenImages, 1);
+  assert.deepEqual(
+    assess({
+      actualUrl: "https://kmjtechno.com/",
+      expectedUrl: "https://kmjtechno.com/",
+      httpStatus: 200,
+      bodyLength: 600,
+      overflowPx: 0,
+      brokenImages: failed.brokenImages,
+      exceptions: 0,
+    }),
+    ["BROKEN_IMAGES"],
+  );
+});
+
+test("unsettled mobile images remain FAIL once retry budget expires", async () => {
+  let now = 0;
+  let checks = 0;
+  const pending = await measureAfterImagesReady(
+    async () => {
+      checks++;
+      return { pendingImages: 27, failedImages: 0, brokenImages: 27 };
+    },
+    {
+      timeoutMs: 600,
+      pollMs: 200,
+      clock: () => now,
+      sleep: async (ms) => {
+        now += ms;
+      },
+    },
+  );
+  assert.equal(pending.brokenImages, 27);
+  assert.equal(checks, 4);
+  assert.equal(now, 600);
 });
