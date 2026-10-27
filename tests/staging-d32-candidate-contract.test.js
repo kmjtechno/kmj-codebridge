@@ -63,9 +63,7 @@ test("staging owner-install candidate is exact-byte pinned", () => {
   assert.equal(contract(original), true);
 });
 
-test(
-  "candidate static trust contract rejects stale and weakened variants",
-  () => {
+test("static contract rejects weakened staging candidates", () => {
   const mutations = [
     ["stage", "sha=" + approved, "sha=" + previous],
     ["stage", "old=" + previous, "old=" + approved],
@@ -92,8 +90,7 @@ test(
       [file]: original[file].replaceAll(from, to),
     };
     assert.equal(contract(changed), false, file + ": " + from);
-  },
-);
+});
 
 test(
   "candidate shell and embedded Python pass syntax checks on Linux",
