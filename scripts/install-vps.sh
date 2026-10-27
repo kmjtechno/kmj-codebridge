@@ -4,7 +4,7 @@ umask 077
 
 [[ $EUID -eq 0 ]] || { echo "Run with sudo/root." >&2; exit 1; }
 
-GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
+GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmjtechno.com}"
 ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
 PROJECT="${CODEBRIDGE_PROJECT:-}"
 PROJECT_ID="${CODEBRIDGE_PROJECT_ID:-project1}"
