@@ -80,7 +80,7 @@ The Supervisor checks only these fixed units:
 This status response sets `unrestrictedRoot=false`,
 `projectCodeRunsAsRoot=false`, `brokerStartAuthorized=false`, and
 `productionReleaseApproved=false` regardless of unit presence. A systemd
-unit being *installed* is not evidence that an autonomous coding model or
+unit being _installed_ is not evidence that an autonomous coding model or
 worker has actually run. The CloudOS-only Supervisor explicitly rejects the
 Main Platform operation.
 
