@@ -540,7 +540,12 @@ function commandRisk(category) {
 
 function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
-  if (name === "supervisor_main_platform_production_activate") return "DEPLOY";
+  if (
+    name === "supervisor_main_platform_production_activate" ||
+    name === "supervisor_main_platform_staging_deploy"
+  )
+    return "DEPLOY";
+  if (name === "supervisor_development_ci_start") return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
   if (
     name === "worktree_lane_prepare" ||
@@ -1823,6 +1828,25 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_staging_status: {
+    title: "Main Platform staging deployment readiness",
+    description:
+      "Read only root-owned, fixed-script staging deployment approval and exact current release; no commands, paths, secrets, or deploys.",
+    input: scoped,
+    access: "read",
+  },
+  supervisor_main_platform_staging_deploy: {
+    title: "Start approved, fixed Main Platform staging deployment",
+    description:
+      "Start a separately owner-installed, root-attested systemd staging unit. Requires exact approved SHA, exact previous staging SHA and explicit confirmation; no arbitrary shell or production cutover. Accepted is not a deployment PASS.",
+    input: {
+      ...scoped,
+      approvedSha: z.string().regex(/^[a-f0-9]{40}$/),
+      expectedCurrentSha: z.string().regex(/^[a-f0-9]{40}$/),
+      confirmation: z.literal("DEPLOY_APPROVED_STAGING_RELEASE"),
+    },
+    access: "execute",
+  },
   supervisor_main_platform_production_status: {
     title: "Main Platform production release status",
     description:
@@ -1843,6 +1867,16 @@ export const definitions = {
       "Read exact fixed Main Platform agent/updater/development service states from the root-owned Supervisor. No shell, sudo, caller-selected unit, service start, production deployment, secret or privilege grant. Never credits autonomous coding.",
     input: scoped,
     access: "read",
+  },
+  supervisor_development_ci_start: {
+    title: "Start pinned non-root development probe",
+    description:
+      "Start only a root-owned, hash-attested, hardened non-root Main Platform development probe service when independently installed. Requires explicit confirmation and execute grant. No shell, arbitrary project code, caller paths, GitHub revision, production deployment or generic root access.",
+    input: {
+      ...scoped,
+      confirmation: z.literal("START_PINNED_NONROOT_DEV_PROBE"),
+    },
+    access: "execute",
   },
   supervisor_main_platform_production_activate: {
     title: "Activate operator-approved Main Platform production release",
@@ -3295,6 +3329,29 @@ export function createDispatcher(
       });
     if (name === "supervisor_device_status")
       return await supervisor.request({ op: "device_status" });
+    if (name === "supervisor_main_platform_staging_status") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_staging_status",
+      });
+    }
+    if (name === "supervisor_main_platform_staging_deploy") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_staging_deploy",
+        approvedSha: a.approvedSha,
+        expectedCurrentSha: a.expectedCurrentSha,
+        confirmation: a.confirmation,
+      });
+    }
     if (name === "supervisor_main_platform_production_status") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
       return await supervisor.request({
@@ -3314,6 +3371,17 @@ export function createDispatcher(
       )
         fail("ACCESS_DENIED");
       return await supervisor.request({ op: "development_privilege_status" });
+    }
+    if (name === "supervisor_development_ci_start") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "development_ci_start",
+        confirmation: a.confirmation,
+      });
     }
     if (name === "supervisor_main_platform_production_activate") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
