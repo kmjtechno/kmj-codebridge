@@ -77,6 +77,8 @@ The Supervisor checks only these fixed units:
 - `kmj-codebridge-auto-update.service` — signed updater availability
 - `kmj-codebridge-development-ci.service` — reserved future non-root development runner
 
+The readiness probe accepts only `LoadState=loaded` as evidence of an installed unit. A masked, unknown, malformed, or absent systemd state fails closed. Even for a loaded unit, `developmentUnitSecurityVerified=false`, `developmentWorkerReady=false`, and `signedUpdaterVerified=false` remain explicit until independent root-owned unit/hash/canary and live worker attestation. A green source PR or a systemd unit name is not a verified privileged development capability.
+
 This status response sets `unrestrictedRoot=false`,
 `projectCodeRunsAsRoot=false`, `brokerStartAuthorized=false`, and
 `productionReleaseApproved=false` regardless of unit presence. A systemd
