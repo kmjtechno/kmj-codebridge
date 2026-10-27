@@ -282,6 +282,32 @@ export class LocalFirstCodingWorker {
               wait("LOCAL_CODE_PATCH_CHANGED_AFTER_VERIFY");
               continue;
             }
+            // Verification can finish after consent, project grants, or the
+            // approved gate have been revoked. A passing test result must not
+            // turn a now-unauthorized candidate into a verified review item.
+            let stillAuthorized = false;
+            try {
+              const entitlement = this.licenseProvider();
+              stillAuthorized =
+                this.canStart() &&
+                project.writable === true &&
+                project.autopilotCodingWorker === existing.config &&
+                existing.config.enabled === true &&
+                existing.config.localProcessingApproved === true &&
+                existing.config.recipes?.[existing.recipeName] ===
+                  existing.recipe &&
+                project.gates?.[existing.recipe.verifyGate]
+                  ?.autopilotCodingSafe === true &&
+                entitlement.features?.includes("write") === true &&
+                entitlement.features?.includes("execute") === true;
+            } catch {
+              // Missing or invalid authorization fails closed.
+            }
+            if (!stillAuthorized) {
+              wait("LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED");
+              continue;
+            }
+
             const evidence = {
               status: "VERIFIED_PATCH_AWAITING_REVIEW",
               laneId: existing.laneId,
@@ -581,6 +607,8 @@ export class LocalFirstCodingWorker {
               laneId,
               expectedHead: parsed.expectedHead,
               recipe,
+              recipeName: parsed.recipe,
+              config,
               evidence,
               modelUsage,
             });
