@@ -10,6 +10,10 @@ import {
   attestDevelopmentCi,
   DEVELOPMENT_UNIT,
 } from "./development-unit-policy.js";
+import {
+  attestMainPlatformStaging,
+  STAGING_DEPLOY_UNIT,
+} from "./main-platform-staging-unit-policy.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -1639,6 +1643,7 @@ export function createSupervisorHandler({
       "projectId",
       "approvedSha",
       "expectedCurrentRelease",
+      "expectedCurrentSha",
       "confirmation",
     ]);
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
@@ -1951,6 +1956,75 @@ export function createSupervisorHandler({
       };
     }
 
+    if (request.op === "main_platform_staging_status") {
+      exactKeys(request, ["op"]);
+      return {
+        response: attestMainPlatformStaging({
+          lstat,
+          readFile,
+          readlink,
+          stat,
+          run,
+        }),
+      };
+    }
+    if (request.op === "main_platform_staging_deploy") {
+      exactKeys(request, [
+        "op",
+        "approvedSha",
+        "expectedCurrentSha",
+        "confirmation",
+      ]);
+      if (
+        request.confirmation !== "DEPLOY_APPROVED_STAGING_RELEASE" ||
+        typeof request.approvedSha !== "string" ||
+        typeof request.expectedCurrentSha !== "string" ||
+        !FULL_GIT_SHA.test(request.approvedSha) ||
+        !FULL_GIT_SHA.test(request.expectedCurrentSha) ||
+        request.approvedSha === request.expectedCurrentSha
+      )
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const state = attestMainPlatformStaging({
+        lstat,
+        readFile,
+        readlink,
+        stat,
+        run,
+      });
+      if (!state.ready) fail("SUPERVISOR_STAGING_NOT_READY");
+      if (
+        state.approvedSha !== request.approvedSha ||
+        state.expectedCurrentSha !== request.expectedCurrentSha ||
+        state.currentSha !== request.expectedCurrentSha
+      )
+        fail("SUPERVISOR_STAGING_SHA_MISMATCH");
+      return {
+        response: {
+          accepted: true,
+          approvedSha: request.approvedSha,
+          deploymentVerified: false,
+          productionActivation: false,
+        },
+        // Re-attest at the moment of start. The installed owner-approved unit
+        // must independently repeat checks and emit its own deployment receipt.
+        afterSend: () => {
+          const fresh = attestMainPlatformStaging({
+            lstat,
+            readFile,
+            readlink,
+            stat,
+            run,
+          });
+          if (
+            fresh.ready &&
+            fresh.approvedSha === request.approvedSha &&
+            fresh.expectedCurrentSha === request.expectedCurrentSha &&
+            fresh.currentSha === request.expectedCurrentSha
+          )
+            start(STAGING_DEPLOY_UNIT);
+        },
+      };
+    }
     if (request.op === "main_platform_production_status") {
       exactKeys(request, ["op"]);
       return { response: productionReleaseState() };
