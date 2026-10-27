@@ -27,7 +27,7 @@
   "endpoints": {
     "mcp": "https://kmjtechno.com/mcp",
     "enrollment": "https://kmjtechno.com",
-    "agentGateway": "https://kmj-codebridge-gateway.onrender.com"
+    "agentGateway": "https://kmjtechno.com"
   },
   "launch": {
     "trialDays": 30,
