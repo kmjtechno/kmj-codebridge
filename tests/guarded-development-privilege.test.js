@@ -47,7 +47,7 @@ test("guarded development reports only fixed safe services without granting root
   assert.equal(response.productionReleaseApproved, false);
   assert.equal(response.signedUpdaterInstalled, true);
   assert.equal(response.developmentUnitInstalled, true);
-  assert.equal(commands.length, 3);
+  assert.equal(commands.length, 4);
   assert.equal(afterSend, undefined);
   assert.deepEqual(actions, []);
   assert.doesNotMatch(

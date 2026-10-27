@@ -541,6 +541,7 @@ function commandRisk(category) {
 function toolRisk(name, definition) {
   if (definition.access === "read") return "READ";
   if (name === "supervisor_main_platform_production_activate") return "DEPLOY";
+  if (name === "supervisor_development_ci_start") return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
   if (
     name === "worktree_lane_prepare" ||
@@ -1843,6 +1844,16 @@ export const definitions = {
       "Read exact fixed Main Platform agent/updater/development service states from the root-owned Supervisor. No shell, sudo, caller-selected unit, service start, production deployment, secret or privilege grant. Never credits autonomous coding.",
     input: scoped,
     access: "read",
+  },
+  supervisor_development_ci_start: {
+    title: "Start pinned non-root development probe",
+    description:
+      "Start only a root-owned, hash-attested, hardened non-root Main Platform development probe service when independently installed. Requires explicit confirmation and execute grant. No shell, arbitrary project code, caller paths, GitHub revision, production deployment or generic root access.",
+    input: {
+      ...scoped,
+      confirmation: z.literal("START_PINNED_NONROOT_DEV_PROBE"),
+    },
+    access: "execute",
   },
   supervisor_main_platform_production_activate: {
     title: "Activate operator-approved Main Platform production release",
@@ -3314,6 +3325,17 @@ export function createDispatcher(
       )
         fail("ACCESS_DENIED");
       return await supervisor.request({ op: "development_privilege_status" });
+    }
+    if (name === "supervisor_development_ci_start") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "development_ci_start",
+        confirmation: a.confirmation,
+      });
     }
     if (name === "supervisor_main_platform_production_activate") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");

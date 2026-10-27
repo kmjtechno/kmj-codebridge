@@ -6,6 +6,10 @@ import { spawn, execFileSync } from "node:child_process";
 import { agentSchema, gatewaySchema } from "./config.js";
 import { fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
+import {
+  attestDevelopmentCi,
+  DEVELOPMENT_UNIT,
+} from "./development-unit-policy.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -2000,6 +2004,7 @@ export function createSupervisorHandler({
         "ActiveState",
         "SubState",
       ]);
+      const devAttestation = attestDevelopmentCi({ run, lstat, readFile });
       const developmentWorker = fixedUnitStatus(
         run,
         "kmj-codebridge-development-ci.service",
@@ -2011,13 +2016,35 @@ export function createSupervisorHandler({
           permissionModel: "FIXED_OPERATIONS_ONLY",
           unrestrictedRoot: false,
           projectCodeRunsAsRoot: false,
-          brokerStartAuthorized: false,
+          brokerStartAuthorized: devAttestation.ready,
+          devAttestation,
           developmentUnitInstalled: developmentWorker.installed,
           developmentWorker,
           agent,
           signedUpdaterInstalled: updater.installed,
           productionReleaseApproved: false,
           note: "Read-only capability evidence; not autonomous coding or root activation",
+        },
+      };
+    }
+
+    if (request.op === "development_ci_start") {
+      exactKeys(request, ["op", "confirmation"]);
+      if (request.confirmation !== "START_PINNED_NONROOT_DEV_PROBE")
+        fail("INVALID_SUPERVISOR_REQUEST");
+      if (!attestDevelopmentCi({ run, lstat, readFile }).ready)
+        fail("SUPERVISOR_DEVELOPMENT_CI_NOT_READY");
+      return {
+        response: {
+          accepted: true,
+          unit: DEVELOPMENT_UNIT,
+          runsAsRoot: false,
+          productionReleaseApproved: false,
+        },
+        // Reattest after the ACK; a changed helper or unit must never start.
+        afterSend: () => {
+          if (attestDevelopmentCi({ run, lstat, readFile }).ready)
+            start(DEVELOPMENT_UNIT);
         },
       };
     }
