@@ -15,7 +15,10 @@ const paths = {
   unit: join(directory, "owner-staging.service"),
 };
 const original = Object.fromEntries(
-  Object.entries(paths).map(([name, path]) => [name, readFileSync(path, "utf8")]),
+  Object.entries(paths).map(([name, path]) => [
+    name,
+    readFileSync(path, "utf8"),
+  ]),
 );
 const expected = {
   stage: "e6b1c58ff8014b062b2df3d3ba20385c62409f3752d8f2064a06683a793c9318",
@@ -63,18 +66,14 @@ test("staging owner-install candidate is exact-byte pinned", () => {
   assert.equal(contract(original), true);
 });
 
-test("static contract rejects weakened staging candidates", () => {
+test("candidate static trust contract rejects stale and weakened variants", () => {
   const mutations = [
     ["stage", "sha=" + approved, "sha=" + previous],
     ["stage", "old=" + previous, "old=" + approved],
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
-    [
-      "runner",
-      "source_sha=" + expected.stage,
-      "source_sha=" + expected.runner,
-    ],
+    ["runner", "source_sha=" + expected.stage, "source_sha=" + expected.runner],
     ["runner", "main-platform-staging-approval.json", "no-approval.json"],
     ["runner", "OWNER_MANIFEST_OR_INSTALL", "ALLOW_WITHOUT_MANIFEST"],
     ["runner", "zeroAdditionalCostVerified", "paidCloudEnabled"],
@@ -90,6 +89,7 @@ test("static contract rejects weakened staging candidates", () => {
       [file]: original[file].replaceAll(from, to),
     };
     assert.equal(contract(changed), false, file + ": " + from);
+  }
 });
 
 test(
