@@ -476,6 +476,78 @@ test("failed verification gate leaves the candidate unpublishable", async (t) =>
   );
 });
 
+test("revoked authorization after a successful gate never promotes a patch to verified review", async (t) => {
+  const scenarios = [
+    [
+      "local consent",
+      (f) => {
+        f.project.autopilotCodingWorker.localProcessingApproved = false;
+      },
+    ],
+    [
+      "project write grant",
+      (f) => {
+        f.project.writable = false;
+      },
+    ],
+    [
+      "write entitlement",
+      (_f, options) => {
+        options.noWrite = true;
+      },
+    ],
+    [
+      "execute entitlement",
+      (_f, options) => {
+        options.noExecute = true;
+      },
+    ],
+    [
+      "safe verification gate",
+      (f) => {
+        f.project.gates.check.autopilotCodingSafe = false;
+      },
+    ],
+    [
+      "replaced worker config",
+      (f) => {
+        f.project.autopilotCodingWorker = {
+          ...f.project.autopilotCodingWorker,
+        };
+      },
+    ],
+  ];
+  for (const [reason, revoke] of scenarios) {
+    const options = {};
+    const f = fixture(t, options);
+    const task = f.enqueue();
+    await f.worker.tick();
+    assert.equal(f.starts.length, 1, reason);
+    f.jobs.get("job-1").state = "succeeded";
+    f.jobs.get("job-1").exitCode = 0;
+    revoke(f, options);
+    await f.worker.tick();
+    const record = f.journal.get(task.id, "repo");
+    assert.equal(record.state, "waiting", reason);
+    assert.equal(
+      record.lastReason,
+      "LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED",
+      reason,
+    );
+    assert.notEqual(
+      record.checkpoint.next,
+      "VERIFIED_PATCH_AWAITING_REVIEW",
+      reason,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      reason,
+    );
+    assert.equal(f.starts.length, 1, reason);
+  }
+});
+
 test("config requires explicit consent and keeps context files within the edit allowlist", () => {
   const base = {
     gateway: "https://example.invalid/",
