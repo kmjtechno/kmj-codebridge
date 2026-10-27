@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { hostname } from "node:os";
 
 const directory = fileURLToPath(
   new URL("../examples/main-platform-staging/d32/", import.meta.url),
@@ -113,5 +114,28 @@ test(
       { input: match[1], encoding: "utf8", timeout: 10000 },
     );
     assert.equal(result.status, 0, result.stderr);
+  },
+);
+
+// This is an actual execution negative test, not a string/regex contract.
+// Never execute a candidate on the approved host as root from CI or a laptop.
+const approvedRootHost =
+  hostname().split(".")[0] === "KMJ-elite" && process.getuid?.() === 0;
+
+test(
+  "candidate entrypoints fail closed before side effects off the approved root host",
+  { skip: process.platform === "win32" || approvedRootHost },
+  () => {
+    for (const [name, expectedMarker] of [
+      ["stage", "STAGING_UI_UPDATE=BLOCKED_HOST"],
+      ["runner", "KMJ_STAGING=BLOCKED_ROOT_HOST"],
+    ]) {
+      const result = spawnSync("bash", [paths[name]], {
+        encoding: "utf8",
+        timeout: 5000,
+      });
+      assert.equal(result.status, 2, name + ": unexpected exit");
+      assert.equal(result.stdout.trim(), expectedMarker, name);
+    }
   },
 );
