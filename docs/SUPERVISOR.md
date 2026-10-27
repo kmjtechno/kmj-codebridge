@@ -117,7 +117,6 @@ No bypass of signed CodeBridge license limits, no new paid inference and no
 unverified 'live' claims. Until all gates complete, the root development
 executor must remain **disabled**.
 
-
 ### Root-owned non-root probe attestation — implementation phase 2
 
 The separate `supervisor_development_ci_start` action requires an explicit
