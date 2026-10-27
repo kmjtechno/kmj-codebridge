@@ -71,7 +71,13 @@ test("missing dev unit never becomes available and nothing starts", async () => 
 });
 
 test("masked, malformed and unknown unit states cannot claim installed development readiness", async () => {
-  for (const loadState of ["masked", "error", "unknown", "", "loaded-but-not-verified"]) {
+  for (const loadState of [
+    "masked",
+    "error",
+    "unknown",
+    "",
+    "loaded-but-not-verified",
+  ]) {
     const { handle, actions } = fixture({ loadState });
     const { response } = await handle({ op: "development_privilege_status" });
     assert.equal(response.developmentUnitInstalled, false, loadState);
