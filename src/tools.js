@@ -3308,7 +3308,10 @@ export function createDispatcher(
       });
     }
     if (name === "supervisor_development_privilege_status") {
-      if (a.project !== "kmj-main-platform" || config.id !== "kmj-elite-main-platform")
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
         fail("ACCESS_DENIED");
       return await supervisor.request({ op: "development_privilege_status" });
     }
