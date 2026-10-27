@@ -626,7 +626,8 @@ const patch = {
 export const definitions = {
   list_devices: {
     title: "List authorized devices",
-    description: "List devices and projects authorized for this account.",
+    description:
+      "Discover authorized device/project IDs before any CodeBridge work, including after a project switch in the middle of an AI chat. Never guess device IDs or assume that every enrolled agent is online.",
     input: {},
     access: "read",
   },
@@ -649,7 +650,7 @@ export const definitions = {
   multi_chat_sync: {
     title: "HyperSpeed multi-chat project sync",
     description:
-      "Read one bounded project-lane continuity checkpoint plus compact live Git/tasks/locks/mailbox context in a single chat tool call. Supply ifNoneMatch for tiny unchanged replies. Works across independently granted ChatGPT chats, but does not wake inactive host chats or extend the host context window.",
+      "Refresh a project's saved chat lane and live Git/tasks/locks/mailbox context at the start OR middle of an AI chat, especially when resuming work, switching tasks or after tool errors. Supply ifNoneMatch for tiny unchanged replies. Works across independently granted ChatGPT chats, but cannot wake inactive host chats or extend the host context window.",
     input: {
       ...scoped,
       lane: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
@@ -1043,7 +1044,7 @@ export const definitions = {
   chat_workspace_open: {
     title: "Open or resume a local-first AI chat workspace",
     description:
-      "One-call, read-only CodeBridge workspace for ordinary ChatGPT, Claude, Gemini, IDE or MCP chat clients: bounded authorized file explorer, frameworks, quality gates, recent job/task evidence, optional chat-lane checkpoint and local browser readiness. Use ifNoneMatch for an unchanged-only reply. No host transcript access, wake-up, autonomous approval, paid inference or unrestricted browser control.",
+      "At the start OR middle of a ChatGPT, Claude, Gemini or IDE conversation, call this read-only tool after verifying the authorized device/project, especially when a user switches tasks, resumes a lane, or asks to use CodeBridge features. It returns bounded workspace, jobs, checkpoint, capabilities and recommended nextTools. Follow capabilities: an advertised MCP tool may be UNKNOWN_TOOL on an older enrolled agent; do not retry unsupported tools or invent success. Use ifNoneMatch for unchanged-only replies. No host transcript access, auto-wake, automatic approvals, paid inference or unrestricted browser control.",
     input: {
       ...scoped,
       lane: z
@@ -2033,7 +2034,7 @@ export const definitions = {
   connection_doctor: {
     title: "Connection doctor",
     description:
-      "Read connection health and available project capabilities and diagnose missing hosted tools, inactive local workers, CI launch failures and dirty checkouts; never changes settings or executes work.",
+      "When a CodeBridge tool is listed but fails with UNKNOWN_TOOL, refresh project readiness and diagnose hosted-agent catalog mismatch, missing local workers, CI failures and dirty checkouts. Read-only; do not claim a feature is usable just because public MCP discovery lists it.",
     input: {
       ...scoped,
       // Optional observations from the client are advisory, not host-verified.
