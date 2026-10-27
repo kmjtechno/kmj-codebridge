@@ -1837,6 +1837,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_development_privilege_status: {
+    title: "Guarded VPS development privilege readiness",
+    description:
+      "Read exact fixed Main Platform agent/updater/development service states from the root-owned Supervisor. No shell, sudo, caller-selected unit, service start, production deployment, secret or privilege grant. Never credits autonomous coding.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_production_activate: {
     title: "Activate operator-approved Main Platform production release",
     description:
