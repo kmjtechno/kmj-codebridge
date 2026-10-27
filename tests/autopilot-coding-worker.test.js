@@ -298,24 +298,42 @@ test("offline model, missing execute permission, or resource pressure leaves tas
 
 test("authorization revoked during asynchronous local generation cannot mutate a lane or start a gate", async (t) => {
   const scenarios = [
-    ["local consent", (f) => {
-      f.project.autopilotCodingWorker.localProcessingApproved = false;
-    }],
-    ["project write approval", (f) => {
-      f.project.writable = false;
-    }],
-    ["execute entitlement", (_f, options) => {
-      options.noExecute = true;
-    }],
-    ["write entitlement", (_f, options) => {
-      options.noWrite = true;
-    }],
-    ["maintenance admission", (_f, options) => {
-      options.paused = true;
-    }],
-    ["verification gate approval", (f) => {
-      f.project.gates.check.autopilotCodingSafe = false;
-    }],
+    [
+      "local consent",
+      (f) => {
+        f.project.autopilotCodingWorker.localProcessingApproved = false;
+      },
+    ],
+    [
+      "project write approval",
+      (f) => {
+        f.project.writable = false;
+      },
+    ],
+    [
+      "execute entitlement",
+      (_f, options) => {
+        options.noExecute = true;
+      },
+    ],
+    [
+      "write entitlement",
+      (_f, options) => {
+        options.noWrite = true;
+      },
+    ],
+    [
+      "maintenance admission",
+      (_f, options) => {
+        options.paused = true;
+      },
+    ],
+    [
+      "verification gate approval",
+      (f) => {
+        f.project.gates.check.autopilotCodingSafe = false;
+      },
+    ],
   ];
   for (const [reason, revoke] of scenarios) {
     let releaseGeneration;
