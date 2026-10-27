@@ -63,3 +63,56 @@ Until that sequence is merged and live-tested, installer rerun is the supported 
 On a host that runs `kmj-codebridge-gateway-stage.service`, `supervisor_status(gateway)` selects the sole active stage unit. The standard `/etc/kmj-codebridge/gateway.json` may be absent even while that unit is healthy. If `supervisor_config_validate(gateway)` finds the standard config absent and **confirms the sole selected unit is the stage gateway**, it returns `valid=false, reason=STAGE_GATEWAY_CONFIG_NOT_VERIFIED`. This is **not** a gateway outage and **not** a schema-validation PASS for its runtime credential file.
 
 This read-only diagnostic deliberately does **not** infer, follow or open a path from `systemctl`, `/proc`, a CLI argument, a unit drop-in or a user-provided value. Only the fixed authorized config is read. Genuine stage runtime credential inspection must occur separately through an owner-approved privileged procedure; never copy credentials or silently fall back to agent secrets.
+
+## Development-only privileged broker: first fail-closed slice (2026-10-27)
+
+The new `supervisor_development_privilege_status` tool is a **read-only**
+readiness inventory for the exact `kmj-elite-main-platform` device and
+`kmj-main-platform` project. It requests only `development_privilege_status`
+from the existing root-owned Unix-socket Supervisor. No caller-supplied
+argument other than the already enrolled device/project identifiers is accepted.
+The Supervisor checks only these fixed units:
+
+- `kmj-codebridge-kmj-main-platform.service` — existing project agent
+- `kmj-codebridge-auto-update.service` — signed updater availability
+- `kmj-codebridge-development-ci.service` — reserved future non-root development runner
+
+This status response sets `unrestrictedRoot=false`,
+`projectCodeRunsAsRoot=false`, `brokerStartAuthorized=false`, and
+`productionReleaseApproved=false` regardless of unit presence. A systemd
+unit being *installed* is not evidence that an autonomous coding model or
+worker has actually run. The CloudOS-only Supervisor explicitly rejects the
+Main Platform operation.
+
+### Remaining implementation / independent gates (NOT activated by this PR)
+
+1. Admin-reviewed, exact-hash signed root-owned unit, helper and executable
+   must be installed on the enrolled VPS. No helper or dependency may be
+   modifiable by the CodeBridge agent or a GitHub checkout.
+2. If a privileged operation is genuinely needed, expose a **separate,
+   typed, project-specific command profile** that can only provision or
+   inspect an allowlisted development sandbox. No arbitrary `sudo`, shell,
+   cwd, path, environment, service name, URL, port or caller-provided script.
+   Code from GitHub (including install hooks) must run **as an unprivileged
+   user** in a constrained, disposable, exact-SHA worktree—not within the root
+   Supervisor process.
+3. Validate systemd unit metadata, root ownership, immutable helper hash,
+   absence of writable drop-ins, effective service user, sandbox settings,
+   task lease/idempotency, resource quotas, audit receipts, cancellation,
+   revocation and restart/fault-injection rollback.
+4. Install the separately signed CodeBridge agent candidate with canary +
+   rollback; verify new MCP tool publication and actual tool call in an
+   authorized client. The existing stable agent must remain available until
+   independent acceptance succeeds.
+5. Connect an explicitly consented local/free inference provider, activate a
+   real durable autonomous **coding** worker, and demonstrate GitHub issue →
+   lease → detached worktree patch → tests → reviewable PR → restart/resume.
+   A queue, a model planning result, or a status probe is **not** execution.
+6. Continue to require distinct owner-signed approvals for production
+   deploys, database writes, backup restore, DNS, SSH/firewall changes,
+   credentials, payments, licenses and destructive operations. Don't rewrite
+   old signed approval manifests to match a new release.
+
+No bypass of signed CodeBridge license limits, no new paid inference and no
+unverified 'live' claims. Until all gates complete, the root development
+executor must remain **disabled**.
