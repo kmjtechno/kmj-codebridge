@@ -3,18 +3,26 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const runnerPath = new URL("../examples/main-platform-staging/d32/owner-runner.sh", import.meta.url);
+const runnerPath = new URL(
+  "../examples/main-platform-staging/d32/owner-runner.sh",
+  import.meta.url,
+);
 const runner = readFileSync(runnerPath, "utf8");
-const match = runner.match(/python3 - "\$approved" "\$prior" <<'PY' \|\| deny OWNER_MANIFEST_OR_INSTALL\n([\s\S]*?)\nPY/);
+const match = runner.match(
+  /python3 - "\$approved" "\$prior" <<'PY' \|\| deny OWNER_MANIFEST_OR_INSTALL\n([\s\S]*?)\nPY/,
+);
 
 // Execute the actual embedded approval validator, not a rewritten copy. All
 // paths are redirected into a disposable local fixture; no root, systemd,
 // deployment, network, or production paths are touched.
-test("offline approval validator rejects malformed, stale, or unsafe manifests", {
-  skip: process.platform === "win32",
-}, () => {
-  assert.ok(match, "embedded offline approval validator must exist");
-  const harness = String.raw`
+test(
+  "offline approval validator rejects malformed, stale, or unsafe manifests",
+  {
+    skip: process.platform === "win32",
+  },
+  () => {
+    assert.ok(match, "embedded offline approval validator must exist");
+    const harness = String.raw`
 import hashlib, json, os, pathlib, stat, sys, tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -110,14 +118,18 @@ for case in cases:
         results[case] = passed
 print(json.dumps(results, sort_keys=True))
 `;
-  const result = spawnSync("python3", ["-c", harness], {
-    input: match[1], encoding: "utf8", timeout: 30000,
-  });
-  assert.equal(result.status, 0, result.stderr);
-  const outcomes = JSON.parse(result.stdout);
-  assert.equal(outcomes.valid, true, "valid exact-SHA manifest should pass");
-  for (const [name, accepted] of Object.entries(outcomes)) {
-    if (name !== "valid") assert.equal(accepted, false, "${name} must fail closed");
-  }
-  assert.equal(Object.keys(outcomes).length, 20);
-});
+    const result = spawnSync("python3", ["-c", harness], {
+      input: match[1],
+      encoding: "utf8",
+      timeout: 30000,
+    });
+    assert.equal(result.status, 0, result.stderr);
+    const outcomes = JSON.parse(result.stdout);
+    assert.equal(outcomes.valid, true, "valid exact-SHA manifest should pass");
+    for (const [name, accepted] of Object.entries(outcomes)) {
+      if (name !== "valid")
+        assert.equal(accepted, false, name + " must fail closed");
+    }
+    assert.equal(Object.keys(outcomes).length, 20);
+  },
+);
