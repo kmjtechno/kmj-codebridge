@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { posix } from "node:path";
 
 // All paths and operations are compiled into the trusted Supervisor. Neither
 // the agent nor the MCP caller may choose a command, path, unit, or branch.
@@ -40,7 +41,29 @@ function properties(text) {
   );
 }
 
+// A root-owned file is replaceable when an ancestor is writable or symlinked.
+function protectedAncestors(path, lstat) {
+  let parent = posix.dirname(path);
+  for (;;) {
+    try {
+      const info = lstat(parent);
+      if (
+        !info.isDirectory() ||
+        info.isSymbolicLink() ||
+        info.uid !== 0 ||
+        (info.mode & 0o022) !== 0
+      )
+        return false;
+    } catch {
+      return false;
+    }
+    if (parent === "/") return true;
+    parent = posix.dirname(parent);
+  }
+}
+
 function protectedText(path, maxBytes, { lstat, readFile }) {
+  if (!protectedAncestors(path, lstat)) return null;
   try {
     const info = lstat(path);
     if (
@@ -151,14 +174,15 @@ export function attestMainPlatformStaging({
 
   const unit = serviceProperties(
     STAGING_DEPLOY_UNIT,
-    ["ActiveState", "FragmentPath", "DropInPaths"],
+    ["ActiveState", "FragmentPath", "DropInPaths", "NeedDaemonReload"],
     run,
   );
   const unitReady =
     unit.LoadState === "loaded" &&
     unit.ActiveState === "inactive" &&
     unit.FragmentPath === UNIT_FILE &&
-    unit.DropInPaths === "";
+    unit.DropInPaths === "" &&
+    unit.NeedDaemonReload === "no";
   if (!unitReady) blockers.push("GUARDED_STAGING_UNIT_UNAVAILABLE");
 
   // systemd drop-ins and unit/script content are independently checked.
