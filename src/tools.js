@@ -3307,6 +3307,11 @@ export function createDispatcher(
         op: "main_platform_maintenance_status",
       });
     }
+    if (name === "supervisor_development_privilege_status") {
+      if (a.project !== "kmj-main-platform" || config.id !== "kmj-elite-main-platform")
+        fail("ACCESS_DENIED");
+      return await supervisor.request({ op: "development_privilege_status" });
+    }
     if (name === "supervisor_main_platform_production_activate") {
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
       return await supervisor.request({
