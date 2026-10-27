@@ -6,6 +6,14 @@ import { spawn, execFileSync } from "node:child_process";
 import { agentSchema, gatewaySchema } from "./config.js";
 import { fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
+import {
+  attestDevelopmentCi,
+  DEVELOPMENT_UNIT,
+} from "./development-unit-policy.js";
+import {
+  attestMainPlatformStaging,
+  STAGING_DEPLOY_UNIT,
+} from "./main-platform-staging-unit-policy.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -210,7 +218,7 @@ function fixedUnitStatus(run, unit, properties) {
       ]),
     );
     return {
-      // Fail closed on missing, masked, malformed or unknown systemd LoadState.
+      // Only a loaded systemd unit is installed; masked/error/unknown fail closed.
       installed: fields.LoadState === "loaded",
       ...Object.fromEntries(
         properties.map((name) => [
@@ -1636,6 +1644,7 @@ export function createSupervisorHandler({
       "projectId",
       "approvedSha",
       "expectedCurrentRelease",
+      "expectedCurrentSha",
       "confirmation",
     ]);
     if (typeof request.op !== "string") fail("INVALID_SUPERVISOR_REQUEST");
@@ -1948,6 +1957,75 @@ export function createSupervisorHandler({
       };
     }
 
+    if (request.op === "main_platform_staging_status") {
+      exactKeys(request, ["op"]);
+      return {
+        response: attestMainPlatformStaging({
+          lstat,
+          readFile,
+          readlink,
+          stat,
+          run,
+        }),
+      };
+    }
+    if (request.op === "main_platform_staging_deploy") {
+      exactKeys(request, [
+        "op",
+        "approvedSha",
+        "expectedCurrentSha",
+        "confirmation",
+      ]);
+      if (
+        request.confirmation !== "DEPLOY_APPROVED_STAGING_RELEASE" ||
+        typeof request.approvedSha !== "string" ||
+        typeof request.expectedCurrentSha !== "string" ||
+        !FULL_GIT_SHA.test(request.approvedSha) ||
+        !FULL_GIT_SHA.test(request.expectedCurrentSha) ||
+        request.approvedSha === request.expectedCurrentSha
+      )
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const state = attestMainPlatformStaging({
+        lstat,
+        readFile,
+        readlink,
+        stat,
+        run,
+      });
+      if (!state.ready) fail("SUPERVISOR_STAGING_NOT_READY");
+      if (
+        state.approvedSha !== request.approvedSha ||
+        state.expectedCurrentSha !== request.expectedCurrentSha ||
+        state.currentSha !== request.expectedCurrentSha
+      )
+        fail("SUPERVISOR_STAGING_SHA_MISMATCH");
+      return {
+        response: {
+          accepted: true,
+          approvedSha: request.approvedSha,
+          deploymentVerified: false,
+          productionActivation: false,
+        },
+        // Re-attest at the moment of start. The installed owner-approved unit
+        // must independently repeat checks and emit its own deployment receipt.
+        afterSend: () => {
+          const fresh = attestMainPlatformStaging({
+            lstat,
+            readFile,
+            readlink,
+            stat,
+            run,
+          });
+          if (
+            fresh.ready &&
+            fresh.approvedSha === request.approvedSha &&
+            fresh.expectedCurrentSha === request.expectedCurrentSha &&
+            fresh.currentSha === request.expectedCurrentSha
+          )
+            start(STAGING_DEPLOY_UNIT);
+        },
+      };
+    }
     if (request.op === "main_platform_production_status") {
       exactKeys(request, ["op"]);
       return { response: productionReleaseState() };
@@ -2001,6 +2079,7 @@ export function createSupervisorHandler({
         "ActiveState",
         "SubState",
       ]);
+      const devAttestation = attestDevelopmentCi({ run, lstat, readFile });
       const developmentWorker = fixedUnitStatus(
         run,
         "kmj-codebridge-development-ci.service",
@@ -2012,10 +2091,11 @@ export function createSupervisorHandler({
           permissionModel: "FIXED_OPERATIONS_ONLY",
           unrestrictedRoot: false,
           projectCodeRunsAsRoot: false,
-          brokerStartAuthorized: false,
+          brokerStartAuthorized: devAttestation.ready,
+          devAttestation,
           developmentUnitInstalled: developmentWorker.installed,
-          // Unit presence is not root-owned policy attestation or code execution.
-          developmentUnitSecurityVerified: false,
+          // Root-owned unit attestation is not a running coding worker.
+          developmentUnitSecurityVerified: devAttestation.ready,
           developmentWorkerReady: false,
           developmentWorker,
           agent,
@@ -2023,6 +2103,27 @@ export function createSupervisorHandler({
           signedUpdaterVerified: false,
           productionReleaseApproved: false,
           note: "Read-only capability evidence; not autonomous coding or root activation",
+        },
+      };
+    }
+
+    if (request.op === "development_ci_start") {
+      exactKeys(request, ["op", "confirmation"]);
+      if (request.confirmation !== "START_PINNED_NONROOT_DEV_PROBE")
+        fail("INVALID_SUPERVISOR_REQUEST");
+      if (!attestDevelopmentCi({ run, lstat, readFile }).ready)
+        fail("SUPERVISOR_DEVELOPMENT_CI_NOT_READY");
+      return {
+        response: {
+          accepted: true,
+          unit: DEVELOPMENT_UNIT,
+          runsAsRoot: false,
+          productionReleaseApproved: false,
+        },
+        // Reattest after the ACK; a changed helper or unit must never start.
+        afterSend: () => {
+          if (attestDevelopmentCi({ run, lstat, readFile }).ready)
+            start(DEVELOPMENT_UNIT);
         },
       };
     }
