@@ -13,7 +13,7 @@ STATE='/var/lib/kmj-codebridge-kmj-main-platform'
 SOURCE_RUNTIME='/opt/kmj-codebridge-agent'
 RUNTIME='/opt/kmj-codebridge-main-platform-agent'
 NODE='/opt/kmj-codebridge-node/bin/node'
-GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
+GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmjtechno.com}"
 
 if [[ ! -x "$NODE" ]]; then NODE="$(command -v node || true)"; fi
 [[ -n "$NODE" && -x "$NODE" ]] || { echo 'ERROR node_runtime_missing' >&2; exit 2; }
