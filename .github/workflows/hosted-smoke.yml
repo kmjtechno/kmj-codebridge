@@ -1,13 +1,12 @@
-name: Hosted Deployment Smoke
+name: VPS Deployment Smoke
 
 on:
   push:
     branches: [main]
     paths:
       - "src/**"
-      - "package.json"
+      - "scripts/verify-vps-catalog.mjs"
       - "scripts/verify-public-mcp-catalog.mjs"
-      - "scripts/verify-render-deployment.mjs"
       - ".github/workflows/hosted-smoke.yml"
   workflow_dispatch:
   schedule:
@@ -17,141 +16,24 @@ permissions:
   contents: read
 
 concurrency:
-  group: codebridge-hosted-smoke
+  group: codebridge-vps-smoke
   cancel-in-progress: true
 
 jobs:
-  # Render is a separate deployed service: verify it independently of the VPS.
+  # The registered ChatGPT MCP and device gateway are hosted on KMJ-elite.
+  # This read-only gate MUST NOT call a Render service or change DNS/systemd.
   gateway:
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 5
     steps:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
+      - name: Verify owner VPS tool catalog, critical schemas, and running commit
+        run: node scripts/verify-vps-catalog.mjs
 
-      - name: Verify hosted gateway and GitHub capability
-        shell: bash
-        run: |
-          set -euo pipefail
-          expected="$(node -p "require('./package.json').version")"
-          tmp="$(mktemp)"
-          trap 'rm -f "$tmp"' EXIT
-
-          ok=0
-          for attempt in 1 2 3 4 5 6 7 8; do
-            if curl --fail --silent --show-error --location --max-time 30               https://kmj-codebridge-gateway.onrender.com/healthz -o "$tmp"; then
-              if EXPECTED="$expected" FILE="$tmp" node --input-type=module - <<'NODE'
-          import fs from 'node:fs';
-          const payload = JSON.parse(fs.readFileSync(process.env.FILE, 'utf8'));
-          if (payload.status !== 'ok') throw new Error('gateway status is not ok');
-          if (payload.version !== process.env.EXPECTED) {
-            throw new Error(`gateway version drift: expected ${process.env.EXPECTED}, got ${payload.version}`);
-          }
-          if (payload.capabilities?.github !== true) {
-            throw new Error('hosted GitHub capability is not enabled');
-          }
-          if (payload.capabilities?.githubReady !== true) {
-            console.log('::warning title=Hosted GitHub bridge not ready::Core CodeBridge gateway is healthy, but optional hosted GitHub access is not ready.');
-          }
-          // Diagnostic metadata is fixed-state and contains no URL, token,
-          // repository or upstream response body. Restrict error codes even
-          // if a misconfigured hosted instance returns unexpected content.
-          const readiness = payload.githubReadiness ?? {};
-          const states = new Set(['ready', 'failed', 'checking', 'stale', 'disabled']);
-          const state = states.has(readiness.state) ? readiness.state : 'unknown';
-          const error = typeof readiness.error === 'string' &&
-            /^[A-Z][A-Z0-9_]{2,63}$/.test(readiness.error)
-            ? readiness.error : 'NONE';
-          console.log(JSON.stringify({
-            status: payload.status,
-            version: payload.version,
-            github: payload.capabilities.github,
-            githubReady: payload.capabilities.githubReady,
-            githubReadinessState: state,
-            githubReadinessError: error,
-          }));
-          // package.json "version" is bumped by hand, not on every fix, so a
-          // matching version never proves the live instance has the latest
-          // commit (issue #274 shipped a fix that landed with no version
-          // bump). The deployed commit SHA is an exact, unspoofable signal:
-          // on a free Render tier a deploy can legitimately lag a push by a
-          // few minutes, so this is a visible warning, not a hard failure.
-          const deployedCommit = typeof payload.commit === 'string' &&
-            /^[0-9a-f]{7,40}$/.test(payload.commit) ? payload.commit : null;
-          const pushedSha = process.env.GITHUB_SHA ?? '';
-          if (deployedCommit === null) {
-            console.log('::notice title=Hosted gateway commit unknown::healthz did not report RENDER_GIT_COMMIT (expected on a non-Render deploy; otherwise the deployed build predates this field).');
-          } else if (pushedSha && !pushedSha.startsWith(deployedCommit) && !deployedCommit.startsWith(pushedSha.slice(0, deployedCommit.length))) {
-            console.log(`::warning title=Hosted gateway may be stale::Deployed commit ${deployedCommit} does not match the current main SHA ${pushedSha}. If this persists across runs, the Render deploy is not picking up pushes.`);
-          }
-          NODE
-              then
-                ok=1
-                break
-              fi
-            fi
-            echo "Hosted gateway verification attempt $attempt failed; retrying..."
-            sleep $((attempt * 5))
-          done
-          if [ "$ok" -ne 1 ]; then
-            echo '::error title=Hosted CodeBridge not fully ready::Gateway version and GitHub capability did not verify.'
-            exit 1
-          fi
-
-  # Optional GitHub integration must have its own truthful gate. On a free
-  # sleeping Render instance the first /healthz read starts a background probe
-  # and legitimately reports "checking". Give it a bounded warm-up window,
-  # rather than misreporting a cold start as a broken GitHub credential.
-  github_bridge:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 4
-    steps:
-      - name: Verify hosted GitHub readiness after bounded warm-up
-        shell: bash
-        run: |
-          set -euo pipefail
-          body="$(mktemp)"
-          trap 'rm -f "$body"' EXIT
-          for attempt in 1 2 3 4 5; do
-            if curl --fail --silent --show-error --max-time 25 \
-              https://kmj-codebridge-gateway.onrender.com/healthz -o "$body"; then
-              if FILE="$body" node --input-type=module - <<'NODE'
-          import fs from 'node:fs';
-          const payload = JSON.parse(fs.readFileSync(process.env.FILE, 'utf8'));
-          const report = payload.githubReadiness ?? {};
-          const states = new Set(['ready', 'checking', 'stale', 'failed', 'disabled']);
-          const state = states.has(report.state) ? report.state : 'unknown';
-          const error = typeof report.error === 'string' &&
-            /^[A-Z][A-Z0-9_]{2,63}$/.test(report.error) ? report.error : 'NONE';
-          const ready = payload.status === 'ok' &&
-            payload.capabilities?.github === true &&
-            payload.capabilities?.githubReady === true &&
-            state === 'ready';
-          console.log(JSON.stringify({ githubBridgeReady: ready, state, error }));
-          // Anonymous GitHub quota resets over minutes/hours, not this 30s retry window.
-          // Fail the readiness gate promptly; never turn a rate limit into PASS.
-          if (!ready) process.exit(error === 'GITHUB_RATE_LIMIT' ? 3 : 1);
-          NODE
-              then
-                echo 'PASS: hosted GitHub bridge ready on an actual fresh HTTP probe'
-                exit 0
-              else
-                code="$?"
-                if [ "$code" -eq 3 ]; then
-                  echo '::error title=Hosted GitHub quota exhausted::GitHub returned GITHUB_RATE_LIMIT; immediate probes cannot restore hourly quota. Check configured authenticated GitHub bridge or wait for quota reset; readiness remains FAIL.'
-                  exit 1
-                fi
-              fi
-            fi
-            echo "GitHub bridge cold-start retry $attempt/5"
-            sleep $((attempt * 2))
-          done
-          echo '::error title=Hosted GitHub bridge unavailable::Readiness remained false after the bounded warm-up window; inspect fixed error category without exposing credentials.'
-          exit 1
-
-  # Production-origin failure must remain RED, without masking a healthy Render gateway.
-  # Do not add needs: gateway or continue-on-error to either acceptance gate.
+  # Independently verify public OAuth authorization boundaries. Do not hide
+  # unauthorized access regression behind a healthy public tool catalog.
   public_oauth:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -211,32 +93,3 @@ jobs:
             fi
             echo "PASS: $tool without OAuth -> HTTP 401 with codebridge:$scope challenge"
           done
-
-  # Separate, mandatory production routing acceptance: public OAuth discovery
-  # must expose the required local/Autopilot tools on the customer domain,
-  # not only on the independently deployed Render gateway. No credentials.
-  public_mcp_catalog:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 5
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-      - name: Compare live customer and Render MCP catalogs at exact SHA
-        env:
-          EXPECT_DEPLOYED_COMMIT: ${{ github.sha }}
-        run: node scripts/verify-public-mcp-catalog.mjs
-
-  # Independent release gate. Healthy source CI and MCP discovery must NOT
-  # mask a Render build that still runs an older commit. A free-tier Render
-  # deploy may lag a push, so retry a bounded window; fail if it stays stale.
-  # This is read-only /healthz and does not use deployment credentials.
-  deployment_parity:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 8
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          persist-credentials: false
-      - name: Require exact Render deployed commit to match this workflow SHA
-        run: node scripts/verify-render-deployment.mjs
