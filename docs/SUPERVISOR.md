@@ -77,9 +77,13 @@ The Supervisor checks only these fixed units:
 - `kmj-codebridge-auto-update.service` — signed updater availability
 - `kmj-codebridge-development-ci.service` — reserved future non-root development runner
 
-This status response sets `unrestrictedRoot=false`,
-`projectCodeRunsAsRoot=false`, `brokerStartAuthorized=false`, and
-`productionReleaseApproved=false` regardless of unit presence. A systemd
+Only `LoadState=loaded` counts as installed; masked, malformed, unknown and absent states fail closed. Root-owned unit/hash attestation is reported separately from `developmentWorkerReady=false` and `signedUpdaterVerified=false`. A loaded unit is not evidence of a running coding worker or signed updater. Fixed probe start still requires separate explicit approval and a valid root-owned attestation.
+
+This status response always sets `unrestrictedRoot=false`,
+`projectCodeRunsAsRoot=false` and `productionReleaseApproved=false`.
+`brokerStartAuthorized` is true only when the fixed root-owned, hash-pinned
+non-root probe attestation succeeds; it never authorizes arbitrary root
+commands or a production release. A systemd
 unit being _installed_ is not evidence that an autonomous coding model or
 worker has actually run. The CloudOS-only Supervisor explicitly rejects the
 Main Platform operation.

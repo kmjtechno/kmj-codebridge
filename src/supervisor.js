@@ -218,7 +218,8 @@ function fixedUnitStatus(run, unit, properties) {
       ]),
     );
     return {
-      installed: fields.LoadState !== "not-found",
+      // Only a loaded systemd unit is installed; masked/error/unknown fail closed.
+      installed: fields.LoadState === "loaded",
       ...Object.fromEntries(
         properties.map((name) => [
           name[0].toLowerCase() + name.slice(1),
@@ -2093,9 +2094,13 @@ export function createSupervisorHandler({
           brokerStartAuthorized: devAttestation.ready,
           devAttestation,
           developmentUnitInstalled: developmentWorker.installed,
+          // Root-owned unit attestation is not a running coding worker.
+          developmentUnitSecurityVerified: devAttestation.ready,
+          developmentWorkerReady: false,
           developmentWorker,
           agent,
           signedUpdaterInstalled: updater.installed,
+          signedUpdaterVerified: false,
           productionReleaseApproved: false,
           note: "Read-only capability evidence; not autonomous coding or root activation",
         },
