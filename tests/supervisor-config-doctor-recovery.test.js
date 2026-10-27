@@ -112,8 +112,14 @@ test("active standard agent never silently falls back to dedicated secrets", asy
 });
 
 test("gateway config cannot fall back to privileged agent config", async () => {
+  // Hermetic standard-unit fixture: never read host systemd state on VPS.
+  const standardGatewayState = (_bin, args) =>
+    args[1] === "kmj-codebridge-gateway.service"
+      ? "LoadState=loaded\nActiveState=active\n"
+      : "LoadState=not-found\nActiveState=inactive\n";
   const seen = [];
   const handler = createSupervisorHandler({
+    run: standardGatewayState,
     readFile: (file) => {
       seen.push(file);
       assert.equal(file, gateway);
