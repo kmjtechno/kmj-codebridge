@@ -19,7 +19,7 @@ images, uncaught JS exceptions, and horizontal overflow. Incomplete or undecodab
 images fail closed rather than being counted as healthy. The isolated browser
 first requests deferred lazy images and waits up to four seconds for load/error
 before measurement; images still pending afterward are recorded as failures. Mobile lazy-image
-loading has a second bounded 3-second settle phase for *pending-only* images;
+loading has a second bounded 3-second settle phase for _pending-only_ images;
 hard-failed or undecodable images still fail immediately. Each sample now
 reports safe aggregate `pendingImages` and `failedImages` counts (no URLs,
 DOM content, cookies or image bytes). The initial and second windows are
