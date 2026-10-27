@@ -14,6 +14,7 @@ test("diagnostic denies root, unknown identity and caller-selected account", () 
   for (const identity of [
     { uid: 0, username: "kmjdevci" },
     { uid: 995, username: "root" },
+    { uid: undefined, username: "kmjdevci" },
     { uid: undefined, username: "" },
   ]) {
     const result = diagnoseNonrootGit({
