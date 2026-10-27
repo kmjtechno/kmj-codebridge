@@ -134,9 +134,9 @@ try {
             if (@($grant.permissions) -cnotcontains $permission) { throw 'CineCore grant is missing required permission.' }
         }
         $returned = [string]$grant.gateway
-        if ($returned -ne '' -and $returned.TrimEnd('/') -notin @(
-            'https://kmjtechno.com', 'https://kmj-codebridge-gateway.onrender.com')) {
-            throw 'Unexpected enrollment gateway; refusing forwarding of device token.'
+        # Fresh enrollment must not forward a legacy Render-bound credential to VPS.
+        if ($returned -ne '' -and $returned.TrimEnd('/') -ne 'https://kmjtechno.com') {
+            throw 'ENROLLMENT_GATEWAY_MISMATCH'
         }
         $qtPath = 'C:\QtReal\6.7.3\msvc2019_64'
         $configure = @('-S', '.', '-B', 'build/p720', '-G', 'Visual Studio 17 2022', '-A', 'x64', '-DKMJ_BUILD_TESTS=ON', '-DQT_FEATURE_rhi_d3d12=ON')
