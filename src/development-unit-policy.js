@@ -137,8 +137,7 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
       if (props[key] !== expected)
         return blocked("UNIT_PROPERTIES_UNSAFE", true);
     }
-    if (props.ActiveState !== "inactive")
-      return blocked("UNIT_NOT_IDLE", true);
+    if (props.ActiveState !== "inactive") return blocked("UNIT_NOT_IDLE", true);
   } catch {
     return blocked("UNIT_PROPERTIES_UNAVAILABLE");
   }
