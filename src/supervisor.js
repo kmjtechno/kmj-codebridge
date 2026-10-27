@@ -210,7 +210,7 @@ function fixedUnitStatus(run, unit, properties) {
       ]),
     );
     return {
-      installed: fields.LoadState !== "not-found",
+      // Fail closed on missing, masked, malformed or unknown systemd LoadState.\n      installed: fields.LoadState === "loaded",
       ...Object.fromEntries(
         properties.map((name) => [
           name[0].toLowerCase() + name.slice(1),
@@ -2013,9 +2013,12 @@ export function createSupervisorHandler({
           projectCodeRunsAsRoot: false,
           brokerStartAuthorized: false,
           developmentUnitInstalled: developmentWorker.installed,
+          // Unit presence is not root-owned policy attestation or code execution.\n          developmentUnitSecurityVerified: false,
+          developmentWorkerReady: false,
           developmentWorker,
           agent,
           signedUpdaterInstalled: updater.installed,
+          signedUpdaterVerified: false,
           productionReleaseApproved: false,
           note: "Read-only capability evidence; not autonomous coding or root activation",
         },
