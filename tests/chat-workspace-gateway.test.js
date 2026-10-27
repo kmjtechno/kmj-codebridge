@@ -26,7 +26,7 @@ test("gateway intercepts workspace open and reuses only four scoped read tools",
     "browser_runtime_status",
   ])
     assert.match(block, new RegExp('read\\("' + tool + '"'));
-  assert.match(block, /read\\("chat_continuity_read"/);
+  assert.ok(block.includes('read("chat_continuity_read"'));
   assert.match(block, /legacyCheckpoint/);
   assert.match(block, /UNSUPPORTED_ON_AGENT/);
   assert.match(block, /buildChatWorkspaceOpen/);
