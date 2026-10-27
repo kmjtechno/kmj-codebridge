@@ -258,27 +258,30 @@ test("development broker start requires explicit execution permission and exact 
     /ACCESS_DENIED/,
   );
   await dispatch("supervisor_development_ci_start", args, ["execute"]);
-  assert.deepEqual(calls, [{
-    op: "development_ci_start",
-    confirmation: "START_PINNED_NONROOT_DEV_PROBE",
-  }]);
+  assert.deepEqual(calls, [
+    {
+      op: "development_ci_start",
+      confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+    },
+  ]);
   await assert.rejects(
-    dispatch("supervisor_development_ci_start",
-      { ...args, command: "sudo" }, ["execute"]),
+    dispatch("supervisor_development_ci_start", { ...args, command: "sudo" }, [
+      "execute",
+    ]),
   );
   assert.equal(calls.length, 1);
 });
 
 test("development broker risk catalog requires privileged approval", async (t) => {
-  const { dispatch } = setup(
-    t,
-    "kmj-main-platform",
-    "kmj-elite-main-platform",
+  const { dispatch } = setup(t, "kmj-main-platform", "kmj-elite-main-platform");
+  const catalog = await dispatch(
+    "policy_catalog",
+    {
+      device: "kmj-elite-main-platform",
+      project: "kmj-main-platform",
+    },
+    ["read"],
   );
-  const catalog = await dispatch("policy_catalog", {
-    device: "kmj-elite-main-platform",
-    project: "kmj-main-platform",
-  }, ["read"]);
   const item = catalog.tools.find(
     (tool) => tool.tool === "supervisor_development_ci_start",
   );
@@ -289,11 +292,15 @@ test("development broker risk catalog requires privileged approval", async (t) =
 test("development broker refuses same project on the wrong device", async (t) => {
   const { dispatch, calls } = setup(t, "kmj-main-platform");
   await assert.rejects(
-    dispatch("supervisor_development_ci_start", {
-      device: "d1",
-      project: "kmj-main-platform",
-      confirmation: "START_PINNED_NONROOT_DEV_PROBE",
-    }, ["execute"]),
+    dispatch(
+      "supervisor_development_ci_start",
+      {
+        device: "d1",
+        project: "kmj-main-platform",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      },
+      ["execute"],
+    ),
     /ACCESS_DENIED/,
   );
   assert.deepEqual(calls, []);
