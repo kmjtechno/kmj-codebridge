@@ -3327,7 +3327,10 @@ export function createDispatcher(
       return await supervisor.request({ op: "development_privilege_status" });
     }
     if (name === "supervisor_development_ci_start") {
-      if (a.project !== "kmj-main-platform" || config.id !== "kmj-elite-main-platform")
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
         fail("ACCESS_DENIED");
       return await supervisor.request({
         op: "development_ci_start",
