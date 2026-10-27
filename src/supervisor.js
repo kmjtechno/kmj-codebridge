@@ -1986,6 +1986,42 @@ export function createSupervisorHandler({
       };
     }
 
+    // Root-owned Supervisor reports only fixed development-service readiness.
+    // It deliberately does not start an uninstalled/unverified coding worker,
+    // accept a command, or grant generic sudo/root privileges.
+    if (request.op === "development_privilege_status") {
+      exactKeys(request, ["op"]);
+      const agent = fixedUnitStatus(run, MAIN_PLATFORM_AGENT_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "NRestarts",
+      ]);
+      const updater = fixedUnitStatus(run, UPDATE_SERVICE, [
+        "ActiveState",
+        "SubState",
+      ]);
+      const developmentWorker = fixedUnitStatus(
+        run,
+        "kmj-codebridge-development-ci.service",
+        ["ActiveState", "SubState", "Result", "ExecMainStatus"],
+      );
+      return {
+        response: {
+          project: MAIN_PLATFORM_PROJECT_ID,
+          permissionModel: "FIXED_OPERATIONS_ONLY",
+          unrestrictedRoot: false,
+          projectCodeRunsAsRoot: false,
+          brokerStartAuthorized: false,
+          developmentUnitInstalled: developmentWorker.installed,
+          developmentWorker,
+          agent,
+          signedUpdaterInstalled: updater.installed,
+          productionReleaseApproved: false,
+          note: "Read-only capability evidence; not autonomous coding or root activation",
+        },
+      };
+    }
+
     if (request.op === "main_platform_production_activate") {
       exactKeys(request, [
         "op",
