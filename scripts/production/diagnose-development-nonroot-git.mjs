@@ -69,7 +69,11 @@ export function diagnoseNonrootGit({
     productionChanged: false,
     autonomousCodingLive: false,
   };
-  if (identity?.uid === 0 || identity?.username !== "kmjdevci") {
+  if (
+    !Number.isSafeInteger(identity?.uid) ||
+    identity.uid <= 0 ||
+    identity.username !== "kmjdevci"
+  ) {
     result.status = "DENIED_NONROOT_IDENTITY";
     return result;
   }
