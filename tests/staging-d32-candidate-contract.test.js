@@ -84,7 +84,7 @@ test("candidate static trust contract rejects stale and weakened variants", () =
   ];
   for (const [file, from, to] of mutations) {
     assert.ok(original[file].includes(from), file + " missing fixture");
-    const changed = { ...original, [file]: original[file].replace(from, to) };
+    const changed = { ...original, [file]: original[file].replaceAll(from, to) };
     assert.equal(contract(changed), false, file + ": " + from);
   }
 });
