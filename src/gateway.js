@@ -714,6 +714,23 @@ export async function startGateway(rawConfig) {
       read("compact_session_resume", { ...scope, lane: args.lane }),
       read("browser_runtime_status", scope),
     ]);
+    // Some enrolled agents predate compact_session_resume but already support
+    // chat_continuity_read. Recover that same scoped lane rather than dropping
+    // an existing checkpoint or falsely advertising compact_session_save.
+    const legacyCheckpoint = !checkpoint.ok
+      ? await read("chat_continuity_read", { ...scope, lane: args.lane })
+      : null;
+    const restoredCheckpoint = checkpoint.ok
+      ? checkpoint.value
+      : legacyCheckpoint?.ok
+        ? {
+            ...legacyCheckpoint.value,
+            nextSteps:
+              typeof legacyCheckpoint.value?.next === "string"
+                ? [legacyCheckpoint.value.next]
+                : [],
+          }
+        : null;
     return buildChatWorkspaceOpen({
       ...scope,
       lane: args.lane,
@@ -722,8 +739,18 @@ export async function startGateway(rawConfig) {
       explorer: home.ok ? home.value?.explorer : null,
       qualityGates: home.ok ? home.value?.qualityGates : null,
       progress: progress.ok ? progress.value : null,
-      checkpoint: checkpoint.ok ? checkpoint.value : null,
+      checkpoint: restoredCheckpoint,
+      checkpointSaveTool: checkpoint.ok
+        ? "compact_session_save"
+        : legacyCheckpoint?.ok
+          ? "chat_continuity_save"
+          : null,
       browser: browser.ok ? browser.value : null,
+      browserCapability: browser.ok
+        ? "AVAILABLE"
+        : browser.error === "UNKNOWN_TOOL"
+          ? "UNSUPPORTED_ON_AGENT"
+          : "UNAVAILABLE",
       ifNoneMatch: args.ifNoneMatch,
     });
   }
