@@ -8,7 +8,7 @@ const ALLOWED = [
   "kmj-codebridge-development-ci.service",
 ];
 
-function fixture({ missing = [] } = {}) {
+function fixture({ missing = [], loadState = "loaded" } = {}) {
   const commands = [];
   const actions = [];
   const handle = createSupervisorHandler({
@@ -20,7 +20,7 @@ function fixture({ missing = [] } = {}) {
       assert.equal(args.at(-1), "--no-pager");
       const installed = !missing.includes(args[1]);
       return [
-        `LoadState=${installed ? "loaded" : "not-found"}`,
+        `LoadState=${installed ? loadState : "not-found"}`,
         `ActiveState=${installed ? "inactive" : "unknown"}`,
         "SubState=dead",
         "Result=success",
@@ -47,6 +47,9 @@ test("guarded development reports only fixed safe services without granting root
   assert.equal(response.productionReleaseApproved, false);
   assert.equal(response.signedUpdaterInstalled, true);
   assert.equal(response.developmentUnitInstalled, true);
+  assert.equal(response.developmentUnitSecurityVerified, false);
+  assert.equal(response.developmentWorkerReady, false);
+  assert.equal(response.signedUpdaterVerified, false);
   assert.equal(commands.length, 3);
   assert.equal(afterSend, undefined);
   assert.deepEqual(actions, []);
@@ -65,6 +68,20 @@ test("missing dev unit never becomes available and nothing starts", async () => 
   assert.equal(response.developmentWorker.installed, false);
   assert.equal(response.brokerStartAuthorized, false);
   assert.deepEqual(actions, []);
+});
+
+test("masked, malformed and unknown unit states cannot claim installed development readiness", async () => {
+  for (const loadState of ["masked", "error", "unknown", "", "loaded-but-not-verified"]) {
+    const { handle, actions } = fixture({ loadState });
+    const { response } = await handle({ op: "development_privilege_status" });
+    assert.equal(response.developmentUnitInstalled, false, loadState);
+    assert.equal(response.developmentWorker.installed, false, loadState);
+    assert.equal(response.signedUpdaterInstalled, false, loadState);
+    assert.equal(response.developmentUnitSecurityVerified, false, loadState);
+    assert.equal(response.developmentWorkerReady, false, loadState);
+    assert.equal(response.brokerStartAuthorized, false, loadState);
+    assert.deepEqual(actions, []);
+  }
 });
 
 test("development root readiness rejects command, path, unit and approval injections", async () => {
