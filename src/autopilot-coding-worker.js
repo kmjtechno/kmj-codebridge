@@ -451,6 +451,31 @@ export class LocalFirstCodingWorker {
             continue;
           }
 
+          // Local generation is asynchronous. The owner can revoke project
+          // consent, grants, or the safe gate while the model is responding.
+          // Recheck before any generated patch is applied or gate is started.
+          let stillAuthorized = false;
+          try {
+            const currentEntitlement = this.licenseProvider();
+            stillAuthorized =
+              this.canStart() &&
+              project.writable === true &&
+              project.autopilotCodingWorker === config &&
+              config.enabled === true &&
+              config.localProcessingApproved === true &&
+              config.recipes?.[parsed.recipe] === recipe &&
+              project.gates?.[recipe.verifyGate]?.autopilotCodingSafe === true &&
+              currentEntitlement.features?.includes("write") === true &&
+              currentEntitlement.features?.includes("execute") === true;
+          } catch {
+            // Invalid or unavailable authorization fails closed.
+          }
+          if (!stillAuthorized) {
+            releaseLaneIfPristine();
+            wait("LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED");
+            continue;
+          }
+
           const modelUsage = localModelReceipt(
             config.model,
             "autopilot_coding_worker",
