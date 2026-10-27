@@ -78,8 +78,10 @@ test("development root readiness rejects command, path, unit and approval inject
     { confirmation: "owner-approved" },
     { approvedSha: "a".repeat(40) },
   ]) {
-    await assert.rejects(handle({ op: "development_privilege_status", ...extra }),
-      /INVALID_SUPERVISOR_REQUEST/);
+    await assert.rejects(
+      handle({ op: "development_privilege_status", ...extra }),
+      /INVALID_SUPERVISOR_REQUEST/,
+    );
   }
   assert.deepEqual(commands, []);
   assert.deepEqual(actions, []);
