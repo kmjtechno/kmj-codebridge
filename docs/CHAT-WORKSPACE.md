@@ -22,8 +22,19 @@ permissions and billing authority.
    `ifNoneMatch`. The unchanged reply is tiny. On later chats use the
    **same project and lane**; the checkpoint is project-local, not a transcript.
 5. Save a sanitized, user-approved checkpoint with
-   `compact_session_save` (write permission, idempotency requestKey and
-   expectedRevision required); reopen `chat_workspace_open` to see it.
+   the `capabilities.checkpointSaveTool` returned by `chat_workspace_open`.
+   Modern agents use `compact_session_save`; older enrolled agents may only
+   support `chat_continuity_save` (summary, next, blockers and optimistic
+   expectedRevision). Reopen `chat_workspace_open` to confirm the handoff.
+   If neither is available, report the gap; do not invent persistence.
+6. For a new task **in the middle of an existing AI chat**, refresh the
+   authorized project with `chat_workspace_open` or `multi_chat_sync`.
+   Use returned `capabilities.browserRuntime` and `nextTools` before
+   attempting a feature. A tool listed in public MCP discovery can still be
+   unsupported by an older device agent; `UNKNOWN_TOOL` is a genuine
+   compatibility signal, not evidence of browser readiness. Gateway-only
+   fallback does not update the agent or automatically start a host chat.
+   Tool invocation must be initiated by the AI client.
 6. For actual work, use project-scoped read/edit tools with verified SHA-256
    preconditions, `chat_lane_reserve` for overlapping multi-chat file writes,
    `verification_plan` for gate suggestions and configured, authorized
