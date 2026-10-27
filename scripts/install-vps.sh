@@ -301,10 +301,19 @@ if(fs.existsSync(path.join(root,"composer.json"))&&composer)add("composer_test",
 if(fs.existsSync(path.join(root,"Cargo.toml"))&&cargo)add("cargo_test",cargo,["test","--locked"]);
 if(fs.existsSync(path.join(root,"go.mod"))&&go)add("go_test",go,["test","./..."]);
 if(python&&(fs.existsSync(path.join(root,"pyproject.toml"))||fs.existsSync(path.join(root,"pytest.ini"))))add("python_test",python,["-m","pytest"]);
-const gateway =
-  typeof result.gateway === "string" && result.gateway
-    ? result.gateway
-    : process.env.GATEWAY;
+// Credentials approved for a different gateway must never be forwarded
+// to the VPS by silently rewriting the enrollment response.
+const gateway = process.env.GATEWAY;
+if (typeof result.gateway === "string" && result.gateway) {
+  const approved = new URL(result.gateway);
+  const expected = new URL(gateway);
+  if (approved.origin !== expected.origin ||
+      approved.username || approved.password ||
+      !["", "/"].includes(approved.pathname) ||
+      approved.search || approved.hash) {
+    throw Error("ENROLLMENT_GATEWAY_MISMATCH");
+  }
+}
 const c={
   gateway,
   token:[REDACTED],
