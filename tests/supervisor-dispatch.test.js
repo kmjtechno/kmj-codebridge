@@ -7,7 +7,7 @@ import { AutopilotJournal } from "../src/autopilot.js";
 import { JobRunner } from "../src/jobs.js";
 import { createDispatcher } from "../src/tools.js";
 
-function setup(t, projectId = "p1") {
+function setup(t, projectId = "p1", deviceId = "d1") {
   const base = fs.mkdtempSync(
     path.join(os.tmpdir(), "cb-supervisor-dispatch-"),
   );
@@ -25,7 +25,7 @@ function setup(t, projectId = "p1") {
     },
   };
   const config = {
-    id: "d1",
+    id: deviceId,
     stateDir: state,
     projects: [{ id: projectId, root, writable: true, gates: {} }],
   };
@@ -196,5 +196,39 @@ test("production release tool rejects caller-chosen shell, path and invalid SHA"
       ]),
     );
   }
+  assert.deepEqual(calls, []);
+});
+
+test("guarded development status is restricted to enrolled Main Platform device", async (t) => {
+  const { dispatch, calls } = setup(
+    t,
+    "kmj-main-platform",
+    "kmj-elite-main-platform",
+  );
+  const scope = {
+    device: "kmj-elite-main-platform",
+    project: "kmj-main-platform",
+  };
+  await dispatch("supervisor_development_privilege_status", scope, ["read"]);
+  assert.deepEqual(calls, [{ op: "development_privilege_status" }]);
+  await assert.rejects(
+    dispatch("supervisor_development_privilege_status",
+      { ...scope, project: "other" }, ["read"]),
+    /PROJECT_NOT_FOUND/,
+  );
+  await assert.rejects(
+    dispatch("supervisor_development_privilege_status",
+      { ...scope, command: "/bin/sh" }, ["read"]),
+  );
+  assert.equal(calls.length, 1);
+});
+
+test("guarded development status denies ordinary device despite matching project", async (t) => {
+  const { dispatch, calls } = setup(t, "kmj-main-platform");
+  await assert.rejects(
+    dispatch("supervisor_development_privilege_status",
+      { device: "d1", project: "kmj-main-platform" }, ["read"]),
+    /ACCESS_DENIED/,
+  );
   assert.deepEqual(calls, []);
 });
