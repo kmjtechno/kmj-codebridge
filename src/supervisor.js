@@ -6,7 +6,10 @@ import { spawn, execFileSync } from "node:child_process";
 import { agentSchema, gatewaySchema } from "./config.js";
 import { fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
-import { attestDevelopmentCi, DEVELOPMENT_UNIT } from "./development-unit-policy.js";
+import {
+  attestDevelopmentCi,
+  DEVELOPMENT_UNIT,
+} from "./development-unit-policy.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
