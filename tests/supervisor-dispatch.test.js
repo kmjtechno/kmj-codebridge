@@ -135,6 +135,43 @@ test("supervisor operations fail closed when local supervisor is absent", async 
   assert.equal(typeof dispatch, "function");
 });
 
+test("Main Platform staging status/execute are exact device and project scoped", async (t) => {
+  const { dispatch, calls } = setup(t, "kmj-main-platform", "kmj-elite-main-platform");
+  const scope = { device: "kmj-elite-main-platform", project: "kmj-main-platform" };
+  const approvedSha = "a".repeat(40);
+  const expectedCurrentSha = "b".repeat(40);
+  const permitted = {
+    ...scope, approvedSha, expectedCurrentSha,
+    confirmation: "DEPLOY_APPROVED_STAGING_RELEASE",
+  };
+  await dispatch("supervisor_main_platform_staging_status", scope, ["read"]);
+  assert.deepEqual(calls, [{ op: "main_platform_staging_status" }]);
+  await assert.rejects(
+    dispatch("supervisor_main_platform_staging_deploy", permitted, ["read", "write"]),
+    /ACCESS_DENIED/,
+  );
+  await dispatch("supervisor_main_platform_staging_deploy", permitted, ["execute"]);
+  assert.deepEqual(calls[1], {
+    op: "main_platform_staging_deploy", approvedSha, expectedCurrentSha,
+    confirmation: "DEPLOY_APPROVED_STAGING_RELEASE",
+  });
+  for (const change of [
+    { approvedSha: "main" }, { expectedCurrentSha: "../stage" },
+    { confirmation: "YES" }, { command: "/bin/bash" },
+    { path: "/root/secrets" },
+  ]) await assert.rejects(
+    dispatch("supervisor_main_platform_staging_deploy", { ...permitted, ...change }, ["execute"]),
+  );
+  assert.equal(calls.length, 2);
+  const bad = setup(t, "kmj-main-platform", "untrusted-device");
+  await assert.rejects(
+    bad.dispatch("supervisor_main_platform_staging_status", {
+      device: "untrusted-device", project: "kmj-main-platform",
+    }, ["read"]), /ACCESS_DENIED/,
+  );
+  assert.deepEqual(bad.calls, []);
+});
+
 test("production release inventory is read-only, activation is execute and project scoped", async (t) => {
   const { dispatch, calls } = setup(t, "kmj-main-platform");
   const prodScope = { device: "d1", project: "kmj-main-platform" };
