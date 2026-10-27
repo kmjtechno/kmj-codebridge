@@ -6,8 +6,7 @@ export const STAGING_DEPLOY_UNIT = "kmj-main-platform-staging-deploy.service";
 const UNIT_FILE = "/etc/systemd/system/" + STAGING_DEPLOY_UNIT;
 const RUNNER_FILE =
   "/usr/local/libexec/kmj-codebridge/kmj-main-platform-staging-deploy.sh";
-const APPROVAL_FILE =
-  "/etc/kmj-codebridge/main-platform-staging-approval.json";
+const APPROVAL_FILE = "/etc/kmj-codebridge/main-platform-staging-approval.json";
 const STAGING_LINK = "/home/kmjstage/htdocs/staging.kmjtechno.com";
 const PRODUCTION_LINK = "/home/kmjprod/current";
 const STAGING_SOCKET = "/run/php/kmjstage-php84-fpm.sock";
@@ -34,7 +33,10 @@ function properties(text) {
       .trim()
       .split("\n")
       .filter((line) => line.includes("="))
-      .map((line) => [line.slice(0, line.indexOf("=")), line.slice(line.indexOf("=") + 1)]),
+      .map((line) => [
+        line.slice(0, line.indexOf("=")),
+        line.slice(line.indexOf("=") + 1),
+      ]),
   );
 }
 
@@ -92,7 +94,13 @@ function digest(text) {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
-export function attestMainPlatformStaging({ lstat, readFile, readlink, stat, run }) {
+export function attestMainPlatformStaging({
+  lstat,
+  readFile,
+  readlink,
+  stat,
+  run,
+}) {
   const blockers = [];
   const raw = protectedText(APPROVAL_FILE, 4096, { lstat, readFile });
   let approval = null;
@@ -159,7 +167,11 @@ export function attestMainPlatformStaging({ lstat, readFile, readlink, stat, run
   const unitText = protectedText(UNIT_FILE, 16384, { lstat, readFile });
   if (!approval || runner === null || digest(runner) !== approval.runnerSha256)
     blockers.push("STAGING_RUNNER_ATTESTATION_FAILED");
-  if (!approval || unitText === null || digest(unitText) !== approval.unitSha256)
+  if (
+    !approval ||
+    unitText === null ||
+    digest(unitText) !== approval.unitSha256
+  )
     blockers.push("STAGING_UNIT_ATTESTATION_FAILED");
   if (unitText && !unitText.includes("ExecStart=/usr/bin/bash " + RUNNER_FILE))
     blockers.push("STAGING_FIXED_EXECSTART_MISSING");
@@ -167,10 +179,13 @@ export function attestMainPlatformStaging({ lstat, readFile, readlink, stat, run
   for (const service of ["nginx.service", "php8.4-fpm.service"]) {
     const status = serviceProperties(service, ["ActiveState"], run);
     if (status.LoadState !== "loaded" || status.ActiveState !== "active")
-      blockers.push(service === "nginx.service" ? "NGINX_NOT_ACTIVE" : "PHP_FPM_NOT_ACTIVE");
+      blockers.push(
+        service === "nginx.service" ? "NGINX_NOT_ACTIVE" : "PHP_FPM_NOT_ACTIVE",
+      );
   }
   try {
-    if (!stat(STAGING_SOCKET).isSocket()) blockers.push("STAGING_PHP_SOCKET_INVALID");
+    if (!stat(STAGING_SOCKET).isSocket())
+      blockers.push("STAGING_PHP_SOCKET_INVALID");
   } catch {
     blockers.push("STAGING_PHP_SOCKET_INVALID");
   }
@@ -179,7 +194,9 @@ export function attestMainPlatformStaging({ lstat, readFile, readlink, stat, run
     approvedSha: approval?.approvedSha ?? null,
     expectedCurrentSha: approval?.expectedCurrentSha ?? null,
     currentSha: stageSha,
-    productionUnchanged: Boolean(approval && prodRelease === approval.expectedProductionRelease),
+    productionUnchanged: Boolean(
+      approval && prodRelease === approval.expectedProductionRelease,
+    ),
     unitInstalled: unit.LoadState === "loaded",
     ready: blockers.length === 0,
     blockers,
