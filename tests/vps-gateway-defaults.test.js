@@ -66,6 +66,9 @@ test("fresh Windows P720 pairing rejects cross-host enrollment credentials", () 
       /kmj-codebridge-gateway\.onrender\.com/,
       script + " must not accept fresh Render-bound grants",
     );
-    assert.match(source.slice(marker), /gateway = 'https:\/\/kmjtechno\.com\/?'/);
+    assert.match(
+      source.slice(marker),
+      /gateway = 'https:\/\/kmjtechno\.com\/?'/,
+    );
   }
 });
