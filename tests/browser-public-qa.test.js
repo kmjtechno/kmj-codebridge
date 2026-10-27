@@ -210,17 +210,14 @@ test("mobile lazy images settle within bounded retry without suppressing actual 
     { pendingImages: 8, failedImages: 0, brokenImages: 8 },
     { pendingImages: 0, failedImages: 0, brokenImages: 0 },
   ];
-  const settled = await measureAfterImagesReady(
-    async () => samples[checks++],
-    {
-      timeoutMs: 3000,
-      pollMs: 200,
-      clock: () => now,
-      sleep: async (ms) => {
-        now += ms;
-      },
+  const settled = await measureAfterImagesReady(async () => samples[checks++], {
+    timeoutMs: 3000,
+    pollMs: 200,
+    clock: () => now,
+    sleep: async (ms) => {
+      now += ms;
     },
-  );
+  });
   assert.deepEqual(settled, samples[2]);
   assert.equal(checks, 3);
   assert.equal(now, 400);
