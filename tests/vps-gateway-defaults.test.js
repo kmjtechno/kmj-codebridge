@@ -27,7 +27,9 @@ test("new Linux and Main Platform installations default to the owner VPS", () =>
       script + " must default to canonical VPS",
     );
     assert.ok(
-      !source.includes("CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com"),
+      !source.includes(
+        "CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com",
+      ),
       script + " must not silently default to Render",
     );
   }
@@ -40,6 +42,9 @@ test("new credentials reject cross-gateway enrollment before storing the token",
   ]) {
     const source = read(script);
     assert.match(source, /ENROLLMENT_GATEWAY_MISMATCH/);
-    assert.match(source, /returned\.origin !== canonical\.origin|approved\.origin !== expected\.origin/);
+    assert.match(
+      source,
+      /returned\.origin !== canonical\.origin|approved\.origin !== expected\.origin/,
+    );
   }
 });
