@@ -69,6 +69,7 @@ function fixture(t, overrides = {}) {
     }),
     generate: async () => {
       generated++;
+      overrides.onGenerate?.();
       if (overrides.generationFails)
         throw new Error("simulated local model failure");
       return (
@@ -140,6 +141,7 @@ function fixture(t, overrides = {}) {
   const makeWorker = () =>
     new LocalFirstCodingWorker({
       projects: [project],
+      canStart: () => overrides.paused !== true,
       journal,
       lanes,
       runner,
@@ -291,6 +293,86 @@ test("offline model, missing execute permission, or resource pressure leaves tas
     assert.equal(f.journal.get(task.id, "repo").state, "queued");
     assert.equal(f.starts.length, 0);
     assert.equal(f.generated(), 0);
+  }
+});
+
+test("authorization revoked during asynchronous local generation cannot mutate a lane or start a gate", async (t) => {
+  const scenarios = [
+    [
+      "local consent",
+      (f) => {
+        f.project.autopilotCodingWorker.localProcessingApproved = false;
+      },
+    ],
+    [
+      "project write approval",
+      (f) => {
+        f.project.writable = false;
+      },
+    ],
+    [
+      "execute entitlement",
+      (_f, options) => {
+        options.noExecute = true;
+      },
+    ],
+    [
+      "write entitlement",
+      (_f, options) => {
+        options.noWrite = true;
+      },
+    ],
+    [
+      "maintenance admission",
+      (_f, options) => {
+        options.paused = true;
+      },
+    ],
+    [
+      "verification gate approval",
+      (f) => {
+        f.project.gates.check.autopilotCodingSafe = false;
+      },
+    ],
+  ];
+  for (const [reason, revoke] of scenarios) {
+    let releaseGeneration;
+    let notifyGenerationStarted;
+    const generationStarted = new Promise((resolve) => {
+      notifyGenerationStarted = resolve;
+    });
+    const generated = new Promise((resolve) => {
+      releaseGeneration = resolve;
+    });
+    const options = {
+      generated,
+      onGenerate: () => notifyGenerationStarted(),
+    };
+    const f = fixture(t, options);
+    const task = f.enqueue();
+    const running = f.worker.tick();
+    await generationStarted;
+    revoke(f, options);
+    releaseGeneration({
+      response: PATCH,
+      truncated: false,
+      hitTokenLimit: false,
+    });
+    await running;
+    const record = f.journal.get(task.id, "repo");
+    assert.equal(record.state, "waiting", reason);
+    assert.equal(
+      record.lastReason,
+      "LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED",
+      reason,
+    );
+    assert.equal(f.starts.length, 0, reason);
+    assert.equal(f.lanes.status("repo", f.root).lanes.length, 0, reason);
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      reason,
+    );
   }
 });
 
