@@ -212,13 +212,19 @@ test("guarded development status is restricted to enrolled Main Platform device"
   await dispatch("supervisor_development_privilege_status", scope, ["read"]);
   assert.deepEqual(calls, [{ op: "development_privilege_status" }]);
   await assert.rejects(
-    dispatch("supervisor_development_privilege_status",
-      { ...scope, project: "other" }, ["read"]),
+    dispatch(
+      "supervisor_development_privilege_status",
+      { ...scope, project: "other" },
+      ["read"],
+    ),
     /PROJECT_NOT_FOUND/,
   );
   await assert.rejects(
-    dispatch("supervisor_development_privilege_status",
-      { ...scope, command: "/bin/sh" }, ["read"]),
+    dispatch(
+      "supervisor_development_privilege_status",
+      { ...scope, command: "/bin/sh" },
+      ["read"],
+    ),
   );
   assert.equal(calls.length, 1);
 });
@@ -226,8 +232,11 @@ test("guarded development status is restricted to enrolled Main Platform device"
 test("guarded development status denies ordinary device despite matching project", async (t) => {
   const { dispatch, calls } = setup(t, "kmj-main-platform");
   await assert.rejects(
-    dispatch("supervisor_development_privilege_status",
-      { device: "d1", project: "kmj-main-platform" }, ["read"]),
+    dispatch(
+      "supervisor_development_privilege_status",
+      { device: "d1", project: "kmj-main-platform" },
+      ["read"],
+    ),
     /ACCESS_DENIED/,
   );
   assert.deepEqual(calls, []);
