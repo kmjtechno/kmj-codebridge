@@ -26,6 +26,9 @@ test("gateway intercepts workspace open and reuses only four scoped read tools",
     "browser_runtime_status",
   ])
     assert.match(block, new RegExp('read\\("' + tool + '"'));
+  assert.match(block, /read\\("chat_continuity_read"/);
+  assert.match(block, /legacyCheckpoint/);
+  assert.match(block, /UNSUPPORTED_ON_AGENT/);
   assert.match(block, /buildChatWorkspaceOpen/);
   assert.doesNotMatch(
     block,
@@ -73,4 +76,50 @@ test("older-agent missing optional features remain unavailable, not fabricated",
   });
   assert.equal(changed.workspace.explorer.status, "UNAVAILABLE");
   assert.equal(changed.workspace.explorer.truncated, null);
+});
+
+test("gateway compatibility never recommends missing browser or compact-session tools", () => {
+  const result = buildChatWorkspaceOpen({
+    device: "device1",
+    project: "project1",
+    lane: "main",
+    writable: true,
+    environment: null,
+    explorer: null,
+    progress: null,
+    checkpoint: {
+      exists: true,
+      revision: "a".repeat(64),
+      summary: "Review the current Git SHA before production activation",
+      nextSteps: ["Run isolated checks"],
+      blockers: ["Legacy browser tool is unsupported"],
+    },
+    browser: null,
+    browserCapability: "UNSUPPORTED_ON_AGENT",
+    checkpointSaveTool: "chat_continuity_save",
+    qualityGates: null,
+  });
+  assert.equal(result.checkpoint.status, "SAVED");
+  assert.equal(result.checkpoint.summary, "Review the current Git SHA before production activation");
+  assert.deepEqual(result.checkpoint.nextSteps, ["Run isolated checks"]);
+  assert.equal(result.capabilities.browserRuntime, "UNSUPPORTED_ON_AGENT");
+  assert.equal(result.capabilities.checkpointSaveTool, "chat_continuity_save");
+  assert.ok(result.nextTools.includes("chat_continuity_save"));
+  assert.ok(!result.nextTools.includes("compact_session_save"));
+  assert.ok(!result.nextTools.includes("browser_runtime_status"));
+  assert.equal(result.browser, null);
+
+  const noCheckpoint = buildChatWorkspaceOpen({
+    device: "device1",
+    project: "project1",
+    lane: "main",
+    checkpoint: null,
+    browser: null,
+    checkpointSaveTool: null,
+    browserCapability: "UNAVAILABLE",
+  });
+  assert.equal(noCheckpoint.checkpoint.status, "UNAVAILABLE");
+  assert.equal(noCheckpoint.capabilities.checkpointSaveTool, null);
+  assert.ok(!noCheckpoint.nextTools.includes("compact_session_save"));
+  assert.ok(!noCheckpoint.nextTools.includes("chat_continuity_save"));
 });
