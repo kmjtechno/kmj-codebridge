@@ -44,6 +44,8 @@ export function buildChatWorkspaceOpen({
   progress,
   checkpoint,
   browser,
+  browserCapability = "UNAVAILABLE",
+  checkpointSaveTool = "compact_session_save",
   qualityGates,
   ifNoneMatch = null,
 }) {
@@ -129,13 +131,26 @@ export function buildChatWorkspaceOpen({
               : "blocked_no_local_browser",
         }
       : null,
+    capabilities: {
+      browserRuntime: browser ? "AVAILABLE" : browserCapability,
+      checkpointSaveTool: [
+        "compact_session_save",
+        "chat_continuity_save",
+      ].includes(checkpointSaveTool)
+        ? checkpointSaveTool
+        : null,
+    },
     nextTools: [
       "project_tree",
       "project_file_info",
-      "compact_session_save",
+      ...(["compact_session_save", "chat_continuity_save"].includes(
+        checkpointSaveTool,
+      )
+        ? [checkpointSaveTool]
+        : []),
       "chat_lane_reserve",
       "list_project_jobs",
-      "browser_runtime_status",
+      ...(browser ? ["browser_runtime_status"] : []),
       "verification_plan",
     ],
     hostLimitations: {
