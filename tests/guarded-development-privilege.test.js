@@ -50,7 +50,7 @@ test("guarded development reports only fixed safe services without granting root
   assert.equal(response.developmentUnitSecurityVerified, false);
   assert.equal(response.developmentWorkerReady, false);
   assert.equal(response.signedUpdaterVerified, false);
-  assert.equal(commands.length, 3);
+  assert.equal(commands.length, 4);
   assert.equal(afterSend, undefined);
   assert.deepEqual(actions, []);
   assert.doesNotMatch(
@@ -70,13 +70,13 @@ test("missing dev unit never becomes available and nothing starts", async () => 
   assert.deepEqual(actions, []);
 });
 
-test("masked, malformed and unknown unit states cannot claim installed development readiness", async () => {
+test("masked, malformed and unknown systemd states cannot imply installed development or updater services", async () => {
   for (const loadState of [
     "masked",
     "error",
     "unknown",
     "",
-    "loaded-but-not-verified",
+    "loaded-but-unverified",
   ]) {
     const { handle, actions } = fixture({ loadState });
     const { response } = await handle({ op: "development_privilege_status" });
@@ -85,6 +85,7 @@ test("masked, malformed and unknown unit states cannot claim installed developme
     assert.equal(response.signedUpdaterInstalled, false, loadState);
     assert.equal(response.developmentUnitSecurityVerified, false, loadState);
     assert.equal(response.developmentWorkerReady, false, loadState);
+    assert.equal(response.signedUpdaterVerified, false, loadState);
     assert.equal(response.brokerStartAuthorized, false, loadState);
     assert.deepEqual(actions, []);
   }
