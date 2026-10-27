@@ -135,6 +135,72 @@ test("supervisor operations fail closed when local supervisor is absent", async 
   assert.equal(typeof dispatch, "function");
 });
 
+test("Main Platform staging status/execute are exact device and project scoped", async (t) => {
+  const { dispatch, calls } = setup(
+    t,
+    "kmj-main-platform",
+    "kmj-elite-main-platform",
+  );
+  const scope = {
+    device: "kmj-elite-main-platform",
+    project: "kmj-main-platform",
+  };
+  const approvedSha = "a".repeat(40);
+  const expectedCurrentSha = "b".repeat(40);
+  const permitted = {
+    ...scope,
+    approvedSha,
+    expectedCurrentSha,
+    confirmation: "DEPLOY_APPROVED_STAGING_RELEASE",
+  };
+  await dispatch("supervisor_main_platform_staging_status", scope, ["read"]);
+  assert.deepEqual(calls, [{ op: "main_platform_staging_status" }]);
+  await assert.rejects(
+    dispatch("supervisor_main_platform_staging_deploy", permitted, [
+      "read",
+      "write",
+    ]),
+    /ACCESS_DENIED/,
+  );
+  await dispatch("supervisor_main_platform_staging_deploy", permitted, [
+    "execute",
+  ]);
+  assert.deepEqual(calls[1], {
+    op: "main_platform_staging_deploy",
+    approvedSha,
+    expectedCurrentSha,
+    confirmation: "DEPLOY_APPROVED_STAGING_RELEASE",
+  });
+  for (const change of [
+    { approvedSha: "main" },
+    { expectedCurrentSha: "../stage" },
+    { confirmation: "YES" },
+    { command: "/bin/bash" },
+    { path: "/root/secrets" },
+  ])
+    await assert.rejects(
+      dispatch(
+        "supervisor_main_platform_staging_deploy",
+        { ...permitted, ...change },
+        ["execute"],
+      ),
+    );
+  assert.equal(calls.length, 2);
+  const bad = setup(t, "kmj-main-platform", "untrusted-device");
+  await assert.rejects(
+    bad.dispatch(
+      "supervisor_main_platform_staging_status",
+      {
+        device: "untrusted-device",
+        project: "kmj-main-platform",
+      },
+      ["read"],
+    ),
+    /ACCESS_DENIED/,
+  );
+  assert.deepEqual(bad.calls, []);
+});
+
 test("production release inventory is read-only, activation is execute and project scoped", async (t) => {
   const { dispatch, calls } = setup(t, "kmj-main-platform");
   const prodScope = { device: "d1", project: "kmj-main-platform" };
@@ -236,6 +302,70 @@ test("guarded development status denies ordinary device despite matching project
       "supervisor_development_privilege_status",
       { device: "d1", project: "kmj-main-platform" },
       ["read"],
+    ),
+    /ACCESS_DENIED/,
+  );
+  assert.deepEqual(calls, []);
+});
+
+test("development broker start requires explicit execution permission and exact scope", async (t) => {
+  const { dispatch, calls } = setup(
+    t,
+    "kmj-main-platform",
+    "kmj-elite-main-platform",
+  );
+  const args = {
+    device: "kmj-elite-main-platform",
+    project: "kmj-main-platform",
+    confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+  };
+  await assert.rejects(
+    dispatch("supervisor_development_ci_start", args, ["read"]),
+    /ACCESS_DENIED/,
+  );
+  await dispatch("supervisor_development_ci_start", args, ["execute"]);
+  assert.deepEqual(calls, [
+    {
+      op: "development_ci_start",
+      confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+    },
+  ]);
+  await assert.rejects(
+    dispatch("supervisor_development_ci_start", { ...args, command: "sudo" }, [
+      "execute",
+    ]),
+  );
+  assert.equal(calls.length, 1);
+});
+
+test("development broker risk catalog requires privileged approval", async (t) => {
+  const { dispatch } = setup(t, "kmj-main-platform", "kmj-elite-main-platform");
+  const catalog = await dispatch(
+    "policy_catalog",
+    {
+      device: "kmj-elite-main-platform",
+      project: "kmj-main-platform",
+    },
+    ["read"],
+  );
+  const item = catalog.tools.find(
+    (tool) => tool.tool === "supervisor_development_ci_start",
+  );
+  assert.equal(item?.risk, "PRIVILEGED");
+  assert.equal(item?.approvalRequired, true);
+});
+
+test("development broker refuses same project on the wrong device", async (t) => {
+  const { dispatch, calls } = setup(t, "kmj-main-platform");
+  await assert.rejects(
+    dispatch(
+      "supervisor_development_ci_start",
+      {
+        device: "d1",
+        project: "kmj-main-platform",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      },
+      ["execute"],
     ),
     /ACCESS_DENIED/,
   );
