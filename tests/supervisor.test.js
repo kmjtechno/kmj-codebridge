@@ -282,6 +282,12 @@ test("agent config validation rejects malformed current dedicated enrollment", a
 });
 
 test("supervisor config validation classifies failures without leaking secrets", async () => {
+  // An explicit standard gateway fixture makes this independent of whatever
+  // gateway unit happens to run on the host, including KMJ-elite stage unit.
+  const standardGatewayState = (_bin, args) =>
+    args[1] === "kmj-codebridge-gateway.service"
+      ? "LoadState=loaded\nActiveState=active\n"
+      : "LoadState=not-found\nActiveState=inactive\n";
   const cases = [
     { code: "ENOENT", reason: "CONFIG_FILE_MISSING" },
     { code: "EACCES", reason: "CONFIG_FILE_UNREADABLE" },
@@ -290,6 +296,7 @@ test("supervisor config validation classifies failures without leaking secrets",
   ];
   for (const item of cases) {
     const handle = createSupervisorHandler({
+      run: standardGatewayState,
       readFile: () => {
         const error = item.syntax
           ? new SyntaxError("secret-json-content")
@@ -309,6 +316,7 @@ test("supervisor config validation classifies failures without leaking secrets",
   }
 
   const invalidSchema = createSupervisorHandler({
+    run: standardGatewayState,
     readFile: () => JSON.stringify({ unknown: true }),
   });
   const result = await invalidSchema({
