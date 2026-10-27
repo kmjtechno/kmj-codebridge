@@ -152,7 +152,10 @@ test("active stage gateway reports unverified config instead of missing canonica
     reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
   });
   assert.deepEqual(readPaths, [gateway]);
-  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
+  );
 });
 
 test("standard gateway with missing config still reports canonical missing file", async () => {
