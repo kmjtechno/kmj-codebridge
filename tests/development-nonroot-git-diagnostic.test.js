@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { classifyGitError, diagnoseNonrootGit } from "../scripts/production/diagnose-development-nonroot-git.mjs";
+import {
+  classifyGitError,
+  diagnoseNonrootGit,
+} from "../scripts/production/diagnose-development-nonroot-git.mjs";
 
 const worker = { uid: 995, username: "kmjdevci" };
 const revision = "a".repeat(40);
@@ -58,11 +61,14 @@ test("fixed read-only Git commands prove HEAD ref, object and commit", () => {
     assert.equal(call.options.env.GIT_TERMINAL_PROMPT, "0");
     assert.equal(call.options.stdio[0], "ignore");
   }
-  assert.deepEqual(calls.map((call) => call.args.slice(4)), [
-    ["rev-parse", "--verify", "HEAD"],
-    ["cat-file", "-t", "HEAD"],
-    ["rev-parse", "--verify", "HEAD^{commit}"],
-  ]);
+  assert.deepEqual(
+    calls.map((call) => call.args.slice(4)),
+    [
+      ["rev-parse", "--verify", "HEAD"],
+      ["cat-file", "-t", "HEAD"],
+      ["rev-parse", "--verify", "HEAD^{commit}"],
+    ],
+  );
 });
 
 test("Git object failure is not misreported as a successful HEAD", () => {
@@ -85,7 +91,10 @@ test("Git object failure is not misreported as a successful HEAD", () => {
 test("classifies ownership, access, repository, object and timeout failures", () => {
   const scenarios = [
     ["fatal: detected dubious ownership in repository", "UNSAFE_OWNERSHIP"],
-    ["fatal: could not open .git/objects/aa/bb: Permission denied", "ACCESS_DENIED"],
+    [
+      "fatal: could not open .git/objects/aa/bb: Permission denied",
+      "ACCESS_DENIED",
+    ],
     ["fatal: not a git repository", "REPOSITORY_UNAVAILABLE"],
     ["fatal: bad object HEAD", "OBJECT_UNAVAILABLE"],
     ["fatal: unrelated error", "OTHER_FAILURE"],
