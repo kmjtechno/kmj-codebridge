@@ -18,10 +18,7 @@ test("VPS installer is shell-valid on Linux", (t) => {
 
 test("fresh installer uses secure enrollment and never requires manual agent token", () => {
   assert.match(script, /scripts\/enroll-device\.js/);
-  assert.match(
-    script,
-    /CODEBRIDGE_GATEWAY:-https:\/\/kmjtechno\.com/,
-  );
+  assert.match(script, /CODEBRIDGE_GATEWAY:-https:\/\/kmjtechno\.com/);
   assert.match(script, /CODEBRIDGE_ENROLLMENT_BASE/);
   assert.doesNotMatch(script, /CODEBRIDGE_AGENT_TOKEN/);
   assert.doesNotMatch(script, /github.*token/i);
