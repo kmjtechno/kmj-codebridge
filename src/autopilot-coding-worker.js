@@ -464,7 +464,8 @@ export class LocalFirstCodingWorker {
               config.enabled === true &&
               config.localProcessingApproved === true &&
               config.recipes?.[parsed.recipe] === recipe &&
-              project.gates?.[recipe.verifyGate]?.autopilotCodingSafe === true &&
+              project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
+                true &&
               currentEntitlement.features?.includes("write") === true &&
               currentEntitlement.features?.includes("execute") === true;
           } catch {
