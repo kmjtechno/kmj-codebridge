@@ -62,6 +62,28 @@ export async function measureAfterTextReady(
   return sample;
 }
 
+// A mobile viewport can expose many offscreen lazy images at once. Allow a
+// bounded second window ONLY for images still pending, not for failed (404/
+// undecodable) images. Timed-out pending images remain explicit QA failures.
+export async function measureAfterImagesReady(
+  measure,
+  {
+    initial,
+    timeoutMs = 3000,
+    pollMs = 200,
+    clock = Date.now,
+    sleep = wait,
+  } = {},
+) {
+  const deadline = clock() + timeoutMs;
+  let sample = initial ?? (await measure());
+  while (sample.pendingImages > 0 && clock() < deadline) {
+    await sleep(Math.max(0, Math.min(pollMs, deadline - clock())));
+    sample = await measure();
+  }
+  return sample;
+}
+
 // Chrome started by a hardened systemd agent cannot rely on a writable
 // service HOME. Keep Chrome/XDG state inside its per-run private tmp tree.
 // No global process.env changes, root-mode launch or sandbox opt-out.
@@ -284,19 +306,23 @@ export async function publicBrowserQa(targetName, outputDir) {
         );
         if (settled.exceptionDetails || settled.result?.value !== true)
           throw Error("BROWSER_MEASUREMENT_FAILED");
-        const metrics = await measureAfterTextReady(async () => {
+        const measurePage = async () => {
           const result = await send(
             "Runtime.evaluate",
             {
               returnByValue: true,
               expression:
-                "(() => ({actualUrl:location.href,bodyLength:(document.body?.innerText||'').length,overflowPx:Math.max(0,document.documentElement.scrollWidth-innerWidth),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length}))()",
+                "(() => ({actualUrl:location.href,bodyLength:(document.body?.innerText||'').length,overflowPx:Math.max(0,document.documentElement.scrollWidth-innerWidth),brokenImages:[...document.images].filter(i=>!i.complete||!i.naturalWidth).length,pendingImages:[...document.images].filter(i=>!i.complete).length,failedImages:[...document.images].filter(i=>i.complete&&!i.naturalWidth).length}))()",
             },
             sessionId,
           );
           if (result.exceptionDetails || !result.result?.value)
             throw Error("BROWSER_MEASUREMENT_FAILED");
           return result.result.value;
+        };
+        const initialMetrics = await measureAfterTextReady(measurePage);
+        const metrics = await measureAfterImagesReady(measurePage, {
+          initial: initialMetrics,
         });
         const sample = {
           viewport: vp.name,
@@ -334,6 +360,8 @@ export async function publicBrowserQa(targetName, outputDir) {
           bodyLength: sample.bodyLength,
           overflowPx: sample.overflowPx,
           brokenImages: sample.brokenImages,
+          pendingImages: sample.pendingImages,
+          failedImages: sample.failedImages,
           exceptions: sample.exceptions,
           failures,
           screenshot: filename,
