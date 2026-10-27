@@ -93,4 +93,3 @@ jobs:
             fi
             echo "PASS: $tool without OAuth -> HTTP 401 with codebridge:$scope challenge"
           done
-
