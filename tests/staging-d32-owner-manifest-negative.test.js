@@ -14,7 +14,7 @@ test("offline approval validator rejects malformed, stale, or unsafe manifests",
   skip: process.platform === "win32",
 }, () => {
   assert.ok(match, "embedded offline approval validator must exist");
-  const harness = `String.raw`
+  const harness = String.raw`
 import hashlib, json, os, pathlib, stat, sys, tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
