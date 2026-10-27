@@ -43,8 +43,14 @@ function setup() {
   const directoryOverrides = {};
   const missingDirectories = new Set();
   const directories = new Set([
-    "/", "/etc", "/etc/kmj-codebridge", "/etc/systemd",
-    "/etc/systemd/system", "/usr", "/usr/local", "/usr/local/libexec",
+    "/",
+    "/etc",
+    "/etc/kmj-codebridge",
+    "/etc/systemd",
+    "/etc/systemd/system",
+    "/usr",
+    "/usr/local",
+    "/usr/local/libexec",
     "/usr/local/libexec/kmj-codebridge",
   ]);
   const started = [];
@@ -92,7 +98,9 @@ function setup() {
           unit +
           "\nDropInPaths=" +
           dropin +
-          "\nNeedDaemonReload=" + needReload + "\n"
+          "\nNeedDaemonReload=" +
+          needReload +
+          "\n"
         );
       return (
         "LoadState=loaded\nActiveState=" +
@@ -253,12 +261,17 @@ test("post-ACK pointer drift prevents fixed unit from starting", async () => {
   assert.deepEqual(x.started, []);
 });
 
-
 test("post-ACK runner replacement and stale systemd cache block start", async () => {
   for (const mutate of [
-    (x) => { x.files[root] += "# changed after acknowledgement\n"; },
-    (x) => { x.needReload("yes"); },
-    (x) => { x.directoryOverrides["/usr/local/libexec"] = { mode: 0o40777 }; },
+    (x) => {
+      x.files[root] += "# changed after acknowledgement\n";
+    },
+    (x) => {
+      x.needReload("yes");
+    },
+    (x) => {
+      x.directoryOverrides["/usr/local/libexec"] = { mode: 0o40777 };
+    },
   ]) {
     const x = setup();
     const ack = await x.handle(request);
