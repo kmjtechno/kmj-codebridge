@@ -131,7 +131,7 @@ Success body:
 
 ```json
 {
-  "gateway": "https://kmj-codebridge-gateway.onrender.com",
+  "gateway": "https://kmjtechno.com",
   "agent": {
     "token": "<independent random device bearer credential>",
     "id": "customer-vps-01",

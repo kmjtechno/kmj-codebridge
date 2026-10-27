@@ -10,7 +10,7 @@ SOURCE_ROOT="${CODEBRIDGE_SOURCE_ROOT:-}"
 PROJECT_ROOT="${CODEBRIDGE_PROJECT_ROOT:-/srv/kmj-codebridge-projects/kmj-main-platform}"
 RUNTIME="${CODEBRIDGE_RUNTIME:-/opt/kmj-codebridge-agent}"
 ENROLLMENT_BASE="${CODEBRIDGE_ENROLLMENT_BASE:-https://kmjtechno.com}"
-GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmj-codebridge-gateway.onrender.com}"
+GATEWAY="${CODEBRIDGE_GATEWAY:-https://kmjtechno.com}"
 LOCAL_GATEWAY="${CODEBRIDGE_LOCAL_GATEWAY:-}"
 STATE_DIR="${CODEBRIDGE_STATE_DIR:-/var/lib/kmj-codebridge-$INSTANCE}"
 CONFIG_DIR="${CODEBRIDGE_CONFIG_DIR:-/etc/kmj-codebridge-main-platform}"
@@ -137,9 +137,19 @@ if (!result.agent || typeof result.agent.token !== 'string' || result.agent.toke
 if (!Array.isArray(result.projects) || !result.projects.some(p => p.id === process.env.PROJECT_ID)) throw new Error('project not approved');
 const perms = Array.isArray(result.permissions) ? result.permissions : [];
 const root = fs.realpathSync(process.env.PROJECT_ROOT);
-let gateway = typeof result.gateway === 'string' && result.gateway
-  ? result.gateway
-  : process.env.GATEWAY;
+// Device bearer credentials must remain on the owner-approved VPS data
+// plane, never on a different gateway returned by a stale enrollment API.
+if (typeof result.gateway === 'string' && result.gateway) {
+  const returned = new URL(result.gateway);
+  const canonical = new URL(process.env.GATEWAY);
+  if (returned.origin !== canonical.origin ||
+      returned.username || returned.password ||
+      !['', '/'].includes(returned.pathname) ||
+      returned.search || returned.hash) {
+    throw new Error('ENROLLMENT_GATEWAY_MISMATCH');
+  }
+}
+let gateway = process.env.GATEWAY;
 if (process.env.LOCAL_GATEWAY) {
   const { resolveAgentGateway } = await import(pathToFileURL(path.join(process.env.RUNTIME, 'src/agent-gateway.js')).href);
   gateway = resolveAgentGateway(result.gateway, process.env.GATEWAY, process.env.LOCAL_GATEWAY);
