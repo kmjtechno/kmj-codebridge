@@ -80,7 +80,10 @@ test("VPS smoke requires a full deployed commit and optional exact release parit
   assert.equal(assertVpsDeployedCommit(live), live);
   assert.equal(assertVpsDeployedCommit(live, live), live);
   assert.throws(() => assertVpsDeployedCommit(null), /VPS_COMMIT_UNVERIFIED/);
-  assert.throws(() => assertVpsDeployedCommit("short"), /VPS_COMMIT_UNVERIFIED/);
+  assert.throws(
+    () => assertVpsDeployedCommit("short"),
+    /VPS_COMMIT_UNVERIFIED/,
+  );
   assert.throws(
     () => assertVpsDeployedCommit(live, earlier),
     /VPS_COMMIT_MISMATCH/,
