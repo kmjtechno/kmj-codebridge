@@ -100,7 +100,10 @@ test("gateway compatibility never recommends missing browser or compact-session 
     qualityGates: null,
   });
   assert.equal(result.checkpoint.status, "SAVED");
-  assert.equal(result.checkpoint.summary, "Review the current Git SHA before production activation");
+  assert.equal(
+    result.checkpoint.summary,
+    "Review the current Git SHA before production activation",
+  );
   assert.deepEqual(result.checkpoint.nextSteps, ["Run isolated checks"]);
   assert.equal(result.capabilities.browserRuntime, "UNSUPPORTED_ON_AGENT");
   assert.equal(result.capabilities.checkpointSaveTool, "chat_continuity_save");
