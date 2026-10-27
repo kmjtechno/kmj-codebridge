@@ -29,7 +29,10 @@ test("owner-only installer pins the exact merged non-root unit and helper", () =
   assert.match(source, /KMJ-elite/);
   assert.match(source, /\/root\/kmj-approved/);
   assert.match(source, /systemctl daemon-reload/);
-  assert.doesNotMatch(source, /\bsystemctl\s+(?:start|enable|restart|isolate)\b/);
+  assert.doesNotMatch(
+    source,
+    /\bsystemctl\s+(?:start|enable|restart|isolate)\b/,
+  );
   assert.doesNotMatch(source, /\b(?:curl|wget|sudo|ssh|iptables|ufw)\s/);
   assert.doesNotMatch(source, /main-platform-production-release\.json/);
   assert.match(source, /KMJ_AUTONOMOUS_CODING=NOT_ENABLED/);
@@ -48,7 +51,9 @@ test(
     assert.match(clean.stdout, /KMJ_DEV_SOURCE_PIN=PASS/);
     assert.match(clean.stdout, /INSPECT_ONLY/);
 
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-dev-installer-test-"));
+    const dir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kmj-dev-installer-test-"),
+    );
     try {
       for (const file of [script, unit, helper]) {
         fs.copyFileSync(file, path.join(dir, path.basename(file)));
