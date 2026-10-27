@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { generatedDrift } from "../scripts/generate-product-artifacts.js";
+import { assertVpsDeployedCommit } from "../scripts/verify-vps-catalog.mjs";
 
 const origin = "https://kmjtechno.com";
 const read = (name) => fs.readFileSync(name, "utf8");
@@ -71,4 +72,17 @@ test("fresh Windows P720 pairing rejects cross-host enrollment credentials", () 
       /gateway = 'https:\/\/kmjtechno\.com\/?'/,
     );
   }
+});
+
+test("VPS smoke requires a full deployed commit and optional exact release parity", () => {
+  const live = "95ac3a54743f11f0d28800e72f7231613525f916";
+  const earlier = "9c515a1cf91050dbaa9fe764887feb2aec3a8074";
+  assert.equal(assertVpsDeployedCommit(live), live);
+  assert.equal(assertVpsDeployedCommit(live, live), live);
+  assert.throws(() => assertVpsDeployedCommit(null), /VPS_COMMIT_UNVERIFIED/);
+  assert.throws(() => assertVpsDeployedCommit("short"), /VPS_COMMIT_UNVERIFIED/);
+  assert.throws(
+    () => assertVpsDeployedCommit(live, earlier),
+    /VPS_COMMIT_MISMATCH/,
+  );
 });
