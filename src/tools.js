@@ -4495,6 +4495,18 @@ export function createDispatcher(
           path: sample.path,
           httpStatus: sample.httpStatus,
           brokenImages: sample.brokenImages,
+          pendingImages:
+            Number.isInteger(sample.pendingImages) &&
+            sample.pendingImages >= 0 &&
+            sample.pendingImages <= 9999
+              ? sample.pendingImages
+              : null,
+          failedImages:
+            Number.isInteger(sample.failedImages) &&
+            sample.failedImages >= 0 &&
+            sample.failedImages <= 9999
+              ? sample.failedImages
+              : null,
           overflowPx: sample.overflowPx,
           exceptions: sample.exceptions,
           failures: sample.failures,
