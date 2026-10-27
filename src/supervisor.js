@@ -1959,11 +1959,22 @@ export function createSupervisorHandler({
     if (request.op === "main_platform_staging_status") {
       exactKeys(request, ["op"]);
       return {
-        response: attestMainPlatformStaging({ lstat, readFile, readlink, stat, run }),
+        response: attestMainPlatformStaging({
+          lstat,
+          readFile,
+          readlink,
+          stat,
+          run,
+        }),
       };
     }
     if (request.op === "main_platform_staging_deploy") {
-      exactKeys(request, ["op", "approvedSha", "expectedCurrentSha", "confirmation"]);
+      exactKeys(request, [
+        "op",
+        "approvedSha",
+        "expectedCurrentSha",
+        "confirmation",
+      ]);
       if (
         request.confirmation !== "DEPLOY_APPROVED_STAGING_RELEASE" ||
         typeof request.approvedSha !== "string" ||
@@ -1973,7 +1984,13 @@ export function createSupervisorHandler({
         request.approvedSha === request.expectedCurrentSha
       )
         fail("INVALID_SUPERVISOR_REQUEST");
-      const state = attestMainPlatformStaging({ lstat, readFile, readlink, stat, run });
+      const state = attestMainPlatformStaging({
+        lstat,
+        readFile,
+        readlink,
+        stat,
+        run,
+      });
       if (!state.ready) fail("SUPERVISOR_STAGING_NOT_READY");
       if (
         state.approvedSha !== request.approvedSha ||
@@ -1991,7 +2008,13 @@ export function createSupervisorHandler({
         // Re-attest at the moment of start. The installed owner-approved unit
         // must independently repeat checks and emit its own deployment receipt.
         afterSend: () => {
-          const fresh = attestMainPlatformStaging({ lstat, readFile, readlink, stat, run });
+          const fresh = attestMainPlatformStaging({
+            lstat,
+            readFile,
+            readlink,
+            stat,
+            run,
+          });
           if (
             fresh.ready &&
             fresh.approvedSha === request.approvedSha &&
