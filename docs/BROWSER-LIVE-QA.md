@@ -18,7 +18,14 @@ screenshots). It checks actual navigation, HTTP 200, nonblank text, broken
 images, uncaught JS exceptions, and horizontal overflow. Incomplete or undecodable
 images fail closed rather than being counted as healthy. The isolated browser
 first requests deferred lazy images and waits up to four seconds for load/error
-before measurement; images still pending afterward are recorded as failures. Screenshots reside
+before measurement; images still pending afterward are recorded as failures. Mobile lazy-image
+loading has a second bounded 3-second settle phase for *pending-only* images;
+hard-failed or undecodable images still fail immediately. Each sample now
+reports safe aggregate `pendingImages` and `failedImages` counts (no URLs,
+DOM content, cookies or image bytes). The initial and second windows are
+bounded, and pending assets remaining after the deadline are not called PASS.
+One failed run followed by two clean runs is evidence of intermittent loading,
+not proof that assets are permanently missing or repaired. Screenshots reside
 in the CodeBridge agent private state directory, not in the dirty Git checkout.
 The browser_qa_receipt tool validates screenshot hashes and returns only
 sanitized evidence, not private image bytes, page text, cookies, or secrets.
