@@ -49,8 +49,10 @@ export async function verifyVpsPublicMcp() {
     console.log("VPS_SOURCE_PARITY=CURRENT");
   }
   console.log(
-    "KMJ_VPS_MCP_SMOKE=PASS tools=" + catalog.names.size +
-      " criticalSchemas=PASS commit=" + commit,
+    "KMJ_VPS_MCP_SMOKE=PASS tools=" +
+      catalog.names.size +
+      " criticalSchemas=PASS commit=" +
+      commit,
   );
   return { count: catalog.names.size, commit };
 }
