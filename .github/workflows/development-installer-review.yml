@@ -1,0 +1,25 @@
+name: CodeBridge non-root operator installer review
+on:
+  pull_request:
+    paths:
+      - "scripts/production/install-development-nonroot-probe.py"
+      - "scripts/production/kmj-codebridge-dev-probe.py"
+      - "scripts/production/kmj-codebridge-development-ci.service"
+      - "tests/development-installer-contract.test.js"
+      - ".github/workflows/development-installer-review.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  syntax_and_contract:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check exact Python scripts compile without executing
+        run: |
+          python3 -m py_compile scripts/production/install-development-nonroot-probe.py
+          python3 -m py_compile scripts/production/kmj-codebridge-dev-probe.py
+      - name: Check root installer static contract
+        run: node --test tests/development-installer-contract.test.js
