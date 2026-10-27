@@ -4,14 +4,20 @@ import fs from "node:fs";
 import { createHash } from "node:crypto";
 
 const installer = fs.readFileSync(
-  new URL("../scripts/production/install-development-nonroot-probe.py", import.meta.url),
+  new URL(
+    "../scripts/production/install-development-nonroot-probe.py",
+    import.meta.url,
+  ),
   "utf8",
 );
 const helper = fs.readFileSync(
   new URL("../scripts/production/kmj-codebridge-dev-probe.py", import.meta.url),
 );
 const unit = fs.readFileSync(
-  new URL("../scripts/production/kmj-codebridge-development-ci.service", import.meta.url),
+  new URL(
+    "../scripts/production/kmj-codebridge-development-ci.service",
+    import.meta.url,
+  ),
 );
 
 test("operator installer is pinned to the exact merged fixed-root probe assets", () => {
