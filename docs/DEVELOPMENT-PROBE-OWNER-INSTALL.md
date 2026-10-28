@@ -49,6 +49,28 @@ partially fails, do **not** rerun blindly or delete an existing unit; inspect
 the root-owned targets and systemd state first. There is intentionally no
 unattended rollback that could overwrite another operator's work.
 
+## Atomic publication and partial-install recovery
+
+The final helper and unit use Linux same-directory `ln -T --` without
+`--force`: exclusive destination creation is atomic and cannot overwrite
+an existing regular file or symlink even when another process races after
+the preflight absence check. Staged temporary files and final targets have
+the same filesystem. The first successful link may remain if the second
+link fails; the installer reports
+`KMJ_DEV_INSTALL=BLOCKED_PARTIAL_INSTALL_REVIEW_REQUIRED`.
+**Do not auto-delete, re-run, or replace anything.** Review the exact
+two installed paths, SHA-256 pins, ownership, link/type, actual unit state,
+and any competing owner activity. Restore a clean state only through a
+separately approved root-owned recovery procedure after independent review.
+Do not interpret a partial publication as a completed installation.
+
+**Current-host caveat:** an earlier non-root probe installer (merged
+PR #650) already installed the fixed development CI service on KMJ-elite.
+This draft #649 installer must NOT be run over that existing installation.
+The hardened draft is retained for source review/negative-test coverage;
+fixing its race does not repair the distinct non-root probe execution failure
+tracked in #652, nor does it activate autonomous coding.
+
 ## Gates still required after installation
 
 - Verify the installed root-owned unit and helper against the exact source
