@@ -22,8 +22,8 @@ const original = Object.fromEntries(
   ]),
 );
 const expected = {
-  stage: "e6b1c58ff8014b062b2df3d3ba20385c62409f3752d8f2064a06683a793c9318",
-  runner: "e6481ee4f8ed443b619a29f6efa4cc6a079ba449398a1cc69537247cd5685476",
+  stage: "5e119d7512a3ca6e33b13bef9ad20d8d43445ed71c2d300f30cb15bb52c07f9b",
+  runner: "0526ec022bdf63468249112a1a9cc44bb11c3d96e1f37021631ab763f09ca13c",
   unit: "9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a",
 };
 const approved = "d32df111e3a8dae75c8d3321a80f07424c23fe77";
@@ -39,6 +39,9 @@ function contract({ stage, runner, unit }) {
     stage.includes("STAGING_CLOUD_REQUESTS=NONE") &&
     stage.includes("STAGING_PRODUCT_WRITES=NONE") &&
     stage.includes("STAGING_DATABASE_MIGRATIONS=NONE") &&
+    stage.includes('cp -a -- "$oldapp/.env" "$app/.env"') &&
+    stage.includes('runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ') &&
+    !stage.includes('install -m 0600 "$oldapp/.env" "$app/.env"') &&
     runner.includes("approved=" + approved) &&
     runner.includes("prior=" + previous) &&
     runner.includes("source_sha=" + expected.stage) &&
@@ -74,6 +77,8 @@ test("candidate static trust contract rejects stale and weakened variants", () =
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
+    ["stage", 'cp -a -- "$oldapp/.env" "$app/.env"', 'install -m 0600 "$oldapp/.env" "$app/.env"'],
+    ["stage", 'runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ', "true # bypass env readability"],
     ["runner", "source_sha=" + expected.stage, "source_sha=" + expected.runner],
     ["runner", "main-platform-staging-approval.json", "no-approval.json"],
     ["runner", "OWNER_MANIFEST_OR_INSTALL", "ALLOW_WITHOUT_MANIFEST"],
