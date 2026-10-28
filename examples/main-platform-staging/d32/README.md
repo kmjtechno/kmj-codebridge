@@ -5,8 +5,8 @@ This is a **review-only**, inactive, exact-SHA staging candidate. The files in t
 - Main Platform `main` and `staging-approved` at preparation: `d32df111e3a8dae75c8d3321a80f07424c23fe77`
 - Last independently observed VPS staging pointer: `9d15e14e39564ffb1e66085a483feb8331f9718f`
 - Expected production pointer: `platform-8070dad72c55`; production cutover is **not** included
-- `guarded-stage.sh` SHA-256: `e6b1c58ff8014b062b2df3d3ba20385c62409f3752d8f2064a06683a793c9318`
-- `owner-runner.sh` SHA-256: `e6481ee4f8ed443b619a29f6efa4cc6a079ba449398a1cc69537247cd5685476`
+- `guarded-stage.sh` SHA-256: `5e119d7512a3ca6e33b13bef9ad20d8d43445ed71c2d300f30cb15bb52c07f9b`
+- `owner-runner.sh` SHA-256: `0526ec022bdf63468249112a1a9cc44bb11c3d96e1f37021631ab763f09ca13c`
 - `owner-staging.service` SHA-256: `9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a`
 
 ## Required independent owner gates
