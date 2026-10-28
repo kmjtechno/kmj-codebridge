@@ -264,6 +264,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  var refreshPending=false;
  var queuePending=false;
  var queueSerial=0;
+ // Preserve the idempotency key across ambiguous host replies to avoid duplicate tasks.
+ var queueAttempt=null;
  document.getElementById("askHostAi").addEventListener("click",function(){
    var el=document.getElementById("aiPrompt");
    var instruction=el&&typeof el.value==="string"?el.value.trim():"";
@@ -311,7 +313,11 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
    queuePending=true;
    text("aiChatNotice","Requesting permission to enqueue a project-scoped task...");
-   var key="mission-ui:"+Date.now()+":"+String(++queueSerial);
+   if(!queueAttempt||queueAttempt.device!==device||queueAttempt.project!==project||queueAttempt.objective!==instruction){
+     queueAttempt={device:device,project:project,objective:instruction,
+       key:"mission-ui:"+Date.now()+":"+String(++queueSerial)};
+   }
+   var key=queueAttempt.key;
    window.parent.postMessage({jsonrpc:"2.0",id:3,method:"tools/call",params:{
      name:"autopilot_enqueue",arguments:{
        device:device,project:project,key:key,objective:instruction,priority:0,dependsOn:[]
@@ -434,10 +440,16 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
    if(message.id===3&&queuePending){
      queuePending=false;
-     var ok=!message.error&&message.result&&!message.result.isError;
+     var receipt=message.result&&message.result.structuredContent;
+     var ok=!message.error&&message.result&&!message.result.isError&&queueAttempt&&
+       receipt&&typeof receipt.id==="string"&&
+       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(receipt.id)&&
+       receipt.project===queueAttempt.project&&receipt.key===queueAttempt.key&&
+       receipt.state==="queued";
+     if(ok)queueAttempt=null;
      text("aiChatNotice",ok?
-       "Task request accepted by host; worker claim and completion NOT verified.":
-       "Queue rejected or unavailable; no task acceptance was verified.");
+       "Task queued with scoped receipt; worker claim and completion NOT verified.":
+       "Queue acceptance NOT verified; inspect project queue before retrying (same idempotency key).");
      return;
    }
    if(message.id===2&&aiMessagePending){
