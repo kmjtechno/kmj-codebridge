@@ -24,7 +24,7 @@ test("P520 watchdog never creates device identity, credentials, or machine-wide 
   ]) {
     assert.ok(code.includes(x), "Missing safeguard: " + x);
   }
-  assert.match(code, /New-Object System\.Threading\.Mutex/);
+  assert.match(code, /\[System\.Threading\.Mutex\]::new/);
   assert.match(code, /Start-Sleep -Seconds 180/);
   assert.match(code, /-Device HomeOffice -AtLogon/);
   assert.match(code, /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/);
