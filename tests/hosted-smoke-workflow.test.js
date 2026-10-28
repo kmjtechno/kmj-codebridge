@@ -14,6 +14,10 @@ test("scheduled deployment smoke checks the owner VPS and not Render", () => {
   assert.match(workflow, /name: VPS Deployment Smoke/);
   assert.match(gateway, /actions\/checkout@v5/);
   assert.match(gateway, /node scripts\/verify-vps-catalog\.mjs/);
+  // A green gateway gate must attest current code, not merely an older
+  // healthy MCP process with the right public catalog.
+  assert.ok(gateway.includes("EXPECT_DEPLOYED_COMMIT: ${{ github.sha }}"));
+  assert.match(gateway, /exact deployed main commit/);
   assert.doesNotMatch(workflow, /onrender\.com|verify-render-deployment\.mjs/);
   assert.doesNotMatch(production, /needs:\s*gateway/);
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);

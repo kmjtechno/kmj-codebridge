@@ -29,7 +29,13 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Verify owner VPS tool catalog, critical schemas, and running commit
+      - name: Verify owner VPS catalog, critical schemas and exact deployed main commit
+        # Health may pass while the public gateway is still on an obsolete
+        # binary. Never report a push/scheduled release smoke as fully green
+        # until the live server attests the exact branch SHA. This performs
+        # one read-only public HTTP probe and never deploys or restarts.
+        env:
+          EXPECT_DEPLOYED_COMMIT: ${{ github.sha }}
         run: node scripts/verify-vps-catalog.mjs
 
   # Independently verify public OAuth authorization boundaries. Do not hide
