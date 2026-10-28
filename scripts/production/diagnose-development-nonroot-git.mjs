@@ -16,7 +16,12 @@ const ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",
   GIT_NO_REPLACE_OBJECTS: "1",
 });
-const CHECKS = Object.freeze(["headRef", "headObject", "headCommit", "headStable"]);
+const CHECKS = Object.freeze([
+  "headRef",
+  "headObject",
+  "headCommit",
+  "headStable",
+]);
 
 export function classifyGitError(error) {
   const stderr = Buffer.isBuffer(error?.stderr)
@@ -103,9 +108,17 @@ export function diagnoseNonrootGit({
       } else if (name === "headRef") {
         headRevision = value;
         result.checks[name] = "PASS";
-      } else if (name === "headCommit" && headRevision && value !== headRevision) {
+      } else if (
+        name === "headCommit" &&
+        headRevision &&
+        value !== headRevision
+      ) {
         result.checks[name] = "COMMIT_MISMATCH";
-      } else if (name === "headStable" && headRevision && value !== headRevision) {
+      } else if (
+        name === "headStable" &&
+        headRevision &&
+        value !== headRevision
+      ) {
         result.checks[name] = "HEAD_CHANGED";
       } else {
         result.checks[name] = "PASS";
