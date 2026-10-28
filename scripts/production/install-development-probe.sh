@@ -26,6 +26,9 @@ fi
 [[ "$source_dir" == /root/kmj-approved/*/scripts/production ]] || die SOURCE_LOCATION
 [[ ! -L "$0" ]] || die INSTALLER_SYMLINK
 source_root="$(dirname "$(dirname "$source_dir")")"
+# Exactly one immutable 40-hex commit directory. A broad glob could admit
+# unverified intermediate parents beneath /root/kmj-approved.
+[[ "$source_root" =~ ^/root/kmj-approved/[0-9a-f]{40}$ ]] || die SOURCE_COMMIT_PATH
 for p in /root/kmj-approved "$source_root" "$source_root/scripts" "$source_dir" \
   "$0" "$unit_source" "$helper_source"; do
   [[ -e "$p" && ! -L "$p" && "$(stat -c '%u' "$p")" == 0 ]] || die SOURCE_OWNER
