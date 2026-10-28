@@ -9,7 +9,10 @@ const runnerPath = new URL(
 );
 const runner = readFileSync(runnerPath, "utf8");
 const reviewedUnit = readFileSync(
-  new URL("../examples/main-platform-staging/d32/owner-staging.service", import.meta.url),
+  new URL(
+    "../examples/main-platform-staging/d32/owner-staging.service",
+    import.meta.url,
+  ),
 );
 const match = runner.match(
   /python3 - "\$approved" "\$prior" <<'PY' \|\| deny OWNER_MANIFEST_OR_INSTALL\n([\s\S]*?)\nPY/,
