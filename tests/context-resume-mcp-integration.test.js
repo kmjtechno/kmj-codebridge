@@ -142,6 +142,8 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
     }),
   );
   assert.equal(initialSync.checkpoint.exists, false);
+  assert.equal(initialSync.developmentFlow.roadmap.status, "NO_SAVED_CHECKPOINT");
+  assert.equal(initialSync.developmentFlow.safety.noAutomaticProductionCutover, true);
   assert.equal(initialSync.hostChatAutoWake, false);
   const savedA = value(
     await client.callTool({
@@ -184,6 +186,15 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
     "Approved project engineering checkpoint",
   );
   assert.equal(currentA.checkpoint.revision, savedA.revision);
+  assert.equal(
+    currentA.developmentFlow.roadmap.status,
+    "CHECKPOINT_SAVED_UNVERIFIED",
+  );
+  assert.equal(currentA.developmentFlow.roadmap.revision, savedA.revision);
+  assert.equal(
+    currentA.developmentFlow.recommendedAction.code,
+    "REVIEW_REPORTED_BLOCKERS",
+  );
   assert.notEqual(currentA.digest, initialSync.digest);
   const tiny = value(
     await client.callTool({
@@ -201,5 +212,7 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
     }),
   );
   assert.equal(currentB.checkpoint.summary, "Independent second chat");
+  assert.equal(currentB.developmentFlow.roadmap.summary, "Independent second chat");
+  assert.equal(currentB.developmentFlow.roadmap.revision, savedB.revision);
   assert.equal(currentB.checkpoint.revision, savedB.revision);
 });
