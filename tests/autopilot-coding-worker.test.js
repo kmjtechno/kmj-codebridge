@@ -597,7 +597,9 @@ test("restart/resume with an existing coding checkpoint never replays model gene
   );
 });
 
-test("missing or unreadable verification job fails closed without replaying inference", async (t) => {
+test(
+  "missing or unreadable verification job fails closed without replaying inference",
+  async (t) => {
   for (const mode of ["missing", "lookup-error"]) {
     const f = fixture(t);
     const task = f.enqueue();
@@ -606,7 +608,8 @@ test("missing or unreadable verification job fails closed without replaying infe
     assert.equal(f.generated(), 1, mode);
 
     f.runner.get = () => {
-      if (mode === "lookup-error") throw new Error("runner state unavailable");
+      if (mode === "lookup-error")
+        throw new Error("runner state unavailable");
       return undefined;
     };
     await f.worker.tick();
@@ -618,7 +621,11 @@ test("missing or unreadable verification job fails closed without replaying infe
       "LOCAL_CODE_VERIFY_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
       mode,
     );
-    assert.notEqual(record.checkpoint.next, "VERIFIED_PATCH_AWAITING_REVIEW", mode);
+    assert.notEqual(
+      record.checkpoint.next,
+      "VERIFIED_PATCH_AWAITING_REVIEW",
+      mode,
+    );
     assert.equal(f.worker.active.size, 0, mode);
     assert.equal(f.lanes.status("repo", f.root).lanes.length, 1, mode);
     assert.equal(
@@ -630,7 +637,8 @@ test("missing or unreadable verification job fails closed without replaying infe
     assert.equal(f.generated(), 1, mode);
     assert.equal(f.starts.length, 1, mode);
   }
-});
+  },
+);
 
 test("failed verification gate leaves the candidate unpublishable", async (t) => {
   const f = fixture(t);
