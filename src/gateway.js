@@ -1,6 +1,10 @@
 import { buildMissionActivity } from "./mission-control-activity.js";
 import { buildMissionWorkspace } from "./mission-control-workspace.js";
 import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
+import {
+  needsLegacyContinuity,
+  resolveChatWorkspaceCheckpoint,
+} from "./chat-workspace-continuity.js";
 import { buildCapabilityMemory } from "./capability-memory.js";
 import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
 import { createUserIntrospector } from "./user-access.js";
@@ -730,23 +734,18 @@ export async function startGateway(rawConfig) {
       read("autopilot_worker_runtime_status", scope),
       read("supervisor_update_status", scope),
     ]);
-    // Some enrolled agents predate compact_session_resume but already support
-    // chat_continuity_read. Recover that same scoped lane rather than dropping
-    // an existing checkpoint or falsely advertising compact_session_save.
-    const legacyCheckpoint = !checkpoint.ok
+    // An enrolled agent may expose compact_session_resume but have no
+    // compact checkpoint on this lane while legacy continuity *does* exist.
+    // Fall back for absent/empty compact state; never claim a transcript or
+    // permission grant based on caller-authored handoff data.
+    const legacyCheckpoint = needsLegacyContinuity(checkpoint, scope)
       ? await read("chat_continuity_read", { ...scope, lane: args.lane })
       : null;
-    const restoredCheckpoint = checkpoint.ok
-      ? checkpoint.value
-      : legacyCheckpoint?.ok
-        ? {
-            ...legacyCheckpoint.value,
-            nextSteps:
-              typeof legacyCheckpoint.value?.next === "string"
-                ? [legacyCheckpoint.value.next]
-                : [],
-          }
-        : null;
+    const restored = resolveChatWorkspaceCheckpoint({
+      compact: checkpoint,
+      legacy: legacyCheckpoint,
+      scope: { ...scope, lane: args.lane },
+    });
     return buildChatWorkspaceOpen({
       ...scope,
       lane: args.lane,
@@ -762,12 +761,8 @@ export async function startGateway(rawConfig) {
         worker: worker.ok ? worker.value : null,
         updater: updater.ok ? updater.value : null,
       }),
-      checkpoint: restoredCheckpoint,
-      checkpointSaveTool: checkpoint.ok
-        ? "compact_session_save"
-        : legacyCheckpoint?.ok
-          ? "chat_continuity_save"
-          : null,
+      checkpoint: restored.checkpoint,
+      checkpointSaveTool: restored.checkpointSaveTool,
       browser: browser.ok ? browser.value : null,
       browserCapability: browser.ok
         ? "AVAILABLE"
