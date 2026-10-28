@@ -65,6 +65,7 @@ export function diagnoseNonrootGit({
     schema: SCHEMA,
     status: "DIAGNOSTIC_ONLY",
     checks: {},
+    gitChecksPassed: false,
     permissionsChanged: false,
     productionChanged: false,
     autonomousCodingLive: false,
@@ -100,7 +101,16 @@ export function diagnoseNonrootGit({
       result.checks[name] = classifyGitError(error);
     }
   }
+  result.gitChecksPassed = CHECKS.every(
+    ([name]) => result.checks[name] === "PASS",
+  );
   return result;
+}
+
+export function diagnosticExitCode(result) {
+  if (result?.status !== "DIAGNOSTIC_ONLY") return 2;
+  if (result.gitChecksPassed !== true) return 3;
+  return CHECKS.every(([name]) => result.checks?.[name] === "PASS") ? 0 : 3;
 }
 
 if (
@@ -114,10 +124,11 @@ if (
           schema: SCHEMA,
           status: "DENIED_ARGUMENTS",
           checks: {},
+          gitChecksPassed: false,
           permissionsChanged: false,
           productionChanged: false,
           autonomousCodingLive: false,
         };
   process.stdout.write(`${JSON.stringify(result)}\n`);
-  if (result.status !== "DIAGNOSTIC_ONLY") process.exitCode = 2;
+  process.exitCode = diagnosticExitCode(result);
 }
