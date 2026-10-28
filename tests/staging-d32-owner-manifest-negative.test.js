@@ -43,7 +43,10 @@ cases = ['valid', 'missing_manifest', 'malformed_json', 'missing_key', 'extra_ke
          'runner_hash_drift', 'unit_hash_drift', 'unit_execstart_missing', 'unit_extra_execstart',
          'unit_execstartpre_injected', 'unit_environment_injected',
          'manifest_symlink', 'manifest_hardlink', 'writable_parent',
-         'nonroot_runner', 'schema_drift']
+         'nonroot_runner', 'schema_drift',
+         'runner_symlink', 'unit_symlink', 'runner_hardlink', 'unit_hardlink',
+         'writable_runner_parent', 'writable_unit_parent',
+         'nonroot_unit', 'nonroot_manifest']
 results = {}
 for case in cases:
     with tempfile.TemporaryDirectory(prefix='kmj-staging-approval-test-') as tmp:
@@ -100,6 +103,18 @@ for case in cases:
             m.symlink_to(target)
         if case == 'manifest_hardlink': os.link(m, base / 'manifest-hardlink')
         if case == 'writable_parent': m.parent.chmod(0o777)
+        if case == 'writable_runner_parent': r.parent.chmod(0o777)
+        if case == 'writable_unit_parent': u.parent.chmod(0o777)
+        if case == 'runner_hardlink': os.link(r, base / 'runner-hardlink')
+        if case == 'unit_hardlink': os.link(u, base / 'unit-hardlink')
+        if case == 'runner_symlink':
+            target = base / 'original-runner'
+            r.rename(target)
+            r.symlink_to(target)
+        if case == 'unit_symlink':
+            target = base / 'original-unit'
+            u.rename(target)
+            u.symlink_to(target)
         script = validator.replace(
             'Path("/usr/local/libexec/kmj-codebridge/kmj-main-platform-staging-deploy.sh")',
             'Path(' + repr(str(r)) + ')').replace(
@@ -116,7 +131,9 @@ for case in cases:
             # Keep actual fixture modes, links, sizes and hardlink counts.
             inside = path == base or base in path.parents
             mode = info.st_mode if inside else (stat.S_IFDIR | 0o755)
-            uid = 1000 if case == 'nonroot_runner' and path == r else 0
+            uid = 1000 if ((case == 'nonroot_runner' and path == r) or
+                           (case == 'nonroot_unit' and path == u) or
+                           (case == 'nonroot_manifest' and path == m)) else 0
             return SimpleNamespace(st_uid=uid, st_mode=mode,
                                    st_nlink=info.st_nlink, st_size=info.st_size)
         original_argv = sys.argv
@@ -146,6 +163,6 @@ print(json.dumps(results, sort_keys=True))
       if (name !== "valid")
         assert.equal(accepted, false, name + " must fail closed");
     }
-    assert.equal(Object.keys(outcomes).length, 23);
+    assert.equal(Object.keys(outcomes).length, 31);
   },
 );
