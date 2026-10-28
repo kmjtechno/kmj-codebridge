@@ -15,7 +15,9 @@ export function selectFreeFirstModel({
     local.available === true &&
     typeof local.model === "string" &&
     local.model.length <= 96 &&
-    local.model.split("/").every((part) => /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(part)) &&
+    local.model
+      .split("/")
+      .every((part) => /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(part)) &&
     !local.model.includes("..")
   ) {
     return {
