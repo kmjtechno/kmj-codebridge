@@ -12,10 +12,14 @@ const RISK = new Set([
   "DESTRUCTIVE",
 ]);
 const CATEGORY = Object.freeze({
-  continuity: /^(chat_|compact_|context_|multi_chat_|coordination_|fast_context|checkpoint_)/,
-  device: /^(list_devices|connection_|fleet_|workspace_|inspect_project|project_environment|policy_catalog|supervisor_device_)/,
-  coding: /^(read_|write_|edit_|project_|search_code|hyperindex_|worktree_|run_quality_gate|run_project_command|git_)/,
-  automation: /^(autopilot_|mission_|execution_capacity|hyperspeed_|verification_plan)/,
+  continuity:
+    /^(chat_|compact_|context_|multi_chat_|coordination_|fast_context|checkpoint_)/,
+  device:
+    /^(list_devices|connection_|fleet_|workspace_|inspect_project|project_environment|policy_catalog|supervisor_device_)/,
+  coding:
+    /^(read_|write_|edit_|project_|search_code|hyperindex_|worktree_|run_quality_gate|run_project_command|git_)/,
+  automation:
+    /^(autopilot_|mission_|execution_capacity|hyperspeed_|verification_plan)/,
   browser: /^(browser_|render_codebridge_status)/,
   inference: /^(local_model_|model_route_)/,
   privileged: /^(supervisor_|audit_)/,
@@ -90,11 +94,13 @@ export function buildCapabilityMemory({
     persistedModelMemory: false,
     advertisedToolCount: known.size,
     advertisedToolsByCategory: groups,
-    approvalRequiredRisks: [...new Set(
-      [...known.values()]
-        .filter((tool) => tool.approvalRequired)
-        .map((tool) => tool.risk),
-    )].sort(),
+    approvalRequiredRisks: [
+      ...new Set(
+        [...known.values()]
+          .filter((tool) => tool.approvalRequired)
+          .map((tool) => tool.risk),
+      ),
+    ].sort(),
     runtime: {
       connected:
         typeof inspected?.connection === "string"
