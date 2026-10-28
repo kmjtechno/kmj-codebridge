@@ -466,3 +466,36 @@ test("AI chat rejects forged scope and host denial is visible", () => {
   view.replyHost(2, "Denied by host");
   assert.match(view.element("aiChatNotice").textContent, /denied/);
 });
+
+test("development task enqueues only on a real click and never reports execution", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Repair the isolated staging CI failure";
+  view.send({product:"KMJ CodeBridge",device:"device1",project:"project1"});
+  assert.equal(view.parentMessages.length, 2);
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  const request = view.parentMessages[2].message;
+  assert.equal(request.method, "tools/call");
+  assert.equal(request.params.name, "autopilot_enqueue");
+  assert.equal(request.params.arguments.device, "device1");
+  assert.equal(request.params.arguments.project, "project1");
+  assert.equal(request.params.arguments.priority, 0);
+  assert.match(request.params.arguments.key, /^mission-ui:/);
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyHost(3);
+  assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
+});
+test("no valid project or a denied queue request never appears accepted", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Investigate README smoke";
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 2);
+  view.send({product:"KMJ CodeBridge",device:"device1",project:"project1"});
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyHost(3, "Not authorized");
+  assert.match(view.element("aiChatNotice").textContent, /rejected/);
+});
