@@ -115,7 +115,10 @@ export function getLiveDashboardMetrics({
     // True live status needs a fresh authenticated source and device grant.
     // This is not a whole-project percentage or a background poller.
     developmentProgress: [...fresh.values()]
-      .filter((report) => typeof report.projectId === "string" && ID.test(report.projectId))
+      .filter(
+        (report) =>
+          typeof report.projectId === "string" && ID.test(report.projectId),
+      )
       .map((report) =>
         verifiedDevelopmentProgress({
           device: report.deviceId,
