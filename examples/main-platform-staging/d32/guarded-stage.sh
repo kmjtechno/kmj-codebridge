@@ -22,6 +22,9 @@ prod=/home/kmjprod/releases/platform-8070dad72c55
 [[ "$target" == /etc/nginx/sites-available/staging.kmjtechno.com.conf || "$target" == "$config" ]] || block CONFIG_PATH
 [[ -f "$target" && ! -L "$target" && "$(stat -c %u "$target")" == 0 ]] || block CONFIG_OWNER
 [[ "$(readlink -f "$link")" == "$oldapp" && -S /run/php/kmjstage-php84-fpm.sock ]] || block STAGING_BASELINE
+# Fail before creating a release if uploads still live inside a disposable release tree.
+upload_store="$(readlink -f "$oldapp/storage/app")"
+[[ "$upload_store" == /home/kmjstage/shared/* && -d "$upload_store" && ! -L "$upload_store" ]] || block UPLOAD_STORAGE_NOT_SHARED
 [[ ! -e "$release" && ! -L "$release" ]] || block RELEASE_ALREADY_EXISTS
 exec 9>/run/kmj-stage-native-backend.lock
 flock -n 9 || block CONCURRENT_JOB
@@ -76,10 +79,7 @@ chown -R kmjstage:www-data "$release"
 chmod 0750 "$release"
 shared=/home/kmjstage/shared/product-artwork
 [[ "$(readlink -f "$oldapp/storage/app/private/product-artwork")" == "$shared" && -d "$shared" && ! -L "$shared" ]] || block SHARED_ARTWORK_BASELINE
-# Reuse the live upload directory so writes during build/cutover remain visible.
-# Retain this existing storage location when cleaning up old release code.
-upload_store="$(readlink -f "$oldapp/storage/app")"
-[[ "$upload_store" == /home/kmjstage/releases/*/apps/platform/storage/app || "$upload_store" == /home/kmjstage/shared/* ]] || block UPLOAD_STORAGE_PATH
+# Reuse only existing shared upload storage so an old release can be retired safely.
 [[ -d "$upload_store" && -d "$app/storage/app" && ! -L "$app/storage/app" ]] || block UPLOAD_STORAGE_BASELINE
 mv "$app/storage/app" "$work/unused-storage-scaffold"
 ln -s "$upload_store" "$app/storage/app"
