@@ -186,7 +186,6 @@ test("diagnostic continues classification after a failed individual Git check", 
   });
 });
 
-
 test("pin all object checks to the initial HEAD and fail if HEAD moves", () => {
   const moved = "b".repeat(40);
   const calls = [];
@@ -231,7 +230,12 @@ test("CLI exit classification requires all four consistent Git checks", () => {
   assert.equal(pass.gitChecksPassed, true);
   assert.equal(diagnosticExitCode(pass), 0);
 
-  for (const failedCheck of ["headRef", "headObject", "headCommit", "headStable"]) {
+  for (const failedCheck of [
+    "headRef",
+    "headObject",
+    "headCommit",
+    "headStable",
+  ]) {
     const result = {
       ...pass,
       checks: { ...pass.checks, [failedCheck]: "ACCESS_DENIED" },
