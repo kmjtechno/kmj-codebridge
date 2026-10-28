@@ -18,6 +18,21 @@ that the plugin package alone gives machine access.
    change existing devices/projects, guess credentials, or promise server access
    from plugin installation alone. For the testing VM, use the read-only guide
    in the CodeBridge repository's `docs/CONNECTION-DOCTOR.md`.
+   **Persistent CodeBridge capability onboarding:** For a new CodeBridge-related
+   chat or a request to "resume / continue / use all features", use
+   `chat_workspace_open` with the authorized device/project and stable lane
+   `codebridge-24x7` (or the project's existing saved lane) before asking the
+   owner to repeat feature lists. Read its current `capabilities.liveCatalog`
+   when supported: this is a read-only, device-scoped policy inventory with
+   runtime/model/worker hints, **not** a grant or proof every listed tool works.
+   On an older gateway that does not expose this field or tool, fall back to
+   `policy_catalog`, `inspect_project`, `chat_continuity_read` and live
+   worker/model/updater status; save only a bounded sanitized handoff using
+   `chat_continuity_save` with revision precondition. Do not promise native
+   ChatGPT memory, access to past chats, live 24/7 inference, or unrestricted root
+   permissions from a catalog listing. Recheck protected operations on every
+   action, not just once per chat.
+
 2. For an ordinary "open workspace", "resume", or "continue work" request
    in any MCP-capable AI chat, list authorized devices first unless the device
    and project are already verified in this session. If exactly one pair is

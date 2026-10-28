@@ -47,6 +47,7 @@ export function buildChatWorkspaceOpen({
   browserCapability = "UNAVAILABLE",
   checkpointSaveTool = "compact_session_save",
   qualityGates,
+  capabilityMemory = null,
   ifNoneMatch = null,
 }) {
   const entries = Array.isArray(explorer?.entries)
@@ -132,6 +133,7 @@ export function buildChatWorkspaceOpen({
         }
       : null,
     capabilities: {
+      liveCatalog: capabilityMemory,
       browserRuntime: browser ? "AVAILABLE" : browserCapability,
       checkpointSaveTool: [
         "compact_session_save",

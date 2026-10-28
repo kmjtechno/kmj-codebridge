@@ -25,6 +25,21 @@ Start with **M0 inventory/contracts** then **M1 real Windows P720 secure build r
 - **PR #380**: long OAuth state round-trip fix for Gemini Spark; code-level native tests passed, hosted CI/production user acceptance not proven.
 - Do not rewrite or merge these branches from this repo. Submit dedicated, backward-compatible integration contracts as needed.
 
+**Persistent CodeBridge capability onboarding:** For a new CodeBridge-related
+chat or a request to "resume / continue / use all features", use
+`chat_workspace_open` with the authorized device/project and stable lane
+`codebridge-24x7` (or the project's existing saved lane) before asking the
+owner to repeat feature lists. Read its current `capabilities.liveCatalog`
+when supported: this is a read-only, device-scoped policy inventory with
+runtime/model/worker hints, **not** a grant or proof every listed tool works.
+On an older gateway that does not expose this field or tool, fall back to
+`policy_catalog`, `inspect_project`, `chat_continuity_read` and live
+worker/model/updater status; save only a bounded sanitized handoff using
+`chat_continuity_save` with revision precondition. Do not promise native
+ChatGPT memory, access to past chats, live 24/7 inference, or unrestricted root
+permissions from a catalog listing. Recheck protected operations on every
+action, not just once per chat.
+
 ### Safety, cost and honesty
 
 - Prefer native CodeBridge MCP tools: `inspect_project`, `project_environment`, `policy_catalog`, `git_status`, hash-precondition edits, `run_quality_gate`, `get_job_status`.
