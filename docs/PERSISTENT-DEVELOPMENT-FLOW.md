@@ -6,7 +6,7 @@
 
 1. **Locked product decisions/specs:** reviewed repository docs and approved owner constraints. Do not rewrite locked UX, branding, zero-cost constraints, credentials or release gates based on a conversational guess.
 2. **Durable project roadmap checkpoint:** a bounded revisioned record saved on the authorized CodeBridge device, scoped by `device + project + lane`. Each new chat can read it with one `chat_workspace_open` or `multi_chat_sync` call instead of rereading a repository roadmap.
-3. **Actual current execution:** authorized project task journal, file reservations, Git state and CI/production receipts. A saved checkpoint is a *client-reported summary*, not proof that work completed.
+3. **Actual current execution:** authorized project task journal, file reservations, Git state and CI/production receipts. A saved checkpoint is a _client-reported summary_, not proof that work completed.
 4. **Production approval:** separate owner-controlled signed release and rollback controls. Neither the roadmap nor a queued task grants deployment authority.
 
 ## Minimal day-to-day workflow
@@ -21,7 +21,7 @@
 ## Runtime coverage
 
 - `src/development-flow.js` builds a bounded, provenance-labelled action from already-authorized data. The same `developmentFlow` object is returned by gateway-side `chat_workspace_open` and `multi_chat_sync`.
-- The guide intentionally does *not* add new backend polling, vector DBs, model downloads, OAuth scopes or remote service calls. It works with compact session or legacy continuity on older agents.
+- The guide intentionally does _not_ add new backend polling, vector DBs, model downloads, OAuth scopes or remote service calls. It works with compact session or legacy continuity on older agents.
 - Roadmap claims are sanitized. Foreign-project/lane or malformed revisions are ignored. Live task IDs are surfaced only from authorized local task journals; no automatic worker claim or production activation.
 - For a complete project, use the existing `mission_compile`, `mission_status`, `mission_evidence` tools to persist dependency DAG and acceptance criteria **only after confirming an authorized device/worker and non-destructive owner gates**. Do not auto enqueue sensitive root/deployment tasks.
 
