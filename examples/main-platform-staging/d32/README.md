@@ -6,7 +6,7 @@ This is a **review-only**, inactive, exact-SHA staging candidate. The files in t
 - Last independently observed VPS staging pointer: `9d15e14e39564ffb1e66085a483feb8331f9718f`
 - Expected production pointer: `platform-8070dad72c55`; production cutover is **not** included
 - `guarded-stage.sh` SHA-256: `5e119d7512a3ca6e33b13bef9ad20d8d43445ed71c2d300f30cb15bb52c07f9b`
-- `owner-runner.sh` SHA-256: `0526ec022bdf63468249112a1a9cc44bb11c3d96e1f37021631ab763f09ca13c`
+- `owner-runner.sh` SHA-256: `8269360898a9c7c70128406f80ba6a4de2a658068bca6e0a30803734e288d5fa`
 - `owner-staging.service` SHA-256: `9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a`
 
 ## Required independent owner gates
@@ -14,6 +14,8 @@ This is a **review-only**, inactive, exact-SHA staging candidate. The files in t
 The installed, fixed, root-owned runner path is `/usr/local/libexec/kmj-codebridge/kmj-main-platform-staging-deploy.sh` and the fixed systemd unit is `/etc/systemd/system/kmj-main-platform-staging-deploy.service`. These are **candidate contents only**; no installation is performed here.
 
 The owner must independently verify the latest GitHub approved SHA, actual staging and production pointers, successful offsite backup/restore, rollback, upload storage continuity, PHP socket, and zero-additional-cost billing before any installation. The owner alone must create and approve `/etc/kmj-codebridge/main-platform-staging-approval.json` offline with the exact ten-key schema in `docs/MAIN-PLATFORM-GUARDED-STAGING.md`. Do not auto-generate this manifest, set attestation booleans without evidence, or bypass CodeBridge Supervisor gates.
+
+The offline runner checks the effective systemd unit is loaded from the fixed reviewed path, with no drop-ins and no pending daemon reload. Any missing manager property or command failure blocks before staging changes. These checks complement, but do not replace, independent Supervisor attestation.
 
 The offline runner also pins the **exact reviewed systemd unit bytes**, not merely a manifest-provided digest or a substring of `ExecStart`. The isolated negative suite rejects an extra `ExecStart`, `ExecStartPre`, or injected `Environment` even if the manifest digest is recalculated. These tests do not prove installation or live deployment.
 
