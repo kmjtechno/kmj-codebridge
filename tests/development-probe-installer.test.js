@@ -75,7 +75,9 @@ test(
   },
 );
 
-test("owner installer admits exactly one immutable commit directory, not nested parents", () => {
+test(
+  "owner installer admits exactly one immutable commit directory, not nested parents",
+  () => {
   const source = fs.readFileSync(script, "utf8");
   const match = source.match(
     /\[\[ "\$source_root" =~ (\S+) \]\] \|\| die SOURCE_COMMIT_PATH/,
@@ -98,7 +100,8 @@ test("owner installer admits exactly one immutable commit directory, not nested 
   ]) {
     assert.equal(matches(bad), false, bad);
   }
-});
+  },
+);
 
 test("installer publishes with atomic no-clobber links and preserves partial-state review", () => {
   const source = fs.readFileSync(script, "utf8");
