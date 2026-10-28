@@ -162,11 +162,16 @@ export function validateArchiveEntries(entries) {
     if (entry.includes("\0") || entry.includes("\\"))
       fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
     const normalized = path.posix.normalize(entry);
+    // Reject *non-canonical* tar names before stripping the release root.
+    // A name like "release/../outside" normalizes inside the archive, yet
+    // tar extraction may interpret the original ".." component differently.
+    // Directory names ending in "/" remain canonical and are permitted.
     if (
       entry.startsWith("/") ||
+      normalized !== entry ||
+      normalized === "." ||
       normalized === ".." ||
-      normalized.startsWith("../") ||
-      normalized.includes("/../")
+      normalized.startsWith("../")
     )
       fail("UPDATE_ARCHIVE_LAYOUT_INVALID");
   }
