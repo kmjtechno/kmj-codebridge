@@ -52,6 +52,30 @@ if v["runnerSha256"]!=hashlib.sha256(r).hexdigest() or v["unitSha256"]!=hashlib.
 if b"ExecStart=/usr/bin/bash /usr/local/libexec/kmj-codebridge/kmj-main-platform-staging-deploy.sh" not in u:
     raise ValueError("EXECSTART")
 PY
+# The manager's effective unit must match the reviewed on-disk unit.
+# Reject drop-ins and a stale daemon cache even if the manifest hashes pass.
+python3 - <<'PY' || deny SYSTEMD_EFFECTIVE_UNIT
+import subprocess
+name = "kmj-main-platform-staging-deploy.service"
+keys = ("LoadState", "FragmentPath", "DropInPaths", "NeedDaemonReload")
+result = subprocess.run(
+    ["/usr/bin/systemctl", "show", name, "--no-pager",
+     "--property=" + ",".join(keys)],
+    capture_output=True, text=True, check=True, timeout=15,
+)
+pairs = [line.split("=", 1) for line in result.stdout.splitlines() if "=" in line]
+values = dict(pairs)
+if len(pairs) != len(keys) or set(values) != set(keys):
+    raise ValueError("INCOMPLETE_OR_DUPLICATE_SYSTEMD_PROPERTIES")
+if values["LoadState"] != "loaded":
+    raise ValueError("SYSTEMD_UNIT_NOT_LOADED")
+if values["FragmentPath"] != "/etc/systemd/system/kmj-main-platform-staging-deploy.service":
+    raise ValueError("SYSTEMD_UNIT_PATH_DRIFT")
+if values["DropInPaths"] != "":
+    raise ValueError("SYSTEMD_DROPINS_FORBIDDEN")
+if values["NeedDaemonReload"] != "no":
+    raise ValueError("SYSTEMD_DAEMON_CACHE_STALE")
+PY
 [[ "$(readlink -f /home/kmjstage/htdocs/staging.kmjtechno.com)" == "/home/kmjstage/releases/$prior/apps/platform" ]] || deny STAGING_DRIFT
 [[ "$(readlink -f /home/kmjprod/current)" == /home/kmjprod/releases/platform-8070dad72c55 ]] || deny PRODUCTION_DRIFT
 protected=$(mktemp /root/.kmj-d32-source.XXXXXXXX)
