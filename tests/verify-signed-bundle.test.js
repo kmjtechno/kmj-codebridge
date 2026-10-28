@@ -231,3 +231,51 @@ test("invalid explicit channel fails closed", async (t) => {
     );
   }
 });
+
+test("rejects same-byte pathname swaps between precheck and key-file open", async (t) => {
+  const { options, dir } = fixture(t);
+  const replacement = path.join(dir, "replacement-trusted-keys.json");
+  fs.copyFileSync(options.trustedKeysPath, replacement);
+  const originalOpen = fs.openSync;
+  let injected = false;
+  try {
+    fs.openSync = function (file, ...args) {
+      if (file === options.trustedKeysPath && !injected) {
+        injected = true;
+        fs.renameSync(replacement, options.trustedKeysPath);
+      }
+      return originalOpen.call(fs, file, ...args);
+    };
+    await assert.rejects(
+      verifySignedReleaseBundle(options),
+      /BUNDLE_FILE_CHANGED/,
+    );
+    assert.equal(injected, true);
+  } finally {
+    fs.openSync = originalOpen;
+  }
+});
+
+test("rejects same-byte archive replacement between stat and opened descriptor", async (t) => {
+  const { options, dir } = fixture(t);
+  const replacement = path.join(dir, "identical-archive-copy");
+  fs.copyFileSync(options.archivePath, replacement);
+  const originalOpen = fs.promises.open;
+  let injected = false;
+  try {
+    fs.promises.open = function (file, ...args) {
+      if (file === options.archivePath && !injected) {
+        injected = true;
+        fs.renameSync(replacement, options.archivePath);
+      }
+      return originalOpen.call(fs.promises, file, ...args);
+    };
+    await assert.rejects(
+      verifySignedReleaseBundle(options),
+      /BUNDLE_ARCHIVE_CHANGED/,
+    );
+    assert.equal(injected, true);
+  } finally {
+    fs.promises.open = originalOpen;
+  }
+});
