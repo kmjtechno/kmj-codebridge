@@ -140,7 +140,7 @@ function fixture(t, overrides = {}) {
       : overrides.noWrite
         ? ["read", "execute"]
         : ["write", "execute"],
-    limits: { concurrent_jobs: 1 },
+    limits: { concurrent_jobs: overrides.concurrentJobs ?? 1 },
   });
   const makeWorker = () =>
     new LocalFirstCodingWorker({
@@ -289,6 +289,7 @@ test("offline model, missing execute permission, or resource pressure leaves tas
   for (const options of [
     { offline: true },
     { noExecute: true },
+    { concurrentJobs: 0 },
     { pressure: true },
   ]) {
     const f = fixture(t, options);
@@ -324,6 +325,12 @@ test("authorization revoked during asynchronous model status cannot claim or gen
       "write entitlement",
       (_f, options) => {
         options.noWrite = true;
+      },
+    ],
+    [
+      "concurrent-job entitlement",
+      (_f, options) => {
+        options.concurrentJobs = 0;
       },
     ],
     [
@@ -394,6 +401,33 @@ test("authorization revoked during asynchronous model status cannot claim or gen
   }
 });
 
+test("model readiness adopts a reduced positive licensed concurrency before task claim", async (t) => {
+  let releaseStatus;
+  let notifyStatusStarted;
+  const statusStarted = new Promise((resolve) => {
+    notifyStatusStarted = resolve;
+  });
+  const statusResponse = new Promise((resolve) => {
+    releaseStatus = resolve;
+  });
+  const options = {
+    concurrentJobs: 2,
+    statusResponse,
+    onStatus: () => notifyStatusStarted(),
+  };
+  const f = fixture(t, options);
+  const task = f.enqueue();
+  const running = f.worker.tick();
+  await statusStarted;
+  options.concurrentJobs = 1;
+  releaseStatus();
+  await running;
+  assert.equal(f.runner.maxConcurrent, 1);
+  assert.equal(f.generated(), 1);
+  assert.equal(f.starts.length, 1);
+  assert.equal(f.journal.get(task.id, "repo").state, "running");
+});
+
 test("authorization revoked during asynchronous local generation cannot mutate a lane or start a gate", async (t) => {
   const scenarios = [
     [
@@ -418,6 +452,12 @@ test("authorization revoked during asynchronous local generation cannot mutate a
       "write entitlement",
       (_f, options) => {
         options.noWrite = true;
+      },
+    ],
+    [
+      "concurrent-job entitlement",
+      (_f, options) => {
+        options.concurrentJobs = 0;
       },
     ],
     [
@@ -598,6 +638,12 @@ test("revoked authorization after a successful gate never promotes a patch to ve
       "execute entitlement",
       (_f, options) => {
         options.noExecute = true;
+      },
+    ],
+    [
+      "concurrent-job entitlement",
+      (_f, options) => {
+        options.concurrentJobs = 0;
       },
     ],
     [
