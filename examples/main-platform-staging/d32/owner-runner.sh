@@ -34,6 +34,10 @@ def protected(p,limit):
     return p.read_bytes()
 r=protected(root,131072)
 u=protected(unit,16384)
+# The manifest is an owner attestation, not authority to approve arbitrary
+# systemd directives. Bind the executable unit to the reviewed fixed bytes.
+if hashlib.sha256(u).hexdigest()!="9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a":
+    raise ValueError("UNIT_SOURCE_SHA")
 m=protected(approval,4096)
 v=json.loads(m)
 keys={"schema","approvedSha","expectedCurrentSha","expectedProductionRelease","runnerSha256","unitSha256","backupVerified","rollbackVerified","storageVerified","zeroAdditionalCostVerified"}
