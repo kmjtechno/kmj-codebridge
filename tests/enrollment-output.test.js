@@ -83,3 +83,17 @@ test("detects replacement before writing a redeemed token", () => {
     assert.equal(fs.readFileSync(output, "utf8"), "other-writer-data");
   });
 });
+
+test("rejects same-sized replacement even before a token is written", () => {
+  withPrivateTemp((root, output) => {
+    const reservation = reserveEnrollmentOutput(output);
+    fs.renameSync(output, path.join(root, "moved-reservation-empty"));
+    // Size/content equality is not proof of ownership: the path is a new file.
+    fs.writeFileSync(output, "");
+    assert.throws(
+      () => reservation.commit({ agent: { token: "never-written" } }),
+      { code: "ENROLLMENT_OUTPUT_WRITE_FAILED" },
+    );
+    assert.equal(fs.readFileSync(output, "utf8"), "");
+  });
+});

@@ -11,7 +11,7 @@ import { tryFileSymlink } from "./windows-symlink-capability.js";
 const REV = "a".repeat(40);
 const NAME = "kmj-codebridge-0.3.2-" + REV.slice(0, 12) + ".tar.gz";
 
-function fixture(t) {
+function fixture(t, channel = "beta") {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-signed-bundle-"));
   t.after(() => fs.rmSync(dir, { force: true, recursive: true }));
   const { publicKey, privateKey } = generateKeyPairSync("ed25519");
@@ -33,11 +33,16 @@ function fixture(t) {
   const signed = buildSignedReleaseManifest({
     runtimeManifest: runtime,
     archiveUrl:
-      "https://kmjtechno.com/codebridge/releases/beta/" + REV + "/" + NAME,
+      "https://kmjtechno.com/codebridge/releases/" +
+      channel +
+      "/" +
+      REV +
+      "/" +
+      NAME,
     sequence: 12,
     keyId: "owner-2026",
     privateKeyPem: ownerKey,
-    channel: "beta",
+    channel,
     publishedAt: "2026-10-17T00:00:00Z",
   });
   const write = (name, bytes) => {
@@ -188,4 +193,41 @@ test("invalid manifest JSON and missing files fail closed", async (t) => {
     }),
     /BUNDLE_FILE_UNAVAILABLE/,
   );
+});
+
+test("stable promotion requires explicitly signed stable channel, not trusted beta", async (t) => {
+  const { options } = fixture(t);
+  await assert.rejects(
+    verifySignedReleaseBundle({ ...options, expectedChannel: "stable" }),
+    /BUNDLE_CHANNEL_MISMATCH/,
+  );
+  const beta = await verifySignedReleaseBundle({
+    ...options,
+    expectedChannel: "beta",
+  });
+  assert.equal(beta.channel, "beta");
+});
+
+test("stable candidate can pass explicit stable-channel gate with valid signature", async (t) => {
+  const { options } = fixture(t, "stable");
+  const result = await verifySignedReleaseBundle({
+    ...options,
+    expectedChannel: "stable",
+  });
+  assert.equal(result.verdict, "CRYPTOGRAPHICALLY_VERIFIED");
+  assert.equal(result.channel, "stable");
+  await assert.rejects(
+    verifySignedReleaseBundle({ ...options, expectedChannel: "beta" }),
+    /BUNDLE_CHANNEL_MISMATCH/,
+  );
+});
+
+test("invalid explicit channel fails closed", async (t) => {
+  const { options } = fixture(t);
+  for (const channel of ["gamma", ""]) {
+    await assert.rejects(
+      verifySignedReleaseBundle({ ...options, expectedChannel: channel }),
+      /BUNDLE_EXPECTED_CHANNEL_INVALID/,
+    );
+  }
 });

@@ -6,7 +6,8 @@ with the existing offline Ed25519 release key. The generic
 this verifier **checks the actual owner signature and archive bytes**.
 
 The zero-cost, offline, read-only verifier requires five **existing regular
-files** plus the last accepted release sequence:
+files** plus the last accepted release sequence. **Stable-channel** acceptance
+must also supply the explicit expected channel (seventh argument):
 
 ```bash
 node scripts/verify-signed-bundle.mjs \
@@ -15,12 +16,18 @@ node scripts/verify-signed-bundle.mjs \
   /private/trusted-public-keys.json \
   /private/runtime/manifest.json \
   /private/runtime/kmj-codebridge-0.3.2-<sha12>.tar.gz \
-  11
+  11 \
+  stable
 ```
 
 Here `11` means the device already accepted sequence 11; a candidate at
 sequence 11 or earlier is rejected. Never guess or silently reduce the
-device's actual accepted sequence.
+device's actual accepted sequence. `stable` rejects a correctly signed `beta`
+manifest even when the key is trusted. Use `beta` only for a deliberately
+approved Beta-channel audit; do not relabel Beta as Stable. The historical
+six-argument command is still available for generic read-only integrity checks,
+but it does **not** enforce the release channel and must never be the sole
+proof of Stable-channel acceptance.
 
 ## Verification performed
 

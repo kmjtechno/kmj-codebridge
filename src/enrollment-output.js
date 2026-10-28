@@ -21,7 +21,9 @@ export function reserveEnrollmentOutput(output) {
     const parent = fs.realpathSync(path.dirname(absolute));
     target = path.join(parent, path.basename(absolute));
     fd = fs.openSync(target, "wx", 0o600);
-    identity = fs.fstatSync(fd);
+    // Filesystem IDs can exceed Number.MAX_SAFE_INTEGER on Windows.
+    // BigInt keeps inode comparisons exact across rename/replacement races.
+    identity = fs.fstatSync(fd, { bigint: true });
     if (process.platform !== "win32") fs.fchmodSync(fd, 0o600);
   } catch (error) {
     if (fd !== undefined) {
@@ -32,9 +34,10 @@ export function reserveEnrollmentOutput(output) {
       }
       if (target && identity) {
         try {
-          const current = fs.lstatSync(target);
+          const current = fs.lstatSync(target, { bigint: true });
           if (
             !current.isSymbolicLink() &&
+            identity.ino !== 0n &&
             current.dev === identity.dev &&
             current.ino === identity.ino
           )
@@ -54,9 +57,10 @@ export function reserveEnrollmentOutput(output) {
   let finished = false;
   function stillOwned() {
     try {
-      const current = fs.lstatSync(target);
+      const current = fs.lstatSync(target, { bigint: true });
       return (
         !current.isSymbolicLink() &&
+        identity.ino !== 0n &&
         current.dev === identity.dev &&
         current.ino === identity.ino
       );

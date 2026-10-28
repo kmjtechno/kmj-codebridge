@@ -119,9 +119,13 @@ export async function verifySignedReleaseBundle({
   runtimeManifestPath,
   archivePath,
   minimumSequence = -1,
+  expectedChannel = null,
 }) {
   if (!Number.isSafeInteger(minimumSequence) || minimumSequence < -1)
     throw Error("BUNDLE_MINIMUM_SEQUENCE_INVALID");
+
+  if (expectedChannel !== null && !["stable", "beta"].includes(expectedChannel))
+    throw Error("BUNDLE_EXPECTED_CHANNEL_INVALID");
 
   const keys = parseBoundedJson(trustedKeysPath, KEYS_LIMIT);
   if (!keys || typeof keys !== "object" || Array.isArray(keys))
@@ -140,6 +144,8 @@ export async function verifySignedReleaseBundle({
   const signed = verifyReleaseManifest(manifestBytes, signature, keys, {
     minimumSequence,
   });
+  if (expectedChannel !== null && signed.channel !== expectedChannel)
+    throw Error("BUNDLE_CHANNEL_MISMATCH");
   const runtime = parseBoundedJson(runtimeManifestPath, MANIFEST_LIMIT);
   if (
     runtime?.product !== "KMJ CodeBridge" ||
@@ -181,7 +187,7 @@ if (
   (async () => {
     try {
       const args = process.argv.slice(2);
-      if (args.length !== 6) throw Error("USAGE");
+      if (args.length !== 6 && args.length !== 7) throw Error("USAGE");
       const minimumSequence = Number(args[5]);
       const result = await verifySignedReleaseBundle({
         signedManifestPath: args[0],
@@ -190,6 +196,7 @@ if (
         runtimeManifestPath: args[3],
         archivePath: args[4],
         minimumSequence,
+        expectedChannel: args[6] ?? null,
       });
       console.log(JSON.stringify(result, null, 2));
     } catch {
