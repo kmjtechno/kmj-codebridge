@@ -8,26 +8,45 @@ const scoped = (data, scope) =>
   data.project === scope.project &&
   data.lane === scope.lane;
 
+const boundedText = (value, limit) =>
+  typeof value === "string" && value.length <= limit;
+const boundedList = (value, count, length) =>
+  Array.isArray(value) &&
+  value.length <= count &&
+  value.every((item) => boundedText(item, length));
+
 function currentCompact(result, scope) {
   const value = result?.ok ? result.value : null;
   if (!scoped(value, scope)) return null;
-  if (value.exists === false) return value;
-  if (value.exists !== true || !REVISION.test(value.revision ?? ""))
-    return null;
+  // Never propagate arbitrary fields from an empty, untrusted record.
+  if (value.exists === false) return { exists: false, revision: null };
   if (
-    typeof value.summary !== "string" ||
-    !Array.isArray(value.blockers) ||
-    !Array.isArray(value.nextSteps)
+    value.exists !== true ||
+    typeof value.revision !== "string" ||
+    !REVISION.test(value.revision) ||
+    !boundedText(value.summary, 1800) ||
+    !(value.objective == null || boundedText(value.objective, 240)) ||
+    !boundedList(value.blockers, 8, 240) ||
+    !boundedList(value.nextSteps, 6, 420)
   )
     return null;
-  return value;
+  // Return only bounded, validated display fields, never caller-supplied grants.
+  return {
+    exists: true,
+    revision: value.revision,
+    objective: value.objective ?? null,
+    summary: value.summary,
+    blockers: [...value.blockers],
+    nextSteps: [...value.nextSteps],
+  };
 }
 
 function currentLegacy(result, scope) {
   const value = result?.ok ? result.value : null;
   if (!scoped(value, scope) || value.version !== 1) return null;
   if (!Number.isSafeInteger(value.sequence) || value.sequence < 1) return null;
-  if (!REVISION.test(value.revision ?? "")) return null;
+  if (typeof value.revision !== "string" || !REVISION.test(value.revision))
+    return null;
   if (typeof value.summary !== "string" || value.summary.length > 1800)
     return null;
   if (!Array.isArray(value.blockers) || value.blockers.length > 8) return null;

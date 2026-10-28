@@ -134,3 +134,116 @@ test("unavailable records do not manufacture memory, permissions, or auto-wake",
   assert.equal(payload.hostLimitations.automaticUserApproval, false);
   assert.equal(payload.hostLimitations.chatTranscriptCaptured, false);
 });
+
+test("malformed saved compact records fail closed without crashing the workspace", () => {
+  const saved = {
+    project: scope.project,
+    lane: scope.lane,
+    exists: true,
+    revision,
+    objective: "Continue reviewed deployment",
+    summary: "Untrusted saved handoff",
+    blockers: ["Owner gate required"],
+    nextSteps: ["Review exact SHA"],
+  };
+  const invalid = [
+    { blockers: [42] },
+    { blockers: ["x".repeat(241)] },
+    { blockers: Array(9).fill("ok") },
+    { nextSteps: [{}] },
+    { nextSteps: ["x".repeat(421)] },
+    { nextSteps: Array(7).fill("ok") },
+    { summary: 42 },
+    { summary: "x".repeat(1801) },
+    { objective: 42 },
+    { objective: "x".repeat(241) },
+    {
+      revision: {
+        toString: () => {
+          throw new Error("coercion");
+        },
+      },
+    },
+    { project: "other-project" },
+    { lane: "other-lane" },
+  ];
+  for (const mutation of invalid) {
+    const compact = { ok: true, value: { ...saved, ...mutation } };
+    assert.equal(needsLegacyContinuity(compact, scope), true);
+    const { checkpoint } = resolveChatWorkspaceCheckpoint({
+      compact,
+      legacy: { ok: false },
+      scope,
+    });
+    assert.equal(checkpoint, null);
+    const snapshot = buildChatWorkspaceOpen({
+      ...scope,
+      checkpoint,
+      checkpointSaveTool: null,
+    });
+    assert.equal(snapshot.checkpoint.status, "UNAVAILABLE");
+    assert.deepEqual(snapshot.checkpoint.blockers, []);
+    assert.deepEqual(snapshot.checkpoint.nextSteps, []);
+    assert.equal(snapshot.hostLimitations.automaticUserApproval, false);
+  }
+});
+
+test("invalid compact content falls back only to valid same-scope legacy hints", () => {
+  const malformed = {
+    ok: true,
+    value: {
+      project: scope.project,
+      lane: scope.lane,
+      exists: true,
+      revision,
+      summary: "unsafe compact",
+      blockers: [42],
+      nextSteps: [{}],
+    },
+  };
+  const result = resolveChatWorkspaceCheckpoint({
+    compact: malformed,
+    legacy,
+    scope,
+  });
+  assert.equal(result.checkpoint.summary, legacy.value.summary);
+  const snapshot = buildChatWorkspaceOpen({
+    ...scope,
+    checkpoint: result.checkpoint,
+    checkpointSaveTool: result.checkpointSaveTool,
+  });
+  assert.equal(snapshot.checkpoint.status, "SAVED");
+  assert.equal(snapshot.checkpoint.summary, legacy.value.summary);
+  const rejected = resolveChatWorkspaceCheckpoint({
+    compact: malformed,
+    legacy: { ok: true, value: { ...legacy.value, lane: "other-lane" } },
+    scope,
+  });
+  assert.equal(rejected.checkpoint, null);
+});
+
+test("valid compact checkpoints contain only bounded display fields", () => {
+  const compact = {
+    ok: true,
+    value: {
+      project: scope.project,
+      lane: scope.lane,
+      exists: true,
+      revision,
+      summary: "safe",
+      objective: null,
+      blockers: ["ok"],
+      nextSteps: ["review"],
+      signedGrant: "must-not-be-propagated",
+    },
+  };
+  const result = resolveChatWorkspaceCheckpoint({ compact, legacy, scope });
+  assert.equal(result.checkpoint.exists, true);
+  assert.equal(Object.hasOwn(result.checkpoint, "signedGrant"), false);
+  assert.equal(needsLegacyContinuity(compact, scope), false);
+  assert.equal(
+    buildChatWorkspaceOpen({ ...scope, checkpoint: result.checkpoint })
+      .checkpoint.status,
+    "SAVED",
+  );
+});
