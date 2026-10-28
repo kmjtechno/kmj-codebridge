@@ -80,17 +80,13 @@ export function diagnoseNonrootGit({
   }
   for (const [name, args] of CHECKS) {
     try {
-      const output = execute(
-        GIT,
-        ["-C", REPOSITORY, ...args],
-        {
-          env: { ...ENV },
-          encoding: "utf8",
-          timeout: 5000,
-          maxBuffer: 4096,
-          stdio: ["ignore", "pipe", "pipe"],
-        },
-      );
+      const output = execute(GIT, ["-C", REPOSITORY, ...args], {
+        env: { ...ENV },
+        encoding: "utf8",
+        timeout: 5000,
+        maxBuffer: 4096,
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       const value = String(output).trim();
       const valid =
         name === "headObject"
