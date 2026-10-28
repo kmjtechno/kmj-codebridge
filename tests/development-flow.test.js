@@ -3,7 +3,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { buildDevelopmentFlow } from "../src/development-flow.js";
 
-const scope = { device: "device1", project: "project1", lane: "codebridge-24x7" };
+const scope = {
+  device: "device1",
+  project: "project1",
+  lane: "codebridge-24x7",
+};
 const checkpoint = {
   exists: true,
   revision: "a".repeat(64),
@@ -92,7 +96,10 @@ test("gateway one-call and ordinary workspace both expose same guarded flow", ()
   assert.doesNotMatch(
     source.slice(
       source.indexOf("  async function getMultiChatSync("),
-      source.indexOf("  const fastReadTools =", source.indexOf("  async function getMultiChatSync(")),
+      source.indexOf(
+        "  const fastReadTools =",
+        source.indexOf("  async function getMultiChatSync("),
+      ),
     ),
     /run_quality_gate|write_file|spawn\(/,
   );
