@@ -271,6 +271,43 @@ test("coding worker applies a local patch only in a fresh exact-SHA lane and pau
   assert.equal(f.starts.length, 1);
 });
 
+test("same-sized context replacement between lstat and open is never sent to the local model", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  const originalOpen = fs.openSync;
+  let swapped = false;
+  fs.openSync = (file, flags, ...rest) => {
+    if (
+      !swapped &&
+      typeof file === "string" &&
+      file.endsWith(path.join("src", "app.js")) &&
+      !file.startsWith(f.root + path.sep)
+    ) {
+      swapped = true;
+      fs.renameSync(file, file + ".original");
+      fs.writeFileSync(file, "export const value = 9;\\n".replace("\\\\n", "\\n"));
+    }
+    return originalOpen(file, flags, ...rest);
+  };
+  try {
+    await f.worker.tick();
+  } finally {
+    fs.openSync = originalOpen;
+  }
+  assert.equal(swapped, true);
+  assert.equal(f.generated(), 0);
+  assert.equal(f.starts.length, 0);
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "LOCAL_CODING_CONTEXT_REJECTED_REVIEW_REQUIRED",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    "export const value = 1;\\n".replace("\\\\n", "\\n"),
+  );
+});
+
 test("stale exact SHA is rejected before local model generation", async (t) => {
   const f = fixture(t);
   const task = f.enqueue("auto-code:feature:" + "b".repeat(40));
