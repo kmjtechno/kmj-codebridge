@@ -33,7 +33,12 @@ function fixture(t, channel = "beta") {
   const signed = buildSignedReleaseManifest({
     runtimeManifest: runtime,
     archiveUrl:
-      "https://kmjtechno.com/codebridge/releases/" + channel + "/" + REV + "/" + NAME,
+      "https://kmjtechno.com/codebridge/releases/" +
+      channel +
+      "/" +
+      REV +
+      "/" +
+      NAME,
     sequence: 12,
     keyId: "owner-2026",
     privateKeyPem: ownerKey,
@@ -190,20 +195,25 @@ test("invalid manifest JSON and missing files fail closed", async (t) => {
   );
 });
 
-
 test("stable promotion requires explicitly signed stable channel, not trusted beta", async (t) => {
   const { options } = fixture(t);
   await assert.rejects(
     verifySignedReleaseBundle({ ...options, expectedChannel: "stable" }),
     /BUNDLE_CHANNEL_MISMATCH/,
   );
-  const beta = await verifySignedReleaseBundle({ ...options, expectedChannel: "beta" });
+  const beta = await verifySignedReleaseBundle({
+    ...options,
+    expectedChannel: "beta",
+  });
   assert.equal(beta.channel, "beta");
 });
 
 test("stable candidate can pass explicit stable-channel gate with valid signature", async (t) => {
   const { options } = fixture(t, "stable");
-  const result = await verifySignedReleaseBundle({ ...options, expectedChannel: "stable" });
+  const result = await verifySignedReleaseBundle({
+    ...options,
+    expectedChannel: "stable",
+  });
   assert.equal(result.verdict, "CRYPTOGRAPHICALLY_VERIFIED");
   assert.equal(result.channel, "stable");
   await assert.rejects(
