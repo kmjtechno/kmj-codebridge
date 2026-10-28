@@ -13,6 +13,42 @@ const SHA = /^[a-f0-9]{40}$/;
 const HASH = /^[a-f0-9]{64}$/;
 const ARCHIVE_NAME = /^[A-Za-z0-9._-]+\.tar\.gz$/;
 
+// A checked pathname must still designate the same file after it is opened.
+// Compare the opened inode with the pathname both before and after the read;
+// O_NOFOLLOW alone does not prevent a regular-file rename/swap race.
+function sameFileIdentity(a, b) {
+  return (
+    a.dev === b.dev &&
+    a.ino === b.ino &&
+    a.nlink === b.nlink &&
+    a.size === b.size &&
+    a.mtimeMs === b.mtimeMs &&
+    a.ctimeMs === b.ctimeMs
+  );
+}
+
+function assertUnchangedFile(file, initial, opened, limit, errorCode) {
+  let byPath;
+  try {
+    byPath = fs.lstatSync(file);
+  } catch {
+    throw Error(errorCode);
+  }
+  if (
+    !opened.isFile() ||
+    !byPath.isFile() ||
+    opened.isSymbolicLink() ||
+    byPath.isSymbolicLink() ||
+    opened.nlink !== 1 ||
+    byPath.nlink !== 1 ||
+    opened.size < 1 ||
+    opened.size > limit ||
+    !sameFileIdentity(initial, opened) ||
+    !sameFileIdentity(initial, byPath)
+  )
+    throw Error(errorCode);
+}
+
 function boundedRegularFile(file, limit) {
   if (typeof file !== "string" || !path.isAbsolute(file))
     throw Error("BUNDLE_PATH_INVALID");
@@ -30,11 +66,11 @@ function boundedRegularFile(file, limit) {
     stat.size > limit
   )
     throw Error("BUNDLE_FILE_UNSAFE");
-  return stat.size;
+  return stat;
 }
 
 function readBounded(file, limit) {
-  boundedRegularFile(file, limit);
+  const initial = boundedRegularFile(file, limit);
   let fd;
   try {
     fd = fs.openSync(
@@ -42,13 +78,7 @@ function readBounded(file, limit) {
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
     const stat = fs.fstatSync(fd);
-    if (
-      !stat.isFile() ||
-      stat.nlink !== 1 ||
-      stat.size < 1 ||
-      stat.size > limit
-    )
-      throw Error("BUNDLE_FILE_UNSAFE");
+    assertUnchangedFile(file, initial, stat, limit, "BUNDLE_FILE_CHANGED");
     const bytes = Buffer.alloc(stat.size);
     let cursor = 0;
     while (cursor < bytes.length) {
@@ -62,7 +92,13 @@ function readBounded(file, limit) {
       if (amount === 0) throw Error("BUNDLE_FILE_CHANGED");
       cursor += amount;
     }
-    if (fs.fstatSync(fd).size !== stat.size) throw Error("BUNDLE_FILE_CHANGED");
+    assertUnchangedFile(
+      file,
+      initial,
+      fs.fstatSync(fd),
+      limit,
+      "BUNDLE_FILE_CHANGED",
+    );
     return bytes;
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
@@ -85,7 +121,8 @@ async function hashArchive(file, expectedSize) {
     expectedSize > ARCHIVE_LIMIT
   )
     throw Error("BUNDLE_ARCHIVE_SIZE_INVALID");
-  if (boundedRegularFile(file, ARCHIVE_LIMIT) !== expectedSize)
+  const initial = boundedRegularFile(file, ARCHIVE_LIMIT);
+  if (initial.size !== expectedSize)
     throw Error("BUNDLE_ARCHIVE_SIZE_MISMATCH");
   let handle;
   try {
@@ -94,8 +131,14 @@ async function hashArchive(file, expectedSize) {
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
     const before = await handle.stat();
-    if (!before.isFile() || before.nlink !== 1 || before.size !== expectedSize)
-      throw Error("BUNDLE_ARCHIVE_CHANGED");
+    assertUnchangedFile(
+      file,
+      initial,
+      before,
+      ARCHIVE_LIMIT,
+      "BUNDLE_ARCHIVE_CHANGED",
+    );
+    if (before.size !== expectedSize) throw Error("BUNDLE_ARCHIVE_CHANGED");
     const hash = createHash("sha256");
     let bytes = 0;
     for await (const chunk of handle.createReadStream({ autoClose: false })) {
@@ -104,8 +147,14 @@ async function hashArchive(file, expectedSize) {
       hash.update(chunk);
     }
     const after = await handle.stat();
-    if (bytes !== expectedSize || after.size !== before.size)
-      throw Error("BUNDLE_ARCHIVE_CHANGED");
+    assertUnchangedFile(
+      file,
+      initial,
+      after,
+      ARCHIVE_LIMIT,
+      "BUNDLE_ARCHIVE_CHANGED",
+    );
+    if (bytes !== expectedSize) throw Error("BUNDLE_ARCHIVE_CHANGED");
     return { bytes, sha256: hash.digest("hex") };
   } finally {
     if (handle) await handle.close();
