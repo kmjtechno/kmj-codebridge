@@ -70,7 +70,8 @@ print('STAGING_DEPENDENCY_METADATA=PASS')
 PY
 cp -a "$oldapp/vendor" "$app/vendor"
 cp -a "$oldapp/node_modules" "$app/node_modules"
-install -m 0600 "$oldapp/.env" "$app/.env"
+cp -a -- "$oldapp/.env" "$app/.env"
+runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ
 chown -R kmjstage:www-data "$release"
 chmod 0750 "$release"
 shared=/home/kmjstage/shared/product-artwork
