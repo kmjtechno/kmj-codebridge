@@ -186,7 +186,47 @@ function readContext(root, recipe) {
       stat.size > MAX_CONTEXT_FILE_BYTES
     )
       throw new Error("CODING_CONTEXT_FILE_UNSAFE");
-    const bytes = fs.readFileSync(location);
+    // A path can be swapped after lstat (including to a symlink or another
+    // same-sized file). Bind the read to the original regular-file identity.
+    // O_NOFOLLOW is enforced where supported; fstat also fences platforms
+    // without that flag. Never read a replacement's bytes into an AI prompt.
+    const descriptor = fs.openSync(
+      location,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+    let bytes;
+    try {
+      const opened = fs.fstatSync(descriptor);
+      if (
+        !opened.isFile() ||
+        opened.nlink !== 1 ||
+        opened.dev !== stat.dev ||
+        opened.ino !== stat.ino ||
+        opened.size !== stat.size ||
+        opened.size > MAX_CONTEXT_FILE_BYTES
+      )
+        throw new Error("CODING_CONTEXT_FILE_CHANGED");
+      bytes = Buffer.alloc(opened.size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const count = fs.readSync(
+          descriptor,
+          bytes,
+          offset,
+          bytes.length - offset,
+          offset,
+        );
+        if (count < 1) throw new Error("CODING_CONTEXT_FILE_CHANGED");
+        offset += count;
+      }
+      if (
+        fs.readSync(descriptor, Buffer.alloc(1), 0, 1, bytes.length) !== 0 ||
+        fs.fstatSync(descriptor).size !== opened.size
+      )
+        throw new Error("CODING_CONTEXT_FILE_CHANGED");
+    } finally {
+      fs.closeSync(descriptor);
+    }
     if (bytes.includes(0)) throw new Error("CODING_CONTEXT_BINARY");
     totalBytes += bytes.length;
     if (totalBytes > MAX_CONTEXT_BYTES)
