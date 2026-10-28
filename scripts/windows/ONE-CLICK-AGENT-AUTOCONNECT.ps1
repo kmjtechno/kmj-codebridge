@@ -245,6 +245,25 @@ try {
         }
         Write-Output 'KMJ_AUTOCONNECT=ENABLED_AT_CURRENT_USER_LOGON'
     }
+    # HomeOffice current-user crash recovery is opt-in through this existing
+    # deliberate one-click action. Never runs during automatic -AtLogon.
+    # Older pinned runtimes without this file keep their original behaviour.
+    if ($Device -eq 'HomeOffice' -and !$AtLogon) {
+        $watchdog = Join-Path $PSScriptRoot 'HOMEOFFICE-RECONNECT-WATCHDOG.ps1'
+        if (Test-Path -LiteralPath $watchdog -PathType Leaf) {
+            RequireOrdinary $watchdog $false
+            $null = & $git -C $repo ls-files --error-unmatch -- 'scripts/windows/HOMEOFFICE-RECONNECT-WATCHDOG.ps1' 2>$null
+            if ($LASTEXITCODE -ne 0) { throw 'AUTOCONNECT_UNTRACKED_WATCHDOG' }
+            & $ps -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File $watchdog -Install
+            if ($LASTEXITCODE -ne 0) {
+                Write-Output 'KMJ_AUTOCONNECT_CRASH_RECOVERY=NOT_INSTALLED_REVIEW_REQUIRED'
+            } else {
+                Write-Output 'KMJ_AUTOCONNECT_CRASH_RECOVERY=OWNER_SESSION_INSTALLED'
+            }
+        } else {
+            Write-Output 'KMJ_AUTOCONNECT_CRASH_RECOVERY=NOT_INCLUDED_IN_PINNED_RUNTIME'
+        }
+    }
     Write-Output 'STARTS_BEFORE_WINDOWS_SIGN_IN=NO'
     Write-Output 'EXISTING_PRIVATE_ENROLLMENT=UNCHANGED'
     Write-Output 'OTHER_WINDOWS_AGENTS=UNTOUCHED'
