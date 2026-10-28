@@ -22,8 +22,8 @@ const original = Object.fromEntries(
   ]),
 );
 const expected = {
-  stage: "5e119d7512a3ca6e33b13bef9ad20d8d43445ed71c2d300f30cb15bb52c07f9b",
-  runner: "8269360898a9c7c70128406f80ba6a4de2a658068bca6e0a30803734e288d5fa",
+  stage: "c95c8e9a8b11e6278b08f252969a0b52624df709d09adb1a0ac5b24ca977b887",
+  runner: "d12f8de85a2fc53b27399f1769cc2d972f31dc08185264f73e261cff6f9be543",
   unit: "9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a",
 };
 const approved = "d32df111e3a8dae75c8d3321a80f07424c23fe77";
@@ -44,6 +44,7 @@ function contract({ stage, runner, unit }) {
       'runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ',
     ) &&
     !stage.includes('install -m 0600 "$oldapp/.env" "$app/.env"') &&
+    stage.includes("[[ \"$upload_store\" == /home/kmjstage/shared/* && -d \"$upload_store\" && ! -L \"$upload_store\" ]] || block UPLOAD_STORAGE_NOT_SHARED") &&
     runner.includes("approved=" + approved) &&
     runner.includes("prior=" + previous) &&
     runner.includes("source_sha=" + expected.stage) &&
@@ -82,6 +83,7 @@ test("candidate static trust contract rejects stale and weakened variants", () =
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
+    ["stage", "[[ \"$upload_store\" == /home/kmjstage/shared/* && -d \"$upload_store\" && ! -L \"$upload_store\" ]] || block UPLOAD_STORAGE_NOT_SHARED", "[[ -d \"$upload_store\" ]] || block UPLOAD_STORAGE_NOT_SHARED"],
     [
       "stage",
       'cp -a -- "$oldapp/.env" "$app/.env"',
