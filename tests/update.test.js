@@ -144,12 +144,38 @@ test("archive layout rejects absolute and traversal entries", () => {
     ["/etc/passwd"],
     ["../outside"],
     ["release/../../outside"],
+    ["release/../outside"],
+    ["release/src/../package.json"],
+    ["release/./src/cli.js"],
+    ["release//src/cli.js"],
+    ["./release/package.json"],
+    ["release/.."],
     ["release\\windows-path"],
   ])
     assert.throws(
       () => validateArchiveEntries(entries),
       /UPDATE_ARCHIVE_LAYOUT_INVALID/,
     );
+});
+
+test("release-root traversal is rejected even with otherwise valid required members", () => {
+  const f = fixture();
+  const root = `kmj-codebridge-${releaseDirectoryName(f.manifest)}`;
+  const valid = [`${root}/`, `${root}/package.json`, `${root}/src/cli.js`];
+  for (const member of [
+    `${root}/../outside`,
+    `${root}/../${root}/package.json`,
+    `${root}/src/../package.json`,
+    `${root}/./src/cli.js`,
+    `${root}//src/cli.js`,
+    `${root}/..`,
+  ]) {
+    assert.throws(
+      () => validateRuntimeArchiveEntries([...valid, member], f.manifest),
+      /UPDATE_ARCHIVE_LAYOUT_INVALID/,
+      member,
+    );
+  }
 });
 
 test("manifest rejects unsafe archive URLs and unexpected fields", () => {
