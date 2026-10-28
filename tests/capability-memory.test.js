@@ -32,13 +32,24 @@ test("saved feature knowledge is built from live scoped policy, not stale guesse
       runtimeRevision: { commit: "a".repeat(40) },
     },
     model: { readyForOnDemandUse: false },
-    worker: { workers: { gate: { loopStarted: true }, localDraft: { loopStarted: false } } },
+    worker: {
+      workers: {
+        gate: { loopStarted: true },
+        localDraft: { loopStarted: false },
+      },
+    },
     updater: { service: { installed: false } },
   });
   assert.equal(result.status, "CATALOG_REPORTED");
   assert.equal(result.advertisedToolCount, catalog.tools.length);
-  assert.ok(result.advertisedToolsByCategory.continuity.includes("chat_continuity_read"));
-  assert.ok(result.advertisedToolsByCategory.github.includes("github_pull_request_ci"));
+  assert.ok(
+    result.advertisedToolsByCategory.continuity.includes(
+      "chat_continuity_read",
+    ),
+  );
+  assert.ok(
+    result.advertisedToolsByCategory.github.includes("github_pull_request_ci"),
+  );
   assert.ok(result.approvalRequiredRisks.includes("DEPLOY"));
   assert.equal(result.runtime.localDraftLoopStarted, false);
   assert.equal(result.runtime.localModelReady, false);
@@ -59,7 +70,12 @@ test("missing, malformed and untrusted catalog never manufacture enabled capabil
         item("supervisor_restart", "PRIVILEGED", true),
         item("../../etc/shadow"),
         item("cat_new", "UNKNOWN", false),
-        { tool: "github_pr_create", risk: "EDIT", access: "read", approvalRequired: "false" },
+        {
+          tool: "github_pr_create",
+          risk: "EDIT",
+          access: "read",
+          approvalRequired: "false",
+        },
       ],
     },
     inspected: {
