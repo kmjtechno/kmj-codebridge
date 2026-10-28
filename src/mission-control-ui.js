@@ -261,6 +261,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
  }
  var aiMessagePending=false;
+ var refreshPending=false;
  var queuePending=false;
  var queueSerial=0;
  document.getElementById("askHostAi").addEventListener("click",function(){
@@ -282,6 +283,20 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        "Continue authorized KMJ CodeBridge project "+project+" on "+device+
        ". Check real status and available tools before acting. Task: "+instruction+
        ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."}
+   }},"*");
+ });
+ document.getElementById("refreshProgress").addEventListener("click",function(){
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||refreshPending){text("progressRefreshNotice","Host unavailable or refresh pending.");return;}
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)){
+     text("progressRefreshNotice","No authorized device/project snapshot.");return;
+   }
+   refreshPending=true;
+   text("progressRefreshNotice","Checking fresh server-authorized progress...");
+   window.parent.postMessage({jsonrpc:"2.0",id:4,method:"tools/call",params:{
+     name:"render_codebridge_status",
+     arguments:{device:device,project:project,includeWorkspace:false}
    }},"*");
  });
  document.getElementById("queueDevTask").addEventListener("click",function(){
@@ -405,6 +420,16 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
          jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
        },"*");
      }
+     return;
+   }
+   if(message.id===4&&refreshPending){
+     refreshPending=false;
+     var scope=message.result&&message.result.structuredContent;
+     if(!message.error&&scope&&latest&&scope.product==="KMJ CodeBridge"&&
+        scope.device===latest.device&&scope.project===latest.project){
+       render(scope);
+       text("progressRefreshNotice","New authenticated snapshot received; not a continuous stream.");
+     }else text("progressRefreshNotice","Fresh progress unavailable or host denied the request.");
      return;
    }
    if(message.id===3&&queuePending){
