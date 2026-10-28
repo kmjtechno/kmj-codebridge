@@ -50,12 +50,14 @@ test("fixed read-only Git commands prove HEAD ref, object and commit", () => {
   assert.equal(calls.length, 3);
   for (const call of calls) {
     assert.equal(call.file, "/usr/bin/git");
-    assert.deepEqual(call.args.slice(0, 4), [
-      "-c",
-      "safe.directory=/srv/kmj-codebridge-projects/kmj-main-platform",
+    assert.deepEqual(call.args.slice(0, 2), [
       "-C",
       "/srv/kmj-codebridge-projects/kmj-main-platform",
     ]);
+    assert.equal(
+      call.args.some((arg) => arg.startsWith("safe.directory")),
+      false,
+    );
     assert.equal(call.options.timeout, 5000);
     assert.equal(call.options.maxBuffer, 4096);
     assert.equal(call.options.env.GIT_NO_LAZY_FETCH, "1");
@@ -64,13 +66,44 @@ test("fixed read-only Git commands prove HEAD ref, object and commit", () => {
     assert.equal(call.options.stdio[0], "ignore");
   }
   assert.deepEqual(
-    calls.map((call) => call.args.slice(4)),
+    calls.map((call) => call.args.slice(2)),
     [
       ["rev-parse", "--verify", "HEAD"],
       ["cat-file", "-t", "HEAD"],
       ["rev-parse", "--verify", "HEAD^{commit}"],
     ],
   );
+});
+
+test("dubious ownership fails closed without a safe.directory override", () => {
+  const calls = [];
+  const result = diagnoseNonrootGit({
+    identity: worker,
+    execute: (_file, args) => {
+      calls.push(args);
+      const error = new Error("Git refused the untrusted checkout");
+      error.stderr = "fatal: detected dubious ownership in repository";
+      throw error;
+    },
+  });
+  assert.equal(calls.length, 3);
+  assert.deepEqual(result.checks, {
+    headRef: "UNSAFE_OWNERSHIP",
+    headObject: "UNSAFE_OWNERSHIP",
+    headCommit: "UNSAFE_OWNERSHIP",
+  });
+  assert.equal(result.gitChecksPassed, false);
+  assert.equal(diagnosticExitCode(result), 3);
+  for (const args of calls) {
+    assert.deepEqual(args.slice(0, 2), [
+      "-C",
+      "/srv/kmj-codebridge-projects/kmj-main-platform",
+    ]);
+    assert.equal(
+      args.some((arg) => arg.startsWith("safe.directory")),
+      false,
+    );
+  }
 });
 
 test("Git object failure is not misreported as a successful HEAD", () => {

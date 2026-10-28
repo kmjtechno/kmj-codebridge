@@ -8,6 +8,7 @@ This optional diagnostic supports [issue #652](https://github.com/kmjtechno/kmj-
 
 - Runs only as the dedicated `kmjdevci` account, never as root; no caller arguments, repository, branch, shell or environment override.
 - Uses the fixed `/usr/bin/git` executable and fixed Main Platform checkout; invokes only `rev-parse --verify HEAD`, `cat-file -t HEAD` and `rev-parse --verify HEAD^{commit}`.
+- Does **not** pass `-c safe.directory=...` or otherwise whitelist checkout ownership. An ownership rejection must remain visible as the sanitized `UNSAFE_OWNERSHIP` category; no Git trust exception is silently applied. If ownership blocks Git, commit-object readability remains unproven until an independently approved, non-root source arrangement is verified.
 - Git runs with an empty inherited environment, disabled lazy fetch, disabled interactive prompts, disabled optional locks, no replacement objects, a bounded timeout and bounded output.
 - Emits only status categories, never raw stderr, object IDs, repository file contents, credentials or arbitrary paths.
 - Does not alter filesystem permissions, project files, service units, Git configuration, production or credentials.
