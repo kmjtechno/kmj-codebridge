@@ -21,6 +21,15 @@ const SAFE_PATH = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 const SENSITIVE_PATH =
   /(?:^|\/)(?:\.env(?:\.[^/]*)?|secrets?|credentials?|private|id_rsa|id_ed25519)(?:\/|$)|\.(?:pem|key|p12|pfx|age|db|sqlite|log)$/i;
 
+function hasCodingEntitlement(entitlement) {
+  return (
+    entitlement?.features?.includes("write") === true &&
+    entitlement?.features?.includes("execute") === true &&
+    Number.isSafeInteger(entitlement?.limits?.concurrent_jobs) &&
+    entitlement.limits.concurrent_jobs > 0
+  );
+}
+
 function git(
   root,
   args,
@@ -298,8 +307,7 @@ export class LocalFirstCodingWorker {
                   existing.recipe &&
                 project.gates?.[existing.recipe.verifyGate]
                   ?.autopilotCodingSafe === true &&
-                entitlement.features?.includes("write") === true &&
-                entitlement.features?.includes("execute") === true;
+                hasCodingEntitlement(entitlement);
             } catch {
               // Missing or invalid authorization fails closed.
             }
@@ -337,11 +345,7 @@ export class LocalFirstCodingWorker {
           )
             continue;
           const entitlement = this.licenseProvider();
-          if (
-            !entitlement.features.includes("write") ||
-            !entitlement.features.includes("execute")
-          )
-            continue;
+          if (!hasCodingEntitlement(entitlement)) continue;
           this.runner.maxConcurrent = entitlement.limits.concurrent_jobs;
           const capacity = this.runner.capacity(project.root);
           if (
@@ -365,6 +369,7 @@ export class LocalFirstCodingWorker {
           // may have been revoked while it was pending. Do not claim a task,
           // read source context or send a prompt after that revocation.
           let authorizedAfterStatus = false;
+          let currentConcurrentJobs = 0;
           try {
             const currentEntitlement = this.licenseProvider();
             authorizedAfterStatus =
@@ -375,12 +380,24 @@ export class LocalFirstCodingWorker {
               config.recipes === recipes &&
               config.enabled === true &&
               config.localProcessingApproved === true &&
-              currentEntitlement.features?.includes("write") === true &&
-              currentEntitlement.features?.includes("execute") === true;
+              hasCodingEntitlement(currentEntitlement);
+            if (authorizedAfterStatus)
+              currentConcurrentJobs = currentEntitlement.limits.concurrent_jobs;
           } catch {
             // Invalid or unavailable grants fail closed.
           }
           if (!authorizedAfterStatus) continue;
+          // The concurrent-job lease can shrink while model.status() awaits.
+          // Never claim work under the pre-await runner limit or stale capacity.
+          this.runner.maxConcurrent = currentConcurrentJobs;
+          const currentCapacity = this.runner.capacity(project.root);
+          if (
+            currentCapacity.blocked ||
+            currentCapacity.constrained ||
+            currentCapacity.effectiveMaxConcurrent < 1 ||
+            currentCapacity.activeJobs > 0
+          )
+            continue;
 
           const task = this.journal.claim(project.id, {
             holder: "local-first-coding-worker",
@@ -513,8 +530,7 @@ export class LocalFirstCodingWorker {
               config.recipes?.[parsed.recipe] === recipe &&
               project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
                 true &&
-              currentEntitlement.features?.includes("write") === true &&
-              currentEntitlement.features?.includes("execute") === true;
+              hasCodingEntitlement(currentEntitlement);
           } catch {
             // Invalid or unavailable authorization fails closed.
           }
