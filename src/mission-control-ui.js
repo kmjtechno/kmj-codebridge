@@ -126,6 +126,10 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <div class="node" id="node-verify"><strong>03 · Verify</strong><span id="verifyState">Requires independent gates</span></div>
   </div>
   <p class="note" id="nextAction">Use a verified CodeBridge tool to inspect the next action.</p>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button id="refreshProgress" type="button" style="padding:8px 11px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Refresh progress</button>
+    <span class="note" id="progressRefreshNotice" role="status">Status is the last authenticated snapshot, not continuous polling.</span>
+  </div>
   <div style="margin-top:18px;border:1px solid var(--edge);border-radius:12px;padding:13px;background:var(--glass)">
     <label class="sectiontitle" for="aiPrompt">Ask AI to continue this project</label>
     <textarea id="aiPrompt" maxlength="1800" style="display:block;width:100%;min-height:75px;background:var(--glass);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:9px" placeholder="Describe the task or bug to investigate"></textarea>
