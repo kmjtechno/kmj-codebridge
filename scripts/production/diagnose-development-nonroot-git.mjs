@@ -82,7 +82,7 @@ export function diagnoseNonrootGit({
     try {
       const output = execute(
         GIT,
-        ["-c", `safe.directory=${REPOSITORY}`, "-C", REPOSITORY, ...args],
+        ["-C", REPOSITORY, ...args],
         {
           env: { ...ENV },
           encoding: "utf8",
