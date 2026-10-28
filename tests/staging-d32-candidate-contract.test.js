@@ -23,7 +23,7 @@ const original = Object.fromEntries(
 );
 const expected = {
   stage: "5e119d7512a3ca6e33b13bef9ad20d8d43445ed71c2d300f30cb15bb52c07f9b",
-  runner: "0526ec022bdf63468249112a1a9cc44bb11c3d96e1f37021631ab763f09ca13c",
+  runner: "8269360898a9c7c70128406f80ba6a4de2a658068bca6e0a30803734e288d5fa",
   unit: "9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a",
 };
 const approved = "d32df111e3a8dae75c8d3321a80f07424c23fe77";
@@ -56,6 +56,9 @@ function contract({ stage, runner, unit }) {
     runner.includes("storageVerified") &&
     runner.includes("zeroAdditionalCostVerified") &&
     runner.includes("STAGING_RECEIPT_VERDICT") &&
+    runner.includes("deny SYSTEMD_EFFECTIVE_UNIT") &&
+    runner.includes("SYSTEMD_DROPINS_FORBIDDEN") &&
+    runner.includes("SYSTEMD_DAEMON_CACHE_STALE") &&
     runner.includes("OWNER_AUTHENTICATED_GENERATE_SAVE_REOPEN=NOT_VERIFIED") &&
     runner.includes("PRODUCTION_DEPLOYMENT=NOT_ATTEMPTED") &&
     unit.includes("Type=oneshot") &&
