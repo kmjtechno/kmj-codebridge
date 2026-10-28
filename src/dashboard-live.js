@@ -1,3 +1,4 @@
+import { verifiedDevelopmentProgress } from "./mission-control-progress.js";
 // Read-only, injected dashboard snapshot. The caller must supply observations
 // from a tenant-authorized agent collector; this module does not poll, infer,
 // or authenticate devices. Never display a sample fixture as production truth.
@@ -15,11 +16,14 @@ function count(value) {
 export function getLiveDashboardMetrics({
   reports = [],
   authorizedDeviceIds = null,
+  jobReceipts = [],
   now = Date.now(),
 } = {}) {
   if (
     !Array.isArray(reports) ||
     reports.length > MAX_REPORTS ||
+    !Array.isArray(jobReceipts) ||
+    jobReceipts.length > 100 ||
     !Number.isSafeInteger(now) ||
     now < 0 ||
     (authorizedDeviceIds !== null &&
@@ -108,6 +112,20 @@ export function getLiveDashboardMetrics({
       note: "Provider health and the selected model require separate verified inference evidence.",
     },
     projects: summaries.sort((a, b) => a.name.localeCompare(b.name)),
+    // True live status needs a fresh authenticated source and device grant.
+    // This is not a whole-project percentage or a background poller.
+    developmentProgress: [...fresh.values()]
+      .map((report) =>
+        verifiedDevelopmentProgress({
+          device: report.deviceId,
+          project: report.projectId,
+          agentReport: report,
+          jobReceipts,
+          now,
+        }),
+      )
+      .filter((entry) => entry.source === "FRESH_AUTHORIZED_AGENT")
+      .sort((a, b) => a.device.localeCompare(b.device)),
     partial: fresh.size === 0 || summaries.some((p) => !p.queueComplete),
     note: "Live means a recent backend-authorized agent report. Missing evidence is unknown, not healthy or offline.",
   };
