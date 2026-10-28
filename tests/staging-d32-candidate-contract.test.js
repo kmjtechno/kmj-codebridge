@@ -40,7 +40,9 @@ function contract({ stage, runner, unit }) {
     stage.includes("STAGING_PRODUCT_WRITES=NONE") &&
     stage.includes("STAGING_DATABASE_MIGRATIONS=NONE") &&
     stage.includes('cp -a -- "$oldapp/.env" "$app/.env"') &&
-    stage.includes('runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ') &&
+    stage.includes(
+      'runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ',
+    ) &&
     !stage.includes('install -m 0600 "$oldapp/.env" "$app/.env"') &&
     runner.includes("approved=" + approved) &&
     runner.includes("prior=" + previous) &&
@@ -77,8 +79,16 @@ test("candidate static trust contract rejects stale and weakened variants", () =
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
-    ["stage", 'cp -a -- "$oldapp/.env" "$app/.env"', 'install -m 0600 "$oldapp/.env" "$app/.env"'],
-    ["stage", 'runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ', "true # bypass env readability"],
+    [
+      "stage",
+      'cp -a -- "$oldapp/.env" "$app/.env"',
+      'install -m 0600 "$oldapp/.env" "$app/.env"',
+    ],
+    [
+      "stage",
+      'runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ',
+      "true # bypass env readability",
+    ],
     ["runner", "source_sha=" + expected.stage, "source_sha=" + expected.runner],
     ["runner", "main-platform-staging-approval.json", "no-approval.json"],
     ["runner", "OWNER_MANIFEST_OR_INSTALL", "ALLOW_WITHOUT_MANIFEST"],
