@@ -157,7 +157,13 @@ test("malformed saved compact records fail closed without crashing the workspace
     { summary: "x".repeat(1801) },
     { objective: 42 },
     { objective: "x".repeat(241) },
-    { revision: { toString: () => { throw new Error("coercion"); } } },
+    {
+      revision: {
+        toString: () => {
+          throw new Error("coercion");
+        },
+      },
+    },
     { project: "other-project" },
     { lane: "other-lane" },
   ];
