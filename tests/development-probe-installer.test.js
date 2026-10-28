@@ -78,7 +78,7 @@ test(
 test("owner installer admits exactly one immutable commit directory, not nested parents", () => {
   const source = fs.readFileSync(script, "utf8");
   const match = source.match(
-    /\\[\\[ "\\$source_root" =~ (\\S+) \\]\\] \\|\\| die SOURCE_COMMIT_PATH/,
+    /\[\[ "\$source_root" =~ (\S+) \]\] \|\| die SOURCE_COMMIT_PATH/,
   );
   assert.ok(match, "installer must enforce an exact root commit path");
   assert.equal(match[1], "^/root/kmj-approved/[0-9a-f]{40}$");
