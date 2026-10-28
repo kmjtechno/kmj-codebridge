@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   classifyGitError,
+  diagnosticExitCode,
   diagnoseNonrootGit,
 } from "../scripts/production/diagnose-development-nonroot-git.mjs";
 
@@ -144,4 +145,52 @@ test("diagnostic continues classification after a failed individual Git check", 
     headObject: "OBJECT_UNAVAILABLE",
     headCommit: "OBJECT_UNAVAILABLE",
   });
+});
+
+test("CLI exit classification requires all three verified Git checks", () => {
+  const pass = diagnoseNonrootGit({ identity: worker, execute: success });
+  assert.equal(pass.gitChecksPassed, true);
+  assert.equal(diagnosticExitCode(pass), 0);
+
+  for (const failedCheck of ["headRef", "headObject", "headCommit"]) {
+    const result = {
+      ...pass,
+      checks: { ...pass.checks, [failedCheck]: "ACCESS_DENIED" },
+    };
+    assert.equal(diagnosticExitCode(result), 3);
+  }
+  assert.equal(diagnosticExitCode({ ...pass, checks: {} }), 3);
+  assert.equal(diagnosticExitCode({ ...pass, gitChecksPassed: false }), 3);
+  assert.equal(diagnosticExitCode({ status: "DENIED_ARGUMENTS" }), 2);
+  assert.equal(diagnosticExitCode({ status: "DENIED_NONROOT_IDENTITY" }), 2);
+  assert.equal(diagnosticExitCode(undefined), 2);
+});
+
+test("partial and complete Git failures remain nonzero and sanitized", () => {
+  const secret = "PRIVATE_GIT_ERROR_MUST_NOT_LEAK";
+  const partial = diagnoseNonrootGit({
+    identity: worker,
+    execute: (_file, args) => {
+      if (args.includes("cat-file")) {
+        const error = new Error(secret);
+        error.stderr = Buffer.from(`fatal: bad object HEAD ${secret}`);
+        throw error;
+      }
+      return success(_file, args);
+    },
+  });
+  assert.equal(partial.status, "DIAGNOSTIC_ONLY");
+  assert.equal(partial.gitChecksPassed, false);
+  assert.equal(diagnosticExitCode(partial), 3);
+  assert.equal(JSON.stringify(partial).includes(secret), false);
+
+  const unavailable = diagnoseNonrootGit({
+    identity: worker,
+    execute: () => {
+      throw new Error(secret);
+    },
+  });
+  assert.equal(unavailable.gitChecksPassed, false);
+  assert.equal(diagnosticExitCode(unavailable), 3);
+  assert.equal(JSON.stringify(unavailable).includes(secret), false);
 });
