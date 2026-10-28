@@ -555,9 +555,11 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
    if(message.id===2&&aiMessagePending){
      aiMessagePending=false;
-     text("aiChatNotice",message.error?
-       "Host denied the message. No work was started.":
-       "Sent to host AI chat; execution, model and job status are not verified.");
+     var acknowledged=!message.error&&message.result&&
+       typeof message.result==="object"&&!message.result.isError;
+     text("aiChatNotice",acknowledged?
+       "Host acknowledged AI chat message; execution, model and job status are not verified.":
+       "Host denied or returned an error; no AI chat delivery or work is verified.");
      return;
    }
    if(message.method!=="ui/notifications/tool-result")return;
