@@ -126,6 +126,12 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <div class="node" id="node-verify"><strong>03 · Verify</strong><span id="verifyState">Requires independent gates</span></div>
   </div>
   <p class="note" id="nextAction">Use a verified CodeBridge tool to inspect the next action.</p>
+  <div style="margin-top:18px;border:1px solid var(--edge);border-radius:12px;padding:13px;background:var(--glass)">
+    <label class="sectiontitle" for="aiPrompt">Ask AI to continue this project</label>
+    <textarea id="aiPrompt" maxlength="1800" style="display:block;width:100%;min-height:75px;background:var(--glass);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:9px" placeholder="Describe the task or bug to investigate"></textarea>
+    <button id="askHostAi" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Send to connected AI chat</button>
+    <p class="note" id="aiChatNotice" role="status">Host AI chat only. Requires authenticated project snapshot and host approval. No paid cloud inference or CodeBridge job starts automatically.</p>
+  </div>
 </section>
 <section class="panel" id="panel-work" role="tabpanel" aria-labelledby="tab-work" hidden>
   <h2 class="sectiontitle">Tracked task states</h2>
