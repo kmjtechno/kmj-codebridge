@@ -504,12 +504,21 @@ test("AI chat host errors and malformed acknowledgments never claim delivery", (
     view.element("askHostAi").handlers.click();
     assert.equal(view.parentMessages.at(-1).message.method, "ui/message");
     view.replyResult(2, result);
-    assert.match(view.element("aiChatNotice").textContent, /no AI chat delivery or work is verified/);
-    assert.doesNotMatch(view.element("aiChatNotice").textContent, /Host acknowledged/);
+    assert.match(
+      view.element("aiChatNotice").textContent,
+      /no AI chat delivery or work is verified/,
+    );
+    assert.doesNotMatch(
+      view.element("aiChatNotice").textContent,
+      /Host acknowledged/,
+    );
   }
   view.element("askHostAi").handlers.click();
   view.replyResult(2, {});
-  assert.match(view.element("aiChatNotice").textContent, /Host acknowledged AI chat message/);
+  assert.match(
+    view.element("aiChatNotice").textContent,
+    /Host acknowledged AI chat message/,
+  );
   assert.match(view.element("aiChatNotice").textContent, /not verified/);
 });
 
