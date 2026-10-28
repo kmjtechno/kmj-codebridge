@@ -271,7 +271,7 @@ test("coding worker applies a local patch only in a fresh exact-SHA lane and pau
   assert.equal(f.starts.length, 1);
 });
 
-test("same-sized context replacement between lstat and open is never sent to the local model", async (t) => {
+test("context file replacement before open never reaches model", async (t) => {
   const f = fixture(t);
   const task = f.enqueue();
   const originalOpen = fs.openSync;
@@ -285,7 +285,7 @@ test("same-sized context replacement between lstat and open is never sent to the
     ) {
       swapped = true;
       fs.renameSync(file, file + ".original");
-      fs.writeFileSync(file, "export const value = 9;\\n".replace("\\\\n", "\\n"));
+      fs.writeFileSync(file, "export const value = 9;\n");
     }
     return originalOpen(file, flags, ...rest);
   };
@@ -304,7 +304,7 @@ test("same-sized context replacement between lstat and open is never sent to the
   );
   assert.equal(
     fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
-    "export const value = 1;\\n".replace("\\\\n", "\\n"),
+    "export const value = 1;\n",
   );
 });
 
