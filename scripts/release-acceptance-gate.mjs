@@ -110,16 +110,60 @@ export function assessReleaseEvidence(evidence) {
   };
 }
 
+// Read from the *same opened descriptor* whose metadata is checked. A
+// pre-open lstat followed by readFileSync(path) has a symlink-swap window.
 export function readReleaseEvidence(filename) {
-  const stat = fs.lstatSync(filename);
-  if (
-    !stat.isFile() ||
-    stat.isSymbolicLink() ||
-    stat.size > MAX_EVIDENCE_BYTES
-  ) {
+  let fd;
+  try {
+    const flags =
+      fs.constants.O_RDONLY |
+      (fs.constants.O_NOFOLLOW ?? 0) |
+      (fs.constants.O_NONBLOCK ?? 0);
+    fd = fs.openSync(filename, flags);
+    const initial = fs.fstatSync(fd);
+    const sameFile = (a, b) =>
+      a.dev === b.dev &&
+      a.ino === b.ino &&
+      a.size === b.size &&
+      a.mtimeMs === b.mtimeMs &&
+      a.ctimeMs === b.ctimeMs;
+    const valid = (meta) =>
+      meta.isFile() &&
+      !meta.isSymbolicLink() &&
+      meta.size > 0 &&
+      meta.size <= MAX_EVIDENCE_BYTES;
+    // lstat catches symlinks even on platforms without O_NOFOLLOW.
+    const byName = fs.lstatSync(filename);
+    if (!valid(initial) || !valid(byName) || !sameFile(initial, byName))
+      throw Error("EVIDENCE_FILE_INVALID");
+
+    // Bound the read even when an attacker grows the file after fstat().
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const chunk = Buffer.allocUnsafe(
+        Math.min(8192, MAX_EVIDENCE_BYTES + 1 - total),
+      );
+      const count = fs.readSync(fd, chunk, 0, chunk.length, null);
+      if (count === 0) break;
+      total += count;
+      if (total > MAX_EVIDENCE_BYTES)
+        throw Error("EVIDENCE_FILE_INVALID");
+      chunks.push(chunk.subarray(0, count));
+    }
+    if (total !== initial.size || total === 0)
+      throw Error("EVIDENCE_FILE_INVALID");
+    if (
+      !sameFile(initial, fs.fstatSync(fd)) ||
+      !sameFile(initial, fs.lstatSync(filename))
+    )
+      throw Error("EVIDENCE_FILE_INVALID");
+    return JSON.parse(Buffer.concat(chunks, total).toString("utf8"));
+  } catch {
     throw Error("EVIDENCE_FILE_INVALID");
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
-  return JSON.parse(fs.readFileSync(filename, "utf8"));
 }
 
 if (
