@@ -257,6 +257,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
  }
  var aiMessagePending=false;
+ var queuePending=false;
+ var queueSerial=0;
  document.getElementById("askHostAi").addEventListener("click",function(){
    var el=document.getElementById("aiPrompt");
    var instruction=el&&typeof el.value==="string"?el.value.trim():"";
@@ -276,6 +278,25 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        "Continue authorized KMJ CodeBridge project "+project+" on "+device+
        ". Check real status and available tools before acting. Task: "+instruction+
        ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."}
+   }},"*");
+ });
+ document.getElementById("queueDevTask").addEventListener("click",function(){
+   var el=document.getElementById("aiPrompt");
+   var instruction=el&&typeof el.value==="string"?el.value.trim():"";
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||queuePending){text("aiChatNotice","Host not ready or task submission pending.");return;}
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)||
+      instruction.length<4||instruction.length>1800){
+     text("aiChatNotice","Enter a valid instruction for an authorized project.");return;
+   }
+   queuePending=true;
+   text("aiChatNotice","Requesting permission to enqueue a project-scoped task...");
+   var key="mission-ui:"+Date.now()+":"+String(++queueSerial);
+   window.parent.postMessage({jsonrpc:"2.0",id:3,method:"tools/call",params:{
+     name:"autopilot_enqueue",arguments:{
+       device:device,project:project,key:key,objective:instruction,priority:0,dependsOn:[]
+     }
    }},"*");
  });
  var selectedWorkspaceFiles=[];
@@ -380,6 +401,14 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
          jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
        },"*");
      }
+     return;
+   }
+   if(message.id===3&&queuePending){
+     queuePending=false;
+     var ok=!message.error&&message.result&&!message.result.isError;
+     text("aiChatNotice",ok?
+       "Task request accepted by host; worker claim and completion NOT verified.":
+       "Queue rejected or unavailable; no task acceptance was verified.");
      return;
    }
    if(message.id===2&&aiMessagePending){
