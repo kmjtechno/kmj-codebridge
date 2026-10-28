@@ -147,8 +147,7 @@ export function readReleaseEvidence(filename) {
       const count = fs.readSync(fd, chunk, 0, chunk.length, null);
       if (count === 0) break;
       total += count;
-      if (total > MAX_EVIDENCE_BYTES)
-        throw Error("EVIDENCE_FILE_INVALID");
+      if (total > MAX_EVIDENCE_BYTES) throw Error("EVIDENCE_FILE_INVALID");
       chunks.push(chunk.subarray(0, count));
     }
     if (total !== initial.size || total === 0)
