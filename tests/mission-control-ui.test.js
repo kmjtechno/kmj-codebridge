@@ -491,6 +491,37 @@ test("AI chat rejects forged scope and host denial is visible", () => {
   assert.match(view.element("aiChatNotice").textContent, /denied/);
 });
 
+test("AI chat host errors and malformed acknowledgments never claim delivery", () => {
+  const view = openCard();
+  view.handshake();
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
+  view.element("aiPrompt").value = "Review the signed release gates";
+  for (const result of [{ isError: true }, null, false]) {
+    view.element("askHostAi").handlers.click();
+    assert.equal(view.parentMessages.at(-1).message.method, "ui/message");
+    view.replyResult(2, result);
+    assert.match(
+      view.element("aiChatNotice").textContent,
+      /no AI chat delivery or work is verified/,
+    );
+    assert.doesNotMatch(
+      view.element("aiChatNotice").textContent,
+      /Host acknowledged/,
+    );
+  }
+  view.element("askHostAi").handlers.click();
+  view.replyResult(2, {});
+  assert.match(
+    view.element("aiChatNotice").textContent,
+    /Host acknowledged AI chat message/,
+  );
+  assert.match(view.element("aiChatNotice").textContent, /not verified/);
+});
+
 test("development task enqueues only on a real click and never reports execution", () => {
   const view = openCard();
   view.handshake();
