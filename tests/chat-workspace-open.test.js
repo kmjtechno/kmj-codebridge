@@ -67,7 +67,10 @@ test("snapshot contains only bounded workspace facts, never raw tool metadata", 
   );
   assert.equal(result.browser.launchVerified, false);
   assert.equal(result.checkpoint.reportedNotVerified, true);
-  assert.equal(result.developmentFlow.roadmap.status, "CHECKPOINT_SAVED_UNVERIFIED");
+  assert.equal(
+    result.developmentFlow.roadmap.status,
+    "CHECKPOINT_SAVED_UNVERIFIED",
+  );
   assert.equal(result.developmentFlow.roadmap.revision, "a".repeat(64));
   assert.equal(result.developmentFlow.work.releaseVerified, false);
   assert.equal(result.hostLimitations.inactiveChatWakeSupported, false);
@@ -232,10 +235,7 @@ test("ordinary chat can open and resume a project in one scoped read-only call",
     resumed.developmentFlow.roadmap.status,
     "CHECKPOINT_SAVED_UNVERIFIED",
   );
-  assert.equal(
-    resumed.developmentFlow.roadmap.revision,
-    saved.revision,
-  );
+  assert.equal(resumed.developmentFlow.roadmap.revision, saved.revision);
   assert.equal(resumed.checkpoint.objective, "Resume browser Work milestone");
   assert.equal(
     resumed.checkpoint.nextSteps[0],
