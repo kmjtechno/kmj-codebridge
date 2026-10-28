@@ -1,0 +1,14 @@
+[Unit]
+Description=KMJ Main Platform owner-approved SHA-attested staging deployment
+After=network-online.target nginx.service php8.4-fpm.service
+Wants=network-online.target
+ConditionPathExists=/etc/kmj-codebridge/main-platform-staging-approval.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/bash /usr/local/libexec/kmj-codebridge/kmj-main-platform-staging-deploy.sh
+TimeoutStartSec=1500
+Restart=no
