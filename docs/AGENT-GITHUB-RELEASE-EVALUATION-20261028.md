@@ -4,14 +4,14 @@ This is a **curated, read-only source review**, not a claim to have audited ever
 public GitHub repository. No third-party source code, binaries, or dependency
 was copied or installed by this change.
 
-| Public project | Useful verified approach | CodeBridge decision |
-| --- | --- | --- |
-| [OpenHands](https://github.com/OpenHands/OpenHands) | Separate agent server/SDK, UI, client and automation concerns | Keep gateway, on-device supervisor, agent worker, and scheduling separated; never put root credentials in an AI executor |
-| [mini-SWE-agent](https://github.com/SWE-agent/mini-swe-agent) | Simple, inspectable action history and separately sandboxed execution | Reuse CodeBridge's audit ledger and lease-bound fixed tools; do **not** import a generic bash execution tool |
-| [Aider](https://github.com/Aider-AI/aider) | Repository context and automatic lint/tests after edits | Use current bounded context_pack, SHA-precondition edits and exact-head CI; prove a real patch/test/PR loop before autonomous marketing |
-| [goose](https://github.com/block/goose) | MCP extension and permission boundaries | Preserve per-device/project scopes and owner approval for privileged operations |
-| [MCP Inspector](https://github.com/modelcontextprotocol/inspector) | Scriptable CLI / UI / TUI inspection of actual MCP server protocol | Add an operator-owned **live authenticated** initialize/tools-list/denied-out-of-scope smoke gate to release QA; no proof from a source catalog alone |
-| [Sigstore cosign](https://github.com/sigstore/cosign) | Signing, verifier identity, transparency bundles | Evaluate offline verification for future signed releases; keep existing Ed25519 owner signing. Do not introduce external key or paid-provider dependency without approval |
+| Public project                                                     | Useful verified approach                                              | CodeBridge decision                                                                                                                                                       |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [OpenHands](https://github.com/OpenHands/OpenHands)                | Separate agent server/SDK, UI, client and automation concerns         | Keep gateway, on-device supervisor, agent worker, and scheduling separated; never put root credentials in an AI executor                                                  |
+| [mini-SWE-agent](https://github.com/SWE-agent/mini-swe-agent)      | Simple, inspectable action history and separately sandboxed execution | Reuse CodeBridge's audit ledger and lease-bound fixed tools; do **not** import a generic bash execution tool                                                              |
+| [Aider](https://github.com/Aider-AI/aider)                         | Repository context and automatic lint/tests after edits               | Use current bounded context_pack, SHA-precondition edits and exact-head CI; prove a real patch/test/PR loop before autonomous marketing                                   |
+| [goose](https://github.com/block/goose)                            | MCP extension and permission boundaries                               | Preserve per-device/project scopes and owner approval for privileged operations                                                                                           |
+| [MCP Inspector](https://github.com/modelcontextprotocol/inspector) | Scriptable CLI / UI / TUI inspection of actual MCP server protocol    | Add an operator-owned **live authenticated** initialize/tools-list/denied-out-of-scope smoke gate to release QA; no proof from a source catalog alone                     |
+| [Sigstore cosign](https://github.com/sigstore/cosign)              | Signing, verifier identity, transparency bundles                      | Evaluate offline verification for future signed releases; keep existing Ed25519 owner signing. Do not introduce external key or paid-provider dependency without approval |
 
 ## Immediate release security fix
 
@@ -47,7 +47,7 @@ semantics unchanged. This does **not** validate a cryptographic signature.
 2. Operator-owned signed **staging** deployment only, with fixed allowlisted
    unit, idle leases, audit evidence, healthy current release, explicit
    rollback target and automatic canary failure recovery. Verify the source
-   SHA of the *actual running gateway/agent*, not GitHub `main`.
+   SHA of the _actual running gateway/agent_, not GitHub `main`.
 3. Run authenticated MCP protocol and negative authorization tests with the
    currently deployed tool catalog and enrolled project. Record redacted
    receipts. Do not claim permission from catalog membership.
@@ -58,6 +58,6 @@ semantics unchanged. This does **not** validate a cryptographic signature.
    isolated coding, bounded resource usage, tests, reviewed PR, device reboot
    recovery and lease cancellation. Only then claim 24x7 coding is live.
 
-All release-evidence statuses remain *assertions* until independently checked
+All release-evidence statuses remain _assertions_ until independently checked
 against the real host, issuer, signed artifact and GitHub CI. A green source
 CI never grants root access or authorizes a production cutover.
