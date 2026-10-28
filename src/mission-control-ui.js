@@ -126,6 +126,17 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <div class="node" id="node-verify"><strong>03 · Verify</strong><span id="verifyState">Requires independent gates</span></div>
   </div>
   <p class="note" id="nextAction">Use a verified CodeBridge tool to inspect the next action.</p>
+  <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+    <button id="refreshProgress" type="button" style="padding:8px 11px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Refresh progress</button>
+    <span class="note" id="progressRefreshNotice" role="status">Status is the last authenticated snapshot, not continuous polling.</span>
+  </div>
+  <div style="margin-top:18px;border:1px solid var(--edge);border-radius:12px;padding:13px;background:var(--glass)">
+    <label class="sectiontitle" for="aiPrompt">Ask AI to continue this project</label>
+    <textarea id="aiPrompt" maxlength="1800" style="display:block;width:100%;min-height:75px;background:var(--glass);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:9px" placeholder="Describe the task or bug to investigate"></textarea>
+    <button id="askHostAi" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Send to connected AI chat</button>
+    <button id="queueDevTask" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Queue approved development task</button>
+    <p class="note" id="aiChatNotice" role="status">Host AI chat only. Requires authenticated project snapshot and host approval. No paid cloud inference or CodeBridge job starts automatically.</p>
+  </div>
 </section>
 <section class="panel" id="panel-work" role="tabpanel" aria-labelledby="tab-work" hidden>
   <h2 class="sectiontitle">Tracked task states</h2>
@@ -249,6 +260,64 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      text("activity-time-"+i,entry.at);
    }
  }
+ var aiMessagePending=false;
+ var refreshPending=false;
+ var queuePending=false;
+ var queueSerial=0;
+ document.getElementById("askHostAi").addEventListener("click",function(){
+   var el=document.getElementById("aiPrompt");
+   var instruction=el&&typeof el.value==="string"?el.value.trim():"";
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||aiMessagePending){
+     text("aiChatNotice","AI chat host is not initialized or a request is pending.");return;
+   }
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)||
+      instruction.length<4||instruction.length>1800){
+     text("aiChatNotice","Choose an authorized project and enter a valid instruction.");return;
+   }
+   aiMessagePending=true;
+   text("aiChatNotice","Requesting host approval; no task queued yet.");
+   window.parent.postMessage({jsonrpc:"2.0",id:2,method:"ui/message",params:{
+     role:"user",content:{type:"text",text:
+       "Continue authorized KMJ CodeBridge project "+project+" on "+device+
+       ". Check real status and available tools before acting. Task: "+instruction+
+       ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."}
+   }},"*");
+ });
+ document.getElementById("refreshProgress").addEventListener("click",function(){
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||refreshPending){text("progressRefreshNotice","Host unavailable or refresh pending.");return;}
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)){
+     text("progressRefreshNotice","No authorized device/project snapshot.");return;
+   }
+   refreshPending=true;
+   text("progressRefreshNotice","Checking fresh server-authorized progress...");
+   window.parent.postMessage({jsonrpc:"2.0",id:4,method:"tools/call",params:{
+     name:"render_codebridge_status",
+     arguments:{device:device,project:project,includeWorkspace:false}
+   }},"*");
+ });
+ document.getElementById("queueDevTask").addEventListener("click",function(){
+   var el=document.getElementById("aiPrompt");
+   var instruction=el&&typeof el.value==="string"?el.value.trim():"";
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||queuePending){text("aiChatNotice","Host not ready or task submission pending.");return;}
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)||
+      instruction.length<4||instruction.length>1800){
+     text("aiChatNotice","Enter a valid instruction for an authorized project.");return;
+   }
+   queuePending=true;
+   text("aiChatNotice","Requesting permission to enqueue a project-scoped task...");
+   var key="mission-ui:"+Date.now()+":"+String(++queueSerial);
+   window.parent.postMessage({jsonrpc:"2.0",id:3,method:"tools/call",params:{
+     name:"autopilot_enqueue",arguments:{
+       device:device,project:project,key:key,objective:instruction,priority:0,dependsOn:[]
+     }
+   }},"*");
+ });
  var selectedWorkspaceFiles=[];
  var selectedPatch=null;
  function renderSelectedFile(path){
@@ -351,6 +420,31 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
          jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
        },"*");
      }
+     return;
+   }
+   if(message.id===4&&refreshPending){
+     refreshPending=false;
+     var scope=message.result&&message.result.structuredContent;
+     if(!message.error&&scope&&latest&&scope.product==="KMJ CodeBridge"&&
+        scope.device===latest.device&&scope.project===latest.project){
+       render(scope);
+       text("progressRefreshNotice","New authenticated snapshot received; not a continuous stream.");
+     }else text("progressRefreshNotice","Fresh progress unavailable or host denied the request.");
+     return;
+   }
+   if(message.id===3&&queuePending){
+     queuePending=false;
+     var ok=!message.error&&message.result&&!message.result.isError;
+     text("aiChatNotice",ok?
+       "Task request accepted by host; worker claim and completion NOT verified.":
+       "Queue rejected or unavailable; no task acceptance was verified.");
+     return;
+   }
+   if(message.id===2&&aiMessagePending){
+     aiMessagePending=false;
+     text("aiChatNotice",message.error?
+       "Host denied the message. No work was started.":
+       "Sent to host AI chat; execution, model and job status are not verified.");
      return;
    }
    if(message.method!=="ui/notifications/tool-result")return;

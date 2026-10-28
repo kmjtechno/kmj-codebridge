@@ -78,6 +78,20 @@ function openCard(initialOutput = null) {
         },
       });
     },
+    replyResult(id, result) {
+      handlers.message({
+        source: parent,
+        data: { jsonrpc: "2.0", id, result },
+      });
+    },
+    replyHost(id, error = null) {
+      handlers.message({
+        source: parent,
+        data: error
+          ? { jsonrpc: "2.0", id, error: { code: -32000, message: error } }
+          : { jsonrpc: "2.0", id, result: {} },
+      });
+    },
     send(data, source = parent) {
       handlers.message({
         source,
@@ -416,4 +430,142 @@ test("tool strings are plain text, bounded, and cannot inject markup", () => {
   );
   assert.equal(view.element("running").textContent, "—");
   assert.equal(view.element("slots").textContent, "—");
+});
+
+test("AI chat handoff requires initialized host, explicit intent and authorized project", () => {
+  const view = openCard();
+  view.element("aiPrompt").value = "Fix the current layout regression";
+  view.element("askHostAi").handlers.click();
+  assert.equal(view.parentMessages.length, 1);
+  view.handshake();
+  view.element("askHostAi").handlers.click();
+  assert.equal(view.parentMessages.length, 2);
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "kmj-main-platform",
+    device: "kmj-elite-main-platform",
+    evidence: { git: true, tasks: true, capacity: false },
+  });
+  view.element("askHostAi").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  const result = view.parentMessages[2].message;
+  assert.equal(result.method, "ui/message");
+  assert.equal(result.params.role, "user");
+  assert.equal(result.params.content.type, "text");
+  assert.match(result.params.content.text, /Fix the current layout regression/);
+  assert.match(result.params.content.text, /no unapproved production cutover/);
+  view.element("askHostAi").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyHost(2);
+  assert.match(view.element("aiChatNotice").textContent, /not verified/);
+});
+test("AI chat rejects forged scope and host denial is visible", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Investigate the product editor";
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "../other",
+    device: "device1",
+  });
+  view.element("askHostAi").handlers.click();
+  assert.equal(view.parentMessages.length, 2);
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    device: "device1",
+  });
+  view.element("askHostAi").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyHost(2, "Denied by host");
+  assert.match(view.element("aiChatNotice").textContent, /denied/);
+});
+
+test("development task enqueues only on a real click and never reports execution", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Repair the isolated staging CI failure";
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
+  assert.equal(view.parentMessages.length, 2);
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  const request = view.parentMessages[2].message;
+  assert.equal(request.method, "tools/call");
+  assert.equal(request.params.name, "autopilot_enqueue");
+  assert.equal(request.params.arguments.device, "device1");
+  assert.equal(request.params.arguments.project, "project1");
+  assert.equal(request.params.arguments.priority, 0);
+  assert.match(request.params.arguments.key, /^mission-ui:/);
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyHost(3);
+  assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
+});
+test("no valid project or a denied queue request never appears accepted", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Investigate README smoke";
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 2);
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyHost(3, "Not authorized");
+  assert.match(view.element("aiChatNotice").textContent, /rejected/);
+});
+
+test("progress refresh uses authorized project and rejects cross-project tool output", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("refreshProgress").handlers.click();
+  assert.equal(v.parentMessages.length, 2);
+  v.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+    evidence: { tasks: true, git: false, capacity: false },
+    tasks: { running: 1, queued: 1 },
+  });
+  v.element("refreshProgress").handlers.click();
+  assert.equal(v.parentMessages.length, 3);
+  assert.equal(v.parentMessages[2].message.method, "tools/call");
+  assert.equal(
+    v.parentMessages[2].message.params.name,
+    "render_codebridge_status",
+  );
+  assert.equal(
+    v.parentMessages[2].message.params.arguments.project,
+    "project1",
+  );
+  v.replyResult(4, {
+    structuredContent: {
+      product: "KMJ CodeBridge",
+      device: "device1",
+      project: "foreign",
+    },
+  });
+  assert.match(v.element("progressRefreshNotice").textContent, /unavailable/);
+  v.element("refreshProgress").handlers.click();
+  v.replyResult(4, {
+    structuredContent: {
+      product: "KMJ CodeBridge",
+      device: "device1",
+      project: "project1",
+      evidence: { tasks: true, git: false, capacity: false },
+      tasks: { running: 3, queued: 2 },
+    },
+  });
+  assert.equal(v.element("running").textContent, "3");
+  assert.match(
+    v.element("progressRefreshNotice").textContent,
+    /authenticated snapshot/,
+  );
 });
