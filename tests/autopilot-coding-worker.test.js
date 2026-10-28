@@ -346,6 +346,20 @@ test("authorization revoked during asynchronous model status cannot claim or gen
         };
       },
     ],
+    [
+      "recipe catalog replaced with an empty catalog",
+      (f) => {
+        f.project.autopilotCodingWorker.recipes = {};
+      },
+    ],
+    [
+      "recipe catalog replaced with an equivalent but newly approved object",
+      (f) => {
+        f.project.autopilotCodingWorker.recipes = {
+          feature: { ...f.project.autopilotCodingWorker.recipes.feature },
+        };
+      },
+    ],
   ];
   for (const [reason, revoke] of scenarios) {
     let releaseStatus;

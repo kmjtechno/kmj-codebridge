@@ -371,6 +371,8 @@ export class LocalFirstCodingWorker {
               this.canStart() &&
               project.writable === true &&
               project.autopilotCodingWorker === config &&
+              // Do not claim work from a recipe catalog replaced while status() awaited.
+              config.recipes === recipes &&
               config.enabled === true &&
               config.localProcessingApproved === true &&
               currentEntitlement.features?.includes("write") === true &&
