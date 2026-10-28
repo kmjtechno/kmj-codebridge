@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { redact } from "./jobs.js";
+import { buildDevelopmentFlow } from "./development-flow.js";
 
 // A bounded, portable snapshot of already-authorized local CodeBridge facts.
 // It is NOT an AI chat transcript, live file watcher, release gate or a clone
@@ -111,6 +112,13 @@ export function buildChatWorkspaceOpen({
           recentJobs: recent,
         }
       : null,
+    developmentFlow: buildDevelopmentFlow({
+      device,
+      project,
+      lane,
+      checkpoint,
+      progress,
+    }),
     checkpoint: {
       status: checkpoint ? (exists ? "SAVED" : "NONE") : "UNAVAILABLE",
       revision: exists ? checkpoint.revision : null,

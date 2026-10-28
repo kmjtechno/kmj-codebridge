@@ -67,6 +67,12 @@ test("snapshot contains only bounded workspace facts, never raw tool metadata", 
   );
   assert.equal(result.browser.launchVerified, false);
   assert.equal(result.checkpoint.reportedNotVerified, true);
+  assert.equal(
+    result.developmentFlow.roadmap.status,
+    "CHECKPOINT_SAVED_UNVERIFIED",
+  );
+  assert.equal(result.developmentFlow.roadmap.revision, "a".repeat(64));
+  assert.equal(result.developmentFlow.work.releaseVerified, false);
   assert.equal(result.hostLimitations.inactiveChatWakeSupported, false);
   assert.equal(result.progress.recentJobs[0].state, "succeeded");
   for (const unsafe of [
@@ -197,6 +203,7 @@ test("ordinary chat can open and resume a project in one scoped read-only call",
   assert.equal(opened.kind, "codebridge.chat_workspace_open");
   assert.equal(opened.workspace.writable, true);
   assert.equal(opened.checkpoint.status, "NONE");
+  assert.equal(opened.developmentFlow.roadmap.status, "NO_SAVED_CHECKPOINT");
   assert.equal(opened.progress.taskTrackingAvailable, false);
   assert.equal(opened.progress.recentJobs[0].id, "job-1");
   assert.ok(
@@ -224,6 +231,11 @@ test("ordinary chat can open and resume a project in one scoped read-only call",
   assert.equal(saved.checkpointSaved, true);
   const resumed = await dispatch("chat_workspace_open", input, ["read"]);
   assert.equal(resumed.checkpoint.status, "SAVED");
+  assert.equal(
+    resumed.developmentFlow.roadmap.status,
+    "CHECKPOINT_SAVED_UNVERIFIED",
+  );
+  assert.equal(resumed.developmentFlow.roadmap.revision, saved.revision);
   assert.equal(resumed.checkpoint.objective, "Resume browser Work milestone");
   assert.equal(
     resumed.checkpoint.nextSteps[0],

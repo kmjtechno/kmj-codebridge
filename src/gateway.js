@@ -44,6 +44,7 @@ import {
 } from "./branded-status.js";
 import { fleetLane, fleetSummary } from "./fleet-overview.js";
 import { buildContextResume, unchangedResume } from "./context-resume.js";
+import { buildDevelopmentFlow } from "./development-flow.js";
 const GIT_SHA = /^[0-9a-f]{7,40}$/;
 // The critical workflow and lease tools reject extra top-level arguments
 // at runtime, exactly as both public MCP catalogs advertise.
@@ -824,6 +825,22 @@ export async function startGateway(rawConfig) {
       checkpoint: continuity.ok
         ? continuity.value
         : { status: "UNKNOWN", error: continuity.error },
+      developmentFlow: buildDevelopmentFlow({
+        ...scope,
+        lane: args.lane,
+        checkpoint: resolveChatWorkspaceCheckpoint({
+          compact: null,
+          legacy: continuity,
+          scope: { ...scope, lane: args.lane },
+        }).checkpoint,
+        progress:
+          context.evidence?.tasks === true && context.tasks !== "UNKNOWN"
+            ? {
+                taskTrackingAvailable: true,
+                nextReadyTaskId: context.tasks?.nextReadyTaskId,
+              }
+            : null,
+      }),
       hostChatAutoWake: false,
       hostContextWindowExtended: false,
       notes:

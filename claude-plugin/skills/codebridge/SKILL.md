@@ -9,6 +9,20 @@ Use only the connected CodeBridge tools and actual returned device and project I
 If tools are missing, explain that the MCP connection is not attached; do not claim
 that the plugin package alone gives machine access.
 
+**Persistent roadmap quickstart (all AI chats):** For an authorized CodeBridge
+project with a known device/project/lane, start with ONE
+`chat_workspace_open({device,project,lane})` or `multi_chat_sync`.
+Read `developmentFlow.roadmap` and `developmentFlow.recommendedAction`
+before rereading an entire GitHub roadmap. Saved objectives/next steps/blockers
+come from a scoped device-local checkpoint and are client-reported, not
+verified release evidence. If it is absent, capture a compact checkpoint;
+on older enrolled agents that reject `compact_session_save`, fall back to
+`chat_continuity_read` / `chat_continuity_save` with CAS revision. After
+a milestone, update the saved next step and blockers. Verify actual Git/CI,
+worker progress, permissions and signed production status separately. Do
+not assume automatic model memory, autonomous coding or host chat wakeup.
+See `docs/PERSISTENT-DEVELOPMENT-FLOW.md`.
+
 1. For a missing/offline connection, run `connection_overview` first, without parameters.
    Explain `ACCOUNT_GRANT_MISSING`, `GATEWAY_REGISTRATION_MISSING`,
    `PROJECT_SCOPE_MISMATCH`, or `AGENT_OFFLINE` in plain language and
