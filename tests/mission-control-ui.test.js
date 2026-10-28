@@ -78,6 +78,12 @@ function openCard(initialOutput = null) {
         },
       });
     },
+    replyResult(id, result) {
+      handlers.message({
+        source: parent,
+        data: {jsonrpc: "2.0", id, result},
+      });
+    },
     replyHost(id, error = null) {
       handlers.message({
         source: parent,
@@ -498,4 +504,25 @@ test("no valid project or a denied queue request never appears accepted", () => 
   assert.equal(view.parentMessages.length, 3);
   view.replyHost(3, "Not authorized");
   assert.match(view.element("aiChatNotice").textContent, /rejected/);
+});
+
+test("progress refresh uses authorized project and rejects cross-project tool output", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("refreshProgress").handlers.click();
+  assert.equal(v.parentMessages.length, 2);
+  v.send({ product: "KMJ CodeBridge", device: "device1", project: "project1",
+    evidence: {tasks:true,git:false,capacity:false}, tasks: {running:1,queued:1} });
+  v.element("refreshProgress").handlers.click();
+  assert.equal(v.parentMessages.length, 3);
+  assert.equal(v.parentMessages[2].message.method, "tools/call");
+  assert.equal(v.parentMessages[2].message.params.name, "render_codebridge_status");
+  assert.equal(v.parentMessages[2].message.params.arguments.project, "project1");
+  v.replyResult(4, {structuredContent:{product:"KMJ CodeBridge", device:"device1",project:"foreign"}});
+  assert.match(v.element("progressRefreshNotice").textContent,/unavailable/);
+  v.element("refreshProgress").handlers.click();
+  v.replyResult(4,{structuredContent:{product:"KMJ CodeBridge",device:"device1",project:"project1",
+    evidence:{tasks:true,git:false,capacity:false},tasks:{running:3,queued:2}}});
+  assert.equal(v.element("running").textContent,"3");
+  assert.match(v.element("progressRefreshNotice").textContent,/authenticated snapshot/);
 });
