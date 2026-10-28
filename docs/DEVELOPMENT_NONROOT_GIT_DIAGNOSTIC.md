@@ -12,7 +12,7 @@ This optional diagnostic supports [issue #652](https://github.com/kmjtechno/kmj-
 - Emits only status categories, never raw stderr, object IDs, repository file contents, credentials or arbitrary paths.
 - Does not alter filesystem permissions, project files, service units, Git configuration, production or credentials.
 
-The three checks intentionally distinguish a readable HEAD reference from an accessible commit object. A successful ref check alone is insufficient to declare the service ready. The `UNSAFE_OWNERSHIP`, `ACCESS_DENIED`, `REPOSITORY_UNAVAILABLE`, `OBJECT_UNAVAILABLE`, `TIMEOUT` and `OTHER_FAILURE` categories are clues, not permission to modify ownership.
+The three checks intentionally distinguish a readable HEAD reference from an accessible commit object. A successful ref check alone is insufficient to declare the service ready. The diagnostic emits `gitChecksPassed=true` and exits `0` **only** when all three checks return `PASS`; any failed, missing or unexpected check exits `3` with `gitChecksPassed=false`. Invalid identity or arguments exit `2`. The `DIAGNOSTIC_ONLY` status is never a success signal on its own and none of these results proves that a coding worker is live. The `UNSAFE_OWNERSHIP`, `ACCESS_DENIED`, `REPOSITORY_UNAVAILABLE`, `OBJECT_UNAVAILABLE`, `TIMEOUT` and `OTHER_FAILURE` categories are clues, not permission to modify ownership.
 
 ## Activation remains separately gated
 
