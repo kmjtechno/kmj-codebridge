@@ -130,6 +130,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <label class="sectiontitle" for="aiPrompt">Ask AI to continue this project</label>
     <textarea id="aiPrompt" maxlength="1800" style="display:block;width:100%;min-height:75px;background:var(--glass);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:9px" placeholder="Describe the task or bug to investigate"></textarea>
     <button id="askHostAi" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Send to connected AI chat</button>
+    <button id="queueDevTask" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Queue approved development task</button>
     <p class="note" id="aiChatNotice" role="status">Host AI chat only. Requires authenticated project snapshot and host approval. No paid cloud inference or CodeBridge job starts automatically.</p>
   </div>
 </section>
