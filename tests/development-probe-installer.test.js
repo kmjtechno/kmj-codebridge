@@ -78,28 +78,28 @@ test(
 test(
   "owner installer admits exactly one immutable commit directory, not nested parents",
   () => {
-  const source = fs.readFileSync(script, "utf8");
-  const match = source.match(
-    /\[\[ "\$source_root" =~ (\S+) \]\] \|\| die SOURCE_COMMIT_PATH/,
-  );
-  assert.ok(match, "installer must enforce an exact root commit path");
-  assert.equal(match[1], "^/root/kmj-approved/[0-9a-f]{40}$");
-  if (process.platform === "win32") return;
-  const matches = (candidate) =>
-    spawnSync("bash", ["-c", '[[ "$1" =~ $2 ]]', "_", candidate, match[1]], {
-      encoding: "utf8",
-      timeout: 5000,
-    }).status === 0;
-  const sha = "a".repeat(40);
-  assert.equal(matches(`/root/kmj-approved/${sha}`), true);
-  for (const bad of [
-    `/root/kmj-approved/${sha}/nested`,
-    "/root/kmj-approved/not-a-commit",
-    `/root/kmj-approved/${sha}/../${sha}`,
-    `/root/kmj-approved/${sha}x`,
-  ]) {
-    assert.equal(matches(bad), false, bad);
-  }
+    const source = fs.readFileSync(script, "utf8");
+    const match = source.match(
+      /\[\[ "\$source_root" =~ (\S+) \]\] \|\| die SOURCE_COMMIT_PATH/,
+    );
+    assert.ok(match, "installer must enforce an exact root commit path");
+    assert.equal(match[1], "^/root/kmj-approved/[0-9a-f]{40}$");
+    if (process.platform === "win32") return;
+    const matches = (candidate) =>
+      spawnSync("bash", ["-c", '[[ "$1" =~ $2 ]]', "_", candidate, match[1]], {
+        encoding: "utf8",
+        timeout: 5000,
+      }).status === 0;
+    const sha = "a".repeat(40);
+    assert.equal(matches(`/root/kmj-approved/${sha}`), true);
+    for (const bad of [
+      `/root/kmj-approved/${sha}/nested`,
+      "/root/kmj-approved/not-a-commit",
+      `/root/kmj-approved/${sha}/../${sha}`,
+      `/root/kmj-approved/${sha}x`,
+    ]) {
+      assert.equal(matches(bad), false, bad);
+    }
   },
 );
 
