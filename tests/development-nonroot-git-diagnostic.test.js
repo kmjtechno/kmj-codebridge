@@ -177,7 +177,7 @@ test("diagnostic continues classification after a failed individual Git check", 
       throw error;
     },
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.deepEqual(result.checks, {
     headRef: "OBJECT_UNAVAILABLE",
     headObject: "OBJECT_UNAVAILABLE",
