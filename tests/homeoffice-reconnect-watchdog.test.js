@@ -27,7 +27,10 @@ test("P520 watchdog never creates device identity, credentials, or machine-wide 
   assert.match(code, /\[System\.Threading\.Mutex\]::new/);
   assert.match(code, /Start-Sleep -Seconds 180/);
   assert.match(code, /-Device HomeOffice -AtLogon/);
-  assert.match(code, /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/);
+  assert.match(
+    code,
+    /\[Environment\]::GetFolderPath\(\[Environment\+SpecialFolder\]::Startup\)/,
+  );
   for (const forbidden of [
     /Invoke-WebRequest|Invoke-RestMethod|curl\.exe|Start-BitsTransfer/i,
     /Register-ScheduledTask|Enable-ScheduledTask|schtasks|New-Service|Start-Service|Restart-Service/i,
@@ -49,20 +52,40 @@ test("only human-invoked HomeOffice one-click offers watchdog installation", () 
   assert.doesNotMatch(existing, /-File \$watchdog -Run/);
 });
 
-test("Windows native parser and current-user self-test do not alter real Startup", { skip: process.platform !== "win32" }, () => {
-  for (const file of [watchdog, oneclick]) {
-    const parser = spawnSync("powershell.exe", [
-      "-NoProfile", "-NonInteractive", "-Command",
-      "$t=$null;$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '" +
-        file + "').Path,[ref]$t,[ref]$e);if(@($e).Count -ne 0){$e|ForEach-Object{Write-Output $_.ErrorId};exit 2}",
-    ], { encoding: "utf8", timeout: 20000, windowsHide: true });
-    assert.equal(parser.status, 0, parser.stdout + parser.stderr);
-  }
-  const run = spawnSync("powershell.exe", [
-    "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned",
-    "-File", watchdog, "-SelfTest",
-  ], { encoding: "utf8", timeout: 15000, windowsHide: true });
-  assert.equal(run.status, 0, run.stdout + run.stderr);
-  assert.match(run.stdout, /KMJ_P520_WATCHDOG_SELFTEST=PASS/);
-  assert.match(run.stdout, /REAL_STARTUP_MODIFIED=NO/);
-});
+test(
+  "Windows native parser and current-user self-test do not alter real Startup",
+  { skip: process.platform !== "win32" },
+  () => {
+    for (const file of [watchdog, oneclick]) {
+      const parser = spawnSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-Command",
+          "$t=$null;$e=$null;[void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path '" +
+            file +
+            "').Path,[ref]$t,[ref]$e);if(@($e).Count -ne 0){$e|ForEach-Object{Write-Output $_.ErrorId};exit 2}",
+        ],
+        { encoding: "utf8", timeout: 20000, windowsHide: true },
+      );
+      assert.equal(parser.status, 0, parser.stdout + parser.stderr);
+    }
+    const run = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        watchdog,
+        "-SelfTest",
+      ],
+      { encoding: "utf8", timeout: 15000, windowsHide: true },
+    );
+    assert.equal(run.status, 0, run.stdout + run.stderr);
+    assert.match(run.stdout, /KMJ_P520_WATCHDOG_SELFTEST=PASS/);
+    assert.match(run.stdout, /REAL_STARTUP_MODIFIED=NO/);
+  },
+);
