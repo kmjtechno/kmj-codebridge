@@ -519,7 +519,7 @@ test("no valid project or a denied queue request never appears accepted", () => 
   view.element("queueDevTask").handlers.click();
   assert.equal(view.parentMessages.length, 3);
   view.replyHost(3, "Not authorized");
-  assert.match(view.element("aiChatNotice").textContent, /rejected/);
+  assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
 });
 
 test("progress refresh uses authorized project and rejects cross-project tool output", () => {
@@ -568,4 +568,54 @@ test("progress refresh uses authorized project and rejects cross-project tool ou
     v.element("progressRefreshNotice").textContent,
     /authenticated snapshot/,
   );
+});
+
+test("queue ACK requires a real matching scoped task receipt, not a bare host success", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Investigate the isolated CI failure";
+  view.send({ product: "KMJ CodeBridge", device: "device1", project: "project1" });
+  view.element("queueDevTask").handlers.click();
+  const first = view.parentMessages.at(-1).message.params.arguments;
+  view.replyHost(3);
+  assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
+  view.element("queueDevTask").handlers.click();
+  const retry = view.parentMessages.at(-1).message.params.arguments;
+  assert.equal(retry.key, first.key, "ambiguous ACK must not generate a second task key");
+  view.replyResult(3, { structuredContent: {
+    id: "e6c15cb8-17a0-40b7-9228-b16a39d59ec3",
+    key: retry.key,
+    project: "foreign-project",
+    state: "queued",
+  } });
+  assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
+  view.element("queueDevTask").handlers.click();
+  assert.equal(view.parentMessages.at(-1).message.params.arguments.key, first.key);
+  view.replyResult(3, { structuredContent: {
+    id: "e6c15cb8-17a0-40b7-9228-b16a39d59ec3",
+    key: first.key,
+    project: "project1",
+    state: "queued",
+  } });
+  assert.match(view.element("aiChatNotice").textContent, /Task queued with scoped receipt/);
+  assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
+  view.element("queueDevTask").handlers.click();
+  assert.notEqual(view.parentMessages.at(-1).message.params.arguments.key, first.key);
+});
+
+test("queue receipt rejects forged key, missing task id, nonqueued state and tool errors", () => {
+  const view = openCard();
+  view.handshake();
+  view.element("aiPrompt").value = "Review safe worker canary plan";
+  view.send({ product: "KMJ CodeBridge", device: "device1", project: "project1" });
+  for (const result of [
+    { structuredContent: { id: "e6c15cb8-17a0-40b7-9228-b16a39d59ec3", key: "other", project: "project1", state: "queued" } },
+    { structuredContent: { id: "", key: "other", project: "project1", state: "queued" } },
+    { structuredContent: { id: "e6c15cb8-17a0-40b7-9228-b16a39d59ec3", key: "other", project: "project1", state: "running" } },
+    { isError: true, structuredContent: { id: "e6c15cb8-17a0-40b7-9228-b16a39d59ec3", key: "other", project: "project1", state: "queued" } },
+  ]) {
+    view.element("queueDevTask").handlers.click();
+    view.replyResult(3, result);
+    assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
+  }
 });
