@@ -89,10 +89,26 @@ test("candidate static trust contract rejects stale and weakened variants", () =
     ["stage", "old=" + previous, "old=" + approved],
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
     ["stage", "STAGING_PROMOTION_MOVED_DURING_BUILD", "SKIP_RECHECK"],
-    ["stage", '"$(readlink -f "$link")" == "$oldapp"', '"$oldapp" == "$oldapp"'],
-    ["stage", "BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR", "IGNORE_POINTER_DRIFT"],
-    ["stage", "BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR", "IGNORE_CONFIG_DRIFT"],
-    ["stage", 'candidate_hash="$(sha256sum "$work/candidate.conf"', 'candidate_hash="unverified"'],
+    [
+      "stage",
+      '"$(readlink -f "$link")" == "$oldapp"',
+      '"$oldapp" == "$oldapp"',
+    ],
+    [
+      "stage",
+      "BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR",
+      "IGNORE_POINTER_DRIFT",
+    ],
+    [
+      "stage",
+      "BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR",
+      "IGNORE_CONFIG_DRIFT",
+    ],
+    [
+      "stage",
+      'candidate_hash="$(sha256sum "$work/candidate.conf"',
+      'candidate_hash="unverified"',
+    ],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
     [
