@@ -704,23 +704,32 @@ export async function startGateway(rawConfig) {
         return { ok: false, error: publicError(error).error };
       }
     };
-    const [home, progress, checkpoint, browser, catalog, inspected, model, worker, updater] =
-      await Promise.all([
-        read("workspace_home", {
-          ...scope,
-          maxDepth: 2,
-          maxEntries: args.maxEntries,
-          recentJobs: args.recentJobs,
-        }),
-        read("project_progress", { ...scope, recentJobs: args.recentJobs }),
-        read("compact_session_resume", { ...scope, lane: args.lane }),
-        read("browser_runtime_status", scope),
-        read("policy_catalog", scope),
-        read("inspect_project", scope),
-        read("local_model_status", scope),
-        read("autopilot_worker_runtime_status", scope),
-        read("supervisor_update_status", scope),
-      ]);
+    const [
+      home,
+      progress,
+      checkpoint,
+      browser,
+      catalog,
+      inspected,
+      model,
+      worker,
+      updater,
+    ] = await Promise.all([
+      read("workspace_home", {
+        ...scope,
+        maxDepth: 2,
+        maxEntries: args.maxEntries,
+        recentJobs: args.recentJobs,
+      }),
+      read("project_progress", { ...scope, recentJobs: args.recentJobs }),
+      read("compact_session_resume", { ...scope, lane: args.lane }),
+      read("browser_runtime_status", scope),
+      read("policy_catalog", scope),
+      read("inspect_project", scope),
+      read("local_model_status", scope),
+      read("autopilot_worker_runtime_status", scope),
+      read("supervisor_update_status", scope),
+    ]);
     // Some enrolled agents predate compact_session_resume but already support
     // chat_continuity_read. Recover that same scoped lane rather than dropping
     // an existing checkpoint or falsely advertising compact_session_save.
