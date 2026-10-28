@@ -80,9 +80,7 @@ test("installer publishes with atomic no-clobber links and preserves partial-sta
   assert.ok(
     source.includes('if ! ln -T -- "$helper_tmp" "$helper_target"; then'),
   );
-  assert.ok(
-    source.includes('if ! ln -T -- "$unit_tmp" "$unit_target"; then'),
-  );
+  assert.ok(source.includes('if ! ln -T -- "$unit_tmp" "$unit_target"; then'));
   assert.doesNotMatch(source, /^\\s*mv\\s+-T\\s+--/m);
   assert.match(source, /BLOCKED_%s/);
   assert.match(source, /PARTIAL_INSTALL_REVIEW_REQUIRED/);
@@ -170,7 +168,9 @@ test(
   "fault injection at second publication preserves installed helper and competing unit",
   { skip: process.platform !== "linux" },
   () => {
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-dev-partial-install-"));
+    const dir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kmj-dev-partial-install-"),
+    );
     try {
       const helperStage = path.join(dir, "helper-stage");
       const helperFinal = path.join(dir, "helper-final");
