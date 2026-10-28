@@ -129,21 +129,29 @@ test("dashboard exposes only fresh authorized development progress, never invent
     now: NOW,
     authorizedDeviceIds: ["device1"],
     reports: [sample()],
-    jobReceipts: [{
-      source: "AUTHORIZED_PROJECT_JOB_RECEIPTS",
-      deviceId: "device1",
-      projectId: "kmj-codebridge",
-      id: "test-job",
-      state: "succeeded",
-      observedAtEpochMs: NOW - 2000,
-    }],
+    jobReceipts: [
+      {
+        source: "AUTHORIZED_PROJECT_JOB_RECEIPTS",
+        deviceId: "device1",
+        projectId: "kmj-codebridge",
+        id: "test-job",
+        state: "succeeded",
+        observedAtEpochMs: NOW - 2000,
+      },
+    ],
   });
   assert.equal(result.developmentProgress.length, 1);
   assert.equal(result.developmentProgress[0].counts.running, 1);
   assert.equal(result.developmentProgress[0].counts.queued, 2);
   assert.equal(result.developmentProgress[0].recent[0].id, "test-job");
-  assert.equal(result.developmentProgress[0].wholeProjectCompletionPercent, null);
-  assert.equal(result.developmentProgress[0].productionDeployment, "NOT_VERIFIED");
+  assert.equal(
+    result.developmentProgress[0].wholeProjectCompletionPercent,
+    null,
+  );
+  assert.equal(
+    result.developmentProgress[0].productionDeployment,
+    "NOT_VERIFIED",
+  );
 });
 
 test("dashboard never materializes progress for ungranted or stale agent reports", () => {
