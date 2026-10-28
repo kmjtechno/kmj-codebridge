@@ -80,7 +80,10 @@ test("source attestation is offline, exact-path, nonroot and never activates a s
     assert.equal(options.env.GIT_CONFIG_GLOBAL, "/dev/null");
     assert.equal(options.env.GIT_TERMINAL_PROMPT, "0");
     assert.deepEqual(options.stdio, ["ignore", "pipe", "pipe"]);
-    assert.equal(args.some((v) => String(v).includes("safe.directory")), false);
+    assert.equal(
+      args.some((v) => String(v).includes("safe.directory")),
+      false,
+    );
     assert.equal(
       args.some((v) => String(v).includes("/srv/kmj-codebridge-projects")),
       false,
@@ -90,14 +93,27 @@ test("source attestation is offline, exact-path, nonroot and never activates a s
 
 test("missing identity or pinned SHA fails before Git is invoked", () => {
   const f = fixture();
-  for (const bad of [undefined, { uid: 0, username: "root" }, { uid: 33, username: "www-data" }]) {
+  for (const bad of [
+    undefined,
+    { uid: 0, username: "root" },
+    { uid: 33, username: "www-data" },
+  ]) {
     assert.equal(
       f.verify({ identity: bad }).reason,
       "WORKER_IDENTITY_UNVERIFIED",
     );
   }
-  for (const sha of [undefined, "", "../HEAD", "b".repeat(39), "B".repeat(40)]) {
-    assert.equal(f.verify({ expectedHead: sha }).reason, "PINNED_COMMIT_REQUIRED");
+  for (const sha of [
+    undefined,
+    "",
+    "../HEAD",
+    "b".repeat(39),
+    "B".repeat(40),
+  ]) {
+    assert.equal(
+      f.verify({ expectedHead: sha }).reason,
+      "PINNED_COMMIT_REQUIRED",
+    );
   }
   assert.equal(f.calls.length, 0);
 });
@@ -130,7 +146,10 @@ test("object availability, revision mismatch, and concurrent ref move all fail c
     [{ head: `${"b".repeat(40)}\n` }, "PINNED_HEAD_MISMATCH"],
     [{ commit: `${"b".repeat(40)}\n` }, "COMMIT_MISMATCH"],
     [{ changed: `${"b".repeat(40)}\n` }, "SOURCE_HEAD_CHANGED"],
-    [{ fail: "fatal: detected dubious ownership in repository" }, "UNSAFE_OWNERSHIP"],
+    [
+      { fail: "fatal: detected dubious ownership in repository" },
+      "UNSAFE_OWNERSHIP",
+    ],
     [{ fail: "fatal: permission denied /sensitive/path" }, "ACCESS_DENIED"],
   ];
   for (const [option, expected] of scenarios) {
