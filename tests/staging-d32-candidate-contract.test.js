@@ -22,8 +22,8 @@ const original = Object.fromEntries(
   ]),
 );
 const expected = {
-  stage: "c95c8e9a8b11e6278b08f252969a0b52624df709d09adb1a0ac5b24ca977b887",
-  runner: "d12f8de85a2fc53b27399f1769cc2d972f31dc08185264f73e261cff6f9be543",
+  stage: "b288752db3a76fa8152b90f9f5346a224bf2a06ba1379efa87e567d01a0a9597",
+  runner: "6d681a5c2e40ad089105edcb9b5e65359cec18b3f005a10693dff9f494da79a9",
   unit: "9342fbacad8f05d52cde7df5fcf8d9599c3704e09f0edf3e6e48797c48af569a",
 };
 const approved = "d32df111e3a8dae75c8d3321a80f07424c23fe77";
@@ -36,6 +36,11 @@ function contract({ stage, runner, unit }) {
     stage.includes("sha=" + approved) &&
     stage.includes("old=" + previous) &&
     stage.includes("STAGING_UI_ROLLBACK=PASS") &&
+    stage.includes("STAGING_PROMOTION_MOVED_DURING_BUILD") &&
+    stage.includes('"$(readlink -f "$link")" == "$oldapp"') &&
+    stage.includes("BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR") &&
+    stage.includes("BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR") &&
+    stage.includes('candidate_hash="$(sha256sum "$work/candidate.conf"') &&
     stage.includes("STAGING_CLOUD_REQUESTS=NONE") &&
     stage.includes("STAGING_PRODUCT_WRITES=NONE") &&
     stage.includes("STAGING_DATABASE_MIGRATIONS=NONE") &&
@@ -83,6 +88,11 @@ test("candidate static trust contract rejects stale and weakened variants", () =
     ["stage", "sha=" + approved, "sha=" + previous],
     ["stage", "old=" + previous, "old=" + approved],
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
+    ["stage", "STAGING_PROMOTION_MOVED_DURING_BUILD", "SKIP_RECHECK"],
+    ["stage", '"$(readlink -f "$link")" == "$oldapp"', '"$oldapp" == "$oldapp"'],
+    ["stage", "BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR", "IGNORE_POINTER_DRIFT"],
+    ["stage", "BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR", "IGNORE_CONFIG_DRIFT"],
+    ["stage", 'candidate_hash="$(sha256sum "$work/candidate.conf"', 'candidate_hash="unverified"'],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
     [

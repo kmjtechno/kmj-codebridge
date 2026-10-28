@@ -41,10 +41,25 @@ cleanup(){
  rc=$?
  trap - EXIT
  if [[ "$applied" == 1 ]]; then
-  install -m 0644 "$work/original.conf" "$target"
-  ln -s "$oldapp" "$work/rollback-link"
-  mv -Tf "$work/rollback-link" "$link"
-  if nginx -t >/dev/null 2>&1 && systemctl reload nginx; then echo STAGING_UI_ROLLBACK=PASS; else echo STAGING_UI_ROLLBACK=FAILED_REQUIRES_OPERATOR; fi
+  current_link="$(readlink -f "$link" || true)"
+  current_config_hash="$(sha256sum "$target" | cut -d' ' -f1)"
+  # Fail closed rather than overwriting a concurrent operator's cutover.
+  if [[ "$current_link" != "$oldapp" && "$current_link" != "$app" ]]; then
+   echo STAGING_UI_ROLLBACK=BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR
+  elif [[ "$current_config_hash" == "$config_hash" && "$current_link" == "$oldapp" ]]; then
+   echo STAGING_UI_ROLLBACK=NOT_NEEDED_ORIGINAL_INTACT
+  elif [[ "$current_config_hash" != "$candidate_hash" ]]; then
+   echo STAGING_UI_ROLLBACK=BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR
+  else
+   install -m 0644 "$work/original.conf" "$target"
+   ln -s "$oldapp" "$work/rollback-link"
+   mv -Tf "$work/rollback-link" "$link"
+   if nginx -t >/dev/null 2>&1 && systemctl reload nginx; then
+    echo STAGING_UI_ROLLBACK=PASS
+   else
+    echo STAGING_UI_ROLLBACK=FAILED_REQUIRES_OPERATOR
+   fi
+  fi
  fi
  echo "STAGING_UI_PRIVATE_RECEIPT=$work"
  exit "$rc"
@@ -125,7 +140,12 @@ echo "STAGING_CLOUD_REQUESTS=NONE\n";
 echo "STAGING_PRODUCT_WRITES=NONE\n";
 PHP
 
-[[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$config_hash" && "$(readlink -f /home/kmjprod/current)" == "$prod" ]] || block CONCURRENT_CHANGE
+# Revalidate approval after build: its branch may move during construction.
+source_git fetch --no-tags origin refs/heads/staging-approved || block STAGING_APPROVAL_RECHECK
+[[ "$(source_git rev-parse FETCH_HEAD)" == "$sha" ]] || block STAGING_PROMOTION_MOVED_DURING_BUILD
+# Final compare-and-swap guards both config bytes and staging pointer.
+[[ "$(sha256sum "$target" | cut -d' ' -f1)" == "$config_hash" && "$(readlink -f /home/kmjprod/current)" == "$prod" && "$(readlink -f "$link")" == "$oldapp" ]] || block CONCURRENT_CHANGE
+candidate_hash="$(sha256sum "$work/candidate.conf" | cut -d' ' -f1)"
 applied=1
 install -m 0644 "$work/candidate.conf" "$target"
 nginx -t || block NGINX_SYNTAX
