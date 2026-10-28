@@ -16,7 +16,7 @@ node scripts/verify-signed-bundle.mjs \
   /private/trusted-public-keys.json \
   /private/runtime/manifest.json \
   /private/runtime/kmj-codebridge-0.3.2-<sha12>.tar.gz \
-  11 \\
+  11 \
   stable
 ```
 
