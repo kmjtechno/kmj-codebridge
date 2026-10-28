@@ -193,3 +193,30 @@ test("evidence reader rejects symlinked files", (t) => {
   }
   assert.throws(() => readReleaseEvidence(link), /EVIDENCE_FILE_INVALID/);
 });
+
+test("release evidence read uses the same stable opened inode", (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "release-gate-descriptor-"));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  const valid = path.join(temp, "approved.json");
+  const replacement = path.join(temp, "replacement.json");
+  fs.writeFileSync(valid, JSON.stringify(goodEvidence()));
+  fs.writeFileSync(replacement, JSON.stringify({ schema: 2 }));
+  assert.equal(readReleaseEvidence(valid).schema, 1);
+  // Atomic rename is permitted only as an entirely new read. A later call
+  // must not silently reuse the previously verified inode or cached data.
+  fs.renameSync(replacement, valid);
+  assert.equal(readReleaseEvidence(valid).schema, 2);
+  fs.writeFileSync(valid, "");
+  assert.throws(() => readReleaseEvidence(valid), /EVIDENCE_FILE_INVALID/);
+  fs.writeFileSync(valid, "{invalid");
+  assert.throws(() => readReleaseEvidence(valid), /EVIDENCE_FILE_INVALID/);
+});
+
+test("release evidence refuses directories and malformed non-secret content", (t) => {
+  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "release-gate-path-"));
+  t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+  assert.throws(() => readReleaseEvidence(temp), /EVIDENCE_FILE_INVALID/);
+  const file = path.join(temp, "evidence.json");
+  fs.writeFileSync(file, JSON.stringify(goodEvidence()) + " ".repeat(256 * 1024));
+  assert.throws(() => readReleaseEvidence(file), /EVIDENCE_FILE_INVALID/);
+});
