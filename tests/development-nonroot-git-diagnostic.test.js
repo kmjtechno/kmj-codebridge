@@ -194,7 +194,7 @@ test("pin all object checks to the initial HEAD and fail if HEAD moves", () => {
     identity: worker,
     execute: (_file, args) => {
       calls.push(args.slice(2));
-      if (calls.length === 4) return `${moved}\\n`;
+      if (calls.length === 4) return `${moved}\n`;
       return success(_file, args);
     },
   });
@@ -216,7 +216,7 @@ test("reject mismatched commit identity even when every Git command succeeds", (
     identity: worker,
     execute: (_file, args) => {
       count++;
-      if (count === 3) return `${"b".repeat(40)}\\n`;
+      if (count === 3) return `${"b".repeat(40)}\n`;
       return success(_file, args);
     },
   });
