@@ -26,13 +26,11 @@ function currentCompact(result, scope) {
 function currentLegacy(result, scope) {
   const value = result?.ok ? result.value : null;
   if (!scoped(value, scope) || value.version !== 1) return null;
-  if (!Number.isSafeInteger(value.sequence) || value.sequence < 1)
-    return null;
+  if (!Number.isSafeInteger(value.sequence) || value.sequence < 1) return null;
   if (!REVISION.test(value.revision ?? "")) return null;
   if (typeof value.summary !== "string" || value.summary.length > 1800)
     return null;
-  if (!Array.isArray(value.blockers) || value.blockers.length > 8)
-    return null;
+  if (!Array.isArray(value.blockers) || value.blockers.length > 8) return null;
   const blockers = value.blockers.filter(
     (item) => typeof item === "string" && item.length <= 240,
   );
