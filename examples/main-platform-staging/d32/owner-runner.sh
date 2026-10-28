@@ -7,7 +7,7 @@ cd /
 export PATH=/opt/kmj-codebridge-node/bin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 qa=/srv/kmj-codebridge-projects/kmj-main-platform/work/qa
 stage="$qa/KMJ_D32_PRODUCT_STUDIO_GUARDED_STAGE_CANDIDATE_20261028.sh"
-source_sha=5e119d7512a3ca6e33b13bef9ad20d8d43445ed71c2d300f30cb15bb52c07f9b
+source_sha=c95c8e9a8b11e6278b08f252969a0b52624df709d09adb1a0ac5b24ca977b887
 approved=d32df111e3a8dae75c8d3321a80f07424c23fe77
 prior=9d15e14e39564ffb1e66085a483feb8331f9718f
 receipt="$qa/KMJ_D32_STAGING_RECEIPT_LATEST_20261028.txt"
