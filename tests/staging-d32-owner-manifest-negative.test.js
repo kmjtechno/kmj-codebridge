@@ -84,7 +84,7 @@ for case in cases:
                 'unit_execstartpre_injected': 'ExecStartPre=/usr/bin/true',
                 'unit_environment_injected': 'Environment=LD_PRELOAD=/tmp/attacker.so',
             }[case]
-            u.write_bytes(u.read_bytes() + (injected + '\\n').encode())
+            u.write_bytes(u.read_bytes() + (injected + '\n').encode())
             # Simulate a manifest signed after the unauthorized unit mutation.
             manifest['unitSha256'] = hashlib.sha256(u.read_bytes()).hexdigest()
         m.write_text(json.dumps(manifest))
