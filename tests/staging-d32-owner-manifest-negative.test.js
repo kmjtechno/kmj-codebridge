@@ -8,6 +8,9 @@ const runnerPath = new URL(
   import.meta.url,
 );
 const runner = readFileSync(runnerPath, "utf8");
+const reviewedUnit = readFileSync(
+  new URL("../examples/main-platform-staging/d32/owner-staging.service", import.meta.url),
+);
 const match = runner.match(
   /python3 - "\$approved" "\$prior" <<'PY' \|\| deny OWNER_MANIFEST_OR_INSTALL\n([\s\S]*?)\nPY/,
 );
@@ -34,7 +37,8 @@ fixed = 'ExecStart=/usr/bin/bash /usr/local/libexec/kmj-codebridge/kmj-main-plat
 cases = ['valid', 'missing_manifest', 'malformed_json', 'missing_key', 'extra_key',
          'wrong_approved_sha', 'wrong_current_sha', 'wrong_production',
          'false_backup', 'false_rollback', 'false_storage', 'false_zero_cost',
-         'runner_hash_drift', 'unit_hash_drift', 'unit_execstart_missing',
+         'runner_hash_drift', 'unit_hash_drift', 'unit_execstart_missing', 'unit_extra_execstart',
+         'unit_execstartpre_injected', 'unit_environment_injected',
          'manifest_symlink', 'manifest_hardlink', 'writable_parent',
          'nonroot_runner', 'schema_drift']
 results = {}
@@ -48,7 +52,7 @@ for case in cases:
             p.parent.mkdir(parents=True, exist_ok=True)
             p.parent.chmod(0o755)
         r.write_bytes(b'root-owned fixed runner test bytes\n')
-        u.write_bytes(('[Service]\n' + fixed + '\n').encode())
+        u.write_bytes(bytes.fromhex('${reviewedUnit.toString("hex")}'))
         manifest = {
             'schema': 'kmj.main-platform.staging-approval.v1',
             'approvedSha': approved,
@@ -73,6 +77,15 @@ for case in cases:
         if case == 'schema_drift': manifest['schema'] = 'other'
         if case == 'unit_execstart_missing':
             u.write_bytes(b'[Service]\nExecStart=/bin/false\n')
+            manifest['unitSha256'] = hashlib.sha256(u.read_bytes()).hexdigest()
+        if case in ('unit_extra_execstart', 'unit_execstartpre_injected', 'unit_environment_injected'):
+            injected = {
+                'unit_extra_execstart': 'ExecStart=/usr/bin/true',
+                'unit_execstartpre_injected': 'ExecStartPre=/usr/bin/true',
+                'unit_environment_injected': 'Environment=LD_PRELOAD=/tmp/attacker.so',
+            }[case]
+            u.write_bytes(u.read_bytes() + (injected + '\\n').encode())
+            # Simulate a manifest signed after the unauthorized unit mutation.
             manifest['unitSha256'] = hashlib.sha256(u.read_bytes()).hexdigest()
         m.write_text(json.dumps(manifest))
         if case == 'malformed_json': m.write_text('{ invalid')
@@ -130,6 +143,6 @@ print(json.dumps(results, sort_keys=True))
       if (name !== "valid")
         assert.equal(accepted, false, name + " must fail closed");
     }
-    assert.equal(Object.keys(outcomes).length, 20);
+    assert.equal(Object.keys(outcomes).length, 23);
   },
 );
