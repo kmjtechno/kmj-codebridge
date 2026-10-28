@@ -74,3 +74,57 @@ test(
     }
   },
 );
+
+test("installer publishes with atomic no-clobber links and preserves partial-state review", () => {
+  const source = fs.readFileSync(script, "utf8");
+  assert.match(source, /if ! ln -T -- "\\$helper_tmp" "\\$helper_target"/);
+  assert.match(source, /if ! ln -T -- "\\$unit_tmp" "\\$unit_target"/);
+  assert.doesNotMatch(source, /^\\s*mv\\s+-T\\s+--/m);
+  assert.match(source, /BLOCKED_%s/);
+  assert.match(source, /PARTIAL_INSTALL_REVIEW_REQUIRED/);
+  assert.match(source, /PUBLISHED_HELPER_PIN/);
+  assert.match(source, /PUBLISHED_UNIT_PIN/);
+});
+
+test(
+  "Linux same-directory no-clobber publication refuses competing files and symlinks",
+  { skip: process.platform !== "linux" },
+  () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-dev-no-clobber-"));
+    const publish = (src, dest) =>
+      spawnSync("ln", ["-T", "--", src, dest], {
+        encoding: "utf8",
+        timeout: 5000,
+      });
+    try {
+      const src = path.join(dir, "staged");
+      const dest = path.join(dir, "installed");
+      const victim = path.join(dir, "victim");
+      fs.writeFileSync(src, "PINNED_NEW_CONTENT");
+      fs.writeFileSync(victim, "PRESERVE_VICTIM");
+
+      // A competing file may arrive after any earlier absence precheck.
+      assert.equal(fs.existsSync(dest), false);
+      fs.writeFileSync(dest, "PRESERVE_EXISTING");
+      assert.notEqual(publish(src, dest).status, 0);
+      assert.equal(fs.readFileSync(dest, "utf8"), "PRESERVE_EXISTING");
+      fs.unlinkSync(dest);
+
+      // A competing symlink must neither be followed nor replaced.
+      fs.symlinkSync(victim, dest);
+      assert.notEqual(publish(src, dest).status, 0);
+      assert.equal(fs.readlinkSync(dest), victim);
+      assert.equal(fs.readFileSync(victim, "utf8"), "PRESERVE_VICTIM");
+      fs.unlinkSync(dest);
+
+      // First successful atomic create wins; later candidates cannot replace.
+      assert.equal(publish(src, dest).status, 0);
+      const other = path.join(dir, "other");
+      fs.writeFileSync(other, "UNAPPROVED_OTHER_CONTENT");
+      assert.notEqual(publish(other, dest).status, 0);
+      assert.equal(fs.readFileSync(dest, "utf8"), "PINNED_NEW_CONTENT");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
