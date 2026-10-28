@@ -242,8 +242,25 @@ export class LocalFirstCodingWorker {
         try {
           const existing = this.active.get(project.id);
           if (existing) {
-            const job = this.runner.get(existing.jobId, project.id);
-            if (!job) continue;
+            // A vanished verification job is not a pending or passing gate.
+            // Fence the candidate for manual review rather than keeping an
+            // in-memory active slot forever or replaying local inference.
+            let job;
+            try {
+              job = this.runner.get(existing.jobId, project.id);
+            } catch {
+              job = null;
+            }
+            if (!job) {
+              this.active.delete(project.id);
+              this.journal.wait(
+                existing.taskId,
+                project.id,
+                "LOCAL_CODE_VERIFY_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+                existing.leaseToken,
+              );
+              continue;
+            }
             if (!TERMINAL.has(job.state)) {
               const task = this.journal.get(existing.taskId, project.id);
               if (
