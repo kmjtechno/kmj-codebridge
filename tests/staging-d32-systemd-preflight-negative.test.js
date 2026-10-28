@@ -4,7 +4,10 @@ import { readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 
 const runner = readFileSync(
-  new URL("../examples/main-platform-staging/d32/owner-runner.sh", import.meta.url),
+  new URL(
+    "../examples/main-platform-staging/d32/owner-runner.sh",
+    import.meta.url,
+  ),
   "utf8",
 );
 const match = runner.match(
@@ -65,7 +68,11 @@ test(
         encoding: "utf8",
         timeout: 10000,
       });
-      assert.equal(result.status, name === "valid" ? 0 : 2, name + ": " + result.stderr);
+      assert.equal(
+        result.status,
+        name === "valid" ? 0 : 2,
+        name + ": " + result.stderr,
+      );
     }
   },
 );
