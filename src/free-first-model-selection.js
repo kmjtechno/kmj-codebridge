@@ -10,10 +10,12 @@ export function selectFreeFirstModel({
 } = {}) {
   if (!Number.isSafeInteger(now) || now < 0)
     throw new Error("MODEL_ROUTE_INVALID_CLOCK");
-  if (local?.source === "verified_local_health" &&
-      local.available === true &&
-      typeof local.model === "string" &&
-      /^[A-Za-z0-9._:/-]{1,96}$/.test(local.model)) {
+  if (
+    local?.source === "verified_local_health" &&
+    local.available === true &&
+    typeof local.model === "string" &&
+    /^[A-Za-z0-9._:/-]{1,96}$/.test(local.model)
+  ) {
     return {
       route: "local",
       model: local.model,
@@ -23,10 +25,12 @@ export function selectFreeFirstModel({
       evidence: "verified_local_health",
     };
   }
-  const good = ownerCloudConsent === true &&
+  const good =
+    ownerCloudConsent === true &&
     cloud?.provider === "openrouter" &&
     cloud?.source === "authenticated_provider_pricing" &&
-    typeof cloud.model === "string" && MODELS.test(cloud.model) &&
+    typeof cloud.model === "string" &&
+    MODELS.test(cloud.model) &&
     cloud?.inputPriceUsdPerToken === 0 &&
     cloud?.outputPriceUsdPerToken === 0 &&
     cloud?.noPaidFallback === true &&
@@ -36,14 +40,15 @@ export function selectFreeFirstModel({
     cloud.observedAtEpochMs > now - FRESH_PRICING_MS &&
     Number.isSafeInteger(cloud?.requestsRemaining) &&
     cloud.requestsRemaining >= 1;
-  if (!good) return {
-    route: "blocked",
-    model: null,
-    provider: null,
-    noPaidFallback: true,
-    cloudRequestsAllowed: false,
-    evidence: "FREE_ONLY_INFERENCE_NOT_ATTESTED",
-  };
+  if (!good)
+    return {
+      route: "blocked",
+      model: null,
+      provider: null,
+      noPaidFallback: true,
+      cloudRequestsAllowed: false,
+      evidence: "FREE_ONLY_INFERENCE_NOT_ATTESTED",
+    };
   return {
     route: "free-cloud",
     model: cloud.model,
