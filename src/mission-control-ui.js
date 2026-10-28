@@ -90,9 +90,70 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 @media(max-width:520px){.shell{padding:17px;border-radius:15px}.pill{padding:6px 8px;font-size:9px}.brand img{width:36px;height:36px}.brand small{letter-spacing:.04em}.motion-icon{display:none}.flow{gap:4px;grid-template-columns:1fr 10px 1fr 10px 1fr}.node{padding:9px 7px;min-height:78px}.node strong{font-size:10px}.node span{font-size:9px}.foot{align-items:flex-start;flex-direction:column;gap:3px}}
 @media(prefers-color-scheme:light){:root{color-scheme:light;--text:#141d30;--muted:#4f607a;--soft:#64738b;--edge:rgba(51,68,99,.18);--glass:rgba(255,255,255,.78)}body{color:#141d30;background:#edf1f8}.shell{background:radial-gradient(ellipse 70% 90% at 80% -15%,#ded9ff,transparent 72%),linear-gradient(145deg,#f8faff,#ecf3fa)}.brand strong,h1,.sectiontitle{color:#16223a}.pill{color:#263856;background:#fff}.subtitle,.node span,.note{color:#536581}.project{color:#233a54}.node,.cell,.detail{background:rgba(255,255,255,.75)}.detail dd{color:#172942}nav{background:#e3e9f5}nav button[aria-selected="true"]{color:#fff;background:#344564}h1 span{color:#3e478c;background:none}.foot strong{color:#374967}}
+
+/* LOCKED HYPERSPEED WORKSPACE v1: native CSS; no external UI runtime. */
+:root{--workspace-canvas:#070b15;--workspace-surface:#0e1425;--workspace-card:#10182d;--workspace-border:rgba(205,217,255,.12);--workspace-verified:#91e1ad}
+.kmj-workspace{--text:#f4f6fc;--muted:#a5aec6;--soft:#75829f;--edge:rgba(205,217,255,.12);--glass:rgba(16,23,43,.88);color:#f4f6fc;color-scheme:dark;min-height:100vh;display:grid;grid-template-columns:196px minmax(0,1fr) 208px;gap:0;margin:0 auto;max-width:1800px;background:var(--workspace-canvas)}
+.kmj-rail,.kmj-inspector{padding:20px 13px;background:linear-gradient(165deg,rgba(15,23,42,.96),rgba(8,13,25,.94));border-color:var(--workspace-border);min-width:0}
+.kmj-rail{border-right:1px solid var(--workspace-border)}
+.kmj-inspector{border-left:1px solid var(--workspace-border)}
+.kmj-side-heading{font-size:10px;font-weight:750;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin:24px 10px 10px}
+.kmj-rail-brand{display:flex;align-items:center;gap:9px;font-size:14px;letter-spacing:.01em;font-weight:780;padding:6px 6px 14px;border-bottom:1px solid var(--workspace-border)}
+.kmj-rail-brand img{width:32px;height:32px;object-fit:contain;flex:none}
+.kmj-rail-list{display:grid;gap:5px}
+.kmj-rail-action,.kmj-inspector-action{border:1px solid transparent;border-radius:11px;display:block;width:100%;padding:11px 12px;background:transparent;color:#b9c6df;text-align:left;cursor:pointer;font-size:12px;font-weight:650}
+.kmj-rail-action:hover,.kmj-inspector-action:hover{background:rgba(121,230,227,.09);border-color:rgba(121,230,227,.18);color:#effcff}
+.kmj-rail-action:focus-visible,.kmj-inspector-action:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.kmj-rail-action[aria-current="page"]{background:rgba(121,230,227,.12);color:#ebffff;border-color:rgba(121,230,227,.2)}
+.kmj-side-note{line-height:1.6;font-size:11px;color:var(--muted);padding:0 10px}
+.kmj-main{min-width:0;padding:16px 18px 0;background:radial-gradient(ellipse 90% 42% at 70% 0%,rgba(60,72,140,.19),transparent 75%),var(--workspace-canvas)}
+.kmj-main>.shell{max-width:100%;border:0;border-radius:0;box-shadow:none;background:transparent;padding:7px 3px 0;overflow:visible}
+.kmj-main>.shell::before{display:none}
+.kmj-intro{margin:16px 0;padding:15px 16px;border:1px solid var(--workspace-border);border-radius:15px;background:linear-gradient(120deg,rgba(39,52,84,.55),rgba(14,20,37,.72))}
+.kmj-intro-label{font-size:10px;letter-spacing:.11em;color:var(--cyan);font-weight:780}
+.kmj-intro p{color:#b8c6dd;font-size:12px;line-height:1.65;margin:7px 0 0}
+.kmj-main nav[role="tablist"]{width:100%;flex-wrap:wrap}
+.kmj-main nav[role="tablist"] button{flex:1 0 80px}
+.kmj-main .panel{min-height:160px}
+.kmj-inspector-card{padding:14px 12px;border:1px solid var(--workspace-border);border-radius:14px;background:rgba(18,27,48,.72);margin:0 0 12px}
+.kmj-inspector-card h2{font-size:12px;color:#ecf2ff;font-weight:760;margin:0 0 12px}
+.kmj-inspector-card dl{display:grid;grid-template-columns:1fr;gap:6px;margin:0}
+.kmj-inspector-card dt{color:var(--muted);font-size:10px}
+.kmj-inspector-card dd{font-size:11px;color:#d9e5f6;margin:0 0 10px;overflow-wrap:anywhere}
+.kmj-inspector-card .kmj-inspector-action{margin-top:5px;border-color:var(--workspace-border)}
+.kmj-composer{position:sticky;bottom:0;z-index:2;margin:19px -4px 0;border:1px solid rgba(121,230,227,.3);border-radius:17px 17px 0 0;padding:14px;background:linear-gradient(145deg,rgba(18,27,48,.99),rgba(10,17,32,.99));box-shadow:0 -12px 28px rgba(0,0,0,.18)}
+.kmj-composer label{display:block;margin-bottom:8px}
+.kmj-composer textarea{display:block;width:100%;min-height:76px;max-height:190px;resize:vertical;background:#0a1324;color:var(--text);border:1px solid var(--workspace-border);border-radius:10px;padding:12px;font:inherit;font-size:14px;line-height:1.5}
+.kmj-composer textarea:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.kmj-composer-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.kmj-composer-actions button{padding:9px 11px;border-radius:9px;border:1px solid var(--workspace-border);background:#192b45;color:#ecf5ff;cursor:pointer;font-weight:650;font-size:11px}
+.kmj-composer-actions button:hover{background:#213a5a}
+.kmj-composer-actions button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.kmj-composer .note{margin-top:9px}
+.kmj-main .foot{padding-bottom:14px}
+@media(max-width:1000px){.kmj-workspace{grid-template-columns:170px minmax(0,1fr)}.kmj-inspector{display:none}.kmj-main{padding:14px}}
+@media(max-width:640px){.kmj-workspace{display:block}.kmj-rail{display:none}.kmj-main{padding:9px 12px}.kmj-composer{bottom:0;border-radius:14px 14px 0 0}.kmj-intro{padding:11px}.kmj-main nav[role="tablist"] button{flex:1 0 72px}}
+@media(prefers-color-scheme:light){.kmj-workspace .brand strong,.kmj-workspace h1,.kmj-workspace .sectiontitle{color:#f4f6fc}.kmj-workspace .pill{color:#ced7e9;background:rgba(255,255,255,.035)}.kmj-workspace .subtitle,.kmj-workspace .node span,.kmj-workspace .note{color:#a5aec6}.kmj-workspace .node,.kmj-workspace .cell,.kmj-workspace .detail{background:rgba(16,24,45,.73)}.kmj-workspace .detail dd,.kmj-workspace .project{color:#edf3fc}.kmj-workspace nav{background:rgba(231,233,255,.045)}.kmj-workspace nav button[aria-selected="true"]{background:#263150;color:#f5f5ff}.kmj-workspace h1 span{background:linear-gradient(100deg,#cfc6ff 0%,#b9e6ff 95%);color:transparent;background-clip:text;-webkit-background-clip:text}}
+@media(prefers-reduced-motion:reduce){.kmj-rail-action,.kmj-composer-actions button{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
+<div class="kmj-workspace">
+<aside class="kmj-rail" aria-label="CodeBridge project navigation">
+  <div class="kmj-rail-brand"><img alt="" src="__CODEBRIDGE_APPROVED_ICON_URL__" width="32" height="32"><span>KMJ CODEBRIDGE</span></div>
+  <p class="kmj-side-heading">Workspace</p>
+  <div class="kmj-rail-list" aria-label="Workspace sections">
+    <button type="button" class="kmj-rail-action" data-target-view="overview" aria-current="page">✦ Overview</button>
+    <button type="button" class="kmj-rail-action" data-target-view="work">◷ Workstream</button>
+    <button type="button" class="kmj-rail-action" data-target-view="evidence">✓ Verification</button>
+    <button type="button" class="kmj-rail-action" data-target-view="workspace">⌘ Project files</button>
+  </div>
+  <p class="kmj-side-heading">Conversations</p>
+  <p class="kmj-side-note">Host-managed conversations. No unverified history or cross-project data is displayed.</p>
+  <p class="kmj-side-heading">Security</p>
+  <p class="kmj-side-note">Owner-approved devices, scoped tools and verified job receipts only.</p>
+</aside>
+<main class="kmj-main" id="kmj-main-content">
 <article class="shell" role="region" aria-label="KMJ CodeBridge Mission Control">
 <header>
   <div class="brand"><img alt="Approved KMJ TECHNO icon" src="__CODEBRIDGE_APPROVED_ICON_URL__" width="42" height="42">
@@ -105,6 +166,10 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <p class="subtitle"><span class="project" id="project">Authorized project</span> · Verified work signals, not simulated progress.</p></div>
   <div class="motion-icon" aria-hidden="true"><svg viewBox="0 0 38 38"><circle cx="19" cy="19" r="11"/><circle cx="19" cy="19" r="3"/><path d="M19 2v6M19 30v6M2 19h6M30 19h6M6 6l4 4M28 28l4 4"/></svg></div>
 </div>
+<section class="kmj-intro" aria-label="AI workspace information">
+  <strong class="kmj-intro-label">AUTHORIZED AI WORKSPACE</strong>
+  <p>Ask your connected host AI to work on this project, review verified tool receipts, and inspect authorized files. Replies appear in the host conversation; model availability and task completion are not implied.</p>
+</section>
 <nav role="tablist" aria-label="Mission Control views">
   <button type="button" role="tab" id="tab-overview" aria-controls="panel-overview" aria-selected="true" data-view="overview">Overview</button>
   <button type="button" role="tab" id="tab-work" aria-controls="panel-work" aria-selected="false" data-view="work" tabindex="-1">Workstream</button>
@@ -130,13 +195,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <button id="refreshProgress" type="button" style="padding:8px 11px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Refresh progress</button>
     <span class="note" id="progressRefreshNotice" role="status">Status is the last authenticated snapshot, not continuous polling.</span>
   </div>
-  <div style="margin-top:18px;border:1px solid var(--edge);border-radius:12px;padding:13px;background:var(--glass)">
-    <label class="sectiontitle" for="aiPrompt">Ask AI to continue this project</label>
-    <textarea id="aiPrompt" maxlength="1800" style="display:block;width:100%;min-height:75px;background:var(--glass);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:9px" placeholder="Describe the task or bug to investigate"></textarea>
-    <button id="askHostAi" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Send to connected AI chat</button>
-    <button id="queueDevTask" type="button" style="margin-top:10px;padding:9px 12px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Queue approved development task</button>
-    <p class="note" id="aiChatNotice" role="status">Host AI chat only. Requires authenticated project snapshot and host approval. No paid cloud inference or CodeBridge job starts automatically.</p>
-  </div>
+
 </section>
 <section class="panel" id="panel-work" role="tabpanel" aria-labelledby="tab-work" hidden>
   <h2 class="sectiontitle">Tracked task states</h2>
@@ -204,8 +263,36 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   </div>
   <p class="note">Read-only. The diff excludes untracked file content. Files are bounded and may be truncated; no build, edit or script is executed in this view.</p>
 </section>
+
+<div class="kmj-composer" aria-label="Project-scoped AI prompt composer">
+  <label class="sectiontitle" for="aiPrompt">Ask the connected AI about this project</label>
+  <textarea id="aiPrompt" maxlength="1800" placeholder="Describe a project task or bug. Requires host approval."></textarea>
+  <div class="kmj-composer-actions">
+    <button id="askHostAi" type="button">✧ Send to connected AI</button>
+    <button id="queueDevTask" type="button">＋ Queue approved task</button>
+  </div>
+  <p class="note" id="aiChatNotice" role="status">The host controls AI inference and approvals. No task starts merely by opening this interface.</p>
+</div>
 <footer class="foot"><span>KMJ TECHNO · SECURE BY DESIGN</span><span><strong>Read-only snapshot</strong> · Freshness requires a new tool result</span></footer>
 </article>
+</main>
+<aside class="kmj-inspector" aria-label="Verified project context">
+  <div class="kmj-inspector-card">
+    <h2>Live evidence</h2>
+    <dl><dt>Authorized project</dt><dd id="inspectorProject">Not verified</dd><dt>Device</dt><dd id="inspectorDevice">Not verified</dd><dt>Snapshot</dt><dd id="inspectorSnapshot">Awaiting authenticated result</dd></dl>
+    <button class="kmj-inspector-action" type="button" data-target-view="evidence">Review verification →</button>
+  </div>
+  <div class="kmj-inspector-card">
+    <h2>AI connection</h2>
+    <dl><dt>Provider / model</dt><dd>Controlled by connected host</dd><dt>Local autonomous coder</dt><dd>Not verified</dd><dt>Permissions</dt><dd>Project-scoped host approvals</dd></dl>
+  </div>
+  <div class="kmj-inspector-card">
+    <h2>Activity</h2>
+    <p class="kmj-side-note">Only authenticated job receipts are shown. No invented live percentages.</p>
+    <button class="kmj-inspector-action" type="button" data-target-view="work">Review workstream →</button>
+  </div>
+</aside>
+</div>
 <script>
 (function(){
  "use strict";
@@ -230,6 +317,18 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      t.setAttribute("aria-selected",String(active));t.tabIndex=active?0:-1;panel.hidden=!active;
    }
  }
+ document.querySelectorAll(".kmj-rail-action[data-target-view],.kmj-inspector-action[data-target-view]").forEach(function(button){
+   button.addEventListener("click",function(){
+     var view=button.getAttribute("data-target-view");
+     if(views.indexOf(view)<0)return;
+     tab(view);
+     var target=document.getElementById("tab-"+view);
+     if(target)target.focus();
+     document.querySelectorAll(".kmj-rail-action[data-target-view]").forEach(function(other){
+       other.setAttribute("aria-current",String(other.getAttribute("data-target-view")===view?"page":"false"));
+     });
+   });
+ });
  document.querySelectorAll("nav button[data-view]").forEach(function(button){
    button.addEventListener("click",function(){tab(button.getAttribute("data-view"));});
    button.addEventListener("keydown",function(event){
@@ -387,6 +486,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    text("signalText","SNAPSHOT RECEIVED");
    var project=safeName(data.project),device=safeName(data.device);
    text("project",project);text("detailProject",project);text("device",device);
+   text("inspectorProject",project);text("inspectorDevice",device);
+   text("inspectorSnapshot","Authenticated project snapshot received");
    var tasks=data.evidence&&data.evidence.tasks===true&&data.tasks?data.tasks:null;
    var running=tasks?count(tasks.running):null,queued=tasks?count(tasks.queued):null;
    var capacity=data.evidence&&data.evidence.capacity===true?count(data.availableAuthorizedSlots):null;

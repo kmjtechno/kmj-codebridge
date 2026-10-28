@@ -101,7 +101,7 @@ export function compactStatusText(value) {
 // The approved, immutable KMJ brand icon remains pinned. Keep the existing
 // ui:// status-v1 resource identifier for backwards-compatible MCP clients.
 // Mission Control never renders untrusted HTML from tool data.
-export const KMJ_STATUS_HTML = KMJ_MISSION_CONTROL_HTML.replace(
+export const KMJ_STATUS_HTML = KMJ_MISSION_CONTROL_HTML.replaceAll(
   "__CODEBRIDGE_APPROVED_ICON_URL__",
   APPROVED_ICON_URL,
 );
