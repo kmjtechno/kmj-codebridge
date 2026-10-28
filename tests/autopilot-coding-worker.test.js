@@ -597,6 +597,45 @@ test("restart/resume with an existing coding checkpoint never replays model gene
   );
 });
 
+test("missing or unreadable verification job fails closed without replaying inference", async (t) => {
+  for (const mode of ["missing", "lookup-error"]) {
+    const f = fixture(t);
+    const task = f.enqueue();
+    await f.worker.tick();
+    assert.equal(f.starts.length, 1, mode);
+    assert.equal(f.generated(), 1, mode);
+
+    f.runner.get = () => {
+      if (mode === "lookup-error") throw new Error("runner state unavailable");
+      return undefined;
+    };
+    await f.worker.tick();
+
+    const record = f.journal.get(task.id, "repo");
+    assert.equal(record.state, "waiting", mode);
+    assert.equal(
+      record.lastReason,
+      "LOCAL_CODE_VERIFY_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+      mode,
+    );
+    assert.notEqual(
+      record.checkpoint.next,
+      "VERIFIED_PATCH_AWAITING_REVIEW",
+      mode,
+    );
+    assert.equal(f.worker.active.size, 0, mode);
+    assert.equal(f.lanes.status("repo", f.root).lanes.length, 1, mode);
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      mode,
+    );
+    await f.worker.tick();
+    assert.equal(f.generated(), 1, mode);
+    assert.equal(f.starts.length, 1, mode);
+  }
+});
+
 test("failed verification gate leaves the candidate unpublishable", async (t) => {
   const f = fixture(t);
   const task = f.enqueue();
