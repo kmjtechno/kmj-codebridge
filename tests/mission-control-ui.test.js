@@ -696,7 +696,10 @@ test("locked CodeBridge workspace is a responsive three-panel functional shell",
   assert.match(KMJ_STATUS_HTML, /Provider \/ model/);
   assert.equal((KMJ_STATUS_HTML.match(/id="aiPrompt"/g) ?? []).length, 1);
   assert.ok(!KMJ_STATUS_HTML.includes("__CODEBRIDGE_APPROVED_ICON_URL__"));
-  assert.doesNotMatch(KMJ_STATUS_HTML, /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i);
+  assert.doesNotMatch(
+    KMJ_STATUS_HTML,
+    /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i,
+  );
 
   const view = openCard();
   view.element("rail-work").handlers.click();
