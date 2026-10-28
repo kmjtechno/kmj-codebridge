@@ -77,8 +77,8 @@ test(
 
 test("installer publishes with atomic no-clobber links and preserves partial-state review", () => {
   const source = fs.readFileSync(script, "utf8");
-  assert.match(source, /if ! ln -T -- "\\$helper_tmp" "\\$helper_target"/);
-  assert.match(source, /if ! ln -T -- "\\$unit_tmp" "\\$unit_target"/);
+  assert.ok(source.includes('if ! ln -T -- "$helper_tmp" "$helper_target"; then'));
+  assert.ok(source.includes('if ! ln -T -- "$unit_tmp" "$unit_target"; then'));
   assert.doesNotMatch(source, /^\\s*mv\\s+-T\\s+--/m);
   assert.match(source, /BLOCKED_%s/);
   assert.match(source, /PARTIAL_INSTALL_REVIEW_REQUIRED/);
