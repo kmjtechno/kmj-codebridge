@@ -1,6 +1,6 @@
 // Fail-closed Cloud LLM choice for a ZERO additional-cost installation.
 // This planner never makes a network request, enables billing or stores keys.
-const MODELS = /^[a-z0-9][a-z0-9._-]{0,79}\\/[a-z0-9][a-z0-9._-]{0,79}:free$/;
+const MODELS = /^[a-z0-9][a-z0-9._-]{0,79}\/[a-z0-9][a-z0-9._-]{0,79}:free$/;
 const FRESH_PRICING_MS = 24 * 60 * 60 * 1000;
 export function selectFreeFirstModel({
   local = null,
