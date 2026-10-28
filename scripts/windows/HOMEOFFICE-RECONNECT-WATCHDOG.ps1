@@ -40,7 +40,7 @@ try {
         throw 'WATCHDOG_WRONG_HOST'
     }
     $identity=[Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal=New-Object Security.Principal.WindowsPrincipal($identity)
+    $principal=[Security.Principal.WindowsPrincipal]::new($identity)
     if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw 'WATCHDOG_ADMIN_NOT_ALLOWED'
     }
@@ -112,7 +112,7 @@ try {
         Write-Output 'ACCOUNT_READY=VERIFY_AUTHENTICATED'
         exit 0
     }
-    $mutex=New-Object System.Threading.Mutex($false,'Local\KMJ-CodeBridge-P520-Watchdog')
+    $mutex=[System.Threading.Mutex]::new($false,'Local\KMJ-CodeBridge-P520-Watchdog')
     $owned=$false
     try {
         try { $owned=$mutex.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $owned=$true }
