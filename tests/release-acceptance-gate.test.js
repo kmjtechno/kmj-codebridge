@@ -195,7 +195,9 @@ test("evidence reader rejects symlinked files", (t) => {
 });
 
 test("release evidence read uses the same stable opened inode", (t) => {
-  const temp = fs.mkdtempSync(path.join(os.tmpdir(), "release-gate-descriptor-"));
+  const temp = fs.mkdtempSync(
+    path.join(os.tmpdir(), "release-gate-descriptor-"),
+  );
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   const valid = path.join(temp, "approved.json");
   const replacement = path.join(temp, "replacement.json");
@@ -217,6 +219,9 @@ test("release evidence refuses directories and malformed non-secret content", (t
   t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
   assert.throws(() => readReleaseEvidence(temp), /EVIDENCE_FILE_INVALID/);
   const file = path.join(temp, "evidence.json");
-  fs.writeFileSync(file, JSON.stringify(goodEvidence()) + " ".repeat(256 * 1024));
+  fs.writeFileSync(
+    file,
+    JSON.stringify(goodEvidence()) + " ".repeat(256 * 1024),
+  );
   assert.throws(() => readReleaseEvidence(file), /EVIDENCE_FILE_INVALID/);
 });
