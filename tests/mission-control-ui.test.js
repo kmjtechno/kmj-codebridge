@@ -81,7 +81,7 @@ function openCard(initialOutput = null) {
     replyResult(id, result) {
       handlers.message({
         source: parent,
-        data: {jsonrpc: "2.0", id, result},
+        data: { jsonrpc: "2.0", id, result },
       });
     },
     replyHost(id, error = null) {
@@ -463,10 +463,18 @@ test("AI chat rejects forged scope and host denial is visible", () => {
   const view = openCard();
   view.handshake();
   view.element("aiPrompt").value = "Investigate the product editor";
-  view.send({product:"KMJ CodeBridge", project:"../other", device:"device1"});
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "../other",
+    device: "device1",
+  });
   view.element("askHostAi").handlers.click();
   assert.equal(view.parentMessages.length, 2);
-  view.send({product:"KMJ CodeBridge", project:"project1", device:"device1"});
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    device: "device1",
+  });
   view.element("askHostAi").handlers.click();
   assert.equal(view.parentMessages.length, 3);
   view.replyHost(2, "Denied by host");
@@ -477,7 +485,11 @@ test("development task enqueues only on a real click and never reports execution
   const view = openCard();
   view.handshake();
   view.element("aiPrompt").value = "Repair the isolated staging CI failure";
-  view.send({product:"KMJ CodeBridge",device:"device1",project:"project1"});
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
   assert.equal(view.parentMessages.length, 2);
   view.element("queueDevTask").handlers.click();
   assert.equal(view.parentMessages.length, 3);
@@ -499,7 +511,11 @@ test("no valid project or a denied queue request never appears accepted", () => 
   view.element("aiPrompt").value = "Investigate README smoke";
   view.element("queueDevTask").handlers.click();
   assert.equal(view.parentMessages.length, 2);
-  view.send({product:"KMJ CodeBridge",device:"device1",project:"project1"});
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
   view.element("queueDevTask").handlers.click();
   assert.equal(view.parentMessages.length, 3);
   view.replyHost(3, "Not authorized");
@@ -511,18 +527,45 @@ test("progress refresh uses authorized project and rejects cross-project tool ou
   v.handshake();
   v.element("refreshProgress").handlers.click();
   assert.equal(v.parentMessages.length, 2);
-  v.send({ product: "KMJ CodeBridge", device: "device1", project: "project1",
-    evidence: {tasks:true,git:false,capacity:false}, tasks: {running:1,queued:1} });
+  v.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+    evidence: { tasks: true, git: false, capacity: false },
+    tasks: { running: 1, queued: 1 },
+  });
   v.element("refreshProgress").handlers.click();
   assert.equal(v.parentMessages.length, 3);
   assert.equal(v.parentMessages[2].message.method, "tools/call");
-  assert.equal(v.parentMessages[2].message.params.name, "render_codebridge_status");
-  assert.equal(v.parentMessages[2].message.params.arguments.project, "project1");
-  v.replyResult(4, {structuredContent:{product:"KMJ CodeBridge", device:"device1",project:"foreign"}});
-  assert.match(v.element("progressRefreshNotice").textContent,/unavailable/);
+  assert.equal(
+    v.parentMessages[2].message.params.name,
+    "render_codebridge_status",
+  );
+  assert.equal(
+    v.parentMessages[2].message.params.arguments.project,
+    "project1",
+  );
+  v.replyResult(4, {
+    structuredContent: {
+      product: "KMJ CodeBridge",
+      device: "device1",
+      project: "foreign",
+    },
+  });
+  assert.match(v.element("progressRefreshNotice").textContent, /unavailable/);
   v.element("refreshProgress").handlers.click();
-  v.replyResult(4,{structuredContent:{product:"KMJ CodeBridge",device:"device1",project:"project1",
-    evidence:{tasks:true,git:false,capacity:false},tasks:{running:3,queued:2}}});
-  assert.equal(v.element("running").textContent,"3");
-  assert.match(v.element("progressRefreshNotice").textContent,/authenticated snapshot/);
+  v.replyResult(4, {
+    structuredContent: {
+      product: "KMJ CodeBridge",
+      device: "device1",
+      project: "project1",
+      evidence: { tasks: true, git: false, capacity: false },
+      tasks: { running: 3, queued: 2 },
+    },
+  });
+  assert.equal(v.element("running").textContent, "3");
+  assert.match(
+    v.element("progressRefreshNotice").textContent,
+    /authenticated snapshot/,
+  );
 });
