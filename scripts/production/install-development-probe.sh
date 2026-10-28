@@ -78,9 +78,25 @@ install -o root -g root -m 0644 "$unit_source" "$unit_tmp"
 install -o root -g root -m 0644 "$helper_source" "$helper_tmp"
 [[ "$(sha256sum "$unit_tmp" | cut -d' ' -f1)" == "$unit_sha" ]] || die STAGED_UNIT
 [[ "$(sha256sum "$helper_tmp" | cut -d' ' -f1)" == "$helper_sha" ]] || die STAGED_HELPER
-[[ ! -e "$unit_target" && ! -e "$helper_target" ]] || die TARGET_RACE
-mv -T -- "$helper_tmp" "$helper_target"
-mv -T -- "$unit_tmp" "$unit_target"
+# Final publication must be atomic NO-REPLACE. Each mktemp is on the same
+# filesystem as its final target. Linux hardlink creation without -f cannot
+# replace even a symlink introduced after the absence precheck. Do not use mv -T.
+[[ ! -e "$unit_target" && ! -L "$unit_target" && ! -e "$helper_target" && ! -L "$helper_target" ]] ||
+  die TARGET_RACE
+if ! ln -T -- "$helper_tmp" "$helper_target"; then
+  die HELPER_TARGET_COLLISION
+fi
+# Failure of the second publication leaves only our pinned helper installed.
+# Do not silently remove it: concurrent ownership or a crash needs review.
+if ! ln -T -- "$unit_tmp" "$unit_target"; then
+  die PARTIAL_INSTALL_REVIEW_REQUIRED
+fi
+[[ -f "$helper_target" && ! -L "$helper_target" && -f "$unit_target" && ! -L "$unit_target" ]] ||
+  die PUBLISHED_TARGET_TYPE
+[[ "$(sha256sum "$helper_target" | cut -d' ' -f1)" == "$helper_sha" ]] ||
+  die PUBLISHED_HELPER_PIN
+[[ "$(sha256sum "$unit_target" | cut -d' ' -f1)" == "$unit_sha" ]] ||
+  die PUBLISHED_UNIT_PIN
 systemctl daemon-reload
 [[ "$(systemctl show kmj-codebridge-development-ci.service -p LoadState --value --no-pager)" == loaded ]] ||
   die UNIT_LOAD
