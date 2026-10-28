@@ -2053,11 +2053,31 @@ export function createSupervisorHandler({
           ]),
         ]),
       );
+      // A particular owner-invoked, candidate-pinned operator oneshot was
+      // previously submitted outside MCP. The Supervisor only reads the
+      // predeclared exact unit; clients cannot choose units, commands, paths
+      // or candidate SHA. A transient --collect unit may disappear, and
+      // systemd success is never evidence of a verified backup or restore.
+      const ownerRecovery = fixedUnitStatus(
+        run,
+        "kmj-28545-local-backup-restore-20261028.service",
+        [
+          "ActiveState",
+          "SubState",
+          "Result",
+          "ExecMainStatus",
+          "ExecMainExitTimestamp",
+        ],
+      );
       return {
         response: {
           mode: "READ_ONLY",
           scope: "kmj-main-platform",
           services,
+          ownerRecovery,
+          ownerRecoveryCandidateSha:
+            "28545ebee1b686726598773349d182168cf4b740",
+          ownerRecoveryReceiptVerified: false,
           recentBackupVerified: false,
           restoreVerified: false,
           productionReleaseApprovedByThisCheck: false,
