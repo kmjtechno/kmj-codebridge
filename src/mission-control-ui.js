@@ -93,7 +93,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 
 /* LOCKED HYPERSPEED WORKSPACE v1: native CSS; no external UI runtime. */
 :root{--workspace-canvas:#070b15;--workspace-surface:#0e1425;--workspace-card:#10182d;--workspace-border:rgba(205,217,255,.12);--workspace-verified:#91e1ad}
-.kmj-workspace{min-height:100vh;display:grid;grid-template-columns:196px minmax(0,1fr) 208px;gap:0;margin:0 auto;max-width:1800px;background:var(--workspace-canvas)}
+.kmj-workspace{--text:#f4f6fc;--muted:#a5aec6;--soft:#75829f;--edge:rgba(205,217,255,.12);--glass:rgba(16,23,43,.88);color:#f4f6fc;color-scheme:dark;min-height:100vh;display:grid;grid-template-columns:196px minmax(0,1fr) 208px;gap:0;margin:0 auto;max-width:1800px;background:var(--workspace-canvas)}
 .kmj-rail,.kmj-inspector{padding:20px 13px;background:linear-gradient(165deg,rgba(15,23,42,.96),rgba(8,13,25,.94));border-color:var(--workspace-border);min-width:0}
 .kmj-rail{border-right:1px solid var(--workspace-border)}
 .kmj-inspector{border-left:1px solid var(--workspace-border)}
@@ -133,6 +133,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .kmj-main .foot{padding-bottom:14px}
 @media(max-width:1000px){.kmj-workspace{grid-template-columns:170px minmax(0,1fr)}.kmj-inspector{display:none}.kmj-main{padding:14px}}
 @media(max-width:640px){.kmj-workspace{display:block}.kmj-rail{display:none}.kmj-main{padding:9px 12px}.kmj-composer{bottom:0;border-radius:14px 14px 0 0}.kmj-intro{padding:11px}.kmj-main nav[role="tablist"] button{flex:1 0 72px}}
+@media(prefers-color-scheme:light){.kmj-workspace .brand strong,.kmj-workspace h1,.kmj-workspace .sectiontitle{color:#f4f6fc}.kmj-workspace .pill{color:#ced7e9;background:rgba(255,255,255,.035)}.kmj-workspace .subtitle,.kmj-workspace .node span,.kmj-workspace .note{color:#a5aec6}.kmj-workspace .node,.kmj-workspace .cell,.kmj-workspace .detail{background:rgba(16,24,45,.73)}.kmj-workspace .detail dd,.kmj-workspace .project{color:#edf3fc}.kmj-workspace nav{background:rgba(231,233,255,.045)}.kmj-workspace nav button[aria-selected="true"]{background:#263150;color:#f5f5ff}.kmj-workspace h1 span{background:linear-gradient(100deg,#cfc6ff 0%,#b9e6ff 95%);color:transparent;background-clip:text;-webkit-background-clip:text}}
 @media(prefers-reduced-motion:reduce){.kmj-rail-action,.kmj-composer-actions button{animation:none!important;transition:none!important}}
 </style>
 </head>
