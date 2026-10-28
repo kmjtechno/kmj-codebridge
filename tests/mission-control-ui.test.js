@@ -39,8 +39,10 @@ function openCard(initialOutput = null) {
   const views = ["overview", "work", "evidence", "workspace"];
   for (const view of views) {
     element("tab-" + view).attributes["data-view"] = view;
+    element("rail-" + view).attributes["data-target-view"] = view;
     element("panel-" + view);
   }
+  element("inspector-work").attributes["data-target-view"] = "work";
   const handlers = {};
   const parentMessages = [];
   const parent = {
@@ -60,7 +62,15 @@ function openCard(initialOutput = null) {
     querySelectorAll: (query) =>
       query === "nav button[data-view]"
         ? views.map((view) => element("tab-" + view))
-        : [],
+        : query === ".kmj-rail-action[data-target-view]"
+          ? views.map((view) => element("rail-" + view))
+          : query ===
+              ".kmj-rail-action[data-target-view],.kmj-inspector-action[data-target-view]"
+            ? [
+                ...views.map((view) => element("rail-" + view)),
+                element("inspector-work"),
+              ]
+            : [],
   };
   const script = KMJ_STATUS_HTML.match(/<script>([\s\S]*?)<\/script>/)?.[1];
   assert.ok(script, "The widget must contain its local UI controller");
@@ -672,4 +682,37 @@ test("queue receipt rejects forged key, missing task id, nonqueued state and too
     view.replyResult(3, result);
     assert.match(view.element("aiChatNotice").textContent, /NOT verified/);
   }
+});
+
+test("locked CodeBridge workspace is a responsive three-panel functional shell", () => {
+  assert.match(KMJ_STATUS_HTML, /class="kmj-workspace"/);
+  assert.match(KMJ_STATUS_HTML, /class="kmj-rail"/);
+  assert.match(KMJ_STATUS_HTML, /class="kmj-main"/);
+  assert.match(KMJ_STATUS_HTML, /class="kmj-inspector"/);
+  assert.match(KMJ_STATUS_HTML, /class="kmj-composer"/);
+  assert.match(KMJ_STATUS_HTML, /@media\(max-width:640px\)/);
+  assert.match(KMJ_STATUS_HTML, /aria-label="CodeBridge project navigation"/);
+  assert.match(KMJ_STATUS_HTML, /Host-managed conversations/);
+  assert.match(KMJ_STATUS_HTML, /Provider \/ model/);
+  assert.equal((KMJ_STATUS_HTML.match(/id="aiPrompt"/g) ?? []).length, 1);
+  assert.ok(!KMJ_STATUS_HTML.includes("__CODEBRIDGE_APPROVED_ICON_URL__"));
+  assert.doesNotMatch(KMJ_STATUS_HTML, /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i);
+
+  const view = openCard();
+  view.element("rail-work").handlers.click();
+  assert.equal(view.element("tab-work").attributes["aria-selected"], "true");
+  assert.equal(view.element("panel-work").hidden, false);
+  assert.equal(view.element("rail-work").attributes["aria-current"], "page");
+  view.element("inspector-work").handlers.click();
+  assert.equal(view.element("tab-work").focused, true);
+  view.element("rail-workspace").handlers.click();
+  assert.equal(view.element("panel-workspace").hidden, false);
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+    evidence: { git: false, tasks: false, capacity: false },
+  });
+  assert.equal(view.element("inspectorProject").textContent, "project1");
+  assert.equal(view.element("inspectorDevice").textContent, "device1");
 });
