@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -127,6 +127,68 @@ test(
       fs.writeFileSync(other, "UNAPPROVED_OTHER_CONTENT");
       assert.notEqual(publish(other, dest).status, 0);
       assert.equal(fs.readFileSync(dest, "utf8"), "PINNED_NEW_CONTENT");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "two racing publishers have exactly one winner and a stable installed inode",
+  { skip: process.platform !== "linux" },
+  async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-dev-publish-race-"));
+    try {
+      const stagedA = path.join(dir, "staged-a");
+      const stagedB = path.join(dir, "staged-b");
+      const target = path.join(dir, "target");
+      fs.writeFileSync(stagedA, "APPROVED_A");
+      fs.writeFileSync(stagedB, "APPROVED_B");
+      const attempt = (source) =>
+        new Promise((resolve, reject) => {
+          const child = spawn("ln", ["-T", "--", source, target], {
+            stdio: "ignore",
+          });
+          child.on("error", reject);
+          child.on("close", resolve);
+        });
+      const results = await Promise.all([attempt(stagedA), attempt(stagedB)]);
+      assert.equal(results.filter((code) => code === 0).length, 1);
+      const winner = results[0] === 0 ? stagedA : stagedB;
+      assert.equal(
+        fs.readFileSync(target, "utf8"),
+        fs.readFileSync(winner, "utf8"),
+      );
+      assert.equal(fs.statSync(target).ino, fs.statSync(winner).ino);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  "fault injection at second publication preserves installed helper and competing unit",
+  { skip: process.platform !== "linux" },
+  () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-dev-partial-install-"));
+    try {
+      const helperStage = path.join(dir, "helper-stage");
+      const helperFinal = path.join(dir, "helper-final");
+      const unitStage = path.join(dir, "unit-stage");
+      const unitFinal = path.join(dir, "unit-final");
+      fs.writeFileSync(helperStage, "APPROVED_HELPER");
+      fs.writeFileSync(unitStage, "APPROVED_UNIT");
+      const publish = (src, dest) =>
+        spawnSync("ln", ["-T", "--", src, dest], {
+          encoding: "utf8",
+          timeout: 5000,
+        });
+      assert.equal(publish(helperStage, helperFinal).status, 0);
+      // Operator/other installer creates unit path before second publication.
+      fs.writeFileSync(unitFinal, "PREEXISTING_UNIT");
+      assert.notEqual(publish(unitStage, unitFinal).status, 0);
+      assert.equal(fs.readFileSync(helperFinal, "utf8"), "APPROVED_HELPER");
+      assert.equal(fs.readFileSync(unitFinal, "utf8"), "PREEXISTING_UNIT");
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
