@@ -14,7 +14,9 @@ export function selectFreeFirstModel({
     local?.source === "verified_local_health" &&
     local.available === true &&
     typeof local.model === "string" &&
-    /^[A-Za-z0-9._:/-]{1,96}$/.test(local.model)
+    local.model.length <= 96 &&
+    local.model.split("/").every((part) => /^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(part)) &&
+    !local.model.includes("..")
   ) {
     return {
       route: "local",
