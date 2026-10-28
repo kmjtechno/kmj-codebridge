@@ -8,7 +8,7 @@ const runner = readFileSync(
   "utf8",
 );
 const match = runner.match(
-  /python3 - <<'PY' \\|\\| deny SYSTEMD_EFFECTIVE_UNIT\\n([\\s\\S]*?)\\nPY/,
+  /python3 - <<'PY' \|\| deny SYSTEMD_EFFECTIVE_UNIT\n([\s\S]*?)\nPY/,
 );
 
 test(
