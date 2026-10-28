@@ -255,6 +255,28 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      text("activity-time-"+i,entry.at);
    }
  }
+ var aiMessagePending=false;
+ document.getElementById("askHostAi").addEventListener("click",function(){
+   var el=document.getElementById("aiPrompt");
+   var instruction=el&&typeof el.value==="string"?el.value.trim():"";
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||aiMessagePending){
+     text("aiChatNotice","AI chat host is not initialized or a request is pending.");return;
+   }
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)||
+      instruction.length<4||instruction.length>1800){
+     text("aiChatNotice","Choose an authorized project and enter a valid instruction.");return;
+   }
+   aiMessagePending=true;
+   text("aiChatNotice","Requesting host approval; no task queued yet.");
+   window.parent.postMessage({jsonrpc:"2.0",id:2,method:"ui/message",params:{
+     role:"user",content:{type:"text",text:
+       "Continue authorized KMJ CodeBridge project "+project+" on "+device+
+       ". Check real status and available tools before acting. Task: "+instruction+
+       ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."}
+   }},"*");
+ });
  var selectedWorkspaceFiles=[];
  var selectedPatch=null;
  function renderSelectedFile(path){
@@ -357,6 +379,13 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
          jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
        },"*");
      }
+     return;
+   }
+   if(message.id===2&&aiMessagePending){
+     aiMessagePending=false;
+     text("aiChatNotice",message.error?
+       "Host denied the message. No work was started.":
+       "Sent to host AI chat; execution, model and job status are not verified.");
      return;
    }
    if(message.method!=="ui/notifications/tool-result")return;
