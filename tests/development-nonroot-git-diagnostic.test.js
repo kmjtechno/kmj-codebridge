@@ -43,11 +43,12 @@ test("fixed read-only Git commands prove HEAD ref, object and commit", () => {
     headRef: "PASS",
     headObject: "PASS",
     headCommit: "PASS",
+    headStable: "PASS",
   });
   assert.equal(result.permissionsChanged, false);
   assert.equal(result.productionChanged, false);
   assert.equal(result.autonomousCodingLive, false);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   for (const call of calls) {
     assert.equal(call.file, "/usr/bin/git");
     assert.deepEqual(call.args.slice(0, 2), [
@@ -69,8 +70,9 @@ test("fixed read-only Git commands prove HEAD ref, object and commit", () => {
     calls.map((call) => call.args.slice(2)),
     [
       ["rev-parse", "--verify", "HEAD"],
-      ["cat-file", "-t", "HEAD"],
-      ["rev-parse", "--verify", "HEAD^{commit}"],
+      ["cat-file", "-t", revision],
+      ["rev-parse", "--verify", `${revision}^{commit}`],
+      ["rev-parse", "--verify", "HEAD"],
     ],
   );
 });
@@ -86,11 +88,12 @@ test("dubious ownership fails closed without a safe.directory override", () => {
       throw error;
     },
   });
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.deepEqual(result.checks, {
     headRef: "UNSAFE_OWNERSHIP",
     headObject: "UNSAFE_OWNERSHIP",
     headCommit: "UNSAFE_OWNERSHIP",
+    headStable: "UNSAFE_OWNERSHIP",
   });
   assert.equal(result.gitChecksPassed, false);
   assert.equal(diagnosticExitCode(result), 3);
@@ -121,6 +124,7 @@ test("Git object failure is not misreported as a successful HEAD", () => {
   assert.equal(result.checks.headRef, "PASS");
   assert.equal(result.checks.headObject, "OBJECT_UNAVAILABLE");
   assert.equal(result.checks.headCommit, "PASS");
+  assert.equal(result.checks.headStable, "PASS");
 });
 
 test("classifies ownership, access, repository, object and timeout failures", () => {
@@ -156,6 +160,7 @@ test("unexpected output and stderr never disclose repository content or secrets"
     headRef: "ACCESS_DENIED",
     headObject: "UNEXPECTED_OUTPUT",
     headCommit: "ACCESS_DENIED",
+    headStable: "ACCESS_DENIED",
   });
   assert.equal(JSON.stringify(result).includes(secret), false);
   assert.equal(JSON.stringify(result).includes("permission denied"), false);
@@ -172,20 +177,65 @@ test("diagnostic continues classification after a failed individual Git check", 
       throw error;
     },
   });
-  assert.equal(calls, 3);
+  assert.equal(calls, 4);
   assert.deepEqual(result.checks, {
     headRef: "OBJECT_UNAVAILABLE",
     headObject: "OBJECT_UNAVAILABLE",
     headCommit: "OBJECT_UNAVAILABLE",
+    headStable: "OBJECT_UNAVAILABLE",
   });
 });
 
-test("CLI exit classification requires all three verified Git checks", () => {
+test("pin all object checks to the initial HEAD and fail if HEAD moves", () => {
+  const moved = "b".repeat(40);
+  const calls = [];
+  const result = diagnoseNonrootGit({
+    identity: worker,
+    execute: (_file, args) => {
+      calls.push(args.slice(2));
+      if (calls.length === 4) return `${moved}\n`;
+      return success(_file, args);
+    },
+  });
+  assert.deepEqual(calls, [
+    ["rev-parse", "--verify", "HEAD"],
+    ["cat-file", "-t", revision],
+    ["rev-parse", "--verify", `${revision}^{commit}`],
+    ["rev-parse", "--verify", "HEAD"],
+  ]);
+  assert.equal(result.checks.headStable, "HEAD_CHANGED");
+  assert.equal(result.gitChecksPassed, false);
+  assert.equal(diagnosticExitCode(result), 3);
+  assert.equal(JSON.stringify(result).includes(moved), false);
+});
+
+test("reject mismatched commit identity even when every Git command succeeds", () => {
+  let count = 0;
+  const result = diagnoseNonrootGit({
+    identity: worker,
+    execute: (_file, args) => {
+      count++;
+      if (count === 3) return `${"b".repeat(40)}\n`;
+      return success(_file, args);
+    },
+  });
+  assert.equal(result.checks.headCommit, "COMMIT_MISMATCH");
+  assert.equal(result.checks.headStable, "PASS");
+  assert.equal(result.gitChecksPassed, false);
+  assert.equal(diagnosticExitCode(result), 3);
+});
+
+test("CLI exit classification requires all four consistent Git checks", () => {
   const pass = diagnoseNonrootGit({ identity: worker, execute: success });
   assert.equal(pass.gitChecksPassed, true);
   assert.equal(diagnosticExitCode(pass), 0);
 
-  for (const failedCheck of ["headRef", "headObject", "headCommit"]) {
+  for (const failedCheck of [
+    "headRef",
+    "headObject",
+    "headCommit",
+    "headStable",
+  ]) {
     const result = {
       ...pass,
       checks: { ...pass.checks, [failedCheck]: "ACCESS_DENIED" },
