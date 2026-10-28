@@ -20,7 +20,10 @@ function safeText(value, max) {
 
 function safeList(value, limit, maxLength) {
   return Array.isArray(value)
-    ? value.slice(0, limit).map((x) => safeText(x, maxLength)).filter(Boolean)
+    ? value
+        .slice(0, limit)
+        .map((x) => safeText(x, maxLength))
+        .filter(Boolean)
     : [];
 }
 
