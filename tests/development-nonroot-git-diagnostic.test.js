@@ -54,7 +54,10 @@ test("fixed read-only Git commands prove HEAD ref, object and commit", () => {
       "-C",
       "/srv/kmj-codebridge-projects/kmj-main-platform",
     ]);
-    assert.equal(call.args.some((arg) => arg.startsWith("safe.directory")), false);
+    assert.equal(
+      call.args.some((arg) => arg.startsWith("safe.directory")),
+      false,
+    );
     assert.equal(call.options.timeout, 5000);
     assert.equal(call.options.maxBuffer, 4096);
     assert.equal(call.options.env.GIT_NO_LAZY_FETCH, "1");
@@ -96,7 +99,10 @@ test("dubious ownership fails closed without a safe.directory override", () => {
       "-C",
       "/srv/kmj-codebridge-projects/kmj-main-platform",
     ]);
-    assert.equal(args.some((arg) => arg.startsWith("safe.directory")), false);
+    assert.equal(
+      args.some((arg) => arg.startsWith("safe.directory")),
+      false,
+    );
   }
 });
 
