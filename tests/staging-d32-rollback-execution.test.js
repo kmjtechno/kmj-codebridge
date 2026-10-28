@@ -7,7 +7,10 @@ import { spawnSync } from "node:child_process";
 // This is not a staging deployment or an owner approval. No root, systemd,
 // network, Nginx config, production pointer, or local file writes.
 const source = readFileSync(
-  new URL("../examples/main-platform-staging/d32/guarded-stage.sh", import.meta.url),
+  new URL(
+    "../examples/main-platform-staging/d32/guarded-stage.sh",
+    import.meta.url,
+  ),
   "utf8",
 );
 const match = source.match(/(cleanup\(\)\{\n[\s\S]*?\n\})\ntrap cleanup EXIT/);
@@ -39,7 +42,8 @@ test(
         applied: "1",
         pointer: "/other-release",
         hash: "candidate",
-        marker: "STAGING_UI_ROLLBACK=BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR",
+        marker:
+          "STAGING_UI_ROLLBACK=BLOCKED_CONCURRENT_POINTER_REQUIRES_OPERATOR",
         writes: false,
       },
       {
@@ -47,7 +51,8 @@ test(
         applied: "1",
         pointer: "/new",
         hash: "third-party",
-        marker: "STAGING_UI_ROLLBACK=BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR",
+        marker:
+          "STAGING_UI_ROLLBACK=BLOCKED_CONCURRENT_CONFIG_REQUIRES_OPERATOR",
         writes: false,
       },
       {
@@ -77,13 +82,13 @@ test(
         "target=/inert-nginx-config",
         "oldapp=/old",
         "app=/new",
-        'config_hash=original',
-        'candidate_hash=candidate',
-        'applied=' + scenario.applied,
-        'CURRENT_POINTER=' + JSON.stringify(scenario.pointer),
-        'CURRENT_HASH=' + JSON.stringify(scenario.hash),
+        "config_hash=original",
+        "candidate_hash=candidate",
+        "applied=" + scenario.applied,
+        "CURRENT_POINTER=" + JSON.stringify(scenario.pointer),
+        "CURRENT_HASH=" + JSON.stringify(scenario.hash),
         "readlink(){ printf '%s\\n' \"$CURRENT_POINTER\"; }",
-        "sha256sum(){ printf '%s  %s\\n' \"$CURRENT_HASH\" \"$1\"; }",
+        'sha256sum(){ printf \'%s  %s\\n\' "$CURRENT_HASH" "$1"; }',
         "install(){ printf 'MUTATION_INSTALL\\n'; }",
         "ln(){ printf 'MUTATION_LINK\\n'; }",
         "mv(){ printf 'MUTATION_MOVE\\n'; }",
@@ -101,7 +106,11 @@ test(
       if (scenario.marker)
         assert.ok(result.stdout.includes(scenario.marker), scenario.name);
       const mutated = result.stdout.includes("MUTATION_");
-      assert.equal(mutated, scenario.writes, scenario.name + ": " + result.stdout);
+      assert.equal(
+        mutated,
+        scenario.writes,
+        scenario.name + ": " + result.stdout,
+      );
       if (scenario.writes)
         assert.ok(result.stdout.includes("MUTATION_MOVE"), scenario.name);
     }
