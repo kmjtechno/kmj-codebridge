@@ -16,11 +16,7 @@ const ENV = Object.freeze({
   GIT_OPTIONAL_LOCKS: "0",
   GIT_NO_REPLACE_OBJECTS: "1",
 });
-const CHECKS = Object.freeze([
-  ["headRef", ["rev-parse", "--verify", "HEAD"]],
-  ["headObject", ["cat-file", "-t", "HEAD"]],
-  ["headCommit", ["rev-parse", "--verify", "HEAD^{commit}"]],
-]);
+const CHECKS = Object.freeze(["headRef", "headObject", "headCommit", "headStable"]);
 
 export function classifyGitError(error) {
   const stderr = Buffer.isBuffer(error?.stderr)
@@ -78,7 +74,17 @@ export function diagnoseNonrootGit({
     result.status = "DENIED_NONROOT_IDENTITY";
     return result;
   }
-  for (const [name, args] of CHECKS) {
+  let headRevision = null;
+  for (const name of CHECKS) {
+    // Pin subsequent object checks to the first verified HEAD, never to a
+    // potentially different commit if another process moves the ref.
+    const revision = headRevision ?? "HEAD";
+    const args =
+      name === "headRef" || name === "headStable"
+        ? ["rev-parse", "--verify", "HEAD"]
+        : name === "headObject"
+          ? ["cat-file", "-t", revision]
+          : ["rev-parse", "--verify", `${revision}^{commit}`];
     try {
       const output = execute(GIT, ["-C", REPOSITORY, ...args], {
         env: { ...ENV },
@@ -92,13 +98,24 @@ export function diagnoseNonrootGit({
         name === "headObject"
           ? value === "commit"
           : /^[a-f0-9]{40}$/.test(value);
-      result.checks[name] = valid ? "PASS" : "UNEXPECTED_OUTPUT";
+      if (!valid) {
+        result.checks[name] = "UNEXPECTED_OUTPUT";
+      } else if (name === "headRef") {
+        headRevision = value;
+        result.checks[name] = "PASS";
+      } else if (name === "headCommit" && headRevision && value !== headRevision) {
+        result.checks[name] = "COMMIT_MISMATCH";
+      } else if (name === "headStable" && headRevision && value !== headRevision) {
+        result.checks[name] = "HEAD_CHANGED";
+      } else {
+        result.checks[name] = "PASS";
+      }
     } catch (error) {
       result.checks[name] = classifyGitError(error);
     }
   }
   result.gitChecksPassed = CHECKS.every(
-    ([name]) => result.checks[name] === "PASS",
+    (name) => result.checks[name] === "PASS",
   );
   return result;
 }
@@ -106,7 +123,7 @@ export function diagnoseNonrootGit({
 export function diagnosticExitCode(result) {
   if (result?.status !== "DIAGNOSTIC_ONLY") return 2;
   if (result.gitChecksPassed !== true) return 3;
-  return CHECKS.every(([name]) => result.checks?.[name] === "PASS") ? 0 : 3;
+  return CHECKS.every((name) => result.checks?.[name] === "PASS") ? 0 : 3;
 }
 
 if (
