@@ -1,0 +1,56 @@
+{
+  "schema": "kmj-codebridge-ui-design-lock-v1",
+  "designLock": "OWNER_APPROVED_VISUAL_DIRECTION_2026-10-28",
+  "product": "KMJ CodeBridge",
+  "uiSurface": [
+    "codebridge-owned-web",
+    "mcp-app-embedded"
+  ],
+  "doesNotRestyleHost": true,
+  "colors": {
+    "canvas": "#070B15",
+    "surface": "#0E1425",
+    "card": "#10182D",
+    "text": "#F4F6FC",
+    "muted": "#A5AEC6",
+    "border": "rgba(205,217,255,0.12)",
+    "cyan": "#79E6E3",
+    "violet": "#A69AFF",
+    "success": "#91E1AD",
+    "warning": "#F7C57E",
+    "danger": "#FF9A9A"
+  },
+  "spacingPx": [
+    4,
+    8,
+    12,
+    16,
+    24,
+    32
+  ],
+  "radiusPx": {
+    "pill": 999,
+    "card": 14,
+    "composer": 18
+  },
+  "motion": {
+    "maxTransitionMs": 180,
+    "reducedMotionRespect": true
+  },
+  "responsive": {
+    "mobileMaxPx": 640,
+    "tabletMaxPx": 1024,
+    "inspectorOptional": true,
+    "navCollapsible": true
+  },
+  "performanceTargets": {
+    "longTaskMs": 50,
+    "keyboardResponseMs": 100,
+    "historyMessages": 1000,
+    "targetFramesPerSecond": 60,
+    "verificationRequired": true
+  },
+  "statusDataPolicy": "VERIFIED_SOURCES_ONLY_NO_FAKE_PROGRESS",
+  "assets": "EXISTING_OFFICIAL_KMJ_BRAND_ONLY",
+  "productionClaim": false
+}
