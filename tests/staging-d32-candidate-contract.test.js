@@ -44,7 +44,9 @@ function contract({ stage, runner, unit }) {
       'runuser -u kmjstage -- test -r "$app/.env" || block STAGING_ENV_READ',
     ) &&
     !stage.includes('install -m 0600 "$oldapp/.env" "$app/.env"') &&
-    stage.includes("[[ \"$upload_store\" == /home/kmjstage/shared/* && -d \"$upload_store\" && ! -L \"$upload_store\" ]] || block UPLOAD_STORAGE_NOT_SHARED") &&
+    stage.includes(
+      '[[ "$upload_store" == /home/kmjstage/shared/* && -d "$upload_store" && ! -L "$upload_store" ]] || block UPLOAD_STORAGE_NOT_SHARED',
+    ) &&
     runner.includes("approved=" + approved) &&
     runner.includes("prior=" + previous) &&
     runner.includes("source_sha=" + expected.stage) &&
@@ -83,7 +85,11 @@ test("candidate static trust contract rejects stale and weakened variants", () =
     ["stage", "STAGING_UI_ROLLBACK=PASS", "STAGING_UI_ROLLBACK=SKIP"],
     ["stage", "STAGING_CLOUD_REQUESTS=NONE", "STAGING_CLOUD_REQUESTS=YES"],
     ["stage", "STAGING_PRODUCT_WRITES=NONE", "STAGING_PRODUCT_WRITES=YES"],
-    ["stage", "[[ \"$upload_store\" == /home/kmjstage/shared/* && -d \"$upload_store\" && ! -L \"$upload_store\" ]] || block UPLOAD_STORAGE_NOT_SHARED", "[[ -d \"$upload_store\" ]] || block UPLOAD_STORAGE_NOT_SHARED"],
+    [
+      "stage",
+      '[[ "$upload_store" == /home/kmjstage/shared/* && -d "$upload_store" && ! -L "$upload_store" ]] || block UPLOAD_STORAGE_NOT_SHARED',
+      '[[ -d "$upload_store" ]] || block UPLOAD_STORAGE_NOT_SHARED',
+    ],
     [
       "stage",
       'cp -a -- "$oldapp/.env" "$app/.env"',
