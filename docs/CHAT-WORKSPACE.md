@@ -112,9 +112,10 @@ authorized device/project, under the stable lane mission-control.
 1. Open Mission Control on a real authorized project and select **Save cross-chat handoff**
    before nearing the host limit or after a meaningful verified milestone.
 2. The control sends an ordinary host ui/message requiring the host to refresh real
-   Git/task state, read compact_session_resume, prepare a bounded secret-free
-   checkpoint, call compact_session_save with the current optimistic revision
-   and a unique idempotency key, and read the record back.
+   Git/task state and prepare a bounded secret-free checkpoint. Modern agents use
+   compact_session_resume and compact_session_save with optimistic revision and
+   idempotency; older agents fall back to chat_continuity_read and
+   chat_continuity_save with matching revision. Re-read the saved checkpoint.
 3. **Host message ACK is not a save receipt.** The UI deliberately displays
    UNVERIFIED until the assistant independently checks the saved revision/readback.
    If unsupported, denied or offline, report NOT_SAVED and give a manual handoff.
