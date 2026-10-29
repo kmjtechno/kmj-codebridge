@@ -818,3 +818,89 @@ test("Ctrl/Meta+Enter asks only initialized scoped host, never starts a job", ()
   assert.equal(view.parentMessages.length, 4);
   assert.equal(view.parentMessages.at(-1).message.method, "ui/message");
 });
+
+test("cross-chat handoff requires a host handshake and valid project scope", () => {
+  const view = openCard();
+  view.element("checkpointHandoff").handlers.click();
+  assert.equal(view.parentMessages.length, 1);
+  assert.match(view.element("aiChatNotice").textContent, /no checkpoint saved/);
+  view.handshake();
+  view.element("checkpointHandoff").handlers.click();
+  assert.equal(view.parentMessages.length, 2);
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "../untrusted",
+  });
+  view.element("checkpointHandoff").handlers.click();
+  assert.equal(view.parentMessages.length, 2);
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
+  assert.equal(view.parentMessages.length, 2);
+  view.element("checkpointHandoff").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  const request = view.parentMessages.at(-1).message;
+  assert.equal(request.method, "ui/message");
+  assert.equal(request.params.role, "user");
+  assert.match(request.params.content.text, /project project1/);
+  assert.match(request.params.content.text, /device device1/);
+  assert.match(request.params.content.text, /lane mission-control/);
+  assert.match(request.params.content.text, /compact_session_resume/);
+  assert.match(request.params.content.text, /compact_session_save/);
+  assert.match(request.params.content.text, /chat_continuity_read/);
+  assert.match(request.params.content.text, /chat_continuity_save/);
+  assert.match(request.params.content.text, /matching legacy revision/);
+  assert.match(request.params.content.text, /exact expectedRevision/);
+  assert.match(request.params.content.text, /Re-read.*verify persistence/);
+  assert.match(request.params.content.text, /NOT_SAVED/);
+  assert.match(request.params.content.text, /Never capture a raw transcript/);
+  assert.equal(
+    view.parentMessages.filter((entry) => entry.message.method === "tools/call")
+      .length,
+    0,
+  );
+});
+
+test("handoff is deduplicated pending host reply and ACK never claims saved", () => {
+  const view = openCard();
+  view.handshake();
+  view.send({
+    product: "KMJ CodeBridge",
+    device: "device1",
+    project: "project1",
+  });
+  view.element("checkpointHandoff").handlers.click();
+  view.element("checkpointHandoff").handlers.click();
+  assert.equal(view.parentMessages.length, 3);
+  view.replyResult(5, {});
+  assert.match(view.element("aiChatNotice").textContent, /UNVERIFIED/);
+  assert.doesNotMatch(
+    view.element("aiChatNotice").textContent,
+    /checkpoint saved/i,
+  );
+  view.element("checkpointHandoff").handlers.click();
+  assert.equal(view.parentMessages.length, 4);
+  view.replyHost(5, "Denied");
+  assert.match(
+    view.element("aiChatNotice").textContent,
+    /no saved checkpoint is verified/,
+  );
+  assert.equal(view.parentMessages.at(-1).message.method, "ui/message");
+});
+
+test("handoff UI explicitly distinguishes CodeBridge continuation from host chat limits", () => {
+  assert.match(KMJ_STATUS_HTML, /id="checkpointHandoff"/);
+  assert.match(
+    KMJ_STATUS_HTML,
+    /ChatGPT host conversation limits cannot be increased/,
+  );
+  assert.match(KMJ_STATUS_HTML, /only report saved after readback/);
+  assert.match(KMJ_STATUS_HTML, /no saved checkpoint is verified/);
+  assert.doesNotMatch(
+    KMJ_STATUS_HTML,
+    /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i,
+  );
+});

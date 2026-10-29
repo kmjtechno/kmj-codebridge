@@ -100,3 +100,42 @@ Open or resume my browser-project chat workspace with chat_workspace_open.
 Report only actual project jobs, blockers, runtime readiness and the next
 safe action. Do not write files or launch browser QA without approval.
 ```
+
+## Session rollover when host chat gets too long
+
+ChatGPT and other AI clients impose their own conversation-length limits. CodeBridge
+**cannot** raise those limits, read a hidden transcript or automatically open
+the next host chat. Mission Control's **Save cross-chat handoff** control
+requests the connected AI host to prepare a structured checkpoint for the
+authorized device/project, under the stable lane mission-control.
+
+1. Open Mission Control on a real authorized project and select **Save cross-chat handoff**
+   before nearing the host limit or after a meaningful verified milestone.
+2. The control sends an ordinary host ui/message requiring the host to refresh real
+   Git/task state and prepare a bounded secret-free checkpoint. Modern agents use
+   compact_session_resume and compact_session_save with optimistic revision and
+   idempotency; older agents fall back to chat_continuity_read and
+   chat_continuity_save with matching revision. Re-read the saved checkpoint.
+3. **Host message ACK is not a save receipt.** The UI deliberately displays
+   UNVERIFIED until the assistant independently checks the saved revision/readback.
+   If unsupported, denied or offline, report NOT_SAVED and give a manual handoff.
+4. In a new chat ask: Open KMJ CodeBridge device [authorized device],
+   project [authorized project], lane mission-control with multi_chat_sync
+   or chat_workspace_open. Revalidate exact Git HEAD, live blockers and
+   deployment separately, then continue the next safe task.
+
+The normal **Send to connected AI** action also asks the host to keep compact
+milestone checkpoints, but this is best-effort guidance, **not**
+automatic completion or durable storage guarantee. Background checkpointing
+needs independently authorized worker lifecycle hooks, bounded retention,
+privacy review and successful readback proof.
+
+### Research-informed design boundaries
+
+Cline's auto-compaction demonstrates pre-limit summarization, and local-first
+memory projects like thedotmack/claude-mem, memryzed/memryzed and bytefolk/mem
+demonstrate durable recall and idempotent handoff patterns. CodeBridge does
+**not bundle or install** those projects. It reuses existing project-scoped
+compact-session storage, field validation and compare-and-swap revisions,
+with zero additional infrastructure. Future context warnings may measure
+only CodeBridge-owned usage, not ChatGPT's private quota or context.
