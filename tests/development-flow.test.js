@@ -81,6 +81,55 @@ test("foreign, corrupt and malformed saved state cannot be surfaced as a roadmap
   assert.equal(safe.work.nextReadyTaskId, null);
 });
 
+test("redaction expansion remains bounded without silently dropping a blocker", () => {
+  const flow = buildDevelopmentFlow({
+    ...scope,
+    checkpoint: {
+      ...checkpoint,
+      blockers: ["a".repeat(152) + " token=x"],
+      nextSteps: ["a".repeat(172) + " token=x"],
+      objective: "a".repeat(232) + " token=x",
+      summary: "a".repeat(1792) + " token=x",
+    },
+    progress: { taskTrackingAvailable: true, nextReadyTaskId: "task-7" },
+  });
+  assert.deepEqual(flow.roadmap.blockers, ["[REDACTED]"]);
+  assert.deepEqual(flow.roadmap.nextSteps, ["[REDACTED]"]);
+  assert.equal(flow.roadmap.objective, "[REDACTED]");
+  assert.equal(flow.roadmap.summary, "[REDACTED]");
+  assert.equal(flow.recommendedAction.code, "REVIEW_REPORTED_BLOCKERS");
+  assert.equal(flow.work.releaseVerified, false);
+  assert.equal(JSON.stringify(flow).includes("token=x"), false);
+});
+
+test("a benign exact-boundary roadmap field is preserved", () => {
+  const flow = buildDevelopmentFlow({
+    ...scope,
+    checkpoint: { ...checkpoint, objective: "a".repeat(240) },
+  });
+  assert.equal(flow.roadmap.objective, "a".repeat(240));
+});
+
+test("malformed or oversized reported blockers cannot silently clear review-first", () => {
+  for (const blockers of [
+    ["x".repeat(161)],
+    ["bad\ncommand"],
+    [null],
+    [""],
+    "not-an-array",
+    [{ unexpected: true }],
+  ]) {
+    const flow = buildDevelopmentFlow({
+      ...scope,
+      checkpoint: { ...checkpoint, blockers },
+      progress: { taskTrackingAvailable: true, nextReadyTaskId: "task-7" },
+    });
+    assert.deepEqual(flow.roadmap.blockers, ["[REDACTED]"]);
+    assert.equal(flow.recommendedAction.code, "REVIEW_REPORTED_BLOCKERS");
+    assert.equal(flow.work.releaseVerified, false);
+  }
+});
+
 test("gateway one-call and ordinary workspace both expose same guarded flow", () => {
   const source = fs.readFileSync(
     new URL("../src/gateway.js", import.meta.url),
