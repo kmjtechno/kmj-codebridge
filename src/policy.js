@@ -1088,15 +1088,31 @@ export class ProjectFiles {
     const matches = [];
     let visited = 0,
       bytes = 0,
-      truncated = false;
+      truncated = false,
+      unreadableDirectories = 0;
     const walk = (dir, depth) => {
       if (depth > 12) {
         truncated = true;
         return;
       }
-      for (const item of fs.readdirSync(path.join(this.root, dir), {
-        withFileTypes: true,
-      })) {
+      let items;
+      try {
+        items = fs.readdirSync(path.join(this.root, dir), {
+          withFileTypes: true,
+        });
+      } catch (error) {
+        // A permission-restricted or vanished subdirectory (for example a
+        // service-owned storage folder on a shared VPS checkout) must not
+        // turn the whole search into INTERNAL_ERROR. The scoped root itself
+        // still fails closed below; nested ones are skipped and counted.
+        if (dir === pathPrefix) throw error;
+        if (!["EACCES", "EPERM", "ENOENT", "ENOTDIR"].includes(error?.code))
+          throw error;
+        unreadableDirectories++;
+        truncated = true;
+        return;
+      }
+      for (const item of items) {
         if (
           ++visited > 2000 ||
           matches.length >= maxResults ||
@@ -1143,6 +1159,8 @@ export class ProjectFiles {
       }
     };
     walk(pathPrefix, 0);
-    return { matches, truncated };
+    return unreadableDirectories > 0
+      ? { matches, truncated, unreadableDirectories }
+      : { matches, truncated };
   }
 }
