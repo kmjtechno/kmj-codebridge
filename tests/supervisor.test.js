@@ -522,6 +522,24 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
   const result = await handle({ op: "update_status" });
   assert.deepEqual(result.response, {
     available: true,
+    signed: {
+      available: true,
+      timer: {
+        installed: true,
+        activeState: "inactive",
+        subState: "dead",
+        unitFileState: "unknown",
+      },
+      service: {
+        installed: true,
+        activeState: "inactive",
+        subState: "dead",
+        result: "success",
+        execMainStatus: "0",
+      },
+      checksRunning: false,
+      checksEnabled: false,
+    },
     timer: {
       installed: true,
       activeState: "active",
@@ -627,6 +645,8 @@ test("auto-update status reports only fixed timer, updater and Main Platform ref
       .filter((entry) => entry[0].endsWith("systemctl"))
       .map((entry) => entry[1][1]),
     [
+      "kmj-codebridge-stable-update.timer",
+      "kmj-codebridge-stable-update.service",
       "kmj-codebridge-auto-update.timer",
       "kmj-codebridge-auto-update.service",
       "kmj-codebridge-kmj-main-platform.service",

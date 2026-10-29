@@ -56,6 +56,7 @@ const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
+const SIGNED_UPDATE_TIMER = "kmj-codebridge-stable-update.timer";
 const PRIVATE_PR322_CI_SERVICE = "kmj-codebridge-private-pr322-ci.service";
 const PRIVATE_PR337_CI_SERVICE = "kmj-codebridge-private-pr337-ci.service";
 const PRIVATE_PR337_CI_EVIDENCE =
@@ -206,7 +207,7 @@ function parseStatus(text) {
   };
 }
 
-function fixedUnitStatus(run, unit, properties) {
+function fixedUnitStatus(run, unit, properties, { triState = false } = {}) {
   try {
     const fields = parseProperties(
       run(SYSTEMCTL, [
@@ -219,7 +220,12 @@ function fixedUnitStatus(run, unit, properties) {
     );
     return {
       // Only a loaded systemd unit is installed; masked/error/unknown fail closed.
-      installed: fields.LoadState === "loaded",
+      installed:
+        fields.LoadState === "loaded"
+          ? true
+          : triState && !["not-found", "masked"].includes(fields.LoadState)
+            ? null
+            : false,
       ...Object.fromEntries(
         properties.map((name) => [
           name[0].toLowerCase() + name.slice(1),
@@ -229,7 +235,7 @@ function fixedUnitStatus(run, unit, properties) {
     };
   } catch {
     return {
-      installed: false,
+      installed: triState ? null : false,
       ...Object.fromEntries(
         properties.map((name) => [
           name[0].toLowerCase() + name.slice(1),
@@ -1828,6 +1834,18 @@ export function createSupervisorHandler({
 
     if (request.op === "update_status") {
       exactKeys(request, ["op"]);
+      const signedTimer = fixedUnitStatus(
+        run,
+        SIGNED_UPDATE_TIMER,
+        ["ActiveState", "SubState", "UnitFileState"],
+        { triState: true },
+      );
+      const signedService = fixedUnitStatus(
+        run,
+        UPDATE_CHECK_SERVICE,
+        ["ActiveState", "SubState", "Result", "ExecMainStatus"],
+        { triState: true },
+      );
       const timer = fixedUnitStatus(run, UPDATE_TIMER, [
         "ActiveState",
         "SubState",
@@ -1891,6 +1909,21 @@ export function createSupervisorHandler({
           available: timer.installed && service.installed,
           timer,
           service,
+          signed: {
+            available:
+              signedTimer.installed === true &&
+              signedService.installed === true,
+            timer: signedTimer,
+            service: signedService,
+            checksRunning:
+              signedTimer.installed === true &&
+              signedTimer.activeState === "active",
+            checksEnabled:
+              signedTimer.installed === true &&
+              ["enabled", "enabled-runtime"].includes(
+                signedTimer.unitFileState,
+              ),
+          },
           mainPlatformRefresh,
           mainPlatformAgent,
           nativeCiPrerequisites: nativeCiPrerequisiteStatus(lstat, readFile),

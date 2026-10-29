@@ -53,7 +53,7 @@ test("saved feature knowledge is built from live scoped policy, not stale guesse
   assert.ok(result.approvalRequiredRisks.includes("DEPLOY"));
   assert.equal(result.runtime.localDraftLoopStarted, false);
   assert.equal(result.runtime.localModelReady, false);
-  assert.equal(result.runtime.updaterInstalled, false);
+  assert.equal(result.runtime.updaterInstalled, null);
   assert.equal(result.runtime.autonomousCodingLiveVerified, false);
   assert.equal(result.runtime.rootShellGrantedVerified, false);
   assert.equal(result.callableVerified, false);
