@@ -9,6 +9,7 @@ import {
 } from "./ci-execution-evidence.js";
 import { VERSION } from "./version.js";
 import { readCiLogDiagnostics } from "./ci-log-stream.js";
+import { readLogTail } from "./ci-log-tail.js";
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const branchName = z
@@ -508,8 +509,19 @@ export function createGitHubBridge(config) {
       fail("GITHUB_REQUEST_FAILED");
     }
     if (diagnostics) return readCiLogDiagnostics(response.body);
-    const text = await readTextLimited(response.body, 65536);
-    return bounded(text, 65536);
+    // Return the bounded, redacted TAIL of large logs (where failures are)
+    // instead of failing the whole read with BODY_TOO_LARGE.
+    const tail = await readLogTail(response.body, { keepBytes: 65536 });
+    const safe = bounded(tail.text, 65536);
+    return tail.tail || !tail.sourceComplete
+      ? {
+          text: safe.text,
+          truncated: true,
+          tail: true,
+          droppedLines: tail.droppedLines,
+          sourceComplete: tail.sourceComplete,
+        }
+      : safe;
   };
 
   return async function dispatch(name, input) {
