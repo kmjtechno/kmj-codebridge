@@ -760,7 +760,10 @@ test("readable locked workspace scales on mobile and preserves evidence-only sta
     KMJ_STATUS_HTML,
     /nav\[role="tablist"\]\{overflow-x:auto;flex-wrap:nowrap\}/,
   );
-  assert.match(KMJ_STATUS_HTML, /aria-keyshortcuts="Control\+Enter Meta\+Enter"/);
+  assert.match(
+    KMJ_STATUS_HTML,
+    /aria-keyshortcuts="Control\+Enter Meta\+Enter"/,
+  );
   assert.match(KMJ_STATUS_HTML, /Ctrl\+Enter \(or ⌘\+Enter\)/);
   assert.match(KMJ_STATUS_HTML, /worker claim and completion NOT verified/);
   assert.doesNotMatch(
