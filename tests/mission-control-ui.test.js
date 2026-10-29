@@ -877,17 +877,26 @@ test("handoff is deduplicated pending host reply and ACK never claims saved", ()
   assert.equal(view.parentMessages.length, 3);
   view.replyResult(5, {});
   assert.match(view.element("aiChatNotice").textContent, /UNVERIFIED/);
-  assert.doesNotMatch(view.element("aiChatNotice").textContent, /checkpoint saved/i);
+  assert.doesNotMatch(
+    view.element("aiChatNotice").textContent,
+    /checkpoint saved/i,
+  );
   view.element("checkpointHandoff").handlers.click();
   assert.equal(view.parentMessages.length, 4);
   view.replyHost(5, "Denied");
-  assert.match(view.element("aiChatNotice").textContent, /no saved checkpoint is verified/);
+  assert.match(
+    view.element("aiChatNotice").textContent,
+    /no saved checkpoint is verified/,
+  );
   assert.equal(view.parentMessages.at(-1).message.method, "ui/message");
 });
 
 test("handoff UI explicitly distinguishes CodeBridge continuation from host chat limits", () => {
   assert.match(KMJ_STATUS_HTML, /id="checkpointHandoff"/);
-  assert.match(KMJ_STATUS_HTML, /ChatGPT host conversation limits cannot be increased/);
+  assert.match(
+    KMJ_STATUS_HTML,
+    /ChatGPT host conversation limits cannot be increased/,
+  );
   assert.match(KMJ_STATUS_HTML, /only report saved after readback/);
   assert.match(KMJ_STATUS_HTML, /no saved checkpoint is verified/);
   assert.doesNotMatch(
