@@ -15,16 +15,22 @@ function safeText(value, max) {
     /[\x00-\x1f\x7f]/.test(value)
   )
     return null;
-  return redact(value);
+  const redacted = redact(value);
+  // Redaction can expand a field: never exceed the caller's size limit.
+  return redacted.length <= max ? redacted : "[REDACTED]";
 }
 
-function safeList(value, limit, maxLength) {
-  return Array.isArray(value)
-    ? value
-        .slice(0, limit)
-        .map((x) => safeText(x, maxLength))
-        .filter(Boolean)
-    : [];
+function safeList(value, limit, maxLength, preserveInvalid = false) {
+  // Malformed reported blockers still require review, not task execution.
+  if (!Array.isArray(value))
+    return preserveInvalid && value != null ? ["[REDACTED]"] : [];
+  return value
+    .slice(0, limit)
+    .map((x) => {
+      const safe = safeText(x, maxLength);
+      return safe ?? (preserveInvalid ? "[REDACTED]" : null);
+    })
+    .filter(Boolean);
 }
 
 function safeId(value) {
@@ -44,7 +50,7 @@ export function buildDevelopmentFlow({
     REVISION.test(checkpoint.revision ?? "") &&
     (checkpoint.project === undefined || checkpoint.project === project) &&
     (checkpoint.lane === undefined || checkpoint.lane === lane);
-  const blockers = stored ? safeList(checkpoint.blockers, 8, 160) : [];
+  const blockers = stored ? safeList(checkpoint.blockers, 8, 160, true) : [];
   const nextSteps = stored ? safeList(checkpoint.nextSteps, 6, 180) : [];
   const objective = stored ? safeText(checkpoint.objective, 240) : null;
   const summary = stored ? safeText(checkpoint.summary, 1800) : null;
