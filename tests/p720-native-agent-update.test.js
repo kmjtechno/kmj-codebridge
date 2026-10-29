@@ -202,8 +202,14 @@ test(
     const code = [
       "$ErrorActionPreference = 'Stop'",
       "$savedPid = $PID",
+      // This checks native parameter binding, not CIM/WMI responsiveness.
+      // Run the real verifier with a deterministic missing-process boundary.
+      "$script:observedProcessFilter = $null",
+      "function Start-Sleep { param([int]$Seconds) }",
+      "function Get-CimInstance { param([string]$ClassName, [string]$Filter); $script:observedProcessFilter = $Filter; return $null }",
       match[0],
       "if (ConfirmRuntime -processId 2147483000 -entry 'none' -since ([datetime]::UtcNow)) { throw 'UNEXPECTED_HEARTBEAT' }",
+      "if ($script:observedProcessFilter -cne 'ProcessId = 2147483000') { throw 'PROCESS_ID_NOT_FORWARDED' }",
       "if ($PID -ne $savedPid) { throw 'AUTOMATIC_PID_MUTATED' }",
       "Write-Output 'RUNTIME_PID_BINDING=PASS'",
     ].join("\n");
