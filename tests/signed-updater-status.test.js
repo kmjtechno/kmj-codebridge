@@ -3,6 +3,27 @@ import assert from "node:assert/strict";
 import { buildCapabilityMemory } from "../src/capability-memory.js";
 import { createSupervisorHandler } from "../src/supervisor.js";
 
+test("failed signed unit queries stay unknown rather than falsely absent", async () => {
+  const handle = createSupervisorHandler({
+    run: (command, args) => {
+      if (args[1]?.startsWith("kmj-codebridge-stable-update"))
+        throw Error("unavailable");
+      return "LoadState=not-found\n";
+    },
+    lstat: () => {
+      throw Error("absent");
+    },
+  });
+  const { response } = await handle({ op: "update_status" });
+  assert.equal(response.signed.service.installed, null);
+  assert.equal(response.signed.checksRunning, false);
+  assert.equal(response.signed.available, false);
+  assert.equal(
+    buildCapabilityMemory({ updater: response }).runtime.updaterInstalled,
+    null,
+  );
+});
+
 test("signed-only installation is reported even when development updater is absent", async () => {
   const calls = [];
   const handle = createSupervisorHandler({
