@@ -752,12 +752,21 @@ test("locked CodeBridge workspace is a responsive three-panel functional shell",
 });
 
 test("readable locked workspace scales on mobile and preserves evidence-only state", () => {
-  assert.match(KMJ_STATUS_HTML, /\.kmj-workspace\{font-size:14px;line-height:1\.55\}/);
-  assert.match(KMJ_STATUS_HTML, /nav\[role="tablist"\]\{overflow-x:auto;flex-wrap:nowrap\}/);
+  assert.match(
+    KMJ_STATUS_HTML,
+    /\.kmj-workspace\{font-size:14px;line-height:1\.55\}/,
+  );
+  assert.match(
+    KMJ_STATUS_HTML,
+    /nav\[role="tablist"\]\{overflow-x:auto;flex-wrap:nowrap\}/,
+  );
   assert.match(KMJ_STATUS_HTML, /aria-keyshortcuts="Control\+Enter Meta\+Enter"/);
   assert.match(KMJ_STATUS_HTML, /Ctrl\+Enter \(or ⌘\+Enter\)/);
   assert.match(KMJ_STATUS_HTML, /worker claim and completion NOT verified/);
-  assert.doesNotMatch(KMJ_STATUS_HTML, /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i);
+  assert.doesNotMatch(
+    KMJ_STATUS_HTML,
+    /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i,
+  );
 });
 
 test("Ctrl/Meta+Enter asks only initialized scoped host, never starts a job", () => {
@@ -768,7 +777,9 @@ test("Ctrl/Meta+Enter asks only initialized scoped host, never starts a job", ()
     let prevented = false;
     prompt.handlers.keydown({
       key: "Enter",
-      preventDefault() { prevented = true; },
+      preventDefault() {
+        prevented = true;
+      },
       ...options,
     });
     return prevented;
@@ -777,17 +788,28 @@ test("Ctrl/Meta+Enter asks only initialized scoped host, never starts a job", ()
   assert.match(view.element("aiChatNotice").textContent, /not initialized/);
   assert.equal(view.parentMessages.length, 1);
   view.handshake();
-  view.send({ product: "KMJ CodeBridge", project: "project1", device: "device1" });
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    device: "device1",
+  });
   assert.equal(key({}), false);
   assert.equal(key({ ctrlKey: true, isComposing: true }), false);
   assert.equal(key({ ctrlKey: true, shiftKey: true }), false);
   assert.equal(view.parentMessages.length, 2);
   assert.equal(key({ ctrlKey: true }), true);
   assert.equal(view.parentMessages.at(-1).message.method, "ui/message");
-  assert.match(view.parentMessages.at(-1).message.params.content.text, /project1/);
+  assert.match(
+    view.parentMessages.at(-1).message.params.content.text,
+    /project1/,
+  );
   assert.equal(view.parentMessages.length, 3);
   assert.equal(key({ metaKey: true }), true);
-  assert.equal(view.parentMessages.length, 3, "pending request must not duplicate");
+  assert.equal(
+    view.parentMessages.length,
+    3,
+    "pending request must not duplicate",
+  );
   view.replyHost(2);
   assert.equal(key({ metaKey: true }), true);
   assert.equal(view.parentMessages.length, 4);
