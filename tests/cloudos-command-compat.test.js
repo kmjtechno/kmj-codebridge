@@ -201,10 +201,7 @@ test("rejects unauthorized, read-only, overrides, and insufficient permissions",
     /CLOUDOS_QA_PROJECT_NOT_ALLOWED/,
   );
   const approved = fixture(t);
-  for (const extra of [
-    { variant: "deploy" },
-    { laneId: "arbitrary" },
-  ]) {
+  for (const extra of [{ variant: "deploy" }, { laneId: "arbitrary" }]) {
     await assert.rejects(
       approved.dispatch("run_project_command", approved.input(extra), [
         "execute",
