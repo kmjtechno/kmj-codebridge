@@ -81,10 +81,21 @@ export function buildCapabilityMemory({
     typeof worker?.workers?.localDraft?.loopStarted === "boolean"
       ? worker.workers.localDraft.loopStarted
       : null;
-  const updaterInstalled =
+  const developmentUpdaterInstalled =
     typeof updater?.service?.installed === "boolean"
       ? updater.service.installed
       : null;
+  const signedUpdaterInstalled =
+    typeof updater?.signed?.service?.installed === "boolean"
+      ? updater.signed.service.installed
+      : null;
+  const updaterInstalled =
+    developmentUpdaterInstalled === true || signedUpdaterInstalled === true
+      ? true
+      : developmentUpdaterInstalled === false &&
+          signedUpdaterInstalled === false
+        ? false
+        : null;
   return {
     status: tools === null ? "UNAVAILABLE" : "CATALOG_REPORTED",
     source: "AUTHORIZED_PROJECT_DEVICE_POLICY",
@@ -116,6 +127,8 @@ export function buildCapabilityMemory({
       gateLoopStarted: gateRunning,
       localDraftLoopStarted: localDraftRunning,
       updaterInstalled,
+      developmentUpdaterInstalled,
+      signedUpdaterInstalled,
       autonomousCodingLiveVerified: false,
       rootShellGrantedVerified: false,
     },
