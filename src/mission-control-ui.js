@@ -286,8 +286,10 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <div class="kmj-composer-actions">
     <button id="askHostAi" type="button">✧ Send to connected AI</button>
     <button id="queueDevTask" type="button">＋ Queue approved task</button>
+    <button id="checkpointHandoff" type="button">↗ Save cross-chat handoff</button>
   </div>
   <p class="note" id="aiChatNotice" role="status">The host controls AI inference and approvals. No task starts merely by opening this interface.</p>
+  <p class="note" id="handoffHelp">Long chat? Save a sanitized project checkpoint before opening a new chat. ChatGPT host conversation limits cannot be increased here. A host ACK alone is not proof of a saved checkpoint.</p>
 </div>
 <footer class="foot"><span>KMJ TECHNO · SECURE BY DESIGN</span><span><strong>Read-only snapshot</strong> · Freshness requires a new tool result</span></footer>
 </article>
@@ -376,6 +378,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
  }
  var aiMessagePending=false;
+ var handoffPending=false;
  var refreshPending=false;
  var queuePending=false;
  var queueSerial=0;
@@ -385,7 +388,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    var el=document.getElementById("aiPrompt");
    var instruction=el&&typeof el.value==="string"?el.value.trim():"";
    var device=latest&&latest.device,project=latest&&latest.project;
-   if(!initialized||aiMessagePending){
+   if(!initialized||aiMessagePending||handoffPending){
      text("aiChatNotice","AI chat host is not initialized or a request is pending.");return;
    }
    if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
@@ -399,10 +402,30 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      role:"user",content:{type:"text",text:
        "Continue authorized KMJ CodeBridge project "+project+" on "+device+
        ". Check real status and available tools before acting. Task: "+instruction+
-       ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."}
+       ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."+
+       " At verified milestones save a sanitized, version-checked compact handoff for lane mission-control; only report saved after readback."}
    }},"*");
  }
  document.getElementById("askHostAi").addEventListener("click",submitHostMessage);
+ // The host AI, not this untrusted iframe, decides what verified facts to persist.
+ // No automatic transcript capture, unapproved tools/call, or fake checkpoint state.
+ document.getElementById("checkpointHandoff").addEventListener("click",function(){
+   var device=latest&&latest.device,project=latest&&latest.project;
+   if(!initialized||handoffPending||aiMessagePending){
+     text("aiChatNotice","Host not ready or an AI request is pending; no checkpoint saved.");return;
+   }
+   if(typeof device!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(device)||
+      typeof project!=="string"||!/^[A-Za-z0-9_-]{1,64}$/.test(project)){
+     text("aiChatNotice","A verified authorized device and project are required; no checkpoint saved.");return;
+   }
+   handoffPending=true;
+   text("aiChatNotice","Asking the connected host to verify and save a compact handoff; not saved yet.");
+   window.parent.postMessage({jsonrpc:"2.0",id:5,method:"ui/message",params:{
+     role:"user",content:{type:"text",text:
+       "Prepare a verified KMJ CodeBridge cross-chat handoff for authorized device "+device+
+       " and project "+project+" using stable lane mission-control. Read current project state using multi_chat_sync or chat_workspace_open, including exact Git identity, pending tasks, decisions and blockers. Read the lane revision with compact_session_resume, save only a sanitized bounded checkpoint with compact_session_save using the exact expectedRevision and a fresh idempotency requestKey, and re-read to verify persistence. Label all caller-reported or unchecked results unverified. If save/readback is unavailable or denied, explicitly report NOT_SAVED. Return a short new-chat resume instruction using this same device/project/lane. Never capture a raw transcript, pretend ChatGPT context was extended, start jobs, deploy production, bypass approvals or invoke paid cloud AI."}
+   }},"*");
+ });
  document.getElementById("aiPrompt").addEventListener("keydown",function(event){
    if(event.key!=="Enter"||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.isComposing)return;
    event.preventDefault();
@@ -573,6 +596,15 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      text("aiChatNotice",ok?
        "Task queued with scoped receipt; worker claim and completion NOT verified.":
        "Queue acceptance NOT verified; inspect project queue before retrying (same idempotency key).");
+     return;
+   }
+   if(message.id===5&&handoffPending){
+     handoffPending=false;
+     var accepted=!message.error&&message.result&&
+       typeof message.result==="object"&&!message.result.isError;
+     text("aiChatNotice",accepted?
+       "Host received handoff request; checkpoint is UNVERIFIED until a successful scoped CodeBridge readback.":
+       "Host denied or failed the handoff request; no saved checkpoint is verified.");
      return;
    }
    if(message.id===2&&aiMessagePending){
