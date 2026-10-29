@@ -33,8 +33,11 @@ function request(root, key, project = "p1", script = 'console.log("done")') {
   };
 }
 
+// Process spawn latency on a loaded runner (full parallel suite, Windows CI)
+// can exceed 5s; wait up to 20s, which still precedes the 10s job timeout
+// plus teardown, so a genuinely stuck job still fails this helper.
 async function finish(runner, id, project = "p1") {
-  for (let i = 0; i < 500; i++) {
+  for (let i = 0; i < 2000; i++) {
     const job = runner.get(id, project);
     if (!["running", "queued"].includes(job.state)) return job;
     await delay(10);

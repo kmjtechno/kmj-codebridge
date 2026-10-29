@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { readJsonLimited, readTextLimited } from "./http.js";
+import { readTextLimited } from "./http.js";
 import { fail } from "./errors.js";
 import { redact } from "./jobs.js";
 import { safeCiStepName, triageCiFailure } from "./ci-triage.js";
@@ -9,6 +9,15 @@ import {
 } from "./ci-execution-evidence.js";
 import { VERSION } from "./version.js";
 import { readCiLogDiagnostics } from "./ci-log-stream.js";
+
+// GitHub REST list payloads embed full repository/user objects. Thirty pull
+// requests or fifty workflow runs routinely exceed 256 KiB of raw JSON even
+// though the projected tool result is tiny, so a raw cap that small made the
+// advertised `limit` range fail with BODY_TOO_LARGE. Keep a strict per-response
+// bound plus a total cache budget so larger pages never grow memory unbounded.
+export const GITHUB_JSON_MAX_BYTES = 4 * 1024 * 1024;
+export const GITHUB_CACHE_MAX_BYTES = 16 * 1024 * 1024;
+export const GITHUB_CACHE_MAX_ENTRIES = 256;
 
 const repoName = z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/);
 const branchName = z
@@ -344,6 +353,29 @@ export function createGitHubBridge(config) {
 
   const allowed = new Set(config.repositories);
   const cache = new Map();
+  let cacheBytes = 0;
+  const forget = (key) => {
+    const entry = cache.get(key);
+    if (!entry) return;
+    cacheBytes -= entry.bytes ?? 0;
+    cache.delete(key);
+  };
+  const clearCache = () => {
+    cache.clear();
+    cacheBytes = 0;
+  };
+  // Insertion-ordered LRU bounded by entry count and total raw bytes.
+  const remember = (key, entry) => {
+    forget(key);
+    if (entry.bytes > GITHUB_CACHE_MAX_BYTES) return;
+    cache.set(key, entry);
+    cacheBytes += entry.bytes;
+    while (
+      cache.size > GITHUB_CACHE_MAX_ENTRIES ||
+      cacheBytes > GITHUB_CACHE_MAX_BYTES
+    )
+      forget(cache.keys().next().value);
+  };
   const pendingReads = new Map();
   let cacheEpoch = 0;
   // Shared free-tier anonymous GitHub egress can exhaust its hourly quota.
@@ -418,7 +450,7 @@ export function createGitHubBridge(config) {
         // failures as success or serve stale data beyond a failed probe.
         if (!key || !cached) fail("GITHUB_RESPONSE_INVALID");
         if (requestEpoch === cacheEpoch)
-          cache.set(key, { ...cached, at: Date.now() });
+          remember(key, { ...cached, at: Date.now() });
         return cached.value;
       }
       if (!response.ok) {
@@ -445,19 +477,32 @@ export function createGitHubBridge(config) {
         }
         fail("GITHUB_REQUEST_FAILED");
       }
-      const value = await readJsonLimited(response.body, 262144);
+      let text;
+      try {
+        text = await readTextLimited(response.body, GITHUB_JSON_MAX_BYTES);
+      } catch (error) {
+        if (error?.code === "BODY_TOO_LARGE") fail("GITHUB_RESPONSE_TOO_LARGE");
+        throw error;
+      }
+      let value;
+      try {
+        value = JSON.parse(text);
+      } catch {
+        fail("GITHUB_RESPONSE_INVALID");
+      }
       if (key) {
         if (requestEpoch === cacheEpoch)
-          cache.set(key, {
+          remember(key, {
             at: Date.now(),
             value,
+            bytes: Buffer.byteLength(text),
             etag: safeEtag(response.headers.get("etag")),
           });
       } else if (method !== "GET") {
         // A live uncached GET must not evict independent cache keys.
         // Only successful mutations invalidate previously cached reads.
         cacheEpoch++;
-        cache.clear();
+        clearCache();
       }
       return value;
     };
