@@ -23,6 +23,10 @@ const MAX_MESSAGE_BYTES = 2048;
 export const COORDINATION_MAX_MESSAGES = MAX_MESSAGES;
 export const COORDINATION_LOW_WATER = 192;
 export const COORDINATION_MIN_RETENTION_MS = 60 * 60 * 1000;
+// Evicted notes are MOVED (atomic same-filesystem rename) into a per-project
+// archive outside the live mailbox; nothing is deleted. When the archive is
+// full, eviction stops and posting fails closed with CAPACITY_REACHED.
+export const COORDINATION_ARCHIVE_MAX = 100000;
 
 function hash(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -93,6 +97,9 @@ export class AgentCoordination {
     // partially written JSON file from another agent process.
     this.staging = path.join(this.base, ".staging");
     checkDir(this.staging);
+    // Sibling of the live mailbox on the same state filesystem, so archiving
+    // is an atomic rename and list()/rows() never see archived files.
+    this.archiveBase = path.join(stateDir, "agent-coordination-archive");
   }
 
   directory(project) {
@@ -296,22 +303,35 @@ export class AgentCoordination {
 
   evictExpired(project, dir, nowMs) {
     // rows() validates every stored message first; a damaged journal still
-    // fails closed rather than being silently "repaired" by deletion.
+    // fails closed rather than being silently "repaired" by moving files.
     const rows = this.rows(project).sort(
       (a, b) =>
         a.createdAtEpochMs - b.createdAtEpochMs || a.id.localeCompare(b.id),
     );
+    checkDir(this.archiveBase);
+    const archive = path.join(this.archiveBase, project);
+    checkDir(archive);
+    let archived = fs.readdirSync(archive).length;
     const cutoff = nowMs - COORDINATION_MIN_RETENTION_MS;
     let remaining = rows.length;
     let evicted = 0;
     for (const row of rows) {
       if (remaining <= COORDINATION_LOW_WATER) break;
       if (row.createdAtEpochMs > cutoff) break;
+      if (archived >= COORDINATION_ARCHIVE_MAX) break;
+      // Never overwrite an earlier archived copy of a re-posted request key.
+      let target = path.join(archive, `${row.id}.${row.createdAtEpochMs}.json`);
+      for (let n = 1; fs.existsSync(target); n++)
+        target = path.join(
+          archive,
+          `${row.id}.${row.createdAtEpochMs}.${n}.json`,
+        );
       try {
-        fs.unlinkSync(this.filename(dir, row.id));
+        fs.renameSync(this.filename(dir, row.id), target);
         evicted++;
+        archived++;
       } catch (error) {
-        // A concurrent poster may have evicted the same note already.
+        // A concurrent poster may have archived the same note already.
         if (error?.code !== "ENOENT") throw error;
       }
       remaining--;

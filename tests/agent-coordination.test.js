@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   AgentCoordination,
+  COORDINATION_ARCHIVE_MAX,
   COORDINATION_LOW_WATER,
   COORDINATION_MAX_MESSAGES,
   COORDINATION_MIN_RETENTION_MS,
@@ -273,4 +274,71 @@ test("a damaged journal is not repaired by eviction", (t) => {
     /COORDINATION_JOURNAL_CORRUPT/,
   );
   assert.equal(fs.readdirSync(mailbox).length, COORDINATION_MAX_MESSAGES);
+});
+
+test("eviction is lossless: notes move byte-identical into the archive, nothing is deleted", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  const mailbox = path.join(dir, "agent-coordination", "project1");
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = now + i;
+    box.post("project1", sample({ requestKey: `l-${i}`, note: `Note ${i}` }));
+  }
+  const before = new Map(
+    fs
+      .readdirSync(mailbox)
+      .map((name) => [name, fs.readFileSync(path.join(mailbox, name))]),
+  );
+  clock = now + COORDINATION_MIN_RETENTION_MS + COORDINATION_MAX_MESSAGES;
+  const result = box.post("project1", sample({ requestKey: "n", note: "New" }));
+  const archive = path.join(dir, "agent-coordination-archive", "project1");
+  const archived = fs.readdirSync(archive);
+  assert.equal(archived.length, result.evicted);
+  // Every original note still exists exactly once: live or archived.
+  const live = new Set(fs.readdirSync(mailbox));
+  for (const [name, bytes] of before) {
+    if (live.has(name)) continue;
+    const id = name.slice(0, 64);
+    const copy = archived.find((entry) => entry.startsWith(id + "."));
+    assert.ok(copy, "evicted note must be archived: " + name);
+    assert.deepEqual(fs.readFileSync(path.join(archive, copy)), bytes);
+  }
+  assert.equal(live.size + archived.length, before.size + 1);
+  // The archive is invisible to list() and never breaks journal validation.
+  assert.equal(
+    box.list("project1", { limit: 1 }).totalStored,
+    COORDINATION_LOW_WATER + 1,
+  );
+});
+
+test("a full archive stops eviction and posting fails closed", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = now + i;
+    box.post("project1", sample({ requestKey: `f-${i}`, note: `Note ${i}` }));
+  }
+  const archive = path.join(dir, "agent-coordination-archive", "project1");
+  fs.mkdirSync(archive, { recursive: true, mode: 0o700 });
+  fs.chmodSync(path.join(dir, "agent-coordination-archive"), 0o700);
+  const original = fs.readdirSync;
+  t.mock.method(fs, "readdirSync", (target, ...rest) =>
+    path.resolve(String(target)) === archive
+      ? Array.from({ length: COORDINATION_ARCHIVE_MAX }, (_, i) => `x${i}`)
+      : original.call(fs, target, ...rest),
+  );
+  clock = now + COORDINATION_MIN_RETENTION_MS + COORDINATION_MAX_MESSAGES;
+  assert.throws(
+    () => box.post("project1", sample({ requestKey: "z", note: "Z note" })),
+    /COORDINATION_CAPACITY_REACHED/,
+  );
+  t.mock.restoreAll();
+  assert.equal(
+    fs.readdirSync(path.join(dir, "agent-coordination", "project1")).length,
+    COORDINATION_MAX_MESSAGES,
+  );
 });
