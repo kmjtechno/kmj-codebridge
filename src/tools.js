@@ -4020,11 +4020,7 @@ export function createDispatcher(
         });
       }
       if (a.command === "cloudos_release_qa") {
-        if (
-          a.variant !== "full" ||
-          a.laneId !== undefined ||
-          a.expectedHead !== undefined
-        )
+        if (a.variant !== "full" || a.laneId !== undefined)
           fail("COMMAND_NOT_ALLOWED");
         if (p.id !== "kmj-cloudos" || !p.writable)
           fail("CLOUDOS_QA_PROJECT_NOT_ALLOWED");
@@ -4034,6 +4030,7 @@ export function createDispatcher(
           p.id,
           p.files.root,
           "cloudos_qa",
+          a.expectedHead,
         );
         const validate = () => {
           const row = worktreeLanes()
