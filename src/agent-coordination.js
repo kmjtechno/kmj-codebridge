@@ -15,6 +15,14 @@ const KINDS = new Set(["issue", "analysis", "proposal", "handoff", "result"]);
 const GATES = new Set(["unknown", "pass", "fail", "blocked"]);
 const MAX_MESSAGES = 256;
 const MAX_MESSAGE_BYTES = 2048;
+// A full mailbox previously stayed full forever: every later post failed with
+// COORDINATION_CAPACITY_REACHED and the continuation bridge stalled on a live
+// agent. At capacity, evict only the oldest notes past a minimum retention age
+// down to a low-water mark. Fresh notes are never evicted, so a burst of posts
+// still fails closed instead of erasing recent handoffs.
+export const COORDINATION_MAX_MESSAGES = MAX_MESSAGES;
+export const COORDINATION_LOW_WATER = 192;
+export const COORDINATION_MIN_RETENTION_MS = 60 * 60 * 1000;
 
 function hash(value) {
   return createHash("sha256").update(value).digest("hex");
@@ -242,11 +250,14 @@ export class AgentCoordination {
     }
     // One immutable file per message: no read-modify-write race between
     // different agents/processes, even when they post simultaneously.
-    if (fs.readdirSync(dir).length >= MAX_MESSAGES)
-      fail("COORDINATION_CAPACITY_REACHED");
     const createdAtEpochMs = this.now();
     if (!Number.isSafeInteger(createdAtEpochMs) || createdAtEpochMs < 0)
       fail("COORDINATION_INVALID_CLOCK");
+    let evicted = 0;
+    if (fs.readdirSync(dir).length >= MAX_MESSAGES)
+      evicted = this.evictExpired(project, dir, createdAtEpochMs);
+    if (fs.readdirSync(dir).length >= MAX_MESSAGES)
+      fail("COORDINATION_CAPACITY_REACHED");
     const payload = { version: 1, project, id, createdAtEpochMs, ...body };
     const row = { ...payload, digest: hash(JSON.stringify(payload)) };
     const raw = JSON.stringify(row);
@@ -278,6 +289,33 @@ export class AgentCoordination {
       if (fd !== undefined) fs.closeSync(fd);
       if (fs.existsSync(stagedFile)) fs.unlinkSync(stagedFile);
     }
-    return { project, id, reused: false, stored: true };
+    return evicted > 0
+      ? { project, id, reused: false, stored: true, evicted }
+      : { project, id, reused: false, stored: true };
+  }
+
+  evictExpired(project, dir, nowMs) {
+    // rows() validates every stored message first; a damaged journal still
+    // fails closed rather than being silently "repaired" by deletion.
+    const rows = this.rows(project).sort(
+      (a, b) =>
+        a.createdAtEpochMs - b.createdAtEpochMs || a.id.localeCompare(b.id),
+    );
+    const cutoff = nowMs - COORDINATION_MIN_RETENTION_MS;
+    let remaining = rows.length;
+    let evicted = 0;
+    for (const row of rows) {
+      if (remaining <= COORDINATION_LOW_WATER) break;
+      if (row.createdAtEpochMs > cutoff) break;
+      try {
+        fs.unlinkSync(this.filename(dir, row.id));
+        evicted++;
+      } catch (error) {
+        // A concurrent poster may have evicted the same note already.
+        if (error?.code !== "ENOENT") throw error;
+      }
+      remaining--;
+    }
+    return evicted;
   }
 }

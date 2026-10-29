@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { AgentCoordination } from "../src/agent-coordination.js";
+import {
+  AgentCoordination,
+  COORDINATION_LOW_WATER,
+  COORDINATION_MAX_MESSAGES,
+  COORDINATION_MIN_RETENTION_MS,
+} from "../src/agent-coordination.js";
 import { createDispatcher, definitions } from "../src/tools.js";
 import { JobRunner } from "../src/jobs.js";
 
@@ -183,4 +188,89 @@ test("MCP dispatcher isolates messages by project and enforces write grants", as
     dispatch("coordination_list", { ...scope, project: "other" }, ["read"]),
     /PROJECT_NOT_FOUND/,
   );
+});
+
+test("full mailbox evicts only expired oldest notes and stays fail-closed for fresh bursts", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  const post = (i) =>
+    box.post(
+      "project1",
+      sample({ requestKey: `note-${i}`, note: `Note ${i}` }),
+    );
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = now + i;
+    post(i);
+  }
+  // Every note is fresh: capacity still fails closed and nothing is erased.
+  clock = now + COORDINATION_MAX_MESSAGES;
+  assert.throws(() => post("fresh-burst"), /COORDINATION_CAPACITY_REACHED/);
+  assert.equal(
+    box.list("project1", { limit: 1 }).totalStored,
+    COORDINATION_MAX_MESSAGES,
+  );
+  // After the retention age, the next post evicts the oldest notes down to
+  // the low-water mark and succeeds; the newest notes remain.
+  clock = now + COORDINATION_MIN_RETENTION_MS + COORDINATION_MAX_MESSAGES;
+  const result = post("after-retention");
+  assert.equal(result.stored, true);
+  assert.equal(
+    result.evicted,
+    COORDINATION_MAX_MESSAGES - COORDINATION_LOW_WATER,
+  );
+  const page = box.list("project1", { limit: 50 });
+  assert.equal(page.totalStored, COORDINATION_LOW_WATER + 1);
+  assert.equal(
+    page.messages[0].requestKey,
+    `note-${COORDINATION_MAX_MESSAGES - COORDINATION_LOW_WATER}`,
+  );
+  assert.equal(
+    box.list("other").messages.length,
+    0,
+    "eviction never touches another project's mailbox",
+  );
+});
+
+test("eviction stops at notes younger than the retention age", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  // 10 old notes, then the rest fresh.
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = i < 10 ? now + i : now + COORDINATION_MIN_RETENTION_MS + i;
+    box.post("project1", sample({ requestKey: `n-${i}`, note: `Note ${i}` }));
+  }
+  clock = now + COORDINATION_MIN_RETENTION_MS + 20;
+  const result = box.post(
+    "project1",
+    sample({ requestKey: "next", note: "Next note" }),
+  );
+  assert.equal(result.evicted, 10);
+  assert.equal(
+    box.list("project1", { limit: 1 }).totalStored,
+    COORDINATION_MAX_MESSAGES - 10 + 1,
+  );
+});
+
+test("a damaged journal is not repaired by eviction", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = now + i;
+    box.post("project1", sample({ requestKey: `d-${i}`, note: `Note ${i}` }));
+  }
+  const mailbox = path.join(dir, "agent-coordination", "project1");
+  const victim = fs.readdirSync(mailbox).sort()[0];
+  fs.writeFileSync(path.join(mailbox, victim), "{}", { mode: 0o600 });
+  clock = now + COORDINATION_MIN_RETENTION_MS + COORDINATION_MAX_MESSAGES;
+  assert.throws(
+    () => box.post("project1", sample({ requestKey: "x", note: "X note" })),
+    /COORDINATION_JOURNAL_CORRUPT/,
+  );
+  assert.equal(fs.readdirSync(mailbox).length, COORDINATION_MAX_MESSAGES);
 });
