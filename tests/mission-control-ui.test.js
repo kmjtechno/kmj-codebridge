@@ -854,7 +854,7 @@ test("cross-chat handoff requires a host handshake and valid project scope", () 
   assert.match(request.params.content.text, /chat_continuity_save/);
   assert.match(request.params.content.text, /matching legacy revision/);
   assert.match(request.params.content.text, /exact expectedRevision/);
-  assert.match(request.params.content.text, /re-read to verify persistence/);
+  assert.match(request.params.content.text, /Re-read.*verify persistence/);
   assert.match(request.params.content.text, /NOT_SAVED/);
   assert.match(request.params.content.text, /Never capture a raw transcript/);
   assert.equal(
