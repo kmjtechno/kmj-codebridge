@@ -207,7 +207,7 @@ function parseStatus(text) {
   };
 }
 
-function fixedUnitStatus(run, unit, properties) {
+function fixedUnitStatus(run, unit, properties, { triState = false } = {}) {
   try {
     const fields = parseProperties(
       run(SYSTEMCTL, [
@@ -220,7 +220,12 @@ function fixedUnitStatus(run, unit, properties) {
     );
     return {
       // Only a loaded systemd unit is installed; masked/error/unknown fail closed.
-      installed: fields.LoadState === "loaded",
+      installed:
+        fields.LoadState === "loaded"
+          ? true
+          : triState && !["not-found", "masked"].includes(fields.LoadState)
+            ? null
+            : false,
       ...Object.fromEntries(
         properties.map((name) => [
           name[0].toLowerCase() + name.slice(1),
@@ -230,7 +235,7 @@ function fixedUnitStatus(run, unit, properties) {
     };
   } catch {
     return {
-      installed: false,
+      installed: triState ? null : false,
       ...Object.fromEntries(
         properties.map((name) => [
           name[0].toLowerCase() + name.slice(1),
@@ -1829,17 +1834,18 @@ export function createSupervisorHandler({
 
     if (request.op === "update_status") {
       exactKeys(request, ["op"]);
-      const signedTimer = fixedUnitStatus(run, SIGNED_UPDATE_TIMER, [
-        "ActiveState",
-        "SubState",
-        "UnitFileState",
-      ]);
-      const signedService = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, [
-        "ActiveState",
-        "SubState",
-        "Result",
-        "ExecMainStatus",
-      ]);
+      const signedTimer = fixedUnitStatus(
+        run,
+        SIGNED_UPDATE_TIMER,
+        ["ActiveState", "SubState", "UnitFileState"],
+        { triState: true },
+      );
+      const signedService = fixedUnitStatus(
+        run,
+        UPDATE_CHECK_SERVICE,
+        ["ActiveState", "SubState", "Result", "ExecMainStatus"],
+        { triState: true },
+      );
       const timer = fixedUnitStatus(run, UPDATE_TIMER, [
         "ActiveState",
         "SubState",
@@ -1904,13 +1910,16 @@ export function createSupervisorHandler({
           timer,
           service,
           signed: {
-            available: signedTimer.installed && signedService.installed,
+            available:
+              signedTimer.installed === true &&
+              signedService.installed === true,
             timer: signedTimer,
             service: signedService,
             checksRunning:
-              signedTimer.installed && signedTimer.activeState === "active",
+              signedTimer.installed === true &&
+              signedTimer.activeState === "active",
             checksEnabled:
-              signedTimer.installed &&
+              signedTimer.installed === true &&
               ["enabled", "enabled-runtime"].includes(
                 signedTimer.unitFileState,
               ),
