@@ -3,6 +3,9 @@
 [CmdletBinding()]
 param(
   [string]$ConfigPath,
+  # Optional: the local Git project to connect. Skips the folder picker
+  # (also set by dragging a folder onto CONNECT-ANY-DEVICE.cmd).
+  [string]$ProjectRoot,
   [switch]$AtLogon,
   [switch]$DisableAutoStart,
   [switch]$SelfTest
@@ -90,6 +93,12 @@ function ChooseExisting {
   } finally { $dialog.Dispose() }
 }
 function SelectProject {
+  if (![string]::IsNullOrWhiteSpace($ProjectRoot)) {
+    if (![IO.Path]::IsPathRooted($ProjectRoot)) { throw 'DEVICE_PROJECT_ROOT_NOT_ABSOLUTE' }
+    $given = [IO.Path]::GetFullPath($ProjectRoot.TrimEnd([char]92))
+    if (!(Test-Path -LiteralPath $given -PathType Container)) { throw 'DEVICE_PROJECT_ROOT_MISSING' }
+    return $given
+  }
   Add-Type -AssemblyName System.Windows.Forms
   $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
   $dialog.Description = 'Select the existing local Git project you want to approve for CodeBridge'
@@ -424,9 +433,35 @@ try {
       }
       if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
     } else {
+    # One-click: decide automatically whenever the answer is unambiguous.
+    $known = @(FindKnownApproved)
+    $auto = $null
+    if (![string]::IsNullOrWhiteSpace($ProjectRoot)) {
+      $givenRoot = SelectProject
+      $givenId = [IO.Path]::GetFileName($givenRoot)
+      $match = @(FindKnownApproved $givenRoot $givenId)
+      if ($match.Count -eq 1) {
+        $auto = $match[0]
+        Write-Host 'KMJ_UNIVERSAL=EXISTING_PROJECT_AGENT_AUTO_SELECTED'
+      } elseif ($match.Count -eq 0) {
+        Write-Host 'KMJ_UNIVERSAL=NEW_PROJECT_AUTO_PAIRING'
+        $auto = FirstPair
+      } else {
+        throw 'DEVICE_DUPLICATE_PROJECT_ENROLLMENTS_REVIEW'
+      }
+    } elseif ($known.Count -eq 0) {
+      # Nothing is paired on this PC yet: the only sensible action is a new pairing.
+      Write-Host 'KMJ_UNIVERSAL=NEW_DEVICE_AUTO_PAIRING'
+      $auto = FirstPair
+    }
+    if ($null -ne $auto) {
+      $ConfigPath = $auto
+    } else {
     Add-Type -AssemblyName System.Windows.Forms
     $choice = [System.Windows.Forms.MessageBox]::Show(
-      'Already connected a KMJ CodeBridge agent on this PC? YES: choose its existing private agent.json. NO: pair a new Git project with your owner browser.',
+      'YES = reconnect an agent already paired on this PC.' + [Environment]::NewLine +
+      'NO = connect a NEW project folder (browser approval).' + [Environment]::NewLine +
+      'CANCEL = stop without changes.',
       'KMJ TECHNO - Connect Device',
       [System.Windows.Forms.MessageBoxButtons]::YesNoCancel
     )
@@ -444,6 +479,7 @@ try {
       if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
     } else {
       $ConfigPath = FirstPair
+    }
     }
     }
   }

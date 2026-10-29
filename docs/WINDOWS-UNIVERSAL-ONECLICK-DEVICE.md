@@ -8,6 +8,10 @@ Get a **trusted, tracked-clean** local CodeBridge checkout with Node.js 24+, Git
 
 `scripts/windows/CONNECT-ANY-DEVICE.cmd`
 
+**Fastest path (true one click):** drag your project folder onto `CONNECT-ANY-DEVICE.cmd` (or run `CONNECT-ANY-DEVICE.cmd "C:\path\to\project"`). No dialog and no folder picker appear. If that folder is already paired on this PC, the existing agent reconnects. Otherwise the owner browser approval opens directly.
+
+On a PC with **nothing paired yet**, a plain double-click also skips the Yes/No dialog and goes straight to the folder picker and browser approval. The dialog below appears only when this PC already has paired agents and no folder was given.
+
 Choose **YES** for a previously enrolled CodeBridge device. If exactly one matching same-PC enrollment exists in the known private stores, CodeBridge selects it automatically. With more than one enrollment (or a nonstandard storage location), choose the correct existing private `agent.json` file yourself. No token is copied, reset, displayed, or reissued. Only a private config whose device ID ends in this computer's normalized Windows name, matches the trusted `https://kmjtechno.com` gateway, and has valid project/state scopes can be used.
 
 Choose **NO** to pair a new Git project: select its _existing local Git repository root_, then approve the new device/project in your owner's official browser. The CodeBridge enrollment helper displays the short-lived approval link and code locally, not the permanent bearer token. The new config is created only inside the current user's `%LOCALAPPDATA%\KMJ-CodeBridge\private\devices\...` folder with restricted ACLs. Existing config files are never overwritten. Before creating a new grant, the wizard checks known private stores for an already enrolled **same project on the same PC** and blocks duplicate pairing. If browser approval was cancelled and only an empty reserved folder plus empty `state` directory remain, retry is allowed without deleting anything; if any credential, log, or other file exists, the retry blocks for review. Existing shared private-store ACLs are not rewritten.

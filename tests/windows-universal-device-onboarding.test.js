@@ -82,6 +82,36 @@ test("automatic startup reuses exact private config, blocks duplicates and is re
     assert.doesNotMatch(content, forbidden);
 });
 
+test("true one-click: no dialog when the choice is unambiguous", () => {
+  // Optional explicit project skips the folder picker, still owner-approved.
+  assert.match(content, /\[string\]\$ProjectRoot,/);
+  assert.match(content, /DEVICE_PROJECT_ROOT_NOT_ABSOLUTE/);
+  assert.match(content, /DEVICE_PROJECT_ROOT_MISSING/);
+  // Nothing paired yet -> straight to browser approval (no Yes/No/Cancel).
+  assert.match(
+    content,
+    /\$known\.Count -eq 0\) \{[\s\S]*?NEW_DEVICE_AUTO_PAIRING[\s\S]*?\$auto = FirstPair/,
+  );
+  // A project already paired here reconnects instead of re-pairing.
+  assert.match(content, /EXISTING_PROJECT_AGENT_AUTO_SELECTED/);
+  assert.match(content, /NEW_PROJECT_AUTO_PAIRING/);
+  assert.match(content, /DEVICE_DUPLICATE_PROJECT_ENROLLMENTS_REVIEW/);
+  // The remaining dialog explains every button.
+  assert.match(content, /NO = connect a NEW project folder/);
+  assert.match(content, /CANCEL = stop without changes/);
+  // Pairing still requires the owner browser approval and grant checks.
+  assert.match(content, /KMJ_UNIVERSAL=OWNER_BROWSER_APPROVAL_REQUIRED/);
+  assert.match(content, /DEVICE_APPROVAL_GRANT_MISMATCH/);
+  // Unattended logon start never pairs.
+  assert.match(
+    content,
+    /if \(\$AtLogon\) \{ throw 'DEVICE_UNATTENDED_REQUIRES_EXACT_CONFIG' \}/,
+  );
+  const cmd = fs.readFileSync("scripts/windows/CONNECT-ANY-DEVICE.cmd", "utf8");
+  assert.match(cmd, /if exist "%~1\\\*" goto :project/);
+  assert.match(cmd, /-ProjectRoot "%~f1"/);
+});
+
 test("standalone one-click connect and opt-out wrappers use only local bundled source", () => {
   for (const [name, disable] of [
     ["CONNECT-ANY-DEVICE.cmd", false],
@@ -134,5 +164,23 @@ test(
     );
     assert.equal(blocked.status, 2, blocked.stdout + blocked.stderr);
     assert.match(blocked.stdout, /KMJ_UNIVERSAL=BLOCKED:/);
+    // Unattended start with a project path still refuses to pair.
+    const unattended = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        script,
+        "-AtLogon",
+        "-ProjectRoot",
+        process.cwd(),
+      ],
+      { encoding: "utf8", windowsHide: true, shell: false, timeout: 15000 },
+    );
+    assert.equal(unattended.status, 2, unattended.stdout + unattended.stderr);
+    assert.match(unattended.stdout, /KMJ_UNIVERSAL=BLOCKED:/);
   },
 );
