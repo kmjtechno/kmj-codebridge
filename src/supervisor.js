@@ -56,6 +56,7 @@ const FULL_GIT_SHA = /^[a-f0-9]{40}$/;
 const MAIN_PLATFORM_AGENT_SERVICE = "kmj-codebridge-kmj-main-platform.service";
 const UPDATE_TIMER = "kmj-codebridge-auto-update.timer";
 const UPDATE_CHECK_SERVICE = "kmj-codebridge-stable-update.service";
+const SIGNED_UPDATE_TIMER = "kmj-codebridge-stable-update.timer";
 const PRIVATE_PR322_CI_SERVICE = "kmj-codebridge-private-pr322-ci.service";
 const PRIVATE_PR337_CI_SERVICE = "kmj-codebridge-private-pr337-ci.service";
 const PRIVATE_PR337_CI_EVIDENCE =
@@ -1828,6 +1829,17 @@ export function createSupervisorHandler({
 
     if (request.op === "update_status") {
       exactKeys(request, ["op"]);
+      const signedTimer = fixedUnitStatus(run, SIGNED_UPDATE_TIMER, [
+        "ActiveState",
+        "SubState",
+        "UnitFileState",
+      ]);
+      const signedService = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, [
+        "ActiveState",
+        "SubState",
+        "Result",
+        "ExecMainStatus",
+      ]);
       const timer = fixedUnitStatus(run, UPDATE_TIMER, [
         "ActiveState",
         "SubState",
@@ -1891,6 +1903,18 @@ export function createSupervisorHandler({
           available: timer.installed && service.installed,
           timer,
           service,
+          signed: {
+            available: signedTimer.installed && signedService.installed,
+            timer: signedTimer,
+            service: signedService,
+            checksRunning:
+              signedTimer.installed && signedTimer.activeState === "active",
+            checksEnabled:
+              signedTimer.installed &&
+              ["enabled", "enabled-runtime"].includes(
+                signedTimer.unitFileState,
+              ),
+          },
           mainPlatformRefresh,
           mainPlatformAgent,
           nativeCiPrerequisites: nativeCiPrerequisiteStatus(lstat, readFile),
