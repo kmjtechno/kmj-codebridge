@@ -135,6 +135,21 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 @media(max-width:640px){.kmj-workspace{display:block}.kmj-rail{display:none}.kmj-main{padding:9px 12px}.kmj-composer{bottom:0;border-radius:14px 14px 0 0}.kmj-intro{padding:11px}.kmj-main nav[role="tablist"] button{flex:1 0 72px}}
 @media(prefers-color-scheme:light){.kmj-workspace .brand strong,.kmj-workspace h1,.kmj-workspace .sectiontitle{color:#f4f6fc}.kmj-workspace .pill{color:#ced7e9;background:rgba(255,255,255,.035)}.kmj-workspace .subtitle,.kmj-workspace .node span,.kmj-workspace .note{color:#a5aec6}.kmj-workspace .node,.kmj-workspace .cell,.kmj-workspace .detail{background:rgba(16,24,45,.73)}.kmj-workspace .detail dd,.kmj-workspace .project{color:#edf3fc}.kmj-workspace nav{background:rgba(231,233,255,.045)}.kmj-workspace nav button[aria-selected="true"]{background:#263150;color:#f5f5ff}.kmj-workspace h1 span{background:linear-gradient(100deg,#cfc6ff 0%,#b9e6ff 95%);color:transparent;background-clip:text;-webkit-background-clip:text}}
 @media(prefers-reduced-motion:reduce){.kmj-rail-action,.kmj-composer-actions button{animation:none!important;transition:none!important}}
+/* Readability and keyboard efficiency: preserve the locked three-panel identity. */
+.kmj-workspace{font-size:14px;line-height:1.55}
+.kmj-workspace .kmj-side-heading,.kmj-workspace .micro{font-size:11px}
+.kmj-workspace .kmj-rail-action,.kmj-workspace .kmj-inspector-action{font-size:13px;min-height:44px}
+.kmj-workspace .kmj-side-note,.kmj-workspace .kmj-intro p,.kmj-workspace .subtitle{font-size:13px;line-height:1.7}
+.kmj-workspace .sectiontitle,.kmj-workspace .kmj-inspector-card h2{font-size:13px}
+.kmj-workspace .metric label,.kmj-workspace .metric em,.kmj-workspace .node span,.kmj-workspace .cell small,.kmj-workspace .detail,.kmj-workspace .note,.kmj-workspace .timeline li strong,.kmj-workspace .timeline li time,.kmj-workspace .kmj-inspector-card dt,.kmj-workspace .kmj-inspector-card dd{font-size:12px}
+.kmj-workspace .metric b{font-size:clamp(25px,3.5vw,32px)}
+.kmj-workspace .node strong,.kmj-workspace .kmj-composer-actions button,.kmj-workspace .file-button{font-size:13px}
+.kmj-workspace .patch{font-size:12px;line-height:1.6}
+.kmj-workspace nav[role="tablist"] button{font-size:13px;min-height:44px}
+.kmj-workspace .kmj-composer textarea{font-size:15px;min-height:90px}
+.kmj-workspace .kmj-composer-actions button{min-height:42px}
+.kmj-workspace .kmj-composer .kmj-shortcut{font-size:12px;margin:7px 0 0;color:#acbdd3}
+@media(max-width:640px){.kmj-workspace nav[role="tablist"]{overflow-x:auto;flex-wrap:nowrap}.kmj-workspace nav[role="tablist"] button{flex:0 0 auto;min-width:86px}.kmj-workspace .kmj-composer textarea{font-size:16px}}
 </style>
 </head>
 <body>
@@ -266,7 +281,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 
 <div class="kmj-composer" aria-label="Project-scoped AI prompt composer">
   <label class="sectiontitle" for="aiPrompt">Ask the connected AI about this project</label>
-  <textarea id="aiPrompt" maxlength="1800" placeholder="Describe a project task or bug. Requires host approval."></textarea>
+  <textarea id="aiPrompt" maxlength="1800" aria-keyshortcuts="Control+Enter Meta+Enter" placeholder="Describe a project task or bug. Requires host approval."></textarea>
+  <p class="kmj-shortcut" id="composerShortcut">Ctrl+Enter (or ⌘+Enter) asks the connected host AI. Enter adds a new line.</p>
   <div class="kmj-composer-actions">
     <button id="askHostAi" type="button">✧ Send to connected AI</button>
     <button id="queueDevTask" type="button">＋ Queue approved task</button>
@@ -365,7 +381,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  var queueSerial=0;
  // Preserve the idempotency key across ambiguous host replies to avoid duplicate tasks.
  var queueAttempt=null;
- document.getElementById("askHostAi").addEventListener("click",function(){
+ function submitHostMessage(){
    var el=document.getElementById("aiPrompt");
    var instruction=el&&typeof el.value==="string"?el.value.trim():"";
    var device=latest&&latest.device,project=latest&&latest.project;
@@ -385,6 +401,12 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        ". Check real status and available tools before acting. Task: "+instruction+
        ". Use approved project-scoped tools only; no unapproved production cutover or paid cloud inference."}
    }},"*");
+ }
+ document.getElementById("askHostAi").addEventListener("click",submitHostMessage);
+ document.getElementById("aiPrompt").addEventListener("keydown",function(event){
+   if(event.key!=="Enter"||(!event.ctrlKey&&!event.metaKey)||event.shiftKey||event.isComposing)return;
+   event.preventDefault();
+   submitHostMessage();
  });
  document.getElementById("refreshProgress").addEventListener("click",function(){
    var device=latest&&latest.device,project=latest&&latest.project;
