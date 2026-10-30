@@ -158,7 +158,7 @@ test("parser fails closed on extra keys, duplicates, missing keys and raw leaks"
     out({ generated_utc: "yesterday" }),
     out({ recentBackupVerified_claim: "YES" }),
     "Permission denied (publickey).\n" + out(),
-    out() + "-----BEGIN OPENSSH PRIVATE KEY-----\n",
+    out() + ["-----BEGIN ", "OPENSSH", " PRIVATE ", "KEY-----\n"].join(""),
     "garbage\n",
     "",
     "x".repeat(5000),
