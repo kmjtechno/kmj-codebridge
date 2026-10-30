@@ -846,7 +846,8 @@ test("token ACL check rejects broad principals and non-Windows", async () => {
     "ICACLS_FAILED",
   );
   // All these observations must fail closed even with an exit code of zero.
-  const goodAcl = "C:\\s\\token NT AUTHORITY\\SYSTEM:(F)\n  P520\\kmjagent:(R)\n";
+  const goodAcl =
+    "C:\\s\\token NT AUTHORITY\\SYSTEM:(F)\n  P520\\kmjagent:(R)\n";
   for (const flags of [
     { timedOut: true },
     { truncated: true },
