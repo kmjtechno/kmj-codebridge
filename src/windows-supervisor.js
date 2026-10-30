@@ -770,9 +770,25 @@ export async function verifyTokenFileAcl(
     maxBytes: 16384,
     spawnImpl,
   });
-  if (r.exitCode !== 0) return { ok: false, reason: "ICACLS_FAILED" };
-  const entries = r.output.split(/\r?\n/).slice(0, 40).join("\n");
-  if (BROAD_PRINCIPALS.test(entries))
+  // A partial, timed-out or fabricated success response must never authorize
+  // a named-pipe listener. In particular, slicing to the first 40 lines could
+  // hide a broad principal later in an otherwise successful icacls response.
+  if (
+    r.exitCode !== 0 ||
+    r.spawnFailed ||
+    r.timedOut ||
+    r.truncated ||
+    typeof r.output !== "string" ||
+    /\0/.test(r.output)
+  )
+    return { ok: false, reason: "ICACLS_FAILED" };
+  const lines = r.output.split(/\r?\n/);
+  if (
+    lines.length > 40 ||
+    !lines.some((line) => /:\([A-Za-z,]+\)/.test(line))
+  )
+    return { ok: false, reason: "ICACLS_INCOMPLETE" };
+  if (BROAD_PRINCIPALS.test(lines.join("\n")))
     return { ok: false, reason: "TOKEN_ACL_TOO_BROAD" };
   return { ok: true };
 }
