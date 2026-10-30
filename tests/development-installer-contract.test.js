@@ -131,6 +131,40 @@ assert inspect(baseline[:-1]) == {"status": "MALFORMED", "mismatchKeys": []}
 assert inspect(baseline + ["User=root"]) == {"status": "MALFORMED", "mismatchKeys": []}
 assert inspect(baseline, status=1) == {"status": "READ_FAILED", "mismatchKeys": []}
 assert inspect(["User=" + ("x" * 9000)]) == {"status": "MALFORMED", "mismatchKeys": []}
+# The host-pinned --diagnose-only CLI must never mutate root files,
+# reload systemd, start a service, create users, or write a receipt.
+def forbidden(*args, **kwargs):
+    raise AssertionError("DIAGNOSTIC_MUTATION_ATTEMPT")
+
+for status, keys, expected_exit in [
+    ("MATCH", [], 0),
+    ("MISMATCH", ["User"], 3),
+    ("MALFORMED", [], 3),
+    ("READ_FAILED", [], 3),
+]:
+    with patch.object(module.socket, "gethostname", return_value="kmj-elite"), \\
+         patch.object(module.os, "geteuid", side_effect=forbidden, create=True), \\
+         patch.object(module, "effective_unit_diagnostic", return_value={"status": status, "mismatchKeys": keys}), \\
+         patch.object(module, "account", side_effect=forbidden), \\
+         patch.object(module, "stage_root_file", side_effect=forbidden), \\
+         patch.object(module, "receipt", side_effect=forbidden), \\
+         patch.object(module, "command", side_effect=forbidden), \\
+         patch.object(sys, "argv", ["probe", "--diagnose-only"]), \\
+         patch("builtins.print") as printed:
+        assert module.main() == expected_exit
+        output = [call.args[0] for call in printed.call_args_list]
+        assert "KMJ_CB_DEV_UNIT_DIAGNOSTIC=" + status in output
+        assert "KMJ_CB_DEV_UNIT_MISMATCH_KEYS=" + ",".join(keys) in output
+        assert "KMJ_CB_DEV_UNIT_NO_MUTATION=YES" in output
+        assert all("root" not in line.lower() for line in output)
+
+with patch.object(module.socket, "gethostname", return_value="untrusted-host"), \\
+     patch.object(module, "effective_unit_diagnostic", side_effect=forbidden), \\
+     patch.object(sys, "argv", ["probe", "--diagnose-only"]), \\
+     patch("builtins.print") as printed:
+    assert module.main() == 2
+    assert printed.call_args_list[0].args[0] == "KMJ_CB_DEV_UNIT_DIAGNOSTIC=DENIED_HOST"
+
 for argv in calls:
     assert argv[:3] == ["/usr/bin/systemctl", "show", module.UNIT]
     assert argv[3] == "--no-pager"
