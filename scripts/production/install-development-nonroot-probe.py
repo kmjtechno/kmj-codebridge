@@ -151,7 +151,7 @@ def verify_effective_unit():
     # Fixed unit and fixed property allowlist; no caller-controlled arguments.
     args = ["/usr/bin/systemctl", "show", UNIT, "--no-pager"]
     for name in EXPECTED_UNIT_PROPERTIES:
-        args.extend(["--property", name])
+        args.extend(["-p", name])
     result = command(args)
     if result is None or result.returncode != 0:
         return False
