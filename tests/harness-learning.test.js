@@ -225,6 +225,30 @@ test("unproven improvement cannot be stored even with writable state", (t) => {
   assert.equal(s.list("kmj-codebridge").revision, null);
 });
 
+test("dangling journal symlink is corrupt, not an empty journal", (t) => {
+  const s = store(t);
+  const project = "kmj-codebridge";
+  const file = s.filename(project);
+  const missingTarget = path.join(path.dirname(file), "missing-journal.json");
+  fs.symlinkSync(missingTarget, file);
+  assert.equal(fs.existsSync(file), false);
+  assert.equal(fs.lstatSync(file).isSymbolicLink(), true);
+
+  assert.throws(() => s.list(project), /HARNESS_LEARNING_CORRUPT/);
+  assert.throws(
+    () =>
+      s.record(project, {
+        ...evidence,
+        requestKey: "first",
+        expectedRevision: null,
+        lesson: "Do not overwrite an untrusted dangling journal symlink.",
+      }),
+    /HARNESS_LEARNING_CORRUPT/,
+  );
+  assert.equal(fs.lstatSync(file).isSymbolicLink(), true);
+  assert.equal(fs.existsSync(file + ".lock"), false);
+});
+
 test("symlinked or corrupt journal fails closed", (t) => {
   const s = store(t);
   const p = "kmj-codebridge";
