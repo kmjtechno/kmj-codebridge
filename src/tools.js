@@ -30,7 +30,10 @@ import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { ChatContinuity } from "./chat-continuity.js";
 import { CompactSessionStore } from "./compact-session.js";
-import { HarnessLearningStore, reviewHarnessEvidence } from "./harness-learning.js";
+import {
+  HarnessLearningStore,
+  reviewHarnessEvidence,
+} from "./harness-learning.js";
 import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
@@ -908,7 +911,10 @@ export const definitions = {
     input: {
       ...harnessEvidence,
       requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      expectedRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
       lesson: z.string().min(5).max(180),
     },
     access: "write",
@@ -921,7 +927,10 @@ export const definitions = {
       ...scoped,
       taskKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
       requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
-      expectedRevision: z.string().regex(/^[a-f0-9]{64}$/).nullable(),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
     },
     access: "write",
   },
