@@ -247,7 +247,6 @@ test("symlinked or corrupt journal fails closed", (t) => {
   assert.throws(() => s.list(p), /HARNESS_LEARNING_CORRUPT/);
 });
 
-
 test("per-project lock blocks competing writers and preserves previous revision", (t) => {
   const s = store(t);
   const project = "project-a";
@@ -287,7 +286,8 @@ test("per-project lock blocks competing writers and preserves previous revision"
       ...evidence,
       requestKey: "other",
       expectedRevision: null,
-      lesson: "Permit independent project-scoped updates without a shared lock.",
+      lesson:
+        "Permit independent project-scoped updates without a shared lock.",
     }).saved,
     true,
   );
