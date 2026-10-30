@@ -783,7 +783,17 @@ export async function verifyTokenFileAcl(
   )
     return { ok: false, reason: "ICACLS_FAILED" };
   const lines = r.output.split(/\r?\n/);
-  if (lines.length > 40 || !lines.some((line) => /:\([A-Za-z,]+\)/.test(line)))
+  // A successful command must describe the exact operator-pinned token file,
+  // not a different ACL or only a generic "processed files" summary.
+  const firstLine = (lines[0] ?? "").toLowerCase();
+  const expectedFile = tokenFile.toLowerCase();
+  const boundToFile =
+    firstLine === expectedFile || firstLine.startsWith(`${expectedFile} `);
+  if (
+    lines.length > 40 ||
+    !boundToFile ||
+    !lines.some((line) => /:\([A-Za-z,]+\)/.test(line))
+  )
     return { ok: false, reason: "ICACLS_INCOMPLETE" };
   if (BROAD_PRINCIPALS.test(lines.join("\n")))
     return { ok: false, reason: "TOKEN_ACL_TOO_BROAD" };
