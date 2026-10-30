@@ -845,6 +845,36 @@ test("token ACL check rejects broad principals and non-Windows", async () => {
     ).reason,
     "ICACLS_FAILED",
   );
+  // All these observations must fail closed even with an exit code of zero.
+  const goodAcl = "C:\\s\\token NT AUTHORITY\\SYSTEM:(F)\n  P520\\kmjagent:(R)\n";
+  for (const flags of [
+    { timedOut: true },
+    { truncated: true },
+    { spawnFailed: true },
+    { output: null },
+    { output: goodAcl + "  BUILTIN\\Users:(R)\n".repeat(40) },
+  ]) {
+    const result = await verifyTokenFileAcl("C:\\s\\token", {
+      platform: "win32",
+      runner: async () => ({ exitCode: 0, output: goodAcl, ...flags }),
+    });
+    assert.equal(result.ok, false);
+    assert.equal(
+      result.reason,
+      flags.output && flags.output.includes("BUILTIN")
+        ? "ICACLS_INCOMPLETE"
+        : "ICACLS_FAILED",
+    );
+  }
+  for (const output of ["", "Successfully processed 1 files\n"]) {
+    assert.deepEqual(
+      await verifyTokenFileAcl("C:\\s\\token", {
+        platform: "win32",
+        runner: async () => ({ exitCode: 0, output }),
+      }),
+      { ok: false, reason: "ICACLS_INCOMPLETE" },
+    );
+  }
 });
 
 test("CLI refuses non-Windows and an unsafe token ACL before listening", async (t) => {
