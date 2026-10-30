@@ -826,6 +826,9 @@ test("token ACL check rejects broad principals and non-Windows", async () => {
   for (const broad of [
     "Everyone:(R)",
     "BUILTIN\\Users:(R)",
+    "BUILTIN\\Guests:(R)",
+    "APPLICATION PACKAGE AUTHORITY\\ALL APPLICATION PACKAGES:(RX)",
+    "APPLICATION PACKAGE AUTHORITY\\ALL RESTRICTED APPLICATION PACKAGES:(R)",
     "NT AUTHORITY\\Authenticated Users:(M)",
   ])
     assert.deepEqual(
