@@ -22,8 +22,12 @@ function safeNote(value) {
     value.length > 180 ||
     value.trim() !== value ||
     /[\x00-\x1f\x7f]/.test(value) ||
-    /https?:\/\/|-----BEGIN |(?:sk|ghp|gho|ghu|ghs|ghr)-?[A-Za-z0-9_-]{18,}|(?:password|secret|token|api[_-]?key)\s*[=:]|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/i.test(value) ||
-    /\b(?:ignore (?:all |previous )?instructions|bypass (?:approval|sandbox|security)|disable (?:security|auth)|execute|run (?:this|the following) command)\b/i.test(value) ||
+    /https?:\/\/|-----BEGIN |(?:sk|ghp|gho|ghu|ghs|ghr)-?[A-Za-z0-9_-]{18,}|(?:password|secret|token|api[_-]?key)\s*[=:]|\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/i.test(
+      value,
+    ) ||
+    /\b(?:ignore (?:all |previous )?instructions|bypass (?:approval|sandbox|security)|disable (?:security|auth)|execute|run (?:this|the following) command)\b/i.test(
+      value,
+    ) ||
     redact(value) !== value
   )
     fail("HARNESS_LEARNING_UNSAFE_NOTE");
@@ -241,7 +245,9 @@ export class HarnessLearningStore {
     if (evidence.recommendation !== "REVIEW_WORTHWHILE")
       fail("HARNESS_LEARNING_NO_IMPROVEMENT");
     const current = this.read(project);
-    const existing = current?.lessons.find((x) => x.taskKey === evidence.taskKey);
+    const existing = current?.lessons.find(
+      (x) => x.taskKey === evidence.taskKey,
+    );
     if (current?.requestKey === requestKey) {
       if (
         existing?.lesson !== safe ||
@@ -268,8 +274,7 @@ export class HarnessLearningStore {
         recordedAt: new Date().toISOString(),
       },
     ];
-    if (lessons.length > MAX_LESSONS)
-      fail("HARNESS_LEARNING_CAPACITY_REACHED");
+    if (lessons.length > MAX_LESSONS) fail("HARNESS_LEARNING_CAPACITY_REACHED");
     return {
       ...this.write(project, current, requestKey, lessons),
       status: "PENDING_INDEPENDENT_VERIFICATION",
@@ -284,16 +289,29 @@ export class HarnessLearningStore {
       fail("HARNESS_LEARNING_INVALID_REQUEST");
     const current = this.read(project);
     if (current?.requestKey === requestKey) {
-      if (!current.lessons.some((x) => x.taskKey === taskKey && x.status === "revoked"))
+      if (
+        !current.lessons.some(
+          (x) => x.taskKey === taskKey && x.status === "revoked",
+        )
+      )
         fail("HARNESS_LEARNING_IDEMPOTENCY_CONFLICT");
-      return { project, revision: current.revision, revoked: true, reused: true };
+      return {
+        project,
+        revision: current.revision,
+        revoked: true,
+        reused: true,
+      };
     }
     if (
       expectedRevision !== (current?.revision ?? null) ||
       (expectedRevision !== null && !DIGEST.test(expectedRevision ?? ""))
     )
       fail("HARNESS_LEARNING_REVISION_CONFLICT");
-    if (!current?.lessons.some((x) => x.taskKey === taskKey && x.status === "pending_review"))
+    if (
+      !current?.lessons.some(
+        (x) => x.taskKey === taskKey && x.status === "pending_review",
+      )
+    )
       fail("HARNESS_LEARNING_TASK_NOT_FOUND");
     const lessons = current.lessons.map((x) =>
       x.taskKey === taskKey ? { ...x, status: "revoked" } : x,
