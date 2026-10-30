@@ -867,7 +867,12 @@ test("token ACL check rejects broad principals and non-Windows", async () => {
         : "ICACLS_FAILED",
     );
   }
-  for (const output of ["", "Successfully processed 1 files\n"]) {
+  for (const output of [
+    "",
+    "Successfully processed 1 files\n",
+    "C:\\s\\other NT AUTHORITY\\SYSTEM:(F)\n",
+    "NT AUTHORITY\\SYSTEM:(F)\n",
+  ]) {
     assert.deepEqual(
       await verifyTokenFileAcl("C:\\s\\token", {
         platform: "win32",
