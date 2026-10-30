@@ -203,6 +203,8 @@ export async function verifySignedReleaseBundle({
     !SHA.test(runtime?.revision ?? "") ||
     !HASH.test(runtime?.sha256 ?? "") ||
     !ARCHIVE_NAME.test(runtime?.archive ?? "") ||
+    runtime.archive !==
+      `kmj-codebridge-${runtime.version}-${runtime.revision.slice(0, 12)}.tar.gz` ||
     runtime?.revision !== signed.revision ||
     runtime?.version !== signed.version ||
     runtime?.sha256 !== signed.sha256 ||

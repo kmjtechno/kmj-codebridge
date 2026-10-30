@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { createHash, generateKeyPairSync } from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import { buildSignedReleaseManifest } from "../scripts/sign-runtime-manifest.js";
 import { verifySignedReleaseBundle } from "../scripts/verify-signed-bundle.mjs";
 import { tryFileSymlink } from "./windows-symlink-capability.js";
@@ -64,7 +64,7 @@ function fixture(t, channel = "beta") {
     archivePath: write(NAME, archive),
     minimumSequence: 11,
   };
-  return { options, runtime, signed, dir, publicPem, write };
+  return { options, runtime, signed, dir, publicPem, privateKey, write };
 }
 
 test("verifies exact owner Ed25519 signature and streamed source archive SHA-256", async (t) => {
@@ -109,6 +109,27 @@ test("rejects a mismatched runtime revision despite valid signed manifest", asyn
   fs.writeFileSync(
     options.runtimeManifestPath,
     JSON.stringify({ ...runtime, revision: "b".repeat(40) }),
+  );
+  await assert.rejects(
+    verifySignedReleaseBundle(options),
+    /BUNDLE_MANIFEST_IDENTITY_MISMATCH/,
+  );
+});
+
+test("rejects stale archive basename even when manifest and revision are validly re-signed", async (t) => {
+  const { options, runtime, signed, privateKey } = fixture(t);
+  const revision = "c".repeat(40);
+  const manifestBytes = Buffer.from(
+    JSON.stringify({ ...signed.manifest, revision }, null, 2) + "\n",
+  );
+  fs.writeFileSync(options.signedManifestPath, manifestBytes);
+  fs.writeFileSync(
+    options.signaturePath,
+    sign(null, manifestBytes, privateKey).toString("base64url") + "\n",
+  );
+  fs.writeFileSync(
+    options.runtimeManifestPath,
+    JSON.stringify({ ...runtime, revision }),
   );
   await assert.rejects(
     verifySignedReleaseBundle(options),
