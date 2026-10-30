@@ -142,9 +142,16 @@ export class HarnessLearningStore {
 
   read(project) {
     const file = this.filename(project);
-    if (!fs.existsSync(file)) return null;
+    // existsSync follows symlinks: a dangling link must never look like an
+    // absent journal (or permit a new record to silently replace it).
+    let stat;
     try {
-      const stat = fs.lstatSync(file);
+      stat = fs.lstatSync(file);
+    } catch (error) {
+      if (error?.code === "ENOENT") return null;
+      fail("HARNESS_LEARNING_CORRUPT");
+    }
+    try {
       if (
         !stat.isFile() ||
         stat.isSymbolicLink() ||
