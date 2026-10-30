@@ -35,7 +35,7 @@ function MatchesScope([string]$File) {
       ![IO.Path]::IsPathRooted([string]$cfg.stateDir) -or
       [string]$cfg.stateDir -notmatch '(?i)[\\/]+private[\\/]+') { return $false }
     $projects = @($cfg.projects)
-    if ($projects.Count -lt 1 -or $projects.Count -gt 8) { return $false }
+    if ($projects.Count -ne 1) { return $false }
     $match = @($projects | Where-Object { [string]$_.id -ceq $projectPin -and [IO.Path]::IsPathRooted([string]$_.root) })
     return $match.Count -eq 1
   } catch { return $false }
