@@ -384,6 +384,26 @@ try {
       if (!$blocked -or [IO.File]::ReadAllText($credentialFixture) -cne 'DO_NOT_OVERWRITE') {
         throw 'DEVICE_TEST_EXISTING_ENROLLMENT_NOT_PRESERVED'
       }
+      # A local checkout may have a friendly folder name with spaces.
+      # Only canonical GitHub origins may supply a fallback project slug.
+      $friendly = Join-Path $dir 'KMJ OmniDesk'
+      New-Item -ItemType Directory -Path $friendly -ErrorAction Stop | Out-Null
+      & git.exe -C $friendly init -q
+      if ($LASTEXITCODE -ne 0) { throw 'DEVICE_TEST_GIT_INIT_FAILED' }
+      & git.exe -C $friendly remote add origin 'https://github.com/kmjtechno/kmj-omnidesk.git'
+      if ($LASTEXITCODE -ne 0 -or (ProjectIdForRoot $friendly) -cne 'kmj-omnidesk') {
+        throw 'DEVICE_TEST_SPACE_DIR_PROJECT_ID_FAILED'
+      }
+      & git.exe -C $friendly remote set-url origin 'https://example.com/evil/kmj-omnidesk.git'
+      if ($LASTEXITCODE -ne 0) { throw 'DEVICE_TEST_REMOTE_SWITCH_FAILED' }
+      $rejected = $false
+      try { $null = ProjectIdForRoot $friendly }
+      catch {
+        if ($_.Exception.Message -ne 'DEVICE_PROJECT_ID_UNSUPPORTED') { throw }
+        $rejected = $true
+      }
+      if (!$rejected) { throw 'DEVICE_TEST_UNTRUSTED_PROJECT_ORIGIN_ACCEPTED' }
+      Write-Output 'KMJ_UNIVERSAL_SPACE_DIR_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_RETRY_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_SELFTEST=PASS'
       Write-Output 'REAL_STARTUP_CHANGED=NO'
