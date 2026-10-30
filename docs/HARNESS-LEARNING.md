@@ -19,6 +19,12 @@ Four project-scoped MCP tools:
 The device agent stores at most 16 hints per project under its existing private
 state directory. All updates require revision compare-and-swap and idempotency
 keys. Storage is bounded, hash-checked, atomic and rejects unsafe symlinks.
+A private per-project filesystem lock also guards the entire read/compare/write
+transaction across agent processes, so competing updates fail with
+`HARNESS_LEARNING_BUSY` instead of silently overwriting a newer revision.
+An abandoned lock intentionally fails closed; only an authorized operator can
+reconcile it after verifying that no writer is active. No automatic lock cleanup
+or privileged recovery is attempted.
 
 The learning journal is a **hint store, not an automatic policy engine**.
 No saved hint is a prompt with privileged authority. All trial metrics are
