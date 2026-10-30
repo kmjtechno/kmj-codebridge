@@ -55,6 +55,7 @@ test("strict private provenance and bounded enrollment discovery", () => {
   assert.match(source, /hash-object -- \$entry/);
   assert.match(source, /--no-optional-locks -C \$Root status --porcelain=v1/);
   assert.match(source, /\[string\]\$cfg\.id -cne \$devicePin/);
+  assert.match(source, /\$projects\.Count -ne 1/);
 });
 
 test(
