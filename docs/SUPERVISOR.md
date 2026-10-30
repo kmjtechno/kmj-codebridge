@@ -121,6 +121,35 @@ No bypass of signed CodeBridge license limits, no new paid inference and no
 unverified 'live' claims. Until all gates complete, the root development
 executor must remain **disabled**.
 
+### Fixed read-only offsite backup diagnostic
+
+`supervisor_main_platform_offsite_diagnostic` (op `main_platform_offsite_diagnostic`) runs
+**only** the root-owned Main Platform diagnostic
+`/usr/local/libexec/kmj-main-platform-diagnose-offsite-backup-unit-20261029.sh`
+(byte-identical to kmj-main-platform `scripts/operations/diagnose-offsite-backup-unit-20261029.sh`,
+SHA-256 pinned in `src/offsite-diagnostic-policy.js`). It requires the exact
+`RUN_FIXED_READONLY_OFFSITE_DIAGNOSTIC` confirmation, the enrolled
+`kmj-elite-main-platform/kmj-main-platform` scope, the normal `execute` grant and
+`PRIVILEGED` risk approval. No path, argument, environment, unit or shell can be supplied.
+
+Before running, the Supervisor requires `/usr/local/libexec` and the script to be root-owned,
+non-symlink, single-link, not group/world-writable, not setuid/setgid, owner-executable and
+bounded in size, and the file bytes to match the pinned SHA-256; the hash is re-checked after the
+run. The child's stdout is parsed against a strict allowlist (exact keys, each once, anchored value
+patterns, `mutations=NONE`, `raw_output_suppressed=yes`, fixed unit). Extra keys, duplicates,
+raw journal text or inconsistent claims fail closed; child stderr and exit details are never
+returned. A classified `failure_class` is accepted only for an exact-invocation, exit-255 failure;
+otherwise the class stays `UNKNOWN_EXIT_255_NEEDS_LOG`.
+
+The result never claims backup validity, restore, offsite transfer or release approval, and the
+call never starts or restarts any unit and never touches the backup timer. If the Supervisor's own
+systemd sandbox cannot read the journal, the script reports `journal_scope=UNAVAILABLE`.
+
+Root-operator installation (not performed by CodeBridge):
+`install -o root -g root -m 0750 diagnose-offsite-backup-unit-20261029.sh /usr/local/libexec/kmj-main-platform-diagnose-offsite-backup-unit-20261029.sh`
+then verify `sha256sum` equals the pin. A live run needs that installation and owner approval;
+none is claimed here.
+
 ### Root-owned non-root probe attestation — implementation phase 2
 
 The separate `supervisor_development_ci_start` action requires an explicit

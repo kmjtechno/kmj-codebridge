@@ -11,6 +11,10 @@ import {
   DEVELOPMENT_UNIT,
 } from "./development-unit-policy.js";
 import {
+  OFFSITE_DIAGNOSTIC_CONFIRMATION,
+  runOffsiteDiagnostic,
+} from "./offsite-diagnostic-policy.js";
+import {
   attestMainPlatformStaging,
   STAGING_DEPLOY_UNIT,
 } from "./main-platform-staging-unit-policy.js";
@@ -2091,6 +2095,29 @@ export function createSupervisorHandler({
           mode: "READ_ONLY",
           scope: "kmj-main-platform",
           services,
+          recentBackupVerified: false,
+          restoreVerified: false,
+          productionReleaseApprovedByThisCheck: false,
+        },
+      };
+    }
+
+    // Explicit, no-argument execution of ONE root-owned, hash-pinned, read-only
+    // diagnostic. Returns only a categorical, validated result; never raw journal,
+    // paths, environment or a backup/restore/release claim.
+    if (request.op === "main_platform_offsite_diagnostic") {
+      exactKeys(request, ["op", "confirmation"]);
+      if (request.confirmation !== OFFSITE_DIAGNOSTIC_CONFIRMATION)
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const diagnostic = runOffsiteDiagnostic({ run, lstat, readFile });
+      return {
+        response: {
+          mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+          scope: "kmj-main-platform",
+          unit: "kmj-elite-offsite-backup.service",
+          diagnostic,
+          mutations: "NONE",
+          rawJournalExposed: false,
           recentBackupVerified: false,
           restoreVerified: false,
           productionReleaseApprovedByThisCheck: false,
