@@ -105,6 +105,51 @@ const SAFE_PROPERTIES = Object.freeze({
   ReadWritePaths: "/var/lib/kmj-codebridge-development-ci",
 });
 
+// Diagnostic-only fallback for a failed bulk systemctl query. It never
+// authorizes starting the unit, even when every individual property matches.
+// Only the fixed policy key NAMES are returned; effective values (paths,
+// environment and credentials) stay entirely inside this function.
+function classifyUnreadableDevelopmentProperties(run) {
+  const missingProperties = [];
+  const mismatchedProperties = [];
+  for (const key of PROPERTIES) {
+    let output;
+    try {
+      output = String(
+        run("/usr/bin/systemctl", [
+          "show",
+          DEVELOPMENT_UNIT,
+          `--property=${key}`,
+          "--no-pager",
+        ]),
+      );
+    } catch {
+      missingProperties.push(key);
+      continue;
+    }
+    // Fail closed on truncation, duplicate lines, injection or malformed
+    // output, including non-printable characters, without returning values.
+    if (output.length > 1024 || /[\r\0]/.test(output)) {
+      missingProperties.push(key);
+      continue;
+    }
+    const lines = output.replace(/\n$/, "").split("\n");
+    if (lines.length !== 1 || !lines[0].startsWith(`${key}=`)) {
+      missingProperties.push(key);
+      continue;
+    }
+    const effective = lines[0].slice(key.length + 1);
+    if (
+      Object.hasOwn(SAFE_PROPERTIES, key) &&
+      effective !== SAFE_PROPERTIES[key]
+    )
+      mismatchedProperties.push(key);
+    if (key === "ActiveState" && effective !== "inactive")
+      mismatchedProperties.push(key);
+  }
+  return { missingProperties, mismatchedProperties };
+}
+
 export function attestDevelopmentCi({ run, lstat, readFile }) {
   const blocked = (reason, installed = false) => ({
     unit: DEVELOPMENT_UNIT,
@@ -148,7 +193,13 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
       };
     if (props.ActiveState !== "inactive") return blocked("UNIT_NOT_IDLE", true);
   } catch {
-    return blocked("UNIT_PROPERTIES_UNAVAILABLE");
+    // A failed multi-property read is *never* sufficient evidence to start.
+    // A bounded diagnostic-only retry identifies fixed failing property names
+    // without exposing their contents or changing the admission verdict.
+    return {
+      ...blocked("UNIT_PROPERTIES_UNAVAILABLE"),
+      ...classifyUnreadableDevelopmentProperties(run),
+    };
   }
 
   try {
