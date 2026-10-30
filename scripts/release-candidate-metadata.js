@@ -17,7 +17,9 @@ export function buildReleaseCandidateMetadata({ product, runtime }) {
     !Number.isSafeInteger(runtime?.bytes) ||
     runtime.bytes < 1 ||
     typeof runtime?.archive !== "string" ||
-    !/^[A-Za-z0-9._-]+\.tar\.gz$/.test(runtime.archive)
+    !/^[A-Za-z0-9._-]+\.tar\.gz$/.test(runtime.archive) ||
+    runtime.archive !==
+      `kmj-codebridge-${runtime.version}-${runtime.revision.slice(0, 12)}.tar.gz`
   )
     throw Error("RELEASE_METADATA_INPUT_INVALID");
 

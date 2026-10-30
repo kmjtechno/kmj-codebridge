@@ -43,6 +43,14 @@ export function buildSignedReleaseManifest({
   )
     throw Error("RUNTIME_MANIFEST_INVALID");
 
+  // A valid digest alone does not bind the claimed Git revision to the
+  // archive filename. Refuse stale-archive signing requests before key use.
+  if (
+    runtimeManifest.archive !==
+    `kmj-codebridge-${runtimeManifest.version}-${runtimeManifest.revision.slice(0, 12)}.tar.gz`
+  )
+    throw Error("RUNTIME_ARCHIVE_REVISION_MISMATCH");
+
   if (
     !Number.isSafeInteger(sequence) ||
     sequence < 0 ||
@@ -169,6 +177,7 @@ if (
         "OUTPUT_EXISTS",
         "PRIVATE_KEY_MUST_BE_OUTSIDE_REPOSITORY",
         "RUNTIME_MANIFEST_INVALID",
+        "RUNTIME_ARCHIVE_REVISION_MISMATCH",
         "UPDATE_SIGNING_INPUT_INVALID",
         "UPDATE_ARCHIVE_URL_MISMATCH",
         "UPDATE_PRIVATE_KEY_INVALID",

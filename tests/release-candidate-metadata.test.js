@@ -49,6 +49,17 @@ test("release candidate metadata keeps stable publication owner-gated", () => {
   assert.match(built.signingRequest.policy, /owner-controlled Ed25519/i);
 });
 
+test("release candidate metadata rejects stale archive filenames for a new source revision", () => {
+  assert.throws(
+    () =>
+      buildReleaseCandidateMetadata({
+        product,
+        runtime: { ...runtime, revision: "c".repeat(40) },
+      }),
+    /RELEASE_METADATA_INPUT_INVALID/,
+  );
+});
+
 test("release candidate metadata fails closed on product/runtime version drift", () => {
   assert.throws(
     () =>

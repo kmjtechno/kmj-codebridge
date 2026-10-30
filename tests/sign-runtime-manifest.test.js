@@ -41,6 +41,23 @@ test("build-host signer emits a manifest accepted by runtime verification", () =
   assert.equal(verified.version, "0.2.0");
 });
 
+test("signer rejects a stale archive name even with a matching URL and digest", () => {
+  const { privateKey } = generateKeyPairSync("ed25519");
+  assert.throws(
+    () =>
+      buildSignedReleaseManifest({
+        runtimeManifest: { ...runtimeManifest(), revision: "c".repeat(40) },
+        archiveUrl:
+          "https://releases.kmjtechno.com/codebridge/kmj-codebridge-0.2.0-aaaaaaaaaaaa.tar.gz",
+        sequence: 42,
+        keyId: "release-2026",
+        privateKeyPem: privateKey.export({ type: "pkcs8", format: "pem" }),
+        publishedAt: "2026-10-03T00:00:00Z",
+      }),
+    /RUNTIME_ARCHIVE_REVISION_MISMATCH/,
+  );
+});
+
 test("signer rejects a runtime archive URL that does not match the packaged archive", () => {
   const { privateKey } = generateKeyPairSync("ed25519");
   assert.throws(
