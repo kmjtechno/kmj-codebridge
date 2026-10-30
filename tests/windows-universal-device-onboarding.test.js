@@ -36,6 +36,19 @@ test("any Windows PC can enroll without a hard-coded PC or project identity", ()
   assert.doesNotMatch(content, /DESKTOP-5FVJMET|DESKTOP-K3AHHEM/);
 });
 
+test("spaced OmniDesk checkout is bound to the GitHub repository slug, not the folder label", () => {
+  assert.match(content, /function ProjectIdForRoot/);
+  assert.match(content, /GetFileName\(\$Root\.TrimEnd/);
+  assert.match(content, /remote get-url origin/);
+  assert.match(content, /https:\/\/github\\\.com/);
+  assert.match(content, /DEVICE_PROJECT_ID_UNSUPPORTED/);
+  assert.match(content, /\$projectId = ProjectIdForRoot \$projectRoot/);
+  assert.match(content, /\$givenId = ProjectIdForRoot \$givenRoot/);
+  assert.match(content, /KnownGitRoot \$givenRoot/);
+  assert.match(content, /KMJ_UNIVERSAL_SPACE_DIR_SELFTEST=PASS/);
+  assert.doesNotMatch(content, /\$projectId = \[IO\.Path\]::GetFileName/);
+});
+
 test("automatic startup reuses exact private config, blocks duplicates and is reversible", () => {
   for (const marker of [
     "DEVICE_UNATTENDED_REQUIRES_EXACT_CONFIG",
@@ -148,6 +161,7 @@ test(
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /KMJ_UNIVERSAL_SELFTEST=PASS/);
     assert.match(r.stdout, /KMJ_UNIVERSAL_RETRY_SELFTEST=PASS/);
+    assert.match(r.stdout, /KMJ_UNIVERSAL_SPACE_DIR_SELFTEST=PASS/);
     assert.match(r.stdout, /REAL_STARTUP_CHANGED=NO/);
     const blocked = spawnSync(
       "powershell.exe",
