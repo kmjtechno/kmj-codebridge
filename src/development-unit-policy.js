@@ -69,7 +69,8 @@ function ownedFile(lstat, file, max) {
     !s.isSymbolicLink() &&
     s.uid === 0 &&
     s.nlink === 1 &&
-    (s.mode & 0o022) === 0 &&
+    // Reject setuid/setgid/sticky as well as group/world writable files.
+    (s.mode & 0o7022) === 0 &&
     s.size > 0 &&
     s.size <= max
   );
@@ -81,7 +82,8 @@ function ownedDirectory(lstat, file) {
     s.isDirectory() &&
     !s.isSymbolicLink() &&
     s.uid === 0 &&
-    (s.mode & 0o022) === 0
+    // A trusted parent directory must not carry special permission bits.
+    (s.mode & 0o7022) === 0
   );
 }
 
