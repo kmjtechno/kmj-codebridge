@@ -40,7 +40,8 @@ test("recovery never revokes, pairs or exports a private grant", () => {
     /\b(Revoke-|Remove-Item|Reset-|FirstPair|PAIR-HOMEOFFICE|Start-Process\s+-Verb\s+RunAs)\b/i,
   );
   assert.doesNotMatch(source, /Write-Output\s+\$(cfg|config|token)\b/i);
-  assert.match(source, /-File \$entry -ConfigPath \$config/);
+  assert.match(source, /-File \$entry -AtLogon -ConfigPath \$config/);
+  assert.doesNotMatch(source, /-ExecutionPolicy\s+(?:Bypass|RemoteSigned|Unrestricted)/);
   assert.match(
     existing,
     /if \(\[string\]::IsNullOrWhiteSpace\(\$ConfigPath\)\) \{/,
@@ -55,6 +56,34 @@ test("strict private provenance and bounded enrollment discovery", () => {
   assert.match(source, /hash-object -- \$entry/);
   assert.match(source, /--no-optional-locks -C \$Root status --porcelain=v1/);
   assert.match(source, /\[string\]\$cfg\.id -cne \$devicePin/);
+  assert.match(source, /\$projects\.Count -ne 1/);
+});
+
+test("incomplete private enrollment traversal cannot claim uniqueness", () => {
+  assert.match(source, /Get-Item -LiteralPath \$store -ErrorAction Stop/);
+  assert.match(
+    source,
+    /catch \[System\.Management\.Automation\.ItemNotFoundException\] \{ continue \}/,
+  );
+  assert.match(source, /Get-ChildItem -LiteralPath \$store -File -Force/);
+  assert.match(source, /-Recurse -Depth 6 -ErrorAction Stop/);
+  assert.doesNotMatch(
+    source,
+    /Get-ChildItem[^\r\n]*-ErrorAction SilentlyContinue/,
+  );
+});
+
+test("only immutable reviewed runtime descendants can reconnect", () => {
+  assert.match(
+    source,
+    /\$trustedBase = '769dd342b3c392a82accfb675a0812b4d51c70a7'/,
+  );
+  assert.match(source, /merge-base --is-ancestor \$trustedBase HEAD/);
+  assert.match(
+    source,
+    /diff --quiet \$trustedBase HEAD -- src package\.json package-lock\.json scripts\/windows\/ONE-CLICK-ANY-DEVICE\.ps1/,
+  );
+  assert.match(source, /RUNTIME_SOURCE_CHANGED/);
   assert.match(source, /\$projects\.Count -ne 1/);
 });
 
