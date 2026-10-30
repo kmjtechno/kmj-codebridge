@@ -783,10 +783,7 @@ export async function verifyTokenFileAcl(
   )
     return { ok: false, reason: "ICACLS_FAILED" };
   const lines = r.output.split(/\r?\n/);
-  if (
-    lines.length > 40 ||
-    !lines.some((line) => /:\([A-Za-z,]+\)/.test(line))
-  )
+  if (lines.length > 40 || !lines.some((line) => /:\([A-Za-z,]+\)/.test(line)))
     return { ok: false, reason: "ICACLS_INCOMPLETE" };
   if (BROAD_PRINCIPALS.test(lines.join("\n")))
     return { ok: false, reason: "TOKEN_ACL_TOO_BROAD" };
