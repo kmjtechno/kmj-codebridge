@@ -271,6 +271,65 @@ test("symlinked or corrupt journal fails closed", (t) => {
   assert.throws(() => s.list(p), /HARNESS_LEARNING_CORRUPT/);
 });
 
+test("journal path swap between lstat and open fails closed", (t) => {
+  const s = store(t);
+  const project = "kmj-codebridge";
+  s.record(project, {
+    ...evidence,
+    requestKey: "initial",
+    expectedRevision: null,
+    lesson: "Keep journal reads bound to the checked file identity.",
+  });
+  const file = s.filename(project);
+  const backup = file + ".original";
+  const originalOpen = fs.openSync;
+  let swapped = false;
+  fs.openSync = function (target, ...args) {
+    if (target === file && !swapped) {
+      swapped = true;
+      fs.renameSync(file, backup);
+      fs.symlinkSync(backup, file);
+    }
+    return originalOpen.call(this, target, ...args);
+  };
+  try {
+    assert.throws(() => s.list(project), /HARNESS_LEARNING_CORRUPT/);
+  } finally {
+    fs.openSync = originalOpen;
+  }
+  assert.equal(swapped, true);
+  assert.equal(fs.lstatSync(file).isSymbolicLink(), true);
+  assert.equal(JSON.parse(fs.readFileSync(backup, "utf8")).project, project);
+});
+
+test("journal mutation during descriptor read fails closed", (t) => {
+  const s = store(t);
+  const project = "kmj-codebridge";
+  s.record(project, {
+    ...evidence,
+    requestKey: "initial",
+    expectedRevision: null,
+    lesson: "Reject journal bytes changed during a pinned read.",
+  });
+  const file = s.filename(project);
+  const originalRead = fs.readSync;
+  let mutated = false;
+  fs.readSync = function (...args) {
+    const count = originalRead.apply(this, args);
+    if (count > 0 && !mutated) {
+      mutated = true;
+      fs.appendFileSync(file, " ");
+    }
+    return count;
+  };
+  try {
+    assert.throws(() => s.list(project), /HARNESS_LEARNING_CORRUPT/);
+  } finally {
+    fs.readSync = originalRead;
+  }
+  assert.equal(mutated, true);
+});
+
 test("per-project lock blocks competing writers and preserves previous revision", (t) => {
   const s = store(t);
   const project = "project-a";
