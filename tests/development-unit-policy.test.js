@@ -211,6 +211,70 @@ test("unsafe unit reveals only fixed property names, never effective values or a
   assert.deepEqual(started, []);
 });
 
+test("failed bulk unit query exposes only fixed diagnostic names and never authorizes start", async () => {
+  const { args, supervisor, started } = fixture({
+    properties: {
+      User: "root",
+      EnvironmentFiles: "/etc/super-secret-credential",
+      ReadWritePaths: "/root/top-secret",
+      ActiveState: "failed",
+    },
+  });
+  const original = args.run;
+  args.run = (exe, argv) => {
+    if (argv.filter((arg) => arg.startsWith("--property=")).length > 1)
+      throw Error("secret-bulk-error-do-not-return");
+    if (argv.includes("--property=ProtectHome"))
+      throw Error("secret-single-error-do-not-return");
+    return original(exe, argv);
+  };
+  const result = attestDevelopmentCi(args);
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, "UNIT_PROPERTIES_UNAVAILABLE");
+  assert.deepEqual(result.missingProperties, ["ProtectHome"]);
+  assert.deepEqual(result.mismatchedProperties, [
+    "ActiveState",
+    "User",
+    "EnvironmentFiles",
+    "ReadWritePaths",
+  ]);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /super-secret|top-secret|do-not-return|\/etc\/|\/root\//,
+  );
+  await assert.rejects(
+    supervisor({
+      op: "development_ci_start",
+      confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+    }),
+    /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+  );
+  assert.deepEqual(started, []);
+});
+
+test("corrupt single-property fallback is bounded and always fail closed", () => {
+  const { args } = fixture();
+  const original = args.run;
+  args.run = (exe, argv) => {
+    if (argv.filter((a) => a.startsWith("--property=")).length > 1)
+      throw Error("bulk unavailable");
+    if (argv.includes("--property=EnvironmentFiles"))
+      return "EnvironmentFiles=/etc/secret-key\\nUser=root";
+    if (argv.includes("--property=ReadWritePaths"))
+      return "ReadWritePaths=" + "x".repeat(1500);
+    return original(exe, argv);
+  };
+  const result = attestDevelopmentCi(args);
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, "UNIT_PROPERTIES_UNAVAILABLE");
+  assert.deepEqual(result.missingProperties, [
+    "EnvironmentFiles",
+    "ReadWritePaths",
+  ]);
+  assert.deepEqual(result.mismatchedProperties, []);
+  assert.doesNotMatch(JSON.stringify(result), /secret-key|bulk unavailable/);
+});
+
 test("root development probe rejects caller-selected shell, unit, path and missing confirmation", async () => {
   const { supervisor, calls, started } = fixture();
   for (const fields of [
