@@ -74,24 +74,37 @@ test("Rust project status authorizes only fixed Cargo QA stages", async () => {
     ["fmt", ["fmt", "--all", "--", "--check"]],
     [
       "clippy",
-      ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"],
+      [
+        "clippy",
+        "--workspace",
+        "--all-targets",
+        "--all-features",
+        "--",
+        "-D",
+        "warnings",
+      ],
     ],
     ["test", ["test", "--workspace", "--all-targets", "--all-features"]],
   ]) {
     const before = called.length;
-    const receipt = (await handler({
-      op: "project_verify_stage",
-      projectId: "kmj-omnidesk",
-      sha,
-      stage,
-    })).response;
+    const receipt = (
+      await handler({
+        op: "project_verify_stage",
+        projectId: "kmj-omnidesk",
+        sha,
+        stage,
+      })
+    ).response;
     assert.equal(receipt.passed, true);
     assert.equal(receipt.stage, stage);
     const calls = called.slice(before);
     const cargo = calls.filter((c) => c.exe === cargoExe);
     assert.equal(cargo.length, 1);
     assert.deepEqual(cargo[0].args, expected);
-    assert.equal(cargo[0].opts.cwd, path.join(worktreeRoot, "wt", sha.slice(0, 12)));
+    assert.equal(
+      cargo[0].opts.cwd,
+      path.join(worktreeRoot, "wt", sha.slice(0, 12)),
+    );
     assert.equal(cargo[0].opts.env.CARGO_HOME, path.join(root, "cargo-home"));
     assert.equal(cargo[0].opts.env.RUSTUP_HOME, path.join(root, "rustup-home"));
     assert.equal(cargo[0].opts.shell, undefined);
@@ -100,7 +113,12 @@ test("Rust project status authorizes only fixed Cargo QA stages", async () => {
   assert.equal(called.filter((c) => c.exe === cargoExe).length, 3);
   for (const stage of ["configure", "build", "ctest", "shell", "publish"]) {
     await assert.rejects(
-      handler({ op: "project_verify_stage", projectId: "kmj-omnidesk", sha, stage }),
+      handler({
+        op: "project_verify_stage",
+        projectId: "kmj-omnidesk",
+        sha,
+        stage,
+      }),
       /INVALID_SUPERVISOR_REQUEST/,
     );
   }
