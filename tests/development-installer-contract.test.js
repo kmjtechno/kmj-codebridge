@@ -50,7 +50,7 @@ test("restricted dev service has neither root user nor persistent start-on-boot"
   assert.doesNotMatch(installer, /curl\s*\|\s*(?:sudo\s+)?bash/);
 });
 
-test("operator effective-unit admission is full, strict, and fails closed", (t) => {
+test("operator effective-unit admission is full, strict, and fails closed", () => {
   assert.match(installer, /EXPECTED_UNIT_PROPERTIES =/);
   assert.match(installer, /return props == EXPECTED_UNIT_PROPERTIES/);
   assert.match(installer, /meta\.st_mode & 0o7022/);
@@ -114,6 +114,9 @@ print("EFFECTIVE_UNIT_PARITY=PASS")
   const result = spawnSync(
     python,
     [
+      // Isolated Python ignores PYTHONOPTIMIZE/PYTHONPATH from the host.
+      // Security assertions must never be silently disabled by environment.
+      "-I",
       "-c",
       script,
       fileURLToPath(
@@ -125,10 +128,10 @@ print("EFFECTIVE_UNIT_PARITY=PASS")
     ],
     { encoding: "utf8", timeout: 10000 },
   );
-  if (result.error?.code === "ENOENT") {
-    t.skip("Python interpreter unavailable on this runner");
-    return;
-  }
+  // This is a required security admission test. A missing interpreter,
+  // timeout or spawn failure must FAIL CI, not produce a green skipped test.
+  assert.ifError(result.error);
+  assert.equal(result.signal, null, "Python verifier was terminated");
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.match(result.stdout, /EFFECTIVE_UNIT_PARITY=PASS/);
 });
