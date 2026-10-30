@@ -264,41 +264,47 @@ export class HarnessLearningStore {
     return this.withLock(project, () => {
       const current = this.read(project);
       const existing = current?.lessons.find(
-      (x) => x.taskKey === evidence.taskKey,
-    );
-    if (current?.requestKey === requestKey) {
+        (x) => x.taskKey === evidence.taskKey,
+      );
+      if (current?.requestKey === requestKey) {
+        if (
+          existing?.lesson !== safe ||
+          existing?.evidenceSha256 !== evidence.evidenceSha256
+        )
+          fail("HARNESS_LEARNING_IDEMPOTENCY_CONFLICT");
+        return {
+          project,
+          revision: current.revision,
+          saved: true,
+          reused: true,
+        };
+      }
       if (
-        existing?.lesson !== safe ||
-        existing?.evidenceSha256 !== evidence.evidenceSha256
+        expectedRevision !== (current?.revision ?? null) ||
+        (expectedRevision !== null && !DIGEST.test(expectedRevision ?? ""))
       )
-        fail("HARNESS_LEARNING_IDEMPOTENCY_CONFLICT");
-      return { project, revision: current.revision, saved: true, reused: true };
-    }
-    if (
-      expectedRevision !== (current?.revision ?? null) ||
-      (expectedRevision !== null && !DIGEST.test(expectedRevision ?? ""))
-    )
-      fail("HARNESS_LEARNING_REVISION_CONFLICT");
-    if (existing) fail("HARNESS_LEARNING_TASK_EXISTS");
-    const lessons = [
-      ...(current?.lessons ?? []),
-      {
-        taskKey: evidence.taskKey,
-        lesson: safe,
-        evidenceSha256: evidence.evidenceSha256,
-        sourceHead: evidence.sourceHead,
-        gate: evidence.gate,
-        status: "pending_review",
-        recordedAt: new Date().toISOString(),
-      },
-    ];
-    if (lessons.length > MAX_LESSONS) fail("HARNESS_LEARNING_CAPACITY_REACHED");
-    return {
-      ...this.#write(project, current, requestKey, lessons),
-      status: "PENDING_INDEPENDENT_VERIFICATION",
-      trusted: false,
-      autoAdopted: false,
-    };
+        fail("HARNESS_LEARNING_REVISION_CONFLICT");
+      if (existing) fail("HARNESS_LEARNING_TASK_EXISTS");
+      const lessons = [
+        ...(current?.lessons ?? []),
+        {
+          taskKey: evidence.taskKey,
+          lesson: safe,
+          evidenceSha256: evidence.evidenceSha256,
+          sourceHead: evidence.sourceHead,
+          gate: evidence.gate,
+          status: "pending_review",
+          recordedAt: new Date().toISOString(),
+        },
+      ];
+      if (lessons.length > MAX_LESSONS)
+        fail("HARNESS_LEARNING_CAPACITY_REACHED");
+      return {
+        ...this.#write(project, current, requestKey, lessons),
+        status: "PENDING_INDEPENDENT_VERIFICATION",
+        trusted: false,
+        autoAdopted: false,
+      };
     });
   }
 
@@ -309,37 +315,37 @@ export class HarnessLearningStore {
     return this.withLock(project, () => {
       const current = this.read(project);
       if (current?.requestKey === requestKey) {
+        if (
+          !current.lessons.some(
+            (x) => x.taskKey === taskKey && x.status === "revoked",
+          )
+        )
+          fail("HARNESS_LEARNING_IDEMPOTENCY_CONFLICT");
+        return {
+          project,
+          revision: current.revision,
+          revoked: true,
+          reused: true,
+        };
+      }
       if (
-        !current.lessons.some(
-          (x) => x.taskKey === taskKey && x.status === "revoked",
+        expectedRevision !== (current?.revision ?? null) ||
+        (expectedRevision !== null && !DIGEST.test(expectedRevision ?? ""))
+      )
+        fail("HARNESS_LEARNING_REVISION_CONFLICT");
+      if (
+        !current?.lessons.some(
+          (x) => x.taskKey === taskKey && x.status === "pending_review",
         )
       )
-        fail("HARNESS_LEARNING_IDEMPOTENCY_CONFLICT");
+        fail("HARNESS_LEARNING_TASK_NOT_FOUND");
+      const lessons = current.lessons.map((x) =>
+        x.taskKey === taskKey ? { ...x, status: "revoked" } : x,
+      );
       return {
-        project,
-        revision: current.revision,
+        ...this.#write(project, current, requestKey, lessons),
         revoked: true,
-        reused: true,
       };
-    }
-    if (
-      expectedRevision !== (current?.revision ?? null) ||
-      (expectedRevision !== null && !DIGEST.test(expectedRevision ?? ""))
-    )
-      fail("HARNESS_LEARNING_REVISION_CONFLICT");
-    if (
-      !current?.lessons.some(
-        (x) => x.taskKey === taskKey && x.status === "pending_review",
-      )
-    )
-      fail("HARNESS_LEARNING_TASK_NOT_FOUND");
-    const lessons = current.lessons.map((x) =>
-      x.taskKey === taskKey ? { ...x, status: "revoked" } : x,
-    );
-    return {
-      ...this.#write(project, current, requestKey, lessons),
-      revoked: true,
-    };
     });
   }
 }
