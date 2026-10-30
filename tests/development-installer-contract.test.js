@@ -59,8 +59,15 @@ test("operator effective-unit admission is full, strict, and fails closed", (t) 
   const script = String.raw`
 import importlib.util
 import sys
+import types
 from types import SimpleNamespace
 from unittest.mock import patch
+
+# This imported installer targets Linux, but its pure admission function is
+# tested on both CI platforms; stub only unavailable POSIX imports on Windows.
+if sys.platform == "win32":
+    sys.modules["grp"] = types.ModuleType("grp")
+    sys.modules["pwd"] = types.ModuleType("pwd")
 
 spec = importlib.util.spec_from_file_location("kmj_dev_installer_test", sys.argv[1])
 module = importlib.util.module_from_spec(spec)
