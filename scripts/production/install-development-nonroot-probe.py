@@ -222,6 +222,17 @@ def receipt(report):
 
 
 def main():
+    # Diagnostic-only mode is safe for a non-root operator: fixed systemctl
+    # show properties, no install, daemon-reload, start, account or receipt.
+    if sys.argv[1:] == ["--diagnose-only"]:
+        if socket.gethostname().split(".")[0].lower() != EXPECTED_HOST:
+            print("KMJ_CB_DEV_UNIT_DIAGNOSTIC=DENIED_HOST")
+            return 2
+        diagnostic = effective_unit_diagnostic()
+        print("KMJ_CB_DEV_UNIT_DIAGNOSTIC=" + diagnostic["status"])
+        print("KMJ_CB_DEV_UNIT_MISMATCH_KEYS=" + ",".join(diagnostic["mismatchKeys"]))
+        print("KMJ_CB_DEV_UNIT_NO_MUTATION=YES")
+        return 0 if diagnostic["status"] == "MATCH" else 3
     if (os.geteuid() != 0 or sys.argv[1:] != ["--install-and-test"] or
             socket.gethostname().split(".")[0].lower() != EXPECTED_HOST):
         print("KMJ_CB_DEV_SANDBOX=DENIED_HOST_OR_ARGS")
