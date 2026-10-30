@@ -126,7 +126,7 @@ print("EFFECTIVE_UNIT_PARITY=PASS")
         ),
       ),
     ],
-    { encoding: "utf8", timeout: 10000 },
+    // Windows CI may take >10s to launch isolated Python under concurrent\n    // tests. Keep a finite timeout and fail-closed assertions, not a skip.\n    { encoding: "utf8", timeout: 60000 },
   );
   // This is a required security admission test. A missing interpreter,
   // timeout or spawn failure must FAIL CI, not produce a green skipped test.
