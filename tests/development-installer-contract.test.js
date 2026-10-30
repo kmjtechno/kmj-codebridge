@@ -52,9 +52,15 @@ test("restricted dev service has neither root user nor persistent start-on-boot"
 
 test("operator effective-unit admission is full, strict, and fails closed", () => {
   assert.match(installer, /EXPECTED_UNIT_PROPERTIES =/);
-  assert.match(installer, /return effective_unit_diagnostic\(\)\["status"\] == "MATCH"/);
+  assert.match(
+    installer,
+    /return effective_unit_diagnostic\(\)\["status"\] == "MATCH"/,
+  );
   assert.match(installer, /"unitMismatchKeys": \[\]/);
-  assert.match(installer, /report\["unitMismatchKeys"\] = diagnostic\["mismatchKeys"\]/);
+  assert.match(
+    installer,
+    /report\["unitMismatchKeys"\] = diagnostic\["mismatchKeys"\]/,
+  );
   assert.match(installer, /meta\.st_mode & 0o7022/);
   // Execute the real Python verifier with the subprocess boundary mocked.
   // No systemctl invocation, service activation, or host mutations occur.
