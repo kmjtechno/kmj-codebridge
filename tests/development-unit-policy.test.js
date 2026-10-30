@@ -78,8 +78,8 @@ function fixture(overrides = {}) {
       isDirectory: () => dir,
       isSymbolicLink: () => bad,
       uid: bad ? 1000 : 0,
-      mode: bad ? 0o100666 : dir ? 0o40755 : 0o100644,
-      nlink: 1,
+      mode: bad ? 0o100666 : (overrides.modeByPath?.[file] ?? (dir ? 0o40755 : 0o100644)),
+      nlink: overrides.linkCountByPath?.[file] ?? 1,
       size: file === DEVELOPMENT_UNIT_PATH ? unit.length : helper.length,
     };
   };
@@ -143,6 +143,11 @@ test("hardening bypass, wrong ownership, changed helper, active service all fail
     [{ properties: { LoadState: "not-found" } }, "UNIT_NOT_INSTALLED"],
     [{ badMetadataPath: DEVELOPMENT_UNIT_PATH }, "ROOT_OWNERSHIP_UNVERIFIED"],
     [{ badMetadataPath: DEVELOPMENT_HELPER_PATH }, "ROOT_OWNERSHIP_UNVERIFIED"],
+    [{ modeByPath: { [DEVELOPMENT_UNIT_PATH]: 0o104644 } }, "ROOT_OWNERSHIP_UNVERIFIED"],
+    [{ modeByPath: { [DEVELOPMENT_HELPER_PATH]: 0o102644 } }, "ROOT_OWNERSHIP_UNVERIFIED"],
+    [{ modeByPath: { [DEVELOPMENT_HELPER_PATH]: 0o101644 } }, "ROOT_OWNERSHIP_UNVERIFIED"],
+    [{ modeByPath: { "/usr/local/libexec": 0o42755 } }, "ROOT_OWNERSHIP_UNVERIFIED"],
+    [{ linkCountByPath: { [DEVELOPMENT_HELPER_PATH]: 2 } }, "ROOT_OWNERSHIP_UNVERIFIED"],
     [{ unit: unit + "# changed\n" }, "UNIT_CONTENT_MISMATCH"],
     [{ helper: helper + "# changed\n" }, "HELPER_HASH_MISMATCH"],
     [{ extraLines: ["User=root"] }, "UNIT_PROPERTIES_UNVERIFIED"],
