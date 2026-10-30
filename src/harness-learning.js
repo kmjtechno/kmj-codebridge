@@ -127,6 +127,62 @@ function privateDirectory(dir) {
     fail("HARNESS_LEARNING_UNSAFE_DIRECTORY");
 }
 
+// Pin the opened journal inode across the entire bounded read. A path-based
+// read after lstat would follow a swapped symlink or consume replaced bytes.
+function readPinnedJournal(file, initial) {
+  let fd;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY |
+        (fs.constants.O_NOFOLLOW ?? 0) |
+        (fs.constants.O_NONBLOCK ?? 0),
+    );
+    const opened = fs.fstatSync(fd);
+    const named = fs.lstatSync(file);
+    const valid = (s) =>
+      s.isFile() &&
+      !s.isSymbolicLink() &&
+      s.nlink === 1 &&
+      s.size >= 2 &&
+      s.size <= MAX_BYTES &&
+      (process.platform === "win32" || (s.mode & 0o077) === 0);
+    const same = (a, b) =>
+      a.dev === b.dev &&
+      a.ino === b.ino &&
+      a.size === b.size &&
+      a.mtimeMs === b.mtimeMs &&
+      a.ctimeMs === b.ctimeMs;
+    if (
+      !valid(opened) ||
+      !valid(named) ||
+      !same(initial, opened) ||
+      !same(initial, named)
+    )
+      fail("HARNESS_LEARNING_CORRUPT");
+
+    const chunks = [];
+    let total = 0;
+    for (;;) {
+      const chunk = Buffer.allocUnsafe(Math.min(4096, MAX_BYTES + 1 - total));
+      const count = fs.readSync(fd, chunk, 0, chunk.length, null);
+      if (count === 0) break;
+      total += count;
+      if (total > MAX_BYTES) fail("HARNESS_LEARNING_CORRUPT");
+      chunks.push(chunk.subarray(0, count));
+    }
+    if (
+      total !== opened.size ||
+      !same(opened, fs.fstatSync(fd)) ||
+      !same(opened, fs.lstatSync(file))
+    )
+      fail("HARNESS_LEARNING_CORRUPT");
+    return Buffer.concat(chunks, total).toString("utf8");
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
 export class HarnessLearningStore {
   constructor(stateDir) {
     if (typeof stateDir !== "string" || !path.isAbsolute(stateDir))
@@ -161,7 +217,7 @@ export class HarnessLearningStore {
         (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
       )
         fail("HARNESS_LEARNING_CORRUPT");
-      const state = JSON.parse(fs.readFileSync(file, "utf8"));
+      const state = JSON.parse(readPinnedJournal(file, stat));
       const { revision, ...body } = state;
       if (
         state.version !== 1 ||
