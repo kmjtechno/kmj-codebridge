@@ -110,7 +110,7 @@ assert not check(["User=" + ("x" * 9000)])
 def inspect(lines, status=0):
     def fake_command(argv):
         calls.append(argv)
-        return SimpleNamespace(returncode=status, stdout="\\n".join(lines))
+        return SimpleNamespace(returncode=status, stdout="\n".join(lines))
     with patch.object(module, "command", side_effect=fake_command):
         return module.effective_unit_diagnostic()
 
