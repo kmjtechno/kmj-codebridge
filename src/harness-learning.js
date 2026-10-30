@@ -207,7 +207,24 @@ export class HarnessLearningStore {
     };
   }
 
-  write(project, current, requestKey, lessons) {
+  // Atomic per-project lock serializes read/validate/rename across processes.
+  // An abandoned lock fails closed; only an authorized operator may reconcile it.
+  withLock(project, operation) {
+    const lock = this.filename(project) + ".lock";
+    try {
+      fs.mkdirSync(lock, { mode: 0o700 });
+    } catch (error) {
+      if (error?.code === "EEXIST") fail("HARNESS_LEARNING_BUSY");
+      fail("HARNESS_LEARNING_STATE_UNAVAILABLE");
+    }
+    try {
+      return operation();
+    } finally {
+      fs.rmdirSync(lock);
+    }
+  }
+
+  #write(project, current, requestKey, lessons) {
     const body = {
       version: 1,
       project,
@@ -244,8 +261,9 @@ export class HarnessLearningStore {
     const evidence = reviewHarnessEvidence(input);
     if (evidence.recommendation !== "REVIEW_WORTHWHILE")
       fail("HARNESS_LEARNING_NO_IMPROVEMENT");
-    const current = this.read(project);
-    const existing = current?.lessons.find(
+    return this.withLock(project, () => {
+      const current = this.read(project);
+      const existing = current?.lessons.find(
       (x) => x.taskKey === evidence.taskKey,
     );
     if (current?.requestKey === requestKey) {
@@ -276,19 +294,21 @@ export class HarnessLearningStore {
     ];
     if (lessons.length > MAX_LESSONS) fail("HARNESS_LEARNING_CAPACITY_REACHED");
     return {
-      ...this.write(project, current, requestKey, lessons),
+      ...this.#write(project, current, requestKey, lessons),
       status: "PENDING_INDEPENDENT_VERIFICATION",
       trusted: false,
       autoAdopted: false,
     };
+    });
   }
 
   revoke(project, { requestKey, expectedRevision, taskKey }) {
     this.filename(project);
     if (!KEY.test(requestKey ?? "") || !KEY.test(taskKey ?? ""))
       fail("HARNESS_LEARNING_INVALID_REQUEST");
-    const current = this.read(project);
-    if (current?.requestKey === requestKey) {
+    return this.withLock(project, () => {
+      const current = this.read(project);
+      if (current?.requestKey === requestKey) {
       if (
         !current.lessons.some(
           (x) => x.taskKey === taskKey && x.status === "revoked",
@@ -317,8 +337,9 @@ export class HarnessLearningStore {
       x.taskKey === taskKey ? { ...x, status: "revoked" } : x,
     );
     return {
-      ...this.write(project, current, requestKey, lessons),
+      ...this.#write(project, current, requestKey, lessons),
       revoked: true,
     };
+    });
   }
 }
