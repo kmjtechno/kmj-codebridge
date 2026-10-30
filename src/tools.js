@@ -30,6 +30,10 @@ import { buildProjectProgress } from "./project-progress.js";
 import { ChatLaneRegistry } from "./chat-lanes.js";
 import { ChatContinuity } from "./chat-continuity.js";
 import { CompactSessionStore } from "./compact-session.js";
+import {
+  HarnessLearningStore,
+  reviewHarnessEvidence,
+} from "./harness-learning.js";
 import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
@@ -583,6 +587,7 @@ export const FAST_READ_TOOLS = [
   "project_progress",
   "chat_lane_status",
   "chat_continuity_read",
+  "harness_learning_list",
   "coordination_list",
   "local_model_status",
   "worktree_lane_status",
@@ -618,6 +623,23 @@ export const FAST_READ_TOOLS = [
   "supervisor_device_status",
 ];
 const fastReadTool = z.enum(FAST_READ_TOOLS);
+const harnessMetric = z.strictObject({
+  label: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+  passed: z.boolean(),
+  score: z.number().int().min(0).max(100),
+  elapsedMs: z.number().int().min(1).max(3600000),
+  costUsd: z.literal(0),
+});
+const harnessEvidence = {
+  ...scoped,
+  taskKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+  gate: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+  sourceHead: z.string().regex(/^[a-f0-9]{40}$/),
+  taskDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  policyDigest: z.string().regex(/^[a-f0-9]{64}$/),
+  baseline: harnessMetric,
+  candidate: harnessMetric,
+};
 const file = { ...scoped, path: z.string().min(1).max(1024) };
 const patch = {
   ...file,
@@ -865,6 +887,50 @@ export const definitions = {
       reportedGate: z
         .enum(["unknown", "pass", "fail", "blocked"])
         .default("unknown"),
+    },
+    access: "write",
+  },
+  harness_learning_review: {
+    title: "Review evidence-guided agent improvement",
+    description:
+      "Compare a bounded same-task baseline and candidate for a possible workflow improvement. All metrics are caller-reported, unverified; never calls a model, changes code/policy or auto-adopts.",
+    input: harnessEvidence,
+    access: "read",
+  },
+  harness_learning_list: {
+    title: "Read scoped historical agent lessons",
+    description:
+      "List only sanitized, project-scoped reported learning hints. All are unverified, have no prompt authority or automatic tool/deploy permissions. Revoked entries are hidden by default.",
+    input: { ...scoped, includeRevoked: z.boolean().default(false) },
+    access: "read",
+  },
+  harness_learning_record: {
+    title: "Save candidate improvement for review",
+    description:
+      "Save a bounded reported improvement hint only if the candidate's claimed metrics beat baseline. Requires writable project, exact revision CAS and idempotency; does not independently verify gates, auto-adopt or execute code.",
+    input: {
+      ...harnessEvidence,
+      requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
+      lesson: z.string().min(5).max(180),
+    },
+    access: "write",
+  },
+  harness_learning_revoke: {
+    title: "Revoke unsafe or obsolete agent learning hint",
+    description:
+      "Mark a previously saved project lesson as revoked with exact revision fencing. No deletion or automatic policy/code action.",
+    input: {
+      ...scoped,
+      taskKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      requestKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/),
+      expectedRevision: z
+        .string()
+        .regex(/^[a-f0-9]{64}$/)
+        .nullable(),
     },
     access: "write",
   },
@@ -2148,6 +2214,11 @@ export function createDispatcher(
     if (!laneStateDir) fail("CHAT_CONTINUITY_STATE_UNAVAILABLE");
     return (continuityRegistry ??= new ChatContinuity(laneStateDir));
   };
+  let learningStore;
+  const learning = () => {
+    if (!laneStateDir) fail("HARNESS_LEARNING_STATE_UNAVAILABLE");
+    return (learningStore ??= new HarnessLearningStore(laneStateDir));
+  };
   let worktrees;
   const worktreeLanes = () => {
     if (!laneStateDir) fail("WORKTREE_STATE_UNAVAILABLE");
@@ -2395,6 +2466,25 @@ export function createDispatcher(
         device: config.id,
         ...coordination().post(p.id, a),
       };
+    if (name === "harness_learning_review")
+      return {
+        device: config.id,
+        project: p.id,
+        ...reviewHarnessEvidence(a),
+      };
+    if (name === "harness_learning_list")
+      return {
+        device: config.id,
+        ...learning().list(p.id, { includeRevoked: a.includeRevoked }),
+      };
+    if (name === "harness_learning_record") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return { device: config.id, ...learning().record(p.id, a) };
+    }
+    if (name === "harness_learning_revoke") {
+      if (!p.writable) fail("READ_ONLY_PROJECT");
+      return { device: config.id, ...learning().revoke(p.id, a) };
+    }
     if (name === "compact_session_save") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
       const {
