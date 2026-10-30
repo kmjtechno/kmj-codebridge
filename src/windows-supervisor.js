@@ -753,7 +753,7 @@ export function macFor(token, nonce, requestJson) {
 // Token files must be private. On Windows this inspects the ACL through
 // icacls (fixed executable, fixed argv) and refuses broad principals.
 const BROAD_PRINCIPALS =
-  /(^|\s|\\)(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)(:|\s)/i;
+  /(^|\s|\\)(Everyone|Users|Guests|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK|ALL APPLICATION PACKAGES|ALL RESTRICTED APPLICATION PACKAGES)(:|\s)/i;
 export async function verifyTokenFileAcl(
   tokenFile,
   {
