@@ -228,7 +228,10 @@ test("failed bulk unit query exposes only fixed diagnostic names and never autho
       throw Error("secret-single-error-do-not-return");
     return original(exe, argv);
   };
-  const supervisor = createSupervisorHandler({ ...args, start: (unit) => started.push(unit) });
+  const supervisor = createSupervisorHandler({
+    ...args,
+    start: (unit) => started.push(unit),
+  });
   const result = attestDevelopmentCi(args);
   assert.equal(result.ready, false);
   assert.equal(result.reason, "UNIT_PROPERTIES_UNAVAILABLE");
