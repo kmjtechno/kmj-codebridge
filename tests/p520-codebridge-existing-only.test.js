@@ -41,7 +41,10 @@ test("recovery never revokes, pairs or exports a private grant", () => {
   );
   assert.doesNotMatch(source, /Write-Output\s+\$(cfg|config|token)\b/i);
   assert.match(source, /-File \$entry -AtLogon -ConfigPath \$config/);
-  assert.doesNotMatch(source, /-ExecutionPolicy\s+(?:Bypass|RemoteSigned|Unrestricted)/);
+  assert.doesNotMatch(
+    source,
+    /-ExecutionPolicy\s+(?:Bypass|RemoteSigned|Unrestricted)/,
+  );
   assert.match(
     existing,
     /if \(\[string\]::IsNullOrWhiteSpace\(\$ConfigPath\)\) \{/,
