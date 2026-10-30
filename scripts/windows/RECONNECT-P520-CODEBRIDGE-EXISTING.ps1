@@ -8,6 +8,8 @@ $hostPin = 'DESKTOP-5FVJMET'
 $devicePin = 'kmj-kmj-codebridge-desktop-5fvjmet'
 $projectPin = 'kmj-codebridge'
 $gatewayPin = 'https://kmjtechno.com'
+# Immutable upstream runtime anchor. Owner-signed release verification remains a separate gate.
+$trustedBase = '769dd342b3c392a82accfb675a0812b4d51c70a7'
 $origins = @('https://github.com/kmjtechno/kmj-codebridge','https://github.com/kmjtechno/kmj-codebridge.git','git@github.com:kmjtechno/kmj-codebridge.git')
 function Mark([string]$K,[string]$V) { Write-Output ($K+'='+$V) }
 function Ordinary([string]$Path,[bool]$Directory) {
@@ -47,6 +49,15 @@ function TrustedEntrypoint([string]$Root) {
   if ($LASTEXITCODE -ne 0 -or $origin.Trim() -cnotin $origins) { throw 'UNTRUSTED_RUNTIME' }
   $top = [string]((& $git -C $Root rev-parse --show-toplevel 2>$null) | Select-Object -First 1)
   if ($LASTEXITCODE -ne 0 -or [IO.Path]::GetFullPath($top).TrimEnd([char]92) -ine [IO.Path]::GetFullPath($Root).TrimEnd([char]92)) { throw 'UNTRUSTED_RUNTIME' }
+  # A forged clean local HEAD or remote name alone is not trusted.
+  # The agent runtime must descend from a reviewed immutable source commit,
+  # and runtime code/dependencies must have no tracked changes since that pin.
+  & $git -C $Root cat-file -e ($trustedBase+'^{commit}') 2>$null
+  if ($LASTEXITCODE -ne 0) { throw 'RUNTIME_BASE_UNVERIFIED' }
+  & $git -C $Root merge-base --is-ancestor $trustedBase HEAD 2>$null
+  if ($LASTEXITCODE -ne 0) { throw 'RUNTIME_ANCESTRY_UNVERIFIED' }
+  & $git -C $Root diff --quiet $trustedBase HEAD -- src package.json package-lock.json scripts/windows/ONE-CLICK-ANY-DEVICE.ps1 2>$null
+  if ($LASTEXITCODE -ne 0) { throw 'RUNTIME_SOURCE_CHANGED' }
   $dirty = @(& $git --no-optional-locks -C $Root status --porcelain=v1 --untracked-files=no 2>$null)
   if ($LASTEXITCODE -ne 0 -or $dirty.Count -gt 0) { throw 'DIRTY_RUNTIME' }
   $rel = 'scripts/windows/ONE-CLICK-ANY-DEVICE.ps1'
@@ -71,9 +82,12 @@ try {
   $stores = @((Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\private'),'D:\KMJ-HyperSpeed\private','E:\KMJ\private','E:\KMJ\CodeBridge-HomeOffice\private')
   $hits = @{}
   foreach ($store in $stores) {
-    if (!(Test-Path -LiteralPath $store -PathType Container)) { continue }
-    try { Ordinary $store $true } catch { continue }
-    $items = @(Get-ChildItem -LiteralPath $store -File -Filter 'agent.json' -Recurse -Depth 6 -ErrorAction SilentlyContinue | Select-Object -First 129)
+    # Missing store is expected, but unreadable or linked stores are NOT ignored:
+    # incomplete traversal could falsely report exactly one enrollment.
+    try { $null = Get-Item -LiteralPath $store -ErrorAction Stop }
+    catch [System.Management.Automation.ItemNotFoundException] { continue }
+    Ordinary $store $true
+    $items = @(Get-ChildItem -LiteralPath $store -File -Force -Filter 'agent.json' -Recurse -Depth 6 -ErrorAction Stop | Select-Object -First 129)
     if ($items.Count -gt 128) { throw 'DISCOVERY_LIMIT' }
     foreach ($item in $items) {
       $full = [IO.Path]::GetFullPath($item.FullName)
@@ -88,8 +102,9 @@ try {
   $ps = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
   Ordinary $ps $false
   $config = @($hits.Values)[0]
-  # -ConfigPath is required: prevents the universal installer's new-pairing path.
-  & $ps -NoProfile -NonInteractive -ExecutionPolicy RemoteSigned -File $entry -ConfigPath $config 2>$null | ForEach-Object {
+  # Explicit config prevents new pairing; -AtLogon reuses approved agent
+  # without creating a new autostart shortcut. Preserve OS execution policy.
+  & $ps -NoProfile -NonInteractive -File $entry -AtLogon -ConfigPath $config 2>$null | ForEach-Object {
     $line = [string]$_
     if ($line.Length -lt 140 -and $line -match '^KMJ_UNIVERSAL=[A-Z0-9_:]+$') { Write-Output $line }
   }
@@ -99,7 +114,7 @@ try {
   Mark 'NEW_PAIRING_STARTED' 'NO'
 } catch {
   $reason = [string]$_.Exception.Message
-  if ($reason -cnotmatch '^(UNTRUSTED_PATH|UNTRUSTED_RUNTIME|DIRTY_RUNTIME|UNTRUSTED_ENTRYPOINT|PIN_INVALID|WRONG_WINDOWS_HOST|DISCOVERY_LIMIT|NO_EXISTING_SCOPED_ENROLLMENT|AMBIGUOUS_ENROLLMENT|RECONNECT_NOT_VERIFIED)$') { $reason = 'LOCAL_PREFLIGHT_FAILED' }
+  if ($reason -cnotmatch '^(UNTRUSTED_PATH|UNTRUSTED_RUNTIME|DIRTY_RUNTIME|UNTRUSTED_ENTRYPOINT|RUNTIME_BASE_UNVERIFIED|RUNTIME_ANCESTRY_UNVERIFIED|RUNTIME_SOURCE_CHANGED|PIN_INVALID|WRONG_WINDOWS_HOST|DISCOVERY_LIMIT|NO_EXISTING_SCOPED_ENROLLMENT|AMBIGUOUS_ENROLLMENT|RECONNECT_NOT_VERIFIED)$') { $reason = 'LOCAL_PREFLIGHT_FAILED' }
   Mark 'P520_CODEBRIDGE_RECOVERY' ('BLOCKED_'+$reason)
   Mark 'NEW_PAIRING_STARTED' 'NO'
   Mark 'CREDENTIALS_EXPORTED' 'NO'
