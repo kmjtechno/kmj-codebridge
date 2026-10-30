@@ -247,6 +247,95 @@ test("symlinked or corrupt journal fails closed", (t) => {
   assert.throws(() => s.list(p), /HARNESS_LEARNING_CORRUPT/);
 });
 
+test("per-project lock blocks competing writers and preserves previous revision", (t) => {
+  const s = store(t);
+  const project = "project-a";
+  const first = s.record(project, {
+    ...evidence,
+    requestKey: "first",
+    expectedRevision: null,
+    lesson: "Keep the first recorded lesson during concurrent updates.",
+  });
+  const lock = s.filename(project) + ".lock";
+  fs.mkdirSync(lock, { mode: 0o700 });
+  const nextEvidence = { ...evidence, taskKey: "second-task" };
+  assert.throws(
+    () =>
+      s.record(project, {
+        ...nextEvidence,
+        requestKey: "second",
+        expectedRevision: first.revision,
+        lesson: "Never overwrite a concurrent revision without a lock.",
+      }),
+    /HARNESS_LEARNING_BUSY/,
+  );
+  assert.throws(
+    () =>
+      s.revoke(project, {
+        taskKey: evidence.taskKey,
+        requestKey: "revoke",
+        expectedRevision: first.revision,
+      }),
+    /HARNESS_LEARNING_BUSY/,
+  );
+  assert.equal(s.list(project).revision, first.revision);
+  assert.equal(s.list(project).lessons.length, 1);
+  // A different project must not be blocked by this project's lock.
+  assert.equal(
+    s.record("project-b", {
+      ...evidence,
+      requestKey: "other",
+      expectedRevision: null,
+      lesson:
+        "Permit independent project-scoped updates without a shared lock.",
+    }).saved,
+    true,
+  );
+  fs.rmdirSync(lock);
+  const second = s.record(project, {
+    ...nextEvidence,
+    requestKey: "second",
+    expectedRevision: first.revision,
+    lesson: "Never overwrite a concurrent revision without a lock.",
+  });
+  assert.equal(second.saved, true);
+  assert.equal(s.list(project).lessons.length, 2);
+  assert.throws(
+    () =>
+      s.revoke(project, {
+        taskKey: evidence.taskKey,
+        requestKey: "stale",
+        expectedRevision: first.revision,
+      }),
+    /HARNESS_LEARNING_REVISION_CONFLICT/,
+  );
+});
+
+test("revision failures release lock for retry, but do not rewrite a journal", (t) => {
+  const s = store(t);
+  assert.throws(
+    () =>
+      s.revoke("kmj-codebridge", {
+        requestKey: "missing",
+        taskKey: evidence.taskKey,
+        expectedRevision: null,
+      }),
+    /HARNESS_LEARNING_TASK_NOT_FOUND/,
+  );
+  assert.equal(fs.existsSync(s.filename("kmj-codebridge") + ".lock"), false);
+  assert.equal(s.list("kmj-codebridge").revision, null);
+  assert.equal(
+    s.record("kmj-codebridge", {
+      ...evidence,
+      requestKey: "fresh",
+      expectedRevision: null,
+      lesson: "Record only after a fresh, independently reviewable result.",
+    }).saved,
+    true,
+  );
+  assert.equal(fs.existsSync(s.filename("kmj-codebridge") + ".lock"), false);
+});
+
 test("tool catalog enforces project permissions and never advertises auto deployment", () => {
   assert.equal(definitions.harness_learning_review.access, "read");
   assert.equal(definitions.harness_learning_list.access, "read");
