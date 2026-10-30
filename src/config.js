@@ -468,6 +468,27 @@ export const agentSchema = z.object({
             })
             .strict()
             .optional(),
+          // Explicit opt-in consumer for Main Platform workspace tool requests.
+          // Disabled by default; the server can never add tools, gates or paths.
+          workspaceJobs: z
+            .object({
+              enabled: z.boolean().default(false),
+              tools: z
+                .array(
+                  z.enum(["git_status", "inspect_project", "quality_gate"]),
+                )
+                .min(1)
+                .max(3),
+              gates: z.array(id).max(8).default([]),
+              requireCleanCheckout: z.boolean().default(true),
+            })
+            .strict()
+            .refine(
+              (value) =>
+                !value.tools.includes("quality_gate") || value.gates.length > 0,
+              { message: "quality_gate requires at least one listed gate" },
+            )
+            .optional(),
           commandPresets: z
             .array(z.enum(COMMAND_PRESET_IDS))
             .max(COMMAND_PRESET_IDS.length)
@@ -521,6 +542,26 @@ export const agentSchema = z.object({
             .default({}),
         })
         .superRefine((project, ctx) => {
+          if (project.workspaceJobs?.enabled) {
+            for (const gate of project.workspaceJobs.gates) {
+              if (!project.gates?.[gate])
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["workspaceJobs", "gates"],
+                  message: "Workspace job gate is not a configured gate",
+                });
+            }
+            if (
+              project.workspaceJobs.tools.includes("quality_gate") &&
+              !project.writable
+            )
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["workspaceJobs", "tools"],
+                message:
+                  "quality_gate requires a writable (execute-permitted) project",
+              });
+          }
           for (const profile of Object.values(project.commands ?? {})) {
             const usesApprovedPowerShell = Object.values(
               profile.variants ?? {},

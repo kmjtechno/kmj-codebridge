@@ -10,6 +10,7 @@ import { JobRunner } from "./jobs.js";
 import { AutopilotJournal } from "./autopilot.js";
 import { startOptionalAutopilotContinuationBridge } from "./autopilot-continuation-bridge.js";
 import { startAutopilotGateWorker } from "./autopilot-gate-worker.js";
+import { startWorkspaceJobWorker } from "./workspace-job-worker.js";
 import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
 import { startGitHubCiWatchWorker } from "./autopilot-ci-watch-worker.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
@@ -227,8 +228,21 @@ export async function startAgent(
     localModel,
     lanes: new WorktreeLanes(state),
   });
+  // Opt-in Main Platform workspace tool queue. Uses ONLY the device's existing signed-license
+  // renewal credential and that endpoint's own origin; no new listener, URL or installer.
+  const renewalConfig =
+    c.license.mode === "signed" ? c.license.renewal : undefined;
+  const workspaceJobWorker = startWorkspaceJobWorker({
+    activity,
+    projects: c.projects,
+    runner,
+    licenseProvider,
+    origin: renewalConfig ? new URL(renewalConfig.endpoint).origin + "/" : null,
+    credential: renewalConfig?.credential ?? null,
+  });
   workers = [
     gateWorker,
+    workspaceJobWorker,
     repairWorker,
     ciWatchWorker,
     localDraftWorker,
@@ -423,6 +437,7 @@ export async function startAgent(
       controller.abort();
       await loop;
       await gateWorker.close();
+      await workspaceJobWorker.close();
       await localDraftWorker.close();
       await repairWorker.close();
       await ciWatchWorker.close();
