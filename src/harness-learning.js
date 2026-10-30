@@ -153,7 +153,12 @@ function readPinnedJournal(file, initial) {
       a.size === b.size &&
       a.mtimeMs === b.mtimeMs &&
       a.ctimeMs === b.ctimeMs;
-    if (!valid(opened) || !valid(named) || !same(initial, opened) || !same(initial, named))
+    if (
+      !valid(opened) ||
+      !valid(named) ||
+      !same(initial, opened) ||
+      !same(initial, named)
+    )
       fail("HARNESS_LEARNING_CORRUPT");
 
     const chunks = [];
