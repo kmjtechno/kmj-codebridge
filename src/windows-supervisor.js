@@ -753,7 +753,7 @@ export function macFor(token, nonce, requestJson) {
 // Token files must be private. On Windows this inspects the ACL through
 // icacls (fixed executable, fixed argv) and refuses broad principals.
 const BROAD_PRINCIPALS =
-  /(^|\s|\\)(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)(:|\s)/i;
+  /(^|\s|\\)(Everyone|Users|Guests|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK|ALL APPLICATION PACKAGES|ALL RESTRICTED APPLICATION PACKAGES)(:|\s)/i;
 export async function verifyTokenFileAcl(
   tokenFile,
   {
@@ -770,9 +770,32 @@ export async function verifyTokenFileAcl(
     maxBytes: 16384,
     spawnImpl,
   });
-  if (r.exitCode !== 0) return { ok: false, reason: "ICACLS_FAILED" };
-  const entries = r.output.split(/\r?\n/).slice(0, 40).join("\n");
-  if (BROAD_PRINCIPALS.test(entries))
+  // A partial, timed-out or fabricated success response must never authorize
+  // a named-pipe listener. In particular, slicing to the first 40 lines could
+  // hide a broad principal later in an otherwise successful icacls response.
+  if (
+    r.exitCode !== 0 ||
+    r.spawnFailed ||
+    r.timedOut ||
+    r.truncated ||
+    typeof r.output !== "string" ||
+    /\0/.test(r.output)
+  )
+    return { ok: false, reason: "ICACLS_FAILED" };
+  const lines = r.output.split(/\r?\n/);
+  // A successful command must describe the exact operator-pinned token file,
+  // not a different ACL or only a generic "processed files" summary.
+  const firstLine = (lines[0] ?? "").toLowerCase();
+  const expectedFile = tokenFile.toLowerCase();
+  const boundToFile =
+    firstLine === expectedFile || firstLine.startsWith(`${expectedFile} `);
+  if (
+    lines.length > 40 ||
+    !boundToFile ||
+    !lines.some((line) => /:\([A-Za-z,]+\)/.test(line))
+  )
+    return { ok: false, reason: "ICACLS_INCOMPLETE" };
+  if (BROAD_PRINCIPALS.test(lines.join("\n")))
     return { ok: false, reason: "TOKEN_ACL_TOO_BROAD" };
   return { ok: true };
 }
