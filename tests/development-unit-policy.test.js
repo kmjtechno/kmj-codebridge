@@ -279,6 +279,81 @@ test("corrupt single-property fallback is bounded and always fail closed", () =>
   assert.doesNotMatch(JSON.stringify(result), /secret-key|bulk unavailable/);
 });
 
+test("bulk unit parser never trims unsafe trailing values into a trusted policy match", async () => {
+  for (const suffix of [" ", "\t", "\n\n"]) {
+    const { args, started } = fixture();
+    const original = args.run;
+    args.run = (exe, argv) => {
+      const output = original(exe, argv);
+      return argv.filter((part) => part.startsWith("--property=")).length > 1
+        ? output + suffix
+        : output;
+    };
+    const supervisor = createSupervisorHandler({
+      ...args,
+      start: (unit) => started.push(unit),
+    });
+    const result = attestDevelopmentCi(args);
+    assert.equal(result.ready, false);
+    assert.ok(
+      ["UNIT_PROPERTIES_UNSAFE", "UNIT_PROPERTIES_UNVERIFIED"].includes(
+        result.reason,
+      ),
+    );
+    await assert.rejects(
+      supervisor({
+        op: "development_ci_start",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      }),
+      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+    );
+    assert.deepEqual(started, []);
+  }
+});
+
+test("malformed bulk property output yields name-only diagnostics and never starts", async () => {
+  const variants = [
+    (output) => output.replace("User=root", "User=root\nUser=kmjdevci"),
+    (output) => output + "\nSecret=/etc/should-never-appear",
+    (output) => output.replace("User=root\n", ""),
+    (output) => output + "\0",
+    (output) => output + "x".repeat(9000),
+  ];
+  for (const mutate of variants) {
+    const { args, started } = fixture({
+      properties: { User: "root", EnvironmentFiles: "/etc/hidden-credential" },
+    });
+    const original = args.run;
+    args.run = (exe, argv) => {
+      const output = original(exe, argv);
+      return argv.filter((part) => part.startsWith("--property=")).length > 1
+        ? mutate(output)
+        : output;
+    };
+    const supervisor = createSupervisorHandler({
+      ...args,
+      start: (unit) => started.push(unit),
+    });
+    const result = attestDevelopmentCi(args);
+    assert.equal(result.ready, false);
+    assert.equal(result.reason, "UNIT_PROPERTIES_UNVERIFIED");
+    assert.ok(result.mismatchedProperties.includes("User"));
+    assert.ok(result.mismatchedProperties.includes("EnvironmentFiles"));
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /hidden-credential|should-never-appear|\/etc\//,
+    );
+    await assert.rejects(
+      supervisor({
+        op: "development_ci_start",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      }),
+      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+    );
+    assert.deepEqual(started, []);
+  }
+});
+
 test("root development probe rejects caller-selected shell, unit, path and missing confirmation", async () => {
   const { supervisor, calls, started } = fixture();
   for (const fields of [
