@@ -212,7 +212,7 @@ test("unsafe unit reveals only fixed property names, never effective values or a
 });
 
 test("failed bulk unit query exposes only fixed diagnostic names and never authorizes start", async () => {
-  const { args, supervisor, started } = fixture({
+  const { args, started } = fixture({
     properties: {
       User: "root",
       EnvironmentFiles: "/etc/super-secret-credential",
@@ -228,6 +228,7 @@ test("failed bulk unit query exposes only fixed diagnostic names and never autho
       throw Error("secret-single-error-do-not-return");
     return original(exe, argv);
   };
+  const supervisor = createSupervisorHandler({ ...args, start: (unit) => started.push(unit) });
   const result = attestDevelopmentCi(args);
   assert.equal(result.ready, false);
   assert.equal(result.reason, "UNIT_PROPERTIES_UNAVAILABLE");
@@ -259,7 +260,7 @@ test("corrupt single-property fallback is bounded and always fail closed", () =>
     if (argv.filter((a) => a.startsWith("--property=")).length > 1)
       throw Error("bulk unavailable");
     if (argv.includes("--property=EnvironmentFiles"))
-      return "EnvironmentFiles=/etc/secret-key\\nUser=root";
+      return "EnvironmentFiles=/etc/secret-key\nUser=root";
     if (argv.includes("--property=ReadWritePaths"))
       return "ReadWritePaths=" + "x".repeat(1500);
     return original(exe, argv);
