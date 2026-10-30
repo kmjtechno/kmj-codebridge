@@ -549,7 +549,11 @@ function toolRisk(name, definition) {
     name === "supervisor_main_platform_staging_deploy"
   )
     return "DEPLOY";
-  if (name === "supervisor_development_ci_start") return "PRIVILEGED";
+  if (
+    name === "supervisor_development_ci_start" ||
+    name === "supervisor_main_platform_offsite_diagnostic"
+  )
+    return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
   if (
     name === "worktree_lane_prepare" ||
@@ -1926,6 +1930,16 @@ export const definitions = {
       "Read fixed KMJ-elite backup and health one-shot/timer systemd states through the privileged Supervisor. No caller-selected units, shell, secrets, backup transfer, service restarts or production release approval.",
     input: scoped,
     access: "read",
+  },
+  supervisor_main_platform_offsite_diagnostic: {
+    title: "Run fixed read-only offsite backup diagnostic",
+    description:
+      "Run only the root-owned, SHA-attested, read-only diagnostic for the failed KMJ-elite offsite backup unit through the Supervisor and return a categorical failure class. Requires explicit confirmation and execute grant. No caller path, argument, environment, shell, raw journal, secret, service start, backup, restore or release approval; proves nothing about backup validity.",
+    input: {
+      ...scoped,
+      confirmation: z.literal("RUN_FIXED_READONLY_OFFSITE_DIAGNOSTIC"),
+    },
+    access: "execute",
   },
   supervisor_development_privilege_status: {
     title: "Guarded VPS development privilege readiness",
@@ -3452,6 +3466,17 @@ export function createDispatcher(
       if (a.project !== "kmj-main-platform") fail("ACCESS_DENIED");
       return await supervisor.request({
         op: "main_platform_maintenance_status",
+      });
+    }
+    if (name === "supervisor_main_platform_offsite_diagnostic") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_offsite_diagnostic",
+        confirmation: a.confirmation,
       });
     }
     if (name === "supervisor_development_privilege_status") {
