@@ -313,7 +313,7 @@ test("bulk unit parser never trims unsafe trailing values into a trusted policy 
 
 test("malformed bulk property output yields name-only diagnostics and never starts", async () => {
   const variants = [
-    (output) => output.replace("User=kmjdevci", "User=root\nUser=kmjdevci"),
+    (output) => output.replace("User=root", "User=root\nUser=kmjdevci"),
     (output) => output + "\nSecret=/etc/should-never-appear",
     (output) => output.replace("User=root\n", ""),
     (output) => output + "\0",
