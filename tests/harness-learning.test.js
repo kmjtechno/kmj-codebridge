@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { HarnessLearningStore, reviewHarnessEvidence } from "../src/harness-learning.js";
+import {
+  HarnessLearningStore,
+  reviewHarnessEvidence,
+} from "../src/harness-learning.js";
 import { definitions, FAST_READ_TOOLS } from "../src/tools.js";
 
 const evidence = {
@@ -70,9 +73,15 @@ test("invalid, paid, mismatched and unscored metrics fail closed", () => {
 
 test("failed, inferior or too-slow candidates are never recommended", () => {
   for (const [candidate, reason] of [
-    [{ ...evidence.candidate, passed: false }, "CANDIDATE_GATE_REPORTED_FAILED"],
+    [
+      { ...evidence.candidate, passed: false },
+      "CANDIDATE_GATE_REPORTED_FAILED",
+    ],
     [{ ...evidence.candidate, score: 25 }, "NO_MEASURED_IMPROVEMENT"],
-    [{ ...evidence.candidate, elapsedMs: 4001 }, "EXCESSIVE_RUNTIME_REGRESSION"],
+    [
+      { ...evidence.candidate, elapsedMs: 4001 },
+      "EXCESSIVE_RUNTIME_REGRESSION",
+    ],
   ]) {
     assert.equal(
       reviewHarnessEvidence({ ...evidence, candidate }).recommendation,
@@ -96,7 +105,10 @@ test("project-local lesson persists with evidence digest but stays untrusted", (
   assert.equal(p.lessons[0].trusted, false);
   assert.equal(p.lessons[0].autoExecutable, false);
   assert.equal(p.lessons[0].status, "pending_review");
-  assert.equal(p.lessons[0].evidenceSha256, reviewHarnessEvidence(evidence).evidenceSha256);
+  assert.equal(
+    p.lessons[0].evidenceSha256,
+    reviewHarnessEvidence(evidence).evidenceSha256,
+  );
   assert.equal(p.noPromptAuthority, true);
   assert.equal(s.list("other-project").lessons.length, 0);
 });
@@ -132,11 +144,12 @@ test("revoke safely hides and retains lesson; stale and replay denied", (t) => {
     lesson: "Use a scoped regression fixture for repeatable verification.",
   });
   assert.throws(
-    () => s.revoke(p, {
-      requestKey: "revoke",
-      expectedRevision: null,
-      taskKey: evidence.taskKey,
-    }),
+    () =>
+      s.revoke(p, {
+        requestKey: "revoke",
+        expectedRevision: null,
+        taskKey: evidence.taskKey,
+      }),
     /HARNESS_LEARNING_REVISION_CONFLICT/,
   );
   const removed = s.revoke(p, {
@@ -146,7 +159,10 @@ test("revoke safely hides and retains lesson; stale and replay denied", (t) => {
   });
   assert.equal(removed.revoked, true);
   assert.deepEqual(s.list(p).lessons, []);
-  assert.equal(s.list(p, { includeRevoked: true }).lessons[0].status, "revoked");
+  assert.equal(
+    s.list(p, { includeRevoked: true }).lessons[0].status,
+    "revoked",
+  );
   assert.equal(
     s.revoke(p, {
       requestKey: "revoke",
@@ -156,12 +172,13 @@ test("revoke safely hides and retains lesson; stale and replay denied", (t) => {
     true,
   );
   assert.throws(
-    () => s.record(p, {
-      ...evidence,
-      requestKey: "different",
-      expectedRevision: removed.revision,
-      lesson: "Try again with an unsafe overwrite.",
-    }),
+    () =>
+      s.record(p, {
+        ...evidence,
+        requestKey: "different",
+        expectedRevision: removed.revision,
+        lesson: "Try again with an unsafe overwrite.",
+      }),
     /HARNESS_LEARNING_TASK_EXISTS/,
   );
 });
@@ -179,12 +196,13 @@ test("only safe, bounded lessons survive; prompt injections and secrets denied",
     "",
   ]) {
     assert.throws(
-      () => s.record("kmj-codebridge", {
-        ...evidence,
-        requestKey: "r1",
-        expectedRevision: null,
-        lesson,
-      }),
+      () =>
+        s.record("kmj-codebridge", {
+          ...evidence,
+          requestKey: "r1",
+          expectedRevision: null,
+          lesson,
+        }),
       /HARNESS_LEARNING_UNSAFE_NOTE/,
     );
   }
@@ -194,13 +212,14 @@ test("only safe, bounded lessons survive; prompt injections and secrets denied",
 test("unproven improvement cannot be stored even with writable state", (t) => {
   const s = store(t);
   assert.throws(
-    () => s.record("kmj-codebridge", {
-      ...evidence,
-      candidate: { ...evidence.candidate, passed: false },
-      requestKey: "candidate",
-      expectedRevision: null,
-      lesson: "Never approve the candidate without a successful gate.",
-    }),
+    () =>
+      s.record("kmj-codebridge", {
+        ...evidence,
+        candidate: { ...evidence.candidate, passed: false },
+        requestKey: "candidate",
+        expectedRevision: null,
+        lesson: "Never approve the candidate without a successful gate.",
+      }),
     /HARNESS_LEARNING_NO_IMPROVEMENT/,
   );
   assert.equal(s.list("kmj-codebridge").revision, null);
