@@ -133,10 +133,17 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
       props[key] = line.slice(i + 1);
     }
     if (props.LoadState === "not-found") return blocked("UNIT_NOT_INSTALLED");
-    for (const [key, expected] of Object.entries(SAFE_PROPERTIES)) {
-      if (props[key] !== expected)
-        return blocked("UNIT_PROPERTIES_UNSAFE", true);
-    }
+    // Report only fixed policy PROPERTY NAMES, never the effective values:
+    // paths/environment/credential-like unit properties may contain secrets.
+    // This diagnostic remains a failed attestation and cannot authorize start.
+    const mismatchedProperties = Object.entries(SAFE_PROPERTIES)
+      .filter(([key, expected]) => props[key] !== expected)
+      .map(([key]) => key);
+    if (mismatchedProperties.length)
+      return {
+        ...blocked("UNIT_PROPERTIES_UNSAFE", true),
+        mismatchedProperties,
+      };
     if (props.ActiveState !== "inactive") return blocked("UNIT_NOT_IDLE", true);
   } catch {
     return blocked("UNIT_PROPERTIES_UNAVAILABLE");
