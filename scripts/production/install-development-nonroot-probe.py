@@ -56,7 +56,8 @@ def read_regular(path, max_size=8192):
     try:
         meta = os.fstat(fd)
         if (not stat.S_ISREG(meta.st_mode) or meta.st_nlink != 1 or
-                meta.st_size < 1 or meta.st_size > max_size):
+                meta.st_size < 1 or meta.st_size > max_size or
+                meta.st_mode & 0o7022):
             raise RuntimeError("FILE_UNSAFE")
         return os.read(fd, max_size + 1), meta
     finally:
@@ -65,7 +66,7 @@ def read_regular(path, max_size=8192):
 
 def protected_directory(path):
     meta = os.lstat(path)
-    if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o022:
+    if not stat.S_ISDIR(meta.st_mode) or meta.st_uid != 0 or meta.st_mode & 0o7022:
         raise RuntimeError("ROOT_DIRECTORY_UNSAFE")
 
 
@@ -105,7 +106,7 @@ def stage_root_file(path, data, sha, mode):
     except FileNotFoundError:
         existing = None
     if existing is not None:
-        if digest(existing) != sha or meta.st_uid != 0 or (meta.st_mode & 0o022):
+        if digest(existing) != sha or meta.st_uid != 0 or (meta.st_mode & 0o7022):
             raise RuntimeError("EXISTING_PROTECTED_FILE_MISMATCH")
         return "already_pinned"
     flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0)
@@ -123,25 +124,52 @@ def stage_root_file(path, data, sha, mode):
     return "installed"
 
 
+# Keep effective service admission equal to src/development-unit-policy.js.
+# A partial property check could falsely authorize starting an unsafe installed
+# unit that the runtime Supervisor (correctly) rejects.
+EXPECTED_UNIT_PROPERTIES = {
+    "LoadState": "loaded",
+    "ActiveState": "inactive",
+    "FragmentPath": FILES[0][1],
+    "DropInPaths": "",
+    "User": ACCOUNT,
+    "Group": ACCOUNT,
+    "NoNewPrivileges": "yes",
+    "ProtectSystem": "strict",
+    "ProtectHome": "yes",
+    "PrivateTmp": "yes",
+    "PrivateDevices": "yes",
+    "PrivateNetwork": "yes",
+    "CapabilityBoundingSet": "",
+    "AmbientCapabilities": "",
+    "EnvironmentFiles": "",
+    "ReadWritePaths": STATE,
+}
+
+
 def verify_effective_unit():
-    result = command([
-        "/usr/bin/systemctl", "show", UNIT, "--no-pager",
-        "-p", "LoadState", "-p", "User", "-p", "Group",
-        "-p", "FragmentPath", "-p", "DropInPaths",
-        "-p", "NoNewPrivileges", "-p", "ProtectSystem", "-p", "ProtectHome",
-        "-p", "PrivateNetwork",
-    ])
+    # Fixed unit and fixed property allowlist; no caller-controlled arguments.
+    args = ["/usr/bin/systemctl", "show", UNIT, "--no-pager"]
+    for name in EXPECTED_UNIT_PROPERTIES:
+        args.extend(["-p", name])
+    result = command(args)
     if result is None or result.returncode != 0:
         return False
-    props = dict(line.split("=", 1) for line in result.stdout.splitlines()
-                 if "=" in line and len(line) < 512)
-    expected = {
-        "LoadState": "loaded", "User": ACCOUNT, "Group": ACCOUNT,
-        "FragmentPath": FILES[0][1], "DropInPaths": "",
-        "NoNewPrivileges": "yes", "ProtectSystem": "strict",
-        "ProtectHome": "yes", "PrivateNetwork": "yes",
-    }
-    return all(props.get(key) == value for key, value in expected.items())
+    output = result.stdout
+    if not isinstance(output, str) or len(output) > 8192:
+        return False
+    lines = output.splitlines()
+    if len(lines) != len(EXPECTED_UNIT_PROPERTIES):
+        return False
+    props = {}
+    for line in lines:
+        if len(line) > 512 or "=" not in line:
+            return False
+        key, value = line.split("=", 1)
+        if key not in EXPECTED_UNIT_PROPERTIES or key in props:
+            return False
+        props[key] = value
+    return props == EXPECTED_UNIT_PROPERTIES
 
 
 def receipt(report):
