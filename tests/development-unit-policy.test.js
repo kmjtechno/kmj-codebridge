@@ -180,7 +180,10 @@ test("unsafe unit reveals only fixed property names, never effective values or a
   const serialized = JSON.stringify(result);
   assert.doesNotMatch(serialized, /my-key|my-secret-token|secrets/);
   await assert.rejects(
-    supervisor({ op: "development_ci_start", confirmation: "START_PINNED_NONROOT_DEV_PROBE" }),
+    supervisor({
+      op: "development_ci_start",
+      confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+    }),
     /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
   );
   assert.deepEqual(started, []);
