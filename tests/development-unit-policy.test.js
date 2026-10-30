@@ -161,6 +161,35 @@ test("hardening bypass, wrong ownership, changed helper, active service all fail
   }
 });
 
+test("unsafe unit reveals only fixed property names, never effective values or authorization", async () => {
+  const { args, supervisor, started } = fixture({
+    properties: {
+      User: "root",
+      ReadWritePaths: "/root/secrets/my-key",
+      EnvironmentFiles: "/etc/my-secret-token",
+    },
+  });
+  const result = attestDevelopmentCi(args);
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, "UNIT_PROPERTIES_UNSAFE");
+  assert.deepEqual(result.mismatchedProperties, [
+    "User",
+    "EnvironmentFiles",
+    "ReadWritePaths",
+  ]);
+  const { response } = await supervisor({ op: "development_privilege_status" });
+  assert.equal(response.devAttestation.ready, false);
+  assert.equal(response.brokerStartAuthorized, false);
+  assert.deepEqual(response.devAttestation.mismatchedProperties, result.mismatchedProperties);
+  const serialized = JSON.stringify(response);
+  assert.doesNotMatch(serialized, /my-key|my-secret-token|\\/root\\/secrets/);
+  await assert.rejects(
+    supervisor({ op: "development_ci_start", confirmation: "START_PINNED_NONROOT_DEV_PROBE" }),
+    /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+  );
+  assert.deepEqual(started, []);
+});
+
 test("root development probe rejects caller-selected shell, unit, path and missing confirmation", async () => {
   const { supervisor, calls, started } = fixture();
   for (const fields of [
