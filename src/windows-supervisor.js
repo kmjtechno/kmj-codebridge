@@ -150,8 +150,18 @@ export function createWindowsSupervisorConfigSchema(pathLib = path.win32) {
               rustupHome: abs,
               allowFetch: z.boolean().default(false),
               pathDirs: z.array(abs).max(8).default([]),
-              stageTimeoutSeconds: z.number().int().min(30).max(7200).default(1800),
-              maxLogBytes: z.number().int().min(65536).max(4194304).default(1048576),
+              stageTimeoutSeconds: z
+                .number()
+                .int()
+                .min(30)
+                .max(7200)
+                .default(1800),
+              maxLogBytes: z
+                .number()
+                .int()
+                .min(65536)
+                .max(4194304)
+                .default(1048576),
             })
             .strict(),
         )
@@ -298,7 +308,8 @@ export function createWindowsSupervisorHandler({
   const project = (id) => {
     if (typeof id !== "string" || !PROJECT_ID.test(id))
       fail("INVALID_SUPERVISOR_REQUEST");
-    const found = config.projects.find((entry) => entry.id === id) ??
+    const found =
+      config.projects.find((entry) => entry.id === id) ??
       (config.rustProjects ?? []).find((entry) => entry.id === id);
     if (!found) fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
     return found;
@@ -312,10 +323,12 @@ export function createWindowsSupervisorHandler({
     PATH: [...p.pathDirs, WIN32_SYSTEM_DIR].join(";"),
     GIT_TERMINAL_PROMPT: "0",
     GIT_OPTIONAL_LOCKS: "0",
-    ...(p.cargoExe ? {
-      CARGO_HOME: p.cargoHome,
-      RUSTUP_HOME: p.rustupHome,
-    } : {}),
+    ...(p.cargoExe
+      ? {
+          CARGO_HOME: p.cargoHome,
+          RUSTUP_HOME: p.rustupHome,
+        }
+      : {}),
   });
 
   const exec = (p, exe, args, cwd, { timeoutMs, maxBytes } = {}) =>
@@ -507,11 +520,15 @@ export function createWindowsSupervisorHandler({
       // The full project() allowlist below remains the ONLY path to
       // project_verify_* operations; these roots are read-only.
       const cmake = config.projects.find((p) => p.id === request.projectId);
-      const rust = (config.rustProjects ?? []).find((p) => p.id === request.projectId);
-      const full = cmake ?? rust;
-      const p = full ?? config.readOnlyProjects?.find(
-        (entry) => entry.id === request.projectId,
+      const rust = (config.rustProjects ?? []).find(
+        (p) => p.id === request.projectId,
       );
+      const full = cmake ?? rust;
+      const p =
+        full ??
+        config.readOnlyProjects?.find(
+          (entry) => entry.id === request.projectId,
+        );
       if (!p) fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
       const present = exists(p.repoRoot);
       return {
@@ -522,7 +539,7 @@ export function createWindowsSupervisorHandler({
           gitCheckout: present && exists(pathLib.join(p.repoRoot, ".git")),
           verification: {
             supported: Boolean(full),
-            stages: rust ? RUST_STAGES : (cmake ? STAGES : []),
+            stages: rust ? RUST_STAGES : cmake ? STAGES : [],
             allowFetch: full?.allowFetch ?? false,
           },
         },
@@ -617,11 +634,20 @@ export function createWindowsSupervisorHandler({
         let args;
         if (isRust) {
           exe = p.cargoExe;
-          args = request.stage === "fmt"
-            ? ["fmt", "--all", "--", "--check"]
-            : request.stage === "clippy"
-              ? ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
-              : ["test", "--workspace", "--all-targets", "--all-features"];
+          args =
+            request.stage === "fmt"
+              ? ["fmt", "--all", "--", "--check"]
+              : request.stage === "clippy"
+                ? [
+                    "clippy",
+                    "--workspace",
+                    "--all-targets",
+                    "--all-features",
+                    "--",
+                    "-D",
+                    "warnings",
+                  ]
+                : ["test", "--workspace", "--all-targets", "--all-features"];
         } else if (request.stage === "configure") {
           exe = p.cmakeExe;
           args = [
