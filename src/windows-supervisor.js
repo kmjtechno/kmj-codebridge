@@ -40,6 +40,7 @@ const PIPE_NAME = /^kmj-codebridge-supervisor-[a-z0-9-]{1,40}$/;
 const MAX_REQUEST_BYTES = 8192;
 const MAX_CONNECTIONS = 4;
 const STAGES = ["configure", "build", "ctest"];
+const RUST_STAGES = ["fmt", "clippy", "test"];
 const WIN32_SYSTEM_DIR = "C:\\Windows\\System32";
 
 export const WINDOWS_SUPERVISOR_OPS = Object.freeze([
@@ -134,6 +135,38 @@ export function createWindowsSupervisorConfigSchema(pathLib = path.win32) {
         )
         .max(4)
         .default([]),
+      // Dedicated Rust/Cargo verification, with no arbitrary argv or shell.
+      // Exact-SHA isolated worktrees use the same fail-closed prepare/release.
+      rustProjects: z
+        .array(
+          z
+            .object({
+              id: z.string().regex(PROJECT_ID),
+              repoRoot: abs,
+              worktreeRoot: abs,
+              gitExe: abs,
+              cargoExe: abs,
+              cargoHome: abs,
+              rustupHome: abs,
+              allowFetch: z.boolean().default(false),
+              pathDirs: z.array(abs).max(8).default([]),
+              stageTimeoutSeconds: z
+                .number()
+                .int()
+                .min(30)
+                .max(7200)
+                .default(1800),
+              maxLogBytes: z
+                .number()
+                .int()
+                .min(65536)
+                .max(4194304)
+                .default(1048576),
+            })
+            .strict(),
+        )
+        .max(4)
+        .default([]),
       // Operator-owned read-only roots, with no executable/argv allowance.
       // Allows truthful status for Node projects without inventing CMake
       // build profiles. These IDs cannot be used for verification jobs.
@@ -153,6 +186,7 @@ export function createWindowsSupervisorConfigSchema(pathLib = path.win32) {
     .superRefine((value, ctx) => {
       const ids = [
         ...value.projects.map((project) => project.id),
+        ...value.rustProjects.map((project) => project.id),
         ...value.readOnlyProjects.map((project) => project.id),
       ];
       if (new Set(ids).size !== ids.length)
@@ -274,7 +308,9 @@ export function createWindowsSupervisorHandler({
   const project = (id) => {
     if (typeof id !== "string" || !PROJECT_ID.test(id))
       fail("INVALID_SUPERVISOR_REQUEST");
-    const found = config.projects.find((entry) => entry.id === id);
+    const found =
+      config.projects.find((entry) => entry.id === id) ??
+      (config.rustProjects ?? []).find((entry) => entry.id === id);
     if (!found) fail("SUPERVISOR_PROJECT_NOT_AUTHORIZED");
     return found;
   };
@@ -287,6 +323,12 @@ export function createWindowsSupervisorHandler({
     PATH: [...p.pathDirs, WIN32_SYSTEM_DIR].join(";"),
     GIT_TERMINAL_PROMPT: "0",
     GIT_OPTIONAL_LOCKS: "0",
+    ...(p.cargoExe
+      ? {
+          CARGO_HOME: p.cargoHome,
+          RUSTUP_HOME: p.rustupHome,
+        }
+      : {}),
   });
 
   const exec = (p, exe, args, cwd, { timeoutMs, maxBytes } = {}) =>
@@ -477,7 +519,11 @@ export function createWindowsSupervisorHandler({
         fail("INVALID_SUPERVISOR_REQUEST");
       // The full project() allowlist below remains the ONLY path to
       // project_verify_* operations; these roots are read-only.
-      const full = config.projects.find((p) => p.id === request.projectId);
+      const cmake = config.projects.find((p) => p.id === request.projectId);
+      const rust = (config.rustProjects ?? []).find(
+        (p) => p.id === request.projectId,
+      );
+      const full = cmake ?? rust;
       const p =
         full ??
         config.readOnlyProjects?.find(
@@ -493,7 +539,7 @@ export function createWindowsSupervisorHandler({
           gitCheckout: present && exists(pathLib.join(p.repoRoot, ".git")),
           verification: {
             supported: Boolean(full),
-            stages: full ? STAGES : [],
+            stages: rust ? RUST_STAGES : cmake ? STAGES : [],
             allowFetch: full?.allowFetch ?? false,
           },
         },
@@ -567,10 +613,14 @@ export function createWindowsSupervisorHandler({
     if (request.op === "project_verify_stage") {
       exactKeys(request, ["op", "projectId", "sha", "stage"]);
       const p = project(request.projectId);
+      const isRust = (config.rustProjects ?? []).some(
+        (entry) => entry.id === request.projectId,
+      );
+      const allowedStages = isRust ? RUST_STAGES : STAGES;
       if (
         typeof request.sha !== "string" ||
         !SHA.test(request.sha) ||
-        !STAGES.includes(request.stage)
+        !allowedStages.includes(request.stage)
       )
         fail("INVALID_SUPERVISOR_REQUEST");
       return await withLock(async () => {
@@ -582,7 +632,23 @@ export function createWindowsSupervisorHandler({
         const buildDir = pathLib.join(dir, "build");
         let exe;
         let args;
-        if (request.stage === "configure") {
+        if (isRust) {
+          exe = p.cargoExe;
+          args =
+            request.stage === "fmt"
+              ? ["fmt", "--all", "--", "--check"]
+              : request.stage === "clippy"
+                ? [
+                    "clippy",
+                    "--workspace",
+                    "--all-targets",
+                    "--all-features",
+                    "--",
+                    "-D",
+                    "warnings",
+                  ]
+                : ["test", "--workspace", "--all-targets", "--all-features"];
+        } else if (request.stage === "configure") {
           exe = p.cmakeExe;
           args = [
             "-S",
