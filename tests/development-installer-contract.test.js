@@ -52,7 +52,9 @@ test("restricted dev service has neither root user nor persistent start-on-boot"
 
 test("operator effective-unit admission is full, strict, and fails closed", () => {
   assert.match(installer, /EXPECTED_UNIT_PROPERTIES =/);
-  assert.match(installer, /return props == EXPECTED_UNIT_PROPERTIES/);
+  assert.match(installer, /return effective_unit_diagnostic\(\)\["status"\] == "MATCH"/);
+  assert.match(installer, /"unitMismatchKeys": \[\]/);
+  assert.match(installer, /report\["unitMismatchKeys"\] = diagnostic\["mismatchKeys"\]/);
   assert.match(installer, /meta\.st_mode & 0o7022/);
   // Execute the real Python verifier with the subprocess boundary mocked.
   // No systemctl invocation, service activation, or host mutations occur.
@@ -102,6 +104,27 @@ assert not check(baseline + ["User=root"])
 assert not check(baseline + ["InjectedProperty=secret"])
 assert not check(baseline, status=1)
 assert not check(["User=" + ("x" * 9000)])
+
+# Diagnostic must reveal ONLY allowlisted mismatched property NAMES, never
+# actual systemd values, credentials, or incomplete/malformed evidence.
+def inspect(lines, status=0):
+    def fake_command(argv):
+        calls.append(argv)
+        return SimpleNamespace(returncode=status, stdout="\\n".join(lines))
+    with patch.object(module, "command", side_effect=fake_command):
+        return module.effective_unit_diagnostic()
+
+assert inspect(baseline) == {"status": "MATCH", "mismatchKeys": []}
+changed = dict(expected)
+changed["ActiveState"] = "failed"
+changed["User"] = "root"
+diagnostic = inspect([k + "=" + v for k, v in changed.items()])
+assert diagnostic == {"status": "MISMATCH", "mismatchKeys": ["ActiveState", "User"]}
+assert "root" not in str(diagnostic) and "failed" not in str(diagnostic)
+assert inspect(baseline[:-1]) == {"status": "MALFORMED", "mismatchKeys": []}
+assert inspect(baseline + ["User=root"]) == {"status": "MALFORMED", "mismatchKeys": []}
+assert inspect(baseline, status=1) == {"status": "READ_FAILED", "mismatchKeys": []}
+assert inspect(["User=" + ("x" * 9000)]) == {"status": "MALFORMED", "mismatchKeys": []}
 for argv in calls:
     assert argv[:3] == ["/usr/bin/systemctl", "show", module.UNIT]
     assert argv[3] == "--no-pager"
