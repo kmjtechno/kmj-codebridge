@@ -159,6 +159,12 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
     runsAsRoot: false,
     productionReleaseApproved: false,
   });
+  // Malformed bulk output is never trusted for authorization. The fallback
+  // queries fixed property names only and reports names, not effective values.
+  const unreadable = () => ({
+    ...blocked("UNIT_PROPERTIES_UNVERIFIED"),
+    ...classifyUnreadableDevelopmentProperties(run),
+  });
   let props;
   try {
     const output = String(
@@ -169,14 +175,18 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
         "--no-pager",
       ]),
     );
-    if (output.length > 8192) return blocked("UNIT_PROPERTIES_UNVERIFIED");
+    // Do not trim values: trailing whitespace in ReadWritePaths must not
+    // turn an unsafe effective property into a false exact-policy match.
+    if (output.length > 8192 || /[\r\0]/.test(output)) return unreadable();
+    const lines = output.replace(/\n$/, "").split("\n");
+    if (lines.length !== PROPERTIES.length) return unreadable();
     props = {};
-    for (const line of output.trim().split("\n")) {
+    for (const line of lines) {
       const i = line.indexOf("=");
-      if (i < 1) return blocked("UNIT_PROPERTIES_UNVERIFIED");
+      if (i < 1) return unreadable();
       const key = line.slice(0, i);
       if (!PROPERTIES.includes(key) || Object.hasOwn(props, key))
-        return blocked("UNIT_PROPERTIES_UNVERIFIED");
+        return unreadable();
       props[key] = line.slice(i + 1);
     }
     if (props.LoadState === "not-found") return blocked("UNIT_NOT_INSTALLED");
