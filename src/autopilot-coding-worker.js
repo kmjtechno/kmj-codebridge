@@ -244,6 +244,23 @@ function verifyBaseHead(root, expectedHead) {
   if (head !== expectedHead) throw new Error("CODING_BASE_HEAD_MISMATCH");
 }
 
+// Capture the actual approved recipe and verification command before an async
+// model call. Object identity alone does not detect in-place config mutations.
+function codingApprovalFingerprint(config, recipe, gate) {
+  return JSON.stringify({
+    model: config?.model,
+    maxTokens: config?.maxTokens,
+    timeoutSeconds: config?.timeoutSeconds,
+    verifyGate: recipe?.verifyGate,
+    paths: recipe?.paths,
+    contextPaths: recipe?.contextPaths,
+    safe: gate?.autopilotCodingSafe,
+    command: gate?.command,
+    args: gate?.args,
+    timeoutMs: gate?.timeoutMs,
+  });
+}
+
 export class LocalFirstCodingWorker {
   constructor({
     projects,
@@ -364,6 +381,11 @@ export class LocalFirstCodingWorker {
                   existing.recipe &&
                 project.gates?.[existing.recipe.verifyGate]
                   ?.autopilotCodingSafe === true &&
+                codingApprovalFingerprint(
+                  existing.config,
+                  existing.recipe,
+                  project.gates?.[existing.recipe.verifyGate],
+                ) === existing.approvalFingerprint &&
                 hasCodingEntitlement(entitlement);
             } catch {
               // Missing or invalid authorization fails closed.
@@ -488,6 +510,11 @@ export class LocalFirstCodingWorker {
             continue;
           }
 
+          const approvalFingerprint = codingApprovalFingerprint(
+            config,
+            recipe,
+            project.gates?.[recipe.verifyGate],
+          );
           const laneId = "coding_" + task.id.replaceAll("-", "");
           let lane;
           try {
@@ -587,6 +614,11 @@ export class LocalFirstCodingWorker {
               config.recipes?.[parsed.recipe] === recipe &&
               project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
                 true &&
+              codingApprovalFingerprint(
+                config,
+                recipe,
+                project.gates?.[recipe.verifyGate],
+              ) === approvalFingerprint &&
               hasCodingEntitlement(currentEntitlement);
           } catch {
             // Invalid or unavailable authorization fails closed.
@@ -684,6 +716,13 @@ export class LocalFirstCodingWorker {
               wait("LOCAL_CODING_VERIFY_GATE_NOT_SAFE_REVIEW_REQUIRED");
               continue;
             }
+            if (
+              codingApprovalFingerprint(config, recipe, gate) !==
+              approvalFingerprint
+            ) {
+              wait("LOCAL_CODING_APPROVAL_CHANGED_REVIEW_REQUIRED");
+              continue;
+            }
             const job = this.runner.run({
               project: project.id,
               gate: recipe.verifyGate,
@@ -703,6 +742,7 @@ export class LocalFirstCodingWorker {
               recipe,
               recipeName: parsed.recipe,
               config,
+              approvalFingerprint,
               evidence,
               modelUsage,
             });
