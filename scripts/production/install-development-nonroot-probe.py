@@ -162,9 +162,13 @@ def effective_unit_diagnostic():
         return empty
     output = result.stdout
     malformed = {"status": "MALFORMED", "mismatchKeys": []}
-    if not isinstance(output, str) or len(output) > 8192:
+    # Match the Supervisor's fail-closed raw systemctl parsing. splitlines()
+    # silently discards CR in CRLF and recognizes Unicode separators, which
+    # can turn malformed privileged evidence into an apparent exact match.
+    if (not isinstance(output, str) or len(output) > 8192 or
+            "\r" in output or "\x00" in output):
         return malformed
-    lines = output.splitlines()
+    lines = output.removesuffix("\n").split("\n")
     if len(lines) != len(EXPECTED_UNIT_PROPERTIES):
         return malformed
     props = {}
