@@ -382,6 +382,42 @@ export function createGitHubBridge(config) {
   // Shared free-tier anonymous GitHub egress can exhaust its hourly quota.
   // Suppress pointless follow-up requests, not errors or authorization checks.
   let publicQuotaBlockedUntil = 0;
+  // Only fixed HTTP classes, never response bodies, tokens, URLs, headers or
+  // GitHub account identities. A read probe alone cannot verify write grants.
+  const recentWriteFailures = new Map();
+  const WRITE_FAILURE_TTL_MS = 15 * 60 * 1000;
+  const recordWriteFailure = (method, repository, status, headers) => {
+    if (method === "GET" || ![401, 403, 404, 409, 422, 429].includes(status))
+      return;
+    const quota =
+      status === 429 ||
+      (status === 403 &&
+        (headers.get("x-ratelimit-remaining") === "0" ||
+          headers.has("retry-after")));
+    const classification = quota
+      ? "rate_limited"
+      : status === 401
+        ? "http_401"
+        : status === 403
+          ? "http_403"
+          : status === 404
+            ? "http_404"
+            : "conflict";
+    recentWriteFailures.delete(repository);
+    recentWriteFailures.set(repository, {
+      httpStatus: status,
+      classification,
+      observedAtMs: Date.now(),
+    });
+    if (recentWriteFailures.size > 32)
+      recentWriteFailures.delete(recentWriteFailures.keys().next().value);
+  };
+  const recentWriteFailure = (repository) => {
+    const receipt = recentWriteFailures.get(repository);
+    return receipt && Date.now() - receipt.observedAtMs <= WRITE_FAILURE_TTL_MS
+      ? { httpStatus: receipt.httpStatus, classification: receipt.classification }
+      : null;
+  };
   const markPublicQuotaBlocked = (headers) => {
     if (!publicReadOnly) return;
     const now = Date.now();
@@ -455,6 +491,7 @@ export function createGitHubBridge(config) {
         return cached.value;
       }
       if (!response.ok) {
+        recordWriteFailure(method, repository, response.status, response.headers);
         if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
         if (response.status === 403) {
           // GitHub uses HTTP 403 both for authorization denials and quota
@@ -478,6 +515,7 @@ export function createGitHubBridge(config) {
         }
         fail("GITHUB_REQUEST_FAILED");
       }
+      if (method !== "GET") recentWriteFailures.delete(repository);
       let text;
       try {
         text = await readTextLimited(response.body, GITHUB_JSON_MAX_BYTES);
@@ -600,6 +638,16 @@ export function createGitHubBridge(config) {
           status: "read_ready",
           readVerified: true,
           writeVerified: false, // A read probe never proves write access.
+          // GitHub's repository metadata is only a hint, not proof of a
+          // successful native write or branch-protection permission.
+          repositoryPushHint: publicReadOnly
+            ? "public_read_only"
+            : data.permissions?.push === true
+              ? "reported_unverified"
+              : data.permissions?.push === false
+                ? "not_granted"
+                : "unknown",
+          lastWriteFailure: recentWriteFailure(a.repository),
           privateRepository: data.private,
           mode: publicReadOnly ? "public_read_only" : "server_credential",
           remediation: publicReadOnly
