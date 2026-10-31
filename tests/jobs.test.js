@@ -318,3 +318,42 @@ test("Composer job rejects a symlinked private-home parent without execution", a
   assert.match(done.output, /JOB_COMPOSER_HOME_UNSAFE/);
   assert.doesNotMatch(done.output, /SHOULD_NOT_EXECUTE/);
 });
+
+test("Composer private home requires owner-only parent permissions", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX permissions fixture");
+    return;
+  }
+  const { root, runner } = fixture(t);
+  const parent = path.join(root, "composer-homes");
+  fs.mkdirSync(parent, { mode: 0o700 });
+  fs.chmodSync(parent, 0o750);
+  const job = runner.run({
+    ...opts(root, "composer-parent-mode", 'console.log("SHOULD_NOT_EXECUTE")'),
+    gate: "command:main_platform_php_deps:ci:build@test#789",
+  });
+  const done = await finished(runner, job.id);
+  assert.equal(done.state, "failed");
+  assert.match(done.output, /JOB_COMPOSER_HOME_UNSAFE/);
+  assert.doesNotMatch(done.output, /SHOULD_NOT_EXECUTE/);
+});
+
+test("Composer private home uses the current agent UID", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX UID fixture");
+    return;
+  }
+  const { root, runner } = fixture(t);
+  const job = runner.run({
+    ...opts(root, "composer-owner", 'console.log("OWNER_CHECK_PASS")'),
+    gate: "command:main_platform_php_deps:ci:build@test#790",
+  });
+  const done = await finished(runner, job.id);
+  assert.equal(done.state, "succeeded");
+  assert.match(done.output, /OWNER_CHECK_PASS/);
+  const parent = path.join(root, "composer-homes");
+  const homes = fs.readdirSync(parent);
+  assert.equal(homes.length, 1);
+  assert.equal(fs.statSync(parent).uid, process.getuid());
+  assert.equal(fs.statSync(path.join(parent, homes[0])).uid, process.getuid());
+});
