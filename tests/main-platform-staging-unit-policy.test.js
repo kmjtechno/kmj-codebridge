@@ -58,7 +58,8 @@ function setup() {
     dropin = "",
     needReload = "no",
     nginx = "active",
-    socket = true;
+    socket = true,
+    systemdOverride = null;
   const handle = createSupervisorHandler({
     lstat: (p) => {
       if (directories.has(p) && !missingDirectories.has(p)) {
@@ -90,6 +91,8 @@ function setup() {
     run: (bin, args) => {
       assert.equal(bin, "/usr/bin/systemctl");
       const name = args[1];
+      if (name === STAGING_DEPLOY_UNIT && systemdOverride !== null)
+        return systemdOverride;
       if (name === STAGING_DEPLOY_UNIT)
         return (
           "LoadState=loaded\nActiveState=" +
@@ -119,6 +122,9 @@ function setup() {
     directoryOverrides,
     missingDirectories,
     started,
+    systemdOutput: (x) => {
+      systemdOverride = x;
+    },
     unitState: (x) => {
       state = x;
     },
@@ -278,6 +284,38 @@ test("post-ACK runner replacement and stale systemd cache block start", async ()
     assert.equal(ack.response.accepted, true);
     mutate(x);
     ack.afterSend();
+    assert.deepEqual(x.started, []);
+  }
+});
+
+test("ambiguous systemctl output cannot authorize guarded staging", async () => {
+  const normal =
+    [
+      "LoadState=loaded",
+      "ActiveState=inactive",
+      "FragmentPath=" + unit,
+      "DropInPaths=",
+      "NeedDaemonReload=no",
+    ].join("\n") + "\n";
+  const ambiguous = [
+    "LoadState=not-found\n" + normal,
+    normal + "LoadState=loaded\n",
+    normal.replace("ActiveState=inactive\n", ""),
+    normal + "ExecStart=/bin/sh\n",
+    normal.replace("NeedDaemonReload=no\n", "NeedDaemonReload=no"),
+    normal.replace("DropInPaths=\n", "DropInPaths\n"),
+    normal + "\n",
+    normal.replace("LoadState=loaded\n", "LoadState=loaded\r\n"),
+    normal + "\0",
+  ];
+  for (const bad of ambiguous) {
+    const x = setup();
+    x.systemdOutput(bad);
+    assert.equal(
+      (await x.handle({ op: "main_platform_staging_status" })).response.ready,
+      false,
+    );
+    await assert.rejects(x.handle(request), /SUPERVISOR_STAGING_NOT_READY/);
     assert.deepEqual(x.started, []);
   }
 });
