@@ -6,8 +6,18 @@ const MODEL = "Qwen3.5-9B-Q4_K_M.gguf";
 const PORT = 20145;
 const MAX_RESPONSE_BYTES = 131072;
 
-export function useP520LlamaCpp({ enabled, platform, hostname, deviceId }) {
+// A feature flag is never an owner attestation. Until the protected Windows
+// supervisor supplies an independently verified approval, the agent must keep
+// its existing Ollama routing even if the flag is set accidentally.
+export function useP520LlamaCpp({
+  enabled,
+  platform,
+  hostname,
+  deviceId,
+  ownerAttested = false,
+}) {
   return (
+    ownerAttested === true &&
     enabled === "1" &&
     platform === "win32" &&
     hostname.toUpperCase() === "DESKTOP-5FVJMET" &&
