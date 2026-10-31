@@ -120,6 +120,19 @@ class D3Tests(unittest.TestCase):
         self.assertFalse(d3.trusted_unit_path(
             lstat=lambda path: fake_lstat(
                 path, bad_path=d3.UNIT_FILE, bad_mode=stat.S_IFREG | 0o666)))
+        # A setuid/setgid/sticky bit is not acceptable on a root-owned
+        # protected unit or parent, even without group/world write access.
+        # Match the Supervisor's stricter 0o7022 trust mask.
+        for path, mode in (
+            (d3.UNIT_FILE, stat.S_IFREG | 0o4644),
+            (d3.UNIT_FILE, stat.S_IFREG | 0o2644),
+            ("/etc/systemd/system", stat.S_IFDIR | 0o1755),
+            ("/etc/systemd", stat.S_IFDIR | 0o2755),
+        ):
+            with self.subTest(path=path, mode=oct(mode)):
+                self.assertFalse(d3.trusted_unit_path(
+                    lstat=lambda item: fake_lstat(
+                        item, bad_path=path, bad_mode=mode)))
         self.assertFalse(d3.trusted_unit_path(
             lstat=lambda path: fake_lstat(path, hardlink=True)))
 
