@@ -113,7 +113,7 @@ def reconcile(*, apply=False, runner=subprocess.run, trusted=trusted_unit_path):
         return state, keys, False
     result = run_fixed(["/usr/bin/systemctl", "reset-failed", UNIT], runner)
     if result is None or result.returncode != 0:
-        return "RESET_FAILED", keys, False
+        return "RESET_FAILED", keys, True
     after, after_keys, _ = inspect(runner)
     if after != "ALREADY_INACTIVE":
         return "POSTCHECK_FAILED", after_keys, True
