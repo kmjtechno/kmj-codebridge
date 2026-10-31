@@ -24,7 +24,8 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
         permissions: { pull: true, push },
       });
     }
-    if (invalidSuccessBody) return new Response("not valid JSON", { status: 201 });
+    if (invalidSuccessBody)
+      return new Response("not valid JSON", { status: 201 });
     return Response.json(
       { message: "NEVER_EXPOSE_GITHUB_RESPONSE_BODY" },
       {
