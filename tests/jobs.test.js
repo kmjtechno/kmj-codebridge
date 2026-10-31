@@ -297,3 +297,22 @@ test("approved Composer CI gets a private home without inherited environment", a
   assert.equal(done.state, "succeeded");
   assert.match(done.output, /PRIVATE_COMPOSER_HOME_PASS/);
 });
+
+test("Composer job rejects a symlinked private-home parent without execution", async (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX symlink fixture");
+    return;
+  }
+  const { root, runner } = fixture(t);
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "cb-composer-outside-"));
+  t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
+  fs.symlinkSync(outside, path.join(root, "composer-homes"));
+  const job = runner.run({
+    ...opts(root, "composer-symlink", 'console.log("SHOULD_NOT_EXECUTE")'),
+    gate: "command:main_platform_php_deps:ci:build@test#456",
+  });
+  const done = await finished(runner, job.id);
+  assert.equal(done.state, "failed");
+  assert.match(done.output, /JOB_COMPOSER_HOME_UNSAFE/);
+  assert.doesNotMatch(done.output, /SHOULD_NOT_EXECUTE/);
+});
