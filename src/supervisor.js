@@ -47,6 +47,10 @@ const CLOUDOS_OPERATIONS = new Set([
 const MAIN_PLATFORM_PROJECT_ID = "kmj-main-platform";
 const MAIN_PLATFORM_AGENT_CONFIG =
   "/etc/kmj-codebridge-main-platform/agent.json";
+// The separately enrolled loopback-only gateway uses a distinct fixed root config.
+// Do not discover this path from untrusted unit environment or process argv.
+const STAGE_GATEWAY_CONFIG = "/etc/kmj-codebridge-stage/gateway.json";
+const STAGE_GATEWAY_UNIT = "kmj-codebridge-gateway-stage.service";
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
   "kmj-codebridge-main-platform-refresh.service";
@@ -1707,46 +1711,45 @@ export function createSupervisorHandler({
     if (request.op === "config_validate") {
       exactKeys(request, ["op", "service"]);
       if (!CONFIGS[request.service]) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+      let chosenUnit = null;
       try {
-        // Validate the config of the actual running agent unit, not an
-        // unrelated generic file left behind after Main Platform cutover.
-        // serviceUnit fails closed for missing/ambiguous service states.
+        // Select the sole active gateway/agent first; missing or ambiguous
+        // service state cannot authorize reading a different configuration.
+        chosenUnit = serviceUnit(request.service, run, profile);
         const configPath =
-          request.service === "agent" &&
-          serviceUnit("agent", run, profile) === MAIN_PLATFORM_AGENT_SERVICE
-            ? MAIN_PLATFORM_AGENT_CONFIG
-            : profile === CLOUDOS_SUPERVISOR_PROFILE
-              ? CLOUDOS_AGENT_CONFIG
-              : CONFIGS[request.service];
+          profile === CLOUDOS_SUPERVISOR_PROFILE
+            ? CLOUDOS_AGENT_CONFIG
+            : request.service === "agent" &&
+                chosenUnit === MAIN_PLATFORM_AGENT_SERVICE
+              ? MAIN_PLATFORM_AGENT_CONFIG
+              : request.service === "gateway" &&
+                  chosenUnit === STAGE_GATEWAY_UNIT
+                ? STAGE_GATEWAY_CONFIG
+                : CONFIGS[request.service];
         const raw = JSON.parse(readFile(configPath));
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
-        return { response: { service: request.service, valid: true } };
+        // Schema validation of a fixed file is not cryptographic proof that
+        // the running stage process loaded those exact bytes.
+        return {
+          response:
+            chosenUnit === STAGE_GATEWAY_UNIT
+              ? {
+                  service: request.service,
+                  valid: true,
+                  runtimeBindingVerified: false,
+                }
+              : { service: request.service, valid: true },
+        };
       } catch (error) {
         let reason = classifySupervisorConfigError(error);
-        // The sole running KMJ-elite gateway may be the separately enrolled
-        // stage unit, whose private config was inherited during cutover.
-        // Do not mislabel that distinct runtime config as missing or read a
-        // caller-/process-selected path. This is NOT a validation PASS.
-        if (request.service === "gateway" && reason === "CONFIG_FILE_MISSING") {
-          try {
-            if (
-              serviceUnit("gateway", run, profile) ===
-              "kmj-codebridge-gateway-stage.service"
-            ) {
-              reason = "STAGE_GATEWAY_CONFIG_NOT_VERIFIED";
-            }
-          } catch {
-            // Missing/ambiguous service information cannot authorize a
-            // different config read; preserve the canonical error instead.
-          }
-        }
+        if (
+          chosenUnit === STAGE_GATEWAY_UNIT &&
+          reason === "CONFIG_FILE_MISSING"
+        )
+          reason = "STAGE_GATEWAY_CONFIG_NOT_VERIFIED";
         return {
-          response: {
-            service: request.service,
-            valid: false,
-            reason,
-          },
+          response: { service: request.service, valid: false, reason },
         };
       }
     }
