@@ -65,6 +65,24 @@ class D3Tests(unittest.TestCase):
                     make_show().replace("User=kmjdevci", "User=\x00")]:
             self.assertIsNone(d3.parse_properties(raw))
 
+    def test_inactive_with_stale_failure_is_not_clean(self):
+        for overrides, expected_keys in [
+            ({"Result": "exit-code", "ExecMainStatus": "0"}, ["Result"]),
+            ({"Result": "success", "ExecMainStatus": "3"}, ["ExecMainStatus"]),
+            ({"Result": "exit-code", "ExecMainStatus": "3"}, ["Result", "ExecMainStatus"]),
+        ]:
+            with self.subTest(overrides=overrides):
+                runner = Runner([make_show(ActiveState="inactive", **overrides)])
+                state, keys, attempted = d3.reconcile(apply=True, runner=runner, trusted=lambda: True)
+                self.assertEqual((state, keys, attempted), ("UNEXPECTED_LIFECYCLE", expected_keys, False))
+                self.assertEqual(len(runner.commands), 1)
+
+    def test_postcheck_inactive_with_stale_failure_not_pass(self):
+        runner = Runner([make_show(), make_show(ActiveState="inactive", Result="exit-code", ExecMainStatus="3")])
+        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True),
+                         ("POSTCHECK_FAILED", ["Result", "ExecMainStatus"], True))
+        self.assertEqual(len(runner.commands), 3)
+
     def test_postcheck_failure_not_pass(self):
         runner = Runner([make_show(), make_show(ActiveState="failed")])
         self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True), ("POSTCHECK_FAILED", ["ActiveState"], True))
