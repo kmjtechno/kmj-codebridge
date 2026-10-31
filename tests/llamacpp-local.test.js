@@ -52,8 +52,14 @@ test("P520 llama.cpp mode requires exact owner flag, Windows, device and hostnam
     platform: "win32",
     hostname: "DESKTOP-5FVJMET",
     deviceId: "kmj-kmj-codebridge-desktop-5fvjmet",
+    ownerAttested: true,
   };
   assert.equal(useP520LlamaCpp(valid), true);
+  // A P520 flag and matching device are insufficient without protected
+  // owner process/model/launcher attestation. No runtime may self-approve.
+  assert.equal(useP520LlamaCpp({ ...valid, ownerAttested: false }), false);
+  assert.equal(useP520LlamaCpp({ ...valid, ownerAttested: "true" }), false);
+  assert.equal(useP520LlamaCpp({ ...valid, ownerAttested: undefined }), false);
   assert.equal(useP520LlamaCpp({ ...valid, enabled: "true" }), false);
   assert.equal(useP520LlamaCpp({ ...valid, platform: "linux" }), false);
   assert.equal(useP520LlamaCpp({ ...valid, hostname: "P720" }), false);
