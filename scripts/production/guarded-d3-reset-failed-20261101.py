@@ -102,7 +102,7 @@ def trusted_unit_path(lstat=os.lstat):
         except OSError:
             return False
         is_final = path == UNIT_FILE
-        if (st.st_uid != 0 or st.st_mode & 0o022 or
+        if (st.st_uid != 0 or st.st_mode & 0o7022 or
             (not stat.S_ISREG(st.st_mode) if is_final else not stat.S_ISDIR(st.st_mode))):
             return False
         if is_final and st.st_nlink != 1:
