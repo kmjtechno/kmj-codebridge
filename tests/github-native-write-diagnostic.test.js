@@ -163,7 +163,6 @@ test("public-read-only doctor never treats repository push metadata as native wr
   assert.equal(receipt.lastWriteFailure, null);
 });
 
-
 test("unconfirmed HTTP 201 never succeeds or evicts an independently cached read", async (t) => {
   const env = "CODEBRIDGE_NATIVE_UNCONFIRMED_WRITE_TEST_TOKEN";
   process.env[env] = "s".repeat(40);
