@@ -258,3 +258,67 @@ test("manifest binding must be well formed", () => {
     "MANIFEST_BINDING_INVALID",
   );
 });
+
+test("cli: build then verify round-trips; tamper and in-runtime output are refused", async () => {
+  const { spawnSync } = await import("node:child_process");
+  const cli = join(
+    import.meta.dirname,
+    "../scripts/windows/runtime-closure-cli.mjs",
+  );
+  const run = (...a) =>
+    spawnSync(process.execPath, [cli, ...a], { encoding: "utf8" });
+  const f = fixture();
+  const outDir = mkdtempSync(join(tmpdir(), "kmj-cli-out-"));
+  const m = join(outDir, "manifest.json");
+  const b = run(
+    "build",
+    "--root",
+    f.root,
+    "--tenant",
+    "tenant_1",
+    "--device",
+    "kmj-kmj-codebridge-desktop-5fvjmet",
+    "--project",
+    "kmj-codebridge",
+    "--node-exe",
+    process.execPath,
+    "--out",
+    m,
+  );
+  assert.equal(b.status, 0, b.stdout);
+  const pin = /MANIFEST_SHA256=([0-9a-f]{64})/.exec(b.stdout)[1];
+  const v = run(
+    "verify",
+    "--root",
+    f.root,
+    "--manifest",
+    m,
+    "--pin",
+    pin,
+    "--node-exe",
+    process.execPath,
+  );
+  assert.match(v.stdout, /RUNTIME_CLOSURE_OK/);
+  assert.match(
+    run(
+      "build",
+      "--root",
+      f.root,
+      "--tenant",
+      "tenant_1",
+      "--device",
+      "d",
+      "--project",
+      "p",
+      "--node-exe",
+      process.execPath,
+      "--out",
+      join(f.root, "m.json"),
+    ).stdout,
+    /CLI_OUT_INSIDE_RUNTIME/,
+  );
+  writeFileSync(join(f.root, "src/cli.js"), "evil\n");
+  const t = run("verify", "--root", f.root, "--manifest", m, "--pin", pin);
+  assert.equal(t.status, 2);
+  assert.match(t.stdout, /FILE_HASH_MISMATCH/);
+});
