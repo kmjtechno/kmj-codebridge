@@ -1,4 +1,7 @@
 import test from "node:test";
+import fs from "node:fs";
+
+const nofollowSupported = Number.isInteger(fs.constants.O_NOFOLLOW) && fs.constants.O_NOFOLLOW !== 0;
 import assert from "node:assert/strict";
 import {
   readTrustedStageGatewayConfig,
@@ -54,7 +57,7 @@ function fixture({ directory = trustedDir(), before = trustedFile(), after = bef
   return { io, seen };
 }
 
-test("fixed stage file is read only through nofollow, inode-pinned fd", () => {
+test("fixed stage file is read only through nofollow, inode-pinned fd", { skip: !nofollowSupported }, () => {
   const { io, seen } = fixture();
   assert.equal(readTrustedStageGatewayConfig({ io }), secret);
   assert.deepEqual(
@@ -86,7 +89,7 @@ test("stage config rejects untrusted directory, symlink, hardlink and writable f
   }
 });
 
-test("stage config rejects replacement inode after open and closes fd", () => {
+test("stage config rejects replacement inode after open and closes fd", { skip: !nofollowSupported }, () => {
   const { io, seen } = fixture({
     after: { ...trustedFile(), ino: 43 },
   });
@@ -97,7 +100,7 @@ test("stage config rejects replacement inode after open and closes fd", () => {
   assert.equal(seen.at(-1)[0], "close");
 });
 
-test("stage config rejects growing content over fixed limit and closes fd", () => {
+test("stage config rejects growing content over fixed limit and closes fd", { skip: !nofollowSupported }, () => {
   const { io, seen } = fixture({ data: "x".repeat(1024 * 1024 + 2) });
   assert.throws(
     () => readTrustedStageGatewayConfig({ io }),
@@ -106,7 +109,7 @@ test("stage config rejects growing content over fixed limit and closes fd", () =
   assert.equal(seen.at(-1)[0], "close");
 });
 
-test("stage reader never includes credential bytes in errors", () => {
+test("stage reader never includes credential bytes in errors", { skip: !nofollowSupported }, () => {
   const { io } = fixture({ after: { ...trustedFile(), uid: 1001 } });
   let message = "";
   try {
