@@ -74,12 +74,18 @@ function request({ port, endpoint, body, timeoutMs, maxBytes, agent }) {
 // TCP connection. If the server closes it, NEVER reconnect to a potentially
 // different listener that has rebound the same loopback port.
 function createSingleSocketAgent() {
-  const agent = new http.Agent({ keepAlive: true, maxSockets: 1, maxFreeSockets: 1 });
+  const agent = new http.Agent({
+    keepAlive: true,
+    maxSockets: 1,
+    maxFreeSockets: 1,
+  });
   const connect = agent.createConnection.bind(agent);
   let connectionCreated = false;
   agent.createConnection = (options, callback) => {
     if (connectionCreated) {
-      queueMicrotask(() => callback(new Error("LOCAL_MODEL_CONNECTION_CHANGED")));
+      queueMicrotask(() =>
+        callback(new Error("LOCAL_MODEL_CONNECTION_CHANGED")),
+      );
       return undefined;
     }
     connectionCreated = true;
@@ -111,20 +117,22 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
   let busy = false;
 
   async function available(agent) {
-    const healthRequest = () => request({
-      port,
-      agent,
-      endpoint: "/health",
-      timeoutMs: 1800,
-      maxBytes: 4096,
-    });
-    const modelsRequest = () => request({
-      port,
-      agent,
-      endpoint: "/v1/models",
-      timeoutMs: 1800,
-      maxBytes: 65536,
-    });
+    const healthRequest = () =>
+      request({
+        port,
+        agent,
+        endpoint: "/health",
+        timeoutMs: 1800,
+        maxBytes: 4096,
+      });
+    const modelsRequest = () =>
+      request({
+        port,
+        agent,
+        endpoint: "/v1/models",
+        timeoutMs: 1800,
+        maxBytes: 65536,
+      });
     // Sequential preflight is essential when generation pins one connection.
     const [health, models] = agent
       ? [await healthRequest(), await modelsRequest()]
