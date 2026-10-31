@@ -170,7 +170,10 @@ test("active stage gateway refuses a missing protected stage config", async () =
     reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
   });
   assert.deepEqual(reads, ["fixed-stage-reader"]);
-  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//);
+  assert.doesNotMatch(
+    JSON.stringify(result),
+    /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
+  );
 });
 
 test("active stage gateway validates only protected config, not runtime identity", async () => {
