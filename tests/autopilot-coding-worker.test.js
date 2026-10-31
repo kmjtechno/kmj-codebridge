@@ -768,6 +768,86 @@ test("revoked authorization after a successful gate never promotes a patch to ve
   }
 });
 
+test("in-place approval mutation during generation cannot expand edits or run a changed gate", async (t) => {
+  const scenarios = [
+    [
+      "edit allowlist",
+      (f) =>
+        f.project.autopilotCodingWorker.recipes.feature.paths.push("README.md"),
+    ],
+    [
+      "context allowlist",
+      (f) =>
+        f.project.autopilotCodingWorker.recipes.feature.contextPaths.push(
+          "README.md",
+        ),
+    ],
+    ["gate command", (f) => (f.project.gates.check.command = "sh")],
+    ["gate arguments", (f) => f.project.gates.check.args.push("-c")],
+    [
+      "model identity",
+      (f) => (f.project.autopilotCodingWorker.model = "unapproved:model"),
+    ],
+  ];
+  for (const [label, mutate] of scenarios) {
+    let notifyStarted;
+    let releaseGeneration;
+    const started = new Promise((resolve) => {
+      notifyStarted = resolve;
+    });
+    const generated = new Promise((resolve) => {
+      releaseGeneration = resolve;
+    });
+    const f = fixture(t, {
+      generated,
+      onGenerate: () => notifyStarted(),
+    });
+    const task = f.enqueue();
+    const running = f.worker.tick();
+    await started;
+    mutate(f);
+    releaseGeneration({
+      response: PATCH,
+      truncated: false,
+      hitTokenLimit: false,
+    });
+    await running;
+    const result = f.journal.get(task.id, "repo");
+    assert.equal(result.state, "waiting", label);
+    assert.equal(
+      result.lastReason,
+      "LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED",
+      label,
+    );
+    assert.equal(f.starts.length, 0, label);
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      label,
+    );
+  }
+});
+
+test("in-place verification gate mutation after CI cannot promote a patch", async (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  await f.worker.tick();
+  assert.equal(f.starts.length, 1);
+  f.jobs.get("job-1").state = "succeeded";
+  f.jobs.get("job-1").exitCode = 0;
+  // The same gate object remains approved, but its executable was replaced.
+  f.project.gates.check.command = "sh";
+  await f.worker.tick();
+  const result = f.journal.get(task.id, "repo");
+  assert.equal(result.state, "waiting");
+  assert.equal(
+    result.lastReason,
+    "LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED",
+  );
+  assert.notEqual(result.checkpoint.next, "VERIFIED_PATCH_AWAITING_REVIEW");
+  assert.equal(f.starts.length, 1);
+});
+
 test("config requires explicit consent and keeps context files within the edit allowlist", () => {
   const base = {
     gateway: "https://example.invalid/",
