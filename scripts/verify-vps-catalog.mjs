@@ -16,7 +16,14 @@ export function assertVpsDeployedCommit(commit, expected = "") {
     throw new Error("VPS_COMMIT_UNVERIFIED");
   }
   if (expected !== "" && (!FULL_SHA.test(expected) || expected !== commit)) {
-    throw new Error("VPS_COMMIT_MISMATCH");
+    const error = new Error("VPS_COMMIT_MISMATCH");
+    // Commit IDs are public release metadata. Only attach them after both
+    // inputs pass the strict full-SHA validation; never echo arbitrary env data.
+    if (FULL_SHA.test(expected)) {
+      error.expectedCommit = expected;
+      error.observedCommit = commit;
+    }
+    throw error;
   }
   return commit;
 }
@@ -77,6 +84,14 @@ if (
       ? error.message
       : "VPS_MCP_VERIFICATION_FAILED";
     console.error("KMJ_VPS_MCP_SMOKE=FAIL " + code);
+    if (
+      code === "VPS_COMMIT_MISMATCH" &&
+      FULL_SHA.test(error?.expectedCommit) &&
+      FULL_SHA.test(error?.observedCommit)
+    ) {
+      console.error("KMJ_VPS_MCP_COMMIT_EXPECTED=" + error.expectedCommit);
+      console.error("KMJ_VPS_MCP_COMMIT_OBSERVED=" + error.observedCommit);
+    }
     process.exitCode = 1;
   });
 }
