@@ -28,10 +28,17 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     if (invalidSuccessBody)
       return new Response("not valid JSON", { status: 201 });
     if (unconfirmedSuccessBody)
-      return Response.json({ message: "NO_MUTATION_IDENTITY" }, { status: 201 });
+      return Response.json(
+        { message: "NO_MUTATION_IDENTITY" },
+        { status: 201 },
+      );
     return Response.json(
       writeStatus >= 200 && writeStatus < 300
-        ? { id: 123, html_url: "https://github.com/kmjtechno/kmj-codebridge/issues/723#issuecomment-123" }
+        ? {
+            id: 123,
+            html_url:
+              "https://github.com/kmjtechno/kmj-codebridge/issues/723#issuecomment-123",
+          }
         : { message: "NEVER_EXPOSE_GITHUB_RESPONSE_BODY" },
       {
         status: writeStatus,
