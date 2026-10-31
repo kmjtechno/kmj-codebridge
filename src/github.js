@@ -429,7 +429,7 @@ export function createGitHubBridge(config) {
       return false;
     const sha = (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v);
     const id = (v) => Number.isSafeInteger(v) && v > 0;
-    if (method === "PUT" && /^pulls\\/\\d+\\/merge$/.test(suffix))
+    if (method === "PUT" && /^pulls\/\d+\/merge$/.test(suffix))
       return value.merged === true && sha(value.sha);
     if (method === "PUT" && suffix.startsWith("contents/"))
       return sha(value.commit?.sha) && sha(value.content?.sha);
@@ -438,15 +438,15 @@ export function createGitHubBridge(config) {
         value.ref.startsWith("refs/heads/") && sha(value.object?.sha);
     if (method === "POST" && suffix === "issues")
       return id(value.number);
-    if (method === "POST" && /^issues\\/\\d+\\/comments$/.test(suffix))
+    if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
       return id(value.id);
     if (method === "POST" && suffix === "pulls")
       return id(value.number) && sha(value.head?.sha);
-    if (method === "POST" && /^pulls\\/\\d+\\/reviews$/.test(suffix))
+    if (method === "POST" && /^pulls\/\d+\/reviews$/.test(suffix))
       return id(value.id);
-    if (method === "POST" && /^pulls\\/\\d+\\/comments\\/\\d+\\/replies$/.test(suffix))
+    if (method === "POST" && /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix))
       return id(value.id);
-    if (method === "PATCH" && /^pulls\\/\\d+$/.test(suffix))
+    if (method === "PATCH" && /^pulls\/\d+$/.test(suffix))
       return id(value.number) && typeof value.state === "string";
     return false;
   };
