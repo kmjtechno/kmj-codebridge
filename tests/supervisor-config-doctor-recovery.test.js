@@ -173,7 +173,6 @@ test("active stage gateway refuses a missing fixed stage config", async () => {
   );
 });
 
-
 test("active stage gateway validates only fixed scoped config, not old standard config", async () => {
   const reads = [];
   const handler = createSupervisorHandler({
@@ -197,7 +196,10 @@ test("active stage gateway validates only fixed scoped config, not old standard 
 test("stage config syntax, schema and permission errors never fall back to standard config", async () => {
   const cases = [
     { body: "PRIVATE_JWKS_SECRET", reason: "CONFIG_JSON_INVALID" },
-    { body: JSON.stringify({ github: { publicReadOnly: true } }), reason: "CONFIG_SCHEMA_INVALID" },
+    {
+      body: JSON.stringify({ github: { publicReadOnly: true } }),
+      reason: "CONFIG_SCHEMA_INVALID",
+    },
     { errno: "EACCES", reason: "CONFIG_FILE_UNREADABLE" },
   ];
   for (const c of cases) {
@@ -216,9 +218,16 @@ test("stage config syntax, schema and permission errors never fall back to stand
       },
     });
     const result = await handler({ op: "config_validate", service: "gateway" });
-    assert.deepEqual(result.response, { service: "gateway", valid: false, reason: c.reason });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: c.reason,
+    });
     assert.deepEqual(reads, [stageGateway]);
-    assert.doesNotMatch(JSON.stringify(result), /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\/etc\//);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\/etc\//,
+    );
   }
 });
 
@@ -236,7 +245,11 @@ test("ambiguous or missing gateway unit cannot validate stale stage credentials"
       },
     });
     const result = await handler({ op: "config_validate", service: "gateway" });
-    assert.deepEqual(result.response, { service: "gateway", valid: false, reason: "CONFIG_VALIDATION_FAILED" });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: "CONFIG_VALIDATION_FAILED",
+    });
     assert.deepEqual(reads, []);
   }
 });
