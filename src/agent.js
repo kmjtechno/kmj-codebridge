@@ -1,6 +1,7 @@
 import { requestRenewal } from "./renewal.js";
 import { readJsonLimited } from "./http.js";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { enrolledAgentSchema } from "./config.js";
@@ -17,6 +18,10 @@ import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
 import { startLocalFirstCodingWorker } from "./autopilot-coding-worker.js";
 import { createLocalModelClient } from "./local-model.js";
+import {
+  createLlamaCppLocalModelClient,
+  useP520LlamaCpp,
+} from "./llamacpp-local.js";
 import { AuditLedger } from "./audit.js";
 import {
   supervisorRequest,
@@ -156,8 +161,19 @@ export async function startAgent(
             ),
         }
       : null;
+  // Owner-only opt-in confined to the enrolled Windows P520 CodeBridge agent.
+  // Without the exact flag/device/host match, Ollama routing is unchanged.
+  const p520LlamaEnabled = useP520LlamaCpp({
+    enabled: process.env.CODEBRIDGE_P520_LLAMACPP,
+    platform: process.platform,
+    hostname: os.hostname(),
+    deviceId: c.id,
+  });
   let localModelClient;
-  const localModel = () => (localModelClient ??= createLocalModelClient());
+  const localModel = () =>
+    (localModelClient ??= p520LlamaEnabled
+      ? createLlamaCppLocalModelClient()
+      : createLocalModelClient());
   let workerHandles = null;
   let workers = [];
   const activity = createUpdateGuard({
