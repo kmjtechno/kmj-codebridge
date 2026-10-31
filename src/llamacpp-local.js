@@ -129,7 +129,9 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
         activeRequest: busy,
         cloudFallback: false,
         paidInference: false,
-        readyForOnDemandUse: valid,
+        // An in-flight generation owns this client's only approved slot.
+        // Do not advertise a second on-demand request as ready.
+        readyForOnDemandUse: valid && !busy,
         ...(valid ? {} : { reason: "LOCAL_MODEL_NOT_RUNNING_OR_INVALID" }),
       };
     },
