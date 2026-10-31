@@ -132,7 +132,7 @@ assert inspect(baseline + ["User=root"]) == {"status": "MALFORMED", "mismatchKey
 assert inspect(baseline, status=1) == {"status": "READ_FAILED", "mismatchKeys": []}
 # subprocess.run(text=True) can raise UnicodeDecodeError on malformed
 # systemctl bytes. Treat decoding failure as READ_FAILED, not traceback.
-decode_error = UnicodeDecodeError("utf-8", b"\\xff", 0, 1, "invalid byte")
+decode_error = UnicodeDecodeError("utf-8", bytes([0xff]), 0, 1, "invalid byte")
 with patch.object(module.subprocess, "run", side_effect=decode_error):
     assert module.command(["/usr/bin/systemctl", "show", module.UNIT]) is None
     assert module.effective_unit_diagnostic() == {"status": "READ_FAILED", "mismatchKeys": []}
