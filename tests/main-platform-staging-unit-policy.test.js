@@ -289,13 +289,14 @@ test("post-ACK runner replacement and stale systemd cache block start", async ()
 });
 
 test("ambiguous systemctl output cannot authorize guarded staging", async () => {
-  const normal = [
-    "LoadState=loaded",
-    "ActiveState=inactive",
-    "FragmentPath=" + unit,
-    "DropInPaths=",
-    "NeedDaemonReload=no",
-  ].join("\n") + "\n";
+  const normal =
+    [
+      "LoadState=loaded",
+      "ActiveState=inactive",
+      "FragmentPath=" + unit,
+      "DropInPaths=",
+      "NeedDaemonReload=no",
+    ].join("\n") + "\n";
   const ambiguous = [
     "LoadState=not-found\n" + normal,
     normal + "LoadState=loaded\n",
