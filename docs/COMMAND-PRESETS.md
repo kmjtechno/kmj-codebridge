@@ -2,6 +2,8 @@
 
 KMJ CodeBridge keeps project command execution **administrator controlled**. AI clients never submit a raw shell, executable, working directory, environment, timeout, or arbitrary argv.
 
+For fixed permitted commands, a ChatGPT client can call `list_project_commands`, `run_project_command`, and `get_job_status` to execute and read the result directly. For owner-only root work, use [sanitized operator receipts with cross-chat continuity](OPERATOR-RECEIPTS-CROSS-CHAT.md), **not** a new unrestricted command profile.
+
 A project may opt into fixed built-in presets with `commandPresets`. Presets expand during agent configuration validation into the same exact structured command profiles used by `run_project_command`.
 
 Supported presets:
