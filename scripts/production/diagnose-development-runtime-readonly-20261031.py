@@ -113,7 +113,7 @@ def probe_git(run=fixed_run):
 
 
 PACK_DIR = PROJECT + "/.git/objects/pack"
-PACK_NAME = re.compile(r"pack-[a-f0-9]{40,64}\\.(?:pack|idx|rev|bitmap|promisor|mtimes|keep)\\Z")
+PACK_NAME = re.compile(r"pack-[a-f0-9]{40,64}\.(?:pack|idx|rev|bitmap|promisor|mtimes|keep)\Z")
 
 
 def probe_pack_access(run=fixed_run, lstat=os.lstat, scandir=os.scandir):
