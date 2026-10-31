@@ -5,6 +5,18 @@ import { createSupervisorHandler } from "../src/supervisor.js";
 const standard = "/etc/kmj-codebridge/agent.json";
 const dedicated = "/etc/kmj-codebridge-main-platform/agent.json";
 const gateway = "/etc/kmj-codebridge/gateway.json";
+const stageGateway = "/etc/kmj-codebridge-stage/gateway.json";
+const validStageGateway = JSON.stringify({
+  oauth: {
+    issuer: "https://kmjtechno.com",
+    resource: "https://kmjtechno.com/mcp",
+    jwksUri: "https://kmjtechno.com/jwks",
+  },
+});
+const stageGatewayState = (_bin, args) =>
+  args[1] === "kmj-codebridge-gateway-stage.service"
+    ? "LoadState=loaded\nActiveState=active\n"
+    : "LoadState=not-found\nActiveState=inactive\n";
 
 const validAgent = JSON.stringify({
   gateway: "https://kmjtechno.com",
@@ -137,13 +149,10 @@ test("gateway config cannot fall back to privileged agent config", async () => {
   assert.deepEqual(seen, [gateway]);
 });
 
-test("active stage gateway reports unverified config instead of missing canonical config", async () => {
+test("active stage gateway refuses a missing fixed stage config", async () => {
   const readPaths = [];
   const handler = createSupervisorHandler({
-    run: (_bin, args) =>
-      args[1] === "kmj-codebridge-gateway-stage.service"
-        ? "LoadState=loaded\nActiveState=active\n"
-        : "LoadState=not-found\nActiveState=inactive\n",
+    run: stageGatewayState,
     readFile: (path) => {
       readPaths.push(path);
       const error = new Error("PRIVATE_GATEWAY_CREDENTIAL");
@@ -157,11 +166,92 @@ test("active stage gateway reports unverified config instead of missing canonica
     valid: false,
     reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
   });
-  assert.deepEqual(readPaths, [gateway]);
+  assert.deepEqual(readPaths, [stageGateway]);
   assert.doesNotMatch(
     JSON.stringify(result),
     /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
   );
+});
+
+test("active stage gateway validates only fixed scoped config, not old standard config", async () => {
+  const reads = [];
+  const handler = createSupervisorHandler({
+    run: stageGatewayState,
+    readFile: (file) => {
+      reads.push(file);
+      assert.equal(file, stageGateway);
+      return validStageGateway;
+    },
+  });
+  const result = await handler({ op: "config_validate", service: "gateway" });
+  assert.deepEqual(result.response, {
+    service: "gateway",
+    valid: true,
+    runtimeBindingVerified: false,
+  });
+  assert.deepEqual(reads, [stageGateway]);
+  assert.doesNotMatch(JSON.stringify(result), /jwks|token|\/etc\//i);
+});
+
+test("stage config syntax, schema and permission errors never fall back to standard config", async () => {
+  const cases = [
+    { body: "PRIVATE_JWKS_SECRET", reason: "CONFIG_JSON_INVALID" },
+    {
+      body: JSON.stringify({ github: { publicReadOnly: true } }),
+      reason: "CONFIG_SCHEMA_INVALID",
+    },
+    { errno: "EACCES", reason: "CONFIG_FILE_UNREADABLE" },
+  ];
+  for (const c of cases) {
+    const reads = [];
+    const handler = createSupervisorHandler({
+      run: stageGatewayState,
+      readFile: (file) => {
+        reads.push(file);
+        assert.equal(file, stageGateway);
+        if (c.errno) {
+          const e = new Error("SECRET_STAGE_PATH");
+          e.code = c.errno;
+          throw e;
+        }
+        return c.body;
+      },
+    });
+    const result = await handler({ op: "config_validate", service: "gateway" });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: c.reason,
+    });
+    assert.deepEqual(reads, [stageGateway]);
+    assert.doesNotMatch(
+      JSON.stringify(result),
+      /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\/etc\//,
+    );
+  }
+});
+
+test("ambiguous or missing gateway unit cannot validate stale stage credentials", async () => {
+  for (const loaded of [0, 2]) {
+    const reads = [];
+    const handler = createSupervisorHandler({
+      run: (_bin, args) =>
+        loaded === 0
+          ? "LoadState=not-found\nActiveState=inactive\n"
+          : "LoadState=loaded\nActiveState=active\n",
+      readFile: (file) => {
+        reads.push(file);
+        throw new Error("must never open unselected config");
+      },
+    });
+    const result = await handler({ op: "config_validate", service: "gateway" });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: "CONFIG_VALIDATION_FAILED",
+    });
+    assert.deepEqual(reads, []);
+  }
 });
 
 test("standard gateway with missing config still reports canonical missing file", async () => {
