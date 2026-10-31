@@ -11,6 +11,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   t.after(() => delete process.env[env]);
 
   let writeStatus = 403;
+  let invalidSuccessBody = false;
   let quota = false;
   let push = false;
   const calls = [];
@@ -23,6 +24,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
         permissions: { pull: true, push },
       });
     }
+    if (invalidSuccessBody) return new Response("not valid JSON", { status: 201 });
     return Response.json(
       { message: "NEVER_EXPOSE_GITHUB_RESPONSE_BODY" },
       {
@@ -91,7 +93,16 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     assert.equal((await doctor()).writeVerified, false);
   }
 
+  // A malformed HTTP 201 body must not erase the last recorded denial.
   writeStatus = 201;
+  invalidSuccessBody = true;
+  await assert.rejects(write(), /GITHUB_RESPONSE_INVALID/);
+  assert.deepEqual((await doctor()).lastWriteFailure, {
+    httpStatus: 429,
+    classification: "rate_limited",
+  });
+
+  invalidSuccessBody = false;
   quota = false;
   push = true;
   await write();
@@ -99,7 +110,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.equal(recovered.repositoryPushHint, "reported_unverified");
   assert.equal(recovered.lastWriteFailure, null);
   assert.equal(recovered.writeVerified, false);
-  assert.equal(calls.filter((call) => call.method === "POST").length, 8);
+  assert.equal(calls.filter((call) => call.method === "POST").length, 9);
 
   for (const receipt of [initial, forbidden, recovered]) {
     const serialized = JSON.stringify(receipt);
