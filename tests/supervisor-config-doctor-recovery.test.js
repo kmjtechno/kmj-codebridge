@@ -5,7 +5,6 @@ import { createSupervisorHandler } from "../src/supervisor.js";
 const standard = "/etc/kmj-codebridge/agent.json";
 const dedicated = "/etc/kmj-codebridge-main-platform/agent.json";
 const gateway = "/etc/kmj-codebridge/gateway.json";
-const stageGateway = "/etc/kmj-codebridge-stage/gateway.json";
 const validStageGateway = JSON.stringify({
   oauth: {
     issuer: "https://kmjtechno.com",
@@ -149,12 +148,16 @@ test("gateway config cannot fall back to privileged agent config", async () => {
   assert.deepEqual(seen, [gateway]);
 });
 
-test("active stage gateway refuses a missing fixed stage config", async () => {
-  const readPaths = [];
+test("active stage gateway refuses a missing protected stage config", async () => {
+  const reads = [];
   const handler = createSupervisorHandler({
     run: stageGatewayState,
-    readFile: (path) => {
-      readPaths.push(path);
+    readFile: (file) => {
+      reads.push(file);
+      throw new Error("stale canonical gateway must never be read");
+    },
+    readStageGatewayConfig: () => {
+      reads.push("fixed-stage-reader");
       const error = new Error("PRIVATE_GATEWAY_CREDENTIAL");
       error.code = "ENOENT";
       throw error;
@@ -166,20 +169,20 @@ test("active stage gateway refuses a missing fixed stage config", async () => {
     valid: false,
     reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
   });
-  assert.deepEqual(readPaths, [stageGateway]);
-  assert.doesNotMatch(
-    JSON.stringify(result),
-    /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
-  );
+  assert.deepEqual(reads, ["fixed-stage-reader"]);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_GATEWAY_CREDENTIAL|\\/etc\\//);
 });
 
-test("active stage gateway validates only fixed scoped config, not old standard config", async () => {
+test("active stage gateway validates only protected config, not runtime identity", async () => {
   const reads = [];
   const handler = createSupervisorHandler({
     run: stageGatewayState,
     readFile: (file) => {
       reads.push(file);
-      assert.equal(file, stageGateway);
+      throw new Error("must not read stale gateway config");
+    },
+    readStageGatewayConfig: () => {
+      reads.push("fixed-stage-reader");
       return validStageGateway;
     },
   });
@@ -188,12 +191,15 @@ test("active stage gateway validates only fixed scoped config, not old standard 
     service: "gateway",
     valid: true,
     runtimeBindingVerified: false,
+    scope: "FIXED_STAGE_FILE_SCHEMA_ONLY",
+    runtimeConfigAttested: false,
+    signedRuntimeAttested: false,
   });
-  assert.deepEqual(reads, [stageGateway]);
-  assert.doesNotMatch(JSON.stringify(result), /jwks|token|\/etc\//i);
+  assert.deepEqual(reads, ["fixed-stage-reader"]);
+  assert.doesNotMatch(JSON.stringify(result), /jwks|token|\\/etc\\//i);
 });
 
-test("stage config syntax, schema and permission errors never fall back to standard config", async () => {
+test("stage syntax, schema, trust and permission errors fail without fallback", async () => {
   const cases = [
     { body: "PRIVATE_JWKS_SECRET", reason: "CONFIG_JSON_INVALID" },
     {
@@ -201,14 +207,17 @@ test("stage config syntax, schema and permission errors never fall back to stand
       reason: "CONFIG_SCHEMA_INVALID",
     },
     { errno: "EACCES", reason: "CONFIG_FILE_UNREADABLE" },
+    { errno: "CONFIG_TRUST_INVALID", reason: "CONFIG_TRUST_INVALID" },
   ];
   for (const c of cases) {
     const reads = [];
     const handler = createSupervisorHandler({
       run: stageGatewayState,
-      readFile: (file) => {
-        reads.push(file);
-        assert.equal(file, stageGateway);
+      readFile: () => {
+        throw new Error("canonical config must not be read");
+      },
+      readStageGatewayConfig: () => {
+        reads.push("fixed-stage-reader");
         if (c.errno) {
           const e = new Error("SECRET_STAGE_PATH");
           e.code = c.errno;
@@ -223,25 +232,29 @@ test("stage config syntax, schema and permission errors never fall back to stand
       valid: false,
       reason: c.reason,
     });
-    assert.deepEqual(reads, [stageGateway]);
+    assert.deepEqual(reads, ["fixed-stage-reader"]);
     assert.doesNotMatch(
       JSON.stringify(result),
-      /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\/etc\//,
+      /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\\/etc\\//,
     );
   }
 });
 
-test("ambiguous or missing gateway unit cannot validate stale stage credentials", async () => {
+test("ambiguous or missing gateway unit never reads either credential path", async () => {
   for (const loaded of [0, 2]) {
     const reads = [];
     const handler = createSupervisorHandler({
-      run: (_bin, args) =>
+      run: () =>
         loaded === 0
-          ? "LoadState=not-found\nActiveState=inactive\n"
-          : "LoadState=loaded\nActiveState=active\n",
-      readFile: (file) => {
-        reads.push(file);
-        throw new Error("must never open unselected config");
+          ? "LoadState=not-found\\nActiveState=inactive\\n"
+          : "LoadState=loaded\\nActiveState=active\\n",
+      readFile: () => {
+        reads.push("standard");
+        throw new Error("must never read unselected config");
+      },
+      readStageGatewayConfig: () => {
+        reads.push("stage");
+        throw new Error("must never read unselected config");
       },
     });
     const result = await handler({ op: "config_validate", service: "gateway" });
