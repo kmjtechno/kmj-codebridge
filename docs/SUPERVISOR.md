@@ -60,9 +60,9 @@ Until that sequence is merged and live-tested, installer rerun is the supported 
 
 ### Main Platform: stage gateway configuration diagnosis
 
-On a host that runs `kmj-codebridge-gateway-stage.service`, `supervisor_status(gateway)` selects the sole active stage unit. The standard `/etc/kmj-codebridge/gateway.json` may be absent even while that unit is healthy. If `supervisor_config_validate(gateway)` finds the standard config absent and **confirms the sole selected unit is the stage gateway**, it returns `valid=false, reason=STAGE_GATEWAY_CONFIG_NOT_VERIFIED`. This is **not** a gateway outage and **not** a schema-validation PASS for its runtime credential file.
+On a host that runs `kmj-codebridge-gateway-stage.service`, `supervisor_config_validate(gateway)` selects the **sole active gateway unit first**. If it is the stage unit, it reads only the fixed `/etc/kmj-codebridge-stage/gateway.json` (not the legacy `/etc/kmj-codebridge/gateway.json`). The stage directory and config must be root-owned, non-symlink, not group/world writable; the config must be regular, single-linked, at most 1 MiB, and must retain the same device/inode after a no-follow open. No caller-supplied path, environment variable, systemd ExecStart or process argument can redirect this read. Missing, untrusted, ambiguous or malformed state fails closed with bounded error codes.
 
-This read-only diagnostic deliberately does **not** infer, follow or open a path from `systemctl`, `/proc`, a CLI argument, a unit drop-in or a user-provided value. Only the fixed authorized config is read. Genuine stage runtime credential inspection must occur separately through an owner-approved privileged procedure; never copy credentials or silently fall back to agent secrets.
+A valid stage result includes `scope=FIXED_STAGE_FILE_SCHEMA_ONLY`, `runtimeConfigAttested=false`, and `signedRuntimeAttested=false`. It proves **only that the fixed protected file passes schema validation**; it does not prove the running gateway consumed that file, has working GitHub write permission, or matches a signed release. Live runtime binding, owner-signed canary and rollback still require separate operator-attested evidence. Neither the gateway credential nor its parsed content is returned.
 
 ## Development-only privileged broker: first fail-closed slice (2026-10-27)
 
