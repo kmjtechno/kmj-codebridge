@@ -382,6 +382,79 @@ export function createGitHubBridge(config) {
   // Shared free-tier anonymous GitHub egress can exhaust its hourly quota.
   // Suppress pointless follow-up requests, not errors or authorization checks.
   let publicQuotaBlockedUntil = 0;
+  // Only fixed HTTP classes, never response bodies, tokens, URLs, headers or
+  // GitHub account identities. A read probe alone cannot verify write grants.
+  const recentWriteFailures = new Map();
+  const WRITE_FAILURE_TTL_MS = 15 * 60 * 1000;
+  const recordWriteFailure = (method, repository, status, headers) => {
+    if (method === "GET" || ![401, 403, 404, 409, 422, 429].includes(status))
+      return;
+    const quota =
+      status === 429 ||
+      (status === 403 &&
+        (headers.get("x-ratelimit-remaining") === "0" ||
+          headers.has("retry-after")));
+    const classification = quota
+      ? "rate_limited"
+      : status === 401
+        ? "http_401"
+        : status === 403
+          ? "http_403"
+          : status === 404
+            ? "http_404"
+            : "conflict";
+    recentWriteFailures.delete(repository);
+    recentWriteFailures.set(repository, {
+      httpStatus: status,
+      classification,
+      observedAtMs: Date.now(),
+    });
+    if (recentWriteFailures.size > 32)
+      recentWriteFailures.delete(recentWriteFailures.keys().next().value);
+  };
+  const recentWriteFailure = (repository) => {
+    const receipt = recentWriteFailures.get(repository);
+    return receipt && Date.now() - receipt.observedAtMs <= WRITE_FAILURE_TTL_MS
+      ? {
+          httpStatus: receipt.httpStatus,
+          classification: receipt.classification,
+        }
+      : null;
+  };
+  // A parsed 2xx JSON object is not, by itself, proof that GitHub performed
+  // a mutation. Only clear the previous native denial when the exact
+  // endpoint returns its expected mutation identity. Never echo the object.
+  const confirmedWriteReceipt = (method, suffix, value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return false;
+    const sha = (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v);
+    const id = (v) => Number.isSafeInteger(v) && v > 0;
+    if (method === "PUT" && /^pulls\/\d+\/merge$/.test(suffix))
+      return value.merged === true && sha(value.sha);
+    if (method === "PUT" && suffix.startsWith("contents/"))
+      return sha(value.commit?.sha) && sha(value.content?.sha);
+    if (method === "POST" && suffix === "git/refs")
+      return (
+        typeof value.ref === "string" &&
+        value.ref.startsWith("refs/heads/") &&
+        sha(value.object?.sha)
+      );
+    if (method === "POST" && suffix === "issues") return id(value.number);
+    if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
+      return id(value.id);
+    if (method === "POST" && suffix === "pulls")
+      return id(value.number) && sha(value.head?.sha);
+    if (method === "POST" && /^pulls\/\d+\/reviews$/.test(suffix))
+      return id(value.id);
+    if (
+      method === "POST" &&
+      /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix)
+    )
+      return id(value.id);
+    if (method === "PATCH" && /^pulls\/\d+$/.test(suffix))
+      return id(value.number) && typeof value.state === "string";
+    return false;
+  };
   const markPublicQuotaBlocked = (headers) => {
     if (!publicReadOnly) return;
     const now = Date.now();
@@ -455,6 +528,12 @@ export function createGitHubBridge(config) {
         return cached.value;
       }
       if (!response.ok) {
+        recordWriteFailure(
+          method,
+          repository,
+          response.status,
+          response.headers,
+        );
         if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
         if (response.status === 403) {
           // GitHub uses HTTP 403 both for authorization denials and quota
@@ -500,6 +579,10 @@ export function createGitHubBridge(config) {
             etag: safeEtag(response.headers.get("etag")),
           });
       } else if (method !== "GET") {
+        // Parsed JSON alone is insufficient: a 2xx with no confirmed
+        // mutation identity (or merged:false) must retain the denial.
+        if (confirmedWriteReceipt(method, suffix, value))
+          recentWriteFailures.delete(repository);
         // A live uncached GET must not evict independent cache keys.
         // Only successful mutations invalidate previously cached reads.
         cacheEpoch++;
@@ -600,6 +683,16 @@ export function createGitHubBridge(config) {
           status: "read_ready",
           readVerified: true,
           writeVerified: false, // A read probe never proves write access.
+          // GitHub's repository metadata is only a hint, not proof of a
+          // successful native write or branch-protection permission.
+          repositoryPushHint: publicReadOnly
+            ? "public_read_only"
+            : data.permissions?.push === true
+              ? "reported_unverified"
+              : data.permissions?.push === false
+                ? "not_granted"
+                : "unknown",
+          lastWriteFailure: recentWriteFailure(a.repository),
           privateRepository: data.private,
           mode: publicReadOnly ? "public_read_only" : "server_credential",
           remediation: publicReadOnly
