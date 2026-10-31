@@ -12,6 +12,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
 
   let writeStatus = 403;
   let invalidSuccessBody = false;
+  let unconfirmedSuccessBody = false;
   let quota = false;
   let push = false;
   const calls = [];
@@ -26,8 +27,12 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     }
     if (invalidSuccessBody)
       return new Response("not valid JSON", { status: 201 });
+    if (unconfirmedSuccessBody)
+      return Response.json({ message: "NO_MUTATION_IDENTITY" }, { status: 201 });
     return Response.json(
-      { message: "NEVER_EXPOSE_GITHUB_RESPONSE_BODY" },
+      writeStatus >= 200 && writeStatus < 300
+        ? { id: 123, html_url: "https://github.com/kmjtechno/kmj-codebridge/issues/723#issuecomment-123" }
+        : { message: "NEVER_EXPOSE_GITHUB_RESPONSE_BODY" },
       {
         status: writeStatus,
         headers: quota ? { "x-ratelimit-remaining": "0" } : {},
@@ -104,6 +109,16 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   });
 
   invalidSuccessBody = false;
+  unconfirmedSuccessBody = true;
+  // A syntactically valid 201 with no GitHub mutation identity is not proof
+  // that the native gateway credential can write.
+  await write();
+  assert.deepEqual((await doctor()).lastWriteFailure, {
+    httpStatus: 429,
+    classification: "rate_limited",
+  });
+
+  unconfirmedSuccessBody = false;
   quota = false;
   push = true;
   await write();
@@ -111,7 +126,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.equal(recovered.repositoryPushHint, "reported_unverified");
   assert.equal(recovered.lastWriteFailure, null);
   assert.equal(recovered.writeVerified, false);
-  assert.equal(calls.filter((call) => call.method === "POST").length, 9);
+  assert.equal(calls.filter((call) => call.method === "POST").length, 10);
 
   for (const receipt of [initial, forbidden, recovered]) {
     const serialized = JSON.stringify(receipt);
