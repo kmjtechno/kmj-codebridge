@@ -11,11 +11,7 @@ const OPERATIONS = new Set([
   "autopilot_coding_worker",
 ]);
 
-export function localModelReceipt(
-  model,
-  operation,
-  provider = "local-ollama",
-) {
+export function localModelReceipt(model, operation, provider = "local-ollama") {
   if (
     typeof model !== "string" ||
     !MODEL_ID.test(model) ||
