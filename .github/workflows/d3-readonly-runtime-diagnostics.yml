@@ -3,15 +3,15 @@ name: D3 nonroot worker systemd and Git read-only diagnosis
 on:
   pull_request:
     paths:
-      - 'scripts/production/diagnose-development-runtime-readonly-20261031.py'
-      - 'tests/test_diagnose_development_runtime_readonly_20261031.py'
-      - '.github/workflows/d3-readonly-runtime-diagnostics.yml'
+      - "scripts/production/diagnose-development-runtime-readonly-20261031.py"
+      - "tests/test_diagnose_development_runtime_readonly_20261031.py"
+      - ".github/workflows/d3-readonly-runtime-diagnostics.yml"
   push:
     branches: [main]
     paths:
-      - 'scripts/production/diagnose-development-runtime-readonly-20261031.py'
-      - 'tests/test_diagnose_development_runtime_readonly_20261031.py'
-      - '.github/workflows/d3-readonly-runtime-diagnostics.yml'
+      - "scripts/production/diagnose-development-runtime-readonly-20261031.py"
+      - "tests/test_diagnose_development_runtime_readonly_20261031.py"
+      - ".github/workflows/d3-readonly-runtime-diagnostics.yml"
 
 permissions:
   contents: read
