@@ -64,6 +64,67 @@ class Contract(unittest.TestCase):
         self.assertEqual(r['OBJECT'],'NOT_CHECKED')
         self.assertNotIn('credential',str(r))
 
+
+    def test_pack_access_is_fixed_bounded_and_readonly(self):
+        import contextlib
+        import stat
+        from types import SimpleNamespace
+        name = 'pack-' + 'a'*40 + '.pack'
+        seen = []
+        def lstat(path):
+            seen.append(('lstat', path))
+            is_file = path.endswith('.pack')
+            return SimpleNamespace(
+                st_mode=(stat.S_IFREG | 0o440) if is_file else (stat.S_IFDIR | 0o750),
+                st_nlink=1,
+            )
+        def scandir(path):
+            self.assertEqual(path, m.PACK_DIR)
+            return contextlib.nullcontext([SimpleNamespace(name=name)])
+        def run(args):
+            seen.append(('run', args))
+            self.assertEqual(args[:5],
+                ['/usr/sbin/runuser', '-u', 'kmjdevci', '--', '/usr/bin/test'])
+            self.assertEqual(args[5], '-r')
+            self.assertEqual(args[6], m.PACK_DIR + '/' + name)
+            return Result()
+        self.assertEqual(m.probe_pack_access(run, lstat, scandir), 'PASS')
+        self.assertEqual(len([v for v in seen if v[0] == 'run']), 1)
+        self.assertNotIn('secret', str(seen))
+
+    def test_pack_access_rejects_untrusted_and_denied_without_mutation(self):
+        import contextlib
+        import stat
+        from types import SimpleNamespace
+        name = 'pack-' + 'b'*40 + '.idx'
+        def scandir(_):
+            return contextlib.nullcontext([SimpleNamespace(name=name)])
+        def lstat(path):
+            return SimpleNamespace(st_mode=(stat.S_IFREG | 0o440)
+                                   if path.endswith('.idx') else (stat.S_IFDIR | 0o750),
+                                   st_nlink=1)
+        self.assertEqual(m.probe_pack_access(
+            lambda _: Result('', 'private path', 1), lstat, scandir),
+            'SOME_UNREADABLE')
+        def symlink(path):
+            if path.endswith('.idx'):
+                return SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_nlink=1)
+            return lstat(path)
+        self.assertEqual(m.probe_pack_access(
+            lambda _: self.fail('must not execute'), symlink, scandir),
+            'UNTRUSTED_ENTRY')
+        def unsafe_directory(path):
+            if path.endswith('/.git'):
+                return SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_nlink=1)
+            return lstat(path)
+        self.assertEqual(m.probe_pack_access(
+            lambda _: self.fail('must not execute'), unsafe_directory, scandir),
+            'UNTRUSTED_PATH')
+        self.assertEqual(m.probe_pack_access(
+            lambda _: self.fail('must not execute'), lstat,
+            lambda _: contextlib.nullcontext([SimpleNamespace(name=name)] * 129)),
+            'TOO_MANY_ENTRIES')
+
     def test_wrong_user_host_or_arbitrary_arguments_rejected(self):
         with patch.object(m.sys,'argv',['probe','--any']):
             self.assertEqual(m.main(),2)
