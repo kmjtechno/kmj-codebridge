@@ -6,7 +6,16 @@
 // file exists under the covered roots, and nothing is a link or non-regular entry. Verification output is
 // a fixed reason code only (no paths, no file content).
 import { createHash } from "node:crypto";
-import { lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
+import {
+  closeSync,
+  constants as fsConstants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readdirSync,
+  readSync,
+  realpathSync,
+} from "node:fs";
 import { join, relative, resolve, sep, isAbsolute } from "node:path";
 
 export const SCHEMA = "kmj-runtime-closure-v1";
@@ -19,6 +28,9 @@ export const COVERED_FILES = Object.freeze([
 const HEX64 = /^[0-9a-f]{64}$/;
 const TENANT = /^[A-Za-z0-9_-]{1,64}$/;
 const MAX_FILES = 200000;
+export const MAX_FILE_BYTES = 256 * 1024 * 1024;
+export const MAX_TOTAL_BYTES = 3 * 1024 * 1024 * 1024;
+const CHUNK = 1024 * 1024;
 
 export class ClosureError extends Error {
   constructor(code) {
@@ -30,8 +42,55 @@ const fail = (code) => {
   throw new ClosureError(code);
 };
 
-export function sha256File(path) {
-  return createHash("sha256").update(readFileSync(path)).digest("hex");
+/**
+ * Streaming, bounded SHA-256 of ONE regular, single-link file. The file is opened first (no symlink follow
+ * where the OS supports O_NOFOLLOW) and the SAME handle is inspected and read, so a path swapped after the
+ * check cannot change what was hashed; a change while reading is also detected.
+ * `budget` ({left}) bounds the total bytes hashed across a whole runtime.
+ */
+export function sha256File(path, budget = { left: MAX_TOTAL_BYTES }) {
+  const before = lstatSync(path, { bigint: true });
+  if (before.isSymbolicLink()) fail("LINK_IN_RUNTIME");
+  if (!before.isFile()) fail("NON_REGULAR_IN_RUNTIME");
+  if (before.nlink !== 1n) fail("HARDLINK_IN_RUNTIME");
+  const fd = openSync(
+    path,
+    fsConstants.O_RDONLY | (fsConstants.O_NOFOLLOW || 0),
+  );
+  try {
+    const st = fstatSync(fd, { bigint: true });
+    if (
+      !st.isFile() ||
+      st.ino !== before.ino ||
+      st.dev !== before.dev ||
+      st.size !== before.size
+    )
+      fail("FILE_CHANGED_DURING_CHECK");
+    if (st.nlink !== 1n) fail("HARDLINK_IN_RUNTIME");
+    if (st.size > BigInt(MAX_FILE_BYTES)) fail("FILE_TOO_LARGE");
+    if (st.size > BigInt(budget.left)) fail("RUNTIME_TOO_LARGE");
+    budget.left -= Number(st.size);
+    const hash = createHash("sha256");
+    const buf = Buffer.allocUnsafe(CHUNK);
+    let total = 0;
+    for (;;) {
+      const n = readSync(fd, buf, 0, CHUNK, null);
+      if (n === 0) break;
+      total += n;
+      if (total > Number(st.size)) fail("FILE_CHANGED_DURING_CHECK");
+      hash.update(buf.subarray(0, n));
+    }
+    const after = fstatSync(fd, { bigint: true });
+    if (
+      total !== Number(st.size) ||
+      after.size !== st.size ||
+      after.mtimeNs !== st.mtimeNs
+    )
+      fail("FILE_CHANGED_DURING_CHECK");
+    return hash.digest("hex");
+  } finally {
+    closeSync(fd);
+  }
 }
 
 export function canonicalJson(value) {
@@ -92,8 +151,9 @@ function coveredFiles(root) {
 export function buildManifest(root, binding) {
   checkBinding(binding);
   const files = {};
+  const budget = { left: MAX_TOTAL_BYTES };
   for (const rel of coveredFiles(root))
-    files[rel] = sha256File(join(root, rel));
+    files[rel] = sha256File(join(root, rel), budget);
   return { schema: SCHEMA, binding, files };
 }
 
@@ -143,9 +203,50 @@ export function verifyRuntime(root, manifest, expectedManifestSha256) {
     if (!onDisk.has(rel)) fail("MISSING_FILE");
   }
   for (const rel of onDisk) if (!(rel in manifest.files)) fail("EXTRA_FILE");
+  const budget = { left: MAX_TOTAL_BYTES };
   for (const rel of listed)
-    if (sha256File(join(root, rel)) !== manifest.files[rel])
+    if (sha256File(join(root, rel), budget) !== manifest.files[rel])
       fail("FILE_HASH_MISMATCH");
+  return true;
+}
+
+const FORBIDDEN_NODE_ENV = [
+  "NODE_OPTIONS",
+  "NODE_PATH",
+  "NODE_EXTRA_CA_CERTS",
+  "NODE_TLS_REJECT_UNAUTHORIZED",
+  "NODE_REPL_EXTERNAL_MODULE",
+  "NODE_PENDING_DEPRECATION",
+];
+
+/**
+ * Module resolution must come ONLY from the verified runtime: no NODE_OPTIONS/NODE_PATH-style env, no
+ * preload flags on this process, and no node_modules / .node_modules / .node_libraries in any parent of the
+ * runtime root (Node walks up the directory tree), nor in the user home.
+ */
+export function assertCleanNodeEnvironment(
+  root,
+  { env = process.env, execArgv = process.execArgv, home = null } = {},
+) {
+  for (const key of Object.keys(env))
+    if (FORBIDDEN_NODE_ENV.includes(key.toUpperCase()) && env[key] !== "")
+      fail("AMBIENT_NODE_ENV");
+  if (execArgv.length > 0) fail("AMBIENT_NODE_FLAGS");
+  const base = resolve(root);
+  const dirs = [];
+  for (let d = resolve(base, ".."); ; d = resolve(d, "..")) {
+    dirs.push(d);
+    if (resolve(d, "..") === d) break;
+  }
+  if (home) dirs.push(resolve(home));
+  for (const d of dirs)
+    for (const name of ["node_modules", ".node_modules", ".node_libraries"])
+      try {
+        lstatSync(join(d, name));
+        fail("AMBIENT_NODE_MODULES");
+      } catch (e) {
+        if (e instanceof ClosureError) throw e;
+      }
   return true;
 }
 

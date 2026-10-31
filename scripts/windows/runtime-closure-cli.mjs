@@ -3,6 +3,7 @@
 //   node runtime-closure-cli.mjs build  --root R --tenant T --device D --project P --node-exe N --out M.json
 //   node runtime-closure-cli.mjs verify --root R --manifest M.json --pin <sha256> [--node-exe N]
 import { readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { resolve, relative, isAbsolute } from "node:path";
 import {
   buildManifest,
@@ -10,6 +11,7 @@ import {
   sha256File,
   verifyRuntime,
   verifyNode,
+  assertCleanNodeEnvironment,
   ClosureError,
 } from "./runtime-closure.js";
 
@@ -46,6 +48,7 @@ try {
     for (const k of ["root", "manifest", "pin"])
       if (!a[k]) throw new ClosureError("CLI_USAGE");
     const manifest = JSON.parse(readFileSync(a.manifest, "utf8"));
+    assertCleanNodeEnvironment(resolve(a.root), { home: homedir() });
     verifyRuntime(resolve(a.root), manifest, a.pin);
     if (a["node-exe"]) verifyNode(a["node-exe"], manifest);
     console.log("RUNTIME_CLOSURE_OK");

@@ -5,6 +5,8 @@ import {
   mkdirSync,
   writeFileSync,
   symlinkSync,
+  linkSync,
+  truncateSync,
   rmSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -17,6 +19,9 @@ import {
   manifestSha256,
   ClosureError,
   canonicalJson,
+  assertCleanNodeEnvironment,
+  sha256File,
+  MAX_FILE_BYTES,
 } from "../scripts/windows/runtime-closure.js";
 
 const BINDING = (nodeSha256) => ({
@@ -265,8 +270,14 @@ test("cli: build then verify round-trips; tamper and in-runtime output are refus
     import.meta.dirname,
     "../scripts/windows/runtime-closure-cli.mjs",
   );
+  const cleanEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith("NODE_")),
+  );
   const run = (...a) =>
-    spawnSync(process.execPath, [cli, ...a], { encoding: "utf8" });
+    spawnSync(process.execPath, [cli, ...a], {
+      encoding: "utf8",
+      env: cleanEnv,
+    });
   const f = fixture();
   const outDir = mkdtempSync(join(tmpdir(), "kmj-cli-out-"));
   const m = join(outDir, "manifest.json");
@@ -321,4 +332,67 @@ test("cli: build then verify round-trips; tamper and in-runtime output are refus
   const t = run("verify", "--root", f.root, "--manifest", m, "--pin", pin);
   assert.equal(t.status, 2);
   assert.match(t.stdout, /FILE_HASH_MISMATCH/);
+});
+
+test("hardlinked files are rejected (build and verify)", () => {
+  const f = fixture();
+  linkSync(
+    join(f.root, "src/cli.js"),
+    join(mkdtempSync(join(tmpdir(), "kmj-hl-")), "alias.js"),
+  );
+  assert.equal(
+    code(() => verifyRuntime(f.root, f.manifest, f.pin)),
+    "HARDLINK_IN_RUNTIME",
+  );
+  assert.equal(
+    code(() => buildManifest(f.root, BINDING(NODE_SHA))),
+    "HARDLINK_IN_RUNTIME",
+  );
+});
+
+test("hashing is bounded: oversize files and exhausted budgets are refused", () => {
+  const f = fixture();
+  const big = join(f.root, "src/big.bin");
+  writeFileSync(big, "");
+  truncateSync(big, MAX_FILE_BYTES + 1); // sparse, no real disk use
+  assert.equal(
+    code(() => sha256File(big)),
+    "FILE_TOO_LARGE",
+  );
+  assert.equal(
+    code(() => sha256File(join(f.root, "src/cli.js"), { left: 3 })),
+    "RUNTIME_TOO_LARGE",
+  );
+});
+
+test("ambient Node environment is rejected (NODE_OPTIONS/NODE_PATH, preload flags, parent node_modules)", () => {
+  const f = fixture();
+  const ok = (extra = {}) =>
+    assertCleanNodeEnvironment(f.root, { env: {}, execArgv: [], ...extra });
+  assert.equal(ok(), true);
+  for (const k of ["NODE_OPTIONS", "NODE_PATH", "node_options"])
+    assert.equal(
+      code(() => ok({ env: { [k]: "x" } })),
+      "AMBIENT_NODE_ENV",
+    );
+  assert.equal(
+    code(() => ok({ execArgv: ["--require", "evil.js"] })),
+    "AMBIENT_NODE_FLAGS",
+  );
+  // a node_modules in ANY parent of the runtime would be resolved by Node's upward walk
+  const parent = mkdtempSync(join(tmpdir(), "kmj-parent-"));
+  mkdirSync(join(parent, "node_modules"));
+  mkdirSync(join(parent, "rt"));
+  assert.equal(
+    code(() =>
+      assertCleanNodeEnvironment(join(parent, "rt"), { env: {}, execArgv: [] }),
+    ),
+    "AMBIENT_NODE_MODULES",
+  );
+  const home = mkdtempSync(join(tmpdir(), "kmj-home-"));
+  mkdirSync(join(home, ".node_modules"));
+  assert.equal(
+    code(() => ok({ home })),
+    "AMBIENT_NODE_MODULES",
+  );
 });
