@@ -540,14 +540,26 @@ export class JobRunner {
     // inherited user environment. Use a private, deterministic directory in
     // the agent job state, not the shared checkout or an inherited home.
     if (j.gate.startsWith("command:main_platform_php_deps:ci:build@")) {
-      const composerHome = path.join(this.dir, "composer-homes", hash(cwd));
-      fs.mkdirSync(composerHome, { recursive: true, mode: 0o700 });
-      const stat = fs.lstatSync(composerHome);
-      if (
-        !stat.isDirectory() ||
-        stat.isSymbolicLink() ||
-        (stat.mode & 0o077) !== 0
-      ) {
+      const composerRoot = path.join(this.dir, "composer-homes");
+      const composerHome = path.join(composerRoot, hash(cwd));
+      try {
+        fs.mkdirSync(composerRoot, { recursive: true, mode: 0o700 });
+        const rootStat = fs.lstatSync(composerRoot);
+        if (
+          !rootStat.isDirectory() ||
+          rootStat.isSymbolicLink() ||
+          (process.platform !== "win32" && (rootStat.mode & 0o077) !== 0)
+        )
+          throw new Error("UNSAFE_COMPOSER_ROOT");
+        fs.mkdirSync(composerHome, { recursive: true, mode: 0o700 });
+        const stat = fs.lstatSync(composerHome);
+        if (
+          !stat.isDirectory() ||
+          stat.isSymbolicLink() ||
+          (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
+        )
+          throw new Error("UNSAFE_COMPOSER_HOME");
+      } catch {
         j.state = "failed";
         j.endedAt = new Date().toISOString();
         j.output = "JOB_COMPOSER_HOME_UNSAFE";
