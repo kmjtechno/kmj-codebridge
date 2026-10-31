@@ -42,7 +42,7 @@ def command(args, timeout=15):
             args, env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C"},
             capture_output=True, text=True, timeout=timeout, check=False,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except (subprocess.TimeoutExpired, OSError, UnicodeError):
         return None
 
 
