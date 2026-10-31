@@ -548,7 +548,9 @@ export class JobRunner {
         if (
           !rootStat.isDirectory() ||
           rootStat.isSymbolicLink() ||
-          (process.platform !== "win32" && (rootStat.mode & 0o077) !== 0)
+          (process.platform !== "win32" &&
+            (rootStat.uid !== process.getuid() ||
+              (rootStat.mode & 0o077) !== 0))
         )
           throw new Error("UNSAFE_COMPOSER_ROOT");
         fs.mkdirSync(composerHome, { recursive: true, mode: 0o700 });
@@ -556,7 +558,8 @@ export class JobRunner {
         if (
           !stat.isDirectory() ||
           stat.isSymbolicLink() ||
-          (process.platform !== "win32" && (stat.mode & 0o077) !== 0)
+          (process.platform !== "win32" &&
+            (stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0))
         )
           throw new Error("UNSAFE_COMPOSER_HOME");
       } catch {
