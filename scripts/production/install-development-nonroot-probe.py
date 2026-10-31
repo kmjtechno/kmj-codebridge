@@ -42,7 +42,7 @@ def command(args, timeout=15):
             args, env={"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C"},
             capture_output=True, text=True, timeout=timeout, check=False,
         )
-    except (subprocess.TimeoutExpired, OSError):
+    except (subprocess.TimeoutExpired, OSError, UnicodeError):
         return None
 
 
@@ -147,29 +147,49 @@ EXPECTED_UNIT_PROPERTIES = {
 }
 
 
-def verify_effective_unit():
-    # Fixed unit and fixed property allowlist; no caller-controlled arguments.
+def effective_unit_diagnostic():
+    """Read only fixed systemd properties; expose mismatch NAMES, never values.
+
+    Malformed, partial, duplicate or oversized output is not trusted evidence.
+    This diagnostic does not change the fail-closed service admission policy.
+    """
     args = ["/usr/bin/systemctl", "show", UNIT, "--no-pager"]
     for name in EXPECTED_UNIT_PROPERTIES:
         args.extend(["-p", name])
     result = command(args)
+    empty = {"status": "READ_FAILED", "mismatchKeys": []}
     if result is None or result.returncode != 0:
-        return False
+        return empty
     output = result.stdout
+    malformed = {"status": "MALFORMED", "mismatchKeys": []}
     if not isinstance(output, str) or len(output) > 8192:
-        return False
+        return malformed
     lines = output.splitlines()
     if len(lines) != len(EXPECTED_UNIT_PROPERTIES):
-        return False
+        return malformed
     props = {}
     for line in lines:
         if len(line) > 512 or "=" not in line:
-            return False
+            return malformed
         key, value = line.split("=", 1)
         if key not in EXPECTED_UNIT_PROPERTIES or key in props:
-            return False
+            return malformed
         props[key] = value
-    return props == EXPECTED_UNIT_PROPERTIES
+    if set(props) != set(EXPECTED_UNIT_PROPERTIES):
+        return malformed
+    mismatch = [
+        key for key, expected in EXPECTED_UNIT_PROPERTIES.items()
+        if props[key] != expected
+    ]
+    return {
+        "status": "MISMATCH" if mismatch else "MATCH",
+        "mismatchKeys": mismatch,
+    }
+
+
+def verify_effective_unit():
+    # Preserve the original boolean admission API and fail-closed behavior.
+    return effective_unit_diagnostic()["status"] == "MATCH"
 
 
 def receipt(report):
@@ -202,6 +222,17 @@ def receipt(report):
 
 
 def main():
+    # Diagnostic-only mode is safe for a non-root operator: fixed systemctl
+    # show properties, no install, daemon-reload, start, account or receipt.
+    if sys.argv[1:] == ["--diagnose-only"]:
+        if socket.gethostname().split(".")[0].lower() != EXPECTED_HOST:
+            print("KMJ_CB_DEV_UNIT_DIAGNOSTIC=DENIED_HOST")
+            return 2
+        diagnostic = effective_unit_diagnostic()
+        print("KMJ_CB_DEV_UNIT_DIAGNOSTIC=" + diagnostic["status"])
+        print("KMJ_CB_DEV_UNIT_MISMATCH_KEYS=" + ",".join(diagnostic["mismatchKeys"]))
+        print("KMJ_CB_DEV_UNIT_NO_MUTATION=YES")
+        return 0 if diagnostic["status"] == "MATCH" else 3
     if (os.geteuid() != 0 or sys.argv[1:] != ["--install-and-test"] or
             socket.gethostname().split(".")[0].lower() != EXPECTED_HOST):
         print("KMJ_CB_DEV_SANDBOX=DENIED_HOST_OR_ARGS")
@@ -212,6 +243,7 @@ def main():
         "nonRootProbePassed": False, "agentRestarted": False,
         "productionChanged": False, "autonomousCodingLive": False,
         "modelInstalled": False, "codebridgeRuntimeChanged": False,
+        "unitDiagnostic": "NOT_RUN", "unitMismatchKeys": [],
         "status": "BLOCKED",
     }
     try:
@@ -241,7 +273,10 @@ def main():
         reload_result = command(["/usr/bin/systemctl", "daemon-reload"], timeout=20)
         if reload_result is None or reload_result.returncode != 0:
             raise RuntimeError("SYSTEMD_RELOAD_FAILED")
-        report["unitAttested"] = verify_effective_unit()
+        diagnostic = effective_unit_diagnostic()
+        report["unitAttested"] = diagnostic["status"] == "MATCH"
+        report["unitDiagnostic"] = diagnostic["status"]
+        report["unitMismatchKeys"] = diagnostic["mismatchKeys"]
         if not report["unitAttested"]:
             raise RuntimeError("EFFECTIVE_SANDBOX_UNVERIFIED")
         # One-shot offline Git revision probe. Never enable a permanent
