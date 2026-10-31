@@ -92,6 +92,47 @@ test("occupied llama.cpp slot is not advertised as ready and never receives a pr
   assert.ok(requests.every((request) => request.path !== "/completion"));
 });
 
+test("active local generation never advertises a second ready slot", async (t) => {
+  let signalStarted;
+  let releaseCompletion;
+  const started = new Promise((resolve) => {
+    signalStarted = resolve;
+  });
+  const completionGate = new Promise((resolve) => {
+    releaseCompletion = resolve;
+  });
+  const { port, requests } = await serverFor(t, async (endpoint) => {
+    if (endpoint === "/completion") {
+      signalStarted();
+      await completionGate;
+    }
+    return responder(endpoint);
+  });
+  const client = createLlamaCppLocalModelClient({ port });
+  const first = client.generate({ model: MODEL, prompt: "first request" });
+  try {
+    await started;
+    const during = await client.status();
+    assert.equal(during.available, true);
+    assert.equal(during.activeRequest, true);
+    assert.equal(during.readyForOnDemandUse, false);
+    await assert.rejects(
+      client.generate({ model: MODEL, prompt: "second request" }),
+      /LOCAL_MODEL_BUSY/,
+    );
+  } finally {
+    releaseCompletion();
+  }
+  await first;
+  const after = await client.status();
+  assert.equal(after.activeRequest, false);
+  assert.equal(after.readyForOnDemandUse, true);
+  assert.equal(
+    requests.filter((request) => request.path === "/completion").length,
+    1,
+  );
+});
+
 test("exact approved GGUF basename is recognized from Windows path only", async (t) => {
   const { port } = await serverFor(t, (endpoint) =>
     endpoint === "/v1/models"
