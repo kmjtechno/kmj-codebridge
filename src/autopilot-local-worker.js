@@ -127,7 +127,7 @@ export class LocalAutopilotDraftWorker {
               summary: generated.response,
               next: outcome,
               leaseToken: claimed.leaseToken,
-              modelUsage: localModelReceipt(model, "autopilot_local_worker"),
+              modelUsage: localModelReceipt(model, "autopilot_local_worker", generated.provider),
             });
             wait(outcome);
           } catch {
