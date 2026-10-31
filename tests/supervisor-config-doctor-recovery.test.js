@@ -137,31 +137,101 @@ test("gateway config cannot fall back to privileged agent config", async () => {
   assert.deepEqual(seen, [gateway]);
 });
 
-test("active stage gateway reports unverified config instead of missing canonical config", async () => {
-  const readPaths = [];
+const validGateway = JSON.stringify({
+  users: [
+    {
+      id: "owner",
+      tenant: "t1",
+      tokenHash: "a".repeat(64),
+      permissions: ["read"],
+      devices: {},
+    },
+  ],
+  agents: [{ id: "agent", tenant: "t1", tokenHash: "b".repeat(64) }],
+});
+
+const stageGatewayState = (_bin, args) =>
+  args[1] === "kmj-codebridge-gateway-stage.service"
+    ? "LoadState=loaded\\nActiveState=active\\n"
+    : "LoadState=not-found\\nActiveState=inactive\\n";
+
+test("stage gateway validates ONLY fixed trusted stage file and does not attest live runtime", async () => {
+  const seen = [];
   const handler = createSupervisorHandler({
-    run: (_bin, args) =>
-      args[1] === "kmj-codebridge-gateway-stage.service"
-        ? "LoadState=loaded\nActiveState=active\n"
-        : "LoadState=not-found\nActiveState=inactive\n",
+    run: stageGatewayState,
     readFile: (path) => {
-      readPaths.push(path);
-      const error = new Error("PRIVATE_GATEWAY_CREDENTIAL");
-      error.code = "ENOENT";
-      throw error;
+      seen.push(path);
+      throw new Error("stale canonical gateway must never be read");
+    },
+    readStageGatewayConfig: () => {
+      seen.push("fixed-stage-reader");
+      return validGateway;
     },
   });
   const result = await handler({ op: "config_validate", service: "gateway" });
   assert.deepEqual(result.response, {
     service: "gateway",
-    valid: false,
-    reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
+    valid: true,
+    scope: "FIXED_STAGE_FILE_SCHEMA_ONLY",
+    runtimeConfigAttested: false,
+    signedRuntimeAttested: false,
   });
-  assert.deepEqual(readPaths, [gateway]);
-  assert.doesNotMatch(
-    JSON.stringify(result),
-    /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
+  assert.deepEqual(seen, ["fixed-stage-reader"]);
+  assert.doesNotMatch(JSON.stringify(result), /a{64}|b{64}|\/etc\//);
+});
+
+test("stage missing, malformed, and untrusted configs fail closed without canonical fallback", async () => {
+  const scenarios = [
+    ["missing", "ENOENT", "STAGE_GATEWAY_CONFIG_NOT_VERIFIED"],
+    ["denied", "EACCES", "CONFIG_FILE_UNREADABLE"],
+    ["untrusted", "CONFIG_TRUST_INVALID", "CONFIG_TRUST_INVALID"],
+  ];
+  for (const [, code, expected] of scenarios) {
+    const handler = createSupervisorHandler({
+      run: stageGatewayState,
+      readFile: () => {
+        throw new Error("canonical path must not be read");
+      },
+      readStageGatewayConfig: () => {
+        const error = new Error("PRIVATE_STAGE_SECRET");
+        error.code = code;
+        throw error;
+      },
+    });
+    const result = await handler({ op: "config_validate", service: "gateway" });
+    assert.deepEqual(result.response, {
+      service: "gateway",
+      valid: false,
+      reason: expected,
+    });
+    assert.doesNotMatch(JSON.stringify(result), /PRIVATE_STAGE_SECRET|\/etc\//);
+  }
+  const invalid = createSupervisorHandler({
+    run: stageGatewayState,
+    readStageGatewayConfig: () => "{secret",
+  });
+  assert.deepEqual(
+    (await invalid({ op: "config_validate", service: "gateway" })).response,
+    { service: "gateway", valid: false, reason: "CONFIG_JSON_INVALID" },
   );
+});
+
+test("ambiguous running gateway units never authorize either config read", async () => {
+  let reads = 0;
+  const handler = createSupervisorHandler({
+    run: () => "LoadState=loaded\\nActiveState=active\\n",
+    readFile: () => {
+      reads++;
+      return validGateway;
+    },
+    readStageGatewayConfig: () => {
+      reads++;
+      return validGateway;
+    },
+  });
+  const result = await handler({ op: "config_validate", service: "gateway" });
+  assert.equal(result.response.valid, false);
+  assert.equal(reads, 0);
 });
 
 test("standard gateway with missing config still reports canonical missing file", async () => {
