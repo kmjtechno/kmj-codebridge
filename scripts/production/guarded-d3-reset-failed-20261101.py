@@ -82,7 +82,12 @@ def inspect(runner=subprocess.run):
     if mismatches:
         return "POLICY_DRIFT", mismatches, values
     if values["ActiveState"] == "inactive":
-        return "ALREADY_INACTIVE", [], values
+        # An inactive unit with a retained failed Result/exit code is not a
+        # clean post-reset attestation. Never turn that into RESET_VERIFIED.
+        stale = [key for key, expected in (("Result", "success"),
+                                            ("ExecMainStatus", "0"))
+                 if values[key] != expected]
+        return ("UNEXPECTED_LIFECYCLE", stale, values) if stale else ("ALREADY_INACTIVE", [], values)
     if (values["ActiveState"] == "failed" and
         values["Result"] == "exit-code" and
         values["ExecMainStatus"] == "3"):
