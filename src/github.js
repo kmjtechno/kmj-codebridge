@@ -415,7 +415,10 @@ export function createGitHubBridge(config) {
   const recentWriteFailure = (repository) => {
     const receipt = recentWriteFailures.get(repository);
     return receipt && Date.now() - receipt.observedAtMs <= WRITE_FAILURE_TTL_MS
-      ? { httpStatus: receipt.httpStatus, classification: receipt.classification }
+      ? {
+          httpStatus: receipt.httpStatus,
+          classification: receipt.classification,
+        }
       : null;
   };
   const markPublicQuotaBlocked = (headers) => {
@@ -491,7 +494,12 @@ export function createGitHubBridge(config) {
         return cached.value;
       }
       if (!response.ok) {
-        recordWriteFailure(method, repository, response.status, response.headers);
+        recordWriteFailure(
+          method,
+          repository,
+          response.status,
+          response.headers,
+        );
         if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
         if (response.status === 403) {
           // GitHub uses HTTP 403 both for authorization denials and quota
