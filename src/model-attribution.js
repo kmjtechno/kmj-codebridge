@@ -3,6 +3,7 @@
 // No prompts, responses, secrets, URLs, account IDs or lease tokens enter receipts.
 const MODEL_ID = /^[A-Za-z0-9._:/-]{1,96}$/;
 const LOCAL_PROVIDERS = new Set(["local-ollama", "local-llamacpp"]);
+const PINNED_P520_LLAMA_MODEL = "Qwen3.5-9B-Q4_K_M.gguf";
 const OPERATIONS = new Set([
   "local_model_generate",
   "autopilot_local_draft",
@@ -19,7 +20,8 @@ export function localModelReceipt(
     typeof model !== "string" ||
     !MODEL_ID.test(model) ||
     !OPERATIONS.has(operation) ||
-    !LOCAL_PROVIDERS.has(provider)
+    !LOCAL_PROVIDERS.has(provider) ||
+    (provider === "local-llamacpp" && model !== PINNED_P520_LLAMA_MODEL)
   )
     throw new TypeError("INVALID_MODEL_ATTRIBUTION");
   return {
