@@ -72,6 +72,19 @@ class Contract(unittest.TestCase):
         with patch.object(m.sys,'argv',['probe']), patch.object(m.os,'geteuid',return_value=0),patch.object(m.socket,'gethostname',return_value='other'):
             self.assertEqual(m.main(),2)
 
+    def test_git_probe_forbids_lazy_fetch_and_user_config(self):
+        with patch.object(m.subprocess, 'run', return_value=Result()) as execute:
+            m.fixed_run(['/usr/bin/git', '--version'])
+        kw = execute.call_args.kwargs
+        self.assertFalse(kw['check'])
+        self.assertEqual(kw['env']['GIT_NO_LAZY_FETCH'], '1')
+        self.assertEqual(kw['env']['GIT_NO_REPLACE_OBJECTS'], '1')
+        self.assertEqual(kw['env']['GIT_CONFIG_GLOBAL'], '/dev/null')
+        self.assertEqual(kw['env']['GIT_CONFIG_NOSYSTEM'], '1')
+        self.assertEqual(kw['env']['GIT_TERMINAL_PROMPT'], '0')
+        self.assertEqual(kw['env']['GIT_OPTIONAL_LOCKS'], '0')
+        self.assertEqual(kw['stdin'], m.subprocess.DEVNULL)
+
     def test_diagnostic_never_runs_mutating_command(self):
         calls=[]
         def run(args):
