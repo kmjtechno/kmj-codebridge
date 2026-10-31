@@ -14,12 +14,14 @@ const trustedDir = () => ({
   isDirectory: () => true,
   isSymbolicLink: () => false,
   uid: 0,
+  gid: 900,
   mode: 0o40750,
 });
 const trustedFile = () => ({
   isFile: () => true,
   isSymbolicLink: () => false,
   uid: 0,
+  gid: 900,
   nlink: 1,
   mode: 0o100640,
   size: Buffer.byteLength(secret),
@@ -81,12 +83,18 @@ test(
 test("stage config rejects untrusted directory, symlink, hardlink and writable files before open", () => {
   const cases = [
     { directory: { ...trustedDir(), mode: 0o40777 } },
+    { directory: { ...trustedDir(), mode: 0o40755 } },
+    { directory: { ...trustedDir(), gid: undefined } },
     { directory: { ...trustedDir(), uid: 1000 } },
     { directory: { ...trustedDir(), isSymbolicLink: () => true } },
     { before: { ...trustedFile(), isSymbolicLink: () => true } },
     { before: { ...trustedFile(), nlink: 2 } },
     { before: { ...trustedFile(), uid: 1000 } },
     { before: { ...trustedFile(), mode: 0o100666 } },
+    { before: { ...trustedFile(), mode: 0o100644 } },
+    { before: { ...trustedFile(), mode: 0o100740 } },
+    { before: { ...trustedFile(), gid: 901 } },
+    { before: { ...trustedFile(), gid: undefined } },
     { before: { ...trustedFile(), size: 1024 * 1024 + 1 } },
   ];
   for (const scenario of cases) {
