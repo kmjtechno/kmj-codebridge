@@ -421,3 +421,101 @@ test("ambient Node environment is rejected (NODE_OPTIONS/NODE_PATH, preload flag
     "AMBIENT_NODE_MODULES",
   );
 });
+
+test("cli build: --out reached through a symlink/junction parent into the runtime is refused", async (t) => {
+  const { spawnSync } = await import("node:child_process");
+  const { existsSync, readdirSync } = await import("node:fs");
+  const cli = join(
+    import.meta.dirname,
+    "../scripts/windows/runtime-closure-cli.mjs",
+  );
+  const cleanEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith("NODE_")),
+  );
+  const run = (...a) =>
+    spawnSync(process.execPath, [cli, ...a], {
+      encoding: "utf8",
+      env: cleanEnv,
+    });
+  const f = fixture();
+  const outDir = mkdtempSync(join(tmpdir(), "kmj-cli-out2-"));
+  const base = [
+    "build",
+    "--root",
+    f.root,
+    "--tenant",
+    "tenant_1",
+    "--device",
+    "d-d-d",
+    "--project",
+    "p-p-p",
+    "--node-exe",
+    process.execPath,
+  ];
+  dirLink(join(f.root, "src"), join(outDir, "alias")); // junction on Windows, symlink on POSIX
+  const before = readdirSync(join(f.root, "src")).sort();
+  const r = run(...base, "--out", join(outDir, "alias", "m.json"));
+  assert.match(r.stdout, /CLI_OUT_LINKED/);
+  assert.deepEqual(readdirSync(join(f.root, "src")).sort(), before); // nothing created inside the runtime
+  // direct lexical alias of a covered root and a missing parent are refused as well
+  assert.match(
+    run(...base, "--out", join(f.root, "src", "m.json")).stdout,
+    /CLI_OUT_INSIDE_RUNTIME/,
+  );
+  assert.match(
+    run(...base, "--out", join(outDir, "nope", "m.json")).stdout,
+    /CLI_OUT_PARENT_MISSING/,
+  );
+  assert.equal(existsSync(join(outDir, "nope")), false);
+});
+
+test("cli verify: a linked node binary is refused (omit/wrong/mismatch covered above)", async (t) => {
+  const { spawnSync } = await import("node:child_process");
+  const cli = join(
+    import.meta.dirname,
+    "../scripts/windows/runtime-closure-cli.mjs",
+  );
+  const cleanEnv = Object.fromEntries(
+    Object.entries(process.env).filter(([k]) => !k.startsWith("NODE_")),
+  );
+  const run = (...a) =>
+    spawnSync(process.execPath, [cli, ...a], {
+      encoding: "utf8",
+      env: cleanEnv,
+    });
+  const f = fixture();
+  const dir = mkdtempSync(join(tmpdir(), "kmj-cli-n-"));
+  const mf = join(dir, "m.json");
+  const b = run(
+    "build",
+    "--root",
+    f.root,
+    "--tenant",
+    "tenant_1",
+    "--device",
+    "d-d-d",
+    "--project",
+    "p-p-p",
+    "--node-exe",
+    process.execPath,
+    "--out",
+    mf,
+  );
+  const pin = /MANIFEST_SHA256=([0-9a-f]{64})/.exec(b.stdout)[1];
+  const link = join(dir, "node-link");
+  if (!fileLinkOrSkip(t, process.execPath, link)) return;
+  assert.match(
+    run(
+      "verify",
+      "--root",
+      f.root,
+      "--manifest",
+      mf,
+      "--pin",
+      pin,
+      "--node-exe",
+      link,
+    ).stdout,
+    /NODE_EXE_LINKED/,
+  );
+});
