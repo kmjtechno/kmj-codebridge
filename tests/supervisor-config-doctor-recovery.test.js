@@ -170,7 +170,7 @@ test("active stage gateway refuses a missing protected stage config", async () =
     reason: "STAGE_GATEWAY_CONFIG_NOT_VERIFIED",
   });
   assert.deepEqual(reads, ["fixed-stage-reader"]);
-  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_GATEWAY_CREDENTIAL|\\/etc\\//);
+  assert.doesNotMatch(JSON.stringify(result), /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//);
 });
 
 test("active stage gateway validates only protected config, not runtime identity", async () => {
@@ -196,7 +196,7 @@ test("active stage gateway validates only protected config, not runtime identity
     signedRuntimeAttested: false,
   });
   assert.deepEqual(reads, ["fixed-stage-reader"]);
-  assert.doesNotMatch(JSON.stringify(result), /jwks|token|\\/etc\\//i);
+  assert.doesNotMatch(JSON.stringify(result), /jwks|token|\/etc\//i);
 });
 
 test("stage syntax, schema, trust and permission errors fail without fallback", async () => {
@@ -235,7 +235,7 @@ test("stage syntax, schema, trust and permission errors fail without fallback", 
     assert.deepEqual(reads, ["fixed-stage-reader"]);
     assert.doesNotMatch(
       JSON.stringify(result),
-      /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\\/etc\\//,
+      /PRIVATE_JWKS_SECRET|SECRET_STAGE_PATH|\/etc\//,
     );
   }
 });
@@ -246,8 +246,8 @@ test("ambiguous or missing gateway unit never reads either credential path", asy
     const handler = createSupervisorHandler({
       run: () =>
         loaded === 0
-          ? "LoadState=not-found\\nActiveState=inactive\\n"
-          : "LoadState=loaded\\nActiveState=active\\n",
+          ? "LoadState=not-found\nActiveState=inactive\n"
+          : "LoadState=loaded\nActiveState=active\n",
       readFile: () => {
         reads.push("standard");
         throw new Error("must never read unselected config");
