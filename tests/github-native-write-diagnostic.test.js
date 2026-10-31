@@ -119,7 +119,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   unconfirmedSuccessBody = true;
   // A syntactically valid 201 with no GitHub mutation identity is not proof
   // that the native gateway credential can write.
-  await write();
+  await assert.rejects(write(), /GITHUB_WRITE_RECEIPT_UNVERIFIED/);
   assert.deepEqual((await doctor()).lastWriteFailure, {
     httpStatus: 429,
     classification: "rate_limited",
@@ -161,4 +161,50 @@ test("public-read-only doctor never treats repository push metadata as native wr
   assert.equal(receipt.repositoryPushHint, "public_read_only");
   assert.equal(receipt.writeVerified, false);
   assert.equal(receipt.lastWriteFailure, null);
+});
+
+
+test("unconfirmed HTTP 201 never succeeds or evicts an independently cached read", async (t) => {
+  const env = "CODEBRIDGE_NATIVE_UNCONFIRMED_WRITE_TEST_TOKEN";
+  process.env[env] = "s".repeat(40);
+  t.after(() => delete process.env[env]);
+  let getCalls = 0;
+  let writePayload = { message: "NOT_A_MUTATION_RECEIPT" };
+  t.mock.method(globalThis, "fetch", async (_url, options) => {
+    if (options.method === "GET") {
+      getCalls++;
+      return Response.json({
+        full_name: repository,
+        default_branch: "main",
+        private: true,
+        archived: false,
+        visibility: "private",
+      });
+    }
+    return Response.json(writePayload, { status: 201 });
+  });
+  const dispatch = createGitHubBridge({
+    apiBase: "https://api.github.com/",
+    tokenEnv: env,
+    repositories: [repository],
+    cacheSeconds: 60,
+  });
+  const read = () => dispatch("github_repository", { repository });
+  const write = () =>
+    dispatch("github_comment_issue", {
+      repository,
+      number: 723,
+      body: "receipt check",
+    });
+  await read();
+  for (const payload of [
+    { message: "NOT_A_MUTATION_RECEIPT" },
+    { id: "123" },
+    { id: 0 },
+  ]) {
+    writePayload = payload;
+    await assert.rejects(write(), /GITHUB_WRITE_RECEIPT_UNVERIFIED/);
+    await read();
+    assert.equal(getCalls, 1, "unconfirmed writes must not evict read cache");
+  }
 });
