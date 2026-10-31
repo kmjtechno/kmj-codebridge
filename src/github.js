@@ -434,17 +434,22 @@ export function createGitHubBridge(config) {
     if (method === "PUT" && suffix.startsWith("contents/"))
       return sha(value.commit?.sha) && sha(value.content?.sha);
     if (method === "POST" && suffix === "git/refs")
-      return typeof value.ref === "string" &&
-        value.ref.startsWith("refs/heads/") && sha(value.object?.sha);
-    if (method === "POST" && suffix === "issues")
-      return id(value.number);
+      return (
+        typeof value.ref === "string" &&
+        value.ref.startsWith("refs/heads/") &&
+        sha(value.object?.sha)
+      );
+    if (method === "POST" && suffix === "issues") return id(value.number);
     if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
       return id(value.id);
     if (method === "POST" && suffix === "pulls")
       return id(value.number) && sha(value.head?.sha);
     if (method === "POST" && /^pulls\/\d+\/reviews$/.test(suffix))
       return id(value.id);
-    if (method === "POST" && /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix))
+    if (
+      method === "POST" &&
+      /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix)
+    )
       return id(value.id);
     if (method === "PATCH" && /^pulls\/\d+$/.test(suffix))
       return id(value.number) && typeof value.state === "string";
