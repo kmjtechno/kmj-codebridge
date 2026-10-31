@@ -131,8 +131,12 @@ def probe_pack_access(run=fixed_run, lstat=os.lstat, scandir=os.scandir):
                 return "UNTRUSTED_PATH"
         files = []
         with scandir(PACK_DIR) as entries:
+            # Bound *all* directory entries, not just recognized pack names.
+            # Otherwise arbitrary ignored names permit an unbounded root scan.
+            entry_count = 0
             for entry in entries:
-                if len(files) >= 128:
+                entry_count += 1
+                if entry_count > 128:
                     return "TOO_MANY_ENTRIES"
                 if not PACK_NAME.fullmatch(entry.name):
                     continue

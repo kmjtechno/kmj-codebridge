@@ -124,6 +124,13 @@ class Contract(unittest.TestCase):
             lambda _: self.fail('must not execute'), lstat,
             lambda _: contextlib.nullcontext([SimpleNamespace(name=name)] * 129)),
             'TOO_MANY_ENTRIES')
+        # Unknown names must count too: the original len(files) check allowed
+        # arbitrarily large directories to be scanned without a bound.
+        self.assertEqual(m.probe_pack_access(
+            lambda _: self.fail('must not execute'), lstat,
+            lambda _: contextlib.nullcontext(
+                [SimpleNamespace(name='ignored-%03d' % i) for i in range(129)])),
+            'TOO_MANY_ENTRIES')
 
     def test_wrong_user_host_or_arbitrary_arguments_rejected(self):
         with patch.object(m.sys,'argv',['probe','--any']):
