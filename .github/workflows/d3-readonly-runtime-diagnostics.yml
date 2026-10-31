@@ -1,0 +1,34 @@
+name: D3 nonroot worker systemd and Git read-only diagnosis
+
+on:
+  pull_request:
+    paths:
+      - "scripts/production/diagnose-development-runtime-readonly-20261031.py"
+      - "tests/test_diagnose_development_runtime_readonly_20261031.py"
+      - ".github/workflows/d3-readonly-runtime-diagnostics.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/production/diagnose-development-runtime-readonly-20261031.py"
+      - "tests/test_diagnose_development_runtime_readonly_20261031.py"
+      - ".github/workflows/d3-readonly-runtime-diagnostics.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  no-mutation-operator-diagnostic:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Verify fixed read-only systemd and Git diagnostics
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -B -m unittest discover -s tests -p 'test_diagnose_development_runtime_readonly_20261031.py' -v
+          echo 'D3_READONLY_NEGATIVE_CONTRACT=PASS'
+          echo 'HOST_MUTATIONS=NONE'
