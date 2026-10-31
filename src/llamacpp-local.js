@@ -107,7 +107,7 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
       }),
     ]);
     return (
-      ["ok", "no slot available"].includes(health?.status) &&
+      health?.status === "ok" &&
       Array.isArray(models?.data) &&
       models.data.length === 1 &&
       modelMatches(models.data[0]?.id)
