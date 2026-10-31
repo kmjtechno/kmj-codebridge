@@ -4,6 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import { spawn, execFileSync } from "node:child_process";
 import { agentSchema, gatewaySchema } from "./config.js";
+import { readTrustedStageGatewayConfig } from "./stage-gateway-config.js";
 import { fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
 import {
@@ -1470,6 +1471,7 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
 export function classifySupervisorConfigError(error) {
   // Emit only fixed codes. Never return file paths, parser messages,
   // validation paths, expected values or any secret from config data.
+  if (error?.code === "CONFIG_TRUST_INVALID") return "CONFIG_TRUST_INVALID";
   if (error?.code === "ENOENT") return "CONFIG_FILE_MISSING";
   if (error?.code === "EACCES" || error?.code === "EPERM")
     return "CONFIG_FILE_UNREADABLE";
@@ -1483,6 +1485,7 @@ export function createSupervisorHandler({
   start = defaultStart,
   restart = defaultRestart,
   readFile = (file) => fs.readFileSync(file, "utf8"),
+  readStageGatewayConfig = readTrustedStageGatewayConfig,
   readLog = readBoundedPrivateCiLog,
   readdir = (directory) => fs.readdirSync(directory),
   readlink = (file) => fs.readlinkSync(file),
@@ -1707,39 +1710,41 @@ export function createSupervisorHandler({
     if (request.op === "config_validate") {
       exactKeys(request, ["op", "service"]);
       if (!CONFIGS[request.service]) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+      let stageSelected = false;
       try {
-        // Validate the config of the actual running agent unit, not an
-        // unrelated generic file left behind after Main Platform cutover.
-        // serviceUnit fails closed for missing/ambiguous service states.
+        // Resolve the exact sole active unit BEFORE selecting any config.
+        // A stale standard gateway.json cannot attest a stage gateway.
+        const selectedUnit = serviceUnit(request.service, run, profile);
+        stageSelected =
+          request.service === "gateway" &&
+          selectedUnit === "kmj-codebridge-gateway-stage.service";
         const configPath =
           request.service === "agent" &&
-          serviceUnit("agent", run, profile) === MAIN_PLATFORM_AGENT_SERVICE
+          selectedUnit === MAIN_PLATFORM_AGENT_SERVICE
             ? MAIN_PLATFORM_AGENT_CONFIG
             : profile === CLOUDOS_SUPERVISOR_PROFILE
               ? CLOUDOS_AGENT_CONFIG
               : CONFIGS[request.service];
-        const raw = JSON.parse(readFile(configPath));
+        const raw = JSON.parse(
+          stageSelected ? readStageGatewayConfig() : readFile(configPath),
+        );
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
-        return { response: { service: request.service, valid: true } };
+        return {
+          response: stageSelected
+            ? {
+                service: request.service,
+                valid: true,
+                scope: "FIXED_STAGE_FILE_SCHEMA_ONLY",
+                runtimeConfigAttested: false,
+                signedRuntimeAttested: false,
+              }
+            : { service: request.service, valid: true },
+        };
       } catch (error) {
         let reason = classifySupervisorConfigError(error);
-        // The sole running KMJ-elite gateway may be the separately enrolled
-        // stage unit, whose private config was inherited during cutover.
-        // Do not mislabel that distinct runtime config as missing or read a
-        // caller-/process-selected path. This is NOT a validation PASS.
-        if (request.service === "gateway" && reason === "CONFIG_FILE_MISSING") {
-          try {
-            if (
-              serviceUnit("gateway", run, profile) ===
-              "kmj-codebridge-gateway-stage.service"
-            ) {
-              reason = "STAGE_GATEWAY_CONFIG_NOT_VERIFIED";
-            }
-          } catch {
-            // Missing/ambiguous service information cannot authorize a
-            // different config read; preserve the canonical error instead.
-          }
+        if (stageSelected && reason === "CONFIG_FILE_MISSING") {
+          reason = "STAGE_GATEWAY_CONFIG_NOT_VERIFIED";
         }
         return {
           response: {
