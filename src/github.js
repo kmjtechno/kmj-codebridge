@@ -579,12 +579,15 @@ export function createGitHubBridge(config) {
             etag: safeEtag(response.headers.get("etag")),
           });
       } else if (method !== "GET") {
-        // Parsed JSON alone is insufficient: a 2xx with no confirmed
-        // mutation identity (or merged:false) must retain the denial.
-        if (confirmedWriteReceipt(method, suffix, value))
-          recentWriteFailures.delete(repository);
+        // HTTP 2xx is not proof of a native mutation. A malformed or
+        // unrecognized receipt must never be returned as a successful write
+        // or invalidate cached reads. The remote side may have acted, so a
+        // caller must independently reconcile before retrying a mutation.
+        if (!confirmedWriteReceipt(method, suffix, value))
+          fail("GITHUB_WRITE_RECEIPT_UNVERIFIED");
+        recentWriteFailures.delete(repository);
         // A live uncached GET must not evict independent cache keys.
-        // Only successful mutations invalidate previously cached reads.
+        // Only confirmed mutations invalidate previously cached reads.
         cacheEpoch++;
         clearCache();
       }
