@@ -93,24 +93,32 @@ for path in "$TEST" "$VM_DIR"; do
  fi
 done
 echo ORIGINAL_PATH_TRAVERSE_END
-# No read, write, ownership or execute permission on the files themselves changes.
-chmod 0711 -- "$TEST" "$VM_DIR"
-for path in "$TEST" "$VM_DIR"; do
- test "$(stat -c '%a' "$path")" = 711
- runuser -u libvirt-qemu -- test -x "$path"
-done
-echo ONLY_TEST_DIRECTORY_TRAVERSE_REPAIRED=PASS
+# Retain root-owned test parent; permit traversal only (no listing or writes).
+# Keep libvirt test storage private to the QEMU service group; the provider
+# prohibits group-writable storage directories and requires root ownership.
+chmod 0711 -- "$TEST"
+chgrp 993 -- "$VM_DIR"
+chmod 2750 -- "$VM_DIR"
+test "$(stat -c '%u:%g:%a' "$TEST")" = 0:0:711
+test "$(stat -c '%u:%g:%a' "$VM_DIR")" = 0:993:2750
+runuser -u libvirt-qemu -- test -x "$TEST"
+runuser -u libvirt-qemu -- test -x "$VM_DIR"
+echo TEST_ONLY_QEMU_TRAVERSE_AND_GROUP=PASS
 test ! -e "$TEST/evidence/permission-fix-v2" || { echo BLOCKED=RETRY_EVIDENCE_EXISTS;exit 4; }
 install -d -m 0700 "$TEST/evidence/permission-fix-v2"
 echo ACTION=RUN_EXACT_PRIVATE_CLOUDOS_PROVIDER_SMOKE_V2
 set +e
-PYTHONPATH="$SRC" timeout --signal=TERM --kill-after=30s 570s \
- python3 -u "$SRC/scripts/ci_libvirt_provider_smoke.py" \
- --base "$BASE" \
- --storage-dir "$VM_DIR" \
- --output "$NEW_REPORT" \
- --request-key n2-provider-20261031-permissionfix-v2 \
- --require-guest-agent --guest-agent-timeout-seconds 240
+# sgid test storage + test-only group-readable/writable overlay; no world-read
+# of guest disk. QEMU service group gets disk access, directory remains nonwritable.
+( umask 0007
+  PYTHONPATH="$SRC" timeout --signal=TERM --kill-after=30s 570s \
+  python3 -u "$SRC/scripts/ci_libvirt_provider_smoke.py" \
+  --base "$BASE" \
+  --storage-dir "$VM_DIR" \
+  --output "$NEW_REPORT" \
+  --request-key n2-provider-20261031-permissionfix-v2 \
+  --require-guest-agent --guest-agent-timeout-seconds 240
+)
 RC="$?"
 set -e
 echo "PROVIDER_SMOKE_EXIT_CODE=$RC"
