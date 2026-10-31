@@ -8,6 +8,7 @@ The live CodeBridge Supervisor still independently controls any privileged start
 from __future__ import annotations
 import os
 import re
+import stat
 import socket
 import subprocess
 import sys
@@ -111,15 +112,62 @@ def probe_git(run=fixed_run):
     return {"HEAD": "PASS", "OBJECT": classify_error(obj), "MAIN_REF": classify_error(ref)}
 
 
+PACK_DIR = PROJECT + "/.git/objects/pack"
+PACK_NAME = re.compile(r"pack-[a-f0-9]{40,64}\\.(?:pack|idx|rev|bitmap|promisor|mtimes|keep)\\Z")
+
+
+def probe_pack_access(run=fixed_run, lstat=os.lstat, scandir=os.scandir):
+    """Advisory, bounded, read-only kmjdevci access to fixed Git pack files.
+
+    Never emits filenames, Git objects, path contents or credentials.
+    This is NOT a permission repair or evidence of an AI worker starting.
+    """
+    directories = ("/srv", "/srv/kmj-codebridge-projects", PROJECT,
+                   PROJECT + "/.git", PROJECT + "/.git/objects", PACK_DIR)
+    try:
+        for path in directories:
+            info = lstat(path)
+            if not stat.S_ISDIR(info.st_mode):
+                return "UNTRUSTED_PATH"
+        files = []
+        with scandir(PACK_DIR) as entries:
+            for entry in entries:
+                if len(files) >= 128:
+                    return "TOO_MANY_ENTRIES"
+                if not PACK_NAME.fullmatch(entry.name):
+                    continue
+                path = PACK_DIR + "/" + entry.name
+                info = lstat(path)
+                if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                    return "UNTRUSTED_ENTRY"
+                files.append(path)
+    except FileNotFoundError:
+        return "MISSING"
+    except (OSError, ValueError, TypeError):
+        return "UNAVAILABLE"
+    if not files:
+        return "NO_PACK_FILES"
+    for path in files:
+        result = run(["/usr/sbin/runuser", "-u", ACCOUNT, "--",
+                      "/usr/bin/test", "-r", path])
+        if result is None:
+            return "UNAVAILABLE"
+        if result.returncode != 0:
+            return "SOME_UNREADABLE"
+    return "PASS"
+
+
 def inspect(run=fixed_run):
     policy, keys = probe_systemd(run)
     git = probe_git(run)
+    pack_access = probe_pack_access(run)
     return {
         "D3_DIAGNOSTIC_SCHEMA": "kmj.d3.readonly.v1",
         "SYSTEMD_STATUS": policy,
         "SYSTEMD_MISMATCH_KEYS": ",".join(keys) if keys else "NONE",
         "GIT_HEAD": git["HEAD"], "GIT_OBJECT": git["OBJECT"],
         "GIT_MAIN_REF": git["MAIN_REF"],
+        "GIT_PACK_ACCESS": pack_access,
         "ROOT_OR_REPO_MUTATED": "NO", "WORKER_STARTED": "NO",
         "PRODUCTION_DEPLOYED": "NO",
     }
@@ -133,7 +181,7 @@ def main():
     for key, value in data.items():
         print(key + "=" + value)
     print("D3_DIAGNOSTIC=READ_ONLY_COMPLETE")
-    return 0 if data["SYSTEMD_STATUS"] == "MATCH" and all(data[k] == "PASS" for k in ("GIT_HEAD", "GIT_OBJECT", "GIT_MAIN_REF")) else 3
+    return 0 if data["SYSTEMD_STATUS"] == "MATCH" and all(data[k] == "PASS" for k in ("GIT_HEAD", "GIT_OBJECT", "GIT_MAIN_REF")) and data["GIT_PACK_ACCESS"] in ("PASS", "NO_PACK_FILES") else 3
 
 
 if __name__ == "__main__":
