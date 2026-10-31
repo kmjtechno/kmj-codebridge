@@ -86,6 +86,25 @@ test("VPS smoke requires a full deployed commit and optional exact release parit
   );
   assert.throws(
     () => assertVpsDeployedCommit(live, earlier),
-    /VPS_COMMIT_MISMATCH/,
+    (error) => {
+      assert.equal(error.message, "VPS_COMMIT_MISMATCH");
+      assert.equal(error.expectedCommit, earlier);
+      assert.equal(error.observedCommit, live);
+      return true;
+    },
   );
+  assert.throws(
+    () => assertVpsDeployedCommit(live, "untrusted-env-value"),
+    (error) => {
+      assert.equal(error.message, "VPS_COMMIT_MISMATCH");
+      assert.equal(Object.hasOwn(error, "expectedCommit"), false);
+      assert.equal(Object.hasOwn(error, "observedCommit"), false);
+      return true;
+    },
+  );
+  const smokeSource = read("scripts/verify-vps-catalog.mjs");
+  assert.match(smokeSource, /KMJ_VPS_MCP_COMMIT_EXPECTED=/);
+  assert.match(smokeSource, /KMJ_VPS_MCP_COMMIT_OBSERVED=/);
+  assert.match(smokeSource, /FULL_SHA\.test\(error\?\.expectedCommit\)/);
+  assert.match(smokeSource, /FULL_SHA\.test\(error\?\.observedCommit\)/);
 });
