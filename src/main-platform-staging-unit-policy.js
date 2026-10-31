@@ -28,17 +28,28 @@ const KEYS = [
   "zeroAdditionalCostVerified",
 ];
 
-function properties(text) {
-  return Object.fromEntries(
-    String(text)
-      .trim()
-      .split("\n")
-      .filter((line) => line.includes("="))
-      .map((line) => [
-        line.slice(0, line.indexOf("=")),
-        line.slice(line.indexOf("=") + 1),
-      ]),
-  );
+// systemctl is an attestation input, not a best-effort status parser.
+// Duplicate, missing, extra or malformed properties must never turn an
+// ambiguous response into permission to start the privileged staging unit.
+function properties(text, expectedKeys) {
+  if (
+    typeof text !== "string" ||
+    text.length > 4096 ||
+    !text.endsWith("\n") ||
+    /[\r\0]/.test(text)
+  )
+    return {};
+  const lines = text.slice(0, -1).split("\n");
+  if (lines.length !== expectedKeys.length) return {};
+  const parsed = Object.create(null);
+  for (const line of lines) {
+    const separator = line.indexOf("=");
+    if (separator < 1) return {};
+    const key = line.slice(0, separator);
+    if (!expectedKeys.includes(key) || Object.hasOwn(parsed, key)) return {};
+    parsed[key] = line.slice(separator + 1);
+  }
+  return parsed;
 }
 
 // A root-owned file is replaceable when an ancestor is writable or symlinked.
@@ -107,6 +118,7 @@ function serviceProperties(name, fields, run) {
         ...fields.map((key) => "--property=" + key),
         "--no-pager",
       ]),
+      ["LoadState", ...fields],
     );
   } catch {
     return {};
