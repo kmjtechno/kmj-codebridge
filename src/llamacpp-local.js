@@ -17,13 +17,14 @@ export function useP520LlamaCpp({ enabled, platform, hostname, deviceId }) {
 
 // The port is injectable for bounded localhost-only mock tests, never through
 // an MCP request. Production always uses the fixed owner-installed port 20145.
-function request({ port, endpoint, body, timeoutMs, maxBytes }) {
+function request({ port, endpoint, body, timeoutMs, maxBytes, agent }) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request(
       {
         hostname: "127.0.0.1",
         port,
+        agent,
         path: endpoint,
         method: payload === undefined ? "GET" : "POST",
         timeout: timeoutMs,
@@ -69,6 +70,24 @@ function request({ port, endpoint, body, timeoutMs, maxBytes }) {
   });
 }
 
+// For a private prompt, all preflight requests and the POST must share one
+// TCP connection. If the server closes it, NEVER reconnect to a potentially
+// different listener that has rebound the same loopback port.
+function createSingleSocketAgent() {
+  const agent = new http.Agent({ keepAlive: true, maxSockets: 1, maxFreeSockets: 1 });
+  const connect = agent.createConnection.bind(agent);
+  let connectionCreated = false;
+  agent.createConnection = (options, callback) => {
+    if (connectionCreated) {
+      queueMicrotask(() => callback(new Error("LOCAL_MODEL_CONNECTION_CHANGED")));
+      return undefined;
+    }
+    connectionCreated = true;
+    return connect(options, callback);
+  };
+  return agent;
+}
+
 function modelMatches(value) {
   if (typeof value !== "string" || value.length > 1024) return false;
   return value.split(/[\\/]/).at(-1) === MODEL;
@@ -91,21 +110,25 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
     fail("LOCAL_MODEL_INVALID_PORT");
   let busy = false;
 
-  async function available() {
-    const [health, models] = await Promise.all([
-      request({
-        port,
-        endpoint: "/health",
-        timeoutMs: 1800,
-        maxBytes: 4096,
-      }),
-      request({
-        port,
-        endpoint: "/v1/models",
-        timeoutMs: 1800,
-        maxBytes: 65536,
-      }),
-    ]);
+  async function available(agent) {
+    const healthRequest = () => request({
+      port,
+      agent,
+      endpoint: "/health",
+      timeoutMs: 1800,
+      maxBytes: 4096,
+    });
+    const modelsRequest = () => request({
+      port,
+      agent,
+      endpoint: "/v1/models",
+      timeoutMs: 1800,
+      maxBytes: 65536,
+    });
+    // Sequential preflight is essential when generation pins one connection.
+    const [health, models] = agent
+      ? [await healthRequest(), await modelsRequest()]
+      : await Promise.all([healthRequest(), modelsRequest()]);
     return (
       health?.status === "ok" &&
       Array.isArray(models?.data) &&
@@ -151,10 +174,11 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
         fail("LOCAL_MODEL_REQUEST_INVALID");
       if (busy) fail("LOCAL_MODEL_BUSY");
       busy = true;
+      const pinnedAgent = createSingleSocketAgent();
       try {
         let valid = false;
         try {
-          valid = await available();
+          valid = await available(pinnedAgent);
         } catch {
           fail("LOCAL_MODEL_NOT_RUNNING");
         }
@@ -165,6 +189,7 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
           value = await request({
             port,
             endpoint: "/completion",
+            agent: pinnedAgent,
             body: {
               prompt,
               n_predict: maxTokens,
@@ -222,6 +247,7 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
           },
         };
       } finally {
+        pinnedAgent.destroy();
         busy = false;
       }
     },
