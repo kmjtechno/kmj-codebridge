@@ -152,8 +152,8 @@ const validGateway = JSON.stringify({
 
 const stageGatewayState = (_bin, args) =>
   args[1] === "kmj-codebridge-gateway-stage.service"
-    ? "LoadState=loaded\\nActiveState=active\\n"
-    : "LoadState=not-found\\nActiveState=inactive\\n";
+    ? "LoadState=loaded\nActiveState=active\n"
+    : "LoadState=not-found\nActiveState=inactive\n";
 
 test("stage gateway validates ONLY fixed trusted stage file and does not attest live runtime", async () => {
   const seen = [];
@@ -219,7 +219,7 @@ test("stage missing, malformed, and untrusted configs fail closed without canoni
 test("ambiguous running gateway units never authorize either config read", async () => {
   let reads = 0;
   const handler = createSupervisorHandler({
-    run: () => "LoadState=loaded\\nActiveState=active\\n",
+    run: () => "LoadState=loaded\nActiveState=active\n",
     readFile: () => {
       reads++;
       return validGateway;
