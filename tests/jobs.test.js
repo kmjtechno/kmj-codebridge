@@ -282,12 +282,12 @@ test("approved Composer CI gets a private home without inherited environment", a
   const script = [
     'const fs=require("node:fs");',
     'const path=require("node:path");',
-    'const home=process.env.HOME;',
-    'const ok=Boolean(home) && home===process.env.COMPOSER_HOME &&',
-    'fs.statSync(home).isDirectory() && home!==process.cwd() &&',
-    'path.isAbsolute(home);',
+    "const home=process.env.HOME;",
+    "const ok=Boolean(home) && home===process.env.COMPOSER_HOME &&",
+    "fs.statSync(home).isDirectory() && home!==process.cwd() &&",
+    "path.isAbsolute(home);",
     'console.log(ok ? "PRIVATE_COMPOSER_HOME_PASS" : "PRIVATE_COMPOSER_HOME_FAIL");',
-    'if (!ok) process.exitCode=1;',
+    "if (!ok) process.exitCode=1;",
   ].join("");
   const job = runner.run({
     ...opts(root, "composer-private", script),
@@ -304,7 +304,9 @@ test("Composer job rejects a symlinked private-home parent without execution", a
     return;
   }
   const { root, runner } = fixture(t);
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "cb-composer-outside-"));
+  const outside = fs.mkdtempSync(
+    path.join(os.tmpdir(), "cb-composer-outside-"),
+  );
   t.after(() => fs.rmSync(outside, { recursive: true, force: true }));
   fs.symlinkSync(outside, path.join(root, "composer-homes"));
   const job = runner.run({
