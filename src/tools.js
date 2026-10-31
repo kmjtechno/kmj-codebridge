@@ -2461,7 +2461,7 @@ export function createDispatcher(
         maxTokens: a.maxTokens,
         timeoutSeconds: a.timeoutSeconds,
       });
-      const usage = localModelReceipt(a.model, "local_model_generate");
+      const usage = localModelReceipt(a.model, "local_model_generate", response.provider);
       rememberModel(p.id, usage);
       return {
         device: config.id,
@@ -3337,7 +3337,7 @@ export function createDispatcher(
       });
       const proposal = redact(generated.response ?? "").slice(0, 4096);
       if (!proposal.trim()) fail("AUTOPILOT_LOCAL_DRAFT_EMPTY");
-      const usage = localModelReceipt(a.model, "autopilot_local_draft");
+      const usage = localModelReceipt(a.model, "autopilot_local_draft", generated.provider);
       const saved = autopilot.checkpoint(a.task, p.id, {
         summary: proposal,
         next: "LOCAL_DRAFT_AWAITING_REVIEW",
