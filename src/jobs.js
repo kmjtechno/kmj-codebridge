@@ -118,6 +118,36 @@ function durationMs(job) {
     : null;
 }
 
+/**
+ * Private per-checkout Composer home inside the agent job state.
+ * Returns null (fail closed) unless BOTH the parent and the leaf are real directories, not links,
+ * owned by this process user and not accessible by group/other (POSIX). Windows keeps the
+ * directory/no-link checks; its ACL model has no meaningful mode bits.
+ */
+export function privateComposerHome(stateDir, cwd) {
+  const parent = path.join(stateDir, "composer-homes");
+  const leaf = path.join(parent, hash(cwd));
+  const posix = process.platform !== "win32";
+  const sound = (p) => {
+    const st = fs.lstatSync(p);
+    if (!st.isDirectory() || st.isSymbolicLink()) return false;
+    if (!posix) return true;
+    return st.uid === process.getuid() && (st.mode & 0o077) === 0;
+  };
+  try {
+    fs.mkdirSync(parent, { recursive: true, mode: 0o700 });
+    if (!sound(parent)) return null;
+    fs.mkdirSync(leaf, { mode: 0o700, recursive: false });
+  } catch (error) {
+    if (error?.code !== "EEXIST") return null;
+  }
+  try {
+    return sound(parent) && sound(leaf) ? leaf : null;
+  } catch {
+    return null;
+  }
+}
+
 export class JobRunner {
   constructor(
     dir,
@@ -539,15 +569,12 @@ export class JobRunner {
     // Composer requires HOME even when the job runner deliberately strips
     // inherited user environment. Use a private, deterministic directory in
     // the agent job state, not the shared checkout or an inherited home.
-    if (j.gate.startsWith("command:main_platform_php_deps:ci:build@")) {
-      const composerHome = path.join(this.dir, "composer-homes", hash(cwd));
-      fs.mkdirSync(composerHome, { recursive: true, mode: 0o700 });
-      const stat = fs.lstatSync(composerHome);
-      if (
-        !stat.isDirectory() ||
-        stat.isSymbolicLink() ||
-        (stat.mode & 0o077) !== 0
-      ) {
+    if (
+      typeof j.gate === "string" &&
+      j.gate.startsWith("command:main_platform_php_deps:ci:build@")
+    ) {
+      const composerHome = privateComposerHome(this.dir, cwd);
+      if (composerHome === null) {
         j.state = "failed";
         j.endedAt = new Date().toISOString();
         j.output = "JOB_COMPOSER_HOME_UNSAFE";
