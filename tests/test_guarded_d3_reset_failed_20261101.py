@@ -70,5 +70,41 @@ class D3Tests(unittest.TestCase):
         self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True), ("POSTCHECK_FAILED", ["ActiveState"], True))
 
 
+    def test_reset_failure_is_truthfully_reported_as_attempted(self):
+        class FailedReset(Runner):
+            def __call__(self, args, **kwargs):
+                if args[1] == "reset-failed":
+                    self.commands.append(tuple(args))
+                    return subprocess.CompletedProcess(args, 1, "", "permission denied")
+                return super().__call__(args, **kwargs)
+
+        runner = FailedReset([make_show()])
+        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True),
+                         ("RESET_FAILED", ["ActiveState"], True))
+        self.assertEqual(len(runner.commands), 2)
+
+    def test_symlink_writable_or_hardlinked_unit_path_is_rejected(self):
+        import stat
+        from types import SimpleNamespace
+
+        def fake_lstat(path, *, bad_path=None, bad_mode=None, hardlink=False):
+            is_file = path == d3.UNIT_FILE
+            mode = (stat.S_IFREG | 0o644) if is_file else (stat.S_IFDIR | 0o755)
+            if path == bad_path:
+                mode = bad_mode
+            return SimpleNamespace(st_uid=0, st_mode=mode,
+                                   st_nlink=2 if hardlink and is_file else 1)
+
+        self.assertTrue(d3.trusted_unit_path(lstat=fake_lstat))
+        self.assertFalse(d3.trusted_unit_path(
+            lstat=lambda path: fake_lstat(
+                path, bad_path="/etc/systemd", bad_mode=stat.S_IFLNK | 0o777)))
+        self.assertFalse(d3.trusted_unit_path(
+            lstat=lambda path: fake_lstat(
+                path, bad_path=d3.UNIT_FILE, bad_mode=stat.S_IFREG | 0o666)))
+        self.assertFalse(d3.trusted_unit_path(
+            lstat=lambda path: fake_lstat(path, hardlink=True)))
+
+
 if __name__ == "__main__":
     unittest.main()
