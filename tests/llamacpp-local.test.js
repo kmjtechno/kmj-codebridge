@@ -14,7 +14,9 @@ const MODEL = "Qwen3.5-9B-Q4_K_M.gguf";
 
 async function serverFor(t, handle) {
   const requests = [];
+  const sockets = new Set();
   const server = http.createServer(async (req, res) => {
+    sockets.add(req.socket);
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const body = Buffer.concat(chunks).toString("utf8");
@@ -26,7 +28,7 @@ async function serverFor(t, handle) {
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
-  return { port: server.address().port, requests };
+  return { port: server.address().port, requests, sockets };
 }
 
 function responder(endpoint) {
@@ -170,13 +172,14 @@ test("unknown model, extra model and arbitrary endpoint are rejected", async (t)
 });
 
 test("healthy bounded local generation preserves model attribution and measured timings", async (t) => {
-  const { port, requests } = await serverFor(t, responder);
+  const { port, requests, sockets } = await serverFor(t, responder);
   const client = createLlamaCppLocalModelClient({ port });
   const result = await client.generate({
     model: MODEL,
     prompt: "Write prime test",
     maxTokens: 64,
   });
+  assert.equal(sockets.size, 1, "private generation must reuse its verified preflight socket");
   assert.match(result.response, /is_prime/);
   assert.equal(result.model, MODEL);
   assert.equal(result.modelUsage.provider, "local-llamacpp");
@@ -199,6 +202,26 @@ test("healthy bounded local generation preserves model attribution and measured 
     seed: 42,
     stream: false,
   });
+});
+
+test("closed preflight connection fails closed before sending a private prompt", async (t) => {
+  const paths = [];
+  const server = http.createServer((req, res) => {
+    paths.push(req.url);
+    if (req.url === "/v1/models") res.setHeader("Connection", "close");
+    const [status, reply] = responder(req.url);
+    res.writeHead(status, { "content-type": "application/json" });
+    res.end(JSON.stringify(reply));
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const client = createLlamaCppLocalModelClient({ port: server.address().port });
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "PRIVATE-DO-NOT-SEND" }),
+    /LOCAL_MODEL_INFERENCE_FAILED/,
+  );
+  assert.deepEqual(paths, ["/health", "/v1/models"]);
+  assert.equal((await client.status()).activeRequest, false);
 });
 
 test("invalid local requests never reach generation endpoint", async (t) => {
