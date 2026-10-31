@@ -16,7 +16,9 @@ UNIT = "kmj-codebridge-development-ci.service"
 PROJECT = "/srv/kmj-codebridge-projects/kmj-main-platform"
 ACCOUNT = "kmjdevci"
 ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C",
-       "GIT_CONFIG_NOSYSTEM": "1", "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
+       "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null",
+       "GIT_NO_LAZY_FETCH": "1", "GIT_NO_REPLACE_OBJECTS": "1",
+       "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
 EXPECTED = {
     "LoadState": "loaded", "ActiveState": "inactive",
     "FragmentPath": "/etc/systemd/system/kmj-codebridge-development-ci.service",
