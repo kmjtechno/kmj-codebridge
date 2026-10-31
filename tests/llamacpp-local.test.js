@@ -179,7 +179,11 @@ test("healthy bounded local generation preserves model attribution and measured 
     prompt: "Write prime test",
     maxTokens: 64,
   });
-  assert.equal(sockets.size, 1, "private generation must reuse its verified preflight socket");
+  assert.equal(
+    sockets.size,
+    1,
+    "private generation must reuse its verified preflight socket",
+  );
   assert.match(result.response, /is_prime/);
   assert.equal(result.model, MODEL);
   assert.equal(result.modelUsage.provider, "local-llamacpp");
@@ -215,7 +219,9 @@ test("closed preflight connection fails closed before sending a private prompt",
   });
   await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
   t.after(() => new Promise((resolve) => server.close(resolve)));
-  const client = createLlamaCppLocalModelClient({ port: server.address().port });
+  const client = createLlamaCppLocalModelClient({
+    port: server.address().port,
+  });
   await assert.rejects(
     client.generate({ model: MODEL, prompt: "PRIVATE-DO-NOT-SEND" }),
     /LOCAL_MODEL_INFERENCE_FAILED/,
