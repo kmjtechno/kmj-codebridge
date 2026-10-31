@@ -276,3 +276,24 @@ test("capacity preserves configured concurrency when resources are healthy", asy
   assert.equal(capacity.configuredMaxConcurrent, 4);
   assert.equal(capacity.effectiveMaxConcurrent, 4);
 });
+
+test("approved Composer CI gets a private home without inherited environment", async (t) => {
+  const { root, runner } = fixture(t);
+  const script = [
+    'const fs=require("node:fs");',
+    'const path=require("node:path");',
+    'const home=process.env.HOME;',
+    'const ok=Boolean(home) && home===process.env.COMPOSER_HOME &&',
+    'fs.statSync(home).isDirectory() && home!==process.cwd() &&',
+    'path.isAbsolute(home);',
+    'console.log(ok ? "PRIVATE_COMPOSER_HOME_PASS" : "PRIVATE_COMPOSER_HOME_FAIL");',
+    'if (!ok) process.exitCode=1;',
+  ].join("");
+  const job = runner.run({
+    ...opts(root, "composer-private", script),
+    gate: "command:main_platform_php_deps:ci:build@test#123",
+  });
+  const done = await finished(runner, job.id);
+  assert.equal(done.state, "succeeded");
+  assert.match(done.output, /PRIVATE_COMPOSER_HOME_PASS/);
+});
