@@ -31,8 +31,7 @@ async function serverFor(t, handle) {
 
 function responder(endpoint) {
   if (endpoint === "/health") return [200, { status: "ok" }];
-  if (endpoint === "/v1/models")
-    return [200, { data: [{ id: MODEL }] }];
+  if (endpoint === "/v1/models") return [200, { data: [{ id: MODEL }] }];
   return [
     200,
     {
@@ -69,7 +68,10 @@ test("P520 status verifies fixed model identity and localhost llama.cpp health",
   assert.equal(value.cloudFallback, false);
   assert.equal(value.paidInference, false);
   assert.equal(value.readyForOnDemandUse, true);
-  assert.deepEqual(requests.map((r) => r.path), ["/health", "/v1/models"]);
+  assert.deepEqual(
+    requests.map((r) => r.path),
+    ["/health", "/v1/models"],
+  );
   assert.ok(requests.every((r) => r.method === "GET"));
 });
 
@@ -79,7 +81,10 @@ test("exact approved GGUF basename is recognized from Windows path only", async 
       ? [200, { data: [{ id: "C:\\KMJ\\Qwen3.5-9B-Q4_K_M.gguf" }] }]
       : responder(endpoint),
   );
-  assert.deepEqual((await createLlamaCppLocalModelClient({ port }).status()).models, [MODEL]);
+  assert.deepEqual(
+    (await createLlamaCppLocalModelClient({ port }).status()).models,
+    [MODEL],
+  );
 });
 
 test("unknown model, extra model and arbitrary endpoint are rejected", async (t) => {
@@ -99,13 +104,21 @@ test("unknown model, extra model and arbitrary endpoint are rejected", async (t)
       ? [200, { data: [{ id: MODEL }, { id: "another.gguf" }] }]
       : responder(endpoint),
   );
-  assert.equal((await createLlamaCppLocalModelClient({ port: extraPort }).status()).available, false);
+  assert.equal(
+    (await createLlamaCppLocalModelClient({ port: extraPort }).status())
+      .available,
+    false,
+  );
 });
 
 test("healthy bounded local generation preserves model attribution and measured timings", async (t) => {
   const { port, requests } = await serverFor(t, responder);
   const client = createLlamaCppLocalModelClient({ port });
-  const result = await client.generate({ model: MODEL, prompt: "Write prime test", maxTokens: 64 });
+  const result = await client.generate({
+    model: MODEL,
+    prompt: "Write prime test",
+    maxTokens: 64,
+  });
   assert.match(result.response, /is_prime/);
   assert.equal(result.model, MODEL);
   assert.equal(result.modelUsage.provider, "local-llamacpp");
@@ -117,7 +130,10 @@ test("healthy bounded local generation preserves model attribution and measured 
   assert.equal(result.paidInference, false);
   assert.equal(result.cloudFallback, false);
   assert.equal(result.outputIsUntrusted, true);
-  assert.deepEqual(requests.map((r) => r.path), ["/health", "/v1/models", "/completion"]);
+  assert.deepEqual(
+    requests.map((r) => r.path),
+    ["/health", "/v1/models", "/completion"],
+  );
   assert.deepEqual(requests.at(-1).data, {
     prompt: "Write prime test",
     n_predict: 64,
@@ -130,13 +146,28 @@ test("healthy bounded local generation preserves model attribution and measured 
 test("invalid local requests never reach generation endpoint", async (t) => {
   const { port, requests } = await serverFor(t, responder);
   const client = createLlamaCppLocalModelClient({ port });
-  await assert.rejects(client.generate({ model: "other.gguf", prompt: "hello" }), /LOCAL_MODEL_REQUEST_INVALID/);
-  await assert.rejects(client.generate({ model: MODEL, prompt: "x".repeat(4097) }), /LOCAL_MODEL_REQUEST_INVALID/);
-  await assert.rejects(client.generate({ model: MODEL, prompt: "x", maxTokens: 513 }), /LOCAL_MODEL_REQUEST_INVALID/);
-  await assert.rejects(client.generate({ model: MODEL, prompt: "x", timeoutSeconds: 91 }), /LOCAL_MODEL_REQUEST_INVALID/);
+  await assert.rejects(
+    client.generate({ model: "other.gguf", prompt: "hello" }),
+    /LOCAL_MODEL_REQUEST_INVALID/,
+  );
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "x".repeat(4097) }),
+    /LOCAL_MODEL_REQUEST_INVALID/,
+  );
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "x", maxTokens: 513 }),
+    /LOCAL_MODEL_REQUEST_INVALID/,
+  );
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "x", timeoutSeconds: 91 }),
+    /LOCAL_MODEL_REQUEST_INVALID/,
+  );
   assert.deepEqual(requests, []);
   for (const badPort of [-1, 0, 65536, "20145"]) {
-    assert.throws(() => createLlamaCppLocalModelClient({ port: badPort }), /LOCAL_MODEL_INVALID_PORT/);
+    assert.throws(
+      () => createLlamaCppLocalModelClient({ port: badPort }),
+      /LOCAL_MODEL_INVALID_PORT/,
+    );
   }
 });
 
@@ -147,21 +178,32 @@ test("missing daemon or model endpoint fails closed without cloud fallback", asy
   assert.equal(status.available, false);
   assert.deepEqual(status.models, []);
   assert.equal(status.cloudFallback, false);
-  await assert.rejects(client.generate({ model: MODEL, prompt: "hello" }), /LOCAL_MODEL_NOT_RUNNING/);
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "hello" }),
+    /LOCAL_MODEL_NOT_RUNNING/,
+  );
 });
 
 test("empty responses and failed inference do not claim success", async (t) => {
   const { port } = await serverFor(t, (endpoint) =>
-    endpoint === "/completion" ? [200, { content: "   " }] : responder(endpoint),
+    endpoint === "/completion"
+      ? [200, { content: "   " }]
+      : responder(endpoint),
   );
   const client = createLlamaCppLocalModelClient({ port });
-  await assert.rejects(client.generate({ model: MODEL, prompt: "test" }), /LOCAL_MODEL_NO_VISIBLE_OUTPUT/);
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "test" }),
+    /LOCAL_MODEL_NO_VISIBLE_OUTPUT/,
+  );
   assert.equal((await client.status()).activeRequest, false);
   const { port: failPort } = await serverFor(t, (endpoint) =>
     endpoint === "/completion" ? [500, { error: "oom" }] : responder(endpoint),
   );
   await assert.rejects(
-    createLlamaCppLocalModelClient({ port: failPort }).generate({ model: MODEL, prompt: "test" }),
+    createLlamaCppLocalModelClient({ port: failPort }).generate({
+      model: MODEL,
+      prompt: "test",
+    }),
     /LOCAL_MODEL_INFERENCE_FAILED/,
   );
 });
@@ -169,11 +211,21 @@ test("empty responses and failed inference do not claim success", async (t) => {
 test("bounded inference excludes fake timings and flags true token limits", async (t) => {
   const { port } = await serverFor(t, (endpoint) =>
     endpoint === "/completion"
-      ? [200, { content: "x", stopped_limit: true, tokens_predicted: 64, timings: { predicted_per_second: "fake" } }]
+      ? [
+          200,
+          {
+            content: "x",
+            stopped_limit: true,
+            tokens_predicted: 64,
+            timings: { predicted_per_second: "fake" },
+          },
+        ]
       : responder(endpoint),
   );
   const value = await createLlamaCppLocalModelClient({ port }).generate({
-    model: MODEL, prompt: "test", maxTokens: 64,
+    model: MODEL,
+    prompt: "test",
+    maxTokens: 64,
   });
   assert.equal(value.hitTokenLimit, true);
   assert.equal(value.timing.generationTokensPerSecond, null);
