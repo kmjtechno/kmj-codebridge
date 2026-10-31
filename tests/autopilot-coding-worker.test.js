@@ -772,7 +772,8 @@ test("in-place approval mutation during generation cannot expand edits or run a 
   const scenarios = [
     [
       "edit allowlist",
-      (f) => f.project.autopilotCodingWorker.recipes.feature.paths.push("README.md"),
+      (f) =>
+        f.project.autopilotCodingWorker.recipes.feature.paths.push("README.md"),
     ],
     [
       "context allowlist",
