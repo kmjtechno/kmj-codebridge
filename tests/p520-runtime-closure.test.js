@@ -328,8 +328,33 @@ test("cli: build then verify round-trips; tamper and in-runtime output are refus
     ).stdout,
     /CLI_OUT_INSIDE_RUNTIME/,
   );
+  const noNode = run("verify", "--root", f.root, "--manifest", m, "--pin", pin);
+  assert.match(noNode.stdout, /CLI_USAGE/); // --node-exe cannot be omitted
+  assert.equal(noNode.status, 2);
+  const otherExe = run(
+    "verify",
+    "--root",
+    f.root,
+    "--manifest",
+    m,
+    "--pin",
+    pin,
+    "--node-exe",
+    cli,
+  );
+  assert.match(otherExe.stdout, /NODE_NOT_RUNNING_EXE/); // must be the running interpreter
   writeFileSync(join(f.root, "src/cli.js"), "evil\n");
-  const t = run("verify", "--root", f.root, "--manifest", m, "--pin", pin);
+  const t = run(
+    "verify",
+    "--root",
+    f.root,
+    "--manifest",
+    m,
+    "--pin",
+    pin,
+    "--node-exe",
+    process.execPath,
+  );
   assert.equal(t.status, 2);
   assert.match(t.stdout, /FILE_HASH_MISMATCH/);
 });
