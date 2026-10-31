@@ -523,7 +523,6 @@ export function createGitHubBridge(config) {
         }
         fail("GITHUB_REQUEST_FAILED");
       }
-      if (method !== "GET") recentWriteFailures.delete(repository);
       let text;
       try {
         text = await readTextLimited(response.body, GITHUB_JSON_MAX_BYTES);
@@ -546,6 +545,9 @@ export function createGitHubBridge(config) {
             etag: safeEtag(response.headers.get("etag")),
           });
       } else if (method !== "GET") {
+        // Clear the previous failure only after the write response is parsed.
+        // A malformed 2xx response is not an attested successful mutation.
+        recentWriteFailures.delete(repository);
         // A live uncached GET must not evict independent cache keys.
         // Only successful mutations invalidate previously cached reads.
         cacheEpoch++;
