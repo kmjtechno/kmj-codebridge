@@ -121,6 +121,15 @@ def inspect(lines, status=0):
         return module.effective_unit_diagnostic()
 
 assert inspect(baseline) == {"status": "MATCH", "mismatchKeys": []}
+# Exactly one ordinary LF terminator is allowed. CRLF and non-LF separators
+# must never be silently normalized into an apparently trusted systemd unit.
+assert check(baseline + [""])
+assert inspect(baseline + [""]) == {"status": "MATCH", "mismatchKeys": []}
+assert not check([line + "\r" for line in baseline])
+assert inspect([line + "\r" for line in baseline]) == {"status": "MALFORMED", "mismatchKeys": []}
+assert not check(baseline[:-1] + [baseline[-1] + "\u2028"])
+assert inspect(baseline[:-1] + [baseline[-1] + "\u2028"]) == {"status": "MISMATCH", "mismatchKeys": ["ReadWritePaths"]}
+assert not check(baseline + ["", ""])
 changed = dict(expected)
 changed["ActiveState"] = "failed"
 changed["User"] = "root"
