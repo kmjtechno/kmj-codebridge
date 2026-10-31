@@ -6,12 +6,7 @@ const MODEL = "Qwen3.5-9B-Q4_K_M.gguf";
 const PORT = 20145;
 const MAX_RESPONSE_BYTES = 131072;
 
-export function useP520LlamaCpp({
-  enabled,
-  platform,
-  hostname,
-  deviceId,
-}) {
+export function useP520LlamaCpp({ enabled, platform, hostname, deviceId }) {
   return (
     enabled === "1" &&
     platform === "win32" &&
@@ -192,10 +187,15 @@ export function createLlamaCppLocalModelClient({ port = PORT } = {}) {
         return {
           provider: "local-llamacpp",
           model: MODEL,
-          modelUsage: localModelReceipt(MODEL, "local_model_generate", "local-llamacpp"),
+          modelUsage: localModelReceipt(
+            MODEL,
+            "local_model_generate",
+            "local-llamacpp",
+          ),
           response: value.content.slice(0, 8192),
           truncated: value.content.length > 8192,
-          hitTokenLimit: value.stopped_limit === true ||
+          hitTokenLimit:
+            value.stopped_limit === true ||
             (tokens !== null && tokens >= maxTokens),
           paidInference: false,
           cloudFallback: false,
