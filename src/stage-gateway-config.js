@@ -17,17 +17,28 @@ function trustedRootDirectory(info) {
     info.isDirectory() &&
     !info.isSymbolicLink() &&
     info.uid === 0 &&
-    (info.mode & 0o022) === 0
+    Number.isSafeInteger(info.gid) &&
+    info.gid >= 0 &&
+    // The credential directory must never be traversable by other users.
+    (info.mode & 0o027) === 0
   );
 }
 
-function trustedRootFile(info) {
+function trustedRootFile(info, directory) {
   return (
     info.isFile() &&
     !info.isSymbolicLink() &&
     info.uid === 0 &&
     info.nlink === 1 &&
-    (info.mode & 0o022) === 0 &&
+    // JSON credentials must not be executable, group-writable or accessible
+    // to any unrelated local account.
+    (info.mode & 0o137) === 0 &&
+    Number.isSafeInteger(info.gid) &&
+    info.gid >= 0 &&
+    // Group-readable secrets are allowed only for the same root-controlled
+    // group as the protected parent directory. Runtime group membership
+    // still requires a separate owner/root attestation.
+    ((info.mode & 0o040) === 0 || info.gid === directory.gid) &&
     Number.isSafeInteger(info.size) &&
     info.size >= 0 &&
     info.size <= MAX_CONFIG_BYTES
@@ -38,11 +49,12 @@ function trustedRootFile(info) {
 // secret reads, no TOCTOU between path metadata and the opened inode.
 // The caller only receives schema-validation outcome, never this text.
 export function readTrustedStageGatewayConfig({ io = fs } = {}) {
-  if (!trustedRootDirectory(io.lstatSync(STAGE_GATEWAY_DIR))) {
+  const directory = io.lstatSync(STAGE_GATEWAY_DIR);
+  if (!trustedRootDirectory(directory)) {
     throw trustFailure();
   }
   const before = io.lstatSync(STAGE_GATEWAY_CONFIG);
-  if (!trustedRootFile(before)) throw trustFailure();
+  if (!trustedRootFile(before, directory)) throw trustFailure();
   const nofollow = fs.constants.O_NOFOLLOW;
   if (!Number.isInteger(nofollow) || nofollow === 0) throw trustFailure();
   const fd = io.openSync(
@@ -52,7 +64,7 @@ export function readTrustedStageGatewayConfig({ io = fs } = {}) {
   try {
     const opened = io.fstatSync(fd);
     if (
-      !trustedRootFile(opened) ||
+      !trustedRootFile(opened, directory) ||
       opened.dev !== before.dev ||
       opened.ino !== before.ino
     ) {
