@@ -88,7 +88,22 @@ test("modified dependency or source file is rejected (hash mismatch)", () => {
   }
 });
 
-test("missing listed file, symlink and hardlink-free non-regular entries are rejected", () => {
+// Windows cannot create symlinks without Developer Mode/admin (EPERM), but
+// directory junctions need no privilege and lstat reports them as links.
+const dirLink = (target, path) =>
+  symlinkSync(target, path, process.platform === "win32" ? "junction" : "dir");
+const fileLinkOrSkip = (t, target, path) => {
+  try {
+    symlinkSync(target, path, "file");
+    return true;
+  } catch (e) {
+    if (e.code !== "EPERM") throw e;
+    t.diagnostic(`SKIPPED file-symlink case: ${e.code} (no symlink privilege)`);
+    return false;
+  }
+};
+
+test("missing listed file, symlink and hardlink-free non-regular entries are rejected", (t) => {
   let f = fixture();
   rmSync(join(f.root, "src/cli.js"));
   assert.equal(
@@ -97,17 +112,21 @@ test("missing listed file, symlink and hardlink-free non-regular entries are rej
   );
   f = fixture();
   rmSync(join(f.root, "node_modules/zod/package.json"));
-  symlinkSync(
-    join(f.root, "package.json"),
-    join(f.root, "node_modules/zod/package.json"),
-  );
-  assert.equal(
-    code(() => verifyRuntime(f.root, f.manifest, f.pin)),
-    "LINK_IN_RUNTIME",
-  );
+  if (
+    fileLinkOrSkip(
+      t,
+      join(f.root, "package.json"),
+      join(f.root, "node_modules/zod/package.json"),
+    )
+  ) {
+    assert.equal(
+      code(() => verifyRuntime(f.root, f.manifest, f.pin)),
+      "LINK_IN_RUNTIME",
+    );
+  }
   f = fixture();
   rmSync(join(f.root, "node_modules"), { recursive: true });
-  symlinkSync(f.root, join(f.root, "node_modules"));
+  dirLink(f.root, join(f.root, "node_modules"));
   assert.equal(
     code(() => verifyRuntime(f.root, f.manifest, f.pin)),
     "LINK_IN_RUNTIME",
@@ -217,7 +236,7 @@ test("enrollment: wrong tenant/device/project, extra projects, wrong root, escap
     );
   }
   const outside = mkdtempSync(join(tmpdir(), "kmj-outside-"));
-  symlinkSync(outside, join(store, "linked"));
+  dirLink(outside, join(store, "linked"));
   const cfg = good();
   cfg.stateDir = join(store, "linked");
   assert.equal(
