@@ -1,7 +1,8 @@
 import test from "node:test";
 import fs from "node:fs";
 
-const nofollowSupported = Number.isInteger(fs.constants.O_NOFOLLOW) && fs.constants.O_NOFOLLOW !== 0;
+const nofollowSupported =
+  Number.isInteger(fs.constants.O_NOFOLLOW) && fs.constants.O_NOFOLLOW !== 0;
 import assert from "node:assert/strict";
 import {
   readTrustedStageGatewayConfig,
@@ -26,7 +27,12 @@ const trustedFile = () => ({
   dev: 8,
 });
 
-function fixture({ directory = trustedDir(), before = trustedFile(), after = before, data = secret } = {}) {
+function fixture({
+  directory = trustedDir(),
+  before = trustedFile(),
+  after = before,
+  data = secret,
+} = {}) {
   const seen = [];
   let offset = 0;
   const io = {
@@ -57,16 +63,20 @@ function fixture({ directory = trustedDir(), before = trustedFile(), after = bef
   return { io, seen };
 }
 
-test("fixed stage file is read only through nofollow, inode-pinned fd", { skip: !nofollowSupported }, () => {
-  const { io, seen } = fixture();
-  assert.equal(readTrustedStageGatewayConfig({ io }), secret);
-  assert.deepEqual(
-    seen.filter(([op]) => op === "lstat").map(([, path]) => path),
-    ["/etc/kmj-codebridge-stage", STAGE_GATEWAY_CONFIG],
-  );
-  assert.equal(seen.find(([op]) => op === "open")[1], STAGE_GATEWAY_CONFIG);
-  assert.equal(seen.at(-1)[0], "close");
-});
+test(
+  "fixed stage file is read only through nofollow, inode-pinned fd",
+  { skip: !nofollowSupported },
+  () => {
+    const { io, seen } = fixture();
+    assert.equal(readTrustedStageGatewayConfig({ io }), secret);
+    assert.deepEqual(
+      seen.filter(([op]) => op === "lstat").map(([, path]) => path),
+      ["/etc/kmj-codebridge-stage", STAGE_GATEWAY_CONFIG],
+    );
+    assert.equal(seen.find(([op]) => op === "open")[1], STAGE_GATEWAY_CONFIG);
+    assert.equal(seen.at(-1)[0], "close");
+  },
+);
 
 test("stage config rejects untrusted directory, symlink, hardlink and writable files before open", () => {
   const cases = [
@@ -85,37 +95,52 @@ test("stage config rejects untrusted directory, symlink, hardlink and writable f
       () => readTrustedStageGatewayConfig({ io }),
       (error) => error.code === "CONFIG_TRUST_INVALID",
     );
-    assert.equal(seen.some(([op]) => op === "open"), false);
+    assert.equal(
+      seen.some(([op]) => op === "open"),
+      false,
+    );
   }
 });
 
-test("stage config rejects replacement inode after open and closes fd", { skip: !nofollowSupported }, () => {
-  const { io, seen } = fixture({
-    after: { ...trustedFile(), ino: 43 },
-  });
-  assert.throws(
-    () => readTrustedStageGatewayConfig({ io }),
-    (error) => error.code === "CONFIG_TRUST_INVALID",
-  );
-  assert.equal(seen.at(-1)[0], "close");
-});
+test(
+  "stage config rejects replacement inode after open and closes fd",
+  { skip: !nofollowSupported },
+  () => {
+    const { io, seen } = fixture({
+      after: { ...trustedFile(), ino: 43 },
+    });
+    assert.throws(
+      () => readTrustedStageGatewayConfig({ io }),
+      (error) => error.code === "CONFIG_TRUST_INVALID",
+    );
+    assert.equal(seen.at(-1)[0], "close");
+  },
+);
 
-test("stage config rejects growing content over fixed limit and closes fd", { skip: !nofollowSupported }, () => {
-  const { io, seen } = fixture({ data: "x".repeat(1024 * 1024 + 2) });
-  assert.throws(
-    () => readTrustedStageGatewayConfig({ io }),
-    (error) => error.code === "CONFIG_TRUST_INVALID",
-  );
-  assert.equal(seen.at(-1)[0], "close");
-});
+test(
+  "stage config rejects growing content over fixed limit and closes fd",
+  { skip: !nofollowSupported },
+  () => {
+    const { io, seen } = fixture({ data: "x".repeat(1024 * 1024 + 2) });
+    assert.throws(
+      () => readTrustedStageGatewayConfig({ io }),
+      (error) => error.code === "CONFIG_TRUST_INVALID",
+    );
+    assert.equal(seen.at(-1)[0], "close");
+  },
+);
 
-test("stage reader never includes credential bytes in errors", { skip: !nofollowSupported }, () => {
-  const { io } = fixture({ after: { ...trustedFile(), uid: 1001 } });
-  let message = "";
-  try {
-    readTrustedStageGatewayConfig({ io });
-  } catch (error) {
-    message = error.message;
-  }
-  assert.doesNotMatch(message, /never-return-in-error|token/);
-});
+test(
+  "stage reader never includes credential bytes in errors",
+  { skip: !nofollowSupported },
+  () => {
+    const { io } = fixture({ after: { ...trustedFile(), uid: 1001 } });
+    let message = "";
+    try {
+      readTrustedStageGatewayConfig({ io });
+    } catch (error) {
+      message = error.message;
+    }
+    assert.doesNotMatch(message, /never-return-in-error|token/);
+  },
+);
