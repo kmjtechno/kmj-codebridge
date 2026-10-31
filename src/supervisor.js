@@ -4,6 +4,7 @@ import net from "node:net";
 import os from "node:os";
 import { spawn, execFileSync } from "node:child_process";
 import { agentSchema, gatewaySchema } from "./config.js";
+import { readTrustedStageGatewayConfig } from "./stage-gateway-config.js";
 import { fail, publicError } from "./errors.js";
 import { redact } from "./jobs.js";
 import {
@@ -49,7 +50,6 @@ const MAIN_PLATFORM_AGENT_CONFIG =
   "/etc/kmj-codebridge-main-platform/agent.json";
 // The separately enrolled loopback-only gateway uses a distinct fixed root config.
 // Do not discover this path from untrusted unit environment or process argv.
-const STAGE_GATEWAY_CONFIG = "/etc/kmj-codebridge-stage/gateway.json";
 const STAGE_GATEWAY_UNIT = "kmj-codebridge-gateway-stage.service";
 const UPDATE_SERVICE = "kmj-codebridge-auto-update.service";
 const MAIN_PLATFORM_REFRESH_SERVICE =
@@ -1474,6 +1474,7 @@ function privateCiEvidence(lstat, readFile, pr, filename, logAccess) {
 export function classifySupervisorConfigError(error) {
   // Emit only fixed codes. Never return file paths, parser messages,
   // validation paths, expected values or any secret from config data.
+  if (error?.code === "CONFIG_TRUST_INVALID") return "CONFIG_TRUST_INVALID";
   if (error?.code === "ENOENT") return "CONFIG_FILE_MISSING";
   if (error?.code === "EACCES" || error?.code === "EPERM")
     return "CONFIG_FILE_UNREADABLE";
@@ -1487,6 +1488,7 @@ export function createSupervisorHandler({
   start = defaultStart,
   restart = defaultRestart,
   readFile = (file) => fs.readFileSync(file, "utf8"),
+  readStageGatewayConfig = readTrustedStageGatewayConfig,
   readLog = readBoundedPrivateCiLog,
   readdir = (directory) => fs.readdirSync(directory),
   readlink = (file) => fs.readlinkSync(file),
@@ -1722,11 +1724,12 @@ export function createSupervisorHandler({
             : request.service === "agent" &&
                 chosenUnit === MAIN_PLATFORM_AGENT_SERVICE
               ? MAIN_PLATFORM_AGENT_CONFIG
-              : request.service === "gateway" &&
-                  chosenUnit === STAGE_GATEWAY_UNIT
-                ? STAGE_GATEWAY_CONFIG
-                : CONFIGS[request.service];
-        const raw = JSON.parse(readFile(configPath));
+              : CONFIGS[request.service];
+        const raw = JSON.parse(
+          chosenUnit === STAGE_GATEWAY_UNIT
+            ? readStageGatewayConfig()
+            : readFile(configPath),
+        );
         if (request.service === "agent") agentSchema.parse(raw);
         else gatewaySchema.parse(raw);
         // Schema validation of a fixed file is not cryptographic proof that
@@ -1738,6 +1741,9 @@ export function createSupervisorHandler({
                   service: request.service,
                   valid: true,
                   runtimeBindingVerified: false,
+                  scope: "FIXED_STAGE_FILE_SCHEMA_ONLY",
+                  runtimeConfigAttested: false,
+                  signedRuntimeAttested: false,
                 }
               : { service: request.service, valid: true },
         };
