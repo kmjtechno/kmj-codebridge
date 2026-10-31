@@ -536,6 +536,28 @@ export class JobRunner {
     j.startedAt = new Date().toISOString();
     this.persist(j);
     const env = jobEnvironment();
+    // Composer requires HOME even when the job runner deliberately strips
+    // inherited user environment. Use a private, deterministic directory in
+    // the agent job state, not the shared checkout or an inherited home.
+    if (j.gate.startsWith("command:main_platform_php_deps:ci:build@")) {
+      const composerHome = path.join(
+        this.dir,
+        "composer-homes",
+        hash(cwd),
+      );
+      fs.mkdirSync(composerHome, { recursive: true, mode: 0o700 });
+      const stat = fs.lstatSync(composerHome);
+      if (!stat.isDirectory() || stat.isSymbolicLink() ||
+          (stat.mode & 0o077) !== 0) {
+        j.state = "failed";
+        j.endedAt = new Date().toISOString();
+        j.output = "JOB_COMPOSER_HOME_UNSAFE";
+        this.persist(j);
+        return;
+      }
+      env.HOME = composerHome;
+      env.COMPOSER_HOME = composerHome;
+    }
     // Give the approved PowerShell 7 process a closed stdin pipe rather
     // than allowing terminal input or an interactive session.
     // This is not an interactive terminal: the pipe is immediately closed.
