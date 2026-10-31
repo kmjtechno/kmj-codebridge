@@ -75,6 +75,23 @@ test("P520 status verifies fixed model identity and localhost llama.cpp health",
   assert.ok(requests.every((r) => r.method === "GET"));
 });
 
+test("occupied llama.cpp slot is not advertised as ready and never receives a prompt", async (t) => {
+  const { port, requests } = await serverFor(t, (endpoint) =>
+    endpoint === "/health"
+      ? [200, { status: "no slot available" }]
+      : responder(endpoint),
+  );
+  const client = createLlamaCppLocalModelClient({ port });
+  const status = await client.status();
+  assert.equal(status.available, false);
+  assert.equal(status.readyForOnDemandUse, false);
+  await assert.rejects(
+    client.generate({ model: MODEL, prompt: "private project code" }),
+    /LOCAL_MODEL_NOT_INSTALLED/,
+  );
+  assert.ok(requests.every((request) => request.path !== "/completion"));
+});
+
 test("exact approved GGUF basename is recognized from Windows path only", async (t) => {
   const { port } = await serverFor(t, (endpoint) =>
     endpoint === "/v1/models"
