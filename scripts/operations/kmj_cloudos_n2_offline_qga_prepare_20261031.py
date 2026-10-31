@@ -71,6 +71,11 @@ def guestip(values):
                 return str(ip)
     return None
 
+def _on_term(signum, frame):
+    raise TimeoutError("EXTERNAL_STOP_REQUESTED")
+
+signal.signal(signal.SIGTERM, _on_term)
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--uring-deb", required=True, type=Path)
@@ -132,6 +137,7 @@ write_files:
       echo KMJ_QGA_OFFLINE_INSTALLED >/dev/ttyS0
 runcmd:
   - [sh, -c, "/usr/local/sbin/kmj-offline-qga-setup > /var/log/kmj-offline-qga-setup.log 2>&1"]
+  - [sh, -c, "echo KMJ_CLOUDOS_OFFLINE_QGA_CLOUD_INIT_COMPLETE > /dev/ttyS0"]
 final_message: 'KMJ_CLOUDOS_OFFLINE_QGA_CLOUD_INIT_COMPLETE'
 """
     (work / "user-data").write_text(userdata)
