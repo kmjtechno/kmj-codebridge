@@ -421,6 +421,35 @@ export function createGitHubBridge(config) {
         }
       : null;
   };
+  // A parsed 2xx JSON object is not, by itself, proof that GitHub performed
+  // a mutation. Only clear the previous native denial when the exact
+  // endpoint returns its expected mutation identity. Never echo the object.
+  const confirmedWriteReceipt = (method, suffix, value) => {
+    if (!value || typeof value !== "object" || Array.isArray(value))
+      return false;
+    const sha = (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v);
+    const id = (v) => Number.isSafeInteger(v) && v > 0;
+    if (method === "PUT" && /^pulls\\/\\d+\\/merge$/.test(suffix))
+      return value.merged === true && sha(value.sha);
+    if (method === "PUT" && suffix.startsWith("contents/"))
+      return sha(value.commit?.sha) && sha(value.content?.sha);
+    if (method === "POST" && suffix === "git/refs")
+      return typeof value.ref === "string" &&
+        value.ref.startsWith("refs/heads/") && sha(value.object?.sha);
+    if (method === "POST" && suffix === "issues")
+      return id(value.number);
+    if (method === "POST" && /^issues\\/\\d+\\/comments$/.test(suffix))
+      return id(value.id);
+    if (method === "POST" && suffix === "pulls")
+      return id(value.number) && sha(value.head?.sha);
+    if (method === "POST" && /^pulls\\/\\d+\\/reviews$/.test(suffix))
+      return id(value.id);
+    if (method === "POST" && /^pulls\\/\\d+\\/comments\\/\\d+\\/replies$/.test(suffix))
+      return id(value.id);
+    if (method === "PATCH" && /^pulls\\/\\d+$/.test(suffix))
+      return id(value.number) && typeof value.state === "string";
+    return false;
+  };
   const markPublicQuotaBlocked = (headers) => {
     if (!publicReadOnly) return;
     const now = Date.now();
@@ -545,9 +574,10 @@ export function createGitHubBridge(config) {
             etag: safeEtag(response.headers.get("etag")),
           });
       } else if (method !== "GET") {
-        // Clear the previous failure only after the write response is parsed.
-        // A malformed 2xx response is not an attested successful mutation.
-        recentWriteFailures.delete(repository);
+        // Parsed JSON alone is insufficient: a 2xx with no confirmed
+        // mutation identity (or merged:false) must retain the denial.
+        if (confirmedWriteReceipt(method, suffix, value))
+          recentWriteFailures.delete(repository);
         // A live uncached GET must not evict independent cache keys.
         // Only successful mutations invalidate previously cached reads.
         cacheEpoch++;
