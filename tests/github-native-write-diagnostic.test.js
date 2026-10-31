@@ -75,6 +75,22 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     classification: "rate_limited",
   });
 
+  // A denied write must retain only fixed HTTP classes, including
+  // repository-not-found, protected/conflicting writes and HTTP 429.
+  quota = false;
+  for (const [status, code, classification] of [
+    [404, "GITHUB_NOT_FOUND", "http_404"],
+    [409, "GITHUB_CONFLICT", "conflict"],
+    [422, "GITHUB_CONFLICT", "conflict"],
+    [429, "GITHUB_RATE_LIMIT", "rate_limited"],
+  ]) {
+    writeStatus = status;
+    await assert.rejects(write(), new RegExp(code));
+    const receipt = (await doctor()).lastWriteFailure;
+    assert.deepEqual(receipt, { httpStatus: status, classification });
+    assert.equal((await doctor()).writeVerified, false);
+  }
+
   writeStatus = 201;
   quota = false;
   push = true;
@@ -83,7 +99,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.equal(recovered.repositoryPushHint, "reported_unverified");
   assert.equal(recovered.lastWriteFailure, null);
   assert.equal(recovered.writeVerified, false);
-  assert.equal(calls.filter((call) => call.method === "POST").length, 4);
+  assert.equal(calls.filter((call) => call.method === "POST").length, 8);
 
   for (const receipt of [initial, forbidden, recovered]) {
     const serialized = JSON.stringify(receipt);
