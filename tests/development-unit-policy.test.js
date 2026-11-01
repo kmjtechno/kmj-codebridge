@@ -219,7 +219,10 @@ test("untrusted ancestor anywhere in protected unit/helper path rejects start", 
       { modeByPath: { [path]: 0o40777 } },
     ]) {
       const { args, supervisor, started } = fixture(override);
-      assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
+      assert.equal(
+        attestDevelopmentCi(args).reason,
+        "ROOT_OWNERSHIP_UNVERIFIED",
+      );
       await assert.rejects(
         supervisor({
           op: "development_ci_start",
