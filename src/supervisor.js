@@ -2395,10 +2395,26 @@ export function createSupervisorHandler({
 
     if (request.op === "update_now") {
       exactKeys(request, ["op"]);
-      const service = fixedUnitStatus(run, UPDATE_SERVICE, ["ActiveState"]);
-      if (!service.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
+      // A signed stable service is the only correct updater on a production
+      // channel host. Prefer the fixed signed unit even if an obsolete
+      // development updater also remains installed. The stable oneshot
+      // independently enforces the root-owned config, signature, monotonic
+      // sequence, immutable archive hash and rollback/health contract.
+      const signed = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, [
+        "ActiveState",
+      ]);
+      if (signed.installed) {
+        return {
+          response: { accepted: true, channel: "signed-stable" },
+          afterSend: () => start(UPDATE_CHECK_SERVICE),
+        };
+      }
+      // Development-only installations have no signed unit. Retain the
+      // existing fixed, bounded development updater for those hosts only.
+      const legacy = fixedUnitStatus(run, UPDATE_SERVICE, ["ActiveState"]);
+      if (!legacy.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
       return {
-        response: { accepted: true },
+        response: { accepted: true, channel: "development" },
         afterSend: () => start(UPDATE_SERVICE),
       };
     }
