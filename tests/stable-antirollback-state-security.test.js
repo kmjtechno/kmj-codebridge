@@ -79,6 +79,53 @@ test(
   },
 );
 
+test("writer cannot downgrade or replace a different signed release at the accepted sequence", (t) => {
+  const { stateDir, file } = fixture(t);
+  writeAcceptedUpdateState(stateDir, manifest);
+  assert.throws(
+    () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 42 }),
+    /UPDATE_STATE_ROLLBACK_REJECTED/,
+  );
+  assert.throws(
+    () =>
+      writeAcceptedUpdateState(stateDir, {
+        ...manifest,
+        revision: "b".repeat(40),
+      }),
+    /UPDATE_STATE_ROLLBACK_REJECTED/,
+  );
+  assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+  assert.equal(readAcceptedUpdateState(stateDir).revision, manifest.revision);
+  assert.deepEqual(fs.readdirSync(stateDir), [path.basename(file)]);
+});
+
+test(
+  "writer rejects unsafe or corrupt existing watermark before replacing it",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir, file } = fixture(t);
+    fs.symlinkSync(path.join(stateDir, "missing-watermark"), file);
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /UPDATE_STATE_INVALID/,
+    );
+    fs.unlinkSync(file);
+    writeAcceptedUpdateState(stateDir, manifest);
+    const second = path.join(stateDir, "second-link");
+    fs.linkSync(file, second);
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+      /UPDATE_STATE_INVALID/,
+    );
+    fs.unlinkSync(second);
+    fs.writeFileSync(file, "{broken", { mode: 0o600 });
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+      /UPDATE_STATE_INVALID/,
+    );
+  },
+);
+
 test("malformed or oversized watermark never becomes an absent sequence", (t) => {
   const { stateDir, file } = fixture(t);
   for (const content of ["{broken", "x".repeat(4097)]) {
