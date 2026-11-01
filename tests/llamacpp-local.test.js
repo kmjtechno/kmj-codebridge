@@ -63,6 +63,9 @@ test("P520 llama.cpp mode requires exact owner flag, Windows, device and hostnam
   assert.equal(useP520LlamaCpp({ ...valid, enabled: "true" }), false);
   assert.equal(useP520LlamaCpp({ ...valid, platform: "linux" }), false);
   assert.equal(useP520LlamaCpp({ ...valid, hostname: "P720" }), false);
+  for (const hostname of [undefined, null, 123, {}, [], true]) {
+    assert.equal(useP520LlamaCpp({ ...valid, hostname }), false);
+  }
   assert.equal(useP520LlamaCpp({ ...valid, deviceId: "other" }), false);
 });
 
