@@ -177,8 +177,7 @@ function denied(reason, signatureVerified = false) {
 export function verifyP520LauncherApproval(input = {}) {
   // Untrusted callers must receive a bounded denial, not an uncaught
   // destructuring TypeError that could crash a future protected supervisor.
-  if (!plainDataObject(input))
-    return denied("OWNER_APPROVAL_INPUT_INVALID");
+  if (!plainDataObject(input)) return denied("OWNER_APPROVAL_INPUT_INVALID");
   const {
     manifest,
     signatureBase64,
