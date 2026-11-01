@@ -29,6 +29,18 @@ function Classify-Node([int]$major) {
   if($major -lt 24) { return 'UNSUPPORTED_VERSION' }
   return 'MINIMUM_VERSION_OBSERVED'
 }
+# Only a successfully completed inventory can establish task absence.
+# A filtered SilentlyContinue lookup can confuse AccessDenied with NotFound.
+function Classify-TaskInventory([object[]]$tasks) {
+  $matching = @($tasks | Where-Object {
+    $null -ne $_ -and
+    [string]$_.TaskName -ieq $taskName -and
+    [string]$_.TaskPath -ceq '\'
+  })
+  if($matching.Count -eq 0) { return 'ABSENT_UNPROVISIONED' }
+  if($matching.Count -ne 1) { return 'PRESENT_UNKNOWN_UNATTESTED' }
+  return Classify-Task ([string]$matching[0].State)
+}
 if($SelfTest) {
   if((Classify-Task 'ABSENT') -cne 'ABSENT_UNPROVISIONED' -or
      (Classify-Task 'Disabled') -cne 'DISABLED_UNATTESTED' -or
@@ -48,6 +60,16 @@ if($SelfTest) {
      (Classify-Listener -sockets @()) -cne 'ABSENT_OR_AMBIGUOUS') {
     throw 'P520_LISTENER_SELFTEST_FAILED'
   }
+  $present = [pscustomobject]@{TaskName=$taskName;TaskPath='\';State='Ready'}
+  $unrelated = [pscustomobject]@{TaskName='Unrelated';TaskPath='\';State='Ready'}
+  $wrongPath = [pscustomobject]@{TaskName=$taskName;TaskPath='\Other\';State='Running'}
+  if((Classify-TaskInventory -tasks @()) -cne 'ABSENT_UNPROVISIONED' -or
+     (Classify-TaskInventory -tasks @($unrelated)) -cne 'ABSENT_UNPROVISIONED' -or
+     (Classify-TaskInventory -tasks @($present)) -cne 'PRESENT_ACTIVE_UNATTESTED' -or
+     (Classify-TaskInventory -tasks @($present,$present)) -cne 'PRESENT_UNKNOWN_UNATTESTED' -or
+     (Classify-TaskInventory -tasks @($wrongPath)) -cne 'ABSENT_UNPROVISIONED') {
+    throw 'P520_TASK_INVENTORY_SELFTEST_FAILED'
+  }
   Mark 'P520_SUPERVISOR_READINESS_SELFTEST' 'PASS'
   exit 0
 }
@@ -60,13 +82,12 @@ try {
   }
   Mark 'P520_DEVICE_IDENTITY' 'PASS'
 
-  $task = Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction SilentlyContinue
-  if($null -eq $task) {
-    $taskStatus = Classify-Task 'ABSENT'
-  } elseif(@($task).Count -ne 1) {
-    $taskStatus = 'PRESENT_UNKNOWN_UNATTESTED'
-  } else {
-    $taskStatus = Classify-Task ([string]$task.State)
+  # Enumerate the fixed root task namespace; query errors are never absence.
+  try {
+    $tasks = @(Get-ScheduledTask -TaskPath '\' -ErrorAction Stop)
+    $taskStatus = Classify-TaskInventory -tasks $tasks
+  } catch {
+    $taskStatus = 'QUERY_FAILED_UNATTESTED'
   }
   Mark 'P520_SUPERVISOR_TASK' $taskStatus
 
