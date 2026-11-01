@@ -13,7 +13,10 @@ test("P520 supervisor readiness source never mutates Windows services", () => {
   assert.match(source, /param\(\[switch\]\$SelfTest\)/);
   assert.match(source, /P520_READINESS_AUDIT/);
   assert.match(source, /Get-ScheduledTask/);
-  assert.match(source, /Get-ScheduledTask -TaskPath/);
+  assert.match(source, /Get-ScheduledTask -ErrorAction Stop/);
+  assert.doesNotMatch(source, /Get-ScheduledTask -TaskPath/);
+  assert.match(source, /FOREIGN_PATH_COLLISION_UNATTESTED/);
+  assert.match(source, /Classify-TaskInventory -tasks @\(\$present,\$wrongPath\)/);
   assert.match(source, /Classify-TaskInventory/);
   assert.match(source, /QUERY_FAILED_UNATTESTED/);
   assert.doesNotMatch(

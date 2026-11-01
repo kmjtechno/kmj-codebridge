@@ -32,13 +32,17 @@ function Classify-Node([int]$major) {
 # Only a successfully completed inventory can establish task absence.
 # A filtered SilentlyContinue lookup can confuse AccessDenied with NotFound.
 function Classify-TaskInventory([object[]]$tasks) {
-  $matching = @($tasks | Where-Object {
-    $null -ne $_ -and
-    [string]$_.TaskName -ieq $taskName -and
-    [string]$_.TaskPath -ceq '\'
+  $named = @($tasks | Where-Object {
+    $null -ne $_ -and [string]$_.TaskName -ieq $taskName
   })
-  if($matching.Count -eq 0) { return 'ABSENT_UNPROVISIONED' }
-  if($matching.Count -ne 1) { return 'PRESENT_UNKNOWN_UNATTESTED' }
+  $matching = @($named | Where-Object { [string]$_.TaskPath -ceq '\' })
+  if($matching.Count -eq 0) {
+    if($named.Count -gt 0) { return 'FOREIGN_PATH_COLLISION_UNATTESTED' }
+    return 'ABSENT_UNPROVISIONED'
+  }
+  if($matching.Count -ne 1 -or $named.Count -ne 1) {
+    return 'PRESENT_UNKNOWN_UNATTESTED'
+  }
   return Classify-Task ([string]$matching[0].State)
 }
 if($SelfTest) {
@@ -67,7 +71,9 @@ if($SelfTest) {
      (Classify-TaskInventory -tasks @($unrelated)) -cne 'ABSENT_UNPROVISIONED' -or
      (Classify-TaskInventory -tasks @($present)) -cne 'PRESENT_ACTIVE_UNATTESTED' -or
      (Classify-TaskInventory -tasks @($present,$present)) -cne 'PRESENT_UNKNOWN_UNATTESTED' -or
-     (Classify-TaskInventory -tasks @($wrongPath)) -cne 'ABSENT_UNPROVISIONED') {
+     (Classify-TaskInventory -tasks @($wrongPath)) -cne 'FOREIGN_PATH_COLLISION_UNATTESTED' -or
+     (Classify-TaskInventory -tasks @($present,$wrongPath)) -cne 'PRESENT_UNKNOWN_UNATTESTED' -or
+     (Classify-TaskInventory -tasks @($present,$unrelated)) -cne 'PRESENT_ACTIVE_UNATTESTED') {
     throw 'P520_TASK_INVENTORY_SELFTEST_FAILED'
   }
   Mark 'P520_SUPERVISOR_READINESS_SELFTEST' 'PASS'
@@ -82,9 +88,10 @@ try {
   }
   Mark 'P520_DEVICE_IDENTITY' 'PASS'
 
-  # Enumerate the fixed root task namespace; query errors are never absence.
+  # Enumerate all task namespaces to detect a same-name foreign-path
+  # collision; an incomplete/denied inventory is never proof of absence.
   try {
-    $tasks = @(Get-ScheduledTask -TaskPath '\' -ErrorAction Stop)
+    $tasks = @(Get-ScheduledTask -ErrorAction Stop)
     $taskStatus = Classify-TaskInventory -tasks $tasks
   } catch {
     $taskStatus = 'QUERY_FAILED_UNATTESTED'
