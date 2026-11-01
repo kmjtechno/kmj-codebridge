@@ -5,10 +5,17 @@ param([switch]$SelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $expectedModelHash='03b74727a860a56338e042c4420bb3f04b2fec5734175f4cb9fa853daf52b7e8'
+# V1 owner-observed executable hash, NOT a publisher signature or launcher approval.
+$expectedBinaryHash='3a192bd0dfb3aa56bc544b62cb0648d1ad8a9d9147df0e87132404645dce9fce'
 $root=Join-Path $env:LOCALAPPDATA 'KMJ-LocalCodingAI'
 $model=Join-Path $root 'models\Qwen3.5-9B-Q4_K_M.gguf'
 $cuda=Join-Path $root 'runtime\b11998\cuda12'
 function Mark([string]$name,[string]$value) { Write-Output ($name+'='+$value) }
+function Assert-PinnedBinaryHash([string]$observed) {
+    if($observed -notmatch '^[0-9a-fA-F]{64}$' -or $observed -ine $expectedBinaryHash) {
+        throw 'SERVER_BINARY_SHA256_MISMATCH'
+    }
+}
 function CheckNode([string]$name,[bool]$isFile) {
     if($isFile) {
         if(!(Test-Path -LiteralPath $name -PathType Leaf)) { throw 'REQUIRED_FILE_MISSING' }
@@ -116,6 +123,12 @@ function Assert-StableProcessIdentity($before,$after) {
     }
 }
 if($SelfTest) {
+    Assert-PinnedBinaryHash $expectedBinaryHash
+    foreach($badHash in @('0000000000000000000000000000000000000000000000000000000000000000', 'not-a-hash')) {
+        $blocked=$false
+        try { Assert-PinnedBinaryHash $badHash } catch { $blocked=$true }
+        if(-not $blocked) { throw 'SELFTEST_BINARY_SHA_BYPASS' }
+    }
     $m='C:\KMJ Models\Qwen3.5-9B-Q4_K_M.gguf'
     $good='"C:\Program Files\llama-server.exe" --model "'+$m+'" --host 127.0.0.1 --port 20145'
     Assert-ServerArguments $good $m
@@ -190,6 +203,7 @@ try {
     $cmdline=[string]$owner.CommandLine
     Assert-ServerArguments $cmdline $model
     $binaryHashBefore=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-PinnedBinaryHash $binaryHashBefore
     $health=Invoke-RestMethod 'http://127.0.0.1:20145/health' -TimeoutSec 8
     $reported=Invoke-RestMethod 'http://127.0.0.1:20145/v1/models' -TimeoutSec 8
     if([string]$health.status -cne 'ok' -or
@@ -209,6 +223,7 @@ try {
     }
     Assert-StableProcessIdentity $owner $ownerAfter
     $binaryHash=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-PinnedBinaryHash $binaryHash
     if($binaryHash -cne $binaryHashBefore) { throw 'SERVER_BINARY_CHANGED_DURING_AUDIT' }
     $signature=Get-AuthenticodeSignature -LiteralPath $exe -ErrorAction Stop
     Mark 'ATTESTATION' 'PRELIMINARY_READONLY_OWNER_APPROVAL_PENDING'
