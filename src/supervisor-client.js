@@ -9,10 +9,16 @@ export const SUPERVISOR_SOCKET = "/run/kmj-codebridge/supervisor.sock";
 // the Main Platform principal and must never be chmod/chgrp/ACL-shared.
 export const ELITE_CLOUDOS_SUPERVISOR_SOCKET =
   "/run/kmj-codebridge-cloudos/supervisor.sock";
-export function isAuthorizedSupervisorSocket(socketPath, platform = process.platform) {
-  return platform !== "win32" && path.isAbsolute(String(socketPath)) &&
+export function isAuthorizedSupervisorSocket(
+  socketPath,
+  platform = process.platform,
+) {
+  return (
+    platform !== "win32" &&
+    path.isAbsolute(String(socketPath)) &&
     (socketPath === SUPERVISOR_SOCKET ||
-      socketPath === ELITE_CLOUDOS_SUPERVISOR_SOCKET);
+      socketPath === ELITE_CLOUDOS_SUPERVISOR_SOCKET)
+  );
 }
 const MAX_RESPONSE_BYTES = 65536;
 
@@ -21,8 +27,7 @@ export async function supervisorRequest(
   request,
   { timeoutMs = 3000 } = {},
 ) {
-  if (!isAuthorizedSupervisorSocket(socketPath))
-    fail("SUPERVISOR_UNAVAILABLE");
+  if (!isAuthorizedSupervisorSocket(socketPath)) fail("SUPERVISOR_UNAVAILABLE");
 
   return await new Promise((resolve, reject) => {
     const socket = net.createConnection({ path: socketPath });

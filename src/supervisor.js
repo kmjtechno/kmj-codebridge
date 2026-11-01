@@ -35,7 +35,9 @@ const ELITE_CLOUDOS_SUPERVISOR_PROFILE = "cloudos-elite";
 // Dedicated Elite CloudOS agent only; never target the Main Platform agent.
 const ELITE_CLOUDOS_AGENT_UNIT = "kmj-codebridge-kmj-cloudos.service";
 const ELITE_CLOUDOS_READONLY_OPERATIONS = new Set([
-  "status", "device_status", "disk_space",
+  "status",
+  "device_status",
+  "disk_space",
 ]);
 const CLOUDOS_AGENT_UNIT = "kmj-codebridge-cloudos.service";
 const CLOUDOS_AGENT_CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
@@ -139,11 +141,15 @@ function exactKeys(value, allowed) {
 }
 
 function serviceUnit(service, run, profile = "default") {
-  if (profile === CLOUDOS_SUPERVISOR_PROFILE ||
-      profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE) {
+  if (
+    profile === CLOUDOS_SUPERVISOR_PROFILE ||
+    profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
+  ) {
     if (service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
-    const fixedAgentUnit = profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
-      ? ELITE_CLOUDOS_AGENT_UNIT : CLOUDOS_AGENT_UNIT;
+    const fixedAgentUnit =
+      profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
+        ? ELITE_CLOUDOS_AGENT_UNIT
+        : CLOUDOS_AGENT_UNIT;
     const fields = parseProperties(
       run(SYSTEMCTL, [
         "show",
@@ -1508,8 +1514,13 @@ export function createSupervisorHandler({
   deviceStatus = defaultDeviceStatus,
   profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
 } = {}) {
-  if (!["default", CLOUDOS_SUPERVISOR_PROFILE,
-        ELITE_CLOUDOS_SUPERVISOR_PROFILE].includes(profile))
+  if (
+    ![
+      "default",
+      CLOUDOS_SUPERVISOR_PROFILE,
+      ELITE_CLOUDOS_SUPERVISOR_PROFILE,
+    ].includes(profile)
+  )
     fail("SUPERVISOR_PROFILE_INVALID");
   const readUpdateState = () => {
     const readReleaseLink = (name) => {

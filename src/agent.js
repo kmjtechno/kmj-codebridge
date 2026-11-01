@@ -139,8 +139,10 @@ export async function startAgent(
   // The Elite CloudOS socket belongs to one dedicated, non-Main-Platform
   // project. Even a misconfigured enrolled agent must not select it for a
   // different project identity or a multi-project process.
-  if (c.supervisorSocket === ELITE_CLOUDOS_SUPERVISOR_SOCKET &&
-      (c.projects?.length !== 1 || c.projects[0]?.id !== "kmj-cloudos"))
+  if (
+    c.supervisorSocket === ELITE_CLOUDOS_SUPERVISOR_SOCKET &&
+    (c.projects?.length !== 1 || c.projects[0]?.id !== "kmj-cloudos")
+  )
     throw new Error("ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH");
   if (c.supervisorSocket && (c.supervisorPipe || c.supervisorTokenFile))
     throw new Error(
