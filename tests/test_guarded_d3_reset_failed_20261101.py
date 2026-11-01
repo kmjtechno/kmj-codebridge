@@ -268,13 +268,15 @@ class D3Tests(unittest.TestCase):
             return result
 
         replacement_inodes = set()
-        with mock.patch.object(d3.os, "open", side_effect=fake_open), \\
-             mock.patch.object(d3.os, "stat", side_effect=fake_stat), \\
-             mock.patch.object(d3.os, "fstat", side_effect=fake_fstat), \\
-             mock.patch.object(d3.os, "read", return_value=payload), \\
-             mock.patch.object(d3.os, "close", side_effect=closed.append), \\
-             mock.patch.object(d3, "EXPECTED_UNIT_SHA256", digest), \\
-             mock.patch.object(d3, "EXPECTED_HELPER_SHA256", digest):
+        with (
+            mock.patch.object(d3.os, "open", side_effect=fake_open),
+            mock.patch.object(d3.os, "stat", side_effect=fake_stat),
+            mock.patch.object(d3.os, "fstat", side_effect=fake_fstat),
+            mock.patch.object(d3.os, "read", return_value=payload),
+            mock.patch.object(d3.os, "close", side_effect=closed.append),
+            mock.patch.object(d3, "EXPECTED_UNIT_SHA256", digest),
+            mock.patch.object(d3, "EXPECTED_HELPER_SHA256", digest),
+        ):
             self.assertTrue(d3.trusted_exact_content())
             self.assertEqual([p for p, _ in opened if p == "/"], ["/", "/"])
             self.assertEqual(len(opened), len(closed))
