@@ -99,8 +99,10 @@ def classify_error(p):
 
 
 def probe_git(run=fixed_run):
+    # Never whitelist checkout ownership: Git must report dubious ownership
+    # rather than presenting a policy-bypassed read as healthy D3 evidence.
     prefix = ["/usr/sbin/runuser", "-u", ACCOUNT, "--", "/usr/bin/git",
-              "-c", "safe.directory=" + PROJECT, "-C", PROJECT]
+              "-C", PROJECT]
     head = run(prefix + ["rev-parse", "--verify", "HEAD"])
     status = classify_error(head)
     if status != "PASS" or head is None or not SHA40.fullmatch(head.stdout.strip()):
