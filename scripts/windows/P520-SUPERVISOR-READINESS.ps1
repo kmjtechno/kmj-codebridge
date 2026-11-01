@@ -76,16 +76,21 @@ try {
   Mark 'P520_SUPERVISOR_TOKEN_ACL' 'NOT_VERIFIED'
   Mark 'P520_SUPERVISOR_TRUST_ANCHOR' 'NOT_VERIFIED'
 
+  # Do not execute PATH-supplied node.exe merely to read version.
+  # File metadata is only advisory, never runtime/signature provenance.
   $node = Get-Command 'node.exe' -ErrorAction SilentlyContinue
   if($null -eq $node) {
     $nodeStatus = 'NOT_FOUND'
   } else {
-    $version = [string](& $node.Source --version 2>$null)
-    if($version -match '^v([0-9]{1,3})\.') {
-      $nodeStatus = Classify-Node ([int]$Matches[1])
-    } else {
-      $nodeStatus = 'UNVERIFIED'
-    }
+    $nodeStatus = 'UNVERIFIED'
+    try {
+      $nodeFile = Get-Item -LiteralPath ([string]$node.Source) -ErrorAction Stop
+      if((($nodeFile.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) -and
+         $nodeFile.PSIsContainer -eq $false) {
+        $major = [int]$nodeFile.VersionInfo.FileMajorPart
+        if($major -gt 0) { $nodeStatus = Classify-Node $major }
+      }
+    } catch { $nodeStatus = 'UNVERIFIED' }
   }
   Mark 'P520_SUPERVISOR_NODE_RUNTIME' $nodeStatus
 
