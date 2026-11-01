@@ -177,6 +177,25 @@ def trusted_exact_content():
             if (len(payload) != after.st_size or
                 hashlib.sha256(payload).hexdigest() != digest):
                 return False
+            # A held dirfd can still point to an unlinked directory after a
+            # concurrent rename. Before authorizing a root lifecycle action,
+            # ensure every path component STILL resolves to that held inode.
+            # These checks are read-only and never follow symlinks.
+            for index, component in enumerate(components[:-1]):
+                current = os.stat(component, dir_fd=fds[index],
+                                  follow_symlinks=False)
+                held = os.fstat(fds[index + 1])
+                if (not trusted_dir(current) or not trusted_dir(held) or
+                    current.st_dev != held.st_dev or
+                    current.st_ino != held.st_ino):
+                    return False
+            current_file = os.stat(name, dir_fd=fds[-2],
+                                   follow_symlinks=False)
+            if (not trusted_file(current_file, limit) or
+                current_file.st_dev != after.st_dev or
+                current_file.st_ino != after.st_ino or
+                current_file.st_size != after.st_size):
+                return False
         except (OSError, ValueError):
             return False
         finally:
