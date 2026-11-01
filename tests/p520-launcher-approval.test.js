@@ -1,10 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-  createHash,
-  generateKeyPairSync,
-  sign,
-} from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import {
   p520LauncherApprovalBytes,
   verifyP520LauncherApproval,
@@ -79,11 +75,18 @@ test("without an independently pinned owner trust anchor all approvals are denie
     { trustedSpkiSha256: "a".repeat(63) },
     { trustedSpkiSha256: "a".repeat(64) },
   ]) {
-    assert.equal(verifyP520LauncherApproval({ ...args, ...patch }).ownerAttested, false);
-    assert.equal(verifyP520LauncherApproval({ ...args, ...patch }).mayEnableInference, false);
+    assert.equal(
+      verifyP520LauncherApproval({ ...args, ...patch }).ownerAttested,
+      false,
+    );
+    assert.equal(
+      verifyP520LauncherApproval({ ...args, ...patch }).mayEnableInference,
+      false,
+    );
   }
   assert.equal(
-    verifyP520LauncherApproval({ ...args, trustedPublicKeyPem: undefined }).status,
+    verifyP520LauncherApproval({ ...args, trustedPublicKeyPem: undefined })
+      .status,
     "OWNER_TRUST_ANCHOR_MISSING",
   );
 });
@@ -122,7 +125,11 @@ test("a substituted signature or unapproved key cannot authorize the launcher", 
     trustedPublicKeyPem: other.args.trustedPublicKeyPem,
   });
   assert.equal(wrongKey.status, "OWNER_TRUST_ANCHOR_MISMATCH");
-  assert.equal(verifyP520LauncherApproval({ ...args, signatureBase64: "bogus" }).ownerAttested, false);
+  assert.equal(
+    verifyP520LauncherApproval({ ...args, signatureBase64: "bogus" })
+      .ownerAttested,
+    false,
+  );
 });
 
 test("stale, future and excessively long owner approvals fail closed", () => {
@@ -139,11 +146,16 @@ test("stale, future and excessively long owner approvals fail closed", () => {
     ...args.manifest,
     expiresAt: "2026-11-01T11:06:00.000Z",
   };
-  assert.throws(() => p520LauncherApprovalBytes(long), /P520_LAUNCHER_MANIFEST_INVALID/);
+  assert.throws(
+    () => p520LauncherApprovalBytes(long),
+    /P520_LAUNCHER_MANIFEST_INVALID/,
+  );
   const invalid = verifyP520LauncherApproval({
     ...args,
     manifest: long,
-    signatureBase64: sign(null, Buffer.from("wrong"), privateKey).toString("base64"),
+    signatureBase64: sign(null, Buffer.from("wrong"), privateKey).toString(
+      "base64",
+    ),
   });
   assert.equal(invalid.status, "OWNER_APPROVAL_MANIFEST_INVALID");
 });
