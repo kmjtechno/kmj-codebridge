@@ -25,6 +25,12 @@ Owner public key input is size-bounded before cryptographic parsing; the verifie
 
 Test fixture signing keys are ephemeral and exist only inside Node tests. They are never stored in the repository, the user's PC or production. The preflight does not start a server, open a listener, modify model files, install a certificate or infer that `NotSigned` means compromise.
 
+## P520 Supervisor operator readiness audit
+
+`scripts/windows/P520-SUPERVISOR-READINESS.ps1` is a separate **read-only** preparatory diagnostic. Its native Windows `-SelfTest` checks task-status and unique-loopback-listener classifications without accessing a live agent. A normal owner-local run checks only the exact P520 hostname and Lenovo model, the exact `KMJ-CodeBridge-Supervisor-P520` task name, Node major-version readiness and the existing loopback port 20145 listener. It emits bounded status markers; it does **not** register a task, set any policy, touch secrets or restart running services.
+
+This audit intentionally reports task provenance, token ACL and owner key trust as `NOT_VERIFIED`, regardless of whether a task exists, because task presence is not a protected launch receipt. `ABSENT_UNPROVISIONED` or `DISABLED_UNATTESTED` is **not** permission to create/enable a task over an existing agent. Native Windows static and self-tests in `tests/p520-supervisor-readiness.test.js` are source gates only. The actual owner workstation audit remains a separate, owner-authorized step; never claim it ran just because GitHub Actions passed.
+
 ## Next independently verifiable gate
 
 The current CodeBridge P520 device has zero admin-approved command profiles and Windows Supervisor is unavailable. Keep PR #734 draft/unmerged and keep the active 9B server and both CodeBridge/OmniDesk agents untouched. Implement a protected launcher and its narrowly authorized observation API, with negative ACL/process-swap/replay tests, only through an explicitly approved owner-safe rollout. No additional provider spend or new models.
