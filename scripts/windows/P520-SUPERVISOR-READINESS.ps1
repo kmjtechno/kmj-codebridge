@@ -42,10 +42,10 @@ if($SelfTest) {
   }
   $good = [pscustomobject]@{LocalAddress='127.0.0.1';OwningProcess=123}
   $bad = [pscustomobject]@{LocalAddress='0.0.0.0';OwningProcess=123}
-  if((Classify-Listener @($good)) -cne 'UNIQUE_LOOPBACK_OBSERVED' -or
-     (Classify-Listener @($bad)) -cne 'NON_LOOPBACK_LISTENER' -or
-     (Classify-Listener @($good,$good)) -cne 'ABSENT_OR_AMBIGUOUS' -or
-     (Classify-Listener @()) -cne 'ABSENT_OR_AMBIGUOUS') {
+  if((Classify-Listener -sockets @($good)) -cne 'UNIQUE_LOOPBACK_OBSERVED' -or
+     (Classify-Listener -sockets @($bad)) -cne 'NON_LOOPBACK_LISTENER' -or
+     (Classify-Listener -sockets @($good,$good)) -cne 'ABSENT_OR_AMBIGUOUS' -or
+     (Classify-Listener -sockets @()) -cne 'ABSENT_OR_AMBIGUOUS') {
     throw 'P520_LISTENER_SELFTEST_FAILED'
   }
   Mark 'P520_SUPERVISOR_READINESS_SELFTEST' 'PASS'
@@ -92,7 +92,7 @@ try {
   $socketStatus = 'NOT_VERIFIED'
   try {
     $sockets = @(Get-NetTCPConnection -LocalPort 20145 -State Listen -ErrorAction Stop)
-    $socketStatus = Classify-Listener $sockets
+    $socketStatus = Classify-Listener -sockets $sockets
   } catch { $socketStatus = 'NOT_VERIFIED' }
   Mark 'P520_LLAMACPP_LISTENER' $socketStatus
 
