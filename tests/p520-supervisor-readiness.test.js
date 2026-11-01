@@ -31,7 +31,10 @@ test("P520 supervisor readiness source never mutates Windows services", () => {
     "New-Item",
     "Remove-Item",
   ]) {
-    assert.doesNotMatch(source, new RegExp("(?im)^\\s*" + cmd.replace(".", "\\.") + "\\b"));
+    assert.doesNotMatch(
+      source,
+      new RegExp("^\\s*" + cmd.replace(".", "\\.") + "\\b", "im"),
+    );
   }
   assert.match(source, /P520_SUPERVISOR_TASK_PROVENANCE' 'NOT_VERIFIED'/);
   assert.match(source, /P520_SUPERVISOR_TOKEN_ACL' 'NOT_VERIFIED'/);
