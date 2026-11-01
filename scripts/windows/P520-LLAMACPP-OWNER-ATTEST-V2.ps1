@@ -105,6 +105,16 @@ function Assert-ServerArguments([string]$line,[string]$modelPath) {
         throw 'SERVER_COMMAND_LINE_MISMATCH'
     }
 }
+# Compare both executable identity and immutable-looking process fields before
+# and after the HTTP probe. This is still preliminary, not launcher attestation.
+function Assert-StableProcessIdentity($before,$after) {
+    if($null -eq $before -or $null -eq $after -or
+       [string]$after.ExecutablePath -cne [string]$before.ExecutablePath -or
+       [string]$after.CreationDate -cne [string]$before.CreationDate -or
+       [string]$after.CommandLine -cne [string]$before.CommandLine) {
+        throw 'SERVER_PROCESS_CHANGED_DURING_AUDIT'
+    }
+}
 if($SelfTest) {
     $m='C:\KMJ Models\Qwen3.5-9B-Q4_K_M.gguf'
     $good='"C:\Program Files\llama-server.exe" --model "'+$m+'" --host 127.0.0.1 --port 20145'
@@ -126,6 +136,15 @@ if($SelfTest) {
         $blocked=$false
         try { Assert-ServerArguments $candidate $m } catch { $blocked=$true }
         if(-not $blocked) { throw 'SELFTEST_NEGATIVE_ACCEPTED' }
+    }
+    $initial=[pscustomobject]@{ExecutablePath='C:\\server.exe';CreationDate='20261101010000';CommandLine=$good}
+    Assert-StableProcessIdentity $initial $initial
+    foreach($field in @('ExecutablePath','CreationDate','CommandLine')) {
+        $changed=[pscustomobject]@{ExecutablePath=$initial.ExecutablePath;CreationDate=$initial.CreationDate;CommandLine=$initial.CommandLine}
+        $changed.$field=[string]$changed.$field+'-changed'
+        $blocked=$false
+        try { Assert-StableProcessIdentity $initial $changed } catch { $blocked=$true }
+        if(-not $blocked) { throw 'SELFTEST_PROCESS_SWAP_ACCEPTED' }
     }
     Mark 'P520_ATTEST_V2_SELFTEST' 'PASS'
     exit 0
@@ -159,6 +178,7 @@ try {
     }
     $cmdline=[string]$owner.CommandLine
     Assert-ServerArguments $cmdline $model
+    $binaryHashBefore=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
     $health=Invoke-RestMethod 'http://127.0.0.1:20145/health' -TimeoutSec 8
     $reported=Invoke-RestMethod 'http://127.0.0.1:20145/v1/models' -TimeoutSec 8
     if([string]$health.status -cne 'ok' -or
@@ -173,11 +193,12 @@ try {
     if($after.Count -ne 1 -or [int]$after[0].OwningProcess -ne $pidLocal -or
        [string]$after[0].LocalAddress -cne '127.0.0.1' -or
        $null -eq $ownerAfter -or
-       [string]$ownerAfter.ExecutablePath -ine $exe -or
-       [string]$ownerAfter.CreationDate -cne [string]$owner.CreationDate) {
+       [string]$ownerAfter.ExecutablePath -ine $exe) {
         throw 'SERVER_PROCESS_CHANGED_DURING_AUDIT'
     }
+    Assert-StableProcessIdentity $owner $ownerAfter
     $binaryHash=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
+    if($binaryHash -cne $binaryHashBefore) { throw 'SERVER_BINARY_CHANGED_DURING_AUDIT' }
     $signature=Get-AuthenticodeSignature -LiteralPath $exe -ErrorAction Stop
     Mark 'ATTESTATION' 'PRELIMINARY_READONLY_OWNER_APPROVAL_PENDING'
     Mark 'MODEL_SHA256' 'PASS'
