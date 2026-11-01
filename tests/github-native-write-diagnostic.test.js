@@ -262,10 +262,9 @@ test("newer write attempts win even when responses finish out of order", async (
       body: "bounded overlap regression",
     });
   const response = (status, id) =>
-    Response.json(
-      status === 201 ? { id } : { message: "PRIVATE_ERROR_BODY" },
-      { status },
-    );
+    Response.json(status === 201 ? { id } : { message: "PRIVATE_ERROR_BODY" }, {
+      status,
+    });
 
   // A starts before B. B's denial is the newest attempt even when A's
   // older successful HTTP 201 completes afterwards.
