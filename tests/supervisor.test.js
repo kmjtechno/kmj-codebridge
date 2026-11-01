@@ -878,7 +878,7 @@ test("only exact non-secret updater markers are exposed", async () => {
 test("manual update prefers signed stable service and never mutable fallback", async () => {
   const started = [];
   const handle = createSupervisorHandler({
-    run: () => "LoadState=loaded\\nActiveState=inactive\\n",
+    run: () => "LoadState=loaded\nActiveState=inactive\n",
     start: (unit) => started.push(unit),
   });
   const result = await handle({ op: "update_now" });
@@ -900,8 +900,8 @@ test("manual update falls back only when signed unit is absent", async () => {
   const handle = createSupervisorHandler({
     run: (_bin, args) =>
       args[1] === "kmj-codebridge-stable-update.service"
-        ? "LoadState=not-found\\nActiveState=inactive\\n"
-        : "LoadState=loaded\\nActiveState=inactive\\n",
+        ? "LoadState=not-found\nActiveState=inactive\n"
+        : "LoadState=loaded\nActiveState=inactive\n",
     start: (unit) => started.push(unit),
   });
   const result = await handle({ op: "update_now" });
@@ -919,8 +919,8 @@ test("manual update never starts legacy updater if signed unit is present", asyn
   const handle = createSupervisorHandler({
     run: (_bin, args) =>
       args[1] === "kmj-codebridge-stable-update.service"
-        ? "LoadState=loaded\\nActiveState=inactive\\n"
-        : "LoadState=not-found\\nActiveState=inactive\\n",
+        ? "LoadState=loaded\nActiveState=inactive\n"
+        : "LoadState=not-found\nActiveState=inactive\n",
     start: (unit) => started.push(unit),
   });
   const result = await handle({ op: "update_now" });
