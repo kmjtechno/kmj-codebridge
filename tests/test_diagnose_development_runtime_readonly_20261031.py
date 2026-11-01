@@ -62,10 +62,27 @@ class Contract(unittest.TestCase):
         self.assertEqual(result,{'HEAD':'PASS','OBJECT':'PASS','MAIN_REF':'PASS'})
         self.assertEqual(len(seen),3)
         for args in seen:
-            self.assertEqual(args[:6],['/usr/sbin/runuser','-u','kmjdevci','--','/usr/bin/git','-c'])
+            self.assertEqual(args[:6],['/usr/sbin/runuser','-u','kmjdevci','--','/usr/bin/git','-C'])
+            self.assertFalse(any('safe.directory' in part for part in args))
             self.assertIn('-C',args)
             self.assertNotIn('bash',args)
         self.assertNotIn('secret',str(result))
+
+    def test_dubious_ownership_never_becomes_git_pass(self):
+        seen = []
+        def run(args):
+            seen.append(args)
+            return Result('', 'fatal: detected dubious ownership in repository', 128)
+        result = m.probe_git(run)
+        self.assertEqual(result, {
+            'HEAD': 'OWNER_MISMATCH',
+            'OBJECT': 'NOT_CHECKED',
+            'MAIN_REF': 'NOT_CHECKED',
+        })
+        self.assertEqual(len(seen), 1)
+        self.assertNotIn('-c', seen[0])
+        self.assertFalse(any('safe.directory' in arg for arg in seen[0]))
+        self.assertNotIn('repository', str(result))
 
     def test_denied_git_shortcircuits(self):
         seen=[]
