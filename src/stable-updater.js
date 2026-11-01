@@ -547,6 +547,11 @@ export async function runStableUpdate(
     assertMaintenanceRuntime(store, release.name);
     await maintenance.drain();
     const activationStart = now();
+    // Reserve the verified signed sequence durably BEFORE changing the active
+    // release. A crash after activation must never allow replay of an older
+    // signed manifest. Failure or rollback leaves this high-water mark intact;
+    // further automatic attempts require protected owner reconciliation.
+    writeAcceptedUpdateState(config.stateDir, manifest, activationStart);
     const activation = await activate({
       store,
       releaseName: release.name,
@@ -568,7 +573,6 @@ export async function runStableUpdate(
       sleep,
     });
 
-    writeAcceptedUpdateState(config.stateDir, manifest, now());
     return {
       updated: activation.changed,
       current: activation.current,
