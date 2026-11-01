@@ -243,7 +243,9 @@ def main():
     for key, value in data.items():
         print(key + "=" + value)
     print("D3_DIAGNOSTIC=READ_ONLY_COMPLETE")
-    return 0 if data["SYSTEMD_STATUS"] == "MATCH" and all(data[k] == "PASS" for k in ("GIT_HEAD", "GIT_OBJECT", "GIT_MAIN_REF")) and data["GIT_PACK_ACCESS"] in ("PASS", "NO_PACK_FILES") else 3
+    # A successful Git show-ref does not override independently unreadable
+    # packed/loose main-ref storage. A diagnostic exit 0 requires both.
+    return 0 if data["SYSTEMD_STATUS"] == "MATCH" and all(data[k] == "PASS" for k in ("GIT_HEAD", "GIT_OBJECT", "GIT_MAIN_REF")) and data["GIT_PACK_ACCESS"] in ("PASS", "NO_PACK_FILES") and data["GIT_MAIN_REF_STORAGE"] == "PASS" else 3
 
 
 if __name__ == "__main__":

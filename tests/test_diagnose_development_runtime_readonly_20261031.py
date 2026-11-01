@@ -239,6 +239,38 @@ class Contract(unittest.TestCase):
             lambda _: self.fail('no test on missing project'), missing_project),
             'MISSING_PROJECT')
 
+    def test_exit_gate_requires_independent_main_ref_inode_readability(self):
+        # A successful git show-ref alone cannot override an unreadable or
+        # untrusted fixed packed/loose main-ref inode. Never return exit 0.
+        from contextlib import redirect_stdout
+        from io import StringIO
+
+        ready = {
+            'SYSTEMD_STATUS': 'MATCH', 'GIT_HEAD': 'PASS',
+            'GIT_OBJECT': 'PASS', 'GIT_MAIN_REF': 'PASS',
+            'GIT_PACK_ACCESS': 'PASS', 'GIT_MAIN_REF_STORAGE': 'PASS',
+            'ROOT_OR_REPO_MUTATED': 'NO',
+        }
+        with patch.object(m.sys, 'argv', ['probe']), \
+             patch.object(m.os, 'geteuid', return_value=0), \
+             patch.object(m.socket, 'gethostname', return_value='kmj-elite'):
+            for state, expected in (
+                ('PASS', 0),
+                ('SOME_UNREADABLE', 3),
+                ('UNTRUSTED_ENTRY', 3),
+                ('UNTRUSTED_PATH', 3),
+                ('NO_REF_STORAGE', 3),
+                ('MISSING_PROJECT', 3),
+                ('UNAVAILABLE', 3),
+            ):
+                with self.subTest(storage=state), \
+                     patch.object(m, 'inspect', return_value={
+                         **ready, 'GIT_MAIN_REF_STORAGE': state
+                     }), redirect_stdout(StringIO()) as output:
+                    self.assertEqual(m.main(), expected)
+                    self.assertIn('GIT_MAIN_REF_STORAGE=' + state, output.getvalue())
+                    self.assertIn('ROOT_OR_REPO_MUTATED=NO', output.getvalue())
+
     def test_wrong_user_host_or_arbitrary_arguments_rejected(self):
         with patch.object(m.sys,'argv',['probe','--any']):
             self.assertEqual(m.main(),2)
