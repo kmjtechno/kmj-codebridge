@@ -78,7 +78,7 @@ test("null, primitive and array approval envelopes fail closed without throwing"
   }
 });
 
-test("accessor properties, Symbols and Proxies cannot impersonate approval data", () => {
+test("accessor, Symbol and Proxy approvals fail closed", () => {
   const { args } = fixture();
   const getter = () => {
     throw new Error("UNTRUSTED_GETTER_EXECUTED");
