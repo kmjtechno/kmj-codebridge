@@ -161,6 +161,23 @@ export function readAcceptedUpdateState(stateDir) {
   }
 }
 
+function fsyncUpdaterStateDirectory(stateDir) {
+  // The lock and the accepted sequence must both survive a POSIX crash.
+  // Windows activation is not supported by this updater.
+  if (process.platform === "win32") return;
+  const dirFd = fs.openSync(
+    stateDir,
+    fs.constants.O_RDONLY |
+      (fs.constants.O_DIRECTORY ?? 0) |
+      (fs.constants.O_NOFOLLOW ?? 0),
+  );
+  try {
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
+  }
+}
+
 export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
   const state = acceptedStateSchema.parse({
     schema: 1,
@@ -180,7 +197,12 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
   } catch {
     fail("UPDATE_STATE_LOCKED");
   }
+  // Persist the lock before any watermark replacement. If this fails, the
+  // lock remains for owner reconciliation rather than permitting a retry.
+  fsyncUpdaterStateDirectory(stateDir);
   let temp = null;
+  let renamed = false;
+  let durable = false;
   try {
     // Read and compare while holding the lock, not before acquiring it.
     const accepted = readAcceptedUpdateState(stateDir);
@@ -203,22 +225,10 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     }
     fs.renameSync(temp, file);
     temp = null;
-    // fsync of the file alone does not make the rename durable after power loss.
-    // Losing this watermark after a local rollback could admit a signed replay.
-    // Windows activation is separately unsupported until atomic POSIX parity.
-    if (process.platform !== "win32") {
-      const dirFd = fs.openSync(
-        stateDir,
-        fs.constants.O_RDONLY |
-          (fs.constants.O_DIRECTORY ?? 0) |
-          (fs.constants.O_NOFOLLOW ?? 0),
-      );
-      try {
-        fs.fsyncSync(dirFd);
-      } finally {
-        fs.closeSync(dirFd);
-      }
-    }
+    renamed = true;
+    // The rename is not durable until the parent directory is synced.
+    fsyncUpdaterStateDirectory(stateDir);
+    durable = true;
     return state;
   } finally {
     if (temp !== null) {
@@ -229,7 +239,12 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
         // unverified pathname by following a symlink or retrying elsewhere.
       }
     }
-    fs.rmdirSync(lock);
+    // A failed post-rename directory fsync is an ambiguous durability state.
+    // Keep the lock so no automatic retry can silently lower the watermark.
+    if (!renamed || durable) {
+      fs.rmdirSync(lock);
+      fsyncUpdaterStateDirectory(stateDir);
+    }
   }
 }
 
