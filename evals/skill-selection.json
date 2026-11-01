@@ -53,5 +53,53 @@
       "tdd",
       "release-readiness"
     ]
+  },
+  {
+    "name": "ECC compact resume",
+    "input": {
+      "objective": "Compact session handoff before resuming work",
+      "changedFiles": [
+        "docs/COMPACT-SESSION.md"
+      ]
+    },
+    "expected": [
+      "context-budget"
+    ]
+  },
+  {
+    "name": "ECC peer review",
+    "input": {
+      "objective": "Parallel independent peer reviewer with isolated worktree",
+      "changedFiles": [
+        "docs/MULTI-CHAT-LANES.md"
+      ]
+    },
+    "expected": [
+      "independent-review"
+    ]
+  },
+  {
+    "name": "ECC MCP config threat review",
+    "input": {
+      "objective": "Audit MCP plugin hooks for prompt injection",
+      "changedFiles": [
+        "plugin/mcp.json"
+      ]
+    },
+    "expected": [
+      "agent-config-audit"
+    ]
+  },
+  {
+    "name": "ECC combined workflows",
+    "input": {
+      "objective": "Review security plugin hooks with compact context and parallel worktrees"
+    },
+    "expected": [
+      "security-hardening",
+      "context-budget",
+      "independent-review",
+      "agent-config-audit"
+    ]
   }
 ]
