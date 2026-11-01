@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
+import os from "node:os";
+import path from "node:path";
 
 // Python harness: real temp release trees and the real controller functions; no root, no systemd.
 const HARNESS = String.raw`
@@ -240,4 +242,55 @@ test("continuity is enforced before the switch and re-verified inside the rollba
   assert.match(main.slice(sw, rollback), /try:|except Exception/);
   assert.ok(!/LOCK\.open\(/.test(src), "no path-based lock open");
   assert.match(main, /with locked_release_lock\(\)/);
+});
+
+test("Git cleanliness allows ONLY owner-attested shared storage placeholder drift", {
+  skip: process.platform === "win32" && "requires POSIX symlinks",
+}, (t) => {
+  const code = fs.readFileSync("scripts/production/activate-main-platform-approved.py", "utf8");
+  const pre = code.indexOf('real_storage(release)', code.indexOf('def verify_candidate('));
+  const checked = code.indexOf("dirty = run(", code.indexOf("def verify_candidate("));
+  assert.ok(pre > 0 && pre < checked, "storage must be attested before Git exclusion");
+  assert.ok(code.includes(":(exclude)apps/platform/storage"));
+  assert.ok(code.includes('if not (release / "apps/platform/storage").is_symlink()'));
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-git-storage-"));
+  const git = (...args) => spawnSync("git", ["-C", dir, ...args], { encoding: "utf8" });
+  try {
+    let r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
+    if (r.error) { t.skip("git unavailable"); return; }
+    assert.equal(r.status, 0, r.stderr);
+    const laravel = path.join(dir, "apps/platform");
+    const placeholder = path.join(laravel, "storage/app");
+    const shared = path.join(dir, "approved-shared-storage");
+    fs.mkdirSync(placeholder, { recursive: true });
+    fs.mkdirSync(path.join(shared, "app"), { recursive: true });
+    fs.writeFileSync(path.join(placeholder, ".gitignore"), "*\\n");
+    fs.writeFileSync(path.join(laravel, "artisan"), "approved baseline");
+    r = git("add", "apps/platform/storage/app/.gitignore", "apps/platform/artisan");
+    assert.equal(r.status, 0, r.stderr);
+    r = git("-c", "user.email=ci@example.invalid", "-c", "user.name=KMJ CI", "commit", "-qm", "baseline");
+    assert.equal(r.status, 0, r.stderr);
+    // Runtime provisioning replaces ONLY the tracked Laravel placeholder.
+    fs.rmSync(path.join(laravel, "storage"), { recursive: true });
+    fs.symlinkSync(shared, path.join(laravel, "storage"), "dir");
+    const all = git("status", "--porcelain", "--untracked-files=normal");
+    assert.notEqual(all.stdout.trim(), "", "full Git status correctly sees runtime storage drift");
+    // The synthetic persistent directory is outside tracked paths, and is
+    // explicitly excluded from normal source cleanliness for this test.
+    const narrow = (...args) => git("status", "--porcelain", "--untracked-files=normal",
+      "--", ".", ":(exclude)apps/platform/storage", ...args);
+    r = narrow();
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(r.stdout.trim(), "", "only storage is excluded");
+    fs.writeFileSync(path.join(laravel, "artisan"), "tampered source");
+    r = narrow();
+    assert.equal(r.status, 0, r.stderr);
+    assert.match(r.stdout, /artisan/, "other tracked code remains protected");
+    fs.writeFileSync(path.join(dir, "untracked-malicious.js"), "alert(1)");
+    r = narrow();
+    assert.match(r.stdout, /untracked-malicious/, "other untracked source is rejected");
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });
