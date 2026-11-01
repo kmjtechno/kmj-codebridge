@@ -179,6 +179,29 @@ test("injected fields, Windows UNC, traversal and alternate data stream paths ar
   }
 });
 
+
+test("Windows reserved device names and trailing dot/space aliases fail closed", () => {
+  const { args } = fixture();
+  for (const binaryPath of [
+    "C:\\KMJ\\CON\\llama-server.exe",
+    "C:\\KMJ\\AUX.txt\\llama-server.exe",
+    "C:\\KMJ\\NUL\\llama-server.exe",
+    "C:\\KMJ\\CONIN$\\llama-server.exe",
+    "C:\\KMJ\\CONOUT$\\llama-server.exe",
+    "C:\\KMJ\\COM1.log\\llama-server.exe",
+    "C:\\KMJ\\LPT9\\llama-server.exe",
+    "C:\\KMJ\\bad.\\llama-server.exe",
+    "C:\\KMJ\\bad \\llama-server.exe",
+  ]) {
+    assert.throws(
+      () => p520LauncherApprovalBytes({ ...args.manifest, binaryPath }),
+      /P520_LAUNCHER_MANIFEST_INVALID/,
+      binaryPath,
+    );
+  }
+  assert.equal(verifyP520LauncherApproval(args).signatureVerified, true);
+});
+
 test("fake or changed supervisor observations never satisfy an approval", () => {
   const { args } = fixture();
   for (const observed of [
