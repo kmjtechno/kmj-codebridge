@@ -273,8 +273,17 @@ test("known hard-failed images stop the pending-only retry immediately", async (
   let measurements = 0;
   const mixed = { pendingImages: 17, failedImages: 1, brokenImages: 18 };
   const result = await measureAfterImagesReady(
-    async () => { measurements++; return mixed; },
-    { initial: mixed, timeoutMs: 3000, sleep: async () => { throw Error("unexpected retry"); } },
+    async () => {
+      measurements++;
+      return mixed;
+    },
+    {
+      initial: mixed,
+      timeoutMs: 3000,
+      sleep: async () => {
+        throw Error("unexpected retry");
+      },
+    },
   );
   assert.equal(result, mixed);
   assert.equal(measurements, 0);
