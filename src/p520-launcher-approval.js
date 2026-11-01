@@ -77,7 +77,9 @@ function windowsFile(value) {
           part === "." ||
           part === ".." ||
           /[. ]$/.test(part) ||
-          /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9]|LPT[1-9])(?:\..*)?$/i.test(part),
+          /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9]|LPT[1-9])(?:\..*)?$/i.test(
+            part,
+          ),
       ) &&
     path.win32.isAbsolute(value) &&
     path.win32.normalize(value) === value
