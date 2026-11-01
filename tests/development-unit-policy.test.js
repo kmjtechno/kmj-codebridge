@@ -63,16 +63,18 @@ function fixture(overrides = {}) {
     ].join("\n");
   };
   const lstat = (file) => {
-    if (
-      ![
-        DEVELOPMENT_UNIT_PATH,
-        DEVELOPMENT_HELPER_PATH,
-        "/etc/systemd/system",
-        "/usr/local/libexec",
-      ].includes(file)
-    )
+    const trustedDirs = new Set([
+      "/",
+      "/etc",
+      "/etc/systemd",
+      "/etc/systemd/system",
+      "/usr",
+      "/usr/local",
+      "/usr/local/libexec",
+    ]);
+    if (!trustedDirs.has(file) && ![DEVELOPMENT_UNIT_PATH, DEVELOPMENT_HELPER_PATH].includes(file))
       throw Error("UNEXPECTED_PATH");
-    const dir = file.endsWith("system") || file.endsWith("libexec");
+    const dir = trustedDirs.has(file);
     const bad = overrides.badMetadataPath === file;
     return {
       isFile: () => !dir,
@@ -179,6 +181,33 @@ test("hardening bypass, wrong ownership, changed helper, active service all fail
         op: "development_ci_start",
         confirmation: "START_PINNED_NONROOT_DEV_PROBE",
       }),
+      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+    );
+    assert.deepEqual(started, []);
+  }
+});
+
+test("untrusted ancestor anywhere in protected unit/helper path rejects start", async () => {
+  const ancestors = [
+    "/", "/etc", "/etc/systemd", "/etc/systemd/system",
+    "/usr", "/usr/local", "/usr/local/libexec",
+  ];
+  for (const path of ancestors) {
+    const { args, supervisor, started } = fixture({ badMetadataPath: path });
+    assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
+    await assert.rejects(
+      supervisor({ op: "development_ci_start", confirmation: "START_PINNED_NONROOT_DEV_PROBE" }),
+      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+    );
+    assert.deepEqual(started, []);
+  }
+  for (const path of ["/etc/systemd", "/usr/local"]) {
+    const { args, supervisor, started } = fixture({
+      modeByPath: { [path]: 0o40777 },
+    });
+    assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
+    await assert.rejects(
+      supervisor({ op: "development_ci_start", confirmation: "START_PINNED_NONROOT_DEV_PROBE" }),
       /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
     );
     assert.deepEqual(started, []);
