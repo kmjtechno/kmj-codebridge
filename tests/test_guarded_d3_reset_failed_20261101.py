@@ -53,10 +53,41 @@ class D3Tests(unittest.TestCase):
         )
         self.assertEqual(len(runner.commands), 1)
 
+    def test_pre_reset_policy_drift_never_mutates(self):
+        runner = Runner([make_show(), make_show(ProtectSystem="full")])
+        self.assertEqual(
+            d3.reconcile(apply=True, runner=runner, trusted=lambda: True,
+                         content_trusted=lambda: True),
+            ("PRE_RESET_STATE_CHANGED", ["ProtectSystem"], False),
+        )
+        self.assertEqual(len(runner.commands), 2)
+        self.assertTrue(all(command[1] == "show" for command in runner.commands))
+
+    def test_pre_reset_path_change_never_mutates(self):
+        runner = Runner([make_show()])
+        trust_checks = iter((True, False))
+        self.assertEqual(
+            d3.reconcile(apply=True, runner=runner,
+                         trusted=lambda: next(trust_checks),
+                         content_trusted=lambda: True),
+            ("PRE_RESET_TRUST_CHANGED", [], False),
+        )
+        self.assertEqual(len(runner.commands), 1)
+
+    def test_pre_reset_content_change_never_mutates(self):
+        runner = Runner([make_show()])
+        content_checks = iter((True, False))
+        self.assertEqual(
+            d3.reconcile(apply=True, runner=runner, trusted=lambda: True,
+                         content_trusted=lambda: next(content_checks)),
+            ("PRE_RESET_TRUST_CHANGED", [], False),
+        )
+        self.assertEqual(len(runner.commands), 1)
+
     def test_reset_only_exact_failed_lifecycle(self):
-        runner = Runner([make_show(), make_show(ActiveState="inactive", Result="success", ExecMainStatus="0")])
+        runner = Runner([make_show(), make_show(), make_show(ActiveState="inactive", Result="success", ExecMainStatus="0")])
         self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True), ("RESET_VERIFIED", [], True))
-        self.assertEqual(runner.commands[1], ("/usr/bin/systemctl", "reset-failed", d3.UNIT))
+        self.assertEqual(runner.commands[2], ("/usr/bin/systemctl", "reset-failed", d3.UNIT))
 
     def test_policy_drift_never_mutates(self):
         for key, bad in [("User", "root"), ("ProtectSystem", "full"), ("DropInPaths", "/tmp/evil"), ("ReadWritePaths", "/")]:
@@ -96,13 +127,13 @@ class D3Tests(unittest.TestCase):
                 self.assertEqual(len(runner.commands), 1)
 
     def test_postcheck_inactive_with_stale_failure_not_pass(self):
-        runner = Runner([make_show(), make_show(ActiveState="inactive", Result="exit-code", ExecMainStatus="3")])
+        runner = Runner([make_show(), make_show(), make_show(ActiveState="inactive", Result="exit-code", ExecMainStatus="3")])
         self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True),
                          ("POSTCHECK_FAILED", ["Result", "ExecMainStatus"], True))
-        self.assertEqual(len(runner.commands), 3)
+        self.assertEqual(len(runner.commands), 4)
 
     def test_postcheck_failure_not_pass(self):
-        runner = Runner([make_show(), make_show(ActiveState="failed")])
+        runner = Runner([make_show(), make_show(), make_show(ActiveState="failed")])
         self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True), ("POSTCHECK_FAILED", ["ActiveState"], True))
 
 
@@ -114,10 +145,10 @@ class D3Tests(unittest.TestCase):
                     return subprocess.CompletedProcess(args, 1, "", "permission denied")
                 return super().__call__(args, **kwargs)
 
-        runner = FailedReset([make_show()])
+        runner = FailedReset([make_show(), make_show()])
         self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True),
                          ("RESET_FAILED", ["ActiveState"], True))
-        self.assertEqual(len(runner.commands), 2)
+        self.assertEqual(len(runner.commands), 3)
 
     def test_symlink_writable_or_hardlinked_unit_path_is_rejected(self):
         import stat
