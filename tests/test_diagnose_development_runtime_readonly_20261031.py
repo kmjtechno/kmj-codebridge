@@ -163,6 +163,82 @@ class Contract(unittest.TestCase):
                 [SimpleNamespace(name='ignored-%03d' % i) for i in range(129)])),
             'TOO_MANY_ENTRIES')
 
+    def test_main_ref_inode_probe_is_fixed_readonly_and_not_ref_proof(self):
+        import stat
+        from types import SimpleNamespace
+        candidates = (m.PROJECT + '/.git/packed-refs',
+                      m.PROJECT + '/.git/refs/heads/main')
+        seen = []
+        def lstat(path):
+            is_file = path in candidates
+            return SimpleNamespace(st_mode=(stat.S_IFREG | 0o440) if is_file
+                                   else (stat.S_IFDIR | 0o750), st_nlink=1)
+        def run(args):
+            seen.append(args)
+            return Result()
+        self.assertEqual(m.probe_main_ref_storage(run, lstat), 'PASS')
+        self.assertEqual(len(seen), 2)
+        self.assertEqual([args[-1] for args in seen], list(candidates))
+        for args in seen:
+            self.assertEqual(args[:6], ['/usr/sbin/runuser', '-u', 'kmjdevci',
+                                        '--', '/usr/bin/test', '-r'])
+            self.assertNotIn('git', args)
+        self.assertNotIn('refs/heads/main', m.probe_main_ref_storage(run, lstat))
+
+    def test_main_ref_inode_probe_rejects_symlinks_hardlinks_and_denial(self):
+        import stat
+        from types import SimpleNamespace
+        packed = m.PROJECT + '/.git/packed-refs'
+        loose = m.PROJECT + '/.git/refs/heads/main'
+        def trusted(path):
+            is_file = path in (packed, loose)
+            return SimpleNamespace(st_mode=(stat.S_IFREG | 0o440) if is_file
+                                   else (stat.S_IFDIR | 0o750), st_nlink=1)
+        def bad_packed(path):
+            if path == packed:
+                return SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_nlink=1)
+            return trusted(path)
+        self.assertEqual(m.probe_main_ref_storage(
+            lambda _: self.fail('no subprocess on symlink'), bad_packed),
+            'UNTRUSTED_ENTRY')
+        def hardlink(path):
+            info = trusted(path)
+            if path == loose:
+                info.st_nlink = 2
+            return info
+        self.assertEqual(m.probe_main_ref_storage(
+            lambda _: self.fail('no subprocess on hardlink'), hardlink),
+            'UNTRUSTED_ENTRY')
+        def symlink_parent(path):
+            if path.endswith('/.git/refs'):
+                return SimpleNamespace(st_mode=stat.S_IFLNK | 0o777, st_nlink=1)
+            return trusted(path)
+        self.assertEqual(m.probe_main_ref_storage(
+            lambda _: self.fail('no subprocess on symlink parent'),
+            symlink_parent), 'UNTRUSTED_PATH')
+        self.assertEqual(m.probe_main_ref_storage(
+            lambda _: Result('', 'secret path', 1), trusted), 'SOME_UNREADABLE')
+
+    def test_main_ref_inode_probe_missing_storage_never_claims_pass(self):
+        import stat
+        from types import SimpleNamespace
+        packed = m.PROJECT + '/.git/packed-refs'
+        loose = m.PROJECT + '/.git/refs/heads/main'
+        def absent(path):
+            if path in (packed, loose):
+                raise FileNotFoundError(path)
+            return SimpleNamespace(st_mode=stat.S_IFDIR | 0o750, st_nlink=1)
+        self.assertEqual(m.probe_main_ref_storage(
+            lambda _: self.fail('no test on missing storage'), absent),
+            'NO_REF_STORAGE')
+        def missing_project(path):
+            if path == m.PROJECT:
+                raise FileNotFoundError(path)
+            return absent(path)
+        self.assertEqual(m.probe_main_ref_storage(
+            lambda _: self.fail('no test on missing project'), missing_project),
+            'MISSING_PROJECT')
+
     def test_wrong_user_host_or_arbitrary_arguments_rejected(self):
         with patch.object(m.sys,'argv',['probe','--any']):
             self.assertEqual(m.main(),2)
