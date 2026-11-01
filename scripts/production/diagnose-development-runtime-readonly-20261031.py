@@ -111,7 +111,14 @@ def probe_git(run=fixed_run):
     sha = head.stdout.strip()
     obj = run(prefix + ["cat-file", "-e", sha + "^{commit}"])
     ref = run(prefix + ["show-ref", "--verify", "--quiet", "refs/heads/main"])
-    return {"HEAD": "PASS", "OBJECT": classify_error(obj), "MAIN_REF": classify_error(ref)}
+    ref_status = classify_error(ref)
+    # show-ref proves only that a ref exists. A detached readable HEAD does
+    # not prove the main branch's commit object is readable by kmjdevci.
+    # Resolve the fixed ref as a commit without fetching or changing Git.
+    if ref_status == "PASS":
+        main_object = run(prefix + ["cat-file", "-e", "refs/heads/main^{commit}"])
+        ref_status = classify_error(main_object)
+    return {"HEAD": "PASS", "OBJECT": classify_error(obj), "MAIN_REF": ref_status}
 
 
 PACK_DIR = PROJECT + "/.git/objects/pack"
