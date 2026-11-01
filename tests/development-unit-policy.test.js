@@ -72,7 +72,10 @@ function fixture(overrides = {}) {
       "/usr/local",
       "/usr/local/libexec",
     ]);
-    if (!trustedDirs.has(file) && ![DEVELOPMENT_UNIT_PATH, DEVELOPMENT_HELPER_PATH].includes(file))
+    if (
+      !trustedDirs.has(file) &&
+      ![DEVELOPMENT_UNIT_PATH, DEVELOPMENT_HELPER_PATH].includes(file)
+    )
       throw Error("UNEXPECTED_PATH");
     const dir = trustedDirs.has(file);
     const bad = overrides.badMetadataPath === file;
@@ -189,14 +192,22 @@ test("hardening bypass, wrong ownership, changed helper, active service all fail
 
 test("untrusted ancestor anywhere in protected unit/helper path rejects start", async () => {
   const ancestors = [
-    "/", "/etc", "/etc/systemd", "/etc/systemd/system",
-    "/usr", "/usr/local", "/usr/local/libexec",
+    "/",
+    "/etc",
+    "/etc/systemd",
+    "/etc/systemd/system",
+    "/usr",
+    "/usr/local",
+    "/usr/local/libexec",
   ];
   for (const path of ancestors) {
     const { args, supervisor, started } = fixture({ badMetadataPath: path });
     assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
     await assert.rejects(
-      supervisor({ op: "development_ci_start", confirmation: "START_PINNED_NONROOT_DEV_PROBE" }),
+      supervisor({
+        op: "development_ci_start",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      }),
       /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
     );
     assert.deepEqual(started, []);
@@ -207,7 +218,10 @@ test("untrusted ancestor anywhere in protected unit/helper path rejects start", 
     });
     assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
     await assert.rejects(
-      supervisor({ op: "development_ci_start", confirmation: "START_PINNED_NONROOT_DEV_PROBE" }),
+      supervisor({
+        op: "development_ci_start",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      }),
       /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
     );
     assert.deepEqual(started, []);
