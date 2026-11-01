@@ -51,14 +51,14 @@ test("guarded development reports only fixed safe services without granting root
   assert.equal(response.developmentWorkerReady, false);
   assert.equal(response.signedUpdaterVerified, false);
   // The deliberately incomplete mocked bulk systemctl response triggers the
-  // strict fail-closed 17-key diagnostic fallback. It must remain read-only.
-  assert.equal(commands.length, 4 + 17);
+  // strict fail-closed 19-key diagnostic fallback. It must remain read-only.
+  assert.equal(commands.length, 4 + 19);
   assert.equal(
     commands.filter(
       ({ args }) =>
         args.filter((part) => part.startsWith("--property=")).length === 1,
     ).length,
-    17,
+    19,
   );
   assert.equal(afterSend, undefined);
   assert.deepEqual(actions, []);
