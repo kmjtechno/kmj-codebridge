@@ -247,7 +247,14 @@ export const agentSchema = z.object({
       message: "Pinned Browsentic entry checksum required for opt-in",
     })
     .optional(),
-  supervisorSocket: z.literal("/run/kmj-codebridge/supervisor.sock").optional(),
+  // Both Linux paths are exact constants, not caller-supplied IPC addresses.
+  // Elite CloudOS must use an entirely separate root-owned read-only profile.
+  supervisorSocket: z
+    .enum([
+      "/run/kmj-codebridge/supervisor.sock",
+      "/run/kmj-codebridge-cloudos/supervisor.sock",
+    ])
+    .optional(),
   // Windows-native supervisor: fixed-prefix named pipe plus the path of the
   // ACL-restricted secret file. Both or neither; never combined with the
   // Linux socket.

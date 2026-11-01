@@ -31,6 +31,14 @@ const CONFIGS = {
 // Only an explicitly pinned Google CloudOS supervisor unit may use this
 // profile. Default/Main Platform routing stays unchanged on every other host.
 const CLOUDOS_SUPERVISOR_PROFILE = "cloudos";
+const ELITE_CLOUDOS_SUPERVISOR_PROFILE = "cloudos-elite";
+// Dedicated Elite CloudOS agent only; never target the Main Platform agent.
+const ELITE_CLOUDOS_AGENT_UNIT = "kmj-codebridge-kmj-cloudos.service";
+const ELITE_CLOUDOS_READONLY_OPERATIONS = new Set([
+  "status",
+  "device_status",
+  "disk_space",
+]);
 const CLOUDOS_AGENT_UNIT = "kmj-codebridge-cloudos.service";
 const CLOUDOS_AGENT_CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
 const CLOUDOS_PROJECT_ID = "kmj-cloudos";
@@ -133,12 +141,19 @@ function exactKeys(value, allowed) {
 }
 
 function serviceUnit(service, run, profile = "default") {
-  if (profile === CLOUDOS_SUPERVISOR_PROFILE) {
+  if (
+    profile === CLOUDOS_SUPERVISOR_PROFILE ||
+    profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
+  ) {
     if (service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
+    const fixedAgentUnit =
+      profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
+        ? ELITE_CLOUDOS_AGENT_UNIT
+        : CLOUDOS_AGENT_UNIT;
     const fields = parseProperties(
       run(SYSTEMCTL, [
         "show",
-        CLOUDOS_AGENT_UNIT,
+        fixedAgentUnit,
         "--property=LoadState",
         "--property=ActiveState",
         "--no-pager",
@@ -149,7 +164,7 @@ function serviceUnit(service, run, profile = "default") {
       !["active", "inactive", "failed"].includes(fields.ActiveState)
     )
       fail("SUPERVISOR_SERVICE_UNAVAILABLE");
-    return CLOUDOS_AGENT_UNIT;
+    return fixedAgentUnit;
   }
   const unit = SERVICES[service];
   if (!Object.hasOwn(SERVICES, service)) fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
@@ -1499,7 +1514,13 @@ export function createSupervisorHandler({
   deviceStatus = defaultDeviceStatus,
   profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
 } = {}) {
-  if (!["default", CLOUDOS_SUPERVISOR_PROFILE].includes(profile))
+  if (
+    ![
+      "default",
+      CLOUDOS_SUPERVISOR_PROFILE,
+      ELITE_CLOUDOS_SUPERVISOR_PROFILE,
+    ].includes(profile)
+  )
     fail("SUPERVISOR_PROFILE_INVALID");
   const readUpdateState = () => {
     const readReleaseLink = (name) => {
@@ -1669,6 +1690,15 @@ export function createSupervisorHandler({
     if (
       profile === CLOUDOS_SUPERVISOR_PROFILE &&
       !CLOUDOS_OPERATIONS.has(request.op)
+    )
+      fail("SUPERVISOR_OPERATION_NOT_ALLOWED");
+    // ELITE has a separate existing privileged Main Platform socket.
+    // For the CloudOS socket, allow just fixed read-only agent status and
+    // resource inventory. No restart, config read, arbitrary project scope,
+    // gateway update, developer broker, or production action.
+    if (
+      profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE &&
+      !ELITE_CLOUDOS_READONLY_OPERATIONS.has(request.op)
     )
       fail("SUPERVISOR_OPERATION_NOT_ALLOWED");
 
