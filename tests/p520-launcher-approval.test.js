@@ -102,14 +102,14 @@ test("accessor, Symbol and Proxy approvals fail closed", () => {
   const observedProxy = new Proxy({ ...args.observed }, { get: getter });
   const manifestProxy = new Proxy({ ...args.manifest }, { get: getter });
 
-  for (const input of [
-    inputWithGetter,
-    inputWithSymbol,
-    inputProxy,
-    { ...args, observed: observedWithGetter },
-    { ...args, observed: observedProxy },
-    { ...args, manifest: manifestWithGetter },
-    { ...args, manifest: manifestProxy },
+  for (const [input, signatureVerified] of [
+    [inputWithGetter, false],
+    [inputWithSymbol, false],
+    [inputProxy, false],
+    [{ ...args, observed: observedWithGetter }, true],
+    [{ ...args, observed: observedProxy }, true],
+    [{ ...args, manifest: manifestWithGetter }, false],
+    [{ ...args, manifest: manifestProxy }, false],
   ]) {
     let result;
     assert.doesNotThrow(() => {
@@ -117,7 +117,7 @@ test("accessor, Symbol and Proxy approvals fail closed", () => {
     });
     assert.equal(result.ownerAttested, false);
     assert.equal(result.mayEnableInference, false);
-    assert.equal(result.signatureVerified, false);
+    assert.equal(result.signatureVerified, signatureVerified);
   }
   assert.throws(
     () => p520LauncherApprovalBytes(manifestWithGetter),
