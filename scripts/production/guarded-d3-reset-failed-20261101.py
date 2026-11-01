@@ -140,7 +140,9 @@ def trusted_exact_content():
                 not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or
                 before.st_size < 1 or before.st_size > limit):
                 return False
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            # O_NONBLOCK prevents a FIFO substitution from hanging a root-only check
+            # between lstat and open; fstat still requires a regular inode.
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
             try:
                 after = os.fstat(fd)
                 if (after.st_dev != before.st_dev or after.st_ino != before.st_ino or
