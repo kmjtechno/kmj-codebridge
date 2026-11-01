@@ -122,43 +122,67 @@ EXPECTED_HELPER_SHA256 = "1191b0ebff956e64da17e52b6dd65b43afe3c80bdad21900a4c719
 
 
 def trusted_exact_content():
-    # Root-owned parents, no symlinks, no special bits or group/world write.
-    for path in ("/usr", "/usr/local", "/usr/local/libexec"):
-        try:
-            st = os.lstat(path)
-        except OSError:
-            return False
-        if st.st_uid != 0 or st.st_mode & 0o7022 or not stat.S_ISDIR(st.st_mode):
-            return False
+    # Walk fixed root-owned ancestors through directory descriptors. An
+    # absolute-path lstat/open pair alone can follow a replaced parent between
+    # calls, even when the final file uses O_NOFOLLOW.
+    dir_flags = (os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW |
+                 os.O_CLOEXEC | os.O_NONBLOCK)
+    file_flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+
+    def trusted_dir(st):
+        return (st.st_uid == 0 and not st.st_mode & 0o7022 and
+                stat.S_ISDIR(st.st_mode))
+
+    def trusted_file(st, limit):
+        return (st.st_uid == 0 and not st.st_mode & 0o7022 and
+                stat.S_ISREG(st.st_mode) and st.st_nlink == 1 and
+                0 < st.st_size <= limit)
+
     for path, limit, digest in (
         (UNIT_FILE, 8192, EXPECTED_UNIT_SHA256),
         (HELPER_FILE, 16384, EXPECTED_HELPER_SHA256),
     ):
+        fds = []
         try:
-            before = os.lstat(path)
-            if (before.st_uid != 0 or before.st_mode & 0o7022 or
-                not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or
-                before.st_size < 1 or before.st_size > limit):
+            root_fd = os.open("/", dir_flags)
+            fds.append(root_fd)
+            if not trusted_dir(os.fstat(root_fd)):
                 return False
-            # O_NONBLOCK prevents a FIFO substitution from hanging a root-only check
-            # between lstat and open; fstat still requires a regular inode.
-            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK)
-            try:
-                after = os.fstat(fd)
-                if (after.st_dev != before.st_dev or after.st_ino != before.st_ino or
-                    after.st_uid != 0 or after.st_mode & 0o7022 or
-                    not stat.S_ISREG(after.st_mode) or after.st_nlink != 1 or
-                    after.st_size != before.st_size):
+            components = path.strip("/").split("/")
+            for component in components[:-1]:
+                before = os.stat(component, dir_fd=fds[-1],
+                                 follow_symlinks=False)
+                if not trusted_dir(before):
                     return False
-                payload = os.read(fd, limit + 1)
-                if len(payload) != after.st_size or hashlib.sha256(payload).hexdigest() != digest:
+                child_fd = os.open(component, dir_flags, dir_fd=fds[-1])
+                fds.append(child_fd)
+                after = os.fstat(child_fd)
+                if (not trusted_dir(after) or before.st_dev != after.st_dev or
+                    before.st_ino != after.st_ino):
                     return False
-            finally:
-                os.close(fd)
+            name = components[-1]
+            before = os.stat(name, dir_fd=fds[-1], follow_symlinks=False)
+            if not trusted_file(before, limit):
+                return False
+            # Nonblocking, nofollow open protects against a swapped FIFO or
+            # symlink; dir_fd pins every parent in the trusted traversal.
+            fd = os.open(name, file_flags, dir_fd=fds[-1])
+            fds.append(fd)
+            after = os.fstat(fd)
+            if (not trusted_file(after, limit) or
+                after.st_dev != before.st_dev or after.st_ino != before.st_ino or
+                after.st_size != before.st_size):
+                return False
+            payload = os.read(fd, limit + 1)
+            if (len(payload) != after.st_size or
+                hashlib.sha256(payload).hexdigest() != digest):
+                return False
         except (OSError, ValueError):
             return False
+        finally:
+            for fd in reversed(fds):
+                os.close(fd)
     return True
-
 
 def reconcile(*, apply=False, runner=subprocess.run, trusted=trusted_unit_path,
               content_trusted=trusted_exact_content):
