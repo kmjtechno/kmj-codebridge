@@ -15,7 +15,7 @@ export function isAuthorizedSupervisorSocket(
 ) {
   return (
     platform !== "win32" &&
-    path.isAbsolute(String(socketPath)) &&
+    path.posix.isAbsolute(String(socketPath)) &&
     (socketPath === SUPERVISOR_SOCKET ||
       socketPath === ELITE_CLOUDOS_SUPERVISOR_SOCKET)
   );
