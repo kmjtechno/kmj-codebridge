@@ -208,9 +208,7 @@ class D3Tests(unittest.TestCase):
             lstat=lambda path: fake_lstat(path, hardlink=True)))
 
 
-    def test_content_open_is_nofollow_nonblocking_and_inode_pinned(self):
-        # A special-file substitution after lstat must not block the root
-        # verifier. Its opened descriptor must still be a regular inode.
+    def test_content_open_is_dirfd_anchored_and_inode_pinned(self):
         import hashlib
         import os
         import stat
@@ -219,50 +217,89 @@ class D3Tests(unittest.TestCase):
 
         payload = b"fixed-root-owned-unit-or-helper"
         digest = hashlib.sha256(payload).hexdigest()
-        file_stat = SimpleNamespace(
-            st_dev=1, st_ino=42, st_uid=0, st_mode=stat.S_IFREG | 0o644,
-            st_nlink=1, st_size=len(payload),
-        )
-        dir_stat = SimpleNamespace(
-            st_dev=1, st_ino=41, st_uid=0, st_mode=stat.S_IFDIR | 0o755,
-            st_nlink=2, st_size=4096,
-        )
+        paths = {
+            "/": 10, "/etc": 11, "/etc/systemd": 12,
+            "/etc/systemd/system": 13, d3.UNIT_FILE: 14,
+            "/usr": 15, "/usr/local": 16,
+            "/usr/local/libexec": 17, d3.HELPER_FILE: 18,
+        }
+        reverse = {value: key for key, value in paths.items()}
         opened = []
+        closed = []
+        overrides = {}
 
-        def fake_lstat(path):
-            if path in (d3.UNIT_FILE, d3.HELPER_FILE):
-                return file_stat
-            self.assertIn(path, ("/usr", "/usr/local", "/usr/local/libexec"))
-            return dir_stat
+        def fake_stat_for(path):
+            is_file = path in (d3.UNIT_FILE, d3.HELPER_FILE)
+            mode = (stat.S_IFREG | 0o644) if is_file else (stat.S_IFDIR | 0o755)
+            result = dict(st_dev=1, st_ino=paths[path], st_uid=0,
+                          st_mode=mode, st_nlink=1 if is_file else 2,
+                          st_size=len(payload) if is_file else 4096)
+            result.update(overrides.get(path, {}))
+            return SimpleNamespace(**result)
 
-        def fake_open(path, flags):
-            self.assertIn(path, (d3.UNIT_FILE, d3.HELPER_FILE))
-            opened.append((path, flags))
-            return 99
+        def fake_open(name, flags, *, dir_fd=None):
+            if dir_fd is None:
+                self.assertEqual(name, "/")
+                path = "/"
+            else:
+                self.assertIn(dir_fd, reverse)
+                path = reverse[dir_fd].rstrip("/") + "/" + name
+            self.assertIn(path, paths)
+            self.assertTrue(flags & os.O_NOFOLLOW)
+            self.assertTrue(flags & os.O_NONBLOCK)
+            self.assertTrue(flags & os.O_CLOEXEC)
+            if path not in (d3.UNIT_FILE, d3.HELPER_FILE):
+                self.assertTrue(flags & os.O_DIRECTORY)
+            opened.append((path, dir_fd))
+            return paths[path]
 
-        with mock.patch.object(d3.os, "lstat", side_effect=fake_lstat), \
-             mock.patch.object(d3.os, "open", side_effect=fake_open), \
-             mock.patch.object(d3.os, "fstat", return_value=file_stat), \
-             mock.patch.object(d3.os, "read", return_value=payload), \
-             mock.patch.object(d3.os, "close"), \
-             mock.patch.object(d3, "EXPECTED_UNIT_SHA256", digest), \
+        def fake_stat(name, *, dir_fd, follow_symlinks):
+            self.assertFalse(follow_symlinks)
+            path = reverse[dir_fd].rstrip("/") + "/" + name
+            return fake_stat_for(path)
+
+        def fake_fstat(fd):
+            path = reverse[fd]
+            # Simulate replacement between stat and open when requested.
+            result = fake_stat_for(path)
+            if path in replacement_inodes:
+                return SimpleNamespace(**{**vars(result),
+                                          "st_ino": result.st_ino + 100})
+            return result
+
+        replacement_inodes = set()
+        with mock.patch.object(d3.os, "open", side_effect=fake_open), \\
+             mock.patch.object(d3.os, "stat", side_effect=fake_stat), \\
+             mock.patch.object(d3.os, "fstat", side_effect=fake_fstat), \\
+             mock.patch.object(d3.os, "read", return_value=payload), \\
+             mock.patch.object(d3.os, "close", side_effect=closed.append), \\
+             mock.patch.object(d3, "EXPECTED_UNIT_SHA256", digest), \\
              mock.patch.object(d3, "EXPECTED_HELPER_SHA256", digest):
             self.assertTrue(d3.trusted_exact_content())
-            self.assertEqual(len(opened), 2)
-            for _, flags in opened:
-                self.assertTrue(flags & os.O_NOFOLLOW)
-                self.assertTrue(flags & os.O_NONBLOCK)
-                self.assertTrue(flags & os.O_CLOEXEC)
+            self.assertEqual([p for p, _ in opened if p == "/"], ["/", "/"])
+            self.assertEqual(len(opened), len(closed))
+            self.assertTrue(all(parent is not None for p, parent in opened
+                                if p != "/"))
 
-            # A replaced, hardlinked or special opened inode must fail closed.
-            for bad in (
-                SimpleNamespace(**{**vars(file_stat), "st_nlink": 2}),
-                SimpleNamespace(**{**vars(file_stat), "st_mode": stat.S_IFIFO | 0o644}),
-                SimpleNamespace(**{**vars(file_stat), "st_ino": 43}),
+            # Replacing a parent inode during descriptor traversal is refused.
+            for path in ("/etc/systemd", "/usr/local/libexec", d3.HELPER_FILE):
+                with self.subTest(replaced=path):
+                    replacement_inodes.add(path)
+                    self.assertFalse(d3.trusted_exact_content())
+                    replacement_inodes.clear()
+
+            # A symlink, writable ancestor or hardlinked/special file is
+            # rejected without ever invoking a reset-failed command.
+            for path, drift in (
+                ("/usr/local", {"st_mode": stat.S_IFLNK | 0o777}),
+                ("/etc/systemd", {"st_mode": stat.S_IFDIR | 0o777}),
+                (d3.HELPER_FILE, {"st_nlink": 2}),
+                (d3.UNIT_FILE, {"st_mode": stat.S_IFIFO | 0o644}),
             ):
-                with self.subTest(mode=bad.st_mode, inode=bad.st_ino, links=bad.st_nlink):
-                    with mock.patch.object(d3.os, "fstat", return_value=bad):
-                        self.assertFalse(d3.trusted_exact_content())
+                with self.subTest(untrusted=path):
+                    overrides[path] = drift
+                    self.assertFalse(d3.trusted_exact_content())
+                    overrides.clear()
 
 
 if __name__ == "__main__":
