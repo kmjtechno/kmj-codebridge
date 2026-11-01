@@ -163,10 +163,65 @@ def probe_pack_access(run=fixed_run, lstat=os.lstat, scandir=os.scandir):
     return "PASS"
 
 
+
+def probe_main_ref_storage(run=fixed_run, lstat=os.lstat):
+    """Bounded per-inode evidence for fixed loose/packed main-ref storage.
+
+    A readable packed-refs file does NOT prove that it contains main.
+    Only git show-ref may establish the ref; this check diagnoses DAC/path
+    failures without opening or printing any Git metadata.
+    """
+    root_dirs = ("/srv", "/srv/kmj-codebridge-projects", PROJECT,
+                 PROJECT + "/.git")
+    loose_dirs = (PROJECT + "/.git/refs", PROJECT + "/.git/refs/heads")
+    candidates = (PROJECT + "/.git/packed-refs",
+                  PROJECT + "/.git/refs/heads/main")
+    try:
+        for path in root_dirs:
+            if not stat.S_ISDIR(lstat(path).st_mode):
+                return "UNTRUSTED_PATH"
+        readable_paths = []
+        for index, path in enumerate(candidates):
+            if index == 1:
+                missing_dir = False
+                for parent in loose_dirs:
+                    try:
+                        info = lstat(parent)
+                    except FileNotFoundError:
+                        missing_dir = True
+                        break
+                    if not stat.S_ISDIR(info.st_mode):
+                        return "UNTRUSTED_PATH"
+                if missing_dir:
+                    continue
+            try:
+                info = lstat(path)
+            except FileNotFoundError:
+                continue
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                return "UNTRUSTED_ENTRY"
+            readable_paths.append(path)
+    except FileNotFoundError:
+        return "MISSING_PROJECT"
+    except (OSError, ValueError, TypeError):
+        return "UNAVAILABLE"
+    if not readable_paths:
+        return "NO_REF_STORAGE"
+    for path in readable_paths:
+        result = run(["/usr/sbin/runuser", "-u", ACCOUNT, "--",
+                      "/usr/bin/test", "-r", path])
+        if result is None:
+            return "UNAVAILABLE"
+        if result.returncode != 0:
+            return "SOME_UNREADABLE"
+    return "PASS"
+
+
 def inspect(run=fixed_run):
     policy, keys = probe_systemd(run)
     git = probe_git(run)
     pack_access = probe_pack_access(run)
+    main_ref_storage = probe_main_ref_storage(run)
     return {
         "D3_DIAGNOSTIC_SCHEMA": "kmj.d3.readonly.v1",
         "SYSTEMD_STATUS": policy,
@@ -174,6 +229,7 @@ def inspect(run=fixed_run):
         "GIT_HEAD": git["HEAD"], "GIT_OBJECT": git["OBJECT"],
         "GIT_MAIN_REF": git["MAIN_REF"],
         "GIT_PACK_ACCESS": pack_access,
+        "GIT_MAIN_REF_STORAGE": main_ref_storage,
         "ROOT_OR_REPO_MUTATED": "NO", "WORKER_STARTED": "NO",
         "PRODUCTION_DEPLOYED": "NO",
     }
