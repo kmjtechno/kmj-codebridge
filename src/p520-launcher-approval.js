@@ -4,6 +4,7 @@ import {
   verify as verifySignature,
 } from "node:crypto";
 import path from "node:path";
+import { types as utilTypes } from "node:util";
 
 // Cryptographic *preflight* only. This module cannot attest a Windows process
 // or approve inference. A future owner-protected supervisor must independently
@@ -50,12 +51,30 @@ const WITNESS_FIELDS = Object.freeze([
   "processCreatedAt",
 ]);
 
+// The public API may receive untrusted JavaScript objects, not only parsed
+// JSON. Never invoke accessor properties or Proxy traps while evaluating an
+// approval. Plain, own data properties are the only accepted input shape.
+function plainDataObject(obj) {
+  if (obj === null || typeof obj !== "object" || Array.isArray(obj))
+    return false;
+  if (utilTypes.isProxy(obj)) return false;
+  try {
+    return (
+      Object.getPrototypeOf(obj) === Object.prototype &&
+      Reflect.ownKeys(obj).every((key) => {
+        if (typeof key !== "string") return false;
+        const descriptor = Object.getOwnPropertyDescriptor(obj, key);
+        return descriptor && Object.hasOwn(descriptor, "value");
+      })
+    );
+  } catch {
+    return false;
+  }
+}
+
 function exactFields(obj, fields) {
   return (
-    obj !== null &&
-    typeof obj === "object" &&
-    !Array.isArray(obj) &&
-    Object.getPrototypeOf(obj) === Object.prototype &&
+    plainDataObject(obj) &&
     Object.keys(obj).length === fields.length &&
     fields.every((field) => Object.hasOwn(obj, field))
   );
@@ -158,7 +177,7 @@ function denied(reason, signatureVerified = false) {
 export function verifyP520LauncherApproval(input = {}) {
   // Untrusted callers must receive a bounded denial, not an uncaught
   // destructuring TypeError that could crash a future protected supervisor.
-  if (input === null || typeof input !== "object" || Array.isArray(input))
+  if (!plainDataObject(input))
     return denied("OWNER_APPROVAL_INPUT_INVALID");
   const {
     manifest,
