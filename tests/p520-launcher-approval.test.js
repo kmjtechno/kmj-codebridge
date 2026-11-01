@@ -78,6 +78,57 @@ test("null, primitive and array approval envelopes fail closed without throwing"
   }
 });
 
+test("accessor properties, Symbols and Proxies cannot impersonate approval data", () => {
+  const { args } = fixture();
+  const getter = () => {
+    throw new Error("UNTRUSTED_GETTER_EXECUTED");
+  };
+  const inputWithGetter = Object.defineProperty({ ...args }, "manifest", {
+    enumerable: true,
+    get: getter,
+  });
+  const observedWithGetter = Object.defineProperty(
+    { ...args.observed },
+    "processId",
+    { enumerable: true, get: getter },
+  );
+  const manifestWithGetter = Object.defineProperty(
+    { ...args.manifest },
+    "nonce",
+    { enumerable: true, get: getter },
+  );
+  const inputWithSymbol = { ...args, [Symbol("hidden")]: "value" };
+  const inputProxy = new Proxy({ ...args }, { get: getter });
+  const observedProxy = new Proxy({ ...args.observed }, { get: getter });
+  const manifestProxy = new Proxy({ ...args.manifest }, { get: getter });
+
+  for (const input of [
+    inputWithGetter,
+    inputWithSymbol,
+    inputProxy,
+    { ...args, observed: observedWithGetter },
+    { ...args, observed: observedProxy },
+    { ...args, manifest: manifestWithGetter },
+    { ...args, manifest: manifestProxy },
+  ]) {
+    let result;
+    assert.doesNotThrow(() => {
+      result = verifyP520LauncherApproval(input);
+    });
+    assert.equal(result.ownerAttested, false);
+    assert.equal(result.mayEnableInference, false);
+    assert.equal(result.signatureVerified, false);
+  }
+  assert.throws(
+    () => p520LauncherApprovalBytes(manifestWithGetter),
+    /P520_LAUNCHER_MANIFEST_INVALID/,
+  );
+  assert.throws(
+    () => p520LauncherApprovalBytes(manifestProxy),
+    /P520_LAUNCHER_MANIFEST_INVALID/,
+  );
+});
+
 test("without an independently pinned owner trust anchor all approvals are denied", () => {
   const { args } = fixture();
   for (const patch of [
