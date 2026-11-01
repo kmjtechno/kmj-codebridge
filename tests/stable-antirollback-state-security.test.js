@@ -216,3 +216,37 @@ test(
     assert.deepEqual(fs.readdirSync(stateDir), []);
   },
 );
+
+test(
+  "post-rename durability failure retains lock and rejects automatic retry",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir, file } = fixture(t);
+    const originalFsync = fs.fsyncSync;
+    let fsyncCalls = 0;
+    t.mock.method(fs, "fsyncSync", (fd) => {
+      fsyncCalls++;
+      // 1: persist writer lock, 2: persist file, 3: persist rename.
+      if (fsyncCalls === 3) throw Error("INJECTED_DIRECTORY_FSYNC_FAILURE");
+      return originalFsync(fd);
+    });
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /INJECTED_DIRECTORY_FSYNC_FAILURE/,
+    );
+    assert.equal(fsyncCalls, 3);
+    assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+    assert.deepEqual(fs.readdirSync(stateDir).sort(), [
+      ".stable-update-state.lock",
+      path.basename(file),
+    ]);
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+      /UPDATE_STATE_LOCKED/,
+    );
+    t.mock.restoreAll();
+    // Fixture cleanup is only for the isolated test. Production must require
+    // owner reconciliation rather than automatically clearing this lock.
+    fs.rmdirSync(path.join(stateDir, ".stable-update-state.lock"));
+  },
+);
