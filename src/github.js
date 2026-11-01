@@ -396,10 +396,14 @@ export function createGitHubBridge(config) {
     if (method === "POST" && suffix === "pulls") return "pull_request_create";
     if (method === "POST" && /^pulls\/\d+\/reviews$/.test(suffix))
       return "pull_request_review";
-    if (method === "POST" && /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix))
+    if (
+      method === "POST" &&
+      /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix)
+    )
       return "review_reply";
     if (method === "POST" && suffix === "git/refs") return "branch_create";
-    if (method === "PUT" && suffix.startsWith("contents/")) return "file_update";
+    if (method === "PUT" && suffix.startsWith("contents/"))
+      return "file_update";
     if (method === "PUT" && /^pulls\/\d+\/merge$/.test(suffix))
       return "pull_merge";
     if (method === "PATCH" && /^pulls\/\d+$/.test(suffix))
@@ -621,7 +625,9 @@ export function createGitHubBridge(config) {
           observedAtMs: Date.now(),
         });
         if (recentConfirmedWrites.size > 32)
-          recentConfirmedWrites.delete(recentConfirmedWrites.keys().next().value);
+          recentConfirmedWrites.delete(
+            recentConfirmedWrites.keys().next().value,
+          );
         // A live uncached GET must not evict independent cache keys.
         // Only confirmed mutations invalidate previously cached reads.
         cacheEpoch++;
