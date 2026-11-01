@@ -386,6 +386,32 @@ export function createGitHubBridge(config) {
   // GitHub account identities. A read probe alone cannot verify write grants.
   const recentWriteFailures = new Map();
   const WRITE_FAILURE_TTL_MS = 15 * 60 * 1000;
+  // A successful native mutation is evidence for that single operation only.
+  // It is not a grant for other operations or a connected plugin credential.
+  const recentConfirmedWrites = new Map();
+  const nativeWriteOperation = (method, suffix) => {
+    if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
+      return "issue_comment";
+    if (method === "POST" && suffix === "issues") return "issue_create";
+    if (method === "POST" && suffix === "pulls") return "pull_request_create";
+    if (method === "POST" && /^pulls\/\d+\/reviews$/.test(suffix))
+      return "pull_request_review";
+    if (method === "POST" && /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix))
+      return "review_reply";
+    if (method === "POST" && suffix === "git/refs") return "branch_create";
+    if (method === "PUT" && suffix.startsWith("contents/")) return "file_update";
+    if (method === "PUT" && /^pulls\/\d+\/merge$/.test(suffix))
+      return "pull_merge";
+    if (method === "PATCH" && /^pulls\/\d+$/.test(suffix))
+      return "pull_request_update";
+    return "unknown";
+  };
+  const recentNativeWrite = (repository) => {
+    const receipt = recentConfirmedWrites.get(repository);
+    return receipt && Date.now() - receipt.observedAtMs <= WRITE_FAILURE_TTL_MS
+      ? { operation: receipt.operation, evidence: "confirmed_native_mutation" }
+      : null;
+  };
   const recordWriteFailure = (method, repository, status, headers) => {
     if (method === "GET" || ![401, 403, 404, 409, 422, 429].includes(status))
       return;
@@ -486,6 +512,9 @@ export function createGitHubBridge(config) {
 
   const request = (method, repository, suffix, body, cacheKey) => {
     verifyRepo(repository);
+    // Any subsequent write attempt invalidates an older success witness,
+    // including network errors and ambiguous 2xx responses.
+    if (method !== "GET") recentConfirmedWrites.delete(repository);
     const key =
       method === "GET" && cacheKey ? `${repository}:${cacheKey}` : null;
     const cached = key ? cache.get(key) : null;
@@ -586,6 +615,13 @@ export function createGitHubBridge(config) {
         if (!confirmedWriteReceipt(method, suffix, value))
           fail("GITHUB_WRITE_RECEIPT_UNVERIFIED");
         recentWriteFailures.delete(repository);
+        recentConfirmedWrites.delete(repository);
+        recentConfirmedWrites.set(repository, {
+          operation: nativeWriteOperation(method, suffix),
+          observedAtMs: Date.now(),
+        });
+        if (recentConfirmedWrites.size > 32)
+          recentConfirmedWrites.delete(recentConfirmedWrites.keys().next().value);
         // A live uncached GET must not evict independent cache keys.
         // Only confirmed mutations invalidate previously cached reads.
         cacheEpoch++;
@@ -681,11 +717,15 @@ export function createGitHubBridge(config) {
           typeof data.private !== "boolean"
         )
           fail("GITHUB_RESPONSE_INVALID");
+        const nativeWrite = recentNativeWrite(a.repository);
         return {
           repository: a.repository,
           status: "read_ready",
           readVerified: true,
-          writeVerified: false, // A read probe never proves write access.
+          // This is only a same-process, repository-scoped confirmed mutation
+          // witness. Never infer general push/merge privileges from it.
+          writeVerified: nativeWrite !== null,
+          lastNativeWrite: nativeWrite,
           // GitHub's repository metadata is only a hint, not proof of a
           // successful native write or branch-protection permission.
           repositoryPushHint: publicReadOnly
