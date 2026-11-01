@@ -59,11 +59,15 @@ test("claim remains consumed in a fresh child process (normal process restart)",
     "; console.log(JSON.stringify(consumeP520ApprovalNonce(" +
     JSON.stringify(fixture(dir)) +
     ")));";
-  const child = spawnSync(process.execPath, ["--input-type=module", "-e", code], {
-    encoding: "utf8",
-    timeout: 10000,
-    windowsHide: true,
-  });
+  const child = spawnSync(
+    process.execPath,
+    ["--input-type=module", "-e", code],
+    {
+      encoding: "utf8",
+      timeout: 10000,
+      windowsHide: true,
+    },
+  );
   assert.equal(child.error, undefined, String(child.error));
   assert.equal(child.status, 0, child.stderr);
   const replay = JSON.parse(child.stdout.trim());
@@ -121,7 +125,12 @@ test("preexisting claim file is never overwritten or deleted", (t) => {
 test("write and fsync failures leave the nonce burned, never permitting retry", (t) => {
   for (const name of ["writeFileSync", "fsyncSync"]) {
     const dir = directory(t);
-    const io = { ...fs, [name]: () => { throw new Error("simulated failure"); } };
+    const io = {
+      ...fs,
+      [name]: () => {
+        throw new Error("simulated failure");
+      },
+    };
     const error = consumeP520ApprovalNonce(fixture(dir, { io }));
     assert.equal(error.status, "OWNER_NONCE_STORAGE_ERROR");
     assert.equal(error.mayEnableInference, false);
@@ -131,7 +140,8 @@ test("write and fsync failures leave the nonce burned, never permitting retry", 
 });
 
 test("symlinked storage directory is rejected without writing through it", (t) => {
-  if (process.platform === "win32") return t.skip("symlink creation needs privileges");
+  if (process.platform === "win32")
+    return t.skip("symlink creation needs privileges");
   const root = directory(t);
   const real = path.join(root, "real");
   const link = path.join(root, "link");
