@@ -92,7 +92,7 @@ function Assert-ServerArguments([string]$line,[string]$modelPath) {
             $value=[string]$tokens[$i]
             if($value.StartsWith('-')) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
             $values[$key]=$value
-        } elseif($flag -match '(?i)^(?:--model[-=]|--hf-(?:repo|file)(?:$|=)|--models-(?:dir|preset)(?:$|=)|--alias(?:$|=)|-hf(?:$|=)|-a(?:$|=)|--host=|--port=|-m=)') {
+        } elseif($flag -match '(?i)^(?:--model[-=]|--hf-(?:repo|file)(?:$|=)|--models-(?:dir|preset)(?:$|=)|--lora(?:$|=|-)|--mmproj(?:$|=|-)|--control-vector(?:$|=|-)|--override-kv(?:$|=)|--chat-template-file(?:$|=)|--alias(?:$|=)|-hf(?:$|=)|-a(?:$|=)|--host=|--port=|-m=)') {
             # Do not permit alternate model sources, misleading model aliases,
             # or unsupported equals-form switches that evade exact argv checks.
             throw 'SERVER_COMMAND_LINE_MISMATCH'
@@ -135,7 +135,13 @@ if($SelfTest) {
         ($good+' -a=spoofed-model'),
         ($good+' -hf attacker/replacement'),
         ($good+' --models-dir C:\\untrusted-models'),
-        ($good+' --models-preset C:\\untrusted-preset.ini')
+        ($good+' --models-preset C:\\untrusted-preset.ini'),
+        ($good+' --lora C:\\untrusted-adapter.gguf'),
+        ($good+' --lora-scaled C:\\untrusted-adapter.gguf 1.0'),
+        ($good+' --mmproj C:\\untrusted-projector.gguf'),
+        ($good+' --control-vector C:\\untrusted-vector.gguf'),
+        ($good+' --override-kv tokenizer.ggml.bos_token_id=int:1'),
+        ($good+' --chat-template-file C:\\untrusted-template.jinja')
     )
     foreach($candidate in $bad) {
         $blocked=$false
