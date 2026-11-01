@@ -18,7 +18,7 @@ class Contract(unittest.TestCase):
         return '\n'.join(k+'='+v for k,v in m.EXPECTED.items())+'\n'
 
     def test_unit_schema_exact_and_all_properties(self):
-        self.assertEqual(len(m.EXPECTED),16)
+        self.assertEqual(len(m.EXPECTED),17)
         self.assertEqual(m.parse_systemd(self.baseline()),m.EXPECTED)
         for k in m.EXPECTED:
             t=dict(m.EXPECTED);t[k]+='tampered'
@@ -26,6 +26,20 @@ class Contract(unittest.TestCase):
             state, keys=m.probe_systemd(f)
             self.assertIn(k,keys)
             self.assertEqual(state,'FAILED_OR_ACTIVE_UNIT' if k=='ActiveState' else 'POLICY_DRIFT')
+
+    def test_loaded_unit_cache_mismatch_is_explicit_and_fail_closed(self):
+        # Supervisor main policy requires NeedDaemonReload=no after #741.
+        # A root receipt must identify this key, not merely ActiveState=failed.
+        bad=dict(m.EXPECTED)
+        bad['NeedDaemonReload']='yes'
+        bad['ActiveState']='failed'
+        output='\\n'.join(k+'='+v for k,v in bad.items())+'\\n'
+        state, keys=m.probe_systemd(lambda _: Result(output))
+        self.assertEqual(state,'POLICY_DRIFT')
+        self.assertEqual(keys,['NeedDaemonReload','ActiveState'])
+        self.assertIsNone(m.parse_systemd(output.replace('NeedDaemonReload=yes\\n','')))
+        self.assertEqual(m.probe_systemd(lambda _: Result(
+            output.replace('NeedDaemonReload=yes\\n','')))[0], 'MALFORMED')
 
     def test_malformed_never_approves(self):
         for invalid in (self.baseline()+'User=root\n',self.baseline().replace('User=','Invalid='),
