@@ -46,6 +46,8 @@ export const DEVELOPMENT_UNIT_CONTENT = [
 const PROPERTIES = [
   "LoadState",
   "ActiveState",
+  "Result",
+  "ExecMainStatus",
   "FragmentPath",
   "DropInPaths",
   "NeedDaemonReload",
@@ -100,6 +102,10 @@ const TRUSTED_UNIT_PARENT_DIRS = Object.freeze([
 
 const SAFE_PROPERTIES = Object.freeze({
   LoadState: "loaded",
+  // An inactive unit may retain a failed invocation; that is not a clean
+  // owner-attested lifecycle and must never authorize a new start.
+  Result: "success",
+  ExecMainStatus: "0",
   FragmentPath: DEVELOPMENT_UNIT_PATH,
   DropInPaths: "",
   // Reject stale PID 1 loaded-unit bytes even when the on-disk unit is pinned.
