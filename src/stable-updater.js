@@ -196,7 +196,7 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
     const fd = fs.openSync(temp, "wx", 0o600);
     try {
-      fs.writeFileSync(fd, JSON.stringify(state) + "\\n");
+      fs.writeFileSync(fd, JSON.stringify(state) + "\n");
       fs.fsyncSync(fd);
     } finally {
       fs.closeSync(fd);
