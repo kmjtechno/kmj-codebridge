@@ -186,6 +186,70 @@ def verify_candidate(sha):
     return release
 
 
+ENV_MAX_BYTES = 65536
+
+
+def read_env_digest(release):
+    """sha256 of the release .env, read through one no-follow descriptor. Never returns or prints content."""
+    path = release / "apps/platform/.env"
+    try:
+        fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    except OSError:
+        stop("CONTINUITY_ENV_MISSING")
+    try:
+        info = os.fstat(fd)
+        if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1 or info.st_size > ENV_MAX_BYTES:
+            stop("CONTINUITY_ENV_UNSAFE")
+        data = os.read(fd, ENV_MAX_BYTES + 1)
+    finally:
+        os.close(fd)
+    if len(data) > ENV_MAX_BYTES:
+        stop("CONTINUITY_ENV_UNSAFE")
+    return hashlib.sha256(data).hexdigest()
+
+
+def real_storage(release):
+    """Real directory behind <release>/apps/platform/storage (resolves a shared-storage symlink)."""
+    real = Path(os.path.realpath(release / "apps/platform/storage"))
+    try:
+        info = os.lstat(real)
+        app = os.lstat(real / "app")
+    except OSError:
+        stop("CONTINUITY_STORAGE_MISSING")
+    if not stat.S_ISDIR(info.st_mode) or not stat.S_ISDIR(app.st_mode):
+        stop("CONTINUITY_STORAGE_MISSING")
+    return real
+
+
+def continuity_snapshot(release):
+    return {"env": read_env_digest(release), "storage": real_storage(release)}
+
+
+def verify_continuity(current_release, candidate):
+    """Customer uploads and runtime configuration must survive the pointer switch.
+
+    storage/app and .env live inside the release tree. A freshly built candidate has neither, so an
+    unchecked switch passes the login/icon health check yet silently orphans every customer upload.
+    Require BEFORE switching: byte-identical .env and the very same real storage directory (a shared
+    storage link). A copy cannot be race-free against live uploads, so a copy is not accepted.
+    Only fixed categories are raised; no path or content is reported.
+    """
+    before = continuity_snapshot(RELEASES / current_release)
+    candidate_state = continuity_snapshot(candidate)
+    if candidate_state["env"] != before["env"]:
+        stop("CONTINUITY_ENV_DIFFERS")
+    if candidate_state["storage"] != before["storage"]:
+        stop("CONTINUITY_STORAGE_NOT_SHARED")
+    return before
+
+
+def verify_continuity_after_switch(before):
+    """Read the same facts through the live pointer; any difference triggers the existing rollback."""
+    after = continuity_snapshot(CURRENT)
+    if after != before:
+        stop("CONTINUITY_LOST_AFTER_SWITCH")
+
+
 def switch_to(target, tag):
     temporary = ROOT / (".current-" + tag + "-" + str(os.getpid()))
     try:
@@ -230,6 +294,7 @@ def main():
         run("/usr/sbin/nginx", "-t")
         verify_backup(sha, current)
         candidate = verify_candidate(sha)
+        continuity = verify_continuity(current, candidate)
         new_target = "releases/" + candidate.name
         if old_target == new_target:
             stop("ALREADY_ACTIVE")
@@ -239,6 +304,7 @@ def main():
             switch_to(new_target, "approved")
             changed = True
             run("/usr/bin/systemctl", "reload", "php8.4-fpm.service")
+            verify_continuity_after_switch(continuity)
             health_check()
             # Previous pointer is updated only after healthy activation.
             temporary = ROOT / (".previous-" + str(os.getpid()))

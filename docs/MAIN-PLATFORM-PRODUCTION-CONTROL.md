@@ -33,6 +33,33 @@ No arbitrary command strings, shell, project path, unit names, Git ref,
 environment variables or user-supplied executable arguments are accepted.
 Owner must review which CodeBridge users receive `execute` for production.
 
+## Upload and configuration continuity (enforced before and after the switch)
+
+`storage/app` (customer uploads) and `.env` live inside each release tree. A freshly built
+candidate has neither, so a bare pointer switch would still pass the login/icon health check
+while every customer upload silently disappeared from the live site.
+
+The activation controller therefore refuses to switch unless, for the candidate versus the
+current release:
+
+- `apps/platform/.env` is a regular, single-link, no-symlink file of at most 64 KiB with a
+  **byte-identical SHA-256** (only equal/different is reported, never content);
+- `apps/platform/storage` resolves to the **same real directory** (a shared-storage link) and
+  contains `app/`. A copied tree is deliberately not accepted: a copy cannot be race-free against
+  uploads arriving during the switch.
+
+After the switch the same facts are read again through `/home/kmjprod/current` inside the
+rollback-protected block; any difference triggers the existing verified rollback.
+
+Failure categories: `CONTINUITY_ENV_MISSING`, `CONTINUITY_ENV_UNSAFE`, `CONTINUITY_ENV_DIFFERS`,
+`CONTINUITY_STORAGE_MISSING`, `CONTINUITY_STORAGE_NOT_SHARED`, `CONTINUITY_LOST_AFTER_SWITCH`.
+
+Owner preparation (not performed by this source change): before approving, make the candidate's
+`apps/platform/storage` a link to the current release's real storage directory (preferably moved
+to a location outside any release directory first, so pruning an old release cannot delete
+uploads) and place the reviewed `.env` identically. This is production-adjacent work and needs the
+owner's explicit approval and a fresh backup. Nothing here proves it has been done.
+
 ## Initial host bootstrap — one-time operator step
 
 Only after reviewing this source on an authorized KMJ-elite console, as root,
