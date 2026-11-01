@@ -20,13 +20,21 @@ function fixture(t) {
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const stateDir = path.join(root, "state");
   fs.mkdirSync(stateDir, { mode: 0o700 });
-  return { root, stateDir, file: path.join(stateDir, "stable-update-state.json") };
+  return {
+    root,
+    stateDir,
+    file: path.join(stateDir, "stable-update-state.json"),
+  };
 }
 
 test("accepted signed sequence is stored as a private regular inode and readable", (t) => {
   const { stateDir, file } = fixture(t);
   assert.equal(readAcceptedUpdateState(stateDir), null);
-  writeAcceptedUpdateState(stateDir, manifest, Date.parse("2026-11-01T00:00:00Z"));
+  writeAcceptedUpdateState(
+    stateDir,
+    manifest,
+    Date.parse("2026-11-01T00:00:00Z"),
+  );
   const accepted = readAcceptedUpdateState(stateDir);
   assert.equal(accepted.sequence, 43);
   assert.equal(accepted.revision, manifest.revision);
@@ -43,7 +51,10 @@ test(
   (t) => {
     const { stateDir, file } = fixture(t);
     fs.symlinkSync(path.join(stateDir, "missing-watermark"), file);
-    assert.throws(() => readAcceptedUpdateState(stateDir), /UPDATE_STATE_INVALID/);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_INVALID/,
+    );
   },
 );
 
@@ -55,10 +66,16 @@ test(
     writeAcceptedUpdateState(stateDir, manifest);
     const second = path.join(stateDir, "second-link");
     fs.linkSync(file, second);
-    assert.throws(() => readAcceptedUpdateState(stateDir), /UPDATE_STATE_INVALID/);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_INVALID/,
+    );
     fs.unlinkSync(second);
     fs.chmodSync(file, 0o660);
-    assert.throws(() => readAcceptedUpdateState(stateDir), /UPDATE_STATE_INVALID/);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_INVALID/,
+    );
   },
 );
 
@@ -66,7 +83,10 @@ test("malformed or oversized watermark never becomes an absent sequence", (t) =>
   const { stateDir, file } = fixture(t);
   for (const content of ["{broken", "x".repeat(4097)]) {
     fs.writeFileSync(file, content, { mode: 0o600 });
-    assert.throws(() => readAcceptedUpdateState(stateDir), /UPDATE_STATE_INVALID/);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_INVALID/,
+    );
   }
 });
 
