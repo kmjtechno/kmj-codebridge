@@ -165,6 +165,14 @@ def reconcile(*, apply=False, runner=subprocess.run, trusted=trusted_unit_path,
         return state, keys, False
     if not content_trusted():
         return "UNIT_CONTENT_UNTRUSTED", [], False
+    # The first probe is not a mutation authorization: recheck fixed path,
+    # exact bytes and effective properties immediately before reset-failed.
+    # Any intervening drift must fail closed without invoking systemctl reset.
+    if not trusted() or not content_trusted():
+        return "PRE_RESET_TRUST_CHANGED", [], False
+    before_reset, before_reset_keys, _ = inspect(runner)
+    if before_reset != "RESET_CANDIDATE":
+        return "PRE_RESET_STATE_CHANGED", before_reset_keys, False
     result = run_fixed(["/usr/bin/systemctl", "reset-failed", UNIT], runner)
     if result is None or result.returncode != 0:
         return "RESET_FAILED", keys, True
