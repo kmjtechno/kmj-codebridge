@@ -22,6 +22,8 @@ EXPECTED = {
     "LoadState": "loaded",
     "FragmentPath": UNIT_FILE,
     "DropInPaths": "",
+    # A matching on-disk SHA is not sufficient if systemd still has stale loaded bytes.
+    "NeedDaemonReload": "no",
     "User": "kmjdevci",
     "Group": "kmjdevci",
     "NoNewPrivileges": "yes",
