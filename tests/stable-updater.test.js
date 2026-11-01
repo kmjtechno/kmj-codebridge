@@ -496,7 +496,9 @@ test("stable rollback fails closed when no previous release is recorded", async 
 });
 
 test("signed sequence is durable before activation and survives a failed switch", async (t) => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-preactivate-watermark-"));
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "cb-preactivate-watermark-"),
+  );
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const signed = signedFixture();
   const cfg = config(root, signed.trustedKeys);
