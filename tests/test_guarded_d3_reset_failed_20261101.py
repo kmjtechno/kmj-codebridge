@@ -53,6 +53,28 @@ class D3Tests(unittest.TestCase):
         )
         self.assertEqual(len(runner.commands), 1)
 
+    def test_stale_systemd_loaded_cache_never_resets(self):
+        # Disk content can match a pinned SHA while PID 1 still has older unit
+        # directives loaded. NeedDaemonReload=yes must fail before mutation.
+        runner = Runner([make_show(NeedDaemonReload="yes")])
+        self.assertEqual(
+            d3.reconcile(apply=True, runner=runner, trusted=lambda: True,
+                         content_trusted=lambda: True),
+            ("POLICY_DRIFT", ["NeedDaemonReload"], False),
+        )
+        self.assertEqual(len(runner.commands), 1)
+        self.assertEqual(runner.commands[0][1], "show")
+
+    def test_cache_becomes_stale_before_reset_never_mutates(self):
+        runner = Runner([make_show(), make_show(NeedDaemonReload="yes")])
+        self.assertEqual(
+            d3.reconcile(apply=True, runner=runner, trusted=lambda: True,
+                         content_trusted=lambda: True),
+            ("PRE_RESET_STATE_CHANGED", ["NeedDaemonReload"], False),
+        )
+        self.assertEqual(len(runner.commands), 2)
+        self.assertTrue(all(command[1] == "show" for command in runner.commands))
+
     def test_pre_reset_policy_drift_never_mutates(self):
         runner = Runner([make_show(), make_show(ProtectSystem="full")])
         self.assertEqual(
