@@ -92,7 +92,7 @@ function Assert-ServerArguments([string]$line,[string]$modelPath) {
             $value=[string]$tokens[$i]
             if($value.StartsWith('-')) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
             $values[$key]=$value
-        } elseif($flag -match '(?i)^(?:--model[-=]|--hf-(?:repo|file)(?:$|=)|--alias(?:$|=)|--host=|--port=|-m=)') {
+        } elseif($flag -match '(?i)^(?:--model[-=]|--hf-(?:repo|file)(?:$|=)|--models-(?:dir|preset)(?:$|=)|--alias(?:$|=)|-hf(?:$|=)|-a(?:$|=)|--host=|--port=|-m=)') {
             # Do not permit alternate model sources, misleading model aliases,
             # or unsupported equals-form switches that evade exact argv checks.
             throw 'SERVER_COMMAND_LINE_MISMATCH'
@@ -130,7 +130,12 @@ if($SelfTest) {
         ('llama-server.exe --alias "--host 127.0.0.1" --model "'+$m+'" --port 20145'),
         ($good+' --model-draft C:\other.gguf'),
         ($good+' --hf-repo attacker/replacement'),
-        ($good+' --alias trusted-model')
+        ($good+' --alias trusted-model'),
+        ($good+' -a spoofed-model'),
+        ($good+' -a=spoofed-model'),
+        ($good+' -hf attacker/replacement'),
+        ($good+' --models-dir C:\\untrusted-models'),
+        ($good+' --models-preset C:\\untrusted-preset.ini')
     )
     foreach($candidate in $bad) {
         $blocked=$false
