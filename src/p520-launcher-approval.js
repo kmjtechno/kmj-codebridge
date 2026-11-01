@@ -155,14 +155,19 @@ function denied(reason, signatureVerified = false) {
 // The public key and pinned SPKI hash must come from independently protected
 // owner policy, never from this manifest, an MCP request or a model response.
 // The observed object is caller data, not an authenticated supervisor witness.
-export function verifyP520LauncherApproval({
-  manifest,
-  signatureBase64,
-  trustedPublicKeyPem,
-  trustedSpkiSha256,
-  observed,
-  now = Date.now(),
-} = {}) {
+export function verifyP520LauncherApproval(input = {}) {
+  // Untrusted callers must receive a bounded denial, not an uncaught
+  // destructuring TypeError that could crash a future protected supervisor.
+  if (input === null || typeof input !== "object" || Array.isArray(input))
+    return denied("OWNER_APPROVAL_INPUT_INVALID");
+  const {
+    manifest,
+    signatureBase64,
+    trustedPublicKeyPem,
+    trustedSpkiSha256,
+    observed,
+    now = Date.now(),
+  } = input;
   if (
     typeof trustedPublicKeyPem !== "string" ||
     trustedPublicKeyPem.length < 50 ||
