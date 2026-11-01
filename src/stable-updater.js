@@ -169,6 +169,17 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     revision: manifest.revision,
     acceptedAt: new Date(now).toISOString(),
   });
+  // Never let a direct writer or stale operation silently lower the durable
+  // signed watermark. Reject unsafe existing inodes before any temp is made.
+  const accepted = readAcceptedUpdateState(stateDir);
+  if (
+    accepted &&
+    (state.sequence < accepted.sequence ||
+      (state.sequence === accepted.sequence &&
+        (state.revision !== accepted.revision ||
+          state.version !== accepted.version)))
+  )
+    fail("UPDATE_STATE_ROLLBACK_REJECTED");
   const file = acceptedStateFile(stateDir);
   const temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
   const fd = fs.openSync(temp, "wx", 0o600);
