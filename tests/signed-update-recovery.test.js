@@ -132,7 +132,13 @@ for (const failure of [
       assert.equal(restarts, 2);
       assert.equal(store.status().current, "0.3.2-aaaaaaaaaaaa");
       assert.equal(store.status().previous, "0.3.2-bbbbbbbbbbbb");
-      assert.equal(readAcceptedUpdateState(cfg.stateDir), null);
+      // Even after the failed activation rolls back to the previous
+      // known-good runtime, the newer signed sequence stays reserved.
+      // Automatic replay must not lower the anti-rollback watermark.
+      const accepted = readAcceptedUpdateState(cfg.stateDir);
+      assert.equal(accepted.sequence, manifest.sequence);
+      assert.equal(accepted.revision, manifest.revision);
+      assert.equal(accepted.version, manifest.version);
     },
   );
 }
