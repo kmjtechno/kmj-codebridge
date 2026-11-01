@@ -66,6 +66,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.equal(initial.repositoryPushHint, "not_granted");
   assert.equal(initial.lastWriteFailure, null);
   assert.equal(initial.writeVerified, false);
+  assert.equal(initial.lastNativeWrite, null);
 
   await assert.rejects(write(), /GITHUB_AUTHORIZATION_FAILED/);
   const forbidden = await doctor();
@@ -74,6 +75,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     classification: "http_403",
   });
   assert.equal(forbidden.writeVerified, false);
+  assert.equal(forbidden.lastNativeWrite, null);
 
   writeStatus = 401;
   await assert.rejects(write(), /GITHUB_AUTHORIZATION_FAILED/);
@@ -132,8 +134,24 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   const recovered = await doctor();
   assert.equal(recovered.repositoryPushHint, "reported_unverified");
   assert.equal(recovered.lastWriteFailure, null);
-  assert.equal(recovered.writeVerified, false);
-  assert.equal(calls.filter((call) => call.method === "POST").length, 10);
+  assert.equal(recovered.writeVerified, true);
+  assert.deepEqual(recovered.lastNativeWrite, {
+    operation: "issue_comment",
+    evidence: "confirmed_native_mutation",
+  });
+
+  // A later denied native write revokes the scoped success witness. A read
+  // permission hint or separate connector cannot restore it.
+  writeStatus = 403;
+  await assert.rejects(write(), /GITHUB_AUTHORIZATION_FAILED/);
+  const revoked = await doctor();
+  assert.equal(revoked.writeVerified, false);
+  assert.equal(revoked.lastNativeWrite, null);
+  assert.deepEqual(revoked.lastWriteFailure, {
+    httpStatus: 403,
+    classification: "http_403",
+  });
+  assert.equal(calls.filter((call) => call.method === "POST").length, 11);
 
   for (const receipt of [initial, forbidden, recovered]) {
     const serialized = JSON.stringify(receipt);
@@ -160,6 +178,7 @@ test("public-read-only doctor never treats repository push metadata as native wr
   const receipt = await dispatch("github_connection_doctor", { repository });
   assert.equal(receipt.repositoryPushHint, "public_read_only");
   assert.equal(receipt.writeVerified, false);
+  assert.equal(receipt.lastNativeWrite, null);
   assert.equal(receipt.lastWriteFailure, null);
 });
 
