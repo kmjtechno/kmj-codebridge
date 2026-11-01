@@ -33,13 +33,13 @@ class Contract(unittest.TestCase):
         bad=dict(m.EXPECTED)
         bad['NeedDaemonReload']='yes'
         bad['ActiveState']='failed'
-        output='\\n'.join(k+'='+v for k,v in bad.items())+'\\n'
+        output='\n'.join(k+'='+v for k,v in bad.items())+'\n'
         state, keys=m.probe_systemd(lambda _: Result(output))
         self.assertEqual(state,'POLICY_DRIFT')
         self.assertEqual(keys,['NeedDaemonReload','ActiveState'])
-        self.assertIsNone(m.parse_systemd(output.replace('NeedDaemonReload=yes\\n','')))
+        self.assertIsNone(m.parse_systemd(output.replace('NeedDaemonReload=yes\n','')))
         self.assertEqual(m.probe_systemd(lambda _: Result(
-            output.replace('NeedDaemonReload=yes\\n','')))[0], 'MALFORMED')
+            output.replace('NeedDaemonReload=yes\n','')))[0], 'MALFORMED')
 
     def test_malformed_never_approves(self):
         for invalid in (self.baseline()+'User=root\n',self.baseline().replace('User=','Invalid='),
