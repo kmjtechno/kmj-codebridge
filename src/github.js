@@ -389,6 +389,9 @@ export function createGitHubBridge(config) {
   // A successful native mutation is evidence for that single operation only.
   // It is not a grant for other operations or a connected plugin credential.
   const recentConfirmedWrites = new Map();
+  // One opaque generation per allowlisted repository. Older in-flight writes
+  // may finish, but cannot overwrite a newer attempt's authorization witness.
+  const latestWriteAttempts = new Map();
   const nativeWriteOperation = (method, suffix) => {
     if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
       return "issue_comment";
@@ -416,8 +419,12 @@ export function createGitHubBridge(config) {
       ? { operation: receipt.operation, evidence: "confirmed_native_mutation" }
       : null;
   };
-  const recordWriteFailure = (method, repository, status, headers) => {
-    if (method === "GET" || ![401, 403, 404, 409, 422, 429].includes(status))
+  const recordWriteFailure = (method, repository, status, headers, attempt) => {
+    if (
+      method === "GET" ||
+      latestWriteAttempts.get(repository) !== attempt ||
+      ![401, 403, 404, 409, 422, 429].includes(status)
+    )
       return;
     const quota =
       status === 429 ||
@@ -516,9 +523,13 @@ export function createGitHubBridge(config) {
 
   const request = (method, repository, suffix, body, cacheKey) => {
     verifyRepo(repository);
-    // Any subsequent write attempt invalidates an older success witness,
-    // including network errors and ambiguous 2xx responses.
-    if (method !== "GET") recentConfirmedWrites.delete(repository);
+    // Revoke at START, not completion. A late response from an older write
+    // cannot restore proof or clear the latest attempt's failure class.
+    const writeAttempt = method === "GET" ? null : Symbol("native-write");
+    if (writeAttempt) {
+      latestWriteAttempts.set(repository, writeAttempt);
+      recentConfirmedWrites.delete(repository);
+    }
     const key =
       method === "GET" && cacheKey ? `${repository}:${cacheKey}` : null;
     const cached = key ? cache.get(key) : null;
@@ -566,6 +577,7 @@ export function createGitHubBridge(config) {
           repository,
           response.status,
           response.headers,
+          writeAttempt,
         );
         if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
         if (response.status === 403) {
@@ -618,16 +630,18 @@ export function createGitHubBridge(config) {
         // caller must independently reconcile before retrying a mutation.
         if (!confirmedWriteReceipt(method, suffix, value))
           fail("GITHUB_WRITE_RECEIPT_UNVERIFIED");
-        recentWriteFailures.delete(repository);
-        recentConfirmedWrites.delete(repository);
-        recentConfirmedWrites.set(repository, {
-          operation: nativeWriteOperation(method, suffix),
-          observedAtMs: Date.now(),
-        });
-        if (recentConfirmedWrites.size > 32)
-          recentConfirmedWrites.delete(
-            recentConfirmedWrites.keys().next().value,
-          );
+        if (latestWriteAttempts.get(repository) === writeAttempt) {
+          recentWriteFailures.delete(repository);
+          recentConfirmedWrites.delete(repository);
+          recentConfirmedWrites.set(repository, {
+            operation: nativeWriteOperation(method, suffix),
+            observedAtMs: Date.now(),
+          });
+          if (recentConfirmedWrites.size > 32)
+            recentConfirmedWrites.delete(
+              recentConfirmedWrites.keys().next().value,
+            );
+        }
         // A live uncached GET must not evict independent cache keys.
         // Only confirmed mutations invalidate previously cached reads.
         cacheEpoch++;
