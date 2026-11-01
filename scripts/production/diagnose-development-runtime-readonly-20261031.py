@@ -23,7 +23,7 @@ ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C",
 EXPECTED = {
     "LoadState": "loaded", "ActiveState": "inactive",
     "FragmentPath": "/etc/systemd/system/kmj-codebridge-development-ci.service",
-    "DropInPaths": "", "User": ACCOUNT, "Group": ACCOUNT,
+    "DropInPaths": "", "NeedDaemonReload": "no", "User": ACCOUNT, "Group": ACCOUNT,
     "NoNewPrivileges": "yes", "ProtectSystem": "strict",
     "ProtectHome": "yes", "PrivateTmp": "yes", "PrivateDevices": "yes",
     "PrivateNetwork": "yes", "CapabilityBoundingSet": "", "AmbientCapabilities": "",
