@@ -77,7 +77,7 @@ function windowsFile(value) {
           part === "." ||
           part === ".." ||
           /[. ]$/.test(part) ||
-          /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9]|LPT[1-9])(?:\..*)?$/i.test(
+          /^(?:CON|PRN|AUX|NUL|CONIN\$|CONOUT\$|COM[1-9\u00b9\u00b2\u00b3]|LPT[1-9\u00b9\u00b2\u00b3])(?:\..*)?$/i.test(
             part,
           ),
       ) &&
@@ -132,7 +132,8 @@ export function p520LauncherApprovalBytes(manifest) {
     issued === null ||
     expires === null ||
     expires <= issued ||
-    expires - issued > MAX_LIFETIME_MS
+    expires - issued > MAX_LIFETIME_MS ||
+    date(manifest.processCreatedAt) > issued
   )
     throw new TypeError("P520_LAUNCHER_MANIFEST_INVALID");
   return Buffer.from(
