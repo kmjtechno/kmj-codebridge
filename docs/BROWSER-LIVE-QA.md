@@ -24,6 +24,11 @@ hard-failed or undecodable images still fail immediately. Each sample now
 reports safe aggregate `pendingImages` and `failedImages` counts (no URLs,
 DOM content, cookies or image bytes). The initial and second windows are
 bounded, and pending assets remaining after the deadline are not called PASS.
+The failure codes distinguish `PENDING_IMAGES_TIMEOUT` (still loading after
+both bounded windows) from `BROKEN_IMAGES` (load completed with no decodable
+pixels). Mixed cases report both. Either outcome fails QA; legacy receipts
+without separate counters still fail closed. Known hard-failed images do not
+consume the pending-only retry window.
 One failed run followed by two clean runs is evidence of intermittent loading,
 not proof that assets are permanently missing or repaired. Screenshots reside
 in the CodeBridge agent private state directory, not in the dirty Git checkout.
