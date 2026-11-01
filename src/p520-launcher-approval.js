@@ -69,8 +69,16 @@ function windowsFile(value) {
     /^[A-Za-z]:\\/.test(value) &&
     !/[\u0000-\u001f<>:"|?*]/.test(value.slice(2)) &&
     !value
+      .slice(3)
       .split(/[\\/]/)
-      .some((part) => part === "." || part === ".." || part === "") &&
+      .some(
+        (part) =>
+          part === "" ||
+          part === "." ||
+          part === ".." ||
+          /[. ]$/.test(part) ||
+          /^(?:CON|PRN|AUX|NUL|CONIN\\$|CONOUT\\$|COM[1-9]|LPT[1-9])(?:\\..*)?$/i.test(part),
+      ) &&
     path.win32.isAbsolute(value) &&
     path.win32.normalize(value) === value
   );
