@@ -73,7 +73,10 @@ test("Elite CloudOS profile denies ALL privilege-bearing and file RPCs", async (
     { op: "update_rollback" },
     { op: "fake", command: "/bin/sh" },
   ])
-    await assert.rejects(h(request), /(?:SUPERVISOR_OPERATION_NOT_ALLOWED|INVALID_SUPERVISOR_REQUEST)/);
+    await assert.rejects(
+      h(request),
+      /(?:SUPERVISOR_OPERATION_NOT_ALLOWED|INVALID_SUPERVISOR_REQUEST)/,
+    );
   assert.equal(calls.length, 0);
 });
 test("Elite CloudOS supervisor returns bounded platform and disk inventory only", async () => {
