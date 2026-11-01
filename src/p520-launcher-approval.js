@@ -68,7 +68,9 @@ function windowsFile(value) {
     value.length <= 260 &&
     /^[A-Za-z]:\\/.test(value) &&
     !/[\u0000-\u001f<>:"|?*]/.test(value.slice(2)) &&
-    !value.split(/[\\/]/).some((part) => part === "." || part === ".." || part === "") &&
+    !value
+      .split(/[\\/]/)
+      .some((part) => part === "." || part === ".." || part === "") &&
     path.win32.isAbsolute(value) &&
     path.win32.normalize(value) === value
   );
@@ -97,9 +99,9 @@ function identityValid(value) {
     value.listenerPort === PORT &&
     windowsFile(value.binaryPath) &&
     windowsFile(value.modelPath) &&
-    value.modelPath.toLowerCase().endsWith(
-      "\\models\\qwen3.5-9b-q4_k_m.gguf",
-    ) &&
+    value.modelPath
+      .toLowerCase()
+      .endsWith("\\models\\qwen3.5-9b-q4_k_m.gguf") &&
     value.binaryPath.toLowerCase().endsWith("\\llama-server.exe") &&
     Number.isSafeInteger(value.processId) &&
     value.processId > 0 &&
@@ -174,7 +176,10 @@ export function verifyP520LauncherApproval({
   )
     return denied("OWNER_APPROVAL_SIGNATURE_INVALID");
   const signature = Buffer.from(signatureBase64, "base64");
-  if (signature.length !== 64 || signature.toString("base64") !== signatureBase64)
+  if (
+    signature.length !== 64 ||
+    signature.toString("base64") !== signatureBase64
+  )
     return denied("OWNER_APPROVAL_SIGNATURE_INVALID");
   let key;
   try {
