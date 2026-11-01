@@ -393,10 +393,11 @@ test("stable updater fails closed on malformed accepted state before network fet
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const signed = signedFixture();
   const cfg = config(root, signed.trustedKeys);
-  fs.mkdirSync(cfg.stateDir, { recursive: true });
+  fs.mkdirSync(cfg.stateDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(
     path.join(cfg.stateDir, "stable-update-state.json"),
     "{broken\n",
+    { mode: 0o600 },
   );
   let fetched = false;
 
