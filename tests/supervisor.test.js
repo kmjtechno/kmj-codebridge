@@ -950,10 +950,7 @@ test("signed update triggers refuse active, failed and unverified units without 
       start: (unit) => started.push(unit),
     });
     for (const op of ["update_now", "update_check"]) {
-      await assert.rejects(
-        handle({ op }),
-        /SUPERVISOR_UPDATE_NOT_IDLE/,
-      );
+      await assert.rejects(handle({ op }), /SUPERVISOR_UPDATE_NOT_IDLE/);
     }
     assert.deepEqual(started, []);
     assert.deepEqual(calls, [
