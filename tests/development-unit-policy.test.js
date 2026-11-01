@@ -15,6 +15,8 @@ import { createSupervisorHandler } from "../src/supervisor.js";
 const properties = {
   LoadState: "loaded",
   ActiveState: "inactive",
+  Result: "success",
+  ExecMainStatus: "0",
   FragmentPath: DEVELOPMENT_UNIT_PATH,
   DropInPaths: "",
   NeedDaemonReload: "no",
@@ -435,6 +437,42 @@ test("CloudOS supervisor cannot start another project's development unit", async
     }),
     /SUPERVISOR_OPERATION_NOT_ALLOWED/,
   );
+});
+
+test("inactive unit with retained failed result or exit status never authorizes start", async () => {
+  for (const [property, value] of [
+    ["Result", "exit-code"],
+    ["ExecMainStatus", "3"],
+  ]) {
+    const { args, supervisor, started } = fixture({
+      properties: { [property]: value },
+    });
+    const evidence = attestDevelopmentCi(args);
+    assert.equal(evidence.ready, false);
+    assert.equal(evidence.reason, "UNIT_PROPERTIES_UNSAFE");
+    assert.deepEqual(evidence.mismatchedProperties, [property]);
+    await assert.rejects(
+      supervisor({
+        op: "development_ci_start",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      }),
+      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+    );
+    assert.deepEqual(started, []);
+  }
+});
+
+test("retained failed lifecycle after ACK blocks deferred start", async () => {
+  const { supervisor, props, started } = fixture();
+  const accepted = await supervisor({
+    op: "development_ci_start",
+    confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+  });
+  assert.equal(accepted.response.accepted, true);
+  props.Result = "exit-code";
+  props.ExecMainStatus = "3";
+  accepted.afterSend();
+  assert.deepEqual(started, []);
 });
 
 test("stale PID 1 unit cache fails closed before and after Supervisor ACK", async () => {
