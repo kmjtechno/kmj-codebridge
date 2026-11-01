@@ -94,7 +94,12 @@ const acceptedStateSchema = z
 function secureDirectory(target) {
   fs.mkdirSync(target, { recursive: true, mode: 0o700 });
   const stat = fs.lstatSync(target);
-  if (!stat.isDirectory() || stat.isSymbolicLink())
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    (process.platform !== "win32" &&
+      (stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0))
+  )
     fail("UPDATE_STATE_ROOT_INVALID");
   return path.resolve(target);
 }
@@ -114,13 +119,45 @@ function acceptedStateFile(stateDir) {
   return path.join(stateDir, "stable-update-state.json");
 }
 
+// The anti-rollback watermark is security state, not an optional cache.
+// A dangling symlink must never be mistaken for an absent state file.
 export function readAcceptedUpdateState(stateDir) {
   const file = acceptedStateFile(stateDir);
-  if (!fs.existsSync(file)) return null;
+  let before;
   try {
-    return acceptedStateSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+    before = fs.lstatSync(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    fail("UPDATE_STATE_INVALID");
+  }
+  const trusted = (stat) =>
+    stat.isFile() &&
+    !stat.isSymbolicLink() &&
+    stat.nlink === 1 &&
+    stat.size > 0 &&
+    stat.size <= 4096 &&
+    (process.platform === "win32" ||
+      (stat.uid === process.getuid() && (stat.mode & 0o077) === 0));
+  if (!trusted(before)) fail("UPDATE_STATE_INVALID");
+  let fd;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+    const after = fs.fstatSync(fd);
+    if (
+      !trusted(after) ||
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.size !== before.size
+    )
+      fail("UPDATE_STATE_INVALID");
+    return acceptedStateSchema.parse(JSON.parse(fs.readFileSync(fd, "utf8")));
   } catch {
     fail("UPDATE_STATE_INVALID");
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
   }
 }
 
@@ -142,6 +179,22 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     fs.closeSync(fd);
   }
   fs.renameSync(temp, file);
+  // fsync of the file alone does not make the rename durable after power loss.
+  // Losing this watermark after a local rollback could admit a signed replay.
+  // Windows activation is separately unsupported until atomic POSIX parity.
+  if (process.platform !== "win32") {
+    const dirFd = fs.openSync(
+      stateDir,
+      fs.constants.O_RDONLY |
+        (fs.constants.O_DIRECTORY ?? 0) |
+        (fs.constants.O_NOFOLLOW ?? 0),
+    );
+    try {
+      fs.fsyncSync(dirFd);
+    } finally {
+      fs.closeSync(dirFd);
+    }
+  }
   return state;
 }
 
