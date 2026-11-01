@@ -88,6 +88,16 @@ function ownedDirectory(lstat, file) {
   );
 }
 
+const TRUSTED_UNIT_PARENT_DIRS = Object.freeze([
+  "/",
+  "/etc",
+  "/etc/systemd",
+  "/etc/systemd/system",
+  "/usr",
+  "/usr/local",
+  "/usr/local/libexec",
+]);
+
 const SAFE_PROPERTIES = Object.freeze({
   LoadState: "loaded",
   FragmentPath: DEVELOPMENT_UNIT_PATH,
@@ -217,8 +227,7 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
 
   try {
     if (
-      !ownedDirectory(lstat, "/etc/systemd/system") ||
-      !ownedDirectory(lstat, "/usr/local/libexec") ||
+      !TRUSTED_UNIT_PARENT_DIRS.every((path) => ownedDirectory(lstat, path)) ||
       !ownedFile(lstat, DEVELOPMENT_UNIT_PATH, 8192) ||
       !ownedFile(lstat, DEVELOPMENT_HELPER_PATH, 16384)
     )
