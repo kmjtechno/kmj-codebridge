@@ -148,6 +148,41 @@ test("fixed CloudOS QA runs only on a clean detached exact-HEAD lane", async (t)
   );
 });
 
+test("explicit matching CloudOS expectedHead is a safe assertion, not a ref override", async (t) => {
+  const matched = fixture(t);
+  const response = await matched.dispatch(
+    "run_project_command",
+    matched.input({ expectedHead: matched.head }),
+    ["execute"],
+  );
+  assert.equal(response.state, "queued");
+  assert.equal(matched.jobs.length, 1);
+  assert.match(matched.jobs[0].gate, new RegExp(`#${matched.head}$`));
+  assert.equal(git(matched.jobs[0].cwd, "rev-parse", "HEAD"), matched.head);
+  assert.equal(
+    fs.readFileSync(path.join(matched.root, "DO_NOT_TOUCH.txt"), "utf8"),
+    "protected changes\n",
+  );
+
+  const stale = fixture(t);
+  const privateLanes = path.join(stale.stateDir, "isolated-worktrees");
+  assert.equal(fs.existsSync(privateLanes), false);
+  await assert.rejects(
+    stale.dispatch(
+      "run_project_command",
+      stale.input({ expectedHead: "a".repeat(40) }),
+      ["execute"],
+    ),
+    /WORKTREE_HEAD_MISMATCH/,
+  );
+  assert.equal(stale.jobs.length, 0);
+  assert.equal(fs.existsSync(privateLanes), false);
+  assert.equal(
+    fs.readFileSync(path.join(stale.root, "DO_NOT_TOUCH.txt"), "utf8"),
+    "protected changes\n",
+  );
+});
+
 test("rejects unauthorized, read-only, overrides, and insufficient permissions", async (t) => {
   const other = fixture(t, "unrelated");
   const otherList = await other.dispatch(
@@ -166,11 +201,7 @@ test("rejects unauthorized, read-only, overrides, and insufficient permissions",
     /CLOUDOS_QA_PROJECT_NOT_ALLOWED/,
   );
   const approved = fixture(t);
-  for (const extra of [
-    { variant: "deploy" },
-    { laneId: "arbitrary" },
-    { expectedHead: "a".repeat(40) },
-  ]) {
+  for (const extra of [{ variant: "deploy" }, { laneId: "arbitrary" }]) {
     await assert.rejects(
       approved.dispatch("run_project_command", approved.input(extra), [
         "execute",
@@ -178,6 +209,14 @@ test("rejects unauthorized, read-only, overrides, and insufficient permissions",
       /COMMAND_NOT_ALLOWED/,
     );
   }
+  await assert.rejects(
+    approved.dispatch(
+      "run_project_command",
+      approved.input({ expectedHead: "a".repeat(40) }),
+      ["execute"],
+    ),
+    /WORKTREE_HEAD_MISMATCH/,
+  );
   await assert.rejects(
     approved.dispatch("run_project_command", approved.input(), ["read"]),
     /ACCESS_DENIED/,
