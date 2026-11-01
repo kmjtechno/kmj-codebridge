@@ -19,6 +19,10 @@ The draft PR #734 adds `src/p520-launcher-approval.js`: a **non-activating** Ed2
 
 `p520LauncherApprovalBytes(manifest)` enforces exact fields, pinned P520 identity/hash, safe Windows drive paths, strict ISO timestamps and five-minute maximum duration. `verifyP520LauncherApproval` checks a pinned SPKI fingerprint, Ed25519 signature, issue/expiry and claimed process fields. **It deliberately returns `mayEnableInference:false` even when signature verification succeeds** because it has no protected Windows process/ACL witness. Caller-provided `observed` is not trusted.
 
+**Replay boundary:** the signed preflight validates nonce format but deliberately has no trusted persistent nonce ledger. Repeated valid envelopes therefore remain non-activating; the future protected Windows Supervisor must enforce atomic, durable nonce consumption and must reject replay across service restarts. Never interpret `signatureVerified:true` as replay resistance or live process trust.
+
+Owner public key input is size-bounded before cryptographic parsing; the verifier still requires an independently protected SPKI fingerprint and always denies inference activation.
+
 Test fixture signing keys are ephemeral and exist only inside Node tests. They are never stored in the repository, the user's PC or production. The preflight does not start a server, open a listener, modify model files, install a certificate or infer that `NotSigned` means compromise.
 
 ## Next independently verifiable gate
