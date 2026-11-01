@@ -45,22 +45,58 @@ function Find-BoundedServerBinary([string]$base) {
     if($found.Count -ne 1) { throw 'SERVER_BINARY_AMBIGUOUS' }
     return $found[0]
 }
+function Split-CommandLineStrict([string]$line) {
+    # A flag-looking substring inside a quoted --alias or log argument is NOT
+    # an actual argv switch. Tokenize first, then inspect complete tokens.
+    # Reject complex/ambiguous Windows quoting rather than guessing argv.
+    if([string]::IsNullOrWhiteSpace($line) -or $line.Length -gt 8192) {
+        throw 'SERVER_COMMAND_LINE_MISMATCH'
+    }
+    $tokens=New-Object 'System.Collections.Generic.List[string]'
+    $cursor=0
+    foreach($match in [regex]::Matches($line, '"[^"]*"|[^\s"]+')) {
+        if($line.Substring($cursor,$match.Index-$cursor) -notmatch '^\s*$') {
+            throw 'SERVER_COMMAND_LINE_MISMATCH'
+        }
+        $token=[string]$match.Value
+        if($token.StartsWith('"')) {
+            if($token.Length -lt 2 -or -not $token.EndsWith('"')) {
+                throw 'SERVER_COMMAND_LINE_MISMATCH'
+            }
+            $token=$token.Substring(1,$token.Length-2)
+        } elseif($token.Contains('"')) {
+            throw 'SERVER_COMMAND_LINE_MISMATCH'
+        }
+        if($token.Length -eq 0) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
+        $tokens.Add($token)
+        $cursor=$match.Index+$match.Length
+    }
+    if($line.Substring($cursor) -notmatch '^\s*$') {
+        throw 'SERVER_COMMAND_LINE_MISMATCH'
+    }
+    return $tokens.ToArray()
+}
 function Assert-ServerArguments([string]$line,[string]$modelPath) {
-    # Reject duplicate or unsupported forms, rather than matching a path in
-    # unrelated --alias or --log-file arguments.
-    $flagPattern='(?i)(?:^|\s)(--model|-m|--host|--port)(?=\s|=|$)'
-    $argPattern='(?i)(?:^|\s)(--model|-m|--host|--port)\s+(?:"([^"]+)"|(\S+))(?=\s|$)'
-    $all=[regex]::Matches($line,$flagPattern)
-    $parsed=[regex]::Matches($line,$argPattern)
-    if($all.Count -ne 3 -or $parsed.Count -ne 3) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
+    $tokens=@(Split-CommandLineStrict $line)
+    if($tokens.Count -lt 7) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
     $values=@{}
-    foreach($match in $parsed) {
-        $key=$match.Groups[1].Value.ToLowerInvariant()
+    for($i=1; $i -lt $tokens.Count; $i++) {
+        $flag=[string]$tokens[$i]
+        $key=$flag.ToLowerInvariant()
         if($key -eq '-m') { $key='--model' }
-        if($values.ContainsKey($key)) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
-        $value=$match.Groups[2].Value
-        if(-not $match.Groups[2].Success) { $value=$match.Groups[3].Value }
-        $values[$key]=$value
+        if($key -in @('--model','--host','--port')) {
+            if($values.ContainsKey($key) -or ($i+1) -ge $tokens.Count) {
+                throw 'SERVER_COMMAND_LINE_MISMATCH'
+            }
+            $i++
+            $value=[string]$tokens[$i]
+            if($value.StartsWith('-')) { throw 'SERVER_COMMAND_LINE_MISMATCH' }
+            $values[$key]=$value
+        } elseif($flag -match '(?i)^(?:--model[-=]|--hf-(?:repo|file)(?:$|=)|--alias(?:$|=)|--host=|--port=|-m=)') {
+            # Do not permit alternate model sources, misleading model aliases,
+            # or unsupported equals-form switches that evade exact argv checks.
+            throw 'SERVER_COMMAND_LINE_MISMATCH'
+        }
     }
     if($values.Count -ne 3 -or
        $values['--model'] -ine $modelPath -or
@@ -79,7 +115,12 @@ if($SelfTest) {
         ($good+' --host 0.0.0.0'),
         ($good+' --port 20146'),
         ('llama-server.exe --model="'+$m+'" --host 127.0.0.1 --port 20145'),
-        ('llama-server.exe --host 127.0.0.1 --port 20145 --alias "'+$m+'"')
+        ('llama-server.exe --host 127.0.0.1 --port 20145 --alias "'+$m+'"'),
+        ('llama-server.exe --alias "--model '+$m+'" --host 127.0.0.1 --port 20145'),
+        ('llama-server.exe --alias "--host 127.0.0.1" --model "'+$m+'" --port 20145'),
+        ($good+' --model-draft C:\other.gguf'),
+        ($good+' --hf-repo attacker/replacement'),
+        ($good+' --alias trusted-model')
     )
     foreach($candidate in $bad) {
         $blocked=$false
