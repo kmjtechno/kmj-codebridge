@@ -255,6 +255,7 @@ test("Git cleanliness allows ONLY owner-attested shared storage placeholder drif
   assert.ok(code.includes('if not (release / "apps/platform/storage").is_symlink()'));
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-git-storage-"));
+  const shared = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-external-storage-"));
   const git = (...args) => spawnSync("git", ["-C", dir, ...args], { encoding: "utf8" });
   try {
     let r = spawnSync("git", ["init", "-q", dir], { encoding: "utf8" });
@@ -262,7 +263,6 @@ test("Git cleanliness allows ONLY owner-attested shared storage placeholder drif
     assert.equal(r.status, 0, r.stderr);
     const laravel = path.join(dir, "apps/platform");
     const placeholder = path.join(laravel, "storage/app");
-    const shared = path.join(dir, "approved-shared-storage");
     fs.mkdirSync(placeholder, { recursive: true });
     fs.mkdirSync(path.join(shared, "app"), { recursive: true });
     fs.writeFileSync(path.join(placeholder, ".gitignore"), "*\\n");
@@ -292,5 +292,6 @@ test("Git cleanliness allows ONLY owner-attested shared storage placeholder drif
     assert.match(r.stdout, /untracked-malicious/, "other untracked source is rejected");
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(shared, { recursive: true, force: true });
   }
 });
