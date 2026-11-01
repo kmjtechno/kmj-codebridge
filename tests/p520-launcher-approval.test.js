@@ -254,3 +254,34 @@ test("a V2 preliminary PowerShell receipt by itself is never an approved launch"
   assert.equal(result.status, "OWNER_RUNTIME_OBSERVATION_INVALID");
   assert.equal(result.ownerAttested, false);
 });
+
+test("oversized, malformed or embedded-NUL owner key is rejected before parsing", () => {
+  const { args } = fixture();
+  for (const trustedPublicKeyPem of [
+    "A".repeat(4097),
+    "-----BEGIN PUBLIC KEY-----\0not-pem",
+    "x".repeat(49),
+  ]) {
+    const result = verifyP520LauncherApproval({
+      ...args,
+      trustedPublicKeyPem,
+    });
+    assert.deepEqual(result, {
+      status: "OWNER_TRUST_ANCHOR_MISSING",
+      signatureVerified: false,
+      ownerAttested: false,
+      mayEnableInference: false,
+    });
+  }
+});
+
+test("replayed signed envelope cannot elevate without a protected supervisor", () => {
+  const { args } = fixture();
+  for (let i = 0; i < 3; i++) {
+    const result = verifyP520LauncherApproval(args);
+    assert.equal(result.status, "OWNER_SUPERVISOR_ATTESTATION_REQUIRED");
+    assert.equal(result.signatureVerified, true);
+    assert.equal(result.ownerAttested, false);
+    assert.equal(result.mayEnableInference, false);
+  }
+});
