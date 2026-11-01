@@ -226,3 +226,94 @@ test("unconfirmed HTTP 201 never succeeds or evicts an independently cached read
     assert.equal(getCalls, 1, "unconfirmed writes must not evict read cache");
   }
 });
+
+test("newer write attempts win even when responses finish out of order", async (t) => {
+  const env = "CODEBRIDGE_NATIVE_OVERLAP_TEST_TOKEN";
+  process.env[env] = "s".repeat(40);
+  t.after(() => delete process.env[env]);
+
+  const otherRepository = "kmjtechno/kmj-main-platform";
+  const pending = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const repo = new URL(url).pathname.includes("/kmj-main-platform")
+      ? otherRepository
+      : repository;
+    if (options.method === "GET")
+      return Response.json({
+        full_name: repo,
+        private: true,
+        permissions: { pull: true, push: true },
+      });
+    return new Promise((resolve) => pending.push({ repo, resolve }));
+  });
+
+  const dispatch = createGitHubBridge({
+    apiBase: "https://api.github.com/",
+    tokenEnv: env,
+    repositories: [repository, otherRepository],
+    cacheSeconds: 0,
+  });
+  const doctor = (repo) =>
+    dispatch("github_connection_doctor", { repository: repo });
+  const write = (repo) =>
+    dispatch("github_comment_issue", {
+      repository: repo,
+      number: 723,
+      body: "bounded overlap regression",
+    });
+  const response = (status, id) =>
+    Response.json(
+      status === 201 ? { id } : { message: "PRIVATE_ERROR_BODY" },
+      { status },
+    );
+
+  // A starts before B. B's denial is the newest attempt even when A's
+  // older successful HTTP 201 completes afterwards.
+  const a = write(repository);
+  const b = write(repository);
+  assert.equal(pending.length, 2);
+  pending[1].resolve(response(403));
+  await assert.rejects(b, /GITHUB_AUTHORIZATION_FAILED/);
+  pending[0].resolve(response(201, 1001));
+  await a;
+  const denied = await doctor(repository);
+  assert.equal(denied.writeVerified, false);
+  assert.equal(denied.lastNativeWrite, null);
+  assert.deepEqual(denied.lastWriteFailure, {
+    httpStatus: 403,
+    classification: "http_403",
+  });
+
+  // The reverse completion order must not let A's stale failure overwrite
+  // B's later confirmed success.
+  const c = write(repository);
+  const d = write(repository);
+  assert.equal(pending.length, 4);
+  pending[3].resolve(response(201, 1002));
+  await d;
+  pending[2].resolve(response(403));
+  await assert.rejects(c, /GITHUB_AUTHORIZATION_FAILED/);
+  const confirmed = await doctor(repository);
+  assert.equal(confirmed.writeVerified, true);
+  assert.deepEqual(confirmed.lastNativeWrite, {
+    operation: "issue_comment",
+    evidence: "confirmed_native_mutation",
+  });
+  assert.equal(confirmed.lastWriteFailure, null);
+
+  // Generation is repository-local: an independent confirmed write remains
+  // valid even if another repository's newest attempt fails.
+  const e = write(repository);
+  const f = write(otherRepository);
+  assert.equal(pending.length, 6);
+  assert.equal(pending[5].repo, otherRepository);
+  pending[5].resolve(response(201, 1003));
+  await f;
+  pending[4].resolve(response(403));
+  await assert.rejects(e, /GITHUB_AUTHORIZATION_FAILED/);
+  assert.equal((await doctor(repository)).writeVerified, false);
+  const isolated = await doctor(otherRepository);
+  assert.equal(isolated.writeVerified, true);
+  assert.equal(isolated.lastWriteFailure, null);
+  assert.doesNotMatch(JSON.stringify(isolated), /PRIVATE_ERROR_BODY/);
+});
