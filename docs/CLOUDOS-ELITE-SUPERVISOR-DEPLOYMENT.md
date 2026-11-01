@@ -13,7 +13,7 @@ outputs JSON containing a service and socket unit. It does not install, stage,
 write, start, or restart anything, and intentionally marks every release gate
 false. The restricted service itself runs as unprivileged `kmjcloudosdev`,
 not root; the dedicated socket is `0600` to that exact user. The handler
-profile from CodeBridge #748 admits *only* fixed agent status, bounded device
+profile from CodeBridge #748 admits _only_ fixed agent status, bounded device
 status, and disk space. In particular it does not provide the QA worker,
 arbitrary commands, root privileges, project traversal or VM lifecycle.
 

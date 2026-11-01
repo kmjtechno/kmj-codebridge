@@ -34,7 +34,10 @@ test(
     const socket = result.units[UNIT + ".socket"];
     assert.match(service, /^User=kmjcloudosdev$/m);
     assert.match(service, /^Group=kmjcloudosdev$/m);
-    assert.match(service, /^Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=cloudos-elite$/m);
+    assert.match(
+      service,
+      /^Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=cloudos-elite$/m,
+    );
     assert.match(service, /^NoNewPrivileges=yes$/m);
     assert.match(service, /^ProtectSystem=strict$/m);
     assert.match(service, /^ProtectHome=yes$/m);
@@ -42,8 +45,14 @@ test(
     assert.match(service, /^PrivateNetwork=yes$/m);
     assert.match(service, new RegExp(SHA));
     assert.doesNotMatch(service, /^User=root$/m);
-    assert.doesNotMatch(service, /kmj-main-platform|kmj-codebridge-supervisor\.socket/);
-    assert.match(socket, /^ListenStream=\/run\/kmj-codebridge-cloudos\/supervisor\.sock$/m);
+    assert.doesNotMatch(
+      service,
+      /kmj-main-platform|kmj-codebridge-supervisor\.socket/,
+    );
+    assert.match(
+      socket,
+      /^ListenStream=\/run\/kmj-codebridge-cloudos\/supervisor\.sock$/m,
+    );
     assert.match(socket, /^SocketUser=kmjcloudosdev$/m);
     assert.match(socket, /^SocketMode=0600$/m);
     assert.match(socket, /^DirectoryMode=0711$/m);
@@ -59,7 +68,13 @@ test(
   "Elite CloudOS unit renderer rejects non-sha and caller chosen node binaries",
   { skip: !NATIVE_PYTHON },
   () => {
-    for (const sha of ["main", "", "a".repeat(39), "../" + SHA, "A".repeat(40)]) {
+    for (const sha of [
+      "main",
+      "",
+      "a".repeat(39),
+      "../" + SHA,
+      "A".repeat(40),
+    ]) {
       const result = render("--source-sha", sha);
       assert.notEqual(result.status, 0);
       assert.equal(result.stdout, "");
