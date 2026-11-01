@@ -189,6 +189,9 @@ test("Windows reserved device names and trailing dot/space aliases fail closed",
     "C:\\KMJ\\CONOUT$\\llama-server.exe",
     "C:\\KMJ\\COM1.log\\llama-server.exe",
     "C:\\KMJ\\LPT9\\llama-server.exe",
+    "C:\\KMJ\\COM¹\\llama-server.exe",
+    "C:\\KMJ\\LPT².txt\\llama-server.exe",
+    "C:\\KMJ\\COM³\\llama-server.exe",
     "C:\\KMJ\\bad.\\llama-server.exe",
     "C:\\KMJ\\bad \\llama-server.exe",
   ]) {
@@ -199,6 +202,24 @@ test("Windows reserved device names and trailing dot/space aliases fail closed",
     );
   }
   assert.equal(verifyP520LauncherApproval(args).signatureVerified, true);
+});
+
+test("owner preflight refuses process creation after approval issuance", () => {
+  const { args } = fixture();
+  for (const processCreatedAt of [
+    "2026-11-01T11:00:00.001Z",
+    "2026-11-01T11:03:00.000Z",
+  ]) {
+    const manifest = { ...args.manifest, processCreatedAt };
+    assert.throws(
+      () => p520LauncherApprovalBytes(manifest),
+      /P520_LAUNCHER_MANIFEST_INVALID/,
+    );
+    const result = verifyP520LauncherApproval({ ...args, manifest });
+    assert.equal(result.status, "OWNER_APPROVAL_MANIFEST_INVALID");
+    assert.equal(result.ownerAttested, false);
+    assert.equal(result.mayEnableInference, false);
+  }
 });
 
 test("fake or changed supervisor observations never satisfy an approval", () => {
