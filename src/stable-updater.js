@@ -169,44 +169,68 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     revision: manifest.revision,
     acceptedAt: new Date(now).toISOString(),
   });
-  // Never let a direct writer or stale operation silently lower the durable
-  // signed watermark. Reject unsafe existing inodes before any temp is made.
-  const accepted = readAcceptedUpdateState(stateDir);
-  if (
-    accepted &&
-    (state.sequence < accepted.sequence ||
-      (state.sequence === accepted.sequence &&
-        (state.revision !== accepted.revision ||
-          state.version !== accepted.version)))
-  )
-    fail("UPDATE_STATE_ROLLBACK_REJECTED");
-  const file = acceptedStateFile(stateDir);
-  const temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
-  const fd = fs.openSync(temp, "wx", 0o600);
+  // The exported writer must enforce its own state-root policy, even when
+  // called without runStableUpdate's outer maintenance lease.
+  secureDirectory(stateDir);
+  // Atomic mkdir serializes writers across processes. Never remove an
+  // existing/abandoned lock automatically: it requires owner reconciliation.
+  const lock = path.join(stateDir, ".stable-update-state.lock");
   try {
-    fs.writeFileSync(fd, JSON.stringify(state) + "\n");
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
+    fs.mkdirSync(lock, { mode: 0o700 });
+  } catch {
+    fail("UPDATE_STATE_LOCKED");
   }
-  fs.renameSync(temp, file);
-  // fsync of the file alone does not make the rename durable after power loss.
-  // Losing this watermark after a local rollback could admit a signed replay.
-  // Windows activation is separately unsupported until atomic POSIX parity.
-  if (process.platform !== "win32") {
-    const dirFd = fs.openSync(
-      stateDir,
-      fs.constants.O_RDONLY |
-        (fs.constants.O_DIRECTORY ?? 0) |
-        (fs.constants.O_NOFOLLOW ?? 0),
-    );
+  let temp = null;
+  try {
+    // Read and compare while holding the lock, not before acquiring it.
+    const accepted = readAcceptedUpdateState(stateDir);
+    if (
+      accepted &&
+      (state.sequence < accepted.sequence ||
+        (state.sequence === accepted.sequence &&
+          (state.revision !== accepted.revision ||
+            state.version !== accepted.version)))
+    )
+      fail("UPDATE_STATE_ROLLBACK_REJECTED");
+    const file = acceptedStateFile(stateDir);
+    temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
+    const fd = fs.openSync(temp, "wx", 0o600);
     try {
-      fs.fsyncSync(dirFd);
+      fs.writeFileSync(fd, JSON.stringify(state) + "\\n");
+      fs.fsyncSync(fd);
     } finally {
-      fs.closeSync(dirFd);
+      fs.closeSync(fd);
     }
+    fs.renameSync(temp, file);
+    temp = null;
+    // fsync of the file alone does not make the rename durable after power loss.
+    // Losing this watermark after a local rollback could admit a signed replay.
+    // Windows activation is separately unsupported until atomic POSIX parity.
+    if (process.platform !== "win32") {
+      const dirFd = fs.openSync(
+        stateDir,
+        fs.constants.O_RDONLY |
+          (fs.constants.O_DIRECTORY ?? 0) |
+          (fs.constants.O_NOFOLLOW ?? 0),
+      );
+      try {
+        fs.fsyncSync(dirFd);
+      } finally {
+        fs.closeSync(dirFd);
+      }
+    }
+    return state;
+  } finally {
+    if (temp !== null) {
+      try {
+        fs.unlinkSync(temp);
+      } catch {
+        // The original failure still rejects the update; do not remove an
+        // unverified pathname by following a symlink or retrying elsewhere.
+      }
+    }
+    fs.rmdirSync(lock);
   }
-  return state;
 }
 
 function markerFor(store, releaseName) {
