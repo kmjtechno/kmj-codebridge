@@ -2451,8 +2451,7 @@ export function createSupervisorHandler({
       // existing fixed, bounded development updater for those hosts only.
       const legacy = fixedUnitStatus(run, UPDATE_SERVICE, ["ActiveState"]);
       if (!legacy.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
-      if (legacy.activeState !== "inactive")
-        fail("SUPERVISOR_UPDATE_NOT_IDLE");
+      if (legacy.activeState !== "inactive") fail("SUPERVISOR_UPDATE_NOT_IDLE");
       return {
         response: { accepted: true, channel: "development" },
         afterSend: () => start(UPDATE_SERVICE),
