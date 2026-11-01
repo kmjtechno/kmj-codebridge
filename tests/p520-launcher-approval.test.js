@@ -67,6 +67,17 @@ test("even a valid owner signature and matching claimed process cannot activate 
   });
 });
 
+test("null, primitive and array approval envelopes fail closed without throwing", () => {
+  for (const input of [null, false, 0, 42, "", "invalid", [], [null]]) {
+    assert.deepEqual(verifyP520LauncherApproval(input), {
+      status: "OWNER_APPROVAL_INPUT_INVALID",
+      signatureVerified: false,
+      ownerAttested: false,
+      mayEnableInference: false,
+    });
+  }
+});
+
 test("without an independently pinned owner trust anchor all approvals are denied", () => {
   const { args } = fixture();
   for (const patch of [
