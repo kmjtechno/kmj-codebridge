@@ -48,6 +48,7 @@ const PROPERTIES = [
   "ActiveState",
   "FragmentPath",
   "DropInPaths",
+  "NeedDaemonReload",
   "User",
   "Group",
   "NoNewPrivileges",
@@ -91,6 +92,8 @@ const SAFE_PROPERTIES = Object.freeze({
   LoadState: "loaded",
   FragmentPath: DEVELOPMENT_UNIT_PATH,
   DropInPaths: "",
+  // Reject stale PID 1 loaded-unit bytes even when the on-disk unit is pinned.
+  NeedDaemonReload: "no",
   User: "kmjdevci",
   Group: "kmjdevci",
   NoNewPrivileges: "yes",
