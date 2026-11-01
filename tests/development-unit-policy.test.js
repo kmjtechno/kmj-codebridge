@@ -82,8 +82,8 @@ function fixture(overrides = {}) {
     return {
       isFile: () => !dir,
       isDirectory: () => dir,
-      isSymbolicLink: () => bad,
-      uid: bad ? 1000 : 0,
+      isSymbolicLink: () => bad || overrides.symlinkPath === file,
+      uid: bad ? 1000 : (overrides.uidByPath?.[file] ?? 0),
       mode: bad
         ? 0o100666
         : (overrides.modeByPath?.[file] ?? (dir ? 0o40755 : 0o100644)),
@@ -213,18 +213,22 @@ test("untrusted ancestor anywhere in protected unit/helper path rejects start", 
     assert.deepEqual(started, []);
   }
   for (const path of ["/etc/systemd", "/usr/local"]) {
-    const { args, supervisor, started } = fixture({
-      modeByPath: { [path]: 0o40777 },
-    });
-    assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
-    await assert.rejects(
-      supervisor({
-        op: "development_ci_start",
-        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
-      }),
-      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
-    );
-    assert.deepEqual(started, []);
+    for (const override of [
+      { symlinkPath: path },
+      { uidByPath: { [path]: 1000 } },
+      { modeByPath: { [path]: 0o40777 } },
+    ]) {
+      const { args, supervisor, started } = fixture(override);
+      assert.equal(attestDevelopmentCi(args).reason, "ROOT_OWNERSHIP_UNVERIFIED");
+      await assert.rejects(
+        supervisor({
+          op: "development_ci_start",
+          confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+        }),
+        /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+      );
+      assert.deepEqual(started, []);
+    }
   }
 });
 
