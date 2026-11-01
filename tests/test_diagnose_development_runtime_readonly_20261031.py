@@ -249,6 +249,7 @@ class Contract(unittest.TestCase):
             'SYSTEMD_STATUS': 'MATCH', 'GIT_HEAD': 'PASS',
             'GIT_OBJECT': 'PASS', 'GIT_MAIN_REF': 'PASS',
             'GIT_PACK_ACCESS': 'PASS', 'GIT_MAIN_REF_STORAGE': 'PASS',
+            'ROOT_OR_REPO_MUTATED': 'NO',
         }
         with patch.object(m.sys, 'argv', ['probe']), \
              patch.object(m.os, 'geteuid', return_value=0), \
