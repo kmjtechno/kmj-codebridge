@@ -16,6 +16,16 @@ function Assert-PinnedBinaryHash([string]$observed) {
         throw 'SERVER_BINARY_SHA256_MISMATCH'
     }
 }
+# Re-hash the complete GGUF after HTTP/process checks. A valid initial hash
+# alone cannot attest a model file replaced during the read-only audit.
+function Assert-StableModelHash([string]$before,[string]$after) {
+    if($before -notmatch '^[0-9a-fA-F]{64}$' -or $before -ine $expectedModelHash) {
+        throw 'MODEL_SHA256_MISMATCH'
+    }
+    if($after -notmatch '^[0-9a-fA-F]{64}$' -or $after -cne $before) {
+        throw 'MODEL_CHANGED_DURING_AUDIT'
+    }
+}
 function CheckNode([string]$name,[bool]$isFile) {
     if($isFile) {
         if(!(Test-Path -LiteralPath $name -PathType Leaf)) { throw 'REQUIRED_FILE_MISSING' }
@@ -124,6 +134,15 @@ function Assert-StableProcessIdentity($before,$after) {
 }
 if($SelfTest) {
     Assert-PinnedBinaryHash $expectedBinaryHash
+    Assert-StableModelHash $expectedModelHash $expectedModelHash
+    foreach($badModelHash in @('0000000000000000000000000000000000000000000000000000000000000000','not-a-hash')) {
+        $blocked=$false
+        try { Assert-StableModelHash $expectedModelHash $badModelHash } catch { $blocked=$true }
+        if(-not $blocked) { throw 'SELFTEST_MODEL_SWAP_ACCEPTED' }
+    }
+    $blocked=$false
+    try { Assert-StableModelHash '0000000000000000000000000000000000000000000000000000000000000000' $expectedModelHash } catch { $blocked=$true }
+    if(-not $blocked) { throw 'SELFTEST_INITIAL_MODEL_MISMATCH_ACCEPTED' }
     foreach($badHash in @('0000000000000000000000000000000000000000000000000000000000000000', 'not-a-hash')) {
         $blocked=$false
         try { Assert-PinnedBinaryHash $badHash } catch { $blocked=$true }
@@ -185,9 +204,8 @@ try {
     CheckNode (Join-Path $root 'runtime\b11998') $false
     CheckNode $cuda $false
     CheckNode $model $true
-    if((Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash -ine $expectedModelHash) {
-        throw 'MODEL_SHA256_MISMATCH'
-    }
+    $modelHashBefore=(Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-StableModelHash $modelHashBefore $modelHashBefore
     $exe=Find-BoundedServerBinary $cuda
     CheckNode $exe $true
     $sockets=@(Get-NetTCPConnection -LocalPort 20145 -State Listen -ErrorAction Stop)
@@ -225,6 +243,8 @@ try {
     $binaryHash=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash.ToLowerInvariant()
     Assert-PinnedBinaryHash $binaryHash
     if($binaryHash -cne $binaryHashBefore) { throw 'SERVER_BINARY_CHANGED_DURING_AUDIT' }
+    $modelHashAfter=(Get-FileHash -LiteralPath $model -Algorithm SHA256).Hash.ToLowerInvariant()
+    Assert-StableModelHash $modelHashBefore $modelHashAfter
     $signature=Get-AuthenticodeSignature -LiteralPath $exe -ErrorAction Stop
     Mark 'ATTESTATION' 'PRELIMINARY_READONLY_OWNER_APPROVAL_PENDING'
     Mark 'MODEL_SHA256' 'PASS'
