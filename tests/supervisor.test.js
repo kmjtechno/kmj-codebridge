@@ -938,6 +938,49 @@ test("auto-update trigger fails closed when the fixed unit is not installed", as
   );
 });
 
+test("signed update triggers refuse active, failed and unverified units without fallback", async () => {
+  for (const state of ["active", "failed", "unknown"]) {
+    const started = [];
+    const calls = [];
+    const handle = createSupervisorHandler({
+      run: (_bin, args) => {
+        calls.push(args[1]);
+        return `LoadState=loaded\nActiveState=${state}\n`;
+      },
+      start: (unit) => started.push(unit),
+    });
+    for (const op of ["update_now", "update_check"]) {
+      await assert.rejects(
+        handle({ op }),
+        /SUPERVISOR_UPDATE_NOT_IDLE/,
+      );
+    }
+    assert.deepEqual(started, []);
+    assert.deepEqual(calls, [
+      "kmj-codebridge-stable-update.service",
+      "kmj-codebridge-stable-update.service",
+    ]);
+  }
+});
+
+test("development updater refuses non-idle state when signed unit is absent", async () => {
+  for (const state of ["active", "failed", "unknown"]) {
+    const started = [];
+    const handle = createSupervisorHandler({
+      run: (_bin, args) =>
+        args[1] === "kmj-codebridge-stable-update.service"
+          ? "LoadState=not-found\nActiveState=inactive\n"
+          : `LoadState=loaded\nActiveState=${state}\n`,
+      start: (unit) => started.push(unit),
+    });
+    await assert.rejects(
+      handle({ op: "update_now" }),
+      /SUPERVISOR_UPDATE_NOT_IDLE/,
+    );
+    assert.deepEqual(started, []);
+  }
+});
+
 test(
   "unix socket server and client exchange one bounded request",
   { skip: process.platform === "win32" },
