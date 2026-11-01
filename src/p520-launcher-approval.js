@@ -165,6 +165,9 @@ export function verifyP520LauncherApproval({
 } = {}) {
   if (
     typeof trustedPublicKeyPem !== "string" ||
+    trustedPublicKeyPem.length < 50 ||
+    trustedPublicKeyPem.length > 4096 ||
+    trustedPublicKeyPem.includes("\0") ||
     typeof trustedSpkiSha256 !== "string" ||
     !HEX64.test(trustedSpkiSha256)
   )
