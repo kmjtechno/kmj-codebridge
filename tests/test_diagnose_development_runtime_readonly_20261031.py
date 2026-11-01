@@ -60,7 +60,8 @@ class Contract(unittest.TestCase):
             raise AssertionError(args)
         result=m.probe_git(run)
         self.assertEqual(result,{'HEAD':'PASS','OBJECT':'PASS','MAIN_REF':'PASS'})
-        self.assertEqual(len(seen),3)
+        self.assertEqual(len(seen),4)
+        self.assertEqual(seen[-1][-3:], ['cat-file', '-e', 'refs/heads/main^{commit}'])
         for args in seen:
             self.assertEqual(args[:6],['/usr/sbin/runuser','-u','kmjdevci','--','/usr/bin/git','-C'])
             self.assertFalse(any('safe.directory' in part for part in args))
@@ -83,6 +84,35 @@ class Contract(unittest.TestCase):
         self.assertNotIn('-c', seen[0])
         self.assertFalse(any('safe.directory' in arg for arg in seen[0]))
         self.assertNotIn('repository', str(result))
+
+    def test_main_ref_presence_is_not_main_commit_readability(self):
+        # A valid detached HEAD and existing main ref are insufficient if
+        # the main branch's commit object cannot be read by kmjdevci.
+        seen = []
+        def run(args):
+            seen.append(args)
+            if args[-3:] == ['rev-parse', '--verify', 'HEAD']:
+                return Result('a' * 40 + '\n')
+            if args[-3:] == ['cat-file', '-e', 'refs/heads/main^{commit}']:
+                return Result('', 'Permission denied', 128)
+            return Result()
+        self.assertEqual(m.probe_git(run), {
+            'HEAD': 'PASS', 'OBJECT': 'PASS', 'MAIN_REF': 'ACCESS_DENIED',
+        })
+        self.assertEqual(len(seen), 4)
+        self.assertFalse(any('safe.directory' in item for args in seen for item in args))
+
+    def test_main_ref_lookup_failure_skips_main_object_probe(self):
+        seen = []
+        def run(args):
+            seen.append(args)
+            if args[-3:] == ['rev-parse', '--verify', 'HEAD']:
+                return Result('a' * 40 + '\n')
+            if 'show-ref' in args:
+                return Result('', 'ref not found', 1)
+            return Result()
+        self.assertEqual(m.probe_git(run)['MAIN_REF'], 'REPOSITORY_UNAVAILABLE')
+        self.assertEqual(len(seen), 3)
 
     def test_denied_git_shortcircuits(self):
         seen=[]
