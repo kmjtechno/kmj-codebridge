@@ -342,34 +342,63 @@ def health_check():
 
 
 class locked_release_lock:
-    """Exclusive non-blocking lock on a root-owned lock file opened by descriptor.
+    """Fail-closed shared release lock: pin inode, metadata, and path after flock.
 
-    The lock directory (/run/lock) is sticky and world-writable, so the file is opened O_NOFOLLOW and its
-    descriptor is attested (regular, owned by LOCK_OWNER_UID, single link, no group/other access) BEFORE
-    flock; a planted symlink, hardlink or foreign-owned file fails closed and is never truncated."""
+    No existing mode is repaired. A planted symlink/FIFO/hardlink/foreign inode,
+    unsafe lock parent or a replacement between open and lock acquisition is
+    rejected before production release/backup metadata is read.
+    """
 
-    def __enter__(self):
+    def _attest(self):
         try:
-            self.fd = os.open(
-                LOCK, os.O_RDWR | os.O_CREAT | os.O_NOFOLLOW | os.O_CLOEXEC, 0o600
-            )
+            info = os.fstat(self.fd)
+            path = os.lstat(LOCK)
         except OSError:
             stop("LOCK_UNSAFE")
-        info = os.fstat(self.fd)
         if (
             not stat.S_ISREG(info.st_mode)
             or info.st_uid != LOCK_OWNER_UID
             or info.st_nlink != 1
-            or (info.st_mode & 0o077)
+            or stat.S_IMODE(info.st_mode) != 0o600
+            or not stat.S_ISREG(path.st_mode)
+            or (path.st_dev, path.st_ino) != (info.st_dev, info.st_ino)
+            or path.st_uid != info.st_uid
+            or path.st_nlink != 1
+            or stat.S_IMODE(path.st_mode) != 0o600
         ):
-            os.close(self.fd)
+            stop("LOCK_UNSAFE")
+
+    def __enter__(self):
+        try:
+            parent = os.lstat(LOCK.parent)
+            mode = stat.S_IMODE(parent.st_mode)
+            if (
+                not stat.S_ISDIR(parent.st_mode)
+                or parent.st_uid != LOCK_OWNER_UID
+                or ((mode & 0o022) and mode != 0o1777)
+            ):
+                stop("LOCK_UNSAFE")
+        except OSError:
+            stop("LOCK_UNSAFE")
+        flags = os.O_RDWR | os.O_NOFOLLOW | os.O_CLOEXEC | os.O_NONBLOCK
+        try:
+            try:
+                self.fd = os.open(LOCK, flags | os.O_CREAT | os.O_EXCL, 0o600)
+            except FileExistsError:
+                self.fd = os.open(LOCK, flags)
+        except OSError:
             stop("LOCK_UNSAFE")
         try:
-            fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
+            self._attest()
+            try:
+                fcntl.flock(self.fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            except OSError:
+                stop("LOCK_BUSY")
+            self._attest()
+            return self
+        except BaseException:
             os.close(self.fd)
-            stop("LOCK_BUSY")
-        return self
+            raise
 
     def __exit__(self, *exc):
         os.close(self.fd)
