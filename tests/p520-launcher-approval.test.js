@@ -179,7 +179,6 @@ test("injected fields, Windows UNC, traversal and alternate data stream paths ar
   }
 });
 
-
 test("Windows reserved device names and trailing dot/space aliases fail closed", () => {
   const { args } = fixture();
   for (const binaryPath of [
