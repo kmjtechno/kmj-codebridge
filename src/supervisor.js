@@ -2398,6 +2398,10 @@ export function createSupervisorHandler({
         "ActiveState",
       ]);
       if (!service.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
+      // A loaded but active, failed or unverified oneshot is not a safe
+      // candidate for another trigger. An ACK is never activation evidence.
+      if (service.activeState !== "inactive")
+        fail("SUPERVISOR_UPDATE_NOT_IDLE");
       return {
         response: { accepted: true },
         afterSend: () => start(UPDATE_CHECK_SERVICE),
@@ -2434,6 +2438,10 @@ export function createSupervisorHandler({
         "ActiveState",
       ]);
       if (signed.installed) {
+        // Never fall back to mutable development updates when the signed
+        // unit exists but is running, failed or its state is unverified.
+        if (signed.activeState !== "inactive")
+          fail("SUPERVISOR_UPDATE_NOT_IDLE");
         return {
           response: { accepted: true, channel: "signed-stable" },
           afterSend: () => start(UPDATE_CHECK_SERVICE),
@@ -2443,6 +2451,7 @@ export function createSupervisorHandler({
       // existing fixed, bounded development updater for those hosts only.
       const legacy = fixedUnitStatus(run, UPDATE_SERVICE, ["ActiveState"]);
       if (!legacy.installed) fail("SUPERVISOR_UPDATE_UNAVAILABLE");
+      if (legacy.activeState !== "inactive") fail("SUPERVISOR_UPDATE_NOT_IDLE");
       return {
         response: { accepted: true, channel: "development" },
         afterSend: () => start(UPDATE_SERVICE),
