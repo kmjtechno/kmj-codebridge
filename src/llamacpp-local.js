@@ -20,6 +20,7 @@ export function useP520LlamaCpp({
     ownerAttested === true &&
     enabled === "1" &&
     platform === "win32" &&
+    typeof hostname === "string" &&
     hostname.toUpperCase() === "DESKTOP-5FVJMET" &&
     deviceId === "kmj-kmj-codebridge-desktop-5fvjmet"
   );
