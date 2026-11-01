@@ -8,6 +8,7 @@ Prints bounded, sanitized key names only; operator must store a protected receip
 """
 from __future__ import annotations
 
+import hashlib
 import os
 import re
 import socket
@@ -110,12 +111,60 @@ def trusted_unit_path(lstat=os.lstat):
     return True
 
 
-def reconcile(*, apply=False, runner=subprocess.run, trusted=trusted_unit_path):
+# Pin both the complete systemd unit and its fixed helper before any root
+# lifecycle mutation. Effective systemctl properties alone do not attest
+# ExecStart, network restrictions or helper bytes.
+EXPECTED_UNIT_SHA256 = "b851bb24cc5a846e3fc95a96893483f0dfd6540c91bc37d93a4f91aefd0ef53b"
+HELPER_FILE = "/usr/local/libexec/kmj-codebridge-dev-probe.py"
+EXPECTED_HELPER_SHA256 = "1191b0ebff956e64da17e52b6dd65b43afe3c80bdad21900a4c719d941da5be7"
+
+
+def trusted_exact_content():
+    # Root-owned parents, no symlinks, no special bits or group/world write.
+    for path in ("/usr", "/usr/local", "/usr/local/libexec"):
+        try:
+            st = os.lstat(path)
+        except OSError:
+            return False
+        if st.st_uid != 0 or st.st_mode & 0o7022 or not stat.S_ISDIR(st.st_mode):
+            return False
+    for path, limit, digest in (
+        (UNIT_FILE, 8192, EXPECTED_UNIT_SHA256),
+        (HELPER_FILE, 16384, EXPECTED_HELPER_SHA256),
+    ):
+        try:
+            before = os.lstat(path)
+            if (before.st_uid != 0 or before.st_mode & 0o7022 or
+                not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or
+                before.st_size < 1 or before.st_size > limit):
+                return False
+            fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+            try:
+                after = os.fstat(fd)
+                if (after.st_dev != before.st_dev or after.st_ino != before.st_ino or
+                    after.st_uid != 0 or after.st_mode & 0o7022 or
+                    not stat.S_ISREG(after.st_mode) or after.st_nlink != 1 or
+                    after.st_size != before.st_size):
+                    return False
+                payload = os.read(fd, limit + 1)
+                if len(payload) != after.st_size or hashlib.sha256(payload).hexdigest() != digest:
+                    return False
+            finally:
+                os.close(fd)
+        except (OSError, ValueError):
+            return False
+    return True
+
+
+def reconcile(*, apply=False, runner=subprocess.run, trusted=trusted_unit_path,
+              content_trusted=trusted_exact_content):
     if not trusted():
         return "UNIT_PATH_UNTRUSTED", [], False
     state, keys, _ = inspect(runner)
     if state != "RESET_CANDIDATE" or not apply:
         return state, keys, False
+    if not content_trusted():
+        return "UNIT_CONTENT_UNTRUSTED", [], False
     result = run_fixed(["/usr/bin/systemctl", "reset-failed", UNIT], runner)
     if result is None or result.returncode != 0:
         return "RESET_FAILED", keys, True
