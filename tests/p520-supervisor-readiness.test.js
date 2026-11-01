@@ -16,7 +16,10 @@ test("P520 supervisor readiness source never mutates Windows services", () => {
   assert.match(source, /Get-ScheduledTask -TaskPath/);
   assert.match(source, /Classify-TaskInventory/);
   assert.match(source, /QUERY_FAILED_UNATTESTED/);
-  assert.doesNotMatch(source, /Get-ScheduledTask[^\r\n]*-ErrorAction SilentlyContinue/);
+  assert.doesNotMatch(
+    source,
+    /Get-ScheduledTask[^\r\n]*-ErrorAction SilentlyContinue/,
+  );
   assert.match(source, /Get-NetTCPConnection/);
   for (const cmd of [
     "Register-ScheduledTask",
