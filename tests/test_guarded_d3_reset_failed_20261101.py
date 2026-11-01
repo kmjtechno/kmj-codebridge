@@ -208,5 +208,62 @@ class D3Tests(unittest.TestCase):
             lstat=lambda path: fake_lstat(path, hardlink=True)))
 
 
+    def test_content_open_is_nofollow_nonblocking_and_inode_pinned(self):
+        # A special-file substitution after lstat must not block the root
+        # verifier. Its opened descriptor must still be a regular inode.
+        import hashlib
+        import os
+        import stat
+        from types import SimpleNamespace
+        from unittest import mock
+
+        payload = b"fixed-root-owned-unit-or-helper"
+        digest = hashlib.sha256(payload).hexdigest()
+        file_stat = SimpleNamespace(
+            st_dev=1, st_ino=42, st_uid=0, st_mode=stat.S_IFREG | 0o644,
+            st_nlink=1, st_size=len(payload),
+        )
+        dir_stat = SimpleNamespace(
+            st_dev=1, st_ino=41, st_uid=0, st_mode=stat.S_IFDIR | 0o755,
+            st_nlink=2, st_size=4096,
+        )
+        opened = []
+
+        def fake_lstat(path):
+            if path in (d3.UNIT_FILE, d3.HELPER_FILE):
+                return file_stat
+            self.assertIn(path, ("/usr", "/usr/local", "/usr/local/libexec"))
+            return dir_stat
+
+        def fake_open(path, flags):
+            self.assertIn(path, (d3.UNIT_FILE, d3.HELPER_FILE))
+            opened.append((path, flags))
+            return 99
+
+        with mock.patch.object(d3.os, "lstat", side_effect=fake_lstat), \
+             mock.patch.object(d3.os, "open", side_effect=fake_open), \
+             mock.patch.object(d3.os, "fstat", return_value=file_stat), \
+             mock.patch.object(d3.os, "read", return_value=payload), \
+             mock.patch.object(d3.os, "close"), \
+             mock.patch.object(d3, "EXPECTED_UNIT_SHA256", digest), \
+             mock.patch.object(d3, "EXPECTED_HELPER_SHA256", digest):
+            self.assertTrue(d3.trusted_exact_content())
+            self.assertEqual(len(opened), 2)
+            for _, flags in opened:
+                self.assertTrue(flags & os.O_NOFOLLOW)
+                self.assertTrue(flags & os.O_NONBLOCK)
+                self.assertTrue(flags & os.O_CLOEXEC)
+
+            # A replaced, hardlinked or special opened inode must fail closed.
+            for bad in (
+                SimpleNamespace(**{**vars(file_stat), "st_nlink": 2}),
+                SimpleNamespace(**{**vars(file_stat), "st_mode": stat.S_IFIFO | 0o644}),
+                SimpleNamespace(**{**vars(file_stat), "st_ino": 43}),
+            ):
+                with self.subTest(mode=bad.st_mode, inode=bad.st_ino, links=bad.st_nlink):
+                    with mock.patch.object(d3.os, "fstat", return_value=bad):
+                        self.assertFalse(d3.trusted_exact_content())
+
+
 if __name__ == "__main__":
     unittest.main()
