@@ -158,6 +158,14 @@ def verify_candidate(sha):
     )
     if expected != sha:
         stop("CANDIDATE_SHA_MISMATCH")
+    # Laravel tracks storage placeholder files, while the approved runtime
+    # MUST replace apps/platform/storage with one persistent shared symlink.
+    # Exclude ONLY this path from Git's cleanliness scan after independently
+    # attesting it is the exact approved shared directory outside releases.
+    # Every other tracked or untracked source path remains checked normally.
+    if not (release / "apps/platform/storage").is_symlink():
+        stop("CONTINUITY_STORAGE_NOT_SHARED")
+    real_storage(release)
     dirty = run(
         "/usr/bin/git",
         "-c",
@@ -170,6 +178,10 @@ def verify_candidate(sha):
         str(release),
         "status",
         "--porcelain",
+        "--untracked-files=normal",
+        "--",
+        ".",
+        ":(exclude)apps/platform/storage",
         capture=True,
     )
     if dirty:
