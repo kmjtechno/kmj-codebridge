@@ -37,28 +37,36 @@ Owner must review which CodeBridge users receive `execute` for production.
 
 `storage/app` (customer uploads) and `.env` live inside each release tree. A freshly built
 candidate has neither, so a bare pointer switch would still pass the login/icon health check
-while every customer upload silently disappeared from the live site.
+while every customer upload silently disappeared from the live site. Storage that stays inside an
+OLD release is just as unsafe: pruning or rolling back that release deletes the uploads.
 
-The activation controller therefore refuses to switch unless, for the candidate versus the
-current release:
+The activation controller therefore refuses to switch unless, for the candidate and the current release:
 
-- `apps/platform/.env` is a regular, single-link, no-symlink file of at most 64 KiB with a
-  **byte-identical SHA-256** (only equal/different is reported, never content);
-- `apps/platform/storage` resolves to the **same real directory** (a shared-storage link) and
-  contains `app/`. A copied tree is deliberately not accepted: a copy cannot be race-free against
-  uploads arriving during the switch.
+- `apps/platform/.env` is a regular, single-link, non-symlink file of at most 64 KiB, read through one
+  no-follow descriptor over **all** its bytes with identity/size/time checked before and after, and its
+  **SHA-256 is identical** (only equal/different is reported, never content);
+- `apps/platform/storage` resolves to exactly the one approved shared location
+  `/home/kmjprod/shared/storage`, **outside every release tree**, and contains `app/`. Every ancestor from
+  `/` must be a real directory owned by root or `kmjprod` and not group/other writable. A copy is refused
+  (not race-free against live uploads).
 
-After the switch the same facts are read again through `/home/kmjprod/current` inside the
-rollback-protected block; any difference triggers the existing verified rollback.
+After the switch, inside the rollback-protected block, the controller re-reads through
+`/home/kmjprod/current`: the pointer must be exactly the approved candidate (`readlink` and real path),
+and `.env` digest and storage must be unchanged. Any difference triggers the existing verified rollback.
 
-Failure categories: `CONTINUITY_ENV_MISSING`, `CONTINUITY_ENV_UNSAFE`, `CONTINUITY_ENV_DIFFERS`,
-`CONTINUITY_STORAGE_MISSING`, `CONTINUITY_STORAGE_NOT_SHARED`, `CONTINUITY_LOST_AFTER_SWITCH`.
+The root lock file is opened by descriptor with `O_NOFOLLOW` and attested (regular, root-owned, single link,
+no group/other access) before `flock`; a planted symlink, hardlink or foreign-owned file fails closed
+(`LOCK_UNSAFE`) and is never truncated.
 
-Owner preparation (not performed by this source change): before approving, make the candidate's
-`apps/platform/storage` a link to the current release's real storage directory (preferably moved
-to a location outside any release directory first, so pruning an old release cannot delete
-uploads) and place the reviewed `.env` identically. This is production-adjacent work and needs the
-owner's explicit approval and a fresh backup. Nothing here proves it has been done.
+Failure categories: `CONTINUITY_ENV_MISSING`, `_ENV_UNSAFE`, `_ENV_UNSTABLE`, `_ENV_DIFFERS`,
+`_STORAGE_MISSING`, `_STORAGE_NOT_SHARED`, `_STORAGE_UNTRUSTED`, `_POINTER_LOST`, `_LOST_AFTER_SWITCH`,
+`LOCK_UNSAFE`, `LOCK_BUSY`.
+
+Owner preparation (NOT performed by this source change, requires explicit owner approval and a fresh
+backup): move the live `storage` directory to `/home/kmjprod/shared/storage` with a root/`kmjprod`-owned,
+non-group/other-writable ancestor chain, leave `apps/platform/storage` of the current and the candidate
+release as links to it, and place the reviewed `.env` identically in the candidate. Until then every
+cutover correctly refuses. Nothing here proves any of it has been done.
 
 ## Initial host bootstrap — one-time operator step
 
