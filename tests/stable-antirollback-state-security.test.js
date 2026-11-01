@@ -171,3 +171,48 @@ test(
     assert.equal(networkCalls, 0);
   },
 );
+
+test("existing writer lock fails closed without replacing a higher watermark", (t) => {
+  const { stateDir, file } = fixture(t);
+  writeAcceptedUpdateState(stateDir, manifest);
+  const lock = path.join(stateDir, ".stable-update-state.lock");
+  fs.mkdirSync(lock, { mode: 0o700 });
+  assert.throws(
+    () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+    /UPDATE_STATE_LOCKED/,
+  );
+  assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+  assert.deepEqual(fs.readdirSync(stateDir).sort(), [
+    ".stable-update-state.lock",
+    path.basename(file),
+  ]);
+  fs.rmdirSync(lock);
+  writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 });
+  assert.equal(readAcceptedUpdateState(stateDir).sequence, 44);
+  assert.deepEqual(fs.readdirSync(stateDir), [path.basename(file)]);
+});
+
+test("failed direct writer releases only its own lock and leaves no temp state", (t) => {
+  const { stateDir, file } = fixture(t);
+  writeAcceptedUpdateState(stateDir, manifest);
+  assert.throws(
+    () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 42 }),
+    /UPDATE_STATE_ROLLBACK_REJECTED/,
+  );
+  assert.deepEqual(fs.readdirSync(stateDir), [path.basename(file)]);
+  assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+});
+
+test(
+  "direct writer rejects insecure state root before creating lock or watermark",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir } = fixture(t);
+    fs.chmodSync(stateDir, 0o777);
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.deepEqual(fs.readdirSync(stateDir), []);
+  },
+);
