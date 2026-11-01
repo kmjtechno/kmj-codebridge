@@ -875,21 +875,57 @@ test("only exact non-secret updater markers are exposed", async () => {
   );
 });
 
-test("auto-update trigger acknowledges before starting only the hardcoded unit", async () => {
+test("manual update prefers signed stable service and never mutable fallback", async () => {
   const started = [];
   const handle = createSupervisorHandler({
     run: () => "LoadState=loaded\nActiveState=inactive\n",
     start: (unit) => started.push(unit),
   });
   const result = await handle({ op: "update_now" });
-  assert.deepEqual(result.response, { accepted: true });
+  assert.deepEqual(result.response, {
+    accepted: true,
+    channel: "signed-stable",
+  });
   assert.deepEqual(started, []);
   result.afterSend();
-  assert.deepEqual(started, ["kmj-codebridge-auto-update.service"]);
+  assert.deepEqual(started, ["kmj-codebridge-stable-update.service"]);
   await assert.rejects(
     handle({ op: "update_now", unit: "ssh.service" }),
     /INVALID_SUPERVISOR_REQUEST/,
   );
+});
+
+test("manual update falls back only when signed unit is absent", async () => {
+  const started = [];
+  const handle = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-stable-update.service"
+        ? "LoadState=not-found\nActiveState=inactive\n"
+        : "LoadState=loaded\nActiveState=inactive\n",
+    start: (unit) => started.push(unit),
+  });
+  const result = await handle({ op: "update_now" });
+  assert.deepEqual(result.response, {
+    accepted: true,
+    channel: "development",
+  });
+  assert.deepEqual(started, []);
+  result.afterSend();
+  assert.deepEqual(started, ["kmj-codebridge-auto-update.service"]);
+});
+
+test("manual update never starts legacy updater if signed unit is present", async () => {
+  const started = [];
+  const handle = createSupervisorHandler({
+    run: (_bin, args) =>
+      args[1] === "kmj-codebridge-stable-update.service"
+        ? "LoadState=loaded\nActiveState=inactive\n"
+        : "LoadState=not-found\nActiveState=inactive\n",
+    start: (unit) => started.push(unit),
+  });
+  const result = await handle({ op: "update_now" });
+  result.afterSend();
+  assert.deepEqual(started, ["kmj-codebridge-stable-update.service"]);
 });
 
 test("auto-update trigger fails closed when the fixed unit is not installed", async () => {
