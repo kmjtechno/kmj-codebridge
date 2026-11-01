@@ -138,6 +138,30 @@ out["lock_foreign_owner"] = lock_attempt()
 ctl.LOCK_OWNER_UID = os.getuid()
 with ctl.locked_release_lock():
     out["lock_busy"] = lock_attempt()
+# Refuse a path replaced in the small interval between first attestation
+# and flock; do not report a lock on an unlinked inode as a safe release lock.
+old_flock = ctl.fcntl.flock
+def replace_at_flock(fd, flags):
+    os.rename(ctl.LOCK, root / "old-lock-inode")
+    ctl.LOCK.write_bytes(b"new")
+    os.chmod(ctl.LOCK, 0o600)
+    return old_flock(fd, flags)
+ctl.fcntl.flock = replace_at_flock
+out["lock_swapped_after_open"] = lock_attempt()
+ctl.fcntl.flock = old_flock
+os.unlink(ctl.LOCK)
+os.unlink(root / "old-lock-inode")
+os.mkfifo(ctl.LOCK, 0o600)
+out["lock_fifo"] = lock_attempt()
+os.unlink(ctl.LOCK)
+os.chmod(root, 0o777)
+out["lock_unsafe_parent"] = lock_attempt()
+os.chmod(root, 0o755)
+(root / "real-parent").mkdir()
+os.symlink(root / "real-parent", root / "linked-parent")
+ctl.LOCK = root / "linked-parent" / "lock"
+out["lock_symlink_parent"] = lock_attempt()
+ctl.LOCK = root / "run.lock"
 # no secret or path may appear in any reported category
 text = json.dumps({k: v for k, v in out.items() if k != "uploads_survive_old_release_prune" and k != "victim_untouched"})
 out["leaks"] = [s for s in ("hunter2", "APP_KEY", str(root)) if s in text]
@@ -187,6 +211,10 @@ test(
       lock_loose_mode: "LOCK_UNSAFE",
       lock_foreign_owner: "LOCK_UNSAFE",
       lock_busy: "LOCK_BUSY",
+      lock_swapped_after_open: "LOCK_UNSAFE",
+      lock_fifo: "LOCK_UNSAFE",
+      lock_unsafe_parent: "LOCK_UNSAFE",
+      lock_symlink_parent: "LOCK_UNSAFE",
       leaks: [],
     });
   },
