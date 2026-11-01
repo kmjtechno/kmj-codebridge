@@ -32,26 +32,44 @@ class Runner:
 class D3Tests(unittest.TestCase):
     def test_diagnose_does_not_mutate(self):
         runner = Runner([make_show()])
-        self.assertEqual(d3.reconcile(runner=runner, trusted=lambda: True), ("RESET_CANDIDATE", ["ActiveState"], False))
+        self.assertEqual(d3.reconcile(runner=runner, trusted=lambda: True, content_trusted=lambda: True), ("RESET_CANDIDATE", ["ActiveState"], False))
+        self.assertEqual(len(runner.commands), 1)
+
+    def test_exact_unit_or_helper_drift_never_resets_failed_state(self):
+        runner = Runner([make_show()])
+        self.assertEqual(
+            d3.reconcile(apply=True, runner=runner, trusted=lambda: True,
+                         content_trusted=lambda: False),
+            ("UNIT_CONTENT_UNTRUSTED", [], False),
+        )
+        self.assertEqual(len(runner.commands), 1)
+
+    def test_diagnose_remains_read_only_without_content_attestation(self):
+        runner = Runner([make_show()])
+        self.assertEqual(
+            d3.reconcile(runner=runner, trusted=lambda: True,
+                         content_trusted=lambda: False),
+            ("RESET_CANDIDATE", ["ActiveState"], False),
+        )
         self.assertEqual(len(runner.commands), 1)
 
     def test_reset_only_exact_failed_lifecycle(self):
         runner = Runner([make_show(), make_show(ActiveState="inactive", Result="success", ExecMainStatus="0")])
-        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True), ("RESET_VERIFIED", [], True))
+        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True), ("RESET_VERIFIED", [], True))
         self.assertEqual(runner.commands[1], ("/usr/bin/systemctl", "reset-failed", d3.UNIT))
 
     def test_policy_drift_never_mutates(self):
         for key, bad in [("User", "root"), ("ProtectSystem", "full"), ("DropInPaths", "/tmp/evil"), ("ReadWritePaths", "/")]:
             with self.subTest(key=key):
                 runner = Runner([make_show(**{key: bad})])
-                state, keys, changed = d3.reconcile(apply=True, runner=runner, trusted=lambda: True)
+                state, keys, changed = d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True)
                 self.assertEqual((state, keys, changed), ("POLICY_DRIFT", [key], False))
                 self.assertEqual(len(runner.commands), 1)
 
     def test_wrong_exit_and_active_state_never_mutate(self):
         for data in [{"ExecMainStatus": "0"}, {"Result": "signal"}, {"ActiveState": "active"}]:
             runner = Runner([make_show(**data)])
-            self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True)[0], "UNEXPECTED_LIFECYCLE")
+            self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True)[0], "UNEXPECTED_LIFECYCLE")
             self.assertEqual(len(runner.commands), 1)
 
     def test_untrusted_path_blocks_before_probe(self):
@@ -73,19 +91,19 @@ class D3Tests(unittest.TestCase):
         ]:
             with self.subTest(overrides=overrides):
                 runner = Runner([make_show(ActiveState="inactive", **overrides)])
-                state, keys, attempted = d3.reconcile(apply=True, runner=runner, trusted=lambda: True)
+                state, keys, attempted = d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True)
                 self.assertEqual((state, keys, attempted), ("UNEXPECTED_LIFECYCLE", expected_keys, False))
                 self.assertEqual(len(runner.commands), 1)
 
     def test_postcheck_inactive_with_stale_failure_not_pass(self):
         runner = Runner([make_show(), make_show(ActiveState="inactive", Result="exit-code", ExecMainStatus="3")])
-        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True),
+        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True),
                          ("POSTCHECK_FAILED", ["Result", "ExecMainStatus"], True))
         self.assertEqual(len(runner.commands), 3)
 
     def test_postcheck_failure_not_pass(self):
         runner = Runner([make_show(), make_show(ActiveState="failed")])
-        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True), ("POSTCHECK_FAILED", ["ActiveState"], True))
+        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True), ("POSTCHECK_FAILED", ["ActiveState"], True))
 
 
     def test_reset_failure_is_truthfully_reported_as_attempted(self):
@@ -97,7 +115,7 @@ class D3Tests(unittest.TestCase):
                 return super().__call__(args, **kwargs)
 
         runner = FailedReset([make_show()])
-        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True),
+        self.assertEqual(d3.reconcile(apply=True, runner=runner, trusted=lambda: True, content_trusted=lambda: True),
                          ("RESET_FAILED", ["ActiveState"], True))
         self.assertEqual(len(runner.commands), 2)
 
