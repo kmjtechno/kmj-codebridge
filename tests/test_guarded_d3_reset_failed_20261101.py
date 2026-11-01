@@ -227,6 +227,8 @@ class D3Tests(unittest.TestCase):
         opened = []
         closed = []
         overrides = {}
+        late_replacements = set()
+        read_count = [0]
 
         def fake_stat_for(path):
             is_file = path in (d3.UNIT_FILE, d3.HELPER_FILE)
@@ -256,7 +258,11 @@ class D3Tests(unittest.TestCase):
         def fake_stat(name, *, dir_fd, follow_symlinks):
             self.assertFalse(follow_symlinks)
             path = reverse[dir_fd].rstrip("/") + "/" + name
-            return fake_stat_for(path)
+            result = fake_stat_for(path)
+            if path in late_replacements and read_count[0] > 0:
+                return SimpleNamespace(**{**vars(result),
+                                          "st_ino": result.st_ino + 200})
+            return result
 
         def fake_fstat(fd):
             path = reverse[fd]
@@ -267,12 +273,16 @@ class D3Tests(unittest.TestCase):
                                           "st_ino": result.st_ino + 100})
             return result
 
+        def fake_read(fd, count):
+            read_count[0] += 1
+            return payload
+
         replacement_inodes = set()
         with (
             mock.patch.object(d3.os, "open", side_effect=fake_open),
             mock.patch.object(d3.os, "stat", side_effect=fake_stat),
             mock.patch.object(d3.os, "fstat", side_effect=fake_fstat),
-            mock.patch.object(d3.os, "read", return_value=payload),
+            mock.patch.object(d3.os, "read", side_effect=fake_read),
             mock.patch.object(d3.os, "close", side_effect=closed.append),
             mock.patch.object(d3, "EXPECTED_UNIT_SHA256", digest),
             mock.patch.object(d3, "EXPECTED_HELPER_SHA256", digest),
@@ -282,6 +292,15 @@ class D3Tests(unittest.TestCase):
             self.assertEqual(len(opened), len(closed))
             self.assertTrue(all(parent is not None for p, parent in opened
                                 if p != "/"))
+
+            # A directory or final file swapped AFTER a successful SHA read
+            # must not be accepted merely because its old dirfd remains open.
+            for path in ("/etc/systemd", "/etc/systemd/system", d3.UNIT_FILE):
+                with self.subTest(late_swap=path):
+                    read_count[0] = 0
+                    late_replacements.add(path)
+                    self.assertFalse(d3.trusted_exact_content())
+                    late_replacements.clear()
 
             # Replacing a parent inode during descriptor traversal is refused.
             for path in ("/etc/systemd", "/usr/local/libexec", d3.HELPER_FILE):
