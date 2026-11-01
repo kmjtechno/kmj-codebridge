@@ -133,6 +133,9 @@ release that was already running successfully on this exact host.
 
 Normal remote updates require a signed `sequence` strictly greater than the highest sequence already accepted by the updater. A previously valid older release therefore cannot be replayed through the update channel. Explicit rollback remains a separate local operation that can activate only the locally recorded previous-known-good release.
 
+The signed sequence watermark in `stable-update-state.json` is security-critical, not a disposable cache. The POSIX updater requires a private updater-state directory and a single-link, private regular state file; symlinks (including dangling links), hardlinks, invalid permissions, corrupt JSON and oversized state fail closed. After writing and fsyncing a temporary state file, the updater atomically renames it and fsyncs the containing directory so the accepted sequence is not silently lost across a power failure. If that durability step fails, success must not be claimed; an owner must reconcile the signed release and protected watermark before another update. This source hardening does **not** attest or activate the currently installed ELITE runtime, and Windows activation remains separately unsupported.
+
+
 Release archive URLs must use HTTPS and may not target literal localhost, private/link-local IPv4, literal IPv6, `.localhost` or `.local` hosts. The downloader additionally resolves the hostname itself, rejects non-public or mixed public/private IPv4 answers, and pins the HTTPS request to the accepted public IPv4 address so a second resolver lookup cannot redirect the connection into a private range. Redirects are refused rather than followed.
 
 The build host can create the exact signed manifest expected by the runtime verifier without exposing the private key to customer devices:
