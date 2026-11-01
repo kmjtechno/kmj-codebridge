@@ -38,7 +38,10 @@ export function assess(sample) {
   // Legacy receipts without separate counters still fail closed.
   if (sample.failedImages > 0) failures.push("BROKEN_IMAGES");
   if (sample.pendingImages > 0) failures.push("PENDING_IMAGES_TIMEOUT");
-  if (sample.brokenImages && !(sample.failedImages > 0 || sample.pendingImages > 0))
+  if (
+    sample.brokenImages &&
+    !(sample.failedImages > 0 || sample.pendingImages > 0)
+  )
     failures.push("BROKEN_IMAGES");
   if (sample.exceptions) failures.push("JS_EXCEPTIONS");
   if (sample.overflowPx > 2) failures.push("HORIZONTAL_OVERFLOW");
@@ -84,7 +87,11 @@ export async function measureAfterImagesReady(
   const deadline = clock() + timeoutMs;
   let sample = initial ?? (await measure());
   // Once a hard image failure is known, a pending-image retry cannot fix it.
-  while (sample.pendingImages > 0 && !(sample.failedImages > 0) && clock() < deadline) {
+  while (
+    sample.pendingImages > 0 &&
+    !(sample.failedImages > 0) &&
+    clock() < deadline
+  ) {
     await sleep(Math.max(0, Math.min(pollMs, deadline - clock())));
     sample = await measure();
   }
