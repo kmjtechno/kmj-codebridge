@@ -244,6 +244,51 @@ test("mobile lazy images settle within bounded retry without suppressing actual 
   );
 });
 
+test("QA distinguishes pending-only image timeouts from hard broken assets", () => {
+  const good = {
+    actualUrl: "https://kmjtechno.com/",
+    expectedUrl: "https://kmjtechno.com/",
+    httpStatus: 200,
+    bodyLength: 600,
+    overflowPx: 0,
+    exceptions: 0,
+  };
+  assert.deepEqual(
+    assess({ ...good, brokenImages: 17, pendingImages: 17, failedImages: 0 }),
+    ["PENDING_IMAGES_TIMEOUT"],
+  );
+  assert.deepEqual(
+    assess({ ...good, brokenImages: 1, pendingImages: 0, failedImages: 1 }),
+    ["BROKEN_IMAGES"],
+  );
+  assert.deepEqual(
+    assess({ ...good, brokenImages: 18, pendingImages: 17, failedImages: 1 }),
+    ["BROKEN_IMAGES", "PENDING_IMAGES_TIMEOUT"],
+  );
+  // A legacy receipt with only a brokenImages count remains a failure.
+  assert.deepEqual(assess({ ...good, brokenImages: 2 }), ["BROKEN_IMAGES"]);
+});
+
+test("known hard-failed images stop the pending-only retry immediately", async () => {
+  let measurements = 0;
+  const mixed = { pendingImages: 17, failedImages: 1, brokenImages: 18 };
+  const result = await measureAfterImagesReady(
+    async () => {
+      measurements++;
+      return mixed;
+    },
+    {
+      initial: mixed,
+      timeoutMs: 3000,
+      sleep: async () => {
+        throw Error("unexpected retry");
+      },
+    },
+  );
+  assert.equal(result, mixed);
+  assert.equal(measurements, 0);
+});
+
 test("unsettled mobile images remain FAIL once retry budget expires", async () => {
   let now = 0;
   let checks = 0;

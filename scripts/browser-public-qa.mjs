@@ -33,7 +33,16 @@ export function assess(sample) {
     failures.push("UNEXPECTED_NAVIGATION");
   if (sample.httpStatus !== 200) failures.push("HTTP_NOT_200");
   if (sample.bodyLength < 40) failures.push("BLANK_PAGE");
-  if (sample.brokenImages) failures.push("BROKEN_IMAGES");
+  // Distinguish a timed-out load from a resource that completed with no pixels.
+  // Both remain hard QA failures; never call an unresolved image healthy.
+  // Legacy receipts without separate counters still fail closed.
+  if (sample.failedImages > 0) failures.push("BROKEN_IMAGES");
+  if (sample.pendingImages > 0) failures.push("PENDING_IMAGES_TIMEOUT");
+  if (
+    sample.brokenImages &&
+    !(sample.failedImages > 0 || sample.pendingImages > 0)
+  )
+    failures.push("BROKEN_IMAGES");
   if (sample.exceptions) failures.push("JS_EXCEPTIONS");
   if (sample.overflowPx > 2) failures.push("HORIZONTAL_OVERFLOW");
   return failures;
@@ -77,7 +86,12 @@ export async function measureAfterImagesReady(
 ) {
   const deadline = clock() + timeoutMs;
   let sample = initial ?? (await measure());
-  while (sample.pendingImages > 0 && clock() < deadline) {
+  // Once a hard image failure is known, a pending-image retry cannot fix it.
+  while (
+    sample.pendingImages > 0 &&
+    !(sample.failedImages > 0) &&
+    clock() < deadline
+  ) {
     await sleep(Math.max(0, Math.min(pollMs, deadline - clock())));
     sample = await measure();
   }
