@@ -17,6 +17,7 @@ const properties = {
   ActiveState: "inactive",
   FragmentPath: DEVELOPMENT_UNIT_PATH,
   DropInPaths: "",
+  NeedDaemonReload: "no",
   User: "kmjdevci",
   Group: "kmjdevci",
   NoNewPrivileges: "yes",
@@ -140,6 +141,7 @@ test("hardening bypass, wrong ownership, changed helper, active service all fail
       "UNIT_PROPERTIES_UNSAFE",
     ],
     [{ properties: { NoNewPrivileges: "no" } }, "UNIT_PROPERTIES_UNSAFE"],
+    [{ properties: { NeedDaemonReload: "yes" } }, "UNIT_PROPERTIES_UNSAFE"],
     [{ properties: { ReadWritePaths: "/etc" } }, "UNIT_PROPERTIES_UNSAFE"],
     [{ properties: { ActiveState: "active" } }, "UNIT_NOT_IDLE"],
     [{ properties: { LoadState: "not-found" } }, "UNIT_NOT_INSTALLED"],
@@ -383,6 +385,32 @@ test("CloudOS supervisor cannot start another project's development unit", async
     }),
     /SUPERVISOR_OPERATION_NOT_ALLOWED/,
   );
+});
+
+test("stale PID 1 unit cache fails closed before and after Supervisor ACK", async () => {
+  const stale = fixture({ properties: { NeedDaemonReload: "yes" } });
+  const result = attestDevelopmentCi(stale.args);
+  assert.equal(result.ready, false);
+  assert.equal(result.reason, "UNIT_PROPERTIES_UNSAFE");
+  assert.deepEqual(result.mismatchedProperties, ["NeedDaemonReload"]);
+  await assert.rejects(
+    stale.supervisor({
+      op: "development_ci_start",
+      confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+    }),
+    /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+  );
+  assert.deepEqual(stale.started, []);
+
+  const { supervisor, props, started } = fixture();
+  const accepted = await supervisor({
+    op: "development_ci_start",
+    confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+  });
+  assert.equal(accepted.response.accepted, true);
+  props.NeedDaemonReload = "yes";
+  accepted.afterSend();
+  assert.deepEqual(started, []);
 });
 
 test("start callback reattests and refuses changed effective service", async () => {

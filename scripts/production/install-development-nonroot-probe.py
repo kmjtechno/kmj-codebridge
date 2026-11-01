@@ -132,6 +132,8 @@ EXPECTED_UNIT_PROPERTIES = {
     "ActiveState": "inactive",
     "FragmentPath": FILES[0][1],
     "DropInPaths": "",
+    # On-disk hash alone cannot attest the unit bytes loaded by PID 1.
+    "NeedDaemonReload": "no",
     "User": ACCOUNT,
     "Group": ACCOUNT,
     "NoNewPrivileges": "yes",

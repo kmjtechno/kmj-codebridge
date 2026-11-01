@@ -82,7 +82,8 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 expected = module.EXPECTED_UNIT_PROPERTIES
-assert len(expected) == 16
+assert len(expected) == 17
+assert expected["NeedDaemonReload"] == "no"
 assert expected["User"] == "kmjdevci"
 assert expected["ActiveState"] == "inactive"
 assert expected["CapabilityBoundingSet"] == ""
@@ -121,6 +122,10 @@ def inspect(lines, status=0):
         return module.effective_unit_diagnostic()
 
 assert inspect(baseline) == {"status": "MATCH", "mismatchKeys": []}
+stale = dict(expected)
+stale["NeedDaemonReload"] = "yes"
+assert not check([k + "=" + v for k, v in stale.items()])
+assert inspect([k + "=" + v for k, v in stale.items()]) == {"status": "MISMATCH", "mismatchKeys": ["NeedDaemonReload"]}
 # Exactly one ordinary LF terminator is allowed. CRLF and non-LF separators
 # must never be silently normalized into an apparently trusted systemd unit.
 assert check(baseline + [""])
