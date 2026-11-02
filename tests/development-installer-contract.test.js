@@ -82,10 +82,12 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 expected = module.EXPECTED_UNIT_PROPERTIES
-assert len(expected) == 17
+assert len(expected) == 19
 assert expected["NeedDaemonReload"] == "no"
 assert expected["User"] == "kmjdevci"
 assert expected["ActiveState"] == "inactive"
+assert expected["Result"] == "success"
+assert expected["ExecMainStatus"] == "0"
 assert expected["CapabilityBoundingSet"] == ""
 assert expected["AmbientCapabilities"] == ""
 assert expected["EnvironmentFiles"] == ""
@@ -126,6 +128,16 @@ stale = dict(expected)
 stale["NeedDaemonReload"] = "yes"
 assert not check([k + "=" + v for k, v in stale.items()])
 assert inspect([k + "=" + v for k, v in stale.items()]) == {"status": "MISMATCH", "mismatchKeys": ["NeedDaemonReload"]}
+# The live ELITE worker has failed exit-code/3. Old installer omitted these
+# two Supervisor-enforced lifecycle fields and could authorize a false retry.
+failed = dict(expected)
+failed["Result"] = "exit-code"
+failed["ExecMainStatus"] = "3"
+assert not check([k + "=" + v for k, v in failed.items()])
+assert inspect([k + "=" + v for k, v in failed.items()]) == {
+    "status": "MISMATCH", "mismatchKeys": ["Result", "ExecMainStatus"]
+}
+
 # Exactly one ordinary LF terminator is allowed. CRLF and non-LF separators
 # must never be silently normalized into an apparently trusted systemd unit.
 assert check(baseline + [""])
