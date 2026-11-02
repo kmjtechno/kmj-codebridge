@@ -5,7 +5,10 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const script = fileURLToPath(
-  new URL("../scripts/windows/P520-SUPERVISOR-DISABLED-PREPARE.ps1", import.meta.url),
+  new URL(
+    "../scripts/windows/P520-SUPERVISOR-DISABLED-PREPARE.ps1",
+    import.meta.url,
+  ),
 );
 
 test("disabled P520 preparation demands pinned agent, Git release, tools, installer", () => {
