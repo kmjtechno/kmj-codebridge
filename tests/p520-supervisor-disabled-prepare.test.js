@@ -31,6 +31,10 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
     "EXISTING_SUPERVISOR_BINDING",
     "REPARSE_",
     "TASK_NOT_DISABLED",
+    "OWNER_PROTECTED_ROOT_NOT_PROVISIONED",
+    "OUTSIDE_PROTECTED_P520_ROOT_",
+    "PROTECTED_BROAD_WRITE_",
+    "PROTECTED_OWNER_NOT_ADMIN_",
   ]) {
     assert.ok(source.includes(required), "Missing protection " + required);
   }
