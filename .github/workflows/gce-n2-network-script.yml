@@ -22,6 +22,7 @@ jobs:
       - name: Bash syntax and Python remote syntax
         run: |
           bash -n scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+          sha256sum scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
           python3 - <<'PY'
           from pathlib import Path
           path = Path("scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh")
