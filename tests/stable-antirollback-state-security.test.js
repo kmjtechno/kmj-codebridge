@@ -310,7 +310,8 @@ test(
     fs.mkdirSync(actual, { mode: 0o700 });
     fs.symlinkSync(actual, redirected, "dir");
     assert.throws(
-      () => writeAcceptedUpdateState(path.join(redirected, "new-state"), manifest),
+      () =>
+        writeAcceptedUpdateState(path.join(redirected, "new-state"), manifest),
       /UPDATE_STATE_ROOT_INVALID/,
     );
     assert.deepEqual(fs.readdirSync(actual), []);
