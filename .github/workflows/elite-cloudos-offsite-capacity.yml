@@ -1,0 +1,46 @@
+name: Elite offsite capacity audit safety checks
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_offsite_capacity_readonly_20261102.py
+      - .github/workflows/elite-cloudos-offsite-capacity.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_offsite_capacity_readonly_20261102.py
+      - .github/workflows/elite-cloudos-offsite-capacity.yml
+
+permissions:
+  contents: read
+
+jobs:
+  offline-readonly-capacity:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate identity, free-space decisions and no side effects
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_offsite_capacity_readonly_20261102.py --self-test
+          sha256sum scripts/operations/kmj_elite_cloudos_offsite_capacity_readonly_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/kmj_elite_cloudos_offsite_capacity_readonly_20261102.py")
+          s = p.read_text()
+          tree = ast.parse(s)
+          assert "EXPECTED_HOST = \"kmj-elite\"" in s
+          assert "ELITE_INDEPENDENT_RESTORE=NOT_VERIFIED" in s
+          assert "N2_BACKUP_GATE=BLOCKED" in s
+          assert "CHANGES_TO_ELITE_HOST_OR_GCE=NONE" in s
+          forbidden_calls = {"system", "popen", "run", "Popen", "check_call",
+                             "unlink", "rmdir", "mkdir", "write_text",
+                             "write_bytes", "open", "rename", "remove"}
+          for n in ast.walk(tree):
+              if isinstance(n, ast.Call):
+                  callee = n.func
+                  name = (callee.attr if isinstance(callee, ast.Attribute)
+                          else callee.id if isinstance(callee, ast.Name) else "")
+                  assert name not in forbidden_calls, "Found forbidden call: " + name
+          print("ELITE_OFFSITE_AUDIT_READONLY_GUARDS=PASS")
+          PY
