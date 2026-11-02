@@ -138,9 +138,14 @@ $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -
 # A persistent agent must recover after reboot and transient failures. This
 # task remains DISABLED after preparation; activation is a distinct step.
 $trigger = New-ScheduledTaskTrigger -AtStartup
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
+# -Disable is set in the registered definition: there is no transient
+# enabled/startable task between registration and a later disable call.
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable -Disable
 Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
-Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' | Out-Null
+$registeredTask = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+if (@($registeredTask).Count -ne 1 -or [string]$registeredTask.State -cne 'Disabled') {
+  throw 'SUPERVISOR_TASK_NOT_DISABLED_AT_REGISTRATION'
+}
 
 $proposed = "$AgentConfig.proposed"
 $json | Add-Member -NotePropertyName supervisorPipe -NotePropertyValue $pipe -Force
