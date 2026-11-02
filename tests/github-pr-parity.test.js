@@ -117,6 +117,7 @@ test("update_pull_request sends only the supplied fields and refuses empty or un
   const calls = mockFetch(t, () =>
     json({
       number: 7,
+      url: "https://api.github.com/repos/kmjtechno/kmj-codebridge/pulls/7",
       title: "New title",
       state: "open",
       draft: true,
@@ -271,6 +272,7 @@ test("update_pull_request with expectedHeadSha re-reads the PR and refuses a mov
     if (c.method === "GET") return json({ state: "open", head: { sha: head } });
     return json({
       number: 7,
+      url: "https://api.github.com/repos/kmjtechno/kmj-codebridge/pulls/7",
       title: "T",
       state: "open",
       draft: false,
@@ -335,6 +337,7 @@ test("closing a pull request needs explicit confirmation and no network call is 
       ? json({ state: "open", head: { sha: head } })
       : json({
           number: 7,
+          url: "https://api.github.com/repos/kmjtechno/kmj-codebridge/pulls/7",
           title: "T",
           state: "closed",
           draft: false,
