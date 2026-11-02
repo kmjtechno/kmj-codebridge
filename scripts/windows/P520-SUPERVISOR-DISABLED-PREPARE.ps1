@@ -111,6 +111,7 @@ try {
   foreach($pin in @($AgentConfigSha256,$SupervisorConfigSha256,$RuntimeEntrySha256,$NodeExeSha256,$GitExeSha256,$InstallerSha256)) {
     Assert-Sha $pin
   }
+  Assert-Path $AgentConfig 'AGENT_CONFIG' $true
   Assert-Path $SupervisorConfig 'SUPERVISOR_CONFIG' $true
   Assert-Path $RuntimeDir 'RUNTIME_DIR' $false
   Assert-Path $BackupRoot 'BACKUP_ROOT' $false
