@@ -34,7 +34,8 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
   assert.match(source, /P520_PREPARE_AI_OWNER_WITNESS' 'NOT_ESTABLISHED'/);
   assert.match(source, /P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'/);
   assert.match(source, /KMJ-CodeBridge-Supervisor-P520/);
-  assert.doesNotMatch(source, /P720/i);
+  assert.doesNotMatch(source, /KMJ-CodeBridge-Supervisor-P720/i);
+  assert.doesNotMatch(source, /bootstrap-p720-supervisor/i);
   assert.doesNotMatch(source, /\bRestart-Service\b/i);
   assert.doesNotMatch(source, /\bStart-ScheduledTask\b/i);
   assert.doesNotMatch(source, /\bEnable-ScheduledTask\b/i);
