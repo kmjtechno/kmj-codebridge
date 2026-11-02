@@ -124,9 +124,34 @@ Write-Manifest $manifestPath $manifest
 # Restrict the secret: no inherited ACEs, only SYSTEM, Administrators and the service account.
 & icacls.exe $tokenFile /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(F)' 'BUILTIN\Administrators:(F)' "${ServiceAccount}:(R)" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'icacls failed to restrict the token file.' }
-$acl = (& icacls.exe $tokenFile) -join "`n"
-if ($acl -match '(?i)\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)\b[^\n]*:') {
-  throw 'Token file ACL still contains a broad principal; refusing to continue.'
+# Read the DACL as Windows security identities, not icacls display text.
+# The latter starts with C:\Users\... and a bare 'Users' match falsely
+# classifies this ordinary filesystem path as an unsafe Users ACE.
+# The only permitted ACE principals are SYSTEM, Administrators, and the
+# operator-approved service principal. Any other SID fails closed.
+$acl = Get-Acl -LiteralPath $tokenFile -ErrorAction Stop
+if (-not $acl.AreAccessRulesProtected) {
+  throw 'SUPERVISOR_TOKEN_ACL_INHERITANCE_UNSAFE'
+}
+$serviceSid = ([System.Security.Principal.NTAccount]::new($ServiceAccount)).Translate(
+  [System.Security.Principal.SecurityIdentifier]
+).Value
+$allowedSids = @('S-1-5-18', 'S-1-5-32-544', $serviceSid)
+$observedSids = New-Object 'System.Collections.Generic.HashSet[string]'
+foreach ($entry in @($acl.Access)) {
+  $sid = $entry.IdentityReference.Translate(
+    [System.Security.Principal.SecurityIdentifier]
+  ).Value
+  if ($sid -notin $allowedSids -or
+      $entry.AccessControlType -ne [System.Security.AccessControl.AccessControlType]::Allow) {
+    throw 'SUPERVISOR_TOKEN_ACL_UNSAFE_PRINCIPAL'
+  }
+  [void]$observedSids.Add($sid)
+}
+foreach ($sid in $allowedSids) {
+  if (-not $observedSids.Contains($sid)) {
+    throw 'SUPERVISOR_TOKEN_ACL_REQUIRED_PRINCIPAL_MISSING'
+  }
 }
 
 $taskArgs = "`"$RuntimeDir\src\cli.js`" windows-supervisor `"$SupervisorConfig`""
