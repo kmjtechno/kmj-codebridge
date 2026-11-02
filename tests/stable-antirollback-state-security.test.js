@@ -494,3 +494,28 @@ test(
     fs.rmdirSync(path.join(stateDir, ".stable-update-state.lock"));
   },
 );
+
+test(
+  "successful lock removal never runs a fallible directory sync after unlock",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir } = fixture(t);
+    const lock = path.join(stateDir, ".stable-update-state.lock");
+    const realRmdir = fs.rmdirSync;
+    const realFsync = fs.fsyncSync;
+    let removed = false;
+    t.mock.method(fs, "rmdirSync", (target, ...args) => {
+      const result = realRmdir(target, ...args);
+      if (path.resolve(String(target)) === lock) removed = true;
+      return result;
+    });
+    t.mock.method(fs, "fsyncSync", (fd) => {
+      if (removed) throw Error("POST_UNLOCK_FSYNC_MUST_NOT_RUN");
+      return realFsync(fd);
+    });
+    assert.equal(writeAcceptedUpdateState(stateDir, manifest).sequence, 43);
+    assert.equal(removed, true);
+    assert.equal(fs.existsSync(lock), false);
+    assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+  },
+);
