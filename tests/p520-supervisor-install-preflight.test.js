@@ -21,7 +21,10 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /Safe-Candidate-Path/);
   assert.match(source, /FileAttributes\]::ReparsePoint/);
   assert.match(source, /Get-ScheduledTask -ErrorAction Stop/);
-  assert.match(source, /Get-ChildItem -LiteralPath \$root -Recurse -Depth 3/);
+  assert.match(source, /Get-ChildItem -LiteralPath \$folder -Force/);
+  assert.match(source, /\$searched -gt 160/);
+  assert.match(source, /\$pending\.Enqueue/);
+  assert.doesNotMatch(source, /Get-ChildItem.*-Recurse/);
   assert.doesNotMatch(source, /Write-Output\s+\$cfg\b/);
   assert.doesNotMatch(source, /Get-Content.*Write-Output/);
   for (const command of [
