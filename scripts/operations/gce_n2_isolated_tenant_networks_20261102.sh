@@ -79,6 +79,21 @@ def network_xml(name, bridge, cidr):
             str(net.network_address+100) + "' end='" +
             str(net.network_address+200) + "'/></dhcp></ip></network>")
 
+def net_info_flags(name):
+    # virsh aligns labels with spaces, for example 'Active:         yes'.
+    # Require an exact unique field key but normalize surrounding whitespace.
+    flags = {}
+    for row in virsh("net-info", name).splitlines():
+        if ":" not in row:
+            continue
+        key, value = row.split(":", 1)
+        key = key.strip().lower()
+        if key in {"active", "autostart", "persistent"}:
+            if key in flags:
+                raise RuntimeError("NETWORK_INFO_DUPLICATE_FIELD")
+            flags[key] = value.strip().lower()
+    return flags
+
 def verify(name, bridge, cidr):
     root = ET.fromstring(virsh("net-dumpxml", name))
     net = ipaddress.ip_network(cidr)
@@ -100,9 +115,9 @@ def verify(name, bridge, cidr):
         ipaddress.ip_address(ranges[0].get("start", "")) != net.network_address+100
         or ipaddress.ip_address(ranges[0].get("end", "")) != net.network_address+200):
         raise RuntimeError("NETWORK_POOL_MISMATCH")
-    status = virsh("net-info", name).lower().splitlines()
-    if (not any(line.strip() == "active: yes" for line in status)
-        or not any(line.strip() == "autostart: yes" for line in status)):
+    status = net_info_flags(name)
+    if any(status.get(field) != "yes"
+           for field in ("active", "autostart", "persistent")):
         raise RuntimeError("NETWORK_NOT_ACTIVE_PERSISTENT")
 
 created = []
@@ -168,7 +183,14 @@ except Exception as exc:
         except Exception:
             pass
     if created:
-        print("NEW_NETWORK_ROLLBACK=ATTEMPTED_RECHECK_REQUIRED")
+        try:
+            remaining = set(virsh("net-list", "--all", "--name").splitlines())
+            if any(name in remaining for name in created):
+                print("NEW_NETWORK_ROLLBACK=FAILED_RECHECK_REQUIRED")
+            else:
+                print("NEW_NETWORK_ROLLBACK=VERIFIED_LIBVIRT_DEFINITIONS_ABSENT")
+        except Exception:
+            print("NEW_NETWORK_ROLLBACK=UNVERIFIED_RECHECK_REQUIRED")
     raise SystemExit(2)
 PY
 REMOTE_CODE
