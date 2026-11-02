@@ -38,7 +38,7 @@ class Contract(unittest.TestCase):
         ):
             with self.subTest(changed=changed):
                 values = {**m.EXPECTED, **changed}
-                output = '\\n'.join(k + '=' + v for k, v in values.items()) + '\\n'
+                output = '\n'.join(k + '=' + v for k, v in values.items()) + '\n'
                 calls = []
                 def run(args):
                     calls.append(args)
