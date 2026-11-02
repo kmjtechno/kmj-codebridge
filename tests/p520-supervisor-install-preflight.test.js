@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
@@ -66,3 +67,24 @@ test(
     assert.match(result.stdout, /P520_INSTALL_PREFLIGHT_SELFTEST=PASS/);
   },
 );
+
+test("one-click P520 launcher cryptographically pins the read-only script", () => {
+  const cmdPath = fileURLToPath(
+    new URL(
+      "../scripts/windows/P520-SUPERVISOR-INSTALL-PREFLIGHT.cmd",
+      import.meta.url,
+    ),
+  );
+  const cmd = fs.readFileSync(cmdPath, "utf8");
+  const actual = createHash("sha256")
+    .update(fs.readFileSync(script))
+    .digest("hex");
+  assert.match(cmd.toLowerCase(), new RegExp(actual));
+  assert.match(cmd, /P520_PREFLIGHT_SHA256=PASS/);
+  assert.match(cmd, /-SelfTest/);
+  assert.match(cmd, /SCRIPT_HASH_MISMATCH/);
+  assert.match(cmd, /P520_PREFLIGHT=COMPLETE_NO_CHANGES/);
+  assert.doesNotMatch(cmd, /-Apply\b/i);
+  assert.doesNotMatch(cmd, /Register-ScheduledTask/i);
+  assert.doesNotMatch(cmd, /Start-ScheduledTask/i);
+});
