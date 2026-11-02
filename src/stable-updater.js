@@ -111,12 +111,19 @@ function assertNoRedirectedStateAncestors(target) {
     }
     if (stat.isSymbolicLink() || !stat.isDirectory())
       fail("UPDATE_STATE_ROOT_INVALID");
-    if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) {
-      // A group/world-writable ancestor lets another identity redirect
-      // the state path between checks. Root-owned sticky public directories
-      // (such as /tmp) prevent other users from renaming our entries.
-      const rootOwnedSticky = stat.uid === 0 && (stat.mode & 0o1000) !== 0;
-      if (!rootOwnedSticky) fail("UPDATE_STATE_ROOT_INVALID");
+    if (process.platform !== "win32") {
+      // Even mode 0700 is not trustworthy when a different unprivileged
+      // identity owns an ancestor: that owner can rename the entire subtree.
+      // Trust only the updater identity or root for every existing component.
+      if (stat.uid !== 0 && stat.uid !== process.getuid())
+        fail("UPDATE_STATE_ROOT_INVALID");
+      if ((stat.mode & 0o022) !== 0) {
+        // A group/world-writable ancestor permits path substitution.
+        // Root-owned sticky public directories (e.g. /tmp) protect entries
+        // owned by this process or root; child ownership is checked above.
+        const rootOwnedSticky = stat.uid === 0 && (stat.mode & 0o1000) !== 0;
+        if (!rootOwnedSticky) fail("UPDATE_STATE_ROOT_INVALID");
+      }
     }
   }
 }
