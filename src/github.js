@@ -461,7 +461,7 @@ export function createGitHubBridge(config) {
   // A parsed 2xx JSON object is not, by itself, proof that GitHub performed
   // a mutation. Only clear the previous native denial when the exact
   // endpoint returns its expected mutation identity. Never echo the object.
-  const confirmedWriteReceipt = (method, suffix, value) => {
+  const confirmedWriteReceipt = (method, suffix, value, requestBody) => {
     if (!value || typeof value !== "object" || Array.isArray(value))
       return false;
     const sha = (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v);
@@ -472,9 +472,10 @@ export function createGitHubBridge(config) {
       return sha(value.commit?.sha) && sha(value.content?.sha);
     if (method === "POST" && suffix === "git/refs")
       return (
-        typeof value.ref === "string" &&
-        value.ref.startsWith("refs/heads/") &&
-        sha(value.object?.sha)
+        typeof requestBody?.ref === "string" &&
+        value.ref === requestBody.ref &&
+        sha(requestBody.sha) &&
+        value.object?.sha === requestBody.sha
       );
     if (method === "POST" && suffix === "issues") return id(value.number);
     if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
@@ -628,7 +629,7 @@ export function createGitHubBridge(config) {
         // unrecognized receipt must never be returned as a successful write
         // or invalidate cached reads. The remote side may have acted, so a
         // caller must independently reconcile before retrying a mutation.
-        if (!confirmedWriteReceipt(method, suffix, value))
+        if (!confirmedWriteReceipt(method, suffix, value, body))
           fail("GITHUB_WRITE_RECEIPT_UNVERIFIED");
         if (latestWriteAttempts.get(repository) === writeAttempt) {
           recentWriteFailures.delete(repository);
