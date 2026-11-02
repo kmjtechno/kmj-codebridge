@@ -11,6 +11,8 @@ param(
   [Parameter(Mandatory)][string]$SupervisorConfigSha256,
   [Parameter(Mandatory)][string]$RuntimeEntrySha256,
   [Parameter(Mandatory)][string]$NodeExeSha256,
+  [Parameter(Mandatory)][string]$GitExeSha256,
+  [Parameter(Mandatory)][string]$ExpectedRuntimeGitSha,
   [Parameter(Mandatory)][string]$InstallerSha256,
   [switch]$Apply,
   [switch]$ConfirmDisabledPreparation
@@ -34,7 +36,7 @@ function Assert-Path([string]$value,[string]$tag,[bool]$required) {
   if($required -and -not(Test-Path -LiteralPath $value -PathType Leaf)) {
     throw ('MISSING_'+$tag)
   }
-  $cur=if($required) { $value } else { [IO.Path]::GetDirectoryName($value) }
+  $cur=if(Test-Path -LiteralPath $value) { $value } else { [IO.Path]::GetDirectoryName($value) }
   for($i=0;$i -lt 40;$i++) {
     if(Test-Path -LiteralPath $cur) {
       $o=Get-Item -LiteralPath $cur -Force -ErrorAction Stop
@@ -58,7 +60,122 @@ try {
   if($pc.Manufacturer -notmatch '(?i)lenovo' -or [string]$pc.Model -cne '30BFS1JG13') {
     throw 'HARDWARE_MISMATCH'
   }
-  foreach($pin in @($AgentConfigSha256,$SupervisorConfigSha256,$RuntimeEntrySha256,$NodeExeSha256,$InstallerSha256)) {
+  if($ExpectedRuntimeGitSha -cnotmatch '^[a-f0-9]{40}
+    Assert-Sha $pin
+  }
+  Assert-Path $AgentConfig 'AGENT_CONFIG' $true
+  Assert-Path $SupervisorConfig 'SUPERVISOR_CONFIG' $true
+  Assert-Path $RuntimeDir 'RUNTIME_DIR' $false
+  Assert-Path $BackupRoot 'BACKUP_ROOT' $false
+  $cli=Join-Path $RuntimeDir 'src\cli.js'
+  Assert-Path $cli 'RUNTIME_CLI' $true
+  $installer=Join-Path $PSScriptRoot 'install-windows-supervisor.ps1'
+  Assert-Path $installer 'INSTALLER' $true
+  Assert-Hash $AgentConfig $AgentConfigSha256
+  Assert-Hash $SupervisorConfig $SupervisorConfigSha256
+  Assert-Hash $cli $RuntimeEntrySha256
+  Assert-Hash $installer $InstallerSha256
+
+  # Hash and inspect the selected Node without executing it in dry-run.
+  $node=Get-Command node.exe -ErrorAction Stop
+  if($null -eq $node -or $node.CommandType -ne 'Application') { throw 'NODE_UNTRUSTED' }
+  Assert-Path ([string]$node.Source) 'NODE_EXE' $true
+  Assert-Hash ([string]$node.Source) $NodeExeSha256
+  $major=[int](Get-Item -LiteralPath ([string]$node.Source)).VersionInfo.FileMajorPart
+  if($major -lt 24) { throw 'NODE_24_REQUIRED' }
+
+  # Require a clean, immutable, exact-sha isolated Git release. Neither the
+  # user's dirty main checkout nor a mutable main branch is a trusted runtime.
+  $git=Get-Command git.exe -ErrorAction Stop
+  if($null -eq $git -or $git.CommandType -ne 'Application') { throw 'GIT_UNTRUSTED' }
+  Assert-Path ([string]$git.Source) 'GIT_EXE' $true
+  Assert-Hash ([string]$git.Source) $GitExeSha256
+  if(-not(Test-Path -LiteralPath (Join-Path $RuntimeDir '.git'))) { throw 'RUNTIME_NOT_GIT_RELEASE' }
+  $actualGitSha=[string](& $git.Source -C $RuntimeDir rev-parse HEAD)
+  if($LASTEXITCODE -ne 0 -or $actualGitSha.Trim() -cne $ExpectedRuntimeGitSha) {
+    throw 'RUNTIME_GIT_SHA_MISMATCH'
+  }
+  $origin=[string](& $git.Source -C $RuntimeDir remote get-url origin)
+  if($LASTEXITCODE -ne 0 -or $origin.Trim() -cne 'https://github.com/kmjtechno/kmj-codebridge.git') {
+    throw 'RUNTIME_GIT_ORIGIN_MISMATCH'
+  }
+  $status=@(& $git.Source -C $RuntimeDir status --porcelain=v1 --untracked-files=all)
+  if($LASTEXITCODE -ne 0 -or $status.Count -ne 0) { throw 'RUNTIME_CHECKOUT_DIRTY' }
+
+  $agent=Get-Content -LiteralPath $AgentConfig -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+  if([string]$agent.id -cne $expectedDevice) { throw 'WRONG_AGENT_ID' }
+  if([string]$agent.gateway -cne 'https://kmjtechno.com/mcp') { throw 'WRONG_GATEWAY' }
+  if(@($agent.projects | Where-Object { [string]$_.id -ceq 'kmj-codebridge' }).Count -ne 1) {
+    throw 'PROJECT_IDENTITY_AMBIGUOUS'
+  }
+  if(@($agent.PSObject.Properties.Name | Where-Object { $_ -in @('supervisorSocket','supervisorPipe','supervisorTokenFile') }).Count -gt 0) {
+    throw 'EXISTING_SUPERVISOR_BINDING'
+  }
+  $cfg=Get-Content -LiteralPath $SupervisorConfig -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+  if([string]$cfg.pipeName -cne $pipeName -or
+     [string]$cfg.agent.configPath -cne $AgentConfig -or
+     [string]$cfg.agent.installDir -cne $RuntimeDir) {
+    throw 'SUPERVISOR_CONFIG_MISMATCH'
+  }
+  $token=[string]$cfg.tokenFile
+  Assert-Path $token 'TOKEN_TARGET' $false
+  if(Test-Path -LiteralPath $token) { throw 'TOKEN_ALREADY_EXISTS' }
+  if(Test-Path -LiteralPath ($AgentConfig+'.proposed')) { throw 'PROPOSED_CONFIG_ALREADY_EXISTS' }
+  if($ServiceAccount -cnotmatch '^[A-Za-z0-9_.-]{1,64}(?:\\[A-Za-z0-9_.-]{1,64})?$') {
+    throw 'SERVICE_ACCOUNT_INVALID'
+  }
+  $tasks=@(Get-ScheduledTask -ErrorAction Stop)
+  if(@($tasks | Where-Object { [string]$_.TaskName -ieq $taskName }).Count -ne 0) {
+    throw 'TASK_NAME_COLLISION'
+  }
+
+  Mark 'P520_PREPARE_DEVICE' 'PASS'
+  Mark 'P520_PREPARE_PINNED_ARTIFACTS' 'PASS'
+  Mark 'P520_PREPARE_TASK_COLLISION' 'NONE'
+  Mark 'P520_PREPARE_MODE' $(if($Apply){'DISABLED_ONLY'}else{'DRY_RUN'})
+  Mark 'P520_PREPARE_AI_OWNER_WITNESS' 'NOT_ESTABLISHED'
+  Mark 'P520_PREPARE_EXISTING_AGENTS' 'UNTOUCHED'
+  if(-not $Apply) {
+    Mark 'P520_PREPARE_RESULT' 'DRY_RUN_PASS_NO_CHANGES'
+    exit 0
+  }
+  if(-not $ConfirmDisabledPreparation) { throw 'OWNER_CONFIRMATION_REQUIRED' }
+  $who=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+  if(-not $who.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'ADMINISTRATOR_REQUIRED'
+  }
+  Assert-Hash $AgentConfig $AgentConfigSha256
+  Assert-Hash $SupervisorConfig $SupervisorConfigSha256
+  Assert-Hash $cli $RuntimeEntrySha256
+  Assert-Hash ([string]$node.Source) $NodeExeSha256
+  Assert-Hash ([string]$git.Source) $GitExeSha256
+  Assert-Hash $installer $InstallerSha256
+  $args=@{
+    SupervisorConfig=$SupervisorConfig
+    AgentConfig=$AgentConfig
+    RuntimeDir=$RuntimeDir
+    BackupRoot=$BackupRoot
+    ServiceAccount=$ServiceAccount
+    TaskName=$taskName
+    Apply=$true
+  }
+  & $installer @args
+  if(-not $?) { throw 'PREPARATION_FAILED' }
+  $task=Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
+  if(@($task).Count -ne 1 -or [string]$task.State -cne 'Disabled') {
+    throw 'TASK_NOT_DISABLED'
+  }
+  Mark 'P520_PREPARE_RESULT' 'DISABLED_TASK_ONLY'
+  Mark 'P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'
+} catch {
+  $reason=[string]$_.Exception.Message
+  if($reason -notmatch '^[A-Z][A-Z0-9_]{3,90}$') { $reason='SAFE_PREPARATION_BLOCKED' }
+  Mark 'P520_PREPARE_RESULT' ('BLOCKED_'+$reason)
+  Mark 'P520_PREPARE_EXISTING_AGENTS' 'UNTOUCHED'
+  exit 2
+}
+) { throw 'RUNTIME_GIT_SHA_PIN_INVALID' }
+  foreach($pin in @($AgentConfigSha256,$SupervisorConfigSha256,$RuntimeEntrySha256,$NodeExeSha256,$GitExeSha256,$InstallerSha256)) {
     Assert-Sha $pin
   }
   Assert-Path $AgentConfig 'AGENT_CONFIG' $true
