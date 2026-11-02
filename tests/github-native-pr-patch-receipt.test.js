@@ -16,10 +16,7 @@ test("native PR PATCH receipt binds the exact repository and PR number", async (
   let patches = 0;
   t.mock.method(globalThis, "fetch", async (url, options) => {
     if (options.method === "GET") {
-      assert.equal(
-        new URL(url).pathname,
-        "/repos/kmjtechno/kmj-codebridge",
-      );
+      assert.equal(new URL(url).pathname, "/repos/kmjtechno/kmj-codebridge");
       return Response.json({
         full_name: repository,
         private: false,
