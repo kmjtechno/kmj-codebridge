@@ -512,8 +512,21 @@ export function createGitHubBridge(config) {
       /^pulls\/\d+\/comments\/\d+\/replies$/.test(suffix)
     )
       return id(value.id);
-    if (method === "PATCH" && /^pulls\/\d+$/.test(suffix))
-      return id(value.number) && typeof value.state === "string";
+    if (method === "PATCH" && /^pulls\/\d+$/.test(suffix)) {
+      // A valid PR object from another issue/repository is not a receipt for
+      // the target we PATCHed. Bind the exact number and canonical API URL.
+      const requestedNumber = Number(suffix.split("/")[1]);
+      const expectedUrl = new URL(
+        `repos/${safePath(repository)}/pulls/${requestedNumber}`,
+        config.apiBase,
+      ).href;
+      return (
+        id(value.number) &&
+        value.number === requestedNumber &&
+        value.url === expectedUrl &&
+        typeof value.state === "string"
+      );
+    }
     return false;
   };
   const markPublicQuotaBlocked = (headers) => {
