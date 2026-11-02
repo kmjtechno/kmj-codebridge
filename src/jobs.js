@@ -21,6 +21,7 @@ export function redact(text) {
 export function jobEnvironment(
   source = process.env,
   platform = process.platform,
+  { allowReaProviderPaths = false } = {},
 ) {
   // Only standard OS paths needed for native build tools may be inherited.
   const env = {
@@ -80,6 +81,22 @@ export function jobEnvironment(
         !/[\x00-\x1f]/.test(value)
       )
         env[key] = value;
+    }
+    // Provider paths are safe, non-secret directories, but should only be
+    // inherited by the explicitly approved REA doctor command, never arbitrary
+    // project build jobs. Reject relative paths and malicious control bytes.
+    if (allowReaProviderPaths) {
+      for (const key of ["JAVA_HOME", "GHIDRA_INSTALL_DIR"]) {
+        const value = source[key];
+        if (
+          typeof value === "string" &&
+          value.length > 0 &&
+          value.length <= 4096 &&
+          !/[\\x00-\\x1f]/.test(value) &&
+          path.win32.isAbsolute(value)
+        )
+          env[key] = value;
+      }
     }
   }
   return env;
@@ -535,7 +552,14 @@ export class JobRunner {
     j.state = "running";
     j.startedAt = new Date().toISOString();
     this.persist(j);
-    const env = jobEnvironment();
+    // The local REA doctor is an administrator-approved read-only command.
+    // Only that job needs the owner's explicit, absolute provider paths.
+    const isReaDoctor =
+      j.gate === "command:rea_doctor:check:inspect" ||
+      j.gate.startsWith("command:rea_doctor:check:inspect@");
+    const env = jobEnvironment(process.env, process.platform, {
+      allowReaProviderPaths: isReaDoctor,
+    });
     // Composer requires HOME even when the job runner deliberately strips
     // inherited user environment. Use a private, deterministic directory in
     // the agent job state, not the shared checkout or an inherited home.
