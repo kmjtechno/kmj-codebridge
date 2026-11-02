@@ -1,0 +1,49 @@
+name: ELITE CloudOS offsite backup target read-only preflight
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_backup_target_preflight_20261102.py
+      - .github/workflows/elite-cloudos-backup-target-preflight.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_backup_target_preflight_20261102.py
+      - .github/workflows/elite-cloudos-backup-target-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  backup-target-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline read-only security regression
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_backup_target_preflight_20261102.py --self-test
+          sha256sum scripts/operations/kmj_elite_cloudos_backup_target_preflight_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path("scripts/operations/kmj_elite_cloudos_backup_target_preflight_20261102.py")
+          source = path.read_text()
+          module = ast.parse(source)
+          assert "ELITE_BACKUP_TARGET_PREFLIGHT=READ_ONLY_COMPLETE" in source
+          assert "ELITE_BACKUP_ENCRYPTION_AND_INTEGRITY=NOT_VERIFIED" in source
+          assert "ELITE_INDEPENDENT_DISPOSABLE_RESTORE=NOT_VERIFIED" in source
+          assert 'DEST = PARENT / "kmj-cloudos-n2-offsite"' in source
+          assert "ELITE_HOST_AND_GCE_MUTATIONS=NONE" in source
+          assert "ROOT_OWNED_NO_SYMLINK_NO_PUBLIC_WRITE_PASS" in source
+          forbidden = {"system", "popen", "run", "Popen", "check_call",
+                       "unlink", "rmdir", "mkdir", "write_text",
+                       "write_bytes", "open", "rename", "remove",
+                       "chmod", "chown", "mount", "execv", "socket"}
+          for node in ast.walk(module):
+              if isinstance(node, ast.Call):
+                  callee = node.func
+                  name = (callee.attr if isinstance(callee, ast.Attribute)
+                          else callee.id if isinstance(callee, ast.Name) else "")
+                  assert name not in forbidden, "Unexpected side-effect call: " + name
+          print("ELITE_BACKUP_TARGET_NO_MUTATION_AST=PASS")
+          PY
