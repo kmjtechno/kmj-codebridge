@@ -260,7 +260,7 @@ test(
     });
     assert.throws(
       () => writeAcceptedUpdateState(stateDir, manifest),
-      /INJECTED_PARENT_DIRECTORY_FSYNC_FAILURE/,
+      /UPDATE_STATE_DURABILITY_UNPROVEN/,
     );
     assert.deepEqual(fs.readdirSync(stateDir), []);
   },
@@ -295,7 +295,7 @@ test(
     });
     assert.throws(
       () => writeAcceptedUpdateState(stateDir, manifest),
-      /INJECTED_DIRECTORY_FSYNC_FAILURE/,
+      /UPDATE_STATE_DURABILITY_UNPROVEN/,
     );
     assert.equal(fsyncCalls, parentSyncs + 3);
     assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
@@ -492,5 +492,115 @@ test(
       /UPDATE_STATE_LOCKED/,
     );
     fs.rmdirSync(path.join(stateDir, ".stable-update-state.lock"));
+  },
+);
+
+test(
+  "successful lock removal never runs a fallible directory sync after unlock",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir } = fixture(t);
+    const lock = path.join(stateDir, ".stable-update-state.lock");
+    const realRmdir = fs.rmdirSync;
+    const realFsync = fs.fsyncSync;
+    let removed = false;
+    t.mock.method(fs, "rmdirSync", (target, ...args) => {
+      const result = realRmdir(target, ...args);
+      if (path.resolve(String(target)) === lock) removed = true;
+      return result;
+    });
+    t.mock.method(fs, "fsyncSync", (fd) => {
+      if (removed) throw Error("POST_UNLOCK_FSYNC_MUST_NOT_RUN");
+      return realFsync(fd);
+    });
+    assert.equal(writeAcceptedUpdateState(stateDir, manifest).sequence, 43);
+    assert.equal(removed, true);
+    assert.equal(fs.existsSync(lock), false);
+    assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+  },
+);
+
+test(
+  "directory fsync EIO before or after watermark rename fails closed with a stable code",
+  { skip: process.platform === "win32" },
+  (t) => {
+    for (const failAt of [1, 2]) {
+      const { stateDir } = fixture(t);
+      const lock = path.join(stateDir, ".stable-update-state.lock");
+      const realOpen = fs.openSync;
+      const realFsync = fs.fsyncSync;
+      let stateDirFd = -1;
+      let stateDirSyncs = 0;
+      t.mock.method(fs, "openSync", (target, ...args) => {
+        const fd = realOpen(target, ...args);
+        stateDirFd = path.resolve(String(target)) === stateDir ? fd : -1;
+        return fd;
+      });
+      t.mock.method(fs, "fsyncSync", (fd) => {
+        if (fd === stateDirFd && ++stateDirSyncs === failAt)
+          throw Object.assign(Error("INJECTED_RAW_EIO"), { code: "EIO" });
+        return realFsync(fd);
+      });
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, manifest),
+        /UPDATE_STATE_DURABILITY_UNPROVEN/,
+      );
+      t.mock.restoreAll();
+      assert.equal(fs.existsSync(lock), true);
+      const accepted = readAcceptedUpdateState(stateDir);
+      assert.equal(accepted?.sequence ?? null, failAt === 1 ? null : 43);
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+        /UPDATE_STATE_LOCKED/,
+      );
+    }
+  },
+);
+
+test(
+  "directory descriptor close EIO fails closed before and after watermark rename",
+  { skip: process.platform === "win32" },
+  (t) => {
+    for (const failAt of [1, 2]) {
+      const { stateDir } = fixture(t);
+      const lock = path.join(stateDir, ".stable-update-state.lock");
+      const realOpen = fs.openSync;
+      const realClose = fs.closeSync;
+      let stateDirOpens = 0;
+      let failFd = null;
+      t.mock.method(fs, "openSync", (target, ...args) => {
+        const fd = realOpen(target, ...args);
+        if (path.resolve(String(target)) === stateDir) {
+          stateDirOpens++;
+          if (stateDirOpens === failAt) failFd = fd;
+        }
+        return fd;
+      });
+      t.mock.method(fs, "closeSync", (fd) => {
+        if (fd === failFd) {
+          failFd = null;
+          realClose(fd);
+          throw Object.assign(Error("INJECTED_DIRECTORY_CLOSE_EIO"), {
+            code: "EIO",
+          });
+        }
+        return realClose(fd);
+      });
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, manifest),
+        /UPDATE_STATE_DURABILITY_UNPROVEN/,
+      );
+      t.mock.restoreAll();
+      assert.equal(stateDirOpens >= failAt, true);
+      assert.equal(fs.existsSync(lock), true);
+      assert.equal(
+        readAcceptedUpdateState(stateDir)?.sequence ?? null,
+        failAt === 1 ? null : 43,
+      );
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+        /UPDATE_STATE_LOCKED/,
+      );
+    }
   },
 );
