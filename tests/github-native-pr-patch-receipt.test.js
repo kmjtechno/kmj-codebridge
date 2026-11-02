@@ -27,7 +27,10 @@ test("native PR PATCH receipt binds the exact repository and PR number", async (
       });
     }
     assert.equal(options.method, "PATCH");
-    assert.equal(new URL(url).pathname, "/repos/kmjtechno/kmj-codebridge/pulls/723");
+    assert.equal(
+      new URL(url).pathname,
+      "/repos/kmjtechno/kmj-codebridge/pulls/723",
+    );
     patches++;
     return Response.json(returned, { status: 200 });
   });
