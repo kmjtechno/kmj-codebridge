@@ -260,7 +260,7 @@ test(
     });
     assert.throws(
       () => writeAcceptedUpdateState(stateDir, manifest),
-      /INJECTED_PARENT_DIRECTORY_FSYNC_FAILURE/,
+      /UPDATE_STATE_DURABILITY_UNPROVEN/,
     );
     assert.deepEqual(fs.readdirSync(stateDir), []);
   },
@@ -295,7 +295,7 @@ test(
     });
     assert.throws(
       () => writeAcceptedUpdateState(stateDir, manifest),
-      /INJECTED_DIRECTORY_FSYNC_FAILURE/,
+      /UPDATE_STATE_DURABILITY_UNPROVEN/,
     );
     assert.equal(fsyncCalls, parentSyncs + 3);
     assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
