@@ -393,10 +393,11 @@ test("stable updater fails closed on malformed accepted state before network fet
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const signed = signedFixture();
   const cfg = config(root, signed.trustedKeys);
-  fs.mkdirSync(cfg.stateDir, { recursive: true });
+  fs.mkdirSync(cfg.stateDir, { recursive: true, mode: 0o700 });
   fs.writeFileSync(
     path.join(cfg.stateDir, "stable-update-state.json"),
     "{broken\n",
+    { mode: 0o600 },
   );
   let fetched = false;
 
@@ -492,6 +493,45 @@ test("stable rollback fails closed when no previous release is recorded", async 
     runStableRollback(cfg, { createStore: () => store }),
     /UPDATE_ROLLBACK_UNAVAILABLE/,
   );
+});
+
+test("signed sequence is durable before activation and survives a failed switch", async (t) => {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), "cb-preactivate-watermark-"),
+  );
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const signed = signedFixture();
+  const cfg = config(root, signed.trustedKeys);
+  const store = fakeStore(root);
+  writeMarker(store, signed.manifest);
+  let activationCalls = 0;
+  const dependencies = {
+    nodeMajor: 24,
+    createStore: () => store,
+    fetchBytes: async (url) =>
+      Buffer.from(url.endsWith(".sig") ? signed.signature : signed.rawManifest),
+    activate: async () => {
+      activationCalls++;
+      // A crash or failed restart after the release switch must not permit
+      // the old signed sequence to be replayed.
+      assert.equal(readAcceptedUpdateState(cfg.stateDir).sequence, 42);
+      throw Error("INJECTED_ACTIVATION_FAILURE");
+    },
+  };
+
+  await assert.rejects(
+    runStableUpdate(cfg, dependencies),
+    /INJECTED_ACTIVATION_FAILURE/,
+  );
+  assert.equal(activationCalls, 1);
+  assert.equal(readAcceptedUpdateState(cfg.stateDir).sequence, 42);
+  // A failed activation may require an explicit protected rollback, but
+  // automatic replay cannot retry the same accepted sequence.
+  await assert.rejects(
+    runStableUpdate(cfg, dependencies),
+    /UPDATE_ROLLBACK_REJECTED/,
+  );
+  assert.equal(activationCalls, 1);
 });
 
 test("busy maintenance prevents signed activation and always releases its lease", async (t) => {

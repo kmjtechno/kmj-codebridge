@@ -91,12 +91,95 @@ const acceptedStateSchema = z
   })
   .strict();
 
-function secureDirectory(target) {
-  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
-  const stat = fs.lstatSync(target);
-  if (!stat.isDirectory() || stat.isSymbolicLink())
+// A private leaf directory is not sufficient if an ancestor redirects it.
+// This rejects existing path redirects before either reading or creating
+// security-critical updater state; it is not a substitute for a protected
+// owner-controlled parent directory against concurrent pathname swaps.
+function assertNoRedirectedStateAncestors(target) {
+  const absolute = path.resolve(target);
+  const root = path.parse(absolute).root;
+  let current = root;
+  for (const component of absolute.slice(root.length).split(path.sep)) {
+    if (!component) continue;
+    current = path.join(current, component);
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      fail("UPDATE_STATE_ROOT_INVALID");
+    }
+    if (stat.isSymbolicLink() || !stat.isDirectory())
+      fail("UPDATE_STATE_ROOT_INVALID");
+    if (process.platform !== "win32") {
+      // Even mode 0700 is not trustworthy when a different unprivileged
+      // identity owns an ancestor: that owner can rename the entire subtree.
+      // Trust only the updater identity or root for every existing component.
+      if (stat.uid !== 0 && stat.uid !== process.getuid())
+        fail("UPDATE_STATE_ROOT_INVALID");
+      if ((stat.mode & 0o022) !== 0) {
+        // A group/world-writable ancestor permits path substitution.
+        // Root-owned sticky public directories (e.g. /tmp) protect entries
+        // owned by this process or root; child ownership is checked above.
+        const rootOwnedSticky = stat.uid === 0 && (stat.mode & 0o1000) !== 0;
+        if (!rootOwnedSticky) fail("UPDATE_STATE_ROOT_INVALID");
+      }
+    }
+  }
+}
+
+function assertSecureStateRoot(target) {
+  assertNoRedirectedStateAncestors(target);
+  let stat;
+  try {
+    stat = fs.lstatSync(target);
+  } catch {
+    fail("UPDATE_STATE_ROOT_INVALID");
+  }
+  if (
+    !stat.isDirectory() ||
+    stat.isSymbolicLink() ||
+    (process.platform !== "win32" &&
+      (stat.uid !== process.getuid() || (stat.mode & 0o077) !== 0))
+  )
     fail("UPDATE_STATE_ROOT_INVALID");
   return path.resolve(target);
+}
+
+export function canCreateEntries(directory) {
+  if (process.platform === "win32") return true;
+  try {
+    fs.accessSync(directory, fs.constants.W_OK | fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function secureDirectory(target) {
+  // Refuse a static symlinked ancestor before mkdir can create a state root
+  // outside the intended path, then recheck the resulting path.
+  assertNoRedirectedStateAncestors(target);
+  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+  // A directory fsync does not persist its own entry in the parent. Persist
+  // every ancestor's child entry (including recursively created parents)
+  // before a signed sequence can be written. Always sync, even for existing
+  // paths: an earlier interrupted mkdir may not have been durable.
+  assertSecureStateRoot(target);
+  const absolute = path.resolve(target);
+  const root = path.parse(absolute).root;
+  let parent = root;
+  for (const component of absolute.slice(root.length).split(path.sep)) {
+    if (!component) continue;
+    // Only a directory this identity can write could have received a newly
+    // created child entry from us. Ancestors we cannot write (/, /home with
+    // 0755 root ownership, x-only 0711 directories) predate this updater and
+    // are not ours to sync; opening them for read would fail with EACCES and
+    // permanently block updates. Every directory we CAN write must sync.
+    if (canCreateEntries(parent)) fsyncUpdaterStateDirectory(parent, true);
+    parent = path.join(parent, component);
+  }
+  return assertSecureStateRoot(target);
 }
 
 function existingDirectory(target, code) {
@@ -114,13 +197,73 @@ function acceptedStateFile(stateDir) {
   return path.join(stateDir, "stable-update-state.json");
 }
 
+// The anti-rollback watermark is security state, not an optional cache.
+// A dangling symlink must never be mistaken for an absent state file.
 export function readAcceptedUpdateState(stateDir) {
+  // Absence of a watermark is meaningful only inside a verified private
+  // state root. A missing or redirected root must never look like first boot.
+  assertSecureStateRoot(stateDir);
   const file = acceptedStateFile(stateDir);
-  if (!fs.existsSync(file)) return null;
+  let before;
   try {
-    return acceptedStateSchema.parse(JSON.parse(fs.readFileSync(file, "utf8")));
+    before = fs.lstatSync(file);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    fail("UPDATE_STATE_INVALID");
+  }
+  const trusted = (stat) =>
+    stat.isFile() &&
+    !stat.isSymbolicLink() &&
+    stat.nlink === 1 &&
+    stat.size > 0 &&
+    stat.size <= 4096 &&
+    (process.platform === "win32" ||
+      (stat.uid === process.getuid() && (stat.mode & 0o077) === 0));
+  if (!trusted(before)) fail("UPDATE_STATE_INVALID");
+  let fd;
+  try {
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
+    const after = fs.fstatSync(fd);
+    if (
+      !trusted(after) ||
+      after.dev !== before.dev ||
+      after.ino !== before.ino ||
+      after.size !== before.size
+    )
+      fail("UPDATE_STATE_INVALID");
+    return acceptedStateSchema.parse(JSON.parse(fs.readFileSync(fd, "utf8")));
   } catch {
     fail("UPDATE_STATE_INVALID");
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
+function fsyncUpdaterStateDirectory(stateDir, ancestor = false) {
+  // The lock and the accepted sequence must both survive a POSIX crash.
+  // Windows activation is not supported by this updater.
+  if (process.platform === "win32") return;
+  let dirFd;
+  try {
+    dirFd = fs.openSync(
+      stateDir,
+      fs.constants.O_RDONLY |
+        (fs.constants.O_DIRECTORY ?? 0) |
+        (fs.constants.O_NOFOLLOW ?? 0),
+    );
+  } catch (error) {
+    // A writable ancestor that cannot be opened for sync leaves its new child
+    // entry's durability unproven. Report a stable code, never a raw errno.
+    if (ancestor) fail("UPDATE_STATE_DURABILITY_UNPROVEN");
+    throw error;
+  }
+  try {
+    fs.fsyncSync(dirFd);
+  } finally {
+    fs.closeSync(dirFd);
   }
 }
 
@@ -132,17 +275,73 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     revision: manifest.revision,
     acceptedAt: new Date(now).toISOString(),
   });
-  const file = acceptedStateFile(stateDir);
-  const temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
-  const fd = fs.openSync(temp, "wx", 0o600);
+  // The exported writer must enforce its own state-root policy, even when
+  // called without runStableUpdate's outer maintenance lease.
+  secureDirectory(stateDir);
+  // Atomic mkdir serializes writers across processes. Never remove an
+  // existing/abandoned lock automatically: it requires owner reconciliation.
+  const lock = path.join(stateDir, ".stable-update-state.lock");
   try {
-    fs.writeFileSync(fd, JSON.stringify(state) + "\n");
-    fs.fsyncSync(fd);
-  } finally {
-    fs.closeSync(fd);
+    fs.mkdirSync(lock, { mode: 0o700 });
+  } catch {
+    fail("UPDATE_STATE_LOCKED");
   }
-  fs.renameSync(temp, file);
-  return state;
+  // Persist the lock before any watermark replacement. If this fails, the
+  // lock remains for owner reconciliation rather than permitting a retry.
+  fsyncUpdaterStateDirectory(stateDir);
+  let temp = null;
+  let renamed = false;
+  let durable = false;
+  let primary = null;
+  try {
+    // Read and compare while holding the lock, not before acquiring it.
+    const accepted = readAcceptedUpdateState(stateDir);
+    // A previously accepted sequence is immutable, even for an identical
+    // manifest. Rewriting it would erase the original acceptance witness.
+    if (accepted && state.sequence <= accepted.sequence)
+      fail("UPDATE_STATE_ROLLBACK_REJECTED");
+    const file = acceptedStateFile(stateDir);
+    temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
+    const fd = fs.openSync(temp, "wx", 0o600);
+    try {
+      fs.writeFileSync(fd, JSON.stringify(state) + "\n");
+      fs.fsyncSync(fd);
+    } finally {
+      fs.closeSync(fd);
+    }
+    fs.renameSync(temp, file);
+    temp = null;
+    renamed = true;
+    // The rename is not durable until the parent directory is synced.
+    fsyncUpdaterStateDirectory(stateDir);
+    durable = true;
+    return state;
+  } catch (error) {
+    primary = error;
+    throw error;
+  } finally {
+    if (temp !== null) {
+      try {
+        fs.unlinkSync(temp);
+      } catch {
+        // The original failure still rejects the update; do not remove an
+        // unverified pathname by following a symlink or retrying elsewhere.
+      }
+    }
+    // A failed post-rename directory fsync is an ambiguous durability state.
+    // Keep the lock so no automatic retry can silently lower the watermark.
+    if (!renamed || durable) {
+      try {
+        fs.rmdirSync(lock);
+        fsyncUpdaterStateDirectory(stateDir);
+      } catch {
+        // A cleanup failure must never replace the original rejection. The
+        // retained lock keeps the next writer failing closed until the owner
+        // reconciles it. With no primary error, report the retained lock.
+        if (primary === null) fail("UPDATE_STATE_LOCK_RELEASE_FAILED");
+      }
+    }
+  }
 }
 
 function markerFor(store, releaseName) {
@@ -444,6 +643,12 @@ export async function runStableUpdate(
     assertMaintenanceRuntime(store, release.name);
     await maintenance.drain();
     const activationStart = now();
+    // Reserve the verified signed sequence durably BEFORE changing the active
+    // release. A crash after activation must never allow replay of an older
+    // signed manifest. Failure or rollback leaves this high-water mark intact;
+    // further automatic attempts require protected owner reconciliation: the
+    // same signed manifest cannot be retried; the owner signs a higher sequence.
+    writeAcceptedUpdateState(config.stateDir, manifest, activationStart);
     const activation = await activate({
       store,
       releaseName: release.name,
@@ -465,7 +670,6 @@ export async function runStableUpdate(
       sleep,
     });
 
-    writeAcceptedUpdateState(config.stateDir, manifest, now());
     return {
       updated: activation.changed,
       current: activation.current,
