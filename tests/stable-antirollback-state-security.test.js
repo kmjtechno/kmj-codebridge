@@ -344,3 +344,34 @@ test(
     assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
   },
 );
+
+test(
+  "foreign-owned private ancestor fails closed even without writable mode bits",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root } = fixture(t);
+    const parent = path.join(root, "foreign-owned");
+    const stateDir = path.join(parent, "state");
+    fs.mkdirSync(parent, { mode: 0o700 });
+    fs.mkdirSync(stateDir, { mode: 0o700 });
+    const realLstat = fs.lstatSync;
+    const foreignUid = process.getuid() === 0 ? 1 : process.getuid() + 1;
+    t.mock.method(fs, "lstatSync", (candidate, ...args) => {
+      const stat = realLstat(candidate, ...args);
+      if (path.resolve(candidate) !== parent) return stat;
+      // Simulate a different directory owner without requiring chown or
+      // privileged CI runners. Preserve the native Stats prototype.
+      return Object.create(stat, { uid: { value: foreignUid } });
+    });
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.deepEqual(fs.readdirSync(stateDir), []);
+    t.mock.restoreAll();
+  },
+);
