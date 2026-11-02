@@ -151,6 +151,19 @@ function secureDirectory(target) {
   // outside the intended path, then recheck the resulting path.
   assertNoRedirectedStateAncestors(target);
   fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+  // A directory fsync does not persist its own entry in the parent. Persist
+  // every ancestor's child entry (including recursively created parents)
+  // before a signed sequence can be written. Always sync, even for existing
+  // paths: an earlier interrupted mkdir may not have been durable.
+  assertSecureStateRoot(target);
+  const absolute = path.resolve(target);
+  const root = path.parse(absolute).root;
+  let parent = root;
+  for (const component of absolute.slice(root.length).split(path.sep)) {
+    if (!component) continue;
+    fsyncUpdaterStateDirectory(parent);
+    parent = path.join(parent, component);
+  }
   return assertSecureStateRoot(target);
 }
 
