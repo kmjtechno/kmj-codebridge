@@ -66,28 +66,60 @@ test("missing evidence fails closed", () => {
 });
 
 test("unsigned, beta, stale or wrong SHA cannot qualify", () => {
-  blocked((v) => { v.bundle.verdict = "CLAIMED"; }, "SIGNED_STABLE_BUNDLE_NOT_VERIFIED");
-  blocked((v) => { v.bundle.channel = "beta"; }, "SIGNED_STABLE_BUNDLE_NOT_VERIFIED");
-  blocked((v) => { v.bundle.revision = oldSha; }, "EXACT_SOURCE_SHA_MISMATCH");
-  blocked((v) => { v.expectedSha = "invalid"; }, "EXACT_SOURCE_SHA_MISMATCH");
+  blocked((v) => {
+    v.bundle.verdict = "CLAIMED";
+  }, "SIGNED_STABLE_BUNDLE_NOT_VERIFIED");
+  blocked((v) => {
+    v.bundle.channel = "beta";
+  }, "SIGNED_STABLE_BUNDLE_NOT_VERIFIED");
+  blocked((v) => {
+    v.bundle.revision = oldSha;
+  }, "EXACT_SOURCE_SHA_MISMATCH");
+  blocked((v) => {
+    v.expectedSha = "invalid";
+  }, "EXACT_SOURCE_SHA_MISMATCH");
 });
 
 test("old runtime, missing protected updater and unsafe config block", () => {
-  blocked((v) => { v.runtime.activeSha = newSha; }, "CURRENT_RUNTIME_IDENTITY_UNVERIFIED");
-  blocked((v) => { v.runtime.activeRelease = "0.3.2-fake"; }, "CURRENT_RUNTIME_IDENTITY_UNVERIFIED");
-  blocked((v) => { v.runtime.gatewayActive = false; }, "CURRENT_RUNTIME_IDENTITY_UNVERIFIED");
-  blocked((v) => { v.runtime.fixedOperatorUnitAttested = false; }, "PROTECTED_OPERATOR_PATH_UNVERIFIED");
-  blocked((v) => { v.runtime.gatewayConfigVerified = false; }, "PROTECTED_OPERATOR_PATH_UNVERIFIED");
+  blocked((v) => {
+    v.runtime.activeSha = newSha;
+  }, "CURRENT_RUNTIME_IDENTITY_UNVERIFIED");
+  blocked((v) => {
+    v.runtime.activeRelease = "0.3.2-fake";
+  }, "CURRENT_RUNTIME_IDENTITY_UNVERIFIED");
+  blocked((v) => {
+    v.runtime.gatewayActive = false;
+  }, "CURRENT_RUNTIME_IDENTITY_UNVERIFIED");
+  blocked((v) => {
+    v.runtime.fixedOperatorUnitAttested = false;
+  }, "PROTECTED_OPERATOR_PATH_UNVERIFIED");
+  blocked((v) => {
+    v.runtime.gatewayConfigVerified = false;
+  }, "PROTECTED_OPERATOR_PATH_UNVERIFIED");
 });
 
 test("sequence must advance and owner staging/rollback receipts match", () => {
-  blocked((v) => { v.runtime.acceptedSequence = 24; }, "ANTI_ROLLBACK_SEQUENCE_UNVERIFIED");
-  blocked((v) => { v.runtime.acceptedSequence = -1; }, "ANTI_ROLLBACK_SEQUENCE_UNVERIFIED");
-  blocked((v) => { v.operator.stagedSha = oldSha; }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
-  blocked((v) => { v.operator.stagedArchiveSha256 = "c".repeat(64); }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
-  blocked((v) => { v.operator.rollbackTarget = "0.3.2-000000000000"; }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
-  blocked((v) => { v.operator.ownerApprovalVerified = false; }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
-  blocked((v) => { v.operator.rollbackDrillVerified = false; }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
+  blocked((v) => {
+    v.runtime.acceptedSequence = 24;
+  }, "ANTI_ROLLBACK_SEQUENCE_UNVERIFIED");
+  blocked((v) => {
+    v.runtime.acceptedSequence = -1;
+  }, "ANTI_ROLLBACK_SEQUENCE_UNVERIFIED");
+  blocked((v) => {
+    v.operator.stagedSha = oldSha;
+  }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
+  blocked((v) => {
+    v.operator.stagedArchiveSha256 = "c".repeat(64);
+  }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
+  blocked((v) => {
+    v.operator.rollbackTarget = "0.3.2-000000000000";
+  }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
+  blocked((v) => {
+    v.operator.ownerApprovalVerified = false;
+  }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
+  blocked((v) => {
+    v.operator.rollbackDrillVerified = false;
+  }, "OWNER_STAGING_ROLLBACK_RECEIPTS_MISSING");
 });
 
 test("observed real ELITE blockers do not qualify", () => {
