@@ -18,14 +18,44 @@ class Contract(unittest.TestCase):
         return '\n'.join(k+'='+v for k,v in m.EXPECTED.items())+'\n'
 
     def test_unit_schema_exact_and_all_properties(self):
-        self.assertEqual(len(m.EXPECTED),17)
+        self.assertEqual(len(m.EXPECTED),19)
         self.assertEqual(m.parse_systemd(self.baseline()),m.EXPECTED)
         for k in m.EXPECTED:
             t=dict(m.EXPECTED);t[k]+='tampered'
             f=lambda _:Result('\n'.join(x+'='+y for x,y in t.items())+'\n')
             state, keys=m.probe_systemd(f)
             self.assertIn(k,keys)
-            self.assertEqual(state,'FAILED_OR_ACTIVE_UNIT' if k=='ActiveState' else 'POLICY_DRIFT')
+            self.assertEqual(state,'FAILED_OR_ACTIVE_UNIT' if k in ('ActiveState','Result','ExecMainStatus') else 'POLICY_DRIFT')
+
+    def test_retained_failure_result_and_exit_three_never_report_systemd_match(self):
+        # ELITE's real D3 failure has ActiveState=failed, Result=exit-code,
+        # ExecMainStatus=3. The old diagnostic omitted the last two keys and
+        # could falsely report MATCH after a unit became inactive.
+        for changed in (
+            {'Result': 'exit-code'},
+            {'ExecMainStatus': '3'},
+            {'ActiveState': 'failed', 'Result': 'exit-code', 'ExecMainStatus': '3'},
+        ):
+            with self.subTest(changed=changed):
+                values = {**m.EXPECTED, **changed}
+                output = '\n'.join(k + '=' + v for k, v in values.items()) + '\n'
+                calls = []
+                def run(args):
+                    calls.append(args)
+                    return Result(output)
+                status, keys = m.probe_systemd(run)
+                self.assertEqual(status, 'FAILED_OR_ACTIVE_UNIT')
+                self.assertEqual(keys, [k for k in m.EXPECTED if k in changed])
+                self.assertEqual(len(calls), 1)
+                self.assertEqual(calls[0][:3], [
+                    '/usr/bin/systemctl', 'show', m.UNIT,
+                ])
+                for key in ('ActiveState', 'Result', 'ExecMainStatus'):
+                    self.assertIn('-p', calls[0])
+                    self.assertIn(key, calls[0])
+                self.assertNotIn('exit-code', str((status, keys)))
+                self.assertNotIn('reset-failed', str(calls))
+                self.assertNotIn('start', str(calls))
 
     def test_loaded_unit_cache_mismatch_is_explicit_and_fail_closed(self):
         # Supervisor main policy requires NeedDaemonReload=no after #741.
