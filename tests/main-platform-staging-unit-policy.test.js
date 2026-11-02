@@ -165,6 +165,71 @@ test("root-pinned staging control ACK is not deployment verification", async () 
   assert.deepEqual(x.started, [STAGING_DEPLOY_UNIT]);
 });
 
+test("canonical fixed relative release symlinks attest exactly like absolute links", async () => {
+  const x = setup();
+  // Relative to /home/kmjstage/htdocs and /home/kmjprod, respectively.
+  x.links[stageLink] = "../releases/" + old + "/apps/platform";
+  x.links[prodLink] = "releases/platform-8070dad72c55";
+  const status = (await x.handle({ op: "main_platform_staging_status" }))
+    .response;
+  assert.equal(status.currentSha, old);
+  assert.equal(status.productionUnchanged, true);
+  assert.equal(status.ready, true);
+  assert.deepEqual(status.blockers, []);
+  const ack = await x.handle(request);
+  assert.equal(ack.response.accepted, true);
+  assert.deepEqual(x.started, []);
+  ack.afterSend();
+  assert.deepEqual(x.started, [STAGING_DEPLOY_UNIT]);
+});
+
+test("relative release pointers cannot traverse, alias, or change baseline", async () => {
+  const badStage = [
+    "releases/" + old + "/apps/platform",
+    "./../releases/" + old + "/apps/platform",
+    "../../releases/" + old + "/apps/platform",
+    "../releases//" + old + "/apps/platform",
+    "../releases/" + old + "/apps/platform/.",
+    "../releases/" + old.toUpperCase() + "/apps/platform",
+    "../releases/" + next + "/apps/platform",
+    "/home/kmjstage/releases/" + next + "/apps/platform",
+  ];
+  const badProduction = [
+    "../releases/platform-8070dad72c55",
+    "./releases/platform-8070dad72c55",
+    "releases//platform-8070dad72c55",
+    "releases/platform-8070dad72c55/.",
+    "releases/platform-574e443a2c75",
+    "/home/kmjprod/releases/platform-574e443a2c75",
+    "releases/platform-8070dad72c55/../platform-8070dad72c55",
+    "releases/" + "x".repeat(250),
+  ];
+  for (const [link, values] of [
+    [stageLink, badStage],
+    [prodLink, badProduction],
+  ]) {
+    for (const value of values) {
+      const x = setup();
+      x.links[link] = value;
+      const status = (await x.handle({ op: "main_platform_staging_status" }))
+        .response;
+      assert.equal(status.ready, false, value);
+      assert.ok(
+        status.blockers.some(
+          (b) => b.includes("POINTER") || b.includes("DRIFT"),
+        ),
+        value,
+      );
+      await assert.rejects(
+        x.handle(request),
+        /SUPERVISOR_STAGING_NOT_READY/,
+        value,
+      );
+      assert.deepEqual(x.started, []);
+    }
+  }
+});
+
 test("staging root broker forbids caller commands and invalid approval", async () => {
   const x = setup();
   for (const change of [
