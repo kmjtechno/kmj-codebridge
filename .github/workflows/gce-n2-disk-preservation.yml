@@ -1,0 +1,85 @@
+name: N2 boot-disk preservation guard safety tests
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_preserve_boot_disk_20261102.py
+      - .github/workflows/gce-n2-disk-preservation.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_preserve_boot_disk_20261102.py
+      - .github/workflows/gce-n2-disk-preservation.yml
+
+permissions:
+  contents: read
+
+jobs:
+  zero-start-protection-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Syntax, identity, and no-cost GCE simulation
+        run: |
+          python3 -m py_compile scripts/operations/gce_n2_preserve_boot_disk_20261102.py
+          python3 -B scripts/operations/gce_n2_preserve_boot_disk_20261102.py --self-test
+          sha256sum scripts/operations/gce_n2_preserve_boot_disk_20261102.py
+          python3 - <<'PY'
+          import contextlib
+          import importlib.util
+          import io
+          from pathlib import Path
+          source = Path("scripts/operations/gce_n2_preserve_boot_disk_20261102.py")
+          spec = importlib.util.spec_from_file_location("kmj_n2_guard", source)
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+
+          actions = []
+          state = {"disk": "kmj-cloudos-boot",
+                   "auto_delete": True, "deletion_protection": False}
+
+          def snap():
+              return dict(state)
+
+          def cloud(*args, **kwargs):
+              actions.append(args)
+              if args == ("instances", "set-disk-auto-delete",
+                          module.VM, "--no-auto-delete", "--disk=kmj-cloudos-boot"):
+                  state["auto_delete"] = False
+              elif args == ("instances", "update", module.VM, "--deletion-protection"):
+                  state["deletion_protection"] = True
+              else:
+                  raise AssertionError("Unexpected GCE mutation " + str(args))
+
+          module.snapshot = snap
+          module.gcloud = cloud
+          with contextlib.redirect_stdout(io.StringIO()) as out:
+              assert module.protect() == 0
+          assert "N2_VM_DELETION_PROTECTION=TRUE_VERIFIED" in out.getvalue()
+          assert "N2_BOOT_DISK_AUTO_DELETE=FALSE_VERIFIED" in out.getvalue()
+          assert actions == [
+              ("instances", "set-disk-auto-delete", module.VM, "--no-auto-delete",
+               "--disk=kmj-cloudos-boot"),
+              ("instances", "update", module.VM, "--deletion-protection"),
+          ]
+
+          actions.clear()
+          with contextlib.redirect_stdout(io.StringIO()):
+              assert module.protect() == 0
+          assert actions == [], "Already protected host must be idempotent"
+
+          actions.clear()
+          state["auto_delete"] = True
+          state["deletion_protection"] = False
+          module.snapshot = lambda: {"disk": state["disk"],
+                                    "auto_delete": True, "deletion_protection": False}
+          try:
+              with contextlib.redirect_stdout(io.StringIO()):
+                  module.protect()
+          except module.Blocked as err:
+              assert str(err) == "BOOT_DISK_AUTO_DELETE_CHANGE_NOT_VERIFIED"
+          else:
+              raise AssertionError("False-positive protection receipt")
+          assert all(a[1] == "set-disk-auto-delete" for a in actions)
+          print("N2_PROTECTION_HERMETIC_MUTATION_SAFETY=PASS")
+          PY
