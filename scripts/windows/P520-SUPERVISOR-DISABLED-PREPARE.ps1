@@ -1,0 +1,154 @@
+# P520-only guarded Supervisor DISABLED task preparation.
+# Dry-run by default. Never installs/starts the AI server or restarts agents.
+[CmdletBinding()]
+param(
+  [Parameter(Mandatory)][string]$AgentConfig,
+  [Parameter(Mandatory)][string]$SupervisorConfig,
+  [Parameter(Mandatory)][string]$RuntimeDir,
+  [Parameter(Mandatory)][string]$BackupRoot,
+  [Parameter(Mandatory)][string]$ServiceAccount,
+  [Parameter(Mandatory)][string]$AgentConfigSha256,
+  [Parameter(Mandatory)][string]$SupervisorConfigSha256,
+  [Parameter(Mandatory)][string]$RuntimeEntrySha256,
+  [Parameter(Mandatory)][string]$NodeExeSha256,
+  [Parameter(Mandatory)][string]$InstallerSha256,
+  [switch]$Apply,
+  [switch]$ConfirmDisabledPreparation
+)
+Set-StrictMode -Version Latest
+$ErrorActionPreference='Stop'
+$taskName='KMJ-CodeBridge-Supervisor-P520'
+$pipeName='kmj-codebridge-supervisor-p520'
+$expectedDevice='kmj-kmj-codebridge-desktop-5fvjmet'
+function Mark([string]$key,[string]$value) { Write-Output ($key+'='+$value) }
+function Assert-Sha([string]$value) {
+  if($value -cnotmatch '^[a-f0-9]{64}$') { throw 'SHA_PIN_INVALID' }
+}
+function Assert-Path([string]$value,[string]$tag,[bool]$required) {
+  if($value -cnotmatch '^[A-Za-z]:\\' -or
+     $value.Substring(2) -match '[<>:"|?*]' -or
+     @($value.Substring(3) -split '\\') -contains '..' -or $value.Length -gt 260 -or
+     [IO.Path]::GetFullPath($value) -cne $value) {
+    throw ('UNSAFE_PATH_'+$tag)
+  }
+  if($required -and -not(Test-Path -LiteralPath $value -PathType Leaf)) {
+    throw ('MISSING_'+$tag)
+  }
+  $cur=if($required) { $value } else { [IO.Path]::GetDirectoryName($value) }
+  for($i=0;$i -lt 40;$i++) {
+    if(Test-Path -LiteralPath $cur) {
+      $o=Get-Item -LiteralPath $cur -Force -ErrorAction Stop
+      if(($o.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw ('REPARSE_'+$tag)
+      }
+    }
+    $parent=[IO.Path]::GetDirectoryName($cur.TrimEnd('\'))
+    if([string]::IsNullOrWhiteSpace($parent) -or $parent -ieq $cur) { break }
+    $cur=$parent
+  }
+}
+function Assert-Hash([string]$file,[string]$sha) {
+  $actual=(Get-FileHash -LiteralPath $file -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
+  if($actual -cne $sha) { throw 'PINNED_ARTIFACT_MISMATCH' }
+}
+try {
+  if($env:OS -cne 'Windows_NT' -or $env:COMPUTERNAME -ine 'DESKTOP-5FVJMET' -or
+     -not [Environment]::Is64BitOperatingSystem) { throw 'WRONG_P520' }
+  $pc=Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
+  if($pc.Manufacturer -notmatch '(?i)lenovo' -or [string]$pc.Model -cne '30BFS1JG13') {
+    throw 'HARDWARE_MISMATCH'
+  }
+  foreach($pin in @($AgentConfigSha256,$SupervisorConfigSha256,$RuntimeEntrySha256,$NodeExeSha256,$InstallerSha256)) {
+    Assert-Sha $pin
+  }
+  Assert-Path $AgentConfig 'AGENT_CONFIG' $true
+  Assert-Path $SupervisorConfig 'SUPERVISOR_CONFIG' $true
+  Assert-Path $RuntimeDir 'RUNTIME_DIR' $false
+  Assert-Path $BackupRoot 'BACKUP_ROOT' $false
+  $cli=Join-Path $RuntimeDir 'src\cli.js'
+  Assert-Path $cli 'RUNTIME_CLI' $true
+  $installer=Join-Path $PSScriptRoot 'install-windows-supervisor.ps1'
+  Assert-Path $installer 'INSTALLER' $true
+  Assert-Hash $AgentConfig $AgentConfigSha256
+  Assert-Hash $SupervisorConfig $SupervisorConfigSha256
+  Assert-Hash $cli $RuntimeEntrySha256
+  Assert-Hash $installer $InstallerSha256
+
+  # Hash and inspect the selected Node without executing it in dry-run.
+  $node=Get-Command node.exe -ErrorAction Stop
+  if($null -eq $node -or $node.CommandType -ne 'Application') { throw 'NODE_UNTRUSTED' }
+  Assert-Path ([string]$node.Source) 'NODE_EXE' $true
+  Assert-Hash ([string]$node.Source) $NodeExeSha256
+  $major=[int](Get-Item -LiteralPath ([string]$node.Source)).VersionInfo.FileMajorPart
+  if($major -lt 24) { throw 'NODE_24_REQUIRED' }
+
+  $agent=Get-Content -LiteralPath $AgentConfig -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+  if([string]$agent.id -cne $expectedDevice) { throw 'WRONG_AGENT_ID' }
+  if([string]$agent.gateway -cne 'https://kmjtechno.com/mcp') { throw 'WRONG_GATEWAY' }
+  if(@($agent.projects | Where-Object { [string]$_.id -ceq 'kmj-codebridge' }).Count -ne 1) {
+    throw 'PROJECT_IDENTITY_AMBIGUOUS'
+  }
+  if(@($agent.PSObject.Properties.Name | Where-Object { $_ -in @('supervisorSocket','supervisorPipe','supervisorTokenFile') }).Count -gt 0) {
+    throw 'EXISTING_SUPERVISOR_BINDING'
+  }
+  $cfg=Get-Content -LiteralPath $SupervisorConfig -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+  if([string]$cfg.pipeName -cne $pipeName -or
+     [string]$cfg.agent.configPath -cne $AgentConfig -or
+     [string]$cfg.agent.installDir -cne $RuntimeDir) {
+    throw 'SUPERVISOR_CONFIG_MISMATCH'
+  }
+  $token=[string]$cfg.tokenFile
+  Assert-Path $token 'TOKEN_TARGET' $false
+  if(Test-Path -LiteralPath $token) { throw 'TOKEN_ALREADY_EXISTS' }
+  if(Test-Path -LiteralPath ($AgentConfig+'.proposed')) { throw 'PROPOSED_CONFIG_ALREADY_EXISTS' }
+  if($ServiceAccount -cnotmatch '^[A-Za-z0-9_.-]{1,64}(?:\\[A-Za-z0-9_.-]{1,64})?$') {
+    throw 'SERVICE_ACCOUNT_INVALID'
+  }
+  $tasks=@(Get-ScheduledTask -ErrorAction Stop)
+  if(@($tasks | Where-Object { [string]$_.TaskName -ieq $taskName }).Count -ne 0) {
+    throw 'TASK_NAME_COLLISION'
+  }
+
+  Mark 'P520_PREPARE_DEVICE' 'PASS'
+  Mark 'P520_PREPARE_PINNED_ARTIFACTS' 'PASS'
+  Mark 'P520_PREPARE_TASK_COLLISION' 'NONE'
+  Mark 'P520_PREPARE_MODE' $(if($Apply){'DISABLED_ONLY'}else{'DRY_RUN'})
+  Mark 'P520_PREPARE_AI_OWNER_WITNESS' 'NOT_ESTABLISHED'
+  Mark 'P520_PREPARE_EXISTING_AGENTS' 'UNTOUCHED'
+  if(-not $Apply) {
+    Mark 'P520_PREPARE_RESULT' 'DRY_RUN_PASS_NO_CHANGES'
+    exit 0
+  }
+  if(-not $ConfirmDisabledPreparation) { throw 'OWNER_CONFIRMATION_REQUIRED' }
+  $who=New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+  if(-not $who.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    throw 'ADMINISTRATOR_REQUIRED'
+  }
+  Assert-Hash $AgentConfig $AgentConfigSha256
+  Assert-Hash $SupervisorConfig $SupervisorConfigSha256
+  Assert-Hash $cli $RuntimeEntrySha256
+  Assert-Hash $installer $InstallerSha256
+  $args=@{
+    SupervisorConfig=$SupervisorConfig
+    AgentConfig=$AgentConfig
+    RuntimeDir=$RuntimeDir
+    BackupRoot=$BackupRoot
+    ServiceAccount=$ServiceAccount
+    TaskName=$taskName
+    Apply=$true
+  }
+  & $installer @args
+  if(-not $?) { throw 'PREPARATION_FAILED' }
+  $task=Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
+  if(@($task).Count -ne 1 -or [string]$task.State -cne 'Disabled') {
+    throw 'TASK_NOT_DISABLED'
+  }
+  Mark 'P520_PREPARE_RESULT' 'DISABLED_TASK_ONLY'
+  Mark 'P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'
+} catch {
+  $reason=[string]$_.Exception.Message
+  if($reason -notmatch '^[A-Z][A-Z0-9_]{3,90}$') { $reason='SAFE_PREPARATION_BLOCKED' }
+  Mark 'P520_PREPARE_RESULT' ('BLOCKED_'+$reason)
+  Mark 'P520_PREPARE_EXISTING_AGENTS' 'UNTOUCHED'
+  exit 2
+}
