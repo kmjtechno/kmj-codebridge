@@ -259,12 +259,9 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
   try {
     // Read and compare while holding the lock, not before acquiring it.
     const accepted = readAcceptedUpdateState(stateDir);
-    if (
-      accepted &&
-      // A previously accepted sequence is immutable, even for an identical
-      // manifest. Rewriting it would erase the original acceptance witness.
-      state.sequence <= accepted.sequence
-    )
+    // A previously accepted sequence is immutable, even for an identical
+    // manifest. Rewriting it would erase the original acceptance witness.
+    if (accepted && state.sequence <= accepted.sequence)
       fail("UPDATE_STATE_ROLLBACK_REJECTED");
     const file = acceptedStateFile(stateDir);
     temp = `${file}.tmp-${process.pid}-${randomUUID()}`;
