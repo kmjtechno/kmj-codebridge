@@ -36,7 +36,8 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
       writeStatus >= 200 && writeStatus < 300
         ? {
             id: 123,
-            issue_url: "https://api.github.com/repos/kmjtechno/kmj-codebridge/issues/723",
+            issue_url:
+              "https://api.github.com/repos/kmjtechno/kmj-codebridge/issues/723",
             html_url:
               "https://github.com/kmjtechno/kmj-codebridge/issues/723#issuecomment-123",
           }
