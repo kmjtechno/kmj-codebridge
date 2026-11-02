@@ -170,7 +170,8 @@ test("canonical fixed relative release symlinks attest exactly like absolute lin
   // Relative to /home/kmjstage/htdocs and /home/kmjprod, respectively.
   x.links[stageLink] = "../releases/" + old + "/apps/platform";
   x.links[prodLink] = "releases/platform-8070dad72c55";
-  const status = (await x.handle({ op: "main_platform_staging_status" })).response;
+  const status = (await x.handle({ op: "main_platform_staging_status" }))
+    .response;
   assert.equal(status.currentSha, old);
   assert.equal(status.productionUnchanged, true);
   assert.equal(status.ready, true);
@@ -210,10 +211,20 @@ test("relative release pointers cannot traverse, alias, or change baseline", asy
     for (const value of values) {
       const x = setup();
       x.links[link] = value;
-      const status = (await x.handle({ op: "main_platform_staging_status" })).response;
+      const status = (await x.handle({ op: "main_platform_staging_status" }))
+        .response;
       assert.equal(status.ready, false, value);
-      assert.ok(status.blockers.some((b) => b.includes("POINTER") || b.includes("DRIFT")), value);
-      await assert.rejects(x.handle(request), /SUPERVISOR_STAGING_NOT_READY/, value);
+      assert.ok(
+        status.blockers.some(
+          (b) => b.includes("POINTER") || b.includes("DRIFT"),
+        ),
+        value,
+      );
+      await assert.rejects(
+        x.handle(request),
+        /SUPERVISOR_STAGING_NOT_READY/,
+        value,
+      );
       assert.deepEqual(x.started, []);
     }
   }
