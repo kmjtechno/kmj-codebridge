@@ -91,9 +91,13 @@ const acceptedStateSchema = z
   })
   .strict();
 
-function secureDirectory(target) {
-  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
-  const stat = fs.lstatSync(target);
+function assertSecureStateRoot(target) {
+  let stat;
+  try {
+    stat = fs.lstatSync(target);
+  } catch {
+    fail("UPDATE_STATE_ROOT_INVALID");
+  }
   if (
     !stat.isDirectory() ||
     stat.isSymbolicLink() ||
@@ -102,6 +106,11 @@ function secureDirectory(target) {
   )
     fail("UPDATE_STATE_ROOT_INVALID");
   return path.resolve(target);
+}
+
+function secureDirectory(target) {
+  fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+  return assertSecureStateRoot(target);
 }
 
 function existingDirectory(target, code) {
@@ -122,6 +131,9 @@ function acceptedStateFile(stateDir) {
 // The anti-rollback watermark is security state, not an optional cache.
 // A dangling symlink must never be mistaken for an absent state file.
 export function readAcceptedUpdateState(stateDir) {
+  // Absence of a watermark is meaningful only inside a verified private
+  // state root. A missing or redirected root must never look like first boot.
+  assertSecureStateRoot(stateDir);
   const file = acceptedStateFile(stateDir);
   let before;
   try {
