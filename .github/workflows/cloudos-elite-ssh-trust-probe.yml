@@ -1,0 +1,54 @@
+name: CloudOS external ELITE host-key trust probe guard
+
+on:
+  push:
+    paths:
+      - scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py
+      - .github/workflows/cloudos-elite-ssh-trust-probe.yml
+  pull_request:
+    paths:
+      - scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py
+      - .github/workflows/cloudos-elite-ssh-trust-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  external-trust-probe-static:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline host pinning negative tests and no-mutation guards
+        run: |
+          python3 -B scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py --self-test
+          sha256sum scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py")
+          source=p.read_text()
+          module=ast.parse(source)
+          assert "EXPECTED_FINGERPRINT = \"SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI\"" in source
+          assert '["ssh-keyscan", "-4", "-T", "5"' in source
+          assert '["ssh-keygen", "-l", "-E", "sha256", "-f", "-"]' in source
+          for token in (
+              "N2_TO_ELITE_REACHABILITY=NOT_TESTED",
+              "OFFSITE_AGE_RECIPIENT_ESCROW=NOT_VERIFIED",
+              "INDEPENDENT_BOOT_RESTORE_AND_ROLLBACK=NOT_VERIFIED",
+              "CLOUDOS_PRODUCTION_RELEASE=BLOCKED",
+          ):
+              assert token in source
+          calls=[]
+          for n in ast.walk(module):
+              if isinstance(n,ast.Call):
+                  f=n.func
+                  calls.append(f.attr if isinstance(f,ast.Attribute) else (
+                      f.id if isinstance(f,ast.Name) else ""))
+          for bad in ("write_text","write_bytes","mkdir","unlink","remove",
+                      "chmod","chown","rename","socket","connect",
+                      "system","Popen","ssh","age","scp","sftp"):
+              assert bad not in calls,bad
+          assert calls.count("run")==1
+          print("ELITE_EXTERNAL_SSH_TRUST_NO_SIDE_EFFECTS=PASS")
+          PY
