@@ -50,7 +50,7 @@ foreach ($pair in @(
   Assert-Absolute $pair[0] $pair[1]
 }
 if ($TaskName -notmatch '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$') { throw 'Invalid TaskName.' }
-if ($ServiceAccount -notmatch '^[A-Za-z0-9_.\\-]{1,64}$') { throw 'Invalid ServiceAccount.' }
+if ($ServiceAccount.Length -gt 64 -or $ServiceAccount -notmatch '^[A-Za-z0-9_.\\-]+(?: [A-Za-z0-9_.\\-]+)*$') { throw 'Invalid ServiceAccount.' }
 foreach ($required in @($SupervisorConfig, $AgentConfig, (Join-Path $RuntimeDir 'src\cli.js'))) {
   if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Missing required file: $required" }
 }
