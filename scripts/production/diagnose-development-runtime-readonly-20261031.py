@@ -22,6 +22,7 @@ ENV = {"PATH": "/usr/sbin:/usr/bin:/sbin:/bin", "LANG": "C", "LC_ALL": "C",
        "GIT_TERMINAL_PROMPT": "0", "GIT_OPTIONAL_LOCKS": "0"}
 EXPECTED = {
     "LoadState": "loaded", "ActiveState": "inactive",
+    "Result": "success", "ExecMainStatus": "0",
     "FragmentPath": "/etc/systemd/system/kmj-codebridge-development-ci.service",
     "DropInPaths": "", "NeedDaemonReload": "no", "User": ACCOUNT, "Group": ACCOUNT,
     "NoNewPrivileges": "yes", "ProtectSystem": "strict",
@@ -73,8 +74,9 @@ def probe_systemd(run=fixed_run):
     if values is None:
         return "MALFORMED", []
     mismatches = [key for key in EXPECTED if values[key] != EXPECTED[key]]
-    lifecycle = [k for k in mismatches if k == "ActiveState"]
-    policy = [k for k in mismatches if k != "ActiveState"]
+    lifecycle_keys = frozenset(("ActiveState", "Result", "ExecMainStatus"))
+    lifecycle = [k for k in mismatches if k in lifecycle_keys]
+    policy = [k for k in mismatches if k not in lifecycle_keys]
     if policy:
         return "POLICY_DRIFT", policy + lifecycle
     if lifecycle:
