@@ -63,8 +63,10 @@ def choose(rows: list[tuple[str, int, int]]) -> tuple[str, int] | None:
     distinct = {}
     for path, dev, free in rows:
         if dev in distinct:
-            if distinct[dev][1] != free:
-                raise Blocked("INCONSISTENT_FILESYSTEM_FREE_BYTES")
+            # Another process can write between statvfs calls. Prefer the
+            # conservative smallest observed free count for this filesystem.
+            old_path, old_free = distinct[dev]
+            distinct[dev] = (old_path, min(old_free, free))
         else:
             distinct[dev] = (path, free)
     return max(distinct.values(), key=lambda row: row[1])
@@ -116,8 +118,10 @@ def self_test() -> int:
     )
     assert choose([]) is None
     assert choose([("/", 1, 15), ("/home", 1, 15)])[1] == 15
-    for invalid in ([("/", 1, -1)], [("/", 1, 100), ("/home", 1, 101)],
-                    [("/", "1", 100)]):
+    assert choose([("/", 1, 100), ("/home", 1, 101)]) == ("/", 100)
+    assert choose([("/", 1, 101), ("/home", 1, 100)]) == ("/", 100)
+    for invalid in ([("/", 1, -1)], [("/", "1", 100)],
+                    [("/", 1, None)]):
         try:
             choose(invalid)
         except Blocked:
