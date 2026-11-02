@@ -1,0 +1,66 @@
+name: N2 to ELITE SSH host-pin bounded probe safety
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_to_elite_pinned_ssh_preflight_20261102.sh
+      - .github/workflows/gce-n2-elite-ssh-preflight.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_to_elite_pinned_ssh_preflight_20261102.sh
+      - .github/workflows/gce-n2-elite-ssh-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-n2-ssh-trust:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Strict shell and embedded Python syntax, no guest mutations, pinned host identity
+        run: |
+          bash -n scripts/operations/gce_n2_to_elite_pinned_ssh_preflight_20261102.sh
+          sha256sum scripts/operations/gce_n2_to_elite_pinned_ssh_preflight_20261102.sh
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/gce_n2_to_elite_pinned_ssh_preflight_20261102.sh")
+          s = p.read_text()
+          assert s.count("REMOTE=$(cat <<'REMOTE_SCRIPT'") == 1
+          remote = s.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_SCRIPT", 1)[0]
+          tree = ast.parse(remote, filename=str(p)+"#remote")
+          assert len(tree.body) > 8
+          guard = s.split("python3 -c '\n",1)[1].split("\n')\n",1)[0]
+          ast.parse(guard, filename=str(p)+"#gce-preflight")
+          for exact in (
+              "N2_DELETION_GUARDS=PROTECTED_VERIFIED",
+              'disks[0].get("autoDelete") is False',
+              'd.get("deletionProtection") is True',
+              "SERVER_SIDE_AUTO_STOP=900_SECONDS_VERIFIED",
+              "trap stop_n2 EXIT",
+              "VM_FINAL_STATE=",
+              "IAP_SSH_PREFLIGHT=PASS",
+              'ELITE_IP = "103.212.136.154"',
+              'EXPECTED_FINGERPRINT = "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI"',
+              '["ssh-keyscan", "-4", "-T", "5"',
+              '["ssh-keygen", "-l", "-E", "sha256", "-f", "-"]',
+              "N2_TO_ELITE_ED25519_FINGERPRINT=PINNED_MATCH_VERIFIED",
+              "ELITE_SSH_LOGIN_AUTHORIZATION=NOT_TESTED",
+              "ENCRYPTED_BACKUP_STREAM=NOT_ATTEMPTED",
+              "INDEPENDENT_DISPOSABLE_RESTORE=NOT_VERIFIED",
+              "CLOUDOS_COMMERCIAL_RELEASE=BLOCKED",
+          ):
+              assert exact in s, exact
+          for forbidden in (
+              "virsh start", "virsh destroy", "virsh undefine",
+              "net-start", "net-destroy", "net-define", "net-undefine",
+              "sudo ", "ssh-copy-id", "ssh -o", "scp ", "rsync ",
+              "qemu-img create", "gcloud compute disks create",
+              "gcloud compute snapshots create", "mkfs", "dd if=",
+              "chmod ", "chown ", "rm -rf", "netcat", "nc -",
+          ):
+              assert forbidden not in s, forbidden
+          print("N2_ELITE_SSH_HOSTPIN_BOUNDED_NO_MUTATION_STATIC_GUARDS=PASS")
+          PY
