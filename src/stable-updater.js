@@ -261,10 +261,9 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     const accepted = readAcceptedUpdateState(stateDir);
     if (
       accepted &&
-      (state.sequence < accepted.sequence ||
-        (state.sequence === accepted.sequence &&
-          (state.revision !== accepted.revision ||
-            state.version !== accepted.version)))
+      // A previously accepted sequence is immutable, even for an identical
+      // manifest. Rewriting it would erase the original acceptance witness.
+      state.sequence <= accepted.sequence
     )
       fail("UPDATE_STATE_ROLLBACK_REJECTED");
     const file = acceptedStateFile(stateDir);
