@@ -41,6 +41,8 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
   assert.match(source, /P520_PREPARE_AI_OWNER_WITNESS' 'NOT_ESTABLISHED'/);
   assert.match(source, /P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'/);
   assert.match(source, /KMJ-CodeBridge-Supervisor-P520/);
+  assert.match(source, /RUNTIME_GIT_SHA_PIN_INVALID/);
+  assert.equal((source.match(/P520_LOCAL_AI_ACTIVATION\x27 \x27NOT_ATTEMPTED\x27/g) ?? []).length, 1, "duplicated preparation block");
   assert.doesNotMatch(source, /KMJ-CodeBridge-Supervisor-P720/i);
   assert.doesNotMatch(source, /bootstrap-p720-supervisor/i);
   assert.doesNotMatch(source, /\bRestart-Service\b/i);
@@ -67,7 +69,7 @@ test("the installer is unreachable until explicit Apply and confirmation", () =>
   const source = fs.readFileSync(script, "utf8");
   const dryRun = source.indexOf("if(-not $Apply) {");
   const confirm = source.indexOf("if(-not $ConfirmDisabledPreparation)");
-  const installerCall = source.indexOf("& $installer @args");
+  const installerCall = source.indexOf("& $installer @installerParams");
   assert.ok(dryRun > 0);
   assert.ok(confirm > dryRun);
   assert.ok(installerCall > confirm);
