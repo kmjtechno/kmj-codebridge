@@ -332,8 +332,12 @@ export function writeAcceptedUpdateState(stateDir, manifest, now = Date.now()) {
     // Keep the lock so no automatic retry can silently lower the watermark.
     if (!renamed || durable) {
       try {
+        // The watermark (if changed) was already fsynced before unlock.
+        // Do not fsync the parent AFTER rmdir: if that sync fails, the
+        // guard is already gone and the error would falsely claim it remains.
+        // An unsynced lock deletion may be replayed after a crash, leaving
+        // a stale lock that safely requires owner reconciliation.
         fs.rmdirSync(lock);
-        fsyncUpdaterStateDirectory(stateDir);
       } catch {
         // A cleanup failure must never replace the original rejection. The
         // retained lock keeps the next writer failing closed until the owner
