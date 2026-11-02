@@ -52,7 +52,10 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
 
 test("shared installer registers task disabled atomically, without enabled interval", () => {
   const installer = fileURLToPath(
-    new URL("../scripts/windows/install-windows-supervisor.ps1", import.meta.url),
+    new URL(
+      "../scripts/windows/install-windows-supervisor.ps1",
+      import.meta.url,
+    ),
   );
   const source = fs.readFileSync(installer, "utf8");
   assert.match(source, /New-ScheduledTaskSettingsSet[^\n]*-Disable/);
