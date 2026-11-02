@@ -276,3 +276,43 @@ test(
     fs.rmdirSync(path.join(stateDir, ".stable-update-state.lock"));
   },
 );
+
+test(
+  "signed watermark reader and writer reject a symlinked parent of a private state root",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root } = fixture(t);
+    const actual = path.join(root, "actual");
+    const redirected = path.join(root, "redirected");
+    fs.mkdirSync(actual, { mode: 0o700 });
+    fs.mkdirSync(path.join(actual, "state"), { mode: 0o700 });
+    fs.symlinkSync(actual, redirected, "dir");
+    const stateDir = path.join(redirected, "state");
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.deepEqual(fs.readdirSync(path.join(actual, "state")), []);
+  },
+);
+
+test(
+  "writer rejects redirected parent before creating a missing watermark directory",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root } = fixture(t);
+    const actual = path.join(root, "actual");
+    const redirected = path.join(root, "redirected");
+    fs.mkdirSync(actual, { mode: 0o700 });
+    fs.symlinkSync(actual, redirected, "dir");
+    assert.throws(
+      () => writeAcceptedUpdateState(path.join(redirected, "new-state"), manifest),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.deepEqual(fs.readdirSync(actual), []);
+  },
+);
