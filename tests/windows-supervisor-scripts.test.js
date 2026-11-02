@@ -288,20 +288,26 @@ test(
 );
 
 test("installer accepts bounded Windows task principals with internal spaces only", () => {
-  assert.match(install, /\\$ServiceAccount\\.Length -gt 64/);
-  const raw = install.match(/\\$ServiceAccount -notmatch '([^']+)'/);
+  assert.match(install, /\$ServiceAccount\.Length -gt 64/);
+  const raw = install.match(/\$ServiceAccount -notmatch '([^']+)'/);
   assert.ok(raw, "installer task-principal validation must be explicit");
   const principal = new RegExp(raw[1]);
   for (const name of [
-    "DESKTOP-5FVJMET\\\\KMJ TECHNO",
-    "WORKGROUP\\\\SERVICE ACCOUNT",
-    "NT AUTHORITY\\\\SYSTEM",
-    "BUILTIN\\\\Administrators",
+    "DESKTOP-5FVJMET\\KMJ TECHNO",
+    "WORKGROUP\\SERVICE ACCOUNT",
+    "NT AUTHORITY\\SYSTEM",
+    "BUILTIN\\Administrators",
   ])
     assert.ok(principal.test(name), name);
   for (const name of [
-    " bad", "bad ", "bad  double", "bad\\nnewline", "bad;injection",
-    "bad\"quote", "bad$(command)", "bad&shell",
+    " bad",
+    "bad ",
+    "bad  double",
+    "bad\nnewline",
+    "bad;injection",
+    'bad"quote',
+    "bad$(command)",
+    "bad&shell",
   ])
     assert.equal(principal.test(name), false, JSON.stringify(name));
 });
