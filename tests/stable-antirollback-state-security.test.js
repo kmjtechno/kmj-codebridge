@@ -556,3 +556,51 @@ test(
     }
   },
 );
+
+test(
+  "directory descriptor close EIO fails closed before and after watermark rename",
+  { skip: process.platform === "win32" },
+  (t) => {
+    for (const failAt of [1, 2]) {
+      const { stateDir } = fixture(t);
+      const lock = path.join(stateDir, ".stable-update-state.lock");
+      const realOpen = fs.openSync;
+      const realClose = fs.closeSync;
+      let stateDirOpens = 0;
+      let failFd = null;
+      t.mock.method(fs, "openSync", (target, ...args) => {
+        const fd = realOpen(target, ...args);
+        if (path.resolve(String(target)) === stateDir) {
+          stateDirOpens++;
+          if (stateDirOpens === failAt) failFd = fd;
+        }
+        return fd;
+      });
+      t.mock.method(fs, "closeSync", (fd) => {
+        if (fd === failFd) {
+          failFd = null;
+          realClose(fd);
+          throw Object.assign(Error("INJECTED_DIRECTORY_CLOSE_EIO"), {
+            code: "EIO",
+          });
+        }
+        return realClose(fd);
+      });
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, manifest),
+        /UPDATE_STATE_DURABILITY_UNPROVEN/,
+      );
+      t.mock.restoreAll();
+      assert.equal(stateDirOpens >= failAt, true);
+      assert.equal(fs.existsSync(lock), true);
+      assert.equal(
+        readAcceptedUpdateState(stateDir)?.sequence ?? null,
+        failAt === 1 ? null : 43,
+      );
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+        /UPDATE_STATE_LOCKED/,
+      );
+    }
+  },
+);
