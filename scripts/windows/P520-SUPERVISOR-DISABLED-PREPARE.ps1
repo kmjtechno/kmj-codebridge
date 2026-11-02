@@ -63,7 +63,7 @@ function Assert-ProtectedLocation([string]$target,[string]$tag) {
   $cur=if(Test-Path -LiteralPath $targetFull -PathType Container) {
     $targetFull
   } else { [IO.Path]::GetDirectoryName($targetFull) }
-  $broad=@('S-1-1-0','S-1-5-11','S-1-5-32-545','S-1-5-4','S-1-5-2')
+  $trustedWriters=@('S-1-5-18','S-1-5-32-544')
   $writes=([Security.AccessControl.FileSystemRights]::Write -bor
            [Security.AccessControl.FileSystemRights]::Modify -bor
            [Security.AccessControl.FileSystemRights]::FullControl -bor
@@ -85,8 +85,8 @@ function Assert-ProtectedLocation([string]$target,[string]$tag) {
       foreach($ace in $acl.Access) {
         $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
         if($ace.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
-           $sid -in $broad -and (($ace.FileSystemRights -band $writes) -ne 0)) {
-          throw ('PROTECTED_BROAD_WRITE_'+$tag)
+           $sid -notin $trustedWriters -and (($ace.FileSystemRights -band $writes) -ne 0)) {
+          throw ('PROTECTED_UNAPPROVED_WRITER_'+$tag)
         }
       }
     }
