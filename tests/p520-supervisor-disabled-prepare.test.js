@@ -56,6 +56,29 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
   assert.doesNotMatch(source, /git\s+clean\b/i);
 });
 
+test("privileged disabled preparation requires protected file ACLs before invoking installer", () => {
+  const source = fs.readFileSync(script, "utf8");
+  const applyGate = source.indexOf("if(-not $ConfirmDisabledPreparation)");
+  const installerCall = source.indexOf("& $installer @installerParams");
+  const protectedFile = source.indexOf("function Assert-ProtectedFileAcl(");
+  assert.ok(protectedFile > 0);
+  assert.match(source, /PROTECTED_FILE_OWNER_NOT_ADMIN_/);
+  assert.match(source, /PROTECTED_FILE_UNAPPROVED_WRITER_/);
+  assert.match(source, /PROTECTED_FILE_REPARSE_/);
+  assert.match(source, /PROTECTED_FILE_MISSING_/);
+  for (const guard of [
+    "Assert-ProtectedFileAcl $PSCommandPath 'PREPARATION_SCRIPT'",
+    "Assert-ProtectedFileAcl $installer 'INSTALLER'",
+    "Assert-ProtectedFileAcl $SupervisorConfig 'SUPERVISOR_CONFIG_FILE'",
+    "Assert-ProtectedFileAcl $cli 'RUNTIME_CLI_FILE'",
+  ]) {
+    const at = source.indexOf(guard);
+    assert.ok(at > applyGate && at < installerCall, guard + " must guard Apply");
+  }
+  assert.match(source, /\$sid -notin \$trustedWriters/);
+  assert.match(source, /\$acl\.GetOwner\(\[Security\.Principal\.SecurityIdentifier\]\)/);
+});
+
 test("shared installer registers task disabled atomically, without enabled interval", () => {
   const installer = fileURLToPath(
     new URL(
