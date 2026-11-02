@@ -302,6 +302,7 @@ test("write operations use fixed GitHub API endpoints and never return the token
       return resp(
         {
           number: 32,
+          url: "https://api.github.com/repos/kmjtechno/kmj-cinecore/issues/32",
           state: "open",
           html_url: "https://github.com/kmjtechno/kmj-cinecore/issues/32",
         },
