@@ -92,7 +92,7 @@ export function jobEnvironment(
           typeof value === "string" &&
           value.length > 0 &&
           value.length <= 4096 &&
-          !/[\\x00-\\x1f]/.test(value) &&
+          !Array.from(value).some((ch) => ch.charCodeAt(0) < 32) &&
           path.win32.isAbsolute(value)
         )
           env[key] = value;
