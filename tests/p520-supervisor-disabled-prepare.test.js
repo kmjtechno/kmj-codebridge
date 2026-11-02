@@ -42,7 +42,11 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
   assert.match(source, /P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'/);
   assert.match(source, /KMJ-CodeBridge-Supervisor-P520/);
   assert.match(source, /RUNTIME_GIT_SHA_PIN_INVALID/);
-  assert.equal((source.match(/P520_LOCAL_AI_ACTIVATION\x27 \x27NOT_ATTEMPTED\x27/g) ?? []).length, 1, "duplicated preparation block");
+  assert.equal(
+    (source.match(/P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'/g) ?? []).length,
+    1,
+    "duplicated preparation block",
+  );
   assert.doesNotMatch(source, /KMJ-CodeBridge-Supervisor-P720/i);
   assert.doesNotMatch(source, /bootstrap-p720-supervisor/i);
   assert.doesNotMatch(source, /\bRestart-Service\b/i);
