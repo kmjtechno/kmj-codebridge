@@ -1,0 +1,55 @@
+name: N2 read-only storage sizing safety
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_storage_feasibility_readonly_20261102.sh
+      - .github/workflows/gce-n2-storage-sizing.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_storage_feasibility_readonly_20261102.sh
+      - .github/workflows/gce-n2-storage-sizing.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-storage-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell syntax, embedded Python and guard static checks
+        run: |
+          bash -n scripts/operations/gce_n2_storage_feasibility_readonly_20261102.sh
+          sha256sum scripts/operations/gce_n2_storage_feasibility_readonly_20261102.sh
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/gce_n2_storage_feasibility_readonly_20261102.sh")
+          src = p.read_text()
+          embedded = src.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_SCRIPT", 1)[0]
+          tree = ast.parse(embedded, filename=str(p) + "#N2")
+          assert len(tree.body) > 10
+          assert "SERVER_SIDE_AUTO_STOP=900_SECONDS_VERIFIED" in src
+          assert "trap stop_n2 EXIT" in src
+          assert "IAP_SSH_PREFLIGHT=PASS" in src
+          assert "VM_FINAL_STATE=" in src
+          assert "N2_STORAGE_FEASIBILITY_READONLY=PASS" in src
+          assert "BACKUP_TRANSFER_AND_DISPOSABLE_RESTORE=NOT_ATTEMPTED" in src
+          assert "CLOUDOS_BACKUP_RESTORE_GATE=BLOCKED" in src
+          assert "kmj-ci-kmj-validation-26b557dc40dc0d0cf5cf.qcow2" in src
+          assert "kmj-ci-other-tenant-8fd54398cc6bb3e5658d.qcow2" in src
+          for disallow in (
+              "net-start", "net-define", "net-destroy", "net-undefine",
+              "virsh start", "virsh destroy", "virsh undefine",
+              "qemu-img create", "dd if=", "sudo", "rm -rf",
+              "gcloud compute disks create", "gcloud compute snapshots create",
+          ):
+              assert disallow not in src, "Forbidden host mutation " + disallow
+          for name in ("EXPECTED_HOST", "EXPECTED_PROJECT", "EXPECTED_ZONE",
+                       "EXPECTED_MACHINE", "OLD_OVERLAYS", "safe_stat"):
+              assert name in embedded
+          assert ("N2_STORAGE_FEASIBILITY_READONLY=BLOCKED" in embedded)
+          print("N2_STORAGE_SIZING_STATIC_AND_PYTHON_SYNTAX=PASS")
+          PY
