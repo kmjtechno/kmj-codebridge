@@ -150,7 +150,7 @@ try {
   Assert-Hash ([string]$node.Source) $NodeExeSha256
   Assert-Hash ([string]$git.Source) $GitExeSha256
   Assert-Hash $installer $InstallerSha256
-  $args=@{
+  $installerParams=@{
     SupervisorConfig=$SupervisorConfig
     AgentConfig=$AgentConfig
     RuntimeDir=$RuntimeDir
@@ -159,7 +159,7 @@ try {
     TaskName=$taskName
     Apply=$true
   }
-  & $installer @args
+  & $installer @installerParams
   if(-not $?) { throw 'PREPARATION_FAILED' }
   $task=Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
   if(@($task).Count -ne 1 -or [string]$task.State -cne 'Disabled') {
