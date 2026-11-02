@@ -293,6 +293,8 @@ test("write operations use fixed GitHub API endpoints and never return the token
     if (p.endsWith("/issues/22/comments"))
       return resp({
         id: 99,
+        issue_url:
+          "https://api.github.com/repos/kmjtechno/kmj-cinecore/issues/22",
         html_url:
           "https://github.com/kmjtechno/kmj-cinecore/issues/22#issuecomment-99",
       });

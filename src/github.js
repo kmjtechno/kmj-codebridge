@@ -461,7 +461,13 @@ export function createGitHubBridge(config) {
   // A parsed 2xx JSON object is not, by itself, proof that GitHub performed
   // a mutation. Only clear the previous native denial when the exact
   // endpoint returns its expected mutation identity. Never echo the object.
-  const confirmedWriteReceipt = (method, suffix, value, requestBody) => {
+  const confirmedWriteReceipt = (
+    method,
+    repository,
+    suffix,
+    value,
+    requestBody,
+  ) => {
     if (!value || typeof value !== "object" || Array.isArray(value))
       return false;
     const sha = (v) => typeof v === "string" && /^[a-f0-9]{40}$/.test(v);
@@ -478,8 +484,16 @@ export function createGitHubBridge(config) {
         value.object?.sha === requestBody.sha
       );
     if (method === "POST" && suffix === "issues") return id(value.number);
-    if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix))
-      return id(value.id);
+    if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix)) {
+      // An ID alone can be a receipt from a different issue/repository.
+      // GitHub's canonical issue_url must match this exact native target.
+      const issueNumber = suffix.split("/")[1];
+      const expectedIssueUrl = new URL(
+        `repos/${safePath(repository)}/issues/${issueNumber}`,
+        config.apiBase,
+      ).href;
+      return id(value.id) && value.issue_url === expectedIssueUrl;
+    }
     if (method === "POST" && suffix === "pulls")
       return id(value.number) && sha(value.head?.sha);
     if (method === "POST" && /^pulls\/\d+\/reviews$/.test(suffix))
@@ -629,7 +643,7 @@ export function createGitHubBridge(config) {
         // unrecognized receipt must never be returned as a successful write
         // or invalidate cached reads. The remote side may have acted, so a
         // caller must independently reconcile before retrying a mutation.
-        if (!confirmedWriteReceipt(method, suffix, value, body))
+        if (!confirmedWriteReceipt(method, repository, suffix, value, body))
           fail("GITHUB_WRITE_RECEIPT_UNVERIFIED");
         if (latestWriteAttempts.get(repository) === writeAttempt) {
           recentWriteFailures.delete(repository);
