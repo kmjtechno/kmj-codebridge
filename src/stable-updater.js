@@ -91,7 +91,31 @@ const acceptedStateSchema = z
   })
   .strict();
 
+// A private leaf directory is not sufficient if an ancestor redirects it.
+// This rejects existing path redirects before either reading or creating
+// security-critical updater state; it is not a substitute for a protected
+// owner-controlled parent directory against concurrent pathname swaps.
+function assertNoRedirectedStateAncestors(target) {
+  const absolute = path.resolve(target);
+  const root = path.parse(absolute).root;
+  let current = root;
+  for (const component of absolute.slice(root.length).split(path.sep)) {
+    if (!component) continue;
+    current = path.join(current, component);
+    let stat;
+    try {
+      stat = fs.lstatSync(current);
+    } catch (error) {
+      if (error?.code === "ENOENT") return;
+      fail("UPDATE_STATE_ROOT_INVALID");
+    }
+    if (stat.isSymbolicLink() || !stat.isDirectory())
+      fail("UPDATE_STATE_ROOT_INVALID");
+  }
+}
+
 function assertSecureStateRoot(target) {
+  assertNoRedirectedStateAncestors(target);
   let stat;
   try {
     stat = fs.lstatSync(target);
@@ -109,6 +133,9 @@ function assertSecureStateRoot(target) {
 }
 
 function secureDirectory(target) {
+  // Refuse a static symlinked ancestor before mkdir can create a state root
+  // outside the intended path, then recheck the resulting path.
+  assertNoRedirectedStateAncestors(target);
   fs.mkdirSync(target, { recursive: true, mode: 0o700 });
   return assertSecureStateRoot(target);
 }
