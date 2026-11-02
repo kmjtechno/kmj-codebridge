@@ -130,6 +130,11 @@ def stage_root_file(path, data, sha, mode):
 EXPECTED_UNIT_PROPERTIES = {
     "LoadState": "loaded",
     "ActiveState": "inactive",
+    # A stale failed or nonzero invocation must never be accepted by the
+    # installer as a clean, restartable unit when Supervisor rejects it.
+    # Recovery/reset is a separate owner-attested lifecycle operation.
+    "Result": "success",
+    "ExecMainStatus": "0",
     "FragmentPath": FILES[0][1],
     "DropInPaths": "",
     # On-disk hash alone cannot attest the unit bytes loaded by PID 1.
