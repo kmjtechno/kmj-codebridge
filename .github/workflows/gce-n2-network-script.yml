@@ -41,3 +41,43 @@ jobs:
           assert "virsh(\"undefine\"" not in source
           print("N2_BASH_AND_HOST_PYTHON_SYNTAX=PASS")
           PY
+      - name: Exercise net-info field parsing with realistic padded output
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh")
+          source = path.read_text()
+          host = source.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_CODE", 1)[0]
+          root = ast.parse(host)
+          functions = [n for n in root.body if isinstance(n, ast.FunctionDef) and n.name == "net_info_flags"]
+          assert len(functions) == 1
+          namespace = {"virsh": lambda *args: ""}
+          module = ast.fix_missing_locations(ast.Module(body=functions, type_ignores=[]))
+          exec(compile(module, str(path) + "#netinfo", "exec"), namespace)
+          parser = namespace["net_info_flags"]
+          def check(txt):
+              namespace["virsh"] = lambda *args: txt
+              return parser("kmjtn-kmj-validation")
+          good = (
+              "Name:           kmjtn-kmj-validation\n"
+              "Active:         yes\n"
+              "Persistent:     yes\n"
+              "Autostart:      yes\n"
+              "Bridge:         virbr71\n"
+          )
+          assert check(good) == {"active": "yes", "persistent": "yes", "autostart": "yes"}
+          assert check("Active:\tyes\nAutostart: YES\nPersistent: yes\n") == {
+              "active": "yes", "autostart": "yes", "persistent": "yes"
+          }
+          assert check(good.replace("Autostart:      yes", "Autostart:      no"))["autostart"] == "no"
+          assert check("Active: yes\n") == {"active": "yes"}
+          try:
+              check(good + "Active: no\n")
+          except RuntimeError as exc:
+              assert str(exc) == "NETWORK_INFO_DUPLICATE_FIELD"
+          else:
+              raise AssertionError("Duplicate network field was not rejected")
+          assert "NEW_NETWORK_ROLLBACK=VERIFIED_LIBVIRT_DEFINITIONS_ABSENT" in source
+          print("N2_VIRSH_NET_INFO_PADDING_AND_FAIL_CLOSED_TESTS=PASS")
+          PY
