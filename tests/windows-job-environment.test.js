@@ -49,3 +49,43 @@ test("native path allowlist rejects control characters and huge inherited values
   assert.equal(Object.hasOwn(env, "TMP"), false);
   assert.equal(env.USERPROFILE, "C:\\Users\\operator");
 });
+
+test("REA doctor opt-in inherits only validated absolute provider directories on Windows", () => {
+  const source = {
+    PATH: "C:\\Windows\\System32",
+    SystemRoot: "C:\\Windows",
+    JAVA_HOME: "C:\\Program Files\\Eclipse Adoptium\\jdk-25",
+    GHIDRA_INSTALL_DIR: "C:\\Users\\operator\\tools\\ghidra_12.1.4_PUBLIC",
+    REA_SECRET_KEY: "private",
+  };
+  const defaultEnv = jobEnvironment(source, "win32");
+  assert.equal(Object.hasOwn(defaultEnv, "JAVA_HOME"), false);
+  assert.equal(Object.hasOwn(defaultEnv, "GHIDRA_INSTALL_DIR"), false);
+  const doctorEnv = jobEnvironment(source, "win32", { allowReaProviderPaths: true });
+  assert.equal(doctorEnv.JAVA_HOME, source.JAVA_HOME);
+  assert.equal(doctorEnv.GHIDRA_INSTALL_DIR, source.GHIDRA_INSTALL_DIR);
+  assert.equal(Object.hasOwn(doctorEnv, "REA_SECRET_KEY"), false);
+  const linuxEnv = jobEnvironment(source, "linux", { allowReaProviderPaths: true });
+  assert.equal(Object.hasOwn(linuxEnv, "JAVA_HOME"), false);
+});
+
+test("REA doctor opt-in refuses relative, control-character and oversized provider roots", () => {
+  const env = jobEnvironment(
+    {
+      PATH: "C:\\Windows\\System32",
+      SystemRoot: "C:\\Windows",
+      JAVA_HOME: "java",
+      GHIDRA_INSTALL_DIR: "C:\\Users\\operator\\tools\\ghidra" + String.fromCharCode(10),
+    },
+    "win32",
+    { allowReaProviderPaths: true },
+  );
+  assert.equal(Object.hasOwn(env, "JAVA_HOME"), false);
+  assert.equal(Object.hasOwn(env, "GHIDRA_INSTALL_DIR"), false);
+  const longEnv = jobEnvironment(
+    { PATH: "", SystemRoot: "C:\\Windows", JAVA_HOME: "C:\\" + "a".repeat(5000) },
+    "win32",
+    { allowReaProviderPaths: true },
+  );
+  assert.equal(Object.hasOwn(longEnv, "JAVA_HOME"), false);
+});
