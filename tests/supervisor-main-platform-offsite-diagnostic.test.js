@@ -67,6 +67,7 @@ function harness({
   scriptText = PINNED_TEXT,
   file = rootFile(),
   dir = rootDir(),
+  ancestorOverrides = {},
   output = out(),
   runThrows = false,
   swapAfterRun = false,
@@ -84,7 +85,8 @@ function harness({
     restart: (u) => started.push(u),
     lstat: (p) => {
       if (p === OFFSITE_DIAGNOSTIC_PATH) return file;
-      if (p === "/usr/local/libexec") return dir;
+      if (["/", "/usr", "/usr/local", "/usr/local/libexec"].includes(p))
+        return Object.hasOwn(ancestorOverrides, p) ? ancestorOverrides[p] : dir;
       throw Error("ENOENT");
     },
     readFile: (p) => {
@@ -252,6 +254,32 @@ test("script not installed / wrong owner / symlink / writable / setuid / hardlin
     missing({ op: "main_platform_offsite_diagnostic", confirmation: CONFIRM }),
     /SUPERVISOR_OFFSITE_DIAGNOSTIC_NOT_READY/,
   );
+});
+
+test("root diagnostic refuses any writable, special-bit, replaced or symlink ancestor", async () => {
+  for (const path of ["/", "/usr", "/usr/local", "/usr/local/libexec"]) {
+    for (const bad of [
+      rootDir({ uid: 1000 }),
+      rootDir({ mode: 0o40775 }),
+      rootDir({ mode: 0o42755 }),
+      rootDir({ mode: 0o41755 }),
+      rootDir({ mode: 0o44755 }),
+      rootDir({ isDirectory: () => false }),
+      rootDir({ isSymbolicLink: () => true }),
+    ]) {
+      const h = harness({ ancestorOverrides: { [path]: bad } });
+      await assert.rejects(
+        h.handle({
+          op: "main_platform_offsite_diagnostic",
+          confirmation: CONFIRM,
+        }),
+        /SUPERVISOR_OFFSITE_DIAGNOSTIC_NOT_READY/,
+        path,
+      );
+      assert.deepEqual(h.runs, [], path);
+      assert.deepEqual(h.started, [], path);
+    }
+  }
 });
 
 test("a swapped or modified script (hash mismatch) is never executed", async () => {

@@ -81,7 +81,7 @@ function rootOnlyDirectory(lstat, dir) {
     s.isDirectory() &&
     !s.isSymbolicLink() &&
     s.uid === 0 &&
-    (s.mode & 0o022) === 0
+    (s.mode & 0o7022) === 0 // no special bits or group/world write
   );
 }
 
@@ -126,7 +126,9 @@ export function parseOffsiteDiagnostic(output) {
 export function runOffsiteDiagnostic({ run, lstat, readFile }) {
   try {
     if (
-      !rootOnlyDirectory(lstat, "/usr/local/libexec") ||
+      !["/", "/usr", "/usr/local", "/usr/local/libexec"].every((dir) =>
+        rootOnlyDirectory(lstat, dir),
+      ) ||
       !rootOnlyFile(lstat, OFFSITE_DIAGNOSTIC_PATH)
     )
       fail("SUPERVISOR_OFFSITE_DIAGNOSTIC_NOT_READY");
