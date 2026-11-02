@@ -250,23 +250,46 @@ test(
 );
 
 test(
+  "state-root parent fsync failure stops watermark creation before a writer lock",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir } = fixture(t);
+    t.mock.method(fs, "fsyncSync", () => {
+      throw Error("INJECTED_PARENT_DIRECTORY_FSYNC_FAILURE");
+    });
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /INJECTED_PARENT_DIRECTORY_FSYNC_FAILURE/,
+    );
+    assert.deepEqual(fs.readdirSync(stateDir), []);
+  },
+);
+
+test(
   "post-rename durability failure retains lock and rejects automatic retry",
   { skip: process.platform === "win32" },
   (t) => {
     const { stateDir, file } = fixture(t);
     const originalFsync = fs.fsyncSync;
+    // First persist each state-root ancestor entry, then the writer lock,
+    // temporary file and final rename. Inject only the final rename failure.
+    const absolute = path.resolve(stateDir);
+    const parentSyncs = absolute
+      .slice(path.parse(absolute).root.length)
+      .split(path.sep)
+      .filter(Boolean).length;
     let fsyncCalls = 0;
     t.mock.method(fs, "fsyncSync", (fd) => {
       fsyncCalls++;
-      // 1: persist writer lock, 2: persist file, 3: persist rename.
-      if (fsyncCalls === 3) throw Error("INJECTED_DIRECTORY_FSYNC_FAILURE");
+      if (fsyncCalls === parentSyncs + 3)
+        throw Error("INJECTED_DIRECTORY_FSYNC_FAILURE");
       return originalFsync(fd);
     });
     assert.throws(
       () => writeAcceptedUpdateState(stateDir, manifest),
       /INJECTED_DIRECTORY_FSYNC_FAILURE/,
     );
-    assert.equal(fsyncCalls, 3);
+    assert.equal(fsyncCalls, parentSyncs + 3);
     assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
     assert.deepEqual(fs.readdirSync(stateDir).sort(), [
       ".stable-update-state.lock",
