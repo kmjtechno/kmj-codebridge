@@ -98,11 +98,19 @@ function protectedText(path, maxBytes, { lstat, readFile }) {
   }
 }
 
-function pointerSha(link, pattern, { lstat, readlink }) {
+// Accept only the canonical absolute target or a single, exact relative
+// spelling from this trusted link directory. Never resolve arbitrary ../
+// sequences, because that would authorize aliases or path traversal.
+function pointerSha(link, absolutePattern, relativePattern, { lstat, readlink }) {
   try {
     if (!lstat(link).isSymbolicLink()) return null;
     const target = readlink(link);
-    return pattern.exec(target)?.[1] ?? null;
+    if (typeof target !== "string" || target.length > 240) return null;
+    return (
+      absolutePattern.exec(target)?.[1] ??
+      relativePattern.exec(target)?.[1] ??
+      null
+    );
   } catch {
     return null;
   }
@@ -170,11 +178,13 @@ export function attestMainPlatformStaging({
   const stageSha = pointerSha(
     STAGING_LINK,
     /^\/home\/kmjstage\/releases\/([a-f0-9]{40})\/apps\/platform$/,
+    /^\.\.\/releases\/([a-f0-9]{40})\/apps\/platform$/,
     { lstat, readlink },
   );
   const prodRelease = pointerSha(
     PRODUCTION_LINK,
     /^\/home\/kmjprod\/releases\/([a-z0-9][a-z0-9_-]{3,100})$/,
+    /^releases\/([a-z0-9][a-z0-9_-]{3,100})$/,
     { lstat, readlink },
   );
   if (!stageSha) blockers.push("STAGING_POINTER_UNVERIFIED");
