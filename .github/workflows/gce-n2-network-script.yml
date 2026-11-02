@@ -5,11 +5,13 @@ on:
     paths:
       - scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
       - scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh
+      - scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
       - .github/workflows/gce-n2-network-script.yml
   pull_request:
     paths:
       - scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
       - scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh
+      - scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
       - .github/workflows/gce-n2-network-script.yml
 
 permissions:
@@ -128,4 +130,26 @@ jobs:
               "active": "yes", "persistent": "yes", "autostart": "yes"
           }
           print("N2_READONLY_PREFLIGHT_SYNTAX_AND_GUARDS=PASS")
+          PY
+
+      - name: Verify zero-start N2 backup recovery inventory
+        run: |
+          python3 -m py_compile scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
+          python3 -B scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py --self-test
+          sha256sum scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py")
+          s = path.read_text()
+          ast.parse(s, filename=str(path))
+          assert "GCE_VM_START_STOP_OR_RESOURCE_MUTATION=NONE" in s
+          assert "N2_BACKUP_ROLLBACK_RELEASE_GATE=BLOCKED" in s
+          assert "OTHER_PROJECTS_CLOUD_STORAGE_BACKUP_DR_VAULTS=NOT_INSPECTED" in s
+          assert "INDEPENDENT_DISPOSABLE_RESTORE=NOT_VERIFIED" in s
+          for blocked in ('["instances", "start"', '["instances", "stop"',
+                          '["snapshots", "create"', '["machine-images", "create"',
+                          '["disks", "create"', '["disks", "delete"', '["snapshots", "delete"'):
+              assert blocked not in s, blocked
+          print("N2_GCE_ZERO_START_RECOVERY_AUDIT_STATIC_GUARDS=PASS")
           PY
