@@ -19,6 +19,28 @@ function Candidate-Identity($cfg) {
   if([string]$cfg.gateway -notmatch '^https://kmjtechno\.com(?:/|$)') { return 'UNTRUSTED_GATEWAY' }
   return 'MATCH'
 }
+function Safe-Candidate-Path([string]$root,[string]$candidate) {
+  # File paths inherited from a junction/redirected parent are not trusted.
+  try {
+    $rootFull=[IO.Path]::GetFullPath($root).TrimEnd('\')
+    $fileFull=[IO.Path]::GetFullPath($candidate)
+    if(-not $fileFull.StartsWith($rootFull+'\', [StringComparison]::OrdinalIgnoreCase)) {
+      return $false
+    }
+    $dir=[IO.Path]::GetDirectoryName($fileFull)
+    for($i=0;$i -lt 16;$i++) {
+      $item=Get-Item -LiteralPath $dir -Force -ErrorAction Stop
+      if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        return $false
+      }
+      if($dir -ieq $rootFull) { return $true }
+      $parent=[IO.Path]::GetDirectoryName($dir.TrimEnd('\'))
+      if([string]::IsNullOrWhiteSpace($parent) -or $parent -ieq $dir) { return $false }
+      $dir=$parent
+    }
+  } catch {}
+  return $false
+}
 function Task-Status([object[]]$tasks) {
   if(@($tasks | Where-Object { $null -ne $_ -and [string]$_.TaskName -ieq $taskName }).Count -gt 0) {
     return 'COLLISION'
@@ -71,6 +93,7 @@ try {
       $seen++;$searched++
       if($seen -gt 96 -or $searched -gt 160) { $unsafe=$true;break }
       if(($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { $unsafe=$true;break }
+      if(-not (Safe-Candidate-Path $root ([string]$entry.FullName))) { $unsafe=$true;break }
       if($entry.Length -lt 20 -or $entry.Length -gt 524288) { continue }
       # Parse locally but never send raw agent.json or its secrets anywhere.
       try {
