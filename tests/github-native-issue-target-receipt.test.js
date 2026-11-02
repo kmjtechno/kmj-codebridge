@@ -37,6 +37,7 @@ test("native issue comment receipt binds exact target", async (t) => {
     cacheSeconds: 60,
   });
   const doctor = () => dispatch("github_connection_doctor", { repository });
+  const cachedRead = () => dispatch("github_repository", { repository });
   const comment = () =>
     dispatch("github_comment_issue", {
       repository,
@@ -45,6 +46,7 @@ test("native issue comment receipt binds exact target", async (t) => {
     });
 
   assert.equal((await doctor()).writeVerified, false);
+  await cachedRead();
   for (const untrusted of [
     null,
     "https://api.github.com/repos/kmjtechno/kmj-codebridge/issues/724",
@@ -57,7 +59,13 @@ test("native issue comment receipt binds exact target", async (t) => {
     const receipt = await doctor();
     assert.equal(receipt.writeVerified, false);
     assert.equal(receipt.lastNativeWrite, null);
-    assert.equal(reads, 1, "invalid receipts must not evict cached reads");
+    const beforeCachedRead = reads;
+    await cachedRead();
+    assert.equal(
+      reads,
+      beforeCachedRead,
+      "invalid receipts must not evict cached repository reads",
+    );
   }
 
   issueUrl = expectedIssueUrl;
