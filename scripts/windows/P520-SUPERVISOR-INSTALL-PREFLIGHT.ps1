@@ -77,6 +77,8 @@ try {
   # Missing roots are skipped, never created.
   $roots=@(
     (Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\private'),
+    (Join-Path $env:USERPROFILE 'KMJ\codebridge-runtime\private'),
+    (Join-Path $env:USERPROFILE 'KMJ\private'),
     'D:\KMJ-HyperSpeed\private',
     'E:\KMJ\private',
     'E:\KMJ\CodeBridge-HomeOffice\private'
