@@ -28,7 +28,7 @@ test("install script is dry-run by default and never activates the runtime", () 
     /Set-Content\s+-LiteralPath\s+\$AgentConfig\b/,
   ])
     assert.doesNotMatch(install, forbidden, String(forbidden));
-  assert.match(install, /Disable-ScheduledTask/);
+  assert.match(install, /New-ScheduledTaskSettingsSet[^\n]*-Disable/);
   assert.match(install, /\.proposed/);
 });
 
@@ -98,7 +98,7 @@ test("prepared Windows supervisor restarts after reboot but is not activated by 
   assert.match(install, /New-ScheduledTaskTrigger -AtStartup/);
   assert.match(install, /-Trigger \$trigger/);
   assert.match(install, /-RestartCount 3 -RestartInterval/);
-  assert.match(install, /Disable-ScheduledTask/);
+  assert.match(install, /New-ScheduledTaskSettingsSet[^\n]*-Disable/);
   assert.doesNotMatch(install, /Enable-ScheduledTask|Start-ScheduledTask/);
 });
 
