@@ -519,3 +519,40 @@ test(
     assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
   },
 );
+
+test(
+  "directory fsync EIO before or after watermark rename fails closed with a stable code",
+  { skip: process.platform === "win32" },
+  (t) => {
+    for (const failAt of [1, 2]) {
+      const { stateDir } = fixture(t);
+      const lock = path.join(stateDir, ".stable-update-state.lock");
+      const realOpen = fs.openSync;
+      const realFsync = fs.fsyncSync;
+      let stateDirFd = -1;
+      let stateDirSyncs = 0;
+      t.mock.method(fs, "openSync", (target, ...args) => {
+        const fd = realOpen(target, ...args);
+        stateDirFd = path.resolve(String(target)) === stateDir ? fd : -1;
+        return fd;
+      });
+      t.mock.method(fs, "fsyncSync", (fd) => {
+        if (fd === stateDirFd && ++stateDirSyncs === failAt)
+          throw Object.assign(Error("INJECTED_RAW_EIO"), { code: "EIO" });
+        return realFsync(fd);
+      });
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, manifest),
+        /UPDATE_STATE_DURABILITY_UNPROVEN/,
+      );
+      t.mock.restoreAll();
+      assert.equal(fs.existsSync(lock), true);
+      const accepted = readAcceptedUpdateState(stateDir);
+      assert.equal(accepted?.sequence ?? null, failAt === 1 ? null : 43);
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+        /UPDATE_STATE_LOCKED/,
+      );
+    }
+  },
+);
