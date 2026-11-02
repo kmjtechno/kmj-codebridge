@@ -17,6 +17,8 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /P520_INSTALL_ACTION' 'NONE'/);
   assert.match(source, /P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'/);
   assert.match(source, /ONE_UNATTESTED_CANDIDATE/);
+  assert.match(source, /Safe-Candidate-Path/);
+  assert.match(source, /FileAttributes\]::ReparsePoint/);
   assert.match(source, /Get-ScheduledTask -ErrorAction Stop/);
   assert.match(source, /Get-ChildItem -LiteralPath \$root -Recurse -Depth 3/);
   assert.doesNotMatch(source, /Write-Output\s+\$cfg\b/);
