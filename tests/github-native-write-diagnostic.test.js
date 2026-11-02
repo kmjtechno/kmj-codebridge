@@ -36,6 +36,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
       writeStatus >= 200 && writeStatus < 300
         ? {
             id: 123,
+            issue_url: "https://api.github.com/repos/kmjtechno/kmj-codebridge/issues/723",
             html_url:
               "https://github.com/kmjtechno/kmj-codebridge/issues/723#issuecomment-123",
           }
@@ -261,8 +262,12 @@ test("newer write attempts win even when responses finish out of order", async (
       number: 723,
       body: "bounded overlap regression",
     });
-  const response = (status, id) =>
-    Response.json(status === 201 ? { id } : { message: "PRIVATE_ERROR_BODY" }, {
+  const response = (status, id, repo = repository) =>
+    Response.json(
+      status === 201
+        ? { id, issue_url: `https://api.github.com/repos/${repo}/issues/723` }
+        : { message: "PRIVATE_ERROR_BODY" },
+      {
       status,
     });
 
@@ -306,7 +311,7 @@ test("newer write attempts win even when responses finish out of order", async (
   const f = write(otherRepository);
   assert.equal(pending.length, 6);
   assert.equal(pending[5].repo, otherRepository);
-  pending[5].resolve(response(201, 1003));
+  pending[5].resolve(response(201, 1003, otherRepository));
   await f;
   pending[4].resolve(response(403));
   await assert.rejects(e, /GITHUB_AUTHORIZATION_FAILED/);
