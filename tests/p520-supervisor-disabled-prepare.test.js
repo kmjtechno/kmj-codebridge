@@ -73,10 +73,16 @@ test("privileged disabled preparation requires protected file ACLs before invoki
     "Assert-ProtectedFileAcl $cli 'RUNTIME_CLI_FILE'",
   ]) {
     const at = source.indexOf(guard);
-    assert.ok(at > applyGate && at < installerCall, guard + " must guard Apply");
+    assert.ok(
+      at > applyGate && at < installerCall,
+      guard + " must guard Apply",
+    );
   }
   assert.match(source, /\$sid -notin \$trustedWriters/);
-  assert.match(source, /\$acl\.GetOwner\(\[Security\.Principal\.SecurityIdentifier\]\)/);
+  assert.match(
+    source,
+    /\$acl\.GetOwner\(\[Security\.Principal\.SecurityIdentifier\]\)/,
+  );
 });
 
 test("shared installer registers task disabled atomically, without enabled interval", () => {
