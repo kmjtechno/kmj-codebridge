@@ -1,0 +1,59 @@
+name: ELITE CloudOS transport and crypto read-only verification
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_transport_crypto_preflight_20261102.py
+      - .github/workflows/elite-cloudos-transport-crypto-preflight.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_transport_crypto_preflight_20261102.py
+      - .github/workflows/elite-cloudos-transport-crypto-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  readonly-transport-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test strict local-only transport trust inventory
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_transport_crypto_preflight_20261102.py --self-test
+          sha256sum scripts/operations/kmj_elite_cloudos_transport_crypto_preflight_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/kmj_elite_cloudos_transport_crypto_preflight_20261102.py")
+          tree = ast.parse(p.read_text())
+          calls=[]
+          for node in ast.walk(tree):
+              if isinstance(node,ast.Call):
+                  f = node.func
+                  name=f.attr if isinstance(f,ast.Attribute) else (
+                      f.id if isinstance(f,ast.Name) else "")
+                  calls.append(name)
+          for forbidden in ("mkdir","chmod","chown","write","write_text",
+                            "write_bytes","unlink","remove","rename","rmdir",
+                            "Popen","system","socket","connect","open_connection",
+                            "mount","fork","execv"):
+              assert forbidden not in calls, forbidden
+          run=[n for n in ast.walk(tree) if isinstance(n,ast.Call)
+               and isinstance(n.func,ast.Attribute) and n.func.attr=="run"]
+          assert len(run)==1
+          source=p.read_text()
+          for expected in (
+              "ELITE_TRANSPORT_CRYPTO_PREFLIGHT=READ_ONLY_COMPLETE",
+              "ELITE_PRIVATE_BACKUP_LANDING=ROOT_0700_NOFOLLOW_PASS",
+              "N2_TO_ELITE_NETWORK_REACHABILITY=NOT_TESTED",
+              "N2_TO_ELITE_HOST_KEY_PINNING=NOT_CONFIGURED_OR_VERIFIED",
+              "OFFSITE_AGE_RECIPIENT_AND_RECOVERY_KEY=NOT_VERIFIED",
+              "CONSISTENT_N2_BOOTABLE_SOURCE_CAPTURE=NOT_VERIFIED",
+              "DISPOSABLE_RESTORE_ROLLBACK=NOT_VERIFIED",
+              "CLOUDOS_PRODUCTION_RELEASE=BLOCKED",
+          ):
+              assert expected in source,expected
+          print("ELITE_TRANSPORT_CRYPTO_NO_MUTATION_AST=PASS")
+          PY
