@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createGitHubBridge } from "../src/github.js";
 
-test("native issue comment receipt must identify the exact requested repository and issue", async (t) => {
+test("native issue comment receipt binds exact target", async (t) => {
   const repository = "kmjtechno/kmj-codebridge";
   const env = "CODEBRIDGE_NATIVE_ISSUE_TARGET_TEST_TOKEN";
   const secret = "s".repeat(40);
