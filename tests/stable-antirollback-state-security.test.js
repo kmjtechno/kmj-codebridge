@@ -4,6 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import {
+  canCreateEntries,
   readAcceptedUpdateState,
   runStableUpdate,
   writeAcceptedUpdateState,
@@ -274,10 +275,17 @@ test(
     // First persist each state-root ancestor entry, then the writer lock,
     // temporary file and final rename. Inject only the final rename failure.
     const absolute = path.resolve(stateDir);
-    const parentSyncs = absolute
+    // Only ancestors this identity can write are synced (see canCreateEntries).
+    const names = absolute
       .slice(path.parse(absolute).root.length)
       .split(path.sep)
-      .filter(Boolean).length;
+      .filter(Boolean);
+    let walk = path.parse(absolute).root;
+    let parentSyncs = 0;
+    for (const name of names) {
+      if (canCreateEntries(walk)) parentSyncs++;
+      walk = path.join(walk, name);
+    }
     let fsyncCalls = 0;
     t.mock.method(fs, "fsyncSync", (fd) => {
       fsyncCalls++;
@@ -402,5 +410,87 @@ test(
     );
     assert.deepEqual(fs.readdirSync(stateDir), []);
     t.mock.restoreAll();
+  },
+);
+
+test(
+  "unwritable x-only ancestors are not opened for sync and never block the writer",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root, stateDir } = fixture(t);
+    const blocked = path.dirname(root);
+    const realAccess = fs.accessSync;
+    const realOpen = fs.openSync;
+    t.mock.method(fs, "accessSync", (target, mode) => {
+      if (path.resolve(target) === blocked)
+        throw Object.assign(Error("x"), { code: "EACCES" });
+      return realAccess(target, mode);
+    });
+    t.mock.method(fs, "openSync", (target, ...rest) => {
+      if (path.resolve(String(target)) === blocked)
+        throw Object.assign(Error("raw"), { code: "EACCES" });
+      return realOpen(target, ...rest);
+    });
+    assert.equal(writeAcceptedUpdateState(stateDir, manifest).sequence, 43);
+  },
+);
+
+test(
+  "a writable ancestor that cannot be synced fails with a stable code, not a raw errno",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root, stateDir } = fixture(t);
+    const realOpen = fs.openSync;
+    t.mock.method(fs, "openSync", (target, ...rest) => {
+      if (path.resolve(String(target)) === path.dirname(root))
+        throw Object.assign(Error("raw"), { code: "EACCES" });
+      return realOpen(target, ...rest);
+    });
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /UPDATE_STATE_DURABILITY_UNPROVEN/,
+    );
+    assert.deepEqual(fs.readdirSync(stateDir), []);
+  },
+);
+
+test(
+  "lock cleanup failure never masks the original rollback rejection",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir } = fixture(t);
+    writeAcceptedUpdateState(stateDir, manifest);
+    t.mock.method(fs, "rmdirSync", () => {
+      throw Error("INJECTED_RMDIR_FAILURE");
+    });
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 42 }),
+      /UPDATE_STATE_ROLLBACK_REJECTED/,
+    );
+    t.mock.restoreAll();
+    assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+    fs.rmdirSync(path.join(stateDir, ".stable-update-state.lock"));
+  },
+);
+
+test(
+  "lock cleanup failure after a clean write is reported with a stable code and keeps the lock",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { stateDir } = fixture(t);
+    t.mock.method(fs, "rmdirSync", () => {
+      throw Error("INJECTED_RMDIR_FAILURE");
+    });
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, manifest),
+      /UPDATE_STATE_LOCK_RELEASE_FAILED/,
+    );
+    t.mock.restoreAll();
+    assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+    assert.throws(
+      () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 44 }),
+      /UPDATE_STATE_LOCKED/,
+    );
+    fs.rmdirSync(path.join(stateDir, ".stable-update-state.lock"));
   },
 );
