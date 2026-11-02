@@ -96,6 +96,36 @@ function Assert-ProtectedLocation([string]$target,[string]$tag) {
   }
   throw ('PROTECTED_ACL_UNVERIFIED_'+$tag)
 }
+# -Apply may execute the installer: its own file ACL must be protected,
+# not merely its parent directory. A writable file can be swapped after hash
+# verification even when the containing directory cannot be renamed.
+function Assert-ProtectedFileAcl([string]$target,[string]$tag) {
+  Assert-ProtectedLocation $target $tag
+  if(-not(Test-Path -LiteralPath $target -PathType Leaf)) {
+    throw ('PROTECTED_FILE_MISSING_'+$tag)
+  }
+  $item=Get-Item -LiteralPath $target -Force -ErrorAction Stop
+  if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+    throw ('PROTECTED_FILE_REPARSE_'+$tag)
+  }
+  $acl=Get-Acl -LiteralPath $target -ErrorAction Stop
+  $owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+  $trustedWriters=@('S-1-5-18','S-1-5-32-544')
+  if($owner -notin $trustedWriters) {
+    throw ('PROTECTED_FILE_OWNER_NOT_ADMIN_'+$tag)
+  }
+  $writes=([Security.AccessControl.FileSystemRights]::Write -bor
+           [Security.AccessControl.FileSystemRights]::Modify -bor
+           [Security.AccessControl.FileSystemRights]::FullControl -bor
+           [Security.AccessControl.FileSystemRights]::Delete)
+  foreach($ace in $acl.Access) {
+    $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+    if($ace.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+       $sid -notin $trustedWriters -and (($ace.FileSystemRights -band $writes) -ne 0)) {
+      throw ('PROTECTED_FILE_UNAPPROVED_WRITER_'+$tag)
+    }
+  }
+}
 function Assert-Hash([string]$file,[string]$sha) {
   $actual=(Get-FileHash -LiteralPath $file -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
   if($actual -cne $sha) { throw 'PINNED_ARTIFACT_MISMATCH' }
@@ -196,6 +226,13 @@ try {
   Assert-ProtectedLocation $RuntimeDir 'RUNTIME'
   Assert-ProtectedLocation $BackupRoot 'BACKUP_ROOT'
   Assert-ProtectedLocation $token 'TOKEN'
+  # A hash pin alone does not stop a user-writable installer/script swap.
+  # Both executable scripts and runtime/config files must be admin/SYSTEM-owned
+  # inside the protected P520 root before the privileged installer is invoked.
+  Assert-ProtectedFileAcl $PSCommandPath 'PREPARATION_SCRIPT'
+  Assert-ProtectedFileAcl $installer 'INSTALLER'
+  Assert-ProtectedFileAcl $SupervisorConfig 'SUPERVISOR_CONFIG_FILE'
+  Assert-ProtectedFileAcl $cli 'RUNTIME_CLI_FILE'
   Assert-Hash $AgentConfig $AgentConfigSha256
   Assert-Hash $SupervisorConfig $SupervisorConfigSha256
   Assert-Hash $cli $RuntimeEntrySha256
