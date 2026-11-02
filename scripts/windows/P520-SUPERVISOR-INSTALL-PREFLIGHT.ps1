@@ -89,19 +89,42 @@ try {
   foreach($root in $roots) {
     if(-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
     $rootInfo=Get-Item -LiteralPath $root -Force -ErrorAction Stop
-    if(($rootInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { $unsafe=$true;break }
-    $seen=0
-    foreach($entry in @(Get-ChildItem -LiteralPath $root -Recurse -Depth 3 -Filter 'agent.json' -File -ErrorAction Stop)) {
-      $seen++;$searched++
-      if($seen -gt 96 -or $searched -gt 160) { $unsafe=$true;break }
-      if(($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { $unsafe=$true;break }
-      if(-not (Safe-Candidate-Path $root ([string]$entry.FullName))) { $unsafe=$true;break }
-      if($entry.Length -lt 20 -or $entry.Length -gt 524288) { continue }
-      # Parse locally but never send raw agent.json or its secrets anywhere.
-      try {
-        $cfg=Get-Content -LiteralPath $entry.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-        if((Candidate-Identity $cfg) -ceq 'MATCH') { [void]$matches.Add([string]$entry.FullName) }
-      } catch {}
+    if(($rootInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      $unsafe=$true
+      break
+    }
+    # Bounded BFS: NEVER materialize unbounded recursive Get-ChildItem output.
+    $pending=New-Object 'System.Collections.Queue'
+    $pending.Enqueue(@($root,0))
+    while($pending.Count -gt 0 -and -not $unsafe) {
+      $node=$pending.Dequeue()
+      $folder=[string]$node[0]
+      $depth=[int]$node[1]
+      foreach($entry in (Get-ChildItem -LiteralPath $folder -Force -ErrorAction Stop)) {
+        $searched++
+        if($searched -gt 160) { $unsafe=$true;break }
+        if(($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+          $unsafe=$true
+          break
+        }
+        if($entry.PSIsContainer) {
+          if($depth -lt 3) { $pending.Enqueue(@([string]$entry.FullName,($depth+1))) }
+          continue
+        }
+        if($entry.Name -ine 'agent.json') { continue }
+        if($entry.Length -lt 20 -or $entry.Length -gt 524288) { continue }
+        if(-not (Safe-Candidate-Path $root ([string]$entry.FullName))) {
+          $unsafe=$true
+          break
+        }
+        # Parse locally but never print the sensitive JSON or file path.
+        try {
+          $cfg=Get-Content -LiteralPath $entry.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+          if((Candidate-Identity $cfg) -ceq 'MATCH') {
+            [void]$matches.Add([string]$entry.FullName)
+          }
+        } catch {}
+      }
     }
     if($unsafe) { break }
   }
