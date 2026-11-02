@@ -1,0 +1,61 @@
+name: ELITE private CloudOS backup landing safety tests
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_private_backup_landing_20261102.py
+      - .github/workflows/elite-cloudos-private-backup-landing.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_private_backup_landing_20261102.py
+      - .github/workflows/elite-cloudos-private-backup-landing.yml
+
+permissions:
+  contents: read
+
+jobs:
+  private-landing-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hermetic path, permissions, idempotence and limited mutation regression
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_private_backup_landing_20261102.py --self-test
+          sha256sum scripts/operations/kmj_elite_cloudos_private_backup_landing_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/kmj_elite_cloudos_private_backup_landing_20261102.py")
+          s = p.read_text()
+          tree = ast.parse(s)
+          assert 'HOST = "kmj-elite"' in s
+          assert 'CHILD = "kmj-cloudos-n2-offsite"' in s
+          assert 'O_DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC' in s
+          assert 'os.mkdir(CHILD, 0o700, dir_fd=parent_fd)' in s
+          assert 'os.stat(CHILD, dir_fd=parent_fd, follow_symlinks=False)' in s
+          assert 'child_fd = os.open(CHILD, O_DIR, dir_fd=parent_fd)' in s
+          assert 'ELITE_BACKUP_LANDING_MODE=0700_VERIFIED' in s
+          assert 'INDEPENDENT_RESTORE_AND_ROLLBACK=NOT_VERIFIED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          assert 'os.geteuid() != 0' in s
+          assert 'REFUSE_UNEXPECTED_SRV_MOUNT' in s
+          calls = []
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Call):
+                  func = node.func
+                  key = func.attr if isinstance(func, ast.Attribute) else (
+                      func.id if isinstance(func, ast.Name) else "")
+                  calls.append(key)
+          # Only a single mkdir may mutate host state. The script never calls
+          # chmod/chown/delete/process execution/network or file writing.
+          assert calls.count("mkdir") == 1
+          for forbidden in (
+              "system", "popen", "run", "Popen", "subprocess", "chown",
+              "chmod", "unlink", "remove", "rmdir", "rmtree", "rename",
+              "write_text", "write_bytes", "write", "mount", "connect",
+              "execv", "socket", "fork", "fchmod", "fchown"
+          ):
+              assert forbidden not in calls, forbidden
+          print("ELITE_BACKUP_PRIVATE_DIRECTORY_ONLY_MUTATION_GUARDS=PASS")
+          PY
