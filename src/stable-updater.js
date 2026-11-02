@@ -176,7 +176,7 @@ function secureDirectory(target) {
     // 0755 root ownership, x-only 0711 directories) predate this updater and
     // are not ours to sync; opening them for read would fail with EACCES and
     // permanently block updates. Every directory we CAN write must sync.
-    if (canCreateEntries(parent)) fsyncUpdaterStateDirectory(parent, true);
+    if (canCreateEntries(parent)) fsyncUpdaterStateDirectory(parent);
     parent = path.join(parent, component);
   }
   return assertSecureStateRoot(target);
@@ -242,9 +242,10 @@ export function readAcceptedUpdateState(stateDir) {
   }
 }
 
-function fsyncUpdaterStateDirectory(stateDir, ancestor = false) {
-  // The lock and the accepted sequence must both survive a POSIX crash.
-  // Windows activation is not supported by this updater.
+function fsyncUpdaterStateDirectory(stateDir) {
+  // A failed directory open, fsync, or close leaves durability unproven.
+  // Normalize all three to the same fail-closed operator diagnostic, including
+  // the post-rename watermark sync. Windows activation is unsupported.
   if (process.platform === "win32") return;
   let dirFd;
   try {
@@ -254,16 +255,17 @@ function fsyncUpdaterStateDirectory(stateDir, ancestor = false) {
         (fs.constants.O_DIRECTORY ?? 0) |
         (fs.constants.O_NOFOLLOW ?? 0),
     );
-  } catch (error) {
-    // A writable ancestor that cannot be opened for sync leaves its new child
-    // entry's durability unproven. Report a stable code, never a raw errno.
-    if (ancestor) fail("UPDATE_STATE_DURABILITY_UNPROVEN");
-    throw error;
-  }
-  try {
     fs.fsyncSync(dirFd);
+  } catch {
+    fail("UPDATE_STATE_DURABILITY_UNPROVEN");
   } finally {
-    fs.closeSync(dirFd);
+    if (dirFd !== undefined) {
+      try {
+        fs.closeSync(dirFd);
+      } catch {
+        fail("UPDATE_STATE_DURABILITY_UNPROVEN");
+      }
+    }
   }
 }
 
