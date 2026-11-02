@@ -48,11 +48,12 @@ test("install script backs up and verifies token ACL identities instead of displ
 
 test("a trusted C:\\Users path must not be interpreted as a Users ACL identity", () => {
   const displayText =
-    "C:\\\\Users\\\\KMJ TECHNO\\\\supervisor.token NT AUTHORITY\\\\SYSTEM:(F)";
-  // Reproduces the old false positive; production code uses Get-Acl SIDs.
-  const unsafeDisplayPattern =
-    /\\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)\\b[^\\n]*:/i;
-  assert.ok(unsafeDisplayPattern.test(displayText));
+    "C:\\Users\\KMJ TECHNO\\supervisor.token NT AUTHORITY\\SYSTEM:(F)";
+  // The prior display-text regex falsely matches C:\Users. The installer
+  // now checks Windows SID identities, not rendered paths.
+  const priorUnsafePattern =
+    /\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)\b[^\n]*:/i;
+  assert.ok(priorUnsafePattern.test(displayText));
   assert.ok(install.includes("IdentityReference.Translate"));
 });
 
