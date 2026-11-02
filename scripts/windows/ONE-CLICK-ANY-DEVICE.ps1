@@ -186,12 +186,18 @@ function AssertEmptyRetryState([string]$Base,[string]$State) {
 # the owner explicitly selects and KnownGitRoot validates the local checkout.
 function ProjectIdForRoot([string]$Root) {
   $folderName = [IO.Path]::GetFileName($Root.TrimEnd([char]92))
-  if ($folderName -cmatch '^[A-Za-z0-9_-]{1,48}$') { return $folderName }
+  # Prefer canonical GitHub repository ID to a user-friendly Windows folder.
+  # VIOSO-Clone must map to vioso-clone (owner-approved project grant).
   $origin = [string]((& git.exe -C $Root remote get-url origin 2>$null) | Select-Object -First 1)
-  if ($LASTEXITCODE -eq 0 -and
-      $origin.Trim() -cmatch '\A(?:https://github\.com/|git@github\.com:)[A-Za-z0-9_.-]+/([a-z0-9][a-z0-9_-]{0,47})(?:\.git)?\z') {
-    return [string]$Matches[1]
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($origin)) {
+    throw 'DEVICE_PROJECT_ORIGIN_REQUIRED'
   }
+  if ($origin.Trim() -cmatch '\A(?:https://github\.com/|git@github\.com:)[A-Za-z0-9_.-]+/([A-Za-z0-9][A-Za-z0-9_-]{0,47})(?:\.git)?\z') {
+    return ([string]$Matches[1]).ToLowerInvariant()
+  }
+  # Non-GitHub project IDs require an explicitly canonical lowercase label.
+  # Mixed-case or spaced folder names cannot silently create wrong grants.
+  if ($folderName -cmatch '^[a-z0-9_-]{1,48}$') { return $folderName }
   throw 'DEVICE_PROJECT_ID_UNSUPPORTED'
 }
 function FirstPair {
@@ -407,6 +413,25 @@ try {
       if ($LASTEXITCODE -ne 0 -or (ProjectIdForRoot $friendly) -cne 'kmj-omnidesk') {
         throw 'DEVICE_TEST_SPACE_DIR_PROJECT_ID_FAILED'
       }
+      # A friendly mixed-case VIOSO folder must enroll the canonical slug.
+      $vioso = Join-Path $dir 'VIOSO-Clone'
+      New-Item -ItemType Directory -Path $vioso -ErrorAction Stop | Out-Null
+      & git.exe -C $vioso init -q
+      if ($LASTEXITCODE -ne 0) { throw 'DEVICE_TEST_VIOSO_INIT_FAILED' }
+      & git.exe -C $vioso remote add origin 'https://github.com/kmjtechno/vioso-clone.git'
+      if ($LASTEXITCODE -ne 0 -or (ProjectIdForRoot $vioso) -cne 'vioso-clone') {
+        throw 'DEVICE_TEST_VIOSO_CANONICAL_ID_FAILED'
+      }
+      & git.exe -C $vioso remote set-url origin 'https://example.com/evil/vioso-clone.git'
+      if ($LASTEXITCODE -ne 0) { throw 'DEVICE_TEST_VIOSO_REMOTE_SWITCH_FAILED' }
+      $viosoRejected = $false
+      try { $null = ProjectIdForRoot $vioso }
+      catch {
+        if ($_.Exception.Message -ne 'DEVICE_PROJECT_ID_UNSUPPORTED') { throw }
+        $viosoRejected = $true
+      }
+      if (!$viosoRejected) { throw 'DEVICE_TEST_VIOSO_BAD_ORIGIN_ACCEPTED' }
+      Write-Output 'KMJ_UNIVERSAL_VIOSO_CANONICAL_SCOPE_SELFTEST=PASS'
       & git.exe -C $friendly remote set-url origin 'https://example.com/evil/kmj-omnidesk.git'
       if ($LASTEXITCODE -ne 0) { throw 'DEVICE_TEST_REMOTE_SWITCH_FAILED' }
       $rejected = $false
