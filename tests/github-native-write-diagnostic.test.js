@@ -267,9 +267,8 @@ test("newer write attempts win even when responses finish out of order", async (
       status === 201
         ? { id, issue_url: `https://api.github.com/repos/${repo}/issues/723` }
         : { message: "PRIVATE_ERROR_BODY" },
-      {
-      status,
-    });
+      { status },
+    );
 
   // A starts before B. B's denial is the newest attempt even when A's
   // older successful HTTP 201 completes afterwards.
