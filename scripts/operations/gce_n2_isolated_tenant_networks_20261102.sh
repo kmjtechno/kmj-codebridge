@@ -43,6 +43,27 @@ state=$(timeout 35 gcloud compute instances describe "$VM" --project="$PROJECT" 
   --zone="$ZONE" --quiet --format='value(status)')
 [[ "$state" == RUNNING ]] || { echo "VM_START_NOT_CONFIRMED=$state"; exit 4; }
 echo "VM_RUNNING=VERIFIED"
+# GCE RUNNING can precede a listening sshd, and IAP 4003 may reflect
+# guest startup or firewall/backend issues. Probe with a read-only command.
+# Never execute the state-changing network installer until SSH succeeds.
+# Bound every attempt and stop retrying rather than consuming the 900s budget.
+SSH_READY=0
+for attempt in 1 2 3 4 5; do
+  echo "IAP_SSH_PROBE_ATTEMPT=$attempt"
+  if timeout 30 gcloud compute ssh "$VM" --project="$PROJECT" --zone="$ZONE" \
+    --tunnel-through-iap --quiet --command='printf N2_SSH_PROBE_READY=YES' \
+    2>/dev/null | grep -q 'N2_SSH_PROBE_READY=YES'; then
+    SSH_READY=1
+    break
+  fi
+  if [[ "$attempt" != 5 ]]; then sleep 15; fi
+done
+if [[ "$SSH_READY" != 1 ]]; then
+  echo "IAP_SSH_PREFLIGHT=BLOCKED_5_ATTEMPTS"
+  echo "IAP_SSH_REASON=UNVERIFIED_CHECK_BOOT_SSHD_IAP_FIREWALL"
+  exit 71
+fi
+echo "IAP_SSH_PREFLIGHT=PASS"
 REMOTE=$(cat <<'REMOTE_CODE'
 python3 - <<'PY'
 import ipaddress
