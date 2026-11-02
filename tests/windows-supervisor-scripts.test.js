@@ -32,11 +32,29 @@ test("install script is dry-run by default and never activates the runtime", () 
   assert.match(install, /\.proposed/);
 });
 
-test("install script backs up with hashes and restricts the token ACL", () => {
+test("install script backs up and verifies token ACL identities instead of display paths", () => {
   assert.match(install, /Get-FileHash -Algorithm SHA256/);
   assert.match(install, /manifest\.json/);
   assert.match(install, /icacls\.exe \$tokenFile \/inheritance:r/);
-  assert.match(install, /Authenticated Users/);
+  assert.match(install, /Get-Acl -LiteralPath \$tokenFile/);
+  assert.match(install, /AreAccessRulesProtected/);
+  assert.match(install, /IdentityReference\.Translate/);
+  for (const sid of ["S-1-5-18", "S-1-5-32-544"])
+    assert.ok(install.includes(sid));
+  assert.match(install, /SUPERVISOR_TOKEN_ACL_UNSAFE_PRINCIPAL/);
+  assert.match(install, /SUPERVISOR_TOKEN_ACL_REQUIRED_PRINCIPAL_MISSING/);
+  assert.doesNotMatch(install, /\$acl\s*=\s*\(& icacls\.exe/);
+});
+
+test("a trusted C:\\Users path must not be interpreted as a Users ACL identity", () => {
+  const displayText =
+    "C:\\Users\\KMJ TECHNO\\supervisor.token NT AUTHORITY\\SYSTEM:(F)";
+  // The prior display-text regex falsely matches C:\Users. The installer
+  // now checks Windows SID identities, not rendered paths.
+  const priorUnsafePattern =
+    /\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)\b[^\n]*:/i;
+  assert.ok(priorUnsafePattern.test(displayText));
+  assert.ok(install.includes("IdentityReference.Translate"));
 });
 
 test("rollback verifies the backup first and is dry-run by default", () => {
