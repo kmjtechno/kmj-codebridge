@@ -101,7 +101,12 @@ function protectedText(path, maxBytes, { lstat, readFile }) {
 // Accept only the canonical absolute target or a single, exact relative
 // spelling from this trusted link directory. Never resolve arbitrary ../
 // sequences, because that would authorize aliases or path traversal.
-function pointerSha(link, absolutePattern, relativePattern, { lstat, readlink }) {
+function pointerSha(
+  link,
+  absolutePattern,
+  relativePattern,
+  { lstat, readlink },
+) {
   try {
     if (!lstat(link).isSymbolicLink()) return null;
     const target = readlink(link);
