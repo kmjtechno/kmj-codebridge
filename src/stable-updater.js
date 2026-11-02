@@ -111,6 +111,14 @@ function assertNoRedirectedStateAncestors(target) {
     }
     if (stat.isSymbolicLink() || !stat.isDirectory())
       fail("UPDATE_STATE_ROOT_INVALID");
+    if (process.platform !== "win32" && (stat.mode & 0o022) !== 0) {
+      // A group/world-writable ancestor lets another identity redirect
+      // the state path between checks. Root-owned sticky public directories
+      // (such as /tmp) prevent other users from renaming our entries.
+      const rootOwnedSticky =
+        stat.uid === 0 && (stat.mode & 0o1000) !== 0;
+      if (!rootOwnedSticky) fail("UPDATE_STATE_ROOT_INVALID");
+    }
   }
 }
 
