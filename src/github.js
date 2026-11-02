@@ -483,7 +483,16 @@ export function createGitHubBridge(config) {
         sha(requestBody.sha) &&
         value.object?.sha === requestBody.sha
       );
-    if (method === "POST" && suffix === "issues") return id(value.number);
+    if (method === "POST" && suffix === "issues") {
+      // A numeric issue ID alone could be a receipt for another repository.
+      // Bind the canonical API URL to the returned number and exact repo.
+      if (!id(value.number)) return false;
+      const expectedIssueUrl = new URL(
+        `repos/${safePath(repository)}/issues/${value.number}`,
+        config.apiBase,
+      ).href;
+      return value.url === expectedIssueUrl;
+    }
     if (method === "POST" && /^issues\/\d+\/comments$/.test(suffix)) {
       // An ID alone can be a receipt from a different issue/repository.
       // GitHub's canonical issue_url must match this exact native target.
