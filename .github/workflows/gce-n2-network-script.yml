@@ -37,6 +37,13 @@ jobs:
           assert "net-define" in source
           assert "net-start" in source
           assert "net-autostart" in source
+          # IAP connection failure after GCE start must stop the VM; never
+          # execute network-mutating Python until a read-only SSH probe passes.
+          assert "IAP_SSH_PREFLIGHT=PASS" in source
+          assert "IAP_SSH_PREFLIGHT=BLOCKED_5_ATTEMPTS" in source
+          assert "timeout 30 gcloud compute ssh" in source
+          assert "exit 71" in source
+          assert source.index("IAP_SSH_PREFLIGHT=PASS") < source.index("REMOTE=$(cat")
           assert "rm -rf" not in source
           assert "virsh(\"undefine\"" not in source
           print("N2_BASH_AND_HOST_PYTHON_SYNTAX=PASS")
