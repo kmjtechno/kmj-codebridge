@@ -70,7 +70,7 @@ import xml.etree.ElementTree as ET
 
 HOST = "kmj-cloudos-kvm-test"
 DOMAINS = (
-    "kmj-ci-kmj-validation-26b557dc40dc0cf5cf",
+    "kmj-ci-kmj-validation-26b557dc40dc0d0cf5cf",
     "kmj-ci-other-tenant-8fd54398cc6bb3e5658d",
 )
 NETWORKS = (
@@ -118,7 +118,8 @@ try:
     links = {row.get("ifname"): row for row in link_rows}
     observed = []
     for name, bridge, cidr in NETWORKS:
-        if any(flags(name).get(k) != "yes" for k in ("active", "persistent", "autostart")):
+        status = flags(name)
+        if any(status.get(k) != "yes" for k in ("active", "persistent", "autostart")):
             raise RuntimeError("NETWORK_NOT_ACTIVE_PERSISTENT")
         xml = ET.fromstring(virsh("net-dumpxml", name))
         if (xml.tag != "network" or xml.findtext("name") != name
