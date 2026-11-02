@@ -204,6 +204,32 @@ test("failed direct writer releases only its own lock and leaves no temp state",
 });
 
 test(
+  "reader rejects missing, redirected or world-readable state root before assuming first boot",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root, stateDir } = fixture(t);
+    fs.rmdirSync(stateDir);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    fs.symlinkSync(root, stateDir);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    fs.unlinkSync(stateDir);
+    fs.mkdirSync(stateDir, { mode: 0o700 });
+    fs.chmodSync(stateDir, 0o755);
+    assert.throws(
+      () => readAcceptedUpdateState(stateDir),
+      /UPDATE_STATE_ROOT_INVALID/,
+    );
+    assert.deepEqual(fs.readdirSync(stateDir), []);
+  },
+);
+
+test(
   "direct writer rejects insecure state root before creating lock or watermark",
   { skip: process.platform === "win32" },
   (t) => {
