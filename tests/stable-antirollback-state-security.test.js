@@ -317,3 +317,30 @@ test(
     assert.deepEqual(fs.readdirSync(actual), []);
   },
 );
+
+test(
+  "writable non-sticky state ancestors fail closed before watermark creation",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { root } = fixture(t);
+    const parent = path.join(root, "untrusted-parent");
+    const stateDir = path.join(parent, "state");
+    fs.mkdirSync(parent, { mode: 0o700 });
+    fs.mkdirSync(stateDir, { mode: 0o700 });
+    for (const mode of [0o770, 0o777]) {
+      fs.chmodSync(parent, mode);
+      assert.throws(
+        () => readAcceptedUpdateState(stateDir),
+        /UPDATE_STATE_ROOT_INVALID/,
+      );
+      assert.throws(
+        () => writeAcceptedUpdateState(stateDir, manifest),
+        /UPDATE_STATE_ROOT_INVALID/,
+      );
+      assert.deepEqual(fs.readdirSync(stateDir), []);
+    }
+    fs.chmodSync(parent, 0o700);
+    writeAcceptedUpdateState(stateDir, manifest);
+    assert.equal(readAcceptedUpdateState(stateDir).sequence, 43);
+  },
+);
