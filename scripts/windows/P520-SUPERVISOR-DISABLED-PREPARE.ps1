@@ -49,6 +49,53 @@ function Assert-Path([string]$value,[string]$tag,[bool]$required) {
     $cur=$parent
   }
 }
+# A protected Supervisor release/token must not be stored in a user-writable
+# checkout or %LOCALAPPDATA%. This checks only the P520 owner-protected scope.
+function Assert-ProtectedLocation([string]$target,[string]$tag) {
+  $base=[IO.Path]::GetFullPath((Join-Path $env:ProgramData 'KMJ-CodeBridge\P520')).TrimEnd('\')
+  $targetFull=[IO.Path]::GetFullPath($target)
+  if(-not $targetFull.StartsWith($base+'\', [StringComparison]::OrdinalIgnoreCase)) {
+    throw ('OUTSIDE_PROTECTED_P520_ROOT_'+$tag)
+  }
+  if(-not(Test-Path -LiteralPath $base -PathType Container)) {
+    throw 'OWNER_PROTECTED_ROOT_NOT_PROVISIONED'
+  }
+  $cur=if(Test-Path -LiteralPath $targetFull -PathType Container) {
+    $targetFull
+  } else { [IO.Path]::GetDirectoryName($targetFull) }
+  $broad=@('S-1-1-0','S-1-5-11','S-1-5-32-545','S-1-5-4','S-1-5-2')
+  $writes=([Security.AccessControl.FileSystemRights]::Write -bor
+           [Security.AccessControl.FileSystemRights]::Modify -bor
+           [Security.AccessControl.FileSystemRights]::FullControl -bor
+           [Security.AccessControl.FileSystemRights]::Delete)
+  for($i=0;$i -lt 32;$i++) {
+    if(-not $cur.StartsWith($base,[StringComparison]::OrdinalIgnoreCase)) {
+      throw ('PROTECTED_ANCESTRY_INVALID_'+$tag)
+    }
+    if(Test-Path -LiteralPath $cur -PathType Container) {
+      $item=Get-Item -LiteralPath $cur -Force -ErrorAction Stop
+      if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw ('PROTECTED_REPARSE_'+$tag)
+      }
+      $acl=Get-Acl -LiteralPath $cur -ErrorAction Stop
+      $owner=$acl.GetOwner([Security.Principal.SecurityIdentifier]).Value
+      if($owner -notin @('S-1-5-18','S-1-5-32-544')) {
+        throw ('PROTECTED_OWNER_NOT_ADMIN_'+$tag)
+      }
+      foreach($ace in $acl.Access) {
+        $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+        if($ace.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
+           $sid -in $broad -and (($ace.FileSystemRights -band $writes) -ne 0)) {
+          throw ('PROTECTED_BROAD_WRITE_'+$tag)
+        }
+      }
+    }
+    if($cur -ieq $base) { return }
+    $cur=[IO.Path]::GetDirectoryName($cur.TrimEnd('\'))
+    if([string]::IsNullOrWhiteSpace($cur)) { break }
+  }
+  throw ('PROTECTED_ACL_UNVERIFIED_'+$tag)
+}
 function Assert-Hash([string]$file,[string]$sha) {
   $actual=(Get-FileHash -LiteralPath $file -Algorithm SHA256 -ErrorAction Stop).Hash.ToLowerInvariant()
   if($actual -cne $sha) { throw 'PINNED_ARTIFACT_MISMATCH' }
@@ -144,6 +191,10 @@ try {
   if(-not $who.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw 'ADMINISTRATOR_REQUIRED'
   }
+  Assert-ProtectedLocation $SupervisorConfig 'SUPERVISOR_CONFIG'
+  Assert-ProtectedLocation $RuntimeDir 'RUNTIME'
+  Assert-ProtectedLocation $BackupRoot 'BACKUP_ROOT'
+  Assert-ProtectedLocation $token 'TOKEN'
   Assert-Hash $AgentConfig $AgentConfigSha256
   Assert-Hash $SupervisorConfig $SupervisorConfigSha256
   Assert-Hash $cli $RuntimeEntrySha256
