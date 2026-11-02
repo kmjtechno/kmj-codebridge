@@ -1,0 +1,42 @@
+name: N2 isolated tenant network script static checks
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+      - .github/workflows/gce-n2-network-script.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+      - .github/workflows/gce-n2-network-script.yml
+
+permissions:
+  contents: read
+
+jobs:
+  static-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax and Python remote syntax
+        run: |
+          bash -n scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh")
+          source = path.read_text()
+          code = source.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_CODE", 1)[0]
+          compile(code, str(path) + "#host", "exec")
+          assert "SERVER_SIDE_AUTO_STOP=900_SECONDS_VERIFIED" in source
+          assert "trap stop_host EXIT" in source
+          assert "VM_FINAL_STATE=" in source
+          assert "PRODUCTION_RELEASE_CREDIT=NO" in source
+          assert "REFUSE_OTHER_VM" in source
+          assert "net-define" in source
+          assert "net-start" in source
+          assert "net-autostart" in source
+          assert "rm -rf" not in source
+          assert "virsh(\"undefine\"" not in source
+          print("N2_BASH_AND_HOST_PYTHON_SYNTAX=PASS")
+          PY
