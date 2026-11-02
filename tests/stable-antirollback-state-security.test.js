@@ -82,6 +82,12 @@ test(
 test("writer cannot downgrade or replace a different signed release at the accepted sequence", (t) => {
   const { stateDir, file } = fixture(t);
   writeAcceptedUpdateState(stateDir, manifest);
+  const firstAcceptedAt = readAcceptedUpdateState(stateDir).acceptedAt;
+  assert.throws(
+    () => writeAcceptedUpdateState(stateDir, manifest),
+    /UPDATE_STATE_ROLLBACK_REJECTED/,
+  );
+  assert.equal(readAcceptedUpdateState(stateDir).acceptedAt, firstAcceptedAt);
   assert.throws(
     () => writeAcceptedUpdateState(stateDir, { ...manifest, sequence: 42 }),
     /UPDATE_STATE_ROLLBACK_REJECTED/,
