@@ -7,6 +7,7 @@ import {
   CutoverError,
   DEFAULTS,
   dropInContent,
+  legacySourceFingerprint,
   parseArgs,
   recognizedDropIn,
   runCutover,
@@ -173,6 +174,8 @@ function host(t, tweak = {}) {
       if (gitAt !== -1) {
         const gitArgs = argv.slice(gitAt);
         const root = gitArgs[gitArgs.indexOf("-C") + 1];
+        if (state.legacyGitUnavailable && root === oldRoot)
+          throw new CutoverError("COMMAND_FAILED:runuser");
         if (gitArgs.includes("status")) {
           if (root === state.qaRoot)
             return state.qaTrackedDirty ? " M src/qa.js" : "";
@@ -250,6 +253,92 @@ function host(t, tweak = {}) {
 const POSIX_ONLY = process.platform === "win32" ? "POSIX host model" : false;
 
 const lines = (out) => Object.fromEntries(out.map(([k, v]) => [k, v]));
+
+function installLegacySource(h) {
+  const files = [
+    "src/cli.js",
+    "src/gateway.js",
+    "src/config.js",
+    "package.json",
+  ];
+  for (const name of files) {
+    const file = path.join(h.oldRoot, name);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, name + " legacy source\\n", { mode: 0o644 });
+  }
+}
+
+test(
+  "unversioned live Gateway needs explicit operator opt-in and source fingerprint",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { legacyGitUnavailable: true } });
+    installLegacySource(h);
+    await assert.rejects(
+      runCutover(h.options, h.deps),
+      /LEGACY_BASELINE_REQUIRES_OWNER_OPT_IN/,
+    );
+    assert.equal(h.state.restarts, 0);
+    const { ok, out } = await runCutover(
+      { ...h.options, allowLegacyBaseline: true },
+      h.deps,
+    );
+    assert.equal(ok, true);
+    const meta = lines(out);
+    assert.equal(meta.FROM_COMMIT, "LEGACY_UNVERSIONED");
+    assert.equal(
+      meta.LEGACY_BASELINE_SHA256,
+      legacySourceFingerprint(h.oldRoot),
+    );
+    assert.ok(h.state.gateCwds.length === 3);
+    assert.ok(h.state.gateCwds.every((cwd) => cwd !== h.target));
+    assert.ok(h.state.gateCwds.every((cwd) => cwd === h.state.qaRoot));
+    assert.equal(meta.RESULT, "DRY_RUN_OK_NOTHING_CHANGED");
+    assert.equal(h.state.restarts, 0);
+  },
+);
+
+test(
+  "legacy rollback asserts original process directory, source fingerprint and catalog",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, {
+      state: { legacyGitUnavailable: true, ignoreCommitEnv: true },
+    });
+    installLegacySource(h);
+    const { ok, out } = await runCutover(
+      {
+        ...h.options,
+        apply: true,
+        confirmNoActiveJobs: true,
+        allowLegacyBaseline: true,
+      },
+      h.deps,
+    );
+    assert.equal(ok, false);
+    const meta = lines(out);
+    assert.equal(meta.CUTOVER, "FAIL");
+    assert.equal(meta.ROLLBACK, "PASS");
+    assert.equal(meta.ROLLBACK_ASSERT, "PID_RUNTIME_LEGACY_SHA256_CATALOG");
+    assert.equal(h.state.restarts, 2);
+  },
+);
+
+test(
+  "legacy fingerprint rejects a symlinked critical source",
+  { skip: POSIX_ONLY },
+  (t) => {
+    const h = host(t);
+    installLegacySource(h);
+    const file = path.join(h.oldRoot, "src/cli.js");
+    fs.rmSync(file);
+    fs.symlinkSync(path.join(h.oldRoot, "package.json"), file);
+    assert.throws(
+      () => legacySourceFingerprint(h.oldRoot),
+      /LEGACY_RUNTIME_SOURCE_UNSAFE/,
+    );
+  },
+);
 
 test("option parsing and validation reject anything but a pinned full SHA and safe values", () => {
   assert.equal(parseArgs(["--target-sha", NEW_SHA]).apply, false);
