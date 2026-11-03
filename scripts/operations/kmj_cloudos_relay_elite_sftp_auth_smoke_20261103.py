@@ -166,7 +166,6 @@ def run(argv, *, stdin=None, timeout=15):
             argv,
             input=stdin,
             capture_output=True,
-            stdin=subprocess.PIPE if stdin is not None else subprocess.DEVNULL,
             timeout=timeout,
             check=False,
         )
