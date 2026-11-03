@@ -98,7 +98,7 @@ done
 # Tests may generate untracked outputs. Never promote those outputs into a
 # production gateway runtime. A changed tracked file always blocks. If only
 # untracked test files exist, make a NEW clean checkout of the verified commit
-# (no git reset/clean; no copies from the tested working tree), reinstall the
+# (no destructive Git cleanup; no copying from the tested worktree), reinstall the
 # exact lockfile, and attest the clean candidate before publication.
 if [[ "$(run_service git -C "$stage" rev-parse HEAD)" != "$sha" ]]; then
   echo "STAGING=BLOCKED_HEAD_DRIFT" >&2
