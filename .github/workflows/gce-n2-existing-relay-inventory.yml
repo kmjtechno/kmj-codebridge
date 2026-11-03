@@ -53,7 +53,6 @@ jobs:
                             "remove","write","write_bytes","write_text",
                             "chmod","chown","connect","socket","start","stop"):
               assert forbidden not in calls, forbidden
-          assert '("instances", "list")' not in s
           assert 'query("instances", "list")' in s
           assert 'n2.get("deletionProtection") is not True' in s
           assert 'disks[0].get("autoDelete") is not False' in s
