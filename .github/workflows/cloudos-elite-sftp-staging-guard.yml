@@ -1,0 +1,66 @@
+name: CloudOS ELITE SFTP staging guard
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_stage_sftp_account_20261103.py
+      - .github/workflows/cloudos-elite-sftp-staging-guard.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_stage_sftp_account_20261103.py
+      - .github/workflows/cloudos-elite-sftp-staging-guard.yml
+
+permissions:
+  contents: read
+
+jobs:
+  stage-safety-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Safety self-test, bytecode syntax, and limited mutation guard
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_stage_sftp_account_20261103.py --self-test
+          python3 -m py_compile scripts/operations/kmj_elite_cloudos_stage_sftp_account_20261103.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          script=Path("scripts/operations/kmj_elite_cloudos_stage_sftp_account_20261103.py")
+          src=script.read_text()
+          tree=ast.parse(src)
+          assert "ELITE_SSHD_CONFIGURATION=UNTOUCHED" in src
+          assert "ELITE_AGE_OWNER_RECOVERY=NOT_CONFIGURED" in src
+          assert "CLOUDOS_PRODUCTION_RELEASE=BLOCKED" in src
+          assert "ELITE_SFTP_STAGE=BLOCKED_EXACT_HOST_AND_ROOT_REQUIRED" in src
+          assert 'os.O_NOFOLLOW' in src
+          assert '"/usr/sbin/useradd"' in src
+          assert '"/usr/sbin/nologin"' in src
+          assert 'os.geteuid() != 0' in src
+          assert '"--user-group"' in src
+          assert '"/nonexistent"' in src
+          assert "BANNED_GROUPS" in src
+          assert "stat.S_IMODE(st.st_mode)" in src
+          calls=[]
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Call):
+                  f=node.func
+                  if isinstance(f,ast.Attribute):
+                      calls.append((f.attr, f.value.id if isinstance(f.value,ast.Name) else ""))
+                  elif isinstance(f,ast.Name):
+                      calls.append((f.id, ""))
+          deny={"system","Popen","execv","execve","userdel","groupdel",
+                "remove","unlink","rmtree","rename","replace",
+                "write","write_text","write_bytes","symlink","link",
+                "chown","chmod","makedirs","ssh","ssh-keygen",
+                "setuid","setgid"}
+          assert not (deny & {x[0] for x in calls}), deny & {x[0] for x in calls}
+          assert calls.count(("mkdir","os")) == 2
+          assert calls.count(("fchmod","os")) == 1
+          assert calls.count(("fchown","os")) == 1
+          assert calls.count(("run","subprocess")) == 1
+          assert calls.count(("umask","os")) == 1
+          assert 'shell=True' not in src
+          assert '"--stage"' in src and '"--inspect"' in src
+          print("ELITE_SFTP_STAGE_MUTATION_SCOPE_AST=PASS")
+          PY
