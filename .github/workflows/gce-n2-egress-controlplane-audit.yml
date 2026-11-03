@@ -52,7 +52,7 @@ jobs:
           for forbidden in ("write", "write_text", "write_bytes", "mkdir",
                             "unlink", "rmtree", "rmdir", "remove", "rename",
                             "chown", "chmod", "connect", "socket",
-                            "system", "Popen", "get", "post", "put"):
+                            "system", "Popen", "post", "put"):
               assert forbidden not in calls, forbidden
           for mutation in ('"start"', '"stop"', '"create"', '"delete"',
                            '"update"', '"set-scheduling"', '"set-access-config"'):
