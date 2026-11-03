@@ -47,6 +47,14 @@ def require_dir(st, *, uid=0, mode=None, strict=False):
         raise Blocked("DIRECTORY_WRITABLE_BY_GROUP_OR_WORLD")
 
 
+def shadow_entry_disabled(payload: bytes) -> bool:
+    prefix = ACCOUNT.encode("ascii") + b":"
+    matches = [line.split(b":", 2)[1]
+               for line in payload.splitlines()
+               if line.startswith(prefix) and b":" in line[len(prefix):]]
+    return len(matches) == 1 and matches[0].startswith((b"!", b"*"))
+
+
 def require_disabled_local_shadow():
     """Verify the account has no usable password without printing hashes.
 
@@ -68,11 +76,7 @@ def require_disabled_local_shadow():
             os.close(fd)
     except OSError:
         raise Blocked("LOCAL_SHADOW_NOT_READABLE") from None
-    prefix = ACCOUNT.encode("ascii") + b":"
-    matches = [line.split(b":", 2)[1]
-               for line in payload.splitlines()
-               if line.startswith(prefix) and b":" in line[len(prefix):]]
-    if len(matches) != 1 or not matches[0].startswith((b"!", b"*")):
+    if not shadow_entry_disabled(payload):
         raise Blocked("UPLOADER_PASSWORD_NOT_LOCKED_OR_LOCAL")
 
 
@@ -245,6 +249,15 @@ def stage(srv, user):
 
 
 def self_test():
+    assert shadow_entry_disabled((ACCOUNT + ":!:20000:0:99999:7:::\n").encode())
+    assert shadow_entry_disabled((ACCOUNT + ":*:20000:0:99999:7:::\n").encode())
+    for bad in (
+        "", ACCOUNT + ":$6$password-hash:20000:0:99999:7:::\n",
+        ACCOUNT + ":!:20000:0:99999:7:::\n" +
+        ACCOUNT + ":!:20000:0:99999:7:::\n",
+        "someone_else:!:20000:0:99999:7:::\n",
+    ):
+        assert not shadow_entry_disabled(bad.encode())
     from types import SimpleNamespace
     d = lambda uid, mode: SimpleNamespace(
         st_uid=uid, st_mode=stat.S_IFDIR | mode)
