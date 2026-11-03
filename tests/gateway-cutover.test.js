@@ -289,7 +289,7 @@ test(
     fs.mkdirSync(path.dirname(later), { recursive: true });
     fs.writeFileSync(
       later,
-      "[Service]\\nWorkingDirectory=" + h.oldRoot + "\\nExecStart=\\n",
+      "[Service]\nWorkingDirectory=" + h.oldRoot + "\nExecStart=\n",
     );
     for (const opts of [
       h.options,
@@ -320,7 +320,7 @@ test(
       "90-github-readonly.conf",
     );
     fs.mkdirSync(path.dirname(earlier), { recursive: true });
-    fs.writeFileSync(earlier, "[Service]\\nNoNewPrivileges=yes\\n");
+    fs.writeFileSync(earlier, "[Service]\nNoNewPrivileges=yes\n");
     const { ok, out } = await runCutover(h.options, h.deps);
     assert.equal(ok, true);
     assert.equal(lines(out).RESULT, "DRY_RUN_OK_NOTHING_CHANGED");
