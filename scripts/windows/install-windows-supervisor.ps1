@@ -92,6 +92,18 @@ if (@($json.PSObject.Properties.Name) -contains 'supervisorSocket' -or
 }
 if (Test-Path -LiteralPath $backup) { throw 'BACKUP_DESTINATION_EXISTS' }
 New-Item -ItemType Directory -Path $backup -ErrorAction Stop | Out-Null
+# Backup copies contain the existing agent credentials. Restrict the EMPTY
+# backup directory before copying anything, even when the parent is readable.
+& icacls.exe $backup /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)(F)' 'BUILTIN\Administrators:(OI)(CI)(F)' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'BACKUP_ACL_LOCK_FAILED' }
+$backupAcl = Get-Acl -LiteralPath $backup -ErrorAction Stop
+foreach ($ace in $backupAcl.Access) {
+  if ($ace.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
+  $sid = $ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+  if ($sid -notin @('S-1-5-18', 'S-1-5-32-544')) {
+    throw 'BACKUP_ACL_UNAPPROVED_READER'
+  }
+}
 $manifest = [ordered]@{
   schema = 2
   createdUtc = $stamp
