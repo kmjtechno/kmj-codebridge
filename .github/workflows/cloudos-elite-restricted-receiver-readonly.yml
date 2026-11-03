@@ -1,0 +1,59 @@
+name: CloudOS ELITE restricted backup receiver read-only preflight
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_restricted_receiver_readonly_20261103.py
+      - .github/workflows/cloudos-elite-restricted-receiver-readonly.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_restricted_receiver_readonly_20261103.py
+      - .github/workflows/cloudos-elite-restricted-receiver-readonly.yml
+
+permissions:
+  contents: read
+
+jobs:
+  restricted-receiver-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed receiver policy checks and static no-mutation audit
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_restricted_receiver_readonly_20261103.py --self-test
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path("scripts/operations/kmj_elite_cloudos_restricted_receiver_readonly_20261103.py")
+          s=p.read_text()
+          t=ast.parse(s)
+          forbidden={
+              "write", "write_text", "write_bytes", "mkdir", "makedirs",
+              "unlink", "remove", "rmdir", "rmtree", "chmod", "chown", "lchown",
+              "rename", "replace", "system", "Popen", "connect", "execv", "execve",
+              "useradd", "adduser", "ssh", "sftp", "put", "send",
+          }
+          calls=set()
+          for node in ast.walk(t):
+              if isinstance(node,ast.Call):
+                  f=node.func
+                  # Pure string.replace in self_test must not be confused with
+                  # a filesystem os.replace mutation. Exempt only base.replace.
+                  if (isinstance(f, ast.Attribute) and f.attr == "replace"
+                          and isinstance(f.value, ast.Name)
+                          and f.value.id == "base"):
+                      continue
+                  calls.add(f.attr if isinstance(f,ast.Attribute)
+                            else f.id if isinstance(f,ast.Name) else "")
+          assert not (calls & forbidden), calls & forbidden
+          assert 'os.O_NOFOLLOW' in s
+          assert 'stat.S_IMODE(info.st_mode) != 0o600' in s
+          assert 'ELITE_RECEIVER_STATIC_PREFLIGHT=BLOCKED' in s
+          assert 'RELAY_TO_ELITE_AUTHENTICATED_LOGIN=NOT_ATTEMPTED' in s
+          assert 'AGE_OWNER_PRIVATE_RECOVERY_ESCROW=NOT_VERIFIED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          assert 'f"user={ACCOUNT},host=relay,addr=127.0.0.1"' in s
+          assert calls.count("run")==1 if isinstance(calls, list) else "run" in calls
+          print("ELITE_RECEIVER_OFFLINE_AST_NO_MUTATION=PASS")
+          PY
