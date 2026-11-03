@@ -108,6 +108,15 @@ function host(t, tweak = {}) {
           ActiveState: state.active ? "active" : "failed",
           User: state.user,
           FragmentPath: unitFile,
+          NeedDaemonReload: "no",
+          DropInPaths: fs.existsSync(path.dirname(dropIn))
+            ? fs
+                .readdirSync(path.dirname(dropIn))
+                .filter((name) => name.endsWith(".conf"))
+                .sort()
+                .map((name) => path.join(path.dirname(dropIn), name))
+                .join(" ")
+            : "",
         }[key];
       }
       if (rest[0] === "restart") {
@@ -267,6 +276,54 @@ function installLegacySource(h) {
     fs.writeFileSync(file, name + " legacy source\\n", { mode: 0o644 });
   }
 }
+
+test(
+  "higher-precedence signed runtime pin stops before restart or backup",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const later = path.join(path.dirname(h.dropIn), "zzzz-kmj-signed14.conf");
+    fs.mkdirSync(path.dirname(later), { recursive: true });
+    fs.writeFileSync(
+      later,
+      "[Service]\nWorkingDirectory=" + h.oldRoot + "\nExecStart=\n",
+    );
+    for (const opts of [
+      h.options,
+      {
+        ...h.options,
+        apply: true,
+        confirmNoActiveJobs: true,
+      },
+    ]) {
+      await assert.rejects(
+        runCutover(opts, h.deps),
+        /LATER_SYSTEMD_OVERRIDE_BLOCKS_CUTOVER/,
+      );
+      assert.equal(h.state.restarts, 0);
+      assert.equal(fs.existsSync(h.dropIn), false);
+      assert.equal(fs.existsSync(h.options.backupRoot), false);
+    }
+  },
+);
+
+test(
+  "earlier unrelated drop-in does not mask the managed pinned runtime",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const earlier = path.join(
+      path.dirname(h.dropIn),
+      "90-github-readonly.conf",
+    );
+    fs.mkdirSync(path.dirname(earlier), { recursive: true });
+    fs.writeFileSync(earlier, "[Service]\nNoNewPrivileges=yes\n");
+    const { ok, out } = await runCutover(h.options, h.deps);
+    assert.equal(ok, true);
+    assert.equal(lines(out).RESULT, "DRY_RUN_OK_NOTHING_CHANGED");
+    assert.equal(h.state.restarts, 0);
+  },
+);
 
 test(
   "unversioned live Gateway needs explicit operator opt-in and source fingerprint",

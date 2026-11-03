@@ -413,6 +413,35 @@ function inspect(options, deps) {
       "DROPIN_UNRECOGNIZED",
     );
 
+  // Systemd merges drop-ins in lexicographic filename order. If a later
+  // owner-installed override exists (for example a signed-release pin), our
+  // 99-kmj-pinned-runtime.conf is NOT authoritative. Fail before touching
+  // the runtime or restarting, rather than reporting a false cutover and
+  // attempting a rollback. The owner must separately review that override;
+  // never delete, rename, or bypass it in this controller.
+  const loadedDropins = show("DropInPaths");
+  check(
+    typeof loadedDropins === "string" && loadedDropins.length <= 16384,
+    "SYSTEMD_DROPINS_UNVERIFIED",
+  );
+  const dropinPaths = loadedDropins.trim()
+    ? loadedDropins.trim().split(/\s+/)
+    : [];
+  check(dropinPaths.length <= 64, "SYSTEMD_DROPINS_UNVERIFIED");
+  for (const entry of dropinPaths) {
+    const name = path.basename(entry);
+    check(
+      SAFE_PATH.test(entry) && SAFE_NAME.test(name),
+      "SYSTEMD_DROPINS_UNVERIFIED",
+    );
+    check(
+      name !== DROPIN || entry === existingDropIn,
+      "SYSTEMD_SAME_NAME_DROPIN_COLLISION",
+    );
+    check(name <= DROPIN, "LATER_SYSTEMD_OVERRIDE_BLOCKS_CUTOVER");
+  }
+  check(show("NeedDaemonReload") === "no", "SYSTEMD_DAEMON_RELOAD_PENDING");
+
   // Production candidate must remain unchanged throughout verification.
   // Tests can create untracked files; they must run in an isolated,
   // service-owned disposable copy, never inside the publishable runtime.
