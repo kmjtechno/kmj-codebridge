@@ -192,8 +192,7 @@ code=$(systemctl show "$UNIT" -p ExecMainStatus --value 2>/dev/null) ||
 
 # Require EXACT new root-unit CLI completion, not a stale unit property or an
 # unrelated journal entry. Never echo arbitrary journal text or secrets.
-python3 -I -S - "$UNIT" "$cursor_before" <<'PY' ||
-  fail SIGNED_JOB_EXECUTION_UNVERIFIED
+if ! python3 -I -S - "$UNIT" "$cursor_before" <<'PY'
 import json, re, subprocess, sys
 unit, cursor = sys.argv[1:]
 try:
@@ -228,4 +227,7 @@ print('CODEBRIDGE_SIGNED_UPDATED=' + matches[0][2].upper())
 print('CODEBRIDGE_SIGNED_VERSION=' + matches[0][0])
 print('CODEBRIDGE_SIGNED_SEQUENCE=' + matches[0][1])
 PY
+then
+  fail SIGNED_JOB_EXECUTION_UNVERIFIED
+fi
 printf 'CODEBRIDGE_ACTIVATION=RECHECK_LIVE_RELEASE_SHA_AND_OAUTH\n'
