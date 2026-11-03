@@ -116,18 +116,29 @@ $bytes = New-Object byte[] 32
 [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 $hex = -join ($bytes | ForEach-Object { $_.ToString('x2') })
 New-Item -ItemType Directory -Path (Split-Path -Parent $tokenFile) -Force | Out-Null
-Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
+# Create a NEW EMPTY file atomically before setting ACLs; never place the
+# secret in a file which may still inherit a broad parent read permission.
+$tokenStream = [System.IO.File]::Open(
+  $tokenFile,
+  [System.IO.FileMode]::CreateNew,
+  [System.IO.FileAccess]::Write,
+  [System.IO.FileShare]::None
+)
+$tokenStream.Dispose()
 $manifest.tokenCreatedByInstaller = $true
-$manifest.tokenSha256 = Get-Sha256 $tokenFile
 Write-Manifest $manifestPath $manifest
 
-# Restrict the secret: no inherited ACEs, only SYSTEM, Administrators and the service account.
+# Harden the EMPTY token file before putting any secret bytes on disk.
 & icacls.exe $tokenFile /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(F)' 'BUILTIN\Administrators:(F)' "${ServiceAccount}:(R)" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'icacls failed to restrict the token file.' }
 $acl = (& icacls.exe $tokenFile) -join "`n"
 if ($acl -match '(?i)\b(Everyone|Users|Authenticated Users|ANONYMOUS LOGON|INTERACTIVE|NETWORK)\b[^\n]*:') {
   throw 'Token file ACL still contains a broad principal; refusing to continue.'
 }
+# Only after successful permission checks may the secret be written.
+Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
+$manifest.tokenSha256 = Get-Sha256 $tokenFile
+Write-Manifest $manifestPath $manifest
 
 $taskArgs = "`"$RuntimeDir\src\cli.js`" windows-supervisor `"$SupervisorConfig`""
 $manifest.taskExe = $node
