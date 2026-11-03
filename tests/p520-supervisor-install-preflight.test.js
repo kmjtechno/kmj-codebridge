@@ -83,6 +83,11 @@ test("one-click P520 launcher cryptographically pins the read-only script", () =
     .update(fs.readFileSync(script))
     .digest("hex");
   assert.match(cmd.toLowerCase(), new RegExp(actual));
+  assert.match(
+    cmd,
+    /^"%SystemRoot%\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe" -NoProfile/m,
+  );
+  assert.doesNotMatch(cmd, /^powershell\.exe\s/im);
   assert.match(cmd, /P520_PREFLIGHT_SHA256=PASS/);
   assert.match(cmd, /-SelfTest/);
   assert.match(cmd, /SCRIPT_HASH_MISMATCH/);
