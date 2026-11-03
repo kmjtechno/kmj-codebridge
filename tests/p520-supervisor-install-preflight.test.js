@@ -18,10 +18,15 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /P520_INSTALL_ACTION' 'NONE'/);
   assert.match(source, /P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'/);
   assert.match(source, /ONE_UNATTESTED_CANDIDATE/);
+  assert.match(source, /gateway -cne 'https:\/\/kmjtechno\\.com\/mcp'/);
+  assert.match(source, /Candidate-Identity \$wrongGateway/);
   assert.match(source, /Safe-Candidate-Path/);
   assert.match(source, /FileAttributes\]::ReparsePoint/);
   assert.match(source, /Get-ScheduledTask -ErrorAction Stop/);
   assert.match(source, /Get-ChildItem -LiteralPath \$folder -Force/);
+  assert.match(source, /Select-Object -First \$limit/);
+  assert.match(source, /\$limit = 161 - \$searched/);
+  assert.doesNotMatch(source, /foreach\(\$entry in \(Get-ChildItem/);
   assert.match(source, /\$searched -gt 160/);
   assert.match(source, /\$pending\.Enqueue/);
   assert.doesNotMatch(source, /Get-ChildItem.*-Recurse/);
