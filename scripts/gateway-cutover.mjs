@@ -328,11 +328,14 @@ function inspect(options, deps) {
   // service-owned disposable copy, never inside the publishable runtime.
   // The copy includes the already installed exact-lockfile dependencies;
   // no new network fetch, mutable branch, or privileged test process.
-  const qaRoot = deps.run(
-    asService(["mktemp", "-d", "-t", "kmj-codebridge-gates.XXXXXXXX"]),
-  );
+  // Use the existing service user's home rather than /tmp, which can be
+  // noexec and break npm's executable test tools. No root-created writable
+  // workspace or host systemd change is required.
+  const qaPrefix = `${home}/.kmj-codebridge-gates.`;
+  const qaRoot = deps.run(asService(["mktemp", "-d", `${qaPrefix}XXXXXXXX`]));
   check(
-    /^\/tmp\/kmj-codebridge-gates\.[A-Za-z0-9]{8,}$/.test(qaRoot),
+    qaRoot.startsWith(qaPrefix) &&
+      /^[A-Za-z0-9]{8}$/.test(qaRoot.slice(qaPrefix.length)),
     "QA_DIRECTORY_UNSAFE",
   );
   const qaStat = fs.lstatSync(qaRoot);
