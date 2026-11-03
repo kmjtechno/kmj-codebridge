@@ -131,7 +131,7 @@ test("shared installer locks an empty token before writing the first secret byte
   assert.ok(create > 0 && acl > create, "token must be empty when ACL is set");
   assert.ok(
     aclFailure > acl && secretWrite > aclFailure,
-    "no secret bytes may be written before ACL verification",
+    `no secret bytes before ACL verification (create=${create}, acl=${acl}, verify=${aclFailure}, write=${secretWrite})`,
   );
   assert.ok(
     source.indexOf("$manifest.tokenCreatedByInstaller = $true") < secretWrite,
