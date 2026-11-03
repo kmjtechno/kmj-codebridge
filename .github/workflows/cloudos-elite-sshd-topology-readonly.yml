@@ -1,0 +1,53 @@
+name: CloudOS ELITE read-only sshd topology
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_topology_readonly_20261103.py
+      - .github/workflows/cloudos-elite-sshd-topology-readonly.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_topology_readonly_20261103.py
+      - .github/workflows/cloudos-elite-sshd-topology-readonly.yml
+
+permissions:
+  contents: read
+
+jobs:
+  sshd-topology-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fail-closed offline parser tests and no-mutation AST
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_sshd_topology_readonly_20261103.py --self-test
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          src=Path("scripts/operations/kmj_elite_cloudos_sshd_topology_readonly_20261103.py").read_text()
+          tree=ast.parse(src)
+          prohibited={
+              "mkdir", "makedirs", "rename", "replace", "unlink", "remove",
+              "rmdir", "rmtree", "chmod", "fchmod", "chown", "fchown",
+              "write", "write_text", "write_bytes", "truncate", "symlink",
+              "system", "Popen", "connect", "send", "execv", "execve",
+              "useradd", "adduser", "service", "restart", "reload",
+          }
+          calls=set()
+          for n in ast.walk(tree):
+              if isinstance(n,ast.Call):
+                  f=n.func
+                  calls.add(f.attr if isinstance(f,ast.Attribute)
+                            else f.id if isinstance(f,ast.Name) else "")
+          assert not (prohibited & calls), prohibited & calls
+          assert calls.count("run")==1 if isinstance(calls, list) else "run" in calls
+          assert "O_NOFOLLOW" in src
+          assert "ELITE_ADMIN_POLICY_NOT_MODIFIED=PASS" in src
+          assert "ELITE_SSHD_SERVICE_OR_PORT_MUTATIONS=NONE_BY_THIS_PROGRAM" in src
+          assert "ELITE_AUTHENTICATED_UPLOADER_LOGIN=NOT_ATTEMPTED" in src
+          assert "CLOUDOS_PRODUCTION_RELEASE=BLOCKED" in src
+          assert 'os.geteuid() != 0' in src
+          assert '["--inspect"]' in src
+          print("ELITE_SSHD_TOPOLOGY_NO_MUTATION_AST=PASS")
+          PY
