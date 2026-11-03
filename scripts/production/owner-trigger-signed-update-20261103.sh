@@ -20,8 +20,27 @@ UNIT_PATH=/etc/systemd/system/kmj-codebridge-stable-update.service
   fail SIGNED_UNIT_NOT_INSTALLED
 [[ $(systemctl show "$UNIT" -p FragmentPath --value 2>/dev/null) == "$UNIT_PATH" ]] ||
   fail SIGNED_UNIT_PATH_UNVERIFIED
-[[ -z $(systemctl show "$UNIT" -p DropInPaths --value 2>/dev/null) ]] ||
+# The single owner-inspected ELITE drain-runtime override is permitted only
+# with its exact read-only receipt, effective systemd command and root trust.
+# All other drop-ins fail closed. Never permit a caller-supplied allowlist.
+DROPIN_PATH=/etc/systemd/system/kmj-codebridge-stable-update.service.d/99-kmj-drain-runtime.conf
+DROPIN_SHA256=6d7451c4759b6090f8d016ca8d12a97a7d9212b4f2b4d65be143c3f034204360
+EFFECTIVE_EXEC_SHA256=d5de2691f3f7923acb1549c4fb23ce6b5a1570b97d20890c2fac3a793038bb56
+dropins=$(systemctl show "$UNIT" -p DropInPaths --value 2>/dev/null) ||
+  fail SIGNED_UNIT_DROPINS_UNAVAILABLE
+[[ -z "$dropins" || "$dropins" == "$DROPIN_PATH" ]] ||
   fail SIGNED_UNIT_HAS_UNREVIEWED_DROPINS
+if [[ -n "$dropins" ]]; then
+  [[ $(systemctl show "$UNIT" -p NeedDaemonReload --value 2>/dev/null) == no ]] ||
+    fail SIGNED_UNIT_RELOAD_PENDING
+  [[ $(systemctl show "$UNIT" -p WorkingDirectory --value 2>/dev/null) == /opt/kmj-codebridge-stable/current ]] ||
+    fail SIGNED_UNIT_WORKDIR_DRIFT
+  current_exec=$(systemctl show "$UNIT" -p ExecStart --value 2>/dev/null) ||
+    fail SIGNED_UNIT_EXEC_UNVERIFIED
+  [[ $(printf '%s' "$current_exec" | sha256sum | cut -d ' ' -f1) == "$EFFECTIVE_EXEC_SHA256" ]] ||
+    fail SIGNED_UNIT_EXEC_DRIFT
+  unset current_exec
+fi
 [[ $(systemctl show "$UNIT" -p User --value 2>/dev/null) == root ]] ||
   fail SIGNED_UNIT_NOT_ROOT
 [[ $(systemctl show "$UNIT" -p Type --value 2>/dev/null) == oneshot ]] ||
@@ -32,9 +51,9 @@ UNIT_PATH=/etc/systemd/system/kmj-codebridge-stable-update.service
   fail SIGNED_UNIT_FAILED_NEEDS_OWNER_REVIEW
 
 # Verify protected file/ancestor metadata without exposing file contents.
-python3 -I -S - "$UNIT_PATH" "$CONFIG" <<'PY' || fail TRUST_OR_CONFIG_NOT_READY
-import json, os, re, stat, sys, urllib.parse
-unit, config = sys.argv[1:]
+python3 -I -S - "$UNIT_PATH" "$CONFIG" "$dropins" "$DROPIN_SHA256" <<'PY' || fail TRUST_OR_CONFIG_NOT_READY
+import hashlib, json, os, re, stat, sys, urllib.parse
+unit, config, dropin, expected_sha = sys.argv[1:]
 def protected(path, private):
     if not path.startswith('/') or '..' in path.split('/'):
         raise ValueError('path')
@@ -53,6 +72,45 @@ def protected(path, private):
     return s
 try:
     protected(unit, False)
+    if dropin:
+        st_d = protected(dropin, False)
+        if st_d.st_size > 32768:
+            raise ValueError('dropin_size')
+        fd_d = os.open(dropin, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            before_d = os.fstat(fd_d)
+            data = os.read(fd_d, 32769)
+            after_d = os.fstat(fd_d)
+        finally:
+            os.close(fd_d)
+        if (len(data) != before_d.st_size or before_d != after_d or
+                hashlib.sha256(data).hexdigest() != expected_sha):
+            raise ValueError('dropin_hash')
+        expected_directives = [
+            'WorkingDirectory=/opt/kmj-codebridge-stable/current',
+            'ExecStart=',
+            'ExecStart=/opt/kmj-codebridge-node/bin/node /opt/kmj-codebridge-stable/current/src/cli.js stable-update /etc/kmj-codebridge-update/stable-update.json',
+            'RuntimeDirectory=kmj-codebridge-update',
+            'RuntimeDirectoryMode=0755',
+            'RuntimeDirectoryPreserve=yes',
+            'ReadWritePaths=/run/kmj-codebridge-update',
+        ]
+        active_section = None
+        actual_directives = []
+        for line in data.decode('utf-8').splitlines():
+            line = line.strip()
+            if not line or line.startswith(('#', ';')):
+                continue
+            if line.startswith('[') and line.endswith(']'):
+                active_section = line
+                if active_section != '[Service]':
+                    raise ValueError('dropin_section')
+            elif active_section != '[Service]':
+                raise ValueError('dropin_section_missing')
+            else:
+                actual_directives.append(line)
+        if actual_directives != expected_directives:
+            raise ValueError('dropin_directives')
     st = protected(config, True)
     if st.st_size < 100 or st.st_size > 65536:
         raise ValueError('config_size')
