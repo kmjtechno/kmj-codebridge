@@ -19,6 +19,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
+import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 import {
@@ -59,7 +60,12 @@ const check = (ok, code) => {
 };
 
 export function parseArgs(argv) {
-  const options = { ...DEFAULTS, apply: false, confirmNoActiveJobs: false };
+  const options = {
+    ...DEFAULTS,
+    apply: false,
+    confirmNoActiveJobs: false,
+    allowLegacyBaseline: false,
+  };
   const value = (i) => {
     check(i + 1 < argv.length, "OPTION_VALUE_MISSING");
     return argv[i + 1];
@@ -67,6 +73,8 @@ export function parseArgs(argv) {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     if (arg === "--apply") options.apply = true;
+    else if (arg === "--allow-legacy-baseline")
+      options.allowLegacyBaseline = true;
     else if (arg === "--confirm-no-active-jobs")
       options.confirmNoActiveJobs = true;
     else if (arg === "--target-sha") options.targetSha = argv[++i];
@@ -209,6 +217,74 @@ function probe(deps, url, { resolveLocal = false, publicHost }) {
   return { tools: catalog.names, catalog, commit };
 }
 
+// An old source-runtime installation can be deployed from an archive with no
+// .git metadata. The ALREADY RUNNING process path is a legitimate rollback
+// anchor even when Git cannot read that historical installation. Bind the
+// actual rollback target to fixed, regular source file bytes; never infer a
+// source commit from the directory name and never pretend this is Git evidence.
+export function legacySourceFingerprint(root) {
+  const combined = createHash("sha256");
+  for (const name of [
+    "src/cli.js",
+    "src/gateway.js",
+    "src/config.js",
+    "package.json",
+  ]) {
+    const file = path.join(root, name);
+    const before = fs.lstatSync(file);
+    check(
+      before.isFile() &&
+        !before.isSymbolicLink() &&
+        before.nlink === 1 &&
+        before.size > 0 &&
+        before.size <= 4 * 1024 * 1024 &&
+        (before.mode & 0o002) === 0,
+      "LEGACY_RUNTIME_SOURCE_UNSAFE",
+    );
+    const fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
+    try {
+      const opened = fs.fstatSync(fd);
+      check(
+        opened.dev === before.dev &&
+          opened.ino === before.ino &&
+          opened.size === before.size,
+        "LEGACY_RUNTIME_SOURCE_CHANGED",
+      );
+      const bytes = Buffer.alloc(opened.size);
+      let offset = 0;
+      while (offset < bytes.length) {
+        const read = fs.readSync(
+          fd,
+          bytes,
+          offset,
+          bytes.length - offset,
+          offset,
+        );
+        check(read > 0, "LEGACY_RUNTIME_SOURCE_CHANGED");
+        offset += read;
+      }
+      const after = fs.fstatSync(fd);
+      check(
+        after.dev === before.dev &&
+          after.ino === before.ino &&
+          after.size === before.size &&
+          after.mtimeMs === before.mtimeMs &&
+          after.ctimeMs === before.ctimeMs,
+        "LEGACY_RUNTIME_SOURCE_CHANGED",
+      );
+      combined.update(
+        name + ":" + createHash("sha256").update(bytes).digest("hex") + "\n",
+      );
+    } finally {
+      fs.closeSync(fd);
+    }
+  }
+  return combined.digest("hex");
+}
+
 // Git reads `.git/config` of repositories owned by the service user, and that
 // account serves network traffic. Running git as root there would let a
 // planted `core.fsmonitor` (or similar) execute as root at the next cutover, so
@@ -282,7 +358,20 @@ function inspect(options, deps) {
     fs.existsSync(path.join(target, "node_modules", "zod")),
     "DEPENDENCIES_MISSING",
   );
-  const currentCommit = git(currentRoot, "rev-parse", "HEAD");
+  let currentCommit = null;
+  let legacyFingerprint = null;
+  try {
+    currentCommit = git(currentRoot, "rev-parse", "HEAD");
+    check(FULL_SHA.test(currentCommit), "BASELINE_GIT_SHA_INVALID");
+  } catch (error) {
+    if (!options.allowLegacyBaseline)
+      throw new CutoverError("LEGACY_BASELINE_REQUIRES_OWNER_OPT_IN");
+    check(
+      error.code === "COMMAND_FAILED:runuser",
+      "LEGACY_BASELINE_UNEXPECTED_GIT_ERROR",
+    );
+    legacyFingerprint = legacySourceFingerprint(currentRoot);
+  }
 
   // The staged build must accept the live private config before we touch
   // anything: validate it as the service user, inside the candidate.
@@ -398,6 +487,7 @@ function inspect(options, deps) {
     target,
     currentRoot,
     currentCommit,
+    legacyFingerprint,
     unitFile,
     beforeCount: before.tools.size,
     // Older gateways (pre-#332) report no commit; then null skips that check.
@@ -469,10 +559,17 @@ async function rollback(options, deps, ctx, dropIn, previous, restarted) {
         path.join(options.procRoot, String(pid), "cwd"),
       );
       check(cwd === fs.realpathSync(ctx.currentRoot), "ROLLBACK_WRONG_RUNTIME");
-      check(
-        ctx.git(cwd, "rev-parse", "HEAD") === ctx.currentCommit,
-        "ROLLBACK_WRONG_SOURCE",
-      );
+      if (ctx.currentCommit !== null) {
+        check(
+          ctx.git(cwd, "rev-parse", "HEAD") === ctx.currentCommit,
+          "ROLLBACK_WRONG_SOURCE",
+        );
+      } else {
+        check(
+          legacySourceFingerprint(cwd) === ctx.legacyFingerprint,
+          "ROLLBACK_LEGACY_SOURCE_CHANGED",
+        );
+      }
       const seen = probe(deps, `http://127.0.0.1:${options.port}/mcp`, options);
       check(seen.tools.size >= ctx.beforeCount, "ROLLBACK_CATALOG_SMALLER");
       if (ctx.beforeServerCommit !== null)
@@ -500,7 +597,9 @@ export async function runCutover(options, deps = realDeps()) {
     "CANDIDATE_GATES",
     "PASS_CHECK_TEST_SCAN_SECRETS_AS_" + options.serviceUser,
   );
-  say("FROM_COMMIT", ctx.currentCommit);
+  say("FROM_COMMIT", ctx.currentCommit ?? "LEGACY_UNVERSIONED");
+  if (ctx.legacyFingerprint)
+    say("LEGACY_BASELINE_SHA256", ctx.legacyFingerprint);
   say("TARGET_SHA", options.targetSha);
   say("BASELINE_TOOLS", ctx.beforeCount);
   if (!options.apply) {
@@ -610,7 +709,12 @@ export async function runCutover(options, deps = realDeps()) {
       say("ROLLBACK", "STARTING");
       try {
         await rollback(options, deps, ctx, dropIn, previous, restarted);
-        say("ROLLBACK_ASSERT", "PID_RUNTIME_SOURCE_CATALOG_COMMIT");
+        say(
+          "ROLLBACK_ASSERT",
+          ctx.currentCommit === null
+            ? "PID_RUNTIME_LEGACY_SHA256_CATALOG"
+            : "PID_RUNTIME_SOURCE_CATALOG_COMMIT",
+        );
         say("ROLLBACK", "PASS");
       } catch {
         say("ROLLBACK", "FAIL_MANUAL_RECOVERY_REQUIRED");
