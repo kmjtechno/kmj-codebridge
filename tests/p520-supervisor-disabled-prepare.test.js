@@ -118,7 +118,9 @@ test("protected P520 ancestors cannot be deleted or re-ACL'd by non-admin princi
     source.indexOf("function Assert-ProtectedAncestorDeleteGuard("),
     source.indexOf("function Assert-ProtectedLocation("),
   );
-  const applyGuard = source.indexOf("Assert-ProtectedAncestorDeleteGuard $base $tag");
+  const applyGuard = source.indexOf(
+    "Assert-ProtectedAncestorDeleteGuard $base $tag",
+  );
   const installerCall = source.indexOf("& $installer @installerParams");
   assert.ok(ancestor.length > 200, "ancestor ACL guard must exist");
   assert.ok(applyGuard > 0 && applyGuard < installerCall);
