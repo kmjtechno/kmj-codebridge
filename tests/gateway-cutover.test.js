@@ -282,10 +282,7 @@ test(
   { skip: POSIX_ONLY },
   async (t) => {
     const h = host(t);
-    const later = path.join(
-      path.dirname(h.dropIn),
-      "zzzz-kmj-signed14.conf",
-    );
+    const later = path.join(path.dirname(h.dropIn), "zzzz-kmj-signed14.conf");
     fs.mkdirSync(path.dirname(later), { recursive: true });
     fs.writeFileSync(
       later,
