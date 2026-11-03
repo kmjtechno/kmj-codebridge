@@ -112,6 +112,35 @@ test("protected directory and installer ACL checks reject destructive ownership 
   }
 });
 
+test("protected P520 ancestors cannot be deleted or re-ACL'd by non-admin principals", () => {
+  const source = fs.readFileSync(script, "utf8");
+  const ancestor = source.slice(
+    source.indexOf("function Assert-ProtectedAncestorDeleteGuard("),
+    source.indexOf("function Assert-ProtectedLocation("),
+  );
+  const applyGuard = source.indexOf("Assert-ProtectedAncestorDeleteGuard $base $tag");
+  const installerCall = source.indexOf("& $installer @installerParams");
+  assert.ok(ancestor.length > 200, "ancestor ACL guard must exist");
+  assert.ok(applyGuard > 0 && applyGuard < installerCall);
+  for (const item of [
+    "Delete",
+    "DeleteSubdirectoriesAndFiles",
+    "ChangePermissions",
+    "TakeOwnership",
+  ]) {
+    assert.ok(
+      ancestor.includes("[Security.AccessControl.FileSystemRights]::" + item),
+      "ancestor must forbid " + item,
+    );
+  }
+  assert.match(ancestor, /PROTECTED_ANCESTOR_DELETION_RIGHT_/);
+  assert.match(ancestor, /PROTECTED_ANCESTOR_REPARSE_/);
+  assert.match(ancestor, /PROTECTED_ANCESTOR_DEPTH_UNBOUNDED_/);
+  assert.match(ancestor, /PropagationFlags\]::InheritOnly/);
+  assert.match(ancestor, /\$sid -notin \$trustedWriters/);
+  assert.match(ancestor, /Get-Acl -LiteralPath \$ancestor -ErrorAction Stop/);
+});
+
 test("shared installer locks an empty token before writing the first secret byte", () => {
   const installer = fileURLToPath(
     new URL(
