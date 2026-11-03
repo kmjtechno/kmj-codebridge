@@ -22,6 +22,9 @@ jobs:
       - name: Offline public-key format, fingerprint and negative inputs
         run: |
           python3 -B scripts/operations/kmj_elite_cloudos_sftp_pubkey_enroll_20261103.py --self-test
+      - name: Simulate root-managed public-key installation and target-reader filesystem modes
+        run: |
+          python3 -B tests/test_elite_sftp_pubkey_reader_permissions_20261103.py
       - name: Verify isolated root-only public key and no daemon mutation
         run: |
           python3 - <<'PY'
@@ -34,6 +37,11 @@ jobs:
           assert '"/root/kmj-cloudos-relay-sftp-public-ed25519.pub"' in s
           assert 'DIR = Path("/etc/ssh/authorized_keys")' in s
           assert 'os.O_EXCL' in s and 'os.O_NOFOLLOW' in s
+          assert 'AUTHORIZED_DIR_MODE = 0o755' in s
+          assert 'AUTHORIZED_PUBLIC_MODE = 0o644' in s
+          assert 'os.fchmod(directory, AUTHORIZED_DIR_MODE)' in s
+          assert 'os.fchmod(stream.fileno(), AUTHORIZED_PUBLIC_MODE)' in s
+          assert 'ETC_NOT_TRAVERSABLE_BY_UPLOADER' in s
           assert 'ALREADY_AUTHORIZED_DIFFERENT_KEY_REFUSE_OVERWRITE' in s
           assert 'ELITE_SSHD_RELOAD=NOT_ATTEMPTED' in s
           assert 'ELITE_RELAY_TO_ELITE_AUTHENTICATED_SFTP=NOT_ATTEMPTED' in s
