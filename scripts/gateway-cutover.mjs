@@ -248,13 +248,14 @@ function inspect(options, deps) {
   check(stat.isFile() && (stat.mode & 0o077) === 0, "CONFIG_NOT_PRIVATE");
   check(deps.run([node, "--version"]).startsWith("v24."), "NODE_MAJOR");
 
-  const passwd = deps
-    .run(["getent", "passwd", options.serviceUser])
-    .split(":");
+  const passwd = deps.run(["getent", "passwd", options.serviceUser]).split(":");
   const home = passwd[5];
   const serviceUid = Number(passwd[2]);
   check(SAFE_PATH.test(home ?? ""), "SERVICE_HOME_INVALID");
-  check(Number.isSafeInteger(serviceUid) && serviceUid >= 1, "SERVICE_UID_INVALID");
+  check(
+    Number.isSafeInteger(serviceUid) && serviceUid >= 1,
+    "SERVICE_UID_INVALID",
+  );
   const asService = (argv) => [
     "runuser",
     "-u",
@@ -350,7 +351,10 @@ function inspect(options, deps) {
     deps.run(asService(["cp", "-a", "--", `${target}/.`, `${qaRoot}/`]), {
       timeoutMs: 120000,
     });
-    check(git(qaRoot, "rev-parse", "HEAD") === options.targetSha, "QA_SHA_MISMATCH");
+    check(
+      git(qaRoot, "rev-parse", "HEAD") === options.targetSha,
+      "QA_SHA_MISMATCH",
+    );
     // Only committed files and private dependencies enter the disposable QA.
     // Runtime code and the root-run cutover controller are never copied back.
     for (const [name, argv, timeoutMs] of [
