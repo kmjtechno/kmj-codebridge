@@ -107,13 +107,17 @@ def preflight():
             ssh = os.open("ssh", D, dir_fd=etc)
             try:
                 directory(ssh)
-                drop = os.open("sshd_config.d", D, dir_fd=ssh)
                 try:
-                    directory(drop)
-                    if any(name.endswith(".conf") for name in os.listdir(drop)):
-                        raise Blocked("UNEXPECTED_DROPIN")
-                finally:
-                    os.close(drop)
+                    drop = os.open("sshd_config.d", D, dir_fd=ssh)
+                except FileNotFoundError:
+                    drop = None
+                if drop is not None:
+                    try:
+                        directory(drop)
+                        if any(name.endswith(".conf") for name in os.listdir(drop)):
+                            raise Blocked("UNEXPECTED_DROPIN")
+                    finally:
+                        os.close(drop)
             finally:
                 os.close(ssh)
         finally:
@@ -121,8 +125,13 @@ def preflight():
         srv = os.open("srv", D, dir_fd=root)
         try:
             directory(srv)
-            account = pwd.getpwnam(USER)
-            if account.pw_uid < 1000 or account.pw_shell != "/usr/sbin/nologin":
+            try:
+                account = pwd.getpwnam(USER)
+            except KeyError:
+                raise Blocked("UPLOADER_ACCOUNT_MISSING") from None
+            if (account.pw_uid < 1000 or
+                    account.pw_shell != "/usr/sbin/nologin" or
+                    account.pw_dir != "/nonexistent"):
                 raise Blocked("UPLOADER_ACCOUNT_UNSAFE")
             for name, uid, mode in (
                 ("kmj-cloudos-n2-offsite", 0, 0o700),
@@ -329,8 +338,12 @@ def main():
         else:
             apply(original, info, admin)
         return 0
-    except (Blocked, OSError, UnicodeError):
+    except (Blocked, OSError, UnicodeError) as error:
         print("ELITE_SSHD_POLICY_STAGE=BLOCKED", flush=True)
+        if isinstance(error, Blocked):
+            print("ELITE_SSHD_STAGE_REASON=" + str(error)[:90], flush=True)
+        else:
+            print("ELITE_SSHD_STAGE_REASON=FILESYSTEM_OR_OUTPUT_ERROR", flush=True)
         print("ELITE_SSHD_RELOAD=NOT_ATTEMPTED", flush=True)
         print("CLOUDOS_PRODUCTION_RELEASE=BLOCKED", flush=True)
         return 2
