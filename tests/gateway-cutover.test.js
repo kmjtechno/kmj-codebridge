@@ -330,7 +330,6 @@ test(
   },
 );
 
-
 test("option parsing and validation reject anything but a pinned full SHA and safe values", () => {
   assert.equal(parseArgs(["--target-sha", NEW_SHA]).apply, false);
   assert.equal(parseArgs(["--apply"]).apply, true);
@@ -804,7 +803,9 @@ test(
       lines(out).CANDIDATE_GATES,
       /^PASS_CHECK_TEST_SCAN_SECRETS_AS_/,
     );
-    const gateCalls = ok.state.calls.filter((call) => call.includes(" npm "));
+    const gateCalls = ok.state.calls.filter(
+      (call) => call.includes(" npm run ") || call.endsWith(" npm test"),
+    );
     assert.equal(gateCalls.length, 3);
     for (const call of gateCalls) {
       assert.ok(call.includes("GIT_CONFIG_COUNT=1"));
