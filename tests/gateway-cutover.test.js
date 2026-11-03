@@ -290,7 +290,9 @@ test(
       meta.LEGACY_BASELINE_SHA256,
       legacySourceFingerprint(h.oldRoot),
     );
-    assert.equal(meta.TEST_EXECUTION, "DISPOSABLE_EXACT_COMMIT_CHECKOUT");
+    assert.ok(h.state.gateCwds.length === 3);
+    assert.ok(h.state.gateCwds.every((cwd) => cwd !== h.target));
+    assert.ok(h.state.gateCwds.every((cwd) => cwd === h.state.qaRoot));
     assert.equal(meta.RESULT, "DRY_RUN_OK_NOTHING_CHANGED");
     assert.equal(h.state.restarts, 0);
   },
