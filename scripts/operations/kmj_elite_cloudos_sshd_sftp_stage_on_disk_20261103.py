@@ -24,6 +24,7 @@ import tempfile
 HOST = "kmj-elite"
 SSH_DIR = "/etc/ssh"
 MAIN = "/etc/ssh/sshd_config"
+ROOT_TEMP_DIR = "/root"
 BACKUP = "/root/kmj-cloudos-sshd-before-sftp-20261103.conf"
 USER = "kmjcloudosbackup"
 SSHD = "/usr/sbin/sshd"
@@ -244,7 +245,7 @@ def apply(original, info, admin):
     candidate = original + (b"" if original.endswith(b"\n") else b"\n") + STANZA
     if len(candidate) > LIMIT:
         raise Blocked("CANDIDATE_TOO_LARGE")
-    with tempfile.NamedTemporaryFile(dir="/root", prefix="kmj-ssh-preflight-",
+    with tempfile.NamedTemporaryFile(dir=ROOT_TEMP_DIR, prefix="kmj-ssh-preflight-",
                                      suffix=".conf", delete=True) as preflight_file:
         preflight_file.write(candidate)
         preflight_file.flush()
