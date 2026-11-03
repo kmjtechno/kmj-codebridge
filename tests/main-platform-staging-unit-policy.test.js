@@ -249,13 +249,14 @@ test("staging root broker forbids caller commands and invalid approval", async (
 test("staging diagnostics do not invent digest failures without valid approval", async () => {
   const absent = setup();
   delete absent.files[manifest];
-  const status = (await absent.handle({ op: "main_platform_staging_status" })).response;
+  const status = (await absent.handle({ op: "main_platform_staging_status" }))
+    .response;
   assert.equal(status.ready, false);
   assert.ok(status.blockers.includes("PROTECTED_STAGING_APPROVAL_INVALID"));
-  assert.equal(status.blockers.includes("STAGING_RUNNER_ATTESTATION_FAILED"), false);
-  assert.equal(status.blockers.includes("STAGING_UNIT_ATTESTATION_FAILED"), false);
-  assert.equal(status.blockers.includes("STAGING_RUNNER_UNTRUSTED_OR_MISSING"), false);
-  assert.equal(status.blockers.includes("STAGING_UNIT_UNTRUSTED_OR_MISSING"), false);
+  assert.ok(!status.blockers.includes("STAGING_RUNNER_ATTESTATION_FAILED"));
+  assert.ok(!status.blockers.includes("STAGING_UNIT_ATTESTATION_FAILED"));
+  assert.ok(!status.blockers.includes("STAGING_RUNNER_UNTRUSTED_OR_MISSING"));
+  assert.ok(!status.blockers.includes("STAGING_UNIT_UNTRUSTED_OR_MISSING"));
   await assert.rejects(absent.handle(request), /SUPERVISOR_STAGING_NOT_READY/);
   assert.deepEqual(absent.started, []);
 });
@@ -263,17 +264,19 @@ test("staging diagnostics do not invent digest failures without valid approval",
 test("staging distinguishes a missing installed file from a real digest mismatch", async () => {
   const missing = setup();
   delete missing.files[root];
-  let status = (await missing.handle({ op: "main_platform_staging_status" })).response;
+  let status = (await missing.handle({ op: "main_platform_staging_status" }))
+    .response;
   assert.ok(status.blockers.includes("STAGING_RUNNER_UNTRUSTED_OR_MISSING"));
-  assert.equal(status.blockers.includes("STAGING_RUNNER_ATTESTATION_FAILED"), false);
+  assert.ok(!status.blockers.includes("STAGING_RUNNER_ATTESTATION_FAILED"));
   await assert.rejects(missing.handle(request), /SUPERVISOR_STAGING_NOT_READY/);
   const drift = setup();
   drift.files[root] += "# altered by unintended deploy\n";
   drift.files[unit] += "# altered unit\n";
-  status = (await drift.handle({ op: "main_platform_staging_status" })).response;
+  status = (await drift.handle({ op: "main_platform_staging_status" }))
+    .response;
   assert.ok(status.blockers.includes("STAGING_RUNNER_ATTESTATION_FAILED"));
   assert.ok(status.blockers.includes("STAGING_UNIT_ATTESTATION_FAILED"));
-  assert.equal(status.blockers.includes("PROTECTED_STAGING_APPROVAL_INVALID"), false);
+  assert.ok(!status.blockers.includes("PROTECTED_STAGING_APPROVAL_INVALID"));
   await assert.rejects(drift.handle(request), /SUPERVISOR_STAGING_NOT_READY/);
   assert.deepEqual(drift.started, []);
 });
