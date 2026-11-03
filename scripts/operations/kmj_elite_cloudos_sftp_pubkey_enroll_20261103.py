@@ -24,6 +24,8 @@ UPLOADER = "kmjcloudosbackup"
 INPUT = Path("/root/kmj-cloudos-relay-sftp-public-ed25519.pub")
 DIR = Path("/etc/ssh/authorized_keys")
 DEST = DIR / UPLOADER
+AUTHORIZED_DIR_MODE = 0o755
+AUTHORIZED_PUBLIC_MODE = 0o644
 COMMENT = "kmj-cloudos-n2-relay-sftp"
 FINGERPRINT = re.compile(r"SHA256:[A-Za-z0-9+/]{43}\Z")
 KEYDATA = re.compile(r"[A-Za-z0-9+/]+={0,2}\Z")
@@ -149,7 +151,12 @@ def host():
             raise Blocked("UNTRUSTED_ROOT_DIRECTORY")
         etc = checked_dir(root, "etc")
         try:
+            if os.fstat(etc).st_mode & 0o005 != 0o005:
+                raise Blocked("ETC_NOT_TRAVERSABLE_BY_UPLOADER")
             ssh = checked_dir(etc, "ssh")
+            if os.fstat(ssh).st_mode & 0o005 != 0o005:
+                os.close(ssh)
+                raise Blocked("SSH_DIR_NOT_TRAVERSABLE_BY_UPLOADER")
         finally:
             os.close(etc)
         private = checked_dir(root, "root")
@@ -164,14 +171,27 @@ def host():
 
 
 def ensure_directory(sshfd, install):
+    created = False
     try:
         directory = checked_dir(sshfd, "authorized_keys")
     except FileNotFoundError:
         if not install:
             return None
+        # Start private. Open with nofollow and check ownership before
+        # enabling traversal for the target-user SSH public-key reader.
         os.mkdir("authorized_keys", mode=0o700, dir_fd=sshfd)
+        created = True
         directory = checked_dir(sshfd, "authorized_keys")
-    return directory
+    try:
+        if created:
+            os.fchmod(directory, AUTHORIZED_DIR_MODE)
+            os.fsync(directory)
+        if stat.S_IMODE(os.fstat(directory).st_mode) != AUTHORIZED_DIR_MODE:
+            raise Blocked("AUTHORIZED_KEYS_DIR_REQUIRES_ROOT_0755")
+        return directory
+    except BaseException:
+        os.close(directory)
+        raise
 
 
 def status(install, expected_fp=None):
@@ -190,7 +210,7 @@ def status(install, expected_fp=None):
             return
         try:
             try:
-                existing = checked_file(directory, UPLOADER, mode=0o600)
+                existing = checked_file(directory, UPLOADER, mode=AUTHORIZED_PUBLIC_MODE)
             except FileNotFoundError:
                 existing = None
             if existing is not None:
@@ -208,6 +228,9 @@ def status(install, expected_fp=None):
                              NOFOLLOW, 0o600, dir_fd=directory)
                 try:
                     with os.fdopen(fd, "wb", closefd=True) as stream:
+                        # sshd reads user authorized keys using the target
+                        # uid. Public key is root-owned but user-readable.
+                        os.fchmod(stream.fileno(), AUTHORIZED_PUBLIC_MODE)
                         stream.write(line)
                         stream.flush()
                         os.fsync(stream.fileno())
@@ -217,7 +240,7 @@ def status(install, expected_fp=None):
                     except OSError:
                         pass
                     raise
-                if checked_file(directory, UPLOADER, mode=0o600) != line:
+                if checked_file(directory, UPLOADER, mode=AUTHORIZED_PUBLIC_MODE) != line:
                     raise Blocked("POSTWRITE_KEY_CONTENT_MISMATCH")
                 os.fsync(directory)
                 print("ELITE_SFTP_UPLOADER_AUTHORIZED_KEY=PUBLIC_ONLY_CREATED")
@@ -251,6 +274,8 @@ def self_test():
     assert CONTROL["forcecommand"] == "internal-sftp -d /incoming"
     assert CONTROL["passwordauthentication"] == "no"
     assert CONTROL["authorizedkeysfile"] == "/etc/ssh/authorized_keys/%u"
+    assert AUTHORIZED_DIR_MODE == 0o755
+    assert AUTHORIZED_PUBLIC_MODE == 0o644
     print("ELITE_SFTP_PUBLIC_KEY_ENROLL_OFFLINE_TESTS=PASS")
 
 
