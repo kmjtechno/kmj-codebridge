@@ -245,7 +245,7 @@ test("all persisted rollback manifests use BOM-free UTF-8 writer", () => {
   assert.match(install, /UTF8Encoding\]::new\(\$false\)/);
   assert.equal(
     (install.match(/Write-Manifest \$manifestPath \$manifest/g) ?? []).length,
-    4,
+    5,
   );
   assert.doesNotMatch(
     install,
