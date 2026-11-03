@@ -66,6 +66,8 @@ function host(t, tweak = {}) {
     commit: OLD_SHA,
     restarts: 0,
     gatesRun: [],
+    gateCwds: [],
+    qaRoot: null,
     gitHeadOld: OLD_SHA,
     calls: [],
     user: options.serviceUser,
@@ -94,7 +96,7 @@ function host(t, tweak = {}) {
     ...new Set([...REQUIRED_TOOLS, ...Object.keys(CRITICAL_TOOL_PROPERTIES)]),
     ...Array.from({ length: 90 }, (_, i) => "filler_tool_" + i),
   ];
-  const run = (argv, { input } = {}) => {
+  const run = (argv, { input, cwd } = {}) => {
     state.calls.push(argv.join(" "));
     const [cmd, ...rest] = argv;
     if (cmd === "systemctl") {
@@ -149,19 +151,40 @@ function host(t, tweak = {}) {
     // git reads repo-controlled config; as root that is a privilege-escalation
     // path, so it must only ever arrive via the unprivileged service user.
     if (cmd === "git") throw new Error("git must never run as root");
-    if (cmd === "getent") return "kmjcode:x:1000:1000::/home/kmjcode:/bin/sh";
+    if (cmd === "getent")
+      return `kmjcode:x:${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}::/home/kmjcode:/bin/sh`;
     if (cmd === "runuser") {
+      if (argv.includes("mktemp")) {
+        state.qaRoot = fs.mkdtempSync(
+          path.join(os.tmpdir(), "kmj-codebridge-gates."),
+        );
+        fs.chmodSync(state.qaRoot, 0o700);
+        return state.qaRoot;
+      }
+      if (argv.includes("cp")) return "";
+      if (argv.includes("rm")) {
+        if (state.qaRoot)
+          fs.rmSync(state.qaRoot, { recursive: true, force: true });
+        return "";
+      }
       const gitAt = argv.indexOf("git");
       if (gitAt !== -1) {
         const gitArgs = argv.slice(gitAt);
         const root = gitArgs[gitArgs.indexOf("-C") + 1];
-        if (gitArgs.includes("status")) return state.dirty ? " M src/x.js" : "";
-        return root === target ? state.candidateHead : state.gitHeadOld;
+        if (gitArgs.includes("status")) {
+          if (root === state.qaRoot)
+            return state.qaTrackedDirty ? " M src/qa.js" : "";
+          return state.dirty ? " M src/x.js" : "";
+        }
+        return root === target || root === state.qaRoot
+          ? state.candidateHead
+          : state.gitHeadOld;
       }
       const at = argv.indexOf("npm");
       if (at === -1) return "CONFIG_VALID";
       const gate = argv.slice(at).join(" ");
       state.gatesRun.push(gate);
+      state.gateCwds.push(cwd);
       if (state.failGate && gate.includes(state.failGate))
         throw new CutoverError("COMMAND_FAILED:runuser");
       if (state.dirtyAfterGates) state.dirty = true;
@@ -261,6 +284,38 @@ test(
     assert.equal(fs.existsSync(h.dropIn), false);
     assert.equal(fs.existsSync(h.options.backupRoot), false);
     assert.equal(fs.existsSync(h.options.lockFile), false);
+  },
+);
+
+test(
+  "all cutover QA gates run in disposable service-owned directory, not production target",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t);
+    const { ok } = await runCutover(h.options, h.deps);
+    assert.equal(ok, true);
+    assert.equal(h.state.gatesRun.length, 3);
+    assert.ok(h.state.qaRoot);
+    for (const cwd of h.state.gateCwds) {
+      assert.equal(cwd, h.state.qaRoot);
+      assert.notEqual(cwd, h.target);
+    }
+    assert.equal(fs.existsSync(h.state.qaRoot), false);
+    assert.equal(h.state.restarts, 0);
+  },
+);
+
+test(
+  "a modified tracked source in isolated QA fails closed before live restart",
+  { skip: POSIX_ONLY },
+  async (t) => {
+    const h = host(t, { state: { qaTrackedDirty: true } });
+    await assert.rejects(
+      runCutover(h.options, h.deps),
+      /QA_TRACKED_CHANGES/,
+    );
+    assert.equal(h.state.restarts, 0);
+    assert.equal(fs.existsSync(h.state.qaRoot), false);
   },
 );
 
