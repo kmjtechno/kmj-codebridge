@@ -55,7 +55,7 @@ test("gate-staging handles only untracked test debris with fresh exact-commit ch
     source.indexOf("STAGING_CLEAN_CANDIDATE=PASS") <
       source.indexOf('mv -T -- "$stage" "$target"'),
   );
-  assert.doesNotMatch(source, /git\\s+(?:reset|clean)\\b/);
+  assert.doesNotMatch(source, /git\s+(?:reset|clean)\b/);
 });
 
 test(
