@@ -139,13 +139,31 @@ def validate_service():
     need(not os.path.lexists(LOCK),"GATEWAY_OWNER_LOCK_PRESENT")
     return oldpid
 
+def safe_gateway_config_bytes(file):
+    import pwd
+    try:
+        fd = os.open(file, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            st = os.fstat(fd)
+            uid = pwd.getpwnam("kmjcode").pw_uid
+            need(stat.S_ISREG(st.st_mode) and st.st_uid in (0, uid)
+                 and st.st_nlink == 1 and 1 <= st.st_size <= 262144
+                 and (st.st_mode & 0o022) == 0, "GATEWAY_CONFIG_UNTRUSTED")
+            data = os.read(fd, 262145)
+            need(len(data) == st.st_size, "GATEWAY_CONFIG_RACE")
+            return data
+        finally:
+            os.close(fd)
+    except (OSError, KeyError):
+        raise Blocked("GATEWAY_CONFIG_UNAVAILABLE") from None
+
 def gateway_port(file):
     f=pathlib.Path(file)
-    data=regular_owner_file(f,private=False,max_size=256*1024)
+    data=safe_gateway_config_bytes(f)
     cfg=json.loads(data)
     port=cfg.get("port",8787)
     host=cfg.get("host","127.0.0.1")
-    need(type(port)==int and 1<=port<=65535 and host in ("127.0.0.1","localhost"),
+    need(type(port)==int and 1<=port<=65535 and host in ("127.0.0.1","localhost","0.0.0.0"),
          "GATEWAY_PORT_NOT_LOCAL")
     return port
 
