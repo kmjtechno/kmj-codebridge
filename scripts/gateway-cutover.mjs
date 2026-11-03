@@ -165,6 +165,23 @@ export function realDeps() {
         return error.code === "EPERM";
       }
     },
+    // A disposable test checkout is service-user-owned; the immutable target
+    // never receives test-generated files. Only this newly minted directory
+    // may be removed after gates. No git reset/clean on any checkout.
+    createGateDirectory(parent, uid, gid) {
+      const scratch = fs.mkdtempSync(path.join(parent, ".gateway-gates-"));
+      fs.chownSync(scratch, uid, gid);
+      fs.chmodSync(scratch, 0o700);
+      return scratch;
+    },
+    cleanupGateDirectory(scratch, parent) {
+      check(
+        path.dirname(scratch) === parent &&
+          path.basename(scratch).startsWith(".gateway-gates-"),
+        "GATE_SCRATCH_PATH_UNSAFE",
+      );
+      fs.rmSync(scratch, { recursive: true, force: true });
+    },
     // A dropped SSH session (SIGHUP) must not abandon a half-applied cutover,
     // and Ctrl-C / SIGTERM must lead to a verified rollback, not a bare exit.
     // JS handlers only run between awaits, so each blocking step finishes first.
@@ -313,10 +330,18 @@ function inspect(options, deps) {
   check(stat.isFile() && (stat.mode & 0o077) === 0, "CONFIG_NOT_PRIVATE");
   check(deps.run([node, "--version"]).startsWith("v24."), "NODE_MAJOR");
 
-  const home = deps
+  const account = deps
     .run(["getent", "passwd", options.serviceUser])
-    .split(":")[5];
-  check(SAFE_PATH.test(home ?? ""), "SERVICE_HOME_INVALID");
+    .split(":");
+  const uid = Number(account[2]);
+  const gid = Number(account[3]);
+  const home = account[5];
+  check(
+    SAFE_PATH.test(home ?? "") &&
+      Number.isSafeInteger(uid) && uid > 0 &&
+      Number.isSafeInteger(gid) && gid >= 0,
+    "SERVICE_ACCOUNT_INVALID",
+  );
   const asService = (argv) => [
     "runuser",
     "-u",
@@ -400,30 +425,60 @@ function inspect(options, deps) {
       "DROPIN_UNRECOGNIZED",
     );
 
-  // "Clean checkout at the right SHA" does not mean "tested". Run the same
-  // gates the operator is told to run, as the unprivileged service user, and
-  // make sure they left the tree clean. npm ci is an operator prerequisite
-  // (it needs network); missing dependencies make these gates fail.
-  for (const [name, argv, timeoutMs] of [
-    ["check", ["npm", "run", "check"], 300000],
-    ["test", ["npm", "test"], 900000],
-    ["scan_secrets", ["npm", "run", "scan:secrets"], 300000],
-  ]) {
+  // Re-run the same security/quality gates on an EXACT-COMMIT disposable
+  // checkout. Tests can leave untracked files; executing them in the immutable
+  // target would make the next cutover fail or, worse, leave live test debris.
+  // The target remains independently checked for clean Git status.
+  const scratch = deps.createGateDirectory(options.candidates, uid, gid);
+  try {
     try {
-      // Tests and the secret scanner invoke git in child processes. Trust
-      // only this verified candidate, only for the lifetime of this gate.
       deps.run(
         asService([
-          "GIT_CONFIG_COUNT=1",
-          "GIT_CONFIG_KEY_0=safe.directory",
-          `GIT_CONFIG_VALUE_0=${target}`,
-          ...argv,
+          "git", "-c", `safe.directory=${target}`,
+          "clone", "-q", "--no-local", "--no-checkout", target, scratch,
         ]),
-        { cwd: target, timeoutMs },
+        { timeoutMs: 120000 },
+      );
+      deps.run(
+        asService(["git", "-C", scratch, "checkout", "--detach", "-q", options.targetSha]),
+        { timeoutMs: 120000 },
+      );
+      check(
+        git(scratch, "rev-parse", "HEAD") === options.targetSha,
+        "GATE_SCRATCH_SHA_MISMATCH",
+      );
+      deps.run(
+        asService(["npm", "--prefix", scratch, "ci", "--ignore-scripts", "--no-audit", "--no-fund"]),
+        { timeoutMs: 300000 },
       );
     } catch {
-      throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
+      throw new CutoverError("GATE_SCRATCH_PREPARE_FAILED");
     }
+    for (const [name, argv, timeoutMs] of [
+      ["check", ["npm", "run", "check"], 300000],
+      ["test", ["npm", "test"], 900000],
+      ["scan_secrets", ["npm", "run", "scan:secrets"], 300000],
+    ]) {
+      try {
+        deps.run(
+          asService([
+            "GIT_CONFIG_COUNT=1",
+            "GIT_CONFIG_KEY_0=safe.directory",
+            `GIT_CONFIG_VALUE_0=${scratch}`,
+            ...argv,
+          ]),
+          { cwd: scratch, timeoutMs },
+        );
+      } catch {
+        throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
+      }
+    }
+    check(
+      git(scratch, "status", "--porcelain", "--untracked-files=no") === "",
+      "GATE_SCRATCH_TRACKED_CHANGED",
+    );
+  } finally {
+    deps.cleanupGateDirectory(scratch, options.candidates);
   }
   check(!git(target, "status", "--porcelain"), "CANDIDATE_DIRTY_AFTER_GATES");
 
@@ -548,6 +603,7 @@ export async function runCutover(options, deps = realDeps()) {
     "CANDIDATE_GATES",
     "PASS_CHECK_TEST_SCAN_SECRETS_AS_" + options.serviceUser,
   );
+  say("TEST_EXECUTION", "DISPOSABLE_EXACT_COMMIT_CHECKOUT");
   say("FROM_COMMIT", ctx.currentCommit ?? "LEGACY_UNVERSIONED");
   if (ctx.legacyFingerprint)
     say("LEGACY_BASELINE_SHA256", ctx.legacyFingerprint);
