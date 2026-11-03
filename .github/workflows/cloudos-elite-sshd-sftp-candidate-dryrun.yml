@@ -1,0 +1,42 @@
+name: CloudOS ELITE ephemeral SSHD SFTP candidate dry run
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_sftp_candidate_dryrun_20261103.py
+      - .github/workflows/cloudos-elite-sshd-sftp-candidate-dryrun.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_sftp_candidate_dryrun_20261103.py
+      - .github/workflows/cloudos-elite-sshd-sftp-candidate-dryrun.yml
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-no-production-write:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline policy tests and fixed-scope source checks
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_sshd_sftp_candidate_dryrun_20261103.py --self-test
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          source=Path("scripts/operations/kmj_elite_cloudos_sshd_sftp_candidate_dryrun_20261103.py").read_text()
+          ast.parse(source)
+          forbidden=("os.replace", "os.rename", "os.chmod", "os.chown",
+                     "os.unlink", "shutil.move", "shutil.copy", "systemctl",
+                     "service ssh", "ssh-keygen", "useradd", "userdel")
+          for token in forbidden:
+              assert token not in source, token
+          assert 'NamedTemporaryFile' in source
+          assert 'dir="/root"' in source
+          assert 'delete=True' in source
+          assert 'ELITE_PRODUCTION_SSH_CONFIG_AND_SERVICE=UNMODIFIED' in source
+          assert 'ELITE_UPLOADER_RESTRICTED_SFTP_INSTALL=NOT_ATTEMPTED' in source
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in source
+          print("ELITE_EPHEMERAL_SSHD_CANDIDATE_SOURCE_GUARD=PASS")
+          PY
