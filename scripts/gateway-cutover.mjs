@@ -258,7 +258,10 @@ export function legacySourceFingerprint(root) {
         (before.mode & 0o002) === 0,
       "LEGACY_RUNTIME_SOURCE_UNSAFE",
     );
-    const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW);
+    const fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW,
+    );
     try {
       const opened = fs.fstatSync(fd);
       check(
@@ -270,7 +273,13 @@ export function legacySourceFingerprint(root) {
       const bytes = Buffer.alloc(opened.size);
       let offset = 0;
       while (offset < bytes.length) {
-        const read = fs.readSync(fd, bytes, offset, bytes.length - offset, offset);
+        const read = fs.readSync(
+          fd,
+          bytes,
+          offset,
+          bytes.length - offset,
+          offset,
+        );
         check(read > 0, "LEGACY_RUNTIME_SOURCE_CHANGED");
         offset += read;
       }
@@ -283,7 +292,9 @@ export function legacySourceFingerprint(root) {
           after.ctimeMs === before.ctimeMs,
         "LEGACY_RUNTIME_SOURCE_CHANGED",
       );
-      combined.update(name + ":" + createHash("sha256").update(bytes).digest("hex") + "\n");
+      combined.update(
+        name + ":" + createHash("sha256").update(bytes).digest("hex") + "\n",
+      );
     } finally {
       fs.closeSync(fd);
     }
@@ -338,8 +349,10 @@ function inspect(options, deps) {
   const home = account[5];
   check(
     SAFE_PATH.test(home ?? "") &&
-      Number.isSafeInteger(uid) && uid > 0 &&
-      Number.isSafeInteger(gid) && gid >= 0,
+      Number.isSafeInteger(uid) &&
+      uid > 0 &&
+      Number.isSafeInteger(gid) &&
+      gid >= 0,
     "SERVICE_ACCOUNT_INVALID",
   );
   const asService = (argv) => [
@@ -434,13 +447,28 @@ function inspect(options, deps) {
     try {
       deps.run(
         asService([
-          "git", "-c", `safe.directory=${target}`,
-          "clone", "-q", "--no-local", "--no-checkout", target, scratch,
+          "git",
+          "-c",
+          `safe.directory=${target}`,
+          "clone",
+          "-q",
+          "--no-local",
+          "--no-checkout",
+          target,
+          scratch,
         ]),
         { timeoutMs: 120000 },
       );
       deps.run(
-        asService(["git", "-C", scratch, "checkout", "--detach", "-q", options.targetSha]),
+        asService([
+          "git",
+          "-C",
+          scratch,
+          "checkout",
+          "--detach",
+          "-q",
+          options.targetSha,
+        ]),
         { timeoutMs: 120000 },
       );
       check(
@@ -448,7 +476,15 @@ function inspect(options, deps) {
         "GATE_SCRATCH_SHA_MISMATCH",
       );
       deps.run(
-        asService(["npm", "--prefix", scratch, "ci", "--ignore-scripts", "--no-audit", "--no-fund"]),
+        asService([
+          "npm",
+          "--prefix",
+          scratch,
+          "ci",
+          "--ignore-scripts",
+          "--no-audit",
+          "--no-fund",
+        ]),
         { timeoutMs: 300000 },
       );
     } catch {
@@ -717,11 +753,11 @@ export async function runCutover(options, deps = realDeps()) {
       try {
         await rollback(options, deps, ctx, dropIn, previous, restarted);
         say(
-        "ROLLBACK_ASSERT",
-        ctx.currentCommit === null
-          ? "PID_RUNTIME_LEGACY_SHA256_CATALOG"
-          : "PID_RUNTIME_SOURCE_CATALOG_COMMIT",
-      );
+          "ROLLBACK_ASSERT",
+          ctx.currentCommit === null
+            ? "PID_RUNTIME_LEGACY_SHA256_CATALOG"
+            : "PID_RUNTIME_SOURCE_CATALOG_COMMIT",
+        );
         say("ROLLBACK", "PASS");
       } catch {
         say("ROLLBACK", "FAIL_MANUAL_RECOVERY_REQUIRED");
