@@ -207,7 +207,7 @@ try:
     pattern = re.compile(
         r'KMJ CodeBridge stable update complete; version '
         r'([A-Za-z0-9.+_-]{1,80}), sequence ([0-9]{1,18}), '
-        r'updated=(true|false)\\.')
+        r'updated=(true|false)\.')
     for line in p.stdout.splitlines():
         row = json.loads(line)
         if row.get('_SYSTEMD_UNIT') != unit:
