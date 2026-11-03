@@ -95,12 +95,50 @@ for gate in check test scan:secrets; do
   fi
   echo "STAGING_GATE=$gate PASS"
 done
-if [[ -n "$(run_service git -C "$stage" status --porcelain)" ||
-      "$(run_service git -C "$stage" rev-parse HEAD)" != "$sha" ||
-      ! -d "$stage/node_modules/zod" ]]; then
-  echo "STAGING=BLOCKED_DIRTY_OR_INCOMPLETE" >&2
+# Tests may generate untracked outputs. Never promote those outputs into a
+# production gateway runtime. A changed tracked file always blocks. If only
+# untracked test files exist, make a NEW clean checkout of the verified commit
+# (no git reset/clean; no copies from the tested working tree), reinstall the
+# exact lockfile, and attest the clean candidate before publication.
+if [[ "$(run_service git -C "$stage" rev-parse HEAD)" != "$sha" ]]; then
+  echo "STAGING=BLOCKED_HEAD_DRIFT" >&2
   exit 2
 fi
+if [[ -n "$(run_service git -C "$stage" status --porcelain --untracked-files=no)" ]]; then
+  echo "STAGING=BLOCKED_TRACKED_CHANGES" >&2
+  exit 2
+fi
+if [[ ! -d "$stage/node_modules/zod" ]]; then
+  echo "STAGING=BLOCKED_DEPENDENCY_MISSING" >&2
+  exit 2
+fi
+if [[ -n "$(run_service git -C "$stage" ls-files --others --exclude-standard)" ]]; then
+  echo "STAGING=UNTRACKED_TEST_OUTPUT_REBUILDING_CLEAN_CANDIDATE"
+  original_stage="$stage"
+  fresh="$(mktemp -d "$base/.clean-XXXXXXXX")"
+  chown "$(id -u "$service_user"):$(id -g "$service_user")" "$fresh"
+  chmod 0700 "$fresh"
+  # A local clone fetches ONLY committed Git objects. Tests' untracked output
+  # and any ignored test/runtime artifacts are not present in the new checkout.
+  run_service git -c core.hooksPath=/dev/null clone -q --no-local --no-checkout "$original_stage" "$fresh"
+  run_service git -C "$fresh" checkout --detach -q "$sha"
+  run_service git -C "$fresh" remote set-url origin "$repo"
+  run_service npm --prefix "$fresh" ci --ignore-scripts --no-audit --no-fund >/dev/null
+  # Keep failure cleanup scoped to the newly-created candidate, and remove
+  # only this script's private disposable test directory.
+  stage="$fresh"
+  rm -rf -- "$original_stage"
+fi
+if [[ -n "$(run_service git -C "$stage" status --porcelain)" ]]; then
+  echo "STAGING=BLOCKED_CANDIDATE_DIRTY" >&2
+  exit 2
+fi
+if [[ "$(run_service git -C "$stage" rev-parse HEAD)" != "$sha" ||
+      ! -d "$stage/node_modules/zod" ]]; then
+  echo "STAGING=BLOCKED_CANDIDATE_INCOMPLETE" >&2
+  exit 2
+fi
+echo "STAGING_CLEAN_CANDIDATE=PASS"
 mv -T -- "$stage" "$target"
 promoted=true
 stage=""
