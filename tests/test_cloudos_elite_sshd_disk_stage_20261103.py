@@ -42,6 +42,7 @@ class StageSafetyTests(unittest.TestCase):
         self.paths = (
             patch.object(mod, "MAIN", str(self.config)),
             patch.object(mod, "SSH_DIR", str(self.sshdir)),
+            patch.object(mod, "ROOT_TEMP_DIR", str(root)),
             patch.object(mod, "BACKUP", str(self.backup)),
             patch.object(mod, "read_conf", self.read_fake),
             patch.object(mod, "query", return_value=b""),
