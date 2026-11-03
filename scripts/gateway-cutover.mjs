@@ -425,7 +425,7 @@ function inspect(options, deps) {
     "SYSTEMD_DROPINS_UNVERIFIED",
   );
   const dropinPaths = loadedDropins.trim()
-    ? loadedDropins.trim().split(/\\s+/)
+    ? loadedDropins.trim().split(/\s+/)
     : [];
   check(dropinPaths.length <= 64, "SYSTEMD_DROPINS_UNVERIFIED");
   for (const entry of dropinPaths) {
