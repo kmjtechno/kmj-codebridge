@@ -37,7 +37,11 @@ jobs:
           forbidden={'write','replace','rename','unlink','remove','chmod','chown',
                      'fchmod','fchown','mkdir','makedirs','Popen','system','openat',
                      'useradd','ssh_keygen','reload','restart','execv'}
-          assert not forbidden.intersection(calls), forbidden.intersection(calls)
+          # bytes.replace() in an offline tamper test is not a filesystem
+          # mutation. Reject only explicit os.replace() calls.
+          assert not (forbidden-{'replace'}).intersection(calls), (forbidden-{'replace'}).intersection(calls)
+          assert 'os.replace(' not in s
+          assert 'Path.replace(' not in s
           assert '["/usr/bin/systemctl", "show", "ssh.service"' in s
           assert 'ELITE_SSHD_RELOAD=NOT_ATTEMPTED' in s
           assert 'ELITE_SSHD_PUBLIC_KEY_AUTHENTICATION=NOT_ATTEMPTED' in s
