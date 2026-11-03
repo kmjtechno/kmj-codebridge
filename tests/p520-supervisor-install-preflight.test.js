@@ -18,7 +18,7 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /P520_INSTALL_ACTION' 'NONE'/);
   assert.match(source, /P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'/);
   assert.match(source, /ONE_UNATTESTED_CANDIDATE/);
-  assert.match(source, /gateway -cne 'https:\/\/kmjtechno\\.com\/mcp'/);
+  assert.match(source, /gateway -cne 'https:\/\/kmjtechno\.com\/mcp'/);
   assert.match(source, /Candidate-Identity \$wrongGateway/);
   assert.match(source, /Safe-Candidate-Path/);
   assert.match(source, /FileAttributes\]::ReparsePoint/);
