@@ -1,0 +1,63 @@
+name: GCE existing relay to ELITE pinned SSH read-only audit
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py
+      - .github/workflows/gce-existing-relay-elite-outbound-pin.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py
+      - .github/workflows/gce-existing-relay-elite-outbound-pin.yml
+
+permissions:
+  contents: read
+
+jobs:
+  local-host-pin-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline identity/crypto negative tests and no-mutation inspection
+        run: |
+          python3 -B scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py --self-test
+          sha256sum scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py")
+          s=p.read_text()
+          tree=ast.parse(s)
+          for expected in (
+              'VM = "instance-20260912-094732"',
+              'INTERNAL_IP = "10.128.0.2"',
+              'ELITE_IPV4 = "103.212.136.154"',
+              'SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI',
+              'RELAY_LOCAL_GCE_IDENTITY=EXACT_VERIFIED',
+              'RELAY_TO_ELITE_ED25519_PIN=EXACT_MATCH_VERIFIED',
+              'RELAY_SSH_HOST_TRUST_FROM_N2=NOT_YET_VERIFIED',
+              'RESTRICTED_BACKUP_UPLOADER=NOT_CONFIGURED_OR_VERIFIED',
+              'ENCRYPTED_BACKUP_TRANSFER=NOT_ATTEMPTED',
+              'INDEPENDENT_DISPOSABLE_RESTORE_AND_ROLLBACK=NOT_VERIFIED',
+              'RELAY_HOST_AND_GCE_MUTATIONS=NONE_BY_THIS_PROGRAM',
+              'CLOUDOS_PRODUCTION_RELEASE=BLOCKED',
+          ):
+              assert expected in s, expected
+          calls=[]
+          for n in ast.walk(tree):
+              if isinstance(n,ast.Call):
+                  f=n.func
+                  calls.append(f.attr if isinstance(f,ast.Attribute) else
+                               f.id if isinstance(f,ast.Name) else "")
+          assert calls.count("run")==2  # local command wrapper, test helper not subprocess call?
+          for bad in ("system", "Popen", "mkdir", "unlink", "rmtree",
+                      "rmdir", "remove", "rename", "write", "write_bytes",
+                      "write_text", "chmod", "chown", "connect",
+                      "socket", "start", "stop", "execv", "open"):
+              assert bad not in calls, bad
+          assert '["ssh-keyscan", "-4", "-T", "5"' in s
+          assert '["ssh-keygen", "-l", "-E", "sha256", "-f", "-"]' in s
+          assert 'os.geteuid() == 0' in s
+          print("RELAY_ELITE_HOSTPIN_NO_REMOTE_MUTATION_AST=PASS")
+          PY
