@@ -298,7 +298,7 @@ def run():
 
     fd=os.open(LOCK,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     data=new_content(config)
-    created=False;restarted=False
+    created=False;restarted=False;reconciled=False
     def on_interrupt(signum, frame):
         raise Blocked("INTERRUPTED")
     prior={sig:signal.getsignal(sig) for sig in (signal.SIGINT,signal.SIGTERM)}
@@ -323,6 +323,7 @@ def run():
             except Blocked:
                 if attempt==5:raise
                 time.sleep(2)
+        reconciled=True
         print("GATEWAY_SIGNED15=LIVE_PASS")
         print("GATEWAY_PID_CHANGED=PASS")
         print("AGENT_RECONNECT=REQUIRES_AUTHENTICATED_CLIENT")
@@ -330,7 +331,9 @@ def run():
         reason=error.args[0] if isinstance(error,Blocked) else "UNCLASSIFIED"
         print("GATEWAY_SIGNED15=BLOCKED:"+str(reason))
         if created:
-            try: rollback(data,port,old["count"],restarted)
+            try:
+                rollback(data,port,old["count"],restarted)
+                reconciled=True
             except Exception:
                 print("GATEWAY_ROLLBACK=FAILED_OWNER_REVIEW_REQUIRED")
         raise Blocked("CUTOVER_FAILED") from None
@@ -338,8 +341,11 @@ def run():
         for sig, handler in prior.items():
             signal.signal(sig,handler)
         os.close(fd)
-        try: os.unlink(LOCK)
-        except OSError: pass
+        if not created or reconciled:
+            try: os.unlink(LOCK)
+            except OSError: pass
+        else:
+            print("GATEWAY_OWNER_LOCK=RETAINED_AFTER_FAILED_ROLLBACK")
 
 def validate_service_recheck(oldpid):
     try:
