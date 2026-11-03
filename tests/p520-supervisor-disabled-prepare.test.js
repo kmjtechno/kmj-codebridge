@@ -135,6 +135,26 @@ test("shared installer locks an empty token before writing the first secret byte
   );
 });
 
+test("shared installer locks backup directory before copying agent credentials", () => {
+  const installer = fileURLToPath(
+    new URL(
+      "../scripts/windows/install-windows-supervisor.ps1",
+      import.meta.url,
+    ),
+  );
+  const source = fs.readFileSync(installer, "utf8");
+  const create = source.indexOf("New-Item -ItemType Directory -Path $backup");
+  const lock = source.indexOf("& icacls.exe $backup /inheritance:r");
+  const verify = source.indexOf("BACKUP_ACL_UNAPPROVED_READER");
+  const copy = source.indexOf("Copy-Item -LiteralPath $file -Destination $dest");
+  assert.ok(create > 0 && lock > create, "new empty backup root must be ACL-locked");
+  assert.ok(
+    verify > lock && copy > verify,
+    "backup credentials must be copied only after ACL verification",
+  );
+  assert.match(source, /BACKUP_ACL_LOCK_FAILED/);
+});
+
 test("shared installer registers task disabled atomically, without enabled interval", () => {
   const installer = fileURLToPath(
     new URL(
