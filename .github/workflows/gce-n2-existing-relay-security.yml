@@ -1,0 +1,61 @@
+name: Exact existing GCE relay no-start security preflight
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_existing_relay_firewall_preflight_20261103.py
+      - .github/workflows/gce-n2-existing-relay-security.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_existing_relay_firewall_preflight_20261103.py
+      - .github/workflows/gce-n2-existing-relay-security.yml
+
+permissions:
+  contents: read
+
+jobs:
+  relay-readonly-preflight:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Exact-identity, guard, network and no-mutation regression
+        run: |
+          python3 -B scripts/operations/gce_n2_existing_relay_firewall_preflight_20261103.py --self-test
+          sha256sum scripts/operations/gce_n2_existing_relay_firewall_preflight_20261103.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/gce_n2_existing_relay_firewall_preflight_20261103.py")
+          s = p.read_text()
+          tree = ast.parse(s)
+          for expected in (
+              'N2 = "kmj-cloudos-kvm-test"',
+              'RELAY = "instance-20260912-094732"',
+              'N2_INTERNAL = "10.128.0.3"',
+              'RELAY_INTERNAL = "10.128.0.2"',
+              'N2_EXACT_PROTECTED_TERMINATED=VERIFIED',
+              'RELAY_EXISTING_EXTERNAL_IPV4=PRESENT_ADDRESS_WITHHELD',
+              'RELAY_TO_ELITE_PUBLIC_EGRESS=NOT_TESTED',
+              'RELAY_RESTRICTED_UPLOAD_AUTHORIZATION=NOT_VERIFIED',
+              'INDEPENDENT_BOOTABLE_RESTORE_ROLLBACK=NOT_VERIFIED',
+              'GCE_OR_HOST_CHANGES=NONE',
+              'CLOUDOS_PRODUCTION_RELEASE=BLOCKED',
+          ):
+              assert expected in s, expected
+          calls = []
+          for n in ast.walk(tree):
+              if isinstance(n, ast.Call):
+                  f = n.func
+                  calls.append(f.attr if isinstance(f, ast.Attribute) else
+                               f.id if isinstance(f, ast.Name) else "")
+          assert calls.count("run") == 1
+          for forbidden in ("system", "Popen", "mkdir", "unlink", "rmdir",
+                            "remove", "rename", "write", "write_text",
+                            "write_bytes", "chmod", "chown", "connect",
+                            "socket", "start", "stop"):
+              assert forbidden not in calls, forbidden
+          assert '"get-effective-firewalls"' in s
+          assert 'read_gce("firewall-rules", "list", required=False)' in s
+          print("GCE_EXACT_EXISTING_RELAY_NO_START_NO_MUTATION_AST=PASS")
+          PY
