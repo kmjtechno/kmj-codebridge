@@ -85,6 +85,33 @@ test("privileged disabled preparation requires protected file ACLs before invoki
   );
 });
 
+test("protected directory and installer ACL checks reject destructive ownership rights", () => {
+  const source = fs.readFileSync(script, "utf8");
+  const dirGuard = source.slice(
+    source.indexOf("function Assert-ProtectedLocation("),
+    source.indexOf("function Assert-ProtectedFileAcl("),
+  );
+  const fileGuard = source.slice(
+    source.indexOf("function Assert-ProtectedFileAcl("),
+    source.indexOf("function Assert-Hash("),
+  );
+  for (const part of [dirGuard, fileGuard]) {
+    for (const right of [
+      "DeleteSubdirectoriesAndFiles",
+      "ChangePermissions",
+      "TakeOwnership",
+      "Delete",
+      "Modify",
+    ]) {
+      assert.ok(
+        part.includes("[Security.AccessControl.FileSystemRights]::" + right),
+        "ACL must reject " + right,
+      );
+    }
+    assert.match(part, /\$sid -notin \$trustedWriters/);
+  }
+});
+
 test("shared installer registers task disabled atomically, without enabled interval", () => {
   const installer = fileURLToPath(
     new URL(
