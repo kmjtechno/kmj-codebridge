@@ -83,7 +83,12 @@ try:
             after_d = os.fstat(fd_d)
         finally:
             os.close(fd_d)
-        if (len(data) != before_d.st_size or before_d != after_d or
+        def stable_metadata(st):
+            # Reading a file can update atime (relatime); that is not a write.
+            return (st.st_dev, st.st_ino, st.st_mode, st.st_uid, st.st_gid,
+                    st.st_nlink, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+        if (len(data) != before_d.st_size or
+                stable_metadata(before_d) != stable_metadata(after_d) or
                 hashlib.sha256(data).hexdigest() != expected_sha):
             raise ValueError('dropin_hash')
         expected_directives = [
