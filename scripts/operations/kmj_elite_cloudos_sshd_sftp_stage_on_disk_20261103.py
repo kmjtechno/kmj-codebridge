@@ -258,14 +258,14 @@ def apply(original, info, admin):
         verify(temp, admin)
         os.replace(temp, MAIN)
         temp = None
-        parent_fd = os.open(SSH_DIR, D)
         try:
-            os.fsync(parent_fd)
-        finally:
-            os.close(parent_fd)
-        try:
+            parent_fd = os.open(SSH_DIR, D)
+            try:
+                os.fsync(parent_fd)
+            finally:
+                os.close(parent_fd)
             verify(None, admin)
-        except (Blocked, UnicodeError):
+        except (Blocked, OSError, UnicodeError):
             restore = SSH_DIR + "/.kmj-sshd-rollback-" + secrets.token_hex(10)
             try:
                 write_new(restore, original, 0o600)
