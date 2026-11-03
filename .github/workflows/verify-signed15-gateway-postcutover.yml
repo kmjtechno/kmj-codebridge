@@ -1,0 +1,31 @@
+name: Signed15 Gateway Read-Only Postcutover Audit
+on:
+  pull_request:
+    paths:
+      - scripts/production/owner_verify_signed15_gateway_20261103.py
+      - tests/test_owner_verify_signed15_gateway.py
+      - tests/test_owner_run_signed15_readonly_bundle.py
+      - scripts/production/owner_run_signed15_readonly_bundle_20261103.sh
+      - .github/workflows/verify-signed15-gateway-postcutover.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/production/owner_verify_signed15_gateway_20261103.py
+      - tests/test_owner_verify_signed15_gateway.py
+      - .github/workflows/verify-signed15-gateway-postcutover.yml
+permissions:
+  contents: read
+jobs:
+  readonly_guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Syntax check and offline adversarial regression
+        run: |
+          bash -n scripts/production/owner_run_signed15_readonly_bundle_20261103.sh
+          python3 -B -m unittest discover -s tests -p 'test_owner_run_signed15_readonly_bundle.py' -v
+          python3 -B -m py_compile scripts/production/owner_verify_signed15_gateway_20261103.py
+          python3 -B -m unittest discover -s tests -p 'test_owner_verify_signed15_gateway.py' -v
