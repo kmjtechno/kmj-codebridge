@@ -1,0 +1,52 @@
+name: CloudOS ELITE SSHD reload readiness read-only audit
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_reload_readonly_gate_20261103.py
+      - .github/workflows/cloudos-elite-sshd-reload-preflight.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_reload_readonly_gate_20261103.py
+      - .github/workflows/cloudos-elite-sshd-reload-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  sshd-reload-audit-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline original-versus-staged integrity and policy tests
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_sshd_reload_readonly_gate_20261103.py --self-test
+      - name: Static read-only command and call scope guard
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          s=Path("scripts/operations/kmj_elite_cloudos_sshd_reload_readonly_gate_20261103.py").read_text()
+          tree=ast.parse(s)
+          calls=set()
+          for x in ast.walk(tree):
+              if isinstance(x,ast.Call):
+                  f=x.func
+                  calls.add(f.attr if isinstance(f,ast.Attribute) else f.id if isinstance(f,ast.Name) else "")
+          forbidden={'write','replace','rename','unlink','remove','chmod','chown',
+                     'fchmod','fchown','mkdir','makedirs','Popen','system','openat',
+                     'useradd','ssh_keygen','reload','restart','execv'}
+          # bytes.replace() in an offline tamper test is not a filesystem
+          # mutation. Reject only explicit os.replace() calls.
+          assert not (forbidden-{'replace'}).intersection(calls), (forbidden-{'replace'}).intersection(calls)
+          assert 'os.replace(' not in s
+          assert 'Path.replace(' not in s
+          assert '["/usr/bin/systemctl", "show", "ssh.service"' in s
+          assert 'ELITE_SSHD_RELOAD=NOT_ATTEMPTED' in s
+          assert 'ELITE_SSHD_PUBLIC_KEY_AUTHENTICATION=NOT_ATTEMPTED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          assert 'os.O_NOFOLLOW' in s
+          assert '["--inspect"]' in s
+          print("ELITE_SSHD_RELOAD_AUDIT_NO_MUTATION_GUARD=PASS")
+          PY
