@@ -122,8 +122,12 @@ test("shared installer locks an empty token before writing the first secret byte
   const source = fs.readFileSync(installer, "utf8");
   const create = source.indexOf("[System.IO.FileMode]::CreateNew");
   const acl = source.indexOf("& icacls.exe $tokenFile /inheritance:r");
-  const aclFailure = source.indexOf("Token file ACL still contains a broad principal");
-  const secretWrite = source.indexOf("Set-Content -LiteralPath $tokenFile -Value $hex");
+  const aclFailure = source.indexOf(
+    "Token file ACL still contains a broad principal",
+  );
+  const secretWrite = source.indexOf(
+    "Set-Content -LiteralPath $tokenFile -Value $hex",
+  );
   assert.ok(create > 0 && acl > create, "token must be empty when ACL is set");
   assert.ok(
     aclFailure > acl && secretWrite > aclFailure,
@@ -146,8 +150,13 @@ test("shared installer locks backup directory before copying agent credentials",
   const create = source.indexOf("New-Item -ItemType Directory -Path $backup");
   const lock = source.indexOf("& icacls.exe $backup /inheritance:r");
   const verify = source.indexOf("BACKUP_ACL_UNAPPROVED_READER");
-  const copy = source.indexOf("Copy-Item -LiteralPath $file -Destination $dest");
-  assert.ok(create > 0 && lock > create, "new empty backup root must be ACL-locked");
+  const copy = source.indexOf(
+    "Copy-Item -LiteralPath $file -Destination $dest",
+  );
+  assert.ok(
+    create > 0 && lock > create,
+    "new empty backup root must be ACL-locked",
+  );
   assert.ok(
     verify > lock && copy > verify,
     "backup credentials must be copied only after ACL verification",
