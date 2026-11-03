@@ -219,12 +219,10 @@ export function attestMainPlatformStaging({
   // A missing/invalid approval must NOT be mislabeled as a file digest
   // mismatch: there is no trusted expected digest yet. Independently report
   // missing/untrusted installed files so the owner can repair the right gate.
-  if (runner === null)
-    blockers.push("STAGING_RUNNER_UNTRUSTED_OR_MISSING");
+  if (runner === null) blockers.push("STAGING_RUNNER_UNTRUSTED_OR_MISSING");
   else if (approval && digest(runner) !== approval.runnerSha256)
     blockers.push("STAGING_RUNNER_ATTESTATION_FAILED");
-  if (unitText === null)
-    blockers.push("STAGING_UNIT_UNTRUSTED_OR_MISSING");
+  if (unitText === null) blockers.push("STAGING_UNIT_UNTRUSTED_OR_MISSING");
   else if (approval && digest(unitText) !== approval.unitSha256)
     blockers.push("STAGING_UNIT_ATTESTATION_FAILED");
   if (unitText && !unitText.includes("ExecStart=/usr/bin/bash " + RUNNER_FILE))
