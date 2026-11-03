@@ -1,0 +1,60 @@
+name: CloudOS relay SFTP shell, forwarding and chroot denial source QA
+
+on:
+  pull_request:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_sftp_restrictions_negative_20261103.py
+      - tests/test_cloudos_relay_sftp_negative_20261103.py
+      - .github/workflows/cloudos-relay-sftp-negative-policy.yml
+  push:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_sftp_restrictions_negative_20261103.py
+      - tests/test_cloudos_relay_sftp_negative_20261103.py
+      - .github/workflows/cloudos-relay-sftp-negative-policy.yml
+
+permissions:
+  contents: read
+
+jobs:
+  negative-policy-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify pinned companion smoke script and isolated negative tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          f=Path("scripts/operations/kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py")
+          assert hashlib.sha256(f.read_bytes()).hexdigest() == "b3224318810bc7fffe28571f7545cbf3de3453ac9220140d750bdc4ce0ec4c1c"
+          print("COMPANION_PINNED_SMOKE_SHA256=PASS")
+          PY
+          python3 -B scripts/operations/kmj_cloudos_relay_sftp_restrictions_negative_20261103.py --self-test
+          python3 -B tests/test_cloudos_relay_sftp_negative_20261103.py
+      - name: Assert non-mutating scope and no private key disclosure
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path("scripts/operations/kmj_cloudos_relay_sftp_restrictions_negative_20261103.py")
+          s=p.read_text()
+          ast.parse(s)
+          assert 'SENTINEL = b"KMJ_CLOUDOS_UNAUTHORIZED_SHELL_EXECUTED_20261103"' in s
+          assert 'RELAY_SFTP_SHELL_EXECUTION_NEGATIVE=PASS' in s
+          assert 'RELAY_SFTP_DIRECT_TCPIP_FORWARD_NEGATIVE=PASS' in s
+          assert 'RELAY_SFTP_CHROOT_EXTERNAL_PATH_NEGATIVE=PASS' in s
+          assert 'RELAY_SFTP_CANARY_WRITE_DELETE=NOT_ATTEMPTED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          assert 'BATCH_CHROOT = b"pwd\\nls /etc\\n"' in s
+          assert '"StrictHostKeyChecking=yes"' in s
+          assert '"PasswordAuthentication=no"' in s
+          assert '"IdentityAgent=none"' in s
+          assert 'SMOKE_SHA256 = "b3224318810bc7fffe28571f7545cbf3de3453ac9220140d750bdc4ce0ec4c1c"' in s
+          for term in ("systemctl", "sshpass", "ssh-copy-id", "authorized_keys",
+                       "shell=True", "gcloud compute", "os.chmod(", "os.rename(",
+                       "os.replace(", "os.unlink(", "subprocess.Popen", "put /incoming",
+                       "rm /incoming"):
+              assert term not in s, term
+          print("RELAY_SFTP_NEGATIVE_NO_REMOTE_MUTATION_GUARD=PASS")
+          PY
