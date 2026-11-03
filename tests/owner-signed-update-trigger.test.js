@@ -46,11 +46,19 @@ test("signed release preflight checks root-owned trust, no secrets printed", () 
   ]) {
     assert.ok(src.includes(word), word);
   }
-  assert.ok(
-    src.includes(
-      '[[ "$result" == success && "$code" == 0 && "$condition" == yes ]]',
-    ),
-  );
+  assert.ok(src.includes('[[ "$result" == success && "$code" == 0 ]]'));
+  for (const marker of [
+    "SIGNED_JOURNAL_CURSOR_UNAVAILABLE",
+    "--after-cursor=",
+    "row.get('_SYSTEMD_UNIT') != unit",
+    "CODEBRIDGE_SIGNED_JOB=NOT_PROVEN",
+    "CODEBRIDGE_SIGNED_UPDATED=",
+    "len(matches) != 1",
+    "SIGNED_JOB_EXECUTION_UNVERIFIED",
+  ]) {
+    assert.ok(src.includes(marker), marker);
+  }
+  assert.ok(!src.includes('"$condition" == yes'));
   assert.ok(!src.includes('cat "$CONFIG"'));
   assert.ok(!src.includes("print(obj)"));
 });
