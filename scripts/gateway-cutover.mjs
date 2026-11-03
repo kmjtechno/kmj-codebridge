@@ -332,7 +332,7 @@ function inspect(options, deps) {
     asService(["mktemp", "-d", "-t", "kmj-codebridge-gates.XXXXXXXX"]),
   );
   check(
-    /^\\/tmp\\/kmj-codebridge-gates\\.[A-Za-z0-9]{8,}$/.test(qaRoot),
+    /^\/tmp\/kmj-codebridge-gates\.[A-Za-z0-9]{8,}$/.test(qaRoot),
     "QA_DIRECTORY_UNSAFE",
   );
   const qaStat = fs.lstatSync(qaRoot);
