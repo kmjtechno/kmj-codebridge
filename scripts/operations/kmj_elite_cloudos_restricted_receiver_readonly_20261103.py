@@ -174,45 +174,95 @@ def identity_check():
         raise Blocked("UPLOADER_ACCOUNT_MISSING_OR_UNVERIFIED") from None
 
 
+def probe(label, fn):
+    """Report every independent receiver prerequisite, never credit partial."""
+    try:
+        fn()
+    except Blocked as exc:
+        # Error codes contain no public-key material, credentials or paths.
+        print(label + "=BLOCKED_" + str(exc)[:80], flush=True)
+        return False
+    print(label + "=PASS", flush=True)
+    return True
+
+
 def inspect():
     if os.geteuid() != 0 or os.uname().nodename.split(".")[0].lower() != HOST:
         raise Blocked("EXACT_ELITE_ROOT_SESSION_REQUIRED")
-    require_dir(directory_info("/srv"), 0)
-    require_dir(directory_info(VAULT), 0, mode=0o700)
-    print("ELITE_EXISTING_ROOT_ONLY_BACKUP_VAULT=VERIFIED")
-    uid = identity_check()
-    print("ELITE_RESTRICTED_UPLOADER_IDENTITY=LOCAL_ACCOUNT_VERIFIED")
-    require_dir(directory_info(CHROOT), 0, mode=0o755)
-    # The chroot directory must not be writable by its unprivileged user.
-    # The only user-writable path is the isolated incoming spool.
-    incoming = directory_info_allow_incoming(uid)
-    require_dir(incoming, uid, mode=0o700)
-    print("ELITE_SEPARATE_SFTP_CHROOT_AND_SPOOL=VERIFIED")
-    sshd = "/usr/sbin/sshd"
-    try:
-        result = subprocess.run(
-            [sshd, "-T", "-C", f"user={ACCOUNT},host=relay,addr=127.0.0.1"],
-            capture_output=True, text=True, timeout=10,
-            check=False, stdin=subprocess.DEVNULL,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise Blocked("SSHD_POLICY_READ_UNAVAILABLE") from exc
-    if result.returncode or not parse_sshd_effective(result.stdout):
-        raise Blocked("RESTRICTED_SFTP_POLICY_UNVERIFIED")
-    print("ELITE_RESTRICTED_SFTP_POLICY=PASS_SIMULATED_CONTEXT_ONLY")
-    if not valid_authorized_ed25519(read_root_file(AUTHORIZED)):
-        raise Blocked("AUTHORIZED_PUBLIC_KEY_SYNTAX_UNVERIFIED")
-    print("ELITE_ROOT_MANAGED_AUTHORIZED_PUBLIC_KEY=SYNTAX_VERIFIED")
-    if not valid_age_recipient(read_root_file(RECIPIENT)):
-        raise Blocked("AGE_RECIPIENT_SYNTAX_UNVERIFIED")
-    print("ELITE_AGE_PUBLIC_RECIPIENT=SYNTAX_VERIFIED_NOT_RECOVERY_PROOF")
-    print("ELITE_RECEIVER_STATIC_PREFLIGHT=PASS")
+
+    # Inspect independent controls in one bounded read-only pass. Do not
+    # require a second root invocation merely because the account is absent.
+    account = {}
+    checks = []
+
+    def check_vault():
+        require_dir(directory_info("/srv"), 0)
+        require_dir(directory_info(VAULT), 0, mode=0o700)
+
+    checks.append(probe("ELITE_ROOT_ONLY_BACKUP_VAULT", check_vault))
+
+    def check_account():
+        account["uid"] = identity_check()
+
+    checks.append(probe("ELITE_RESTRICTED_UPLOADER_IDENTITY", check_account))
+
+    def check_chroot():
+        require_dir(directory_info(CHROOT), 0, mode=0o755)
+
+    chroot_ok = probe("ELITE_ROOT_OWNED_SFTP_CHROOT", check_chroot)
+    checks.append(chroot_ok)
+
+    def check_spool():
+        if "uid" not in account:
+            raise Blocked("UPLOADER_ACCOUNT_NOT_VERIFIED")
+        if not chroot_ok:
+            raise Blocked("SFTP_CHROOT_NOT_VERIFIED")
+        require_dir(directory_info_allow_incoming(account["uid"]),
+                    account["uid"], mode=0o700)
+
+    checks.append(probe("ELITE_ISOLATED_UPLOAD_SPOOL", check_spool))
+
+    def check_policy():
+        if "uid" not in account:
+            raise Blocked("UPLOADER_ACCOUNT_NOT_VERIFIED")
+        try:
+            result = subprocess.run(
+                ["/usr/sbin/sshd", "-T", "-C",
+                 f"user={ACCOUNT},host=relay,addr=127.0.0.1"],
+                capture_output=True, text=True, timeout=10,
+                check=False, stdin=subprocess.DEVNULL,
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise Blocked("SSHD_POLICY_READ_UNAVAILABLE") from exc
+        if result.returncode or not parse_sshd_effective(result.stdout):
+            raise Blocked("RESTRICTED_SFTP_POLICY_UNVERIFIED")
+
+    checks.append(probe("ELITE_SFTP_POLICY_SIMULATED_ONLY", check_policy))
+
+    def check_public_key():
+        if not valid_authorized_ed25519(read_root_file(AUTHORIZED)):
+            raise Blocked("AUTHORIZED_PUBLIC_KEY_SYNTAX_UNVERIFIED")
+
+    checks.append(probe("ELITE_ROOT_MANAGED_AUTHORIZED_PUBLIC_KEY_SYNTAX",
+                        check_public_key))
+
+    def check_public_age():
+        if not valid_age_recipient(read_root_file(RECIPIENT)):
+            raise Blocked("AGE_RECIPIENT_SYNTAX_UNVERIFIED")
+
+    checks.append(probe("ELITE_AGE_PUBLIC_RECIPIENT_SYNTAX", check_public_age))
+
     print("RELAY_TO_ELITE_AUTHENTICATED_LOGIN=NOT_ATTEMPTED")
     print("AGE_OWNER_PRIVATE_RECOVERY_ESCROW=NOT_VERIFIED")
     print("CONSISTENT_ENCRYPTED_N2_BOOT_DISK_TRANSFER=NOT_ATTEMPTED")
     print("INDEPENDENT_DISPOSABLE_RESTORE_ROLLBACK=NOT_VERIFIED")
     print("ELITE_CONFIG_OR_HOST_MUTATIONS=NONE_BY_THIS_PROGRAM")
     print("CLOUDOS_PRODUCTION_RELEASE=BLOCKED")
+
+    if all(checks):
+        print("ELITE_RECEIVER_STATIC_PREFLIGHT=PASS")
+    else:
+        raise Blocked("ONE_OR_MORE_RECEIVER_PREREQUISITES_MISSING")
 
 
 def directory_info_allow_incoming(expected_uid: int):
