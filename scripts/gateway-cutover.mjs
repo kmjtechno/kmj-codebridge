@@ -248,10 +248,14 @@ function inspect(options, deps) {
   check(stat.isFile() && (stat.mode & 0o077) === 0, "CONFIG_NOT_PRIVATE");
   check(deps.run([node, "--version"]).startsWith("v24."), "NODE_MAJOR");
 
-  const home = deps
-    .run(["getent", "passwd", options.serviceUser])
-    .split(":")[5];
+  const passwd = deps.run(["getent", "passwd", options.serviceUser]).split(":");
+  const home = passwd[5];
+  const serviceUid = Number(passwd[2]);
   check(SAFE_PATH.test(home ?? ""), "SERVICE_HOME_INVALID");
+  check(
+    Number.isSafeInteger(serviceUid) && serviceUid >= 1,
+    "SERVICE_UID_INVALID",
+  );
   const asService = (argv) => [
     "runuser",
     "-u",
@@ -320,30 +324,66 @@ function inspect(options, deps) {
       "DROPIN_UNRECOGNIZED",
     );
 
-  // "Clean checkout at the right SHA" does not mean "tested". Run the same
-  // gates the operator is told to run, as the unprivileged service user, and
-  // make sure they left the tree clean. npm ci is an operator prerequisite
-  // (it needs network); missing dependencies make these gates fail.
-  for (const [name, argv, timeoutMs] of [
-    ["check", ["npm", "run", "check"], 300000],
-    ["test", ["npm", "test"], 900000],
-    ["scan_secrets", ["npm", "run", "scan:secrets"], 300000],
-  ]) {
-    try {
-      // Tests and the secret scanner invoke git in child processes. Trust
-      // only this verified candidate, only for the lifetime of this gate.
-      deps.run(
-        asService([
-          "GIT_CONFIG_COUNT=1",
-          "GIT_CONFIG_KEY_0=safe.directory",
-          `GIT_CONFIG_VALUE_0=${target}`,
-          ...argv,
-        ]),
-        { cwd: target, timeoutMs },
-      );
-    } catch {
-      throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
+  // Production candidate must remain unchanged throughout verification.
+  // Tests can create untracked files; they must run in an isolated,
+  // service-owned disposable copy, never inside the publishable runtime.
+  // The copy includes the already installed exact-lockfile dependencies;
+  // no new network fetch, mutable branch, or privileged test process.
+  // Use the existing service user's home rather than /tmp, which can be
+  // noexec and break npm's executable test tools. No root-created writable
+  // workspace or host systemd change is required.
+  const qaPrefix = `${home}/.kmj-codebridge-gates.`;
+  const qaRoot = deps.run(asService(["mktemp", "-d", `${qaPrefix}XXXXXXXX`]));
+  check(
+    qaRoot.startsWith(qaPrefix) &&
+      /^[A-Za-z0-9]{8}$/.test(qaRoot.slice(qaPrefix.length)),
+    "QA_DIRECTORY_UNSAFE",
+  );
+  const qaStat = fs.lstatSync(qaRoot);
+  check(
+    qaStat.isDirectory() &&
+      !qaStat.isSymbolicLink() &&
+      qaStat.uid === serviceUid &&
+      (qaStat.mode & 0o077) === 0,
+    "QA_DIRECTORY_UNTRUSTED",
+  );
+  try {
+    deps.run(asService(["cp", "-a", "--", `${target}/.`, `${qaRoot}/`]), {
+      timeoutMs: 120000,
+    });
+    check(
+      git(qaRoot, "rev-parse", "HEAD") === options.targetSha,
+      "QA_SHA_MISMATCH",
+    );
+    // Only committed files and private dependencies enter the disposable QA.
+    // Runtime code and the root-run cutover controller are never copied back.
+    for (const [name, argv, timeoutMs] of [
+      ["check", ["npm", "run", "check"], 300000],
+      ["test", ["npm", "test"], 900000],
+      ["scan_secrets", ["npm", "run", "scan:secrets"], 300000],
+    ]) {
+      try {
+        deps.run(
+          asService([
+            "GIT_CONFIG_COUNT=1",
+            "GIT_CONFIG_KEY_0=safe.directory",
+            `GIT_CONFIG_VALUE_0=${qaRoot}`,
+            ...argv,
+          ]),
+          { cwd: qaRoot, timeoutMs },
+        );
+      } catch {
+        throw new CutoverError(`CANDIDATE_GATE_FAILED:${name}`);
+      }
     }
+    check(
+      !git(qaRoot, "status", "--porcelain", "--untracked-files=no"),
+      "QA_TRACKED_CHANGES",
+    );
+  } finally {
+    // QA_ROOT is fixed-prefix, mktemp-created, privately owned and only ever
+    // removed by the unprivileged service user, never by a root shell.
+    deps.run(asService(["rm", "-rf", "--", qaRoot]), { timeoutMs: 120000 });
   }
   check(!git(target, "status", "--porcelain"), "CANDIDATE_DIRTY_AFTER_GATES");
 
