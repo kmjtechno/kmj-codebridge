@@ -172,14 +172,60 @@ exec_meta=$(systemctl show "$UNIT" -p ExecStart --value 2>/dev/null) ||
    "$exec_meta" == *"$CONFIG"* &&
    "$exec_meta" == *"src/cli.js"* ]] || fail SIGNED_UNIT_EXEC_UNVERIFIED
 unset exec_meta
+# Capture the final journal cursor BEFORE the one-shot. A systemd oneshot
+# can be garbage-collected immediately after exit: the unloaded unit's
+# ConditionResult and ExecMainStartTimestamp can revert to "no"/empty even
+# though its signed CLI ran. A successful systemctl start can also mean a
+# condition-skip, so systemctl exit 0 alone is never activation evidence.
+cursor_before=$(journalctl -b -u "$UNIT" -n 1 --show-cursor --no-pager -o cat 2>/dev/null |
+  sed -n 's/^-- cursor: //p') || fail SIGNED_JOURNAL_CURSOR_UNAVAILABLE
+[[ -n "$cursor_before" ]] || fail SIGNED_JOURNAL_CURSOR_UNAVAILABLE
 printf 'CODEBRIDGE_SIGNED_UPDATE=TRIGGERING_EXISTING_GUARDED_UNIT\n'
 if ! systemctl start "$UNIT" >/dev/null 2>&1; then
   fail SIGNED_UPDATE_SERVICE_FAILED
 fi
-result=$(systemctl show "$UNIT" -p Result --value 2>/dev/null) || fail RESULT_UNAVAILABLE
-code=$(systemctl show "$UNIT" -p ExecMainStatus --value 2>/dev/null) || fail RESULT_UNAVAILABLE
-condition=$(systemctl show "$UNIT" -p ConditionResult --value 2>/dev/null) || fail RESULT_UNAVAILABLE
-[[ "$result" == success && "$code" == 0 && "$condition" == yes ]] ||
-  fail SIGNED_UPDATE_GATE_FAILED
-printf 'CODEBRIDGE_SIGNED_JOB=COMPLETED\n'
+result=$(systemctl show "$UNIT" -p Result --value 2>/dev/null) ||
+  fail RESULT_UNAVAILABLE
+code=$(systemctl show "$UNIT" -p ExecMainStatus --value 2>/dev/null) ||
+  fail RESULT_UNAVAILABLE
+[[ "$result" == success && "$code" == 0 ]] || fail SIGNED_UPDATE_SERVICE_FAILED
+
+# Require EXACT new root-unit CLI completion, not a stale unit property or an
+# unrelated journal entry. Never echo arbitrary journal text or secrets.
+python3 -I -S - "$UNIT" "$cursor_before" <<'PY' ||
+  fail SIGNED_JOB_EXECUTION_UNVERIFIED
+import json, re, subprocess, sys
+unit, cursor = sys.argv[1:]
+try:
+    p = subprocess.run(
+        ['journalctl', '-b', '-u', unit, '--after-cursor=' + cursor,
+         '-n', '200', '-o', 'json', '--no-pager'],
+        capture_output=True, timeout=12, check=False)
+    if p.returncode or len(p.stdout) > 262144:
+        raise ValueError('journal_unavailable')
+    matches = []
+    pattern = re.compile(
+        r'KMJ CodeBridge stable update complete; version '
+        r'([A-Za-z0-9.+_-]{1,80}), sequence ([0-9]{1,18}), '
+        r'updated=(true|false)\\.')
+    for line in p.stdout.splitlines():
+        row = json.loads(line)
+        if row.get('_SYSTEMD_UNIT') != unit:
+            continue
+        message = row.get('MESSAGE')
+        if isinstance(message, str):
+            m = pattern.fullmatch(message)
+            if m:
+                matches.append((m.group(1), m.group(2), m.group(3)))
+    if len(matches) != 1:
+        raise ValueError('missing_or_ambiguous_cli_completion')
+except (OSError, ValueError, KeyError, TypeError, subprocess.TimeoutExpired,
+        json.JSONDecodeError):
+    print('CODEBRIDGE_SIGNED_JOB=NOT_PROVEN')
+    sys.exit(2)
+print('CODEBRIDGE_SIGNED_JOB=COMPLETED')
+print('CODEBRIDGE_SIGNED_UPDATED=' + matches[0][2].upper())
+print('CODEBRIDGE_SIGNED_VERSION=' + matches[0][0])
+print('CODEBRIDGE_SIGNED_SEQUENCE=' + matches[0][1])
+PY
 printf 'CODEBRIDGE_ACTIVATION=RECHECK_LIVE_RELEASE_SHA_AND_OAUTH\n'
