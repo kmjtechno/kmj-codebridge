@@ -1,0 +1,53 @@
+name: CloudOS relay to ELITE pinned authenticated SFTP smoke source QA
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py
+      - tests/test_cloudos_relay_elite_pinned_sftp_smoke_20261103.py
+      - .github/workflows/cloudos-relay-elite-pinned-sftp-smoke.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py
+      - tests/test_cloudos_relay_elite_pinned_sftp_smoke_20261103.py
+      - .github/workflows/cloudos-relay-elite-pinned-sftp-smoke.yml
+
+permissions:
+  contents: read
+
+jobs:
+  pinned-auth-sftp-smoke-source:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline uploader public key and host pin validation
+        run: |
+          python3 -B scripts/operations/kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py --self-test
+          python3 -B tests/test_cloudos_relay_elite_pinned_sftp_smoke_20261103.py
+      - name: Reject upload or changes to SSH service
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          p=Path("scripts/operations/kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py")
+          s=p.read_text()
+          ast.parse(s)
+          assert "ELITE_ED25519_HOST_PIN" in s
+          assert "UPLOADER_KEY_PIN" in s
+          assert 'RELAY_GCE_IDENTITY=EXACT_VERIFIED' in s
+          assert 'RELAY_TO_ELITE_AUTHENTICATED_SFTP=PASS' in s
+          assert 'RELAY_SFTP_REMOTE_PWD_AND_INCOMING_LIST=PASS_READ_ONLY' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          assert 'stdin=b"pwd\\nls /incoming\\n"' in s
+          assert '"StrictHostKeyChecking=yes"' in s
+          assert '"PasswordAuthentication=no"' in s
+          assert '"BatchMode=yes"' in s
+          assert '"IdentitiesOnly=yes"' in s
+          for term in ("systemctl", "ssh-copy-id", "gcloud compute", "sshpass",
+                       "authorized_keys", "shell=True", "shutil.copy",
+                       "os.replace(", "os.rename(", "chmod(", "chown(",
+                       "subprocess.Popen", 'stdin=b"put ', 'stdin=b"rm '):
+              assert term not in s, term
+          print("RELAY_PINNED_SFTP_READ_ONLY_SOURCE_SCOPE=PASS")
+          PY
