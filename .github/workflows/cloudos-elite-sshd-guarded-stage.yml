@@ -1,0 +1,51 @@
+name: CloudOS ELITE guarded SSHD SFTP stage validation
+
+on:
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_sftp_stage_on_disk_20261103.py
+      - tests/test_cloudos_elite_sshd_disk_stage_20261103.py
+      - .github/workflows/cloudos-elite-sshd-guarded-stage.yml
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_sshd_sftp_stage_on_disk_20261103.py
+      - tests/test_cloudos_elite_sshd_disk_stage_20261103.py
+      - .github/workflows/cloudos-elite-sshd-guarded-stage.yml
+
+permissions:
+  contents: read
+
+jobs:
+  validate-isolated-sshd-staging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline policy self-test and simulated stage/rollback
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_sshd_sftp_stage_on_disk_20261103.py --self-test
+          python3 -B tests/test_cloudos_elite_sshd_disk_stage_20261103.py
+      - name: Verify no automatic service or credential mutation in stage script
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import ast
+          src=Path("scripts/operations/kmj_elite_cloudos_sshd_sftp_stage_on_disk_20261103.py").read_text()
+          ast.parse(src)
+          assert "systemctl" not in src
+          assert "service ssh" not in src
+          assert "ssh-keygen" not in src
+          assert "subprocess.Popen" not in src
+          assert "shell=True" not in src
+          assert "ELITE_SSHD_RELOAD=NOT_ATTEMPTED" in src
+          assert "ELITE_AUTHENTICATED_SFTP_LOGIN=NOT_ATTEMPTED" in src
+          assert "CLOUDOS_PRODUCTION_RELEASE=BLOCKED" in src
+          assert 'os.geteuid() != 0' in src
+          assert '"--stage"' in src
+          assert "BACKUP = " in src
+          assert "os.replace(temp, MAIN)" in src
+          assert "POST_WRITE_FAILURE_ROLLED_BACK" in src
+          assert 'EXPECTED["permituserenvironment"] == "no"' in src
+          assert "os.O_NOFOLLOW" in src
+          print("ELITE_SSHD_STAGE_SOURCE_SCOPE=PASS")
+          PY
