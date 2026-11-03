@@ -299,6 +299,11 @@ def run():
     fd=os.open(LOCK,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     data=new_content(config)
     created=False;restarted=False
+    def on_interrupt(signum, frame):
+        raise Blocked("INTERRUPTED")
+    prior={sig:signal.getsignal(sig) for sig in (signal.SIGINT,signal.SIGTERM)}
+    for sig in prior:
+        signal.signal(sig,on_interrupt)
     try:
         os.write(fd,str(os.getpid()).encode()+b"\n")
         os.fsync(fd)
@@ -321,7 +326,7 @@ def run():
         print("GATEWAY_SIGNED15=LIVE_PASS")
         print("GATEWAY_PID_CHANGED=PASS")
         print("AGENT_RECONNECT=REQUIRES_AUTHENTICATED_CLIENT")
-    except Exception as error:
+    except BaseException as error:
         reason=error.args[0] if isinstance(error,Blocked) else "UNCLASSIFIED"
         print("GATEWAY_SIGNED15=BLOCKED:"+str(reason))
         if created:
@@ -330,6 +335,8 @@ def run():
                 print("GATEWAY_ROLLBACK=FAILED_OWNER_REVIEW_REQUIRED")
         raise Blocked("CUTOVER_FAILED") from None
     finally:
+        for sig, handler in prior.items():
+            signal.signal(sig,handler)
         os.close(fd)
         try: os.unlink(LOCK)
         except OSError: pass
