@@ -155,7 +155,32 @@ def inspect_preconditions():
             os.close(handle)
 
 
-def run_sshd(path=None, user=None, addr="127.0.0.1"):
+def stderr_category(payload):
+    """Whitelist only generic OpenSSH error classes; never emit stderr."""
+    fragment = payload[:4096].decode("utf-8", "replace").lower()
+    if "not allowed within a match" in fragment or "not allowed in a match" in fragment:
+        return "MATCH_OPTION_NOT_ALLOWED"
+    if "bad configuration option" in fragment or "unsupported option" in fragment:
+        return "UNSUPPORTED_SSHD_DIRECTIVE"
+    if "missing privilege separation directory" in fragment:
+        return "PRIVSEP_DIRECTORY_MISSING"
+    if "bad owner or permissions" in fragment:
+        return "UNSAFE_CONFIG_PERMISSIONS"
+    if "no hostkeys available" in fragment or "unable to load host key" in fragment:
+        return "HOSTKEY_SANITY_CHECK_FAILED"
+    if "missing argument" in fragment or "badly formatted" in fragment:
+        return "SSHD_DIRECTIVE_ARGUMENT_INVALID"
+    if "error terminating" in fragment or "terminating, " in fragment:
+        return "SSHD_TERMINATED_CONFIGURATION_ERROR"
+    return "OTHER_NO_STDERR_EXPOSED"
+
+
+def run_sshd(path=None, user=None, addr="127.0.0.1", *, phase="BASE"):
+    if phase not in {
+        "EXISTING_SYNTAX", "EXISTING_ADMIN", "CANDIDATE_SYNTAX",
+        "CANDIDATE_ADMIN", "CANDIDATE_UPLOADER", "BASE",
+    }:
+        raise Blocked("INVALID_DIAGNOSTIC_PHASE")
     args = [SSHD, "-t"] if user is None else [
         SSHD, "-T", "-C", f"user={user},host=relay,addr={addr}"
     ]
@@ -164,10 +189,15 @@ def run_sshd(path=None, user=None, addr="127.0.0.1"):
     try:
         proc = subprocess.run(args, capture_output=True, check=False,
                               stdin=subprocess.DEVNULL, timeout=15)
-    except (OSError, subprocess.TimeoutExpired):
-        raise Blocked("SSHD_QUERY_TIMEOUT_OR_UNAVAILABLE") from None
-    if proc.returncode or len(proc.stdout) > 65536:
-        raise Blocked("SSHD_QUERY_INVALID")
+    except subprocess.TimeoutExpired:
+        raise Blocked("SSHD_TIMEOUT_" + phase) from None
+    except OSError:
+        raise Blocked("SSHD_EXEC_UNAVAILABLE_" + phase) from None
+    if proc.returncode:
+        raise Blocked("SSHD_NONZERO_" + phase + "_" +
+                      stderr_category(proc.stderr))
+    if len(proc.stdout) > 65536:
+        raise Blocked("SSHD_OUTPUT_OVERSIZE_" + phase)
     return proc.stdout
 
 
@@ -189,7 +219,8 @@ def parse_policy(blob):
 def evaluate():
     original, original_meta = inspect_preconditions()
     print("ELITE_ROOT_SFTP_FILESYSTEM_STAGING=PASS")
-    run_sshd()
+    run_sshd(phase="EXISTING_SYNTAX")
+    print("ELITE_EXISTING_SSHD_SYNTAX=PASS")
     admins = [
         name for name in ADMIN_CANDIDATES
         if name == "root" or any(
@@ -198,7 +229,7 @@ def evaluate():
     if "root" not in admins or len(admins) < 2:
         raise Blocked("INSUFFICIENT_ADMIN_BASELINE_IDENTITIES")
     baseline = {
-        (name, ip): run_sshd(user=name, addr=ip)
+        (name, ip): run_sshd(user=name, addr=ip, phase="EXISTING_ADMIN")
         for name in admins for ip in CONTEXT_IPS
     }
     print("ELITE_CURRENT_SSHD_ADMIN_POLICY_BASELINE=CAPTURED")
@@ -213,13 +244,15 @@ def evaluate():
         temp.write(candidate)
         temp.flush()
         os.fsync(temp.fileno())
-        run_sshd(temp.name)
+        run_sshd(temp.name, phase="CANDIDATE_SYNTAX")
+        print("ELITE_CANDIDATE_SSHD_SYNTAX=PASS")
         for (name, ip), before in baseline.items():
-            if run_sshd(temp.name, name, ip) != before:
+            if run_sshd(temp.name, name, ip, phase="CANDIDATE_ADMIN") != before:
                 raise Blocked("ADMIN_EFFECTIVE_POLICY_WOULD_CHANGE")
         print("ELITE_CANDIDATE_ADMIN_SSH_POLICY_UNCHANGED=PASS")
         for ip in CONTEXT_IPS:
-            policy = parse_policy(run_sshd(temp.name, UPLOADER, ip))
+            policy = parse_policy(run_sshd(temp.name, UPLOADER, ip,
+                                           phase="CANDIDATE_UPLOADER"))
             if any(policy.get(k) != v for k, v in RESTRICTIONS.items()):
                 raise Blocked("UPLOADER_CANDIDATE_NOT_FORCE_SFTP")
         print("ELITE_CANDIDATE_UPLOADER_RESTRICTED_POLICY=PASS")
@@ -250,6 +283,11 @@ def self_test():
             else:
                 raise AssertionError("Duplicate protected setting accepted")
     assert parse_policy(b"hostkey /one\nhostkey /two\n")["hostkey"] == "/one"
+    assert stderr_category(b"/private/path: line 2: Directive X not allowed within a Match block") == "MATCH_OPTION_NOT_ALLOWED"
+    assert stderr_category(b"sshd_config: Bad configuration option: example") == "UNSUPPORTED_SSHD_DIRECTIVE"
+    assert stderr_category(b"Missing privilege separation directory: /run/sshd") == "PRIVSEP_DIRECTORY_MISSING"
+    assert stderr_category(b"No hostkeys available -- exiting.") == "HOSTKEY_SANITY_CHECK_FAILED"
+    assert stderr_category(b"UNKNOWN private context and credential") == "OTHER_NO_STDERR_EXPOSED"
     print("ELITE_SSHD_SFTP_DRYRUN_OFFLINE_TESTS=PASS")
 
 
