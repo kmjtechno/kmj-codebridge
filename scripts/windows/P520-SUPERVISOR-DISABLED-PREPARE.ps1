@@ -67,7 +67,10 @@ function Assert-ProtectedLocation([string]$target,[string]$tag) {
   $writes=([Security.AccessControl.FileSystemRights]::Write -bor
            [Security.AccessControl.FileSystemRights]::Modify -bor
            [Security.AccessControl.FileSystemRights]::FullControl -bor
-           [Security.AccessControl.FileSystemRights]::Delete)
+           [Security.AccessControl.FileSystemRights]::Delete -bor
+           [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+           [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+           [Security.AccessControl.FileSystemRights]::TakeOwnership)
   for($i=0;$i -lt 32;$i++) {
     if(-not $cur.StartsWith($base,[StringComparison]::OrdinalIgnoreCase)) {
       throw ('PROTECTED_ANCESTRY_INVALID_'+$tag)
@@ -117,7 +120,10 @@ function Assert-ProtectedFileAcl([string]$target,[string]$tag) {
   $writes=([Security.AccessControl.FileSystemRights]::Write -bor
            [Security.AccessControl.FileSystemRights]::Modify -bor
            [Security.AccessControl.FileSystemRights]::FullControl -bor
-           [Security.AccessControl.FileSystemRights]::Delete)
+           [Security.AccessControl.FileSystemRights]::Delete -bor
+           [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+           [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+           [Security.AccessControl.FileSystemRights]::TakeOwnership)
   foreach($ace in $acl.Access) {
     $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
     if($ace.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow -and
