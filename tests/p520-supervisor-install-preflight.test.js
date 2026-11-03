@@ -20,6 +20,11 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /ONE_UNATTESTED_CANDIDATE/);
   assert.match(source, /gateway -cne 'https:\/\/kmjtechno\.com\/mcp'/);
   assert.match(source, /Candidate-Identity \$wrongGateway/);
+  assert.match(source, /Candidate-Identity \$missingFields/);
+  assert.match(source, /Candidate-Identity \$malformedProjects/);
+  assert.match(source, /Candidate-Identity \$duplicateProjects/);
+  assert.match(source, /\$names -notcontains 'projects'/);
+  assert.match(source, /\$cfg\.projects -isnot \[array\]/);
   assert.match(source, /Safe-Candidate-Path/);
   assert.match(source, /FileAttributes\]::ReparsePoint/);
   assert.match(source, /Get-ScheduledTask -ErrorAction Stop/);
