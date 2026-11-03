@@ -152,11 +152,11 @@ function host(t, tweak = {}) {
     // path, so it must only ever arrive via the unprivileged service user.
     if (cmd === "git") throw new Error("git must never run as root");
     if (cmd === "getent")
-      return `kmjcode:x:${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}::/home/kmjcode:/bin/sh`;
+      return `kmjcode:x:${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}::${base}:/bin/sh`;
     if (cmd === "runuser") {
       if (argv.includes("mktemp")) {
         state.qaRoot = fs.mkdtempSync(
-          path.join(os.tmpdir(), "kmj-codebridge-gates."),
+          path.join(base, ".kmj-codebridge-gates."),
         );
         fs.chmodSync(state.qaRoot, 0o700);
         return state.qaRoot;
