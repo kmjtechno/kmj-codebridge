@@ -26,6 +26,9 @@ EXPECTED = {
 }
 NODE = "/opt/kmj-codebridge-node/bin/node"
 CFG = "/etc/kmj-codebridge-update/stable-update.json"
+# Exact old release filesystem root verified on KMJ-elite by read-only
+# Nginx/public-manifest byte matching on 2026-11-03.
+PINNED_STATIC_STABLE_ROOT = pathlib.Path("/var/lib/kmj-codebridge-releases/stable")
 
 def guard(ok, code):
     if not ok:
@@ -89,13 +92,23 @@ def find_static_release_parent(old_url, old_bytes):
         if matched and "$" not in matched.group(2):
             (roots if matched.group(1) == "root" else aliases).add(matched.group(2))
     candidates = {pathlib.Path(root) / public.lstrip("/") for root in roots}
+    # The production vhost serves the releases through a distinct static
+    # alias root not reconstructible from a generic URL-to-root join. This
+    # previously caused STATIC_ORIGIN_PATH_UNRESOLVED. Do not blindly trust
+    # the path: require exact bytes of the already-public signed14 manifest
+    # and unique matching root, as for every other discovered candidate.
+    candidates.add(
+        PINNED_STATIC_STABLE_ROOT / PREVIOUS / "release-manifest.json"
+    )
     for alias in aliases:
         candidates.add(pathlib.Path(alias) / f"stable/{PREVIOUS}/release-manifest.json")
         candidates.add(pathlib.Path(alias) / public.lstrip("/"))
     matches = set()
     for candidate in candidates:
         try:
-            if candidate.is_symlink() or not candidate.is_file() or candidate.parent.name != PREVIOUS:
+            if (candidate.is_symlink() or candidate.parent.is_symlink()
+                or candidate.parent.parent.is_symlink()
+                or not candidate.is_file() or candidate.parent.name != PREVIOUS):
                 continue
             if candidate.read_bytes() == old_bytes:
                 matches.add(candidate.parent.parent.resolve(strict=True))
