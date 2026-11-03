@@ -55,6 +55,29 @@ test("signed release preflight checks root-owned trust, no secrets printed", () 
   assert.ok(!src.includes("print(obj)"));
 });
 
+test("single host-attested drain runtime is accepted only with exact effective command", () => {
+  for (const invariant of [
+    "99-kmj-drain-runtime.conf",
+    "6d7451c4759b6090f8d016ca8d12a97a7d9212b4f2b4d65be143c3f034204360",
+    "d5de2691f3f7923acb1549c4fb23ce6b5a1570b97d20890c2fac3a793038bb56",
+    "SIGNED_UNIT_HAS_UNREVIEWED_DROPINS",
+    "SIGNED_UNIT_RELOAD_PENDING",
+    "SIGNED_UNIT_WORKDIR_DRIFT",
+    "SIGNED_UNIT_EXEC_DRIFT",
+    "hashlib.sha256(data).hexdigest() != expected_sha",
+    "actual_directives != expected_directives",
+    "active_section != '[Service]'",
+    "ReadWritePaths=/run/kmj-codebridge-update",
+    "RuntimeDirectoryPreserve=yes",
+  ]) {
+    assert.ok(src.includes(invariant), invariant);
+  }
+  assert.ok(src.includes('[[ -z "$dropins" || "$dropins" == "$DROPIN_PATH" ]]'));
+  assert.ok(src.includes("os.O_NOFOLLOW"));
+  assert.ok(!src.includes("rm -f"));
+  assert.ok(!src.includes("systemctl daemon-reload"));
+});
+
 test(
   "shell passes bash syntax; unprivileged attempt cannot execute systemctl start",
   { skip: process.platform === "win32" },
