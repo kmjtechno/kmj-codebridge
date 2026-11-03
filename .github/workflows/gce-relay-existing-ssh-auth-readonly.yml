@@ -1,0 +1,60 @@
+name: GCE existing relay SSH authorization no-key-write audit
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_relay_existing_ssh_access_preflight_20261103.py
+      - .github/workflows/gce-relay-existing-ssh-auth-readonly.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_relay_existing_ssh_access_preflight_20261103.py
+      - .github/workflows/gce-relay-existing-ssh-auth-readonly.yml
+
+permissions:
+  contents: read
+
+jobs:
+  no-key-mutation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline SSH metadata/profile classification and no-mutation guards
+        run: |
+          python3 -B scripts/operations/gce_relay_existing_ssh_access_preflight_20261103.py --self-test
+          sha256sum scripts/operations/gce_relay_existing_ssh_access_preflight_20261103.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/operations/gce_relay_existing_ssh_access_preflight_20261103.py")
+          s=p.read_text()
+          tree=ast.parse(s)
+          for marker in (
+              'RELAY = "instance-20260912-094732"',
+              'IP = "10.128.0.2"',
+              'N2 = "kmj-cloudos-kvm-test"',
+              'N2_PROTECTED_TERMINATED=VERIFIED',
+              'CLOUD_SHELL_PRIVATE_KEY=NOT_OPENED_OR_TESTED',
+              'GCLOUD_COMPUTE_SSH_OR_KEY_GENERATION=NOT_ATTEMPTED',
+              'RELAY_TO_ELITE_PINNED_EGRESS=NOT_TESTED',
+              'CLOUDOS_PRODUCTION_RELEASE=BLOCKED',
+          ):
+              assert marker in s,marker
+          funcs=[]
+          for n in ast.walk(tree):
+              if isinstance(n,ast.Call):
+                  f=n.func
+                  funcs.append(f.attr if isinstance(f,ast.Attribute) else
+                               f.id if isinstance(f,ast.Name) else "")
+          assert funcs.count("run")==1
+          for forbidden in ("mkdir","write_text","write_bytes","unlink","rename",
+                            "chmod","chown","Popen","system","connect","socket",
+                            "remove","rmdir","start","stop","execv"):
+              assert forbidden not in funcs,forbidden
+          for mutation in ('"ssh"', '"add"', '"update"', '"set-metadata"',
+                           '"set-iam-policy"', '"create"', '"delete"', '"enable"'):
+              assert mutation not in s,mutation
+          assert 'gcloud("instances", "describe", RELAY, "--zone=" + ZONE)' in s
+          assert 'gcloud("os-login", "describe-profile", required=False)' in s
+          print("RELAY_PREEXISTING_SSH_ACCESS_NO_MUTATION_AST=PASS")
+          PY
