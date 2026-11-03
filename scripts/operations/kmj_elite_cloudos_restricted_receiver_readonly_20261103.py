@@ -306,6 +306,19 @@ def self_test():
         assert not parse_sshd_effective(bad)
     assert not valid_age_recipient("not-an-age-recipient\n")
     assert VAULT != CHROOT and CHROOT != INCOMING
+    # One missing prerequisite must be reported without suppressing other
+    # independent checks; neither result creates a false release credit.
+    from contextlib import redirect_stdout
+    from io import StringIO
+    def deny():
+        raise Blocked("EXPECTED_TEST_ONLY_DENIAL")
+    output = StringIO()
+    with redirect_stdout(output):
+        denied = probe("ELITE_TEST_DENIED", deny)
+        accepted = probe("ELITE_TEST_ACCEPTED", lambda: None)
+    assert denied is False and accepted is True
+    assert "ELITE_TEST_DENIED=BLOCKED_EXPECTED_TEST_ONLY_DENIAL" in output.getvalue()
+    assert "ELITE_TEST_ACCEPTED=PASS" in output.getvalue()
     print("ELITE_RESTRICTED_RECEIVER_OFFLINE_TESTS=PASS")
     print("CLOUDOS_PRODUCTION_RELEASE=BLOCKED")
 
