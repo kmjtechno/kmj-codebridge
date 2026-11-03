@@ -16,7 +16,7 @@ function Candidate-Identity($cfg) {
   $names=@($cfg.PSObject.Properties.Name)
   if($names -contains 'supervisorSocket' -or $names -contains 'supervisorPipe' -or
      $names -contains 'supervisorTokenFile') { return 'ALREADY_CONFIGURED' }
-  if([string]$cfg.gateway -notmatch '^https://kmjtechno\.com(?:/|$)') { return 'UNTRUSTED_GATEWAY' }
+  if([string]$cfg.gateway -cne 'https://kmjtechno.com/mcp') { return 'UNTRUSTED_GATEWAY' }
   return 'MATCH'
 }
 function Safe-Candidate-Path([string]$root,[string]$candidate) {
@@ -51,10 +51,12 @@ if($SelfTest) {
   $good=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp'}
   $other=[pscustomobject]@{id='kmj-kmj-omnidesk-desktop-5fvjmet';projects=@([pscustomobject]@{id='kmj-omnidesk'});gateway='https://kmjtechno.com/mcp'}
   $configured=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp';supervisorPipe='something'}
+  $wrongGateway=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/not-mcp'}
   $collision=[pscustomobject]@{TaskName=$taskName;TaskPath='\Other\'}
   if((Candidate-Identity $good) -cne 'MATCH' -or
      (Candidate-Identity $other) -cne 'UNRELATED' -or
      (Candidate-Identity $configured) -cne 'ALREADY_CONFIGURED' -or
+     (Candidate-Identity $wrongGateway) -cne 'UNTRUSTED_GATEWAY' -or
      (Task-Status -tasks @()) -cne 'ABSENT' -or
      (Task-Status -tasks @($collision)) -cne 'COLLISION') {
     throw 'P520_INSTALL_PREFLIGHT_SELFTEST_FAILED'
@@ -100,7 +102,12 @@ try {
       $node=$pending.Dequeue()
       $folder=[string]$node[0]
       $depth=[int]$node[1]
-      foreach($entry in (Get-ChildItem -LiteralPath $folder -Force -ErrorAction Stop)) {
+      # Cap the enumerated filesystem entries BEFORE materializing the array.
+      # Select-Object stops upstream traversal after the remaining budget + 1.
+      $limit = 161 - $searched
+      if($limit -le 0) { $unsafe=$true;break }
+      foreach($entry in @(Get-ChildItem -LiteralPath $folder -Force -ErrorAction Stop |
+                        Select-Object -First $limit)) {
         $searched++
         if($searched -gt 160) { $unsafe=$true;break }
         if(($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
