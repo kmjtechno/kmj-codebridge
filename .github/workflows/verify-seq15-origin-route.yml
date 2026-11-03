@@ -1,0 +1,27 @@
+name: Signed15 public origin route read-only audit
+on:
+  pull_request:
+    paths:
+      - scripts/production/inspect_seq15_public_origin_route_20261103.py
+      - tests/test_seq15_route_audit.py
+      - .github/workflows/verify-seq15-origin-route.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/production/inspect_seq15_public_origin_route_20261103.py
+      - tests/test_seq15_route_audit.py
+      - .github/workflows/verify-seq15-origin-route.yml
+permissions:
+  contents: read
+jobs:
+  read_only_route_audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Syntax-check bounded read-only Nginx origin audit
+        run: python3 -B -m py_compile scripts/production/inspect_seq15_public_origin_route_20261103.py
+      - name: Test origin classifier and reject unsafe matches
+        run: python3 -B -m unittest discover -s tests -p test_seq15_route_audit.py -v
