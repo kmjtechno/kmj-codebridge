@@ -28,6 +28,7 @@ VM = "instance-20260912-094732"
 INTERNAL_IP = "10.128.0.2"
 ELITE_IPV4 = "103.212.136.154"
 ELITE_EXPECTED_ED25519 = "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI"
+RELAY_EXPECTED_ED25519 = "SHA256:9ibmOwHchvHmaLTDNv8Osm0IIepfZNnQY+BMF7CuJWU"
 PUBKEY_FILE = Path("/etc/ssh/ssh_host_ed25519_key.pub")
 TYPE = "ssh-ed25519"
 BASE64_FIELD = re.compile(r"[A-Za-z0-9+/]+={0,2}\Z")
@@ -101,6 +102,19 @@ def parse_fingerprint(output: str) -> str:
     return parts[1]
 
 
+def verify_internal_relay_pin(local_fp: str, served_fp: str) -> None:
+    """Pin the previously owner-attested relay key both on disk and on TCP22.
+
+    A relay-local scan does NOT prove the connection from the N2 vantage or
+    authenticate any SSH user. It only catches a key that is no longer served
+    by the relay's own internal IPv4 socket.
+    """
+    if local_fp != RELAY_EXPECTED_ED25519:
+        raise Blocked("RELAY_LOCAL_ED25519_PIN_MISMATCH")
+    if served_fp != local_fp:
+        raise Blocked("RELAY_INTERNAL_ED25519_SERVED_PIN_MISMATCH")
+
+
 def inspect() -> int:
     if os.geteuid() == 0:
         raise Blocked("REFUSE_ROOT_SHELL")
@@ -129,6 +143,18 @@ def inspect() -> int:
         run(["ssh-keygen", "-l", "-E", "sha256", "-f", str(PUBKEY_FILE)]))
     print("RELAY_LOCAL_ED25519_PUBLIC_HOST_FINGERPRINT=" + relay_fingerprint,
           flush=True)
+
+    # Bind the root-owned public host key to the key actually served on the
+    # relay's own internal NIC, without reading private keys or editing SSH.
+    local_scan = run(["ssh-keyscan", "-4", "-T", "5",
+                      "-p", "22", "-t", TYPE, INTERNAL_IP], seconds=12)
+    local_record = parse_scan(local_scan, INTERNAL_IP)
+    served_fingerprint = parse_fingerprint(
+        run(["ssh-keygen", "-l", "-E", "sha256", "-f", "-"],
+            stdin=local_record, seconds=8))
+    verify_internal_relay_pin(relay_fingerprint, served_fingerprint)
+    print("RELAY_INTERNAL_ED25519_PIN=EXACT_MATCH_LOCAL_VANTAGE", flush=True)
+    print("N2_TO_RELAY_AUTHENTICATED_SSH_LOGIN=NOT_ATTEMPTED", flush=True)
 
     # A successful port 22 connection and matching host public key prove only
     # external host identity from this VM, not authorization to upload data.
@@ -188,6 +214,22 @@ def self_test() -> int:
     assert ELITE_EXPECTED_ED25519 == (
         "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI"
     )
+    assert RELAY_EXPECTED_ED25519 == (
+        "SHA256:9ibmOwHchvHmaLTDNv8Osm0IIepfZNnQY+BMF7CuJWU"
+    )
+    verify_internal_relay_pin(RELAY_EXPECTED_ED25519, RELAY_EXPECTED_ED25519)
+    for local, served in (
+        (ELITE_EXPECTED_ED25519, RELAY_EXPECTED_ED25519),
+        (RELAY_EXPECTED_ED25519, ELITE_EXPECTED_ED25519),
+        ("", RELAY_EXPECTED_ED25519),
+        (RELAY_EXPECTED_ED25519, ""),
+    ):
+        try:
+            verify_internal_relay_pin(local, served)
+        except Blocked:
+            pass
+        else:
+            raise AssertionError("Unpinned relay internal SSH host key accepted")
     print("RELAY_ELITE_HOSTPIN_OFFLINE_TESTS=PASS")
     return 0
 
