@@ -50,12 +50,16 @@ jobs:
                   f=n.func
                   calls.append(f.attr if isinstance(f,ast.Attribute) else
                                f.id if isinstance(f,ast.Name) else "")
-          assert calls.count("run")==2  # local command wrapper, test helper not subprocess call?
+          assert calls.count("run")==3  # local public fingerprint, keyscan and remote-key fingerprint
           for bad in ("system", "Popen", "mkdir", "unlink", "rmtree",
                       "rmdir", "remove", "rename", "write", "write_bytes",
                       "write_text", "chmod", "chown", "connect",
-                      "socket", "start", "stop", "execv", "open"):
+                      "socket", "start", "stop", "execv"):
               assert bad not in calls, bad
+          assert calls.count("open") == 1
+          assert 'with opener.open(request, timeout=5)' in s
+          assert 'resource not in (' in s
+          assert 'urllib.request.ProxyHandler({})' in s
           assert '["ssh-keyscan", "-4", "-T", "5"' in s
           assert '["ssh-keygen", "-l", "-E", "sha256", "-f", "-"]' in s
           assert 'os.geteuid() == 0' in s
