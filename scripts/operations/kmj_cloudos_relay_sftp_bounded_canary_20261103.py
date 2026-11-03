@@ -128,13 +128,16 @@ def canary(smoke, private, trusted_host):
             if created:
                 # Always attempt exact-path cleanup, never glob or unrelated
                 # deletion, even after an authentication or upload error.
-                rm = sftp(smoke, args, "rm " + remote_file + "\n")
-                rmdir = sftp(smoke, args, "rmdir " + remote_dir + "\n")
-                absent = sftp(smoke, args, "ls " + remote_dir + "\n")
-                cleanup_verified = (rmdir.returncode == 0
-                                    and absent.returncode != 0
-                                    and (rm.returncode == 0
-                                         or not transfer_success))
+                try:
+                    rm = sftp(smoke, args, "rm " + remote_file + "\n")
+                    rmdir = sftp(smoke, args, "rmdir " + remote_dir + "\n")
+                    absent = sftp(smoke, args, "ls " + remote_dir + "\n")
+                    cleanup_verified = (rmdir.returncode == 0
+                                        and absent.returncode != 0
+                                        and (rm.returncode == 0
+                                             or not transfer_success))
+                except (Blocked, OSError, UnicodeError, ValueError):
+                    cleanup_verified = False
         if not cleanup_verified:
             print("RELAY_SFTP_CANARY_CLEANUP=NOT_VERIFIED", flush=True)
             print("RELAY_SFTP_CANARY_REMOTE_PATH=" + remote_dir, flush=True)
