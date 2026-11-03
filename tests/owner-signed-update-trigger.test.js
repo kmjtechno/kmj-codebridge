@@ -72,7 +72,9 @@ test("single host-attested drain runtime is accepted only with exact effective c
   ]) {
     assert.ok(src.includes(invariant), invariant);
   }
-  assert.ok(src.includes('[[ -z "$dropins" || "$dropins" == "$DROPIN_PATH" ]]'));
+  assert.ok(
+    src.includes('[[ -z "$dropins" || "$dropins" == "$DROPIN_PATH" ]]'),
+  );
   assert.ok(src.includes("os.O_NOFOLLOW"));
   assert.ok(!src.includes("rm -f"));
   assert.ok(!src.includes("systemctl daemon-reload"));
