@@ -26,6 +26,7 @@ VAULT_DIR = "kmj-cloudos-n2-offsite"
 INCOMING_DIR = "incoming"
 NOLOGIN = "/usr/sbin/nologin"
 DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+FILE_FLAGS = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
 BANNED_GROUPS = frozenset({
     "sudo", "adm", "docker", "lxd", "libvirt", "wheel",
     "systemd-journal", "root",
@@ -46,6 +47,35 @@ def require_dir(st, *, uid=0, mode=None, strict=False):
         raise Blocked("DIRECTORY_WRITABLE_BY_GROUP_OR_WORLD")
 
 
+def require_disabled_local_shadow():
+    """Verify the account has no usable password without printing hashes.
+
+    This stage requires a local shadow account. Unknown NSS/LDAP identities
+    must not be adopted as an isolated backup principal.
+    """
+    try:
+        fd = os.open("/etc/shadow", FILE_FLAGS)
+        try:
+            st = os.fstat(fd)
+            if (not stat.S_ISREG(st.st_mode) or st.st_uid != 0 or
+                    st.st_mode & 0o022 or st.st_size > 1024 * 1024 or
+                    st.st_size < 20):
+                raise Blocked("LOCAL_SHADOW_FILE_UNSAFE")
+            payload = os.read(fd, st.st_size + 1)
+            if len(payload) != st.st_size:
+                raise Blocked("LOCAL_SHADOW_CHANGED_DURING_READ")
+        finally:
+            os.close(fd)
+    except OSError:
+        raise Blocked("LOCAL_SHADOW_NOT_READABLE") from None
+    prefix = ACCOUNT.encode("ascii") + b":"
+    matches = [line.split(b":", 2)[1]
+               for line in payload.splitlines()
+               if line.startswith(prefix) and b":" in line[len(prefix):]]
+    if len(matches) != 1 or not matches[0].startswith((b"!", b"*")):
+        raise Blocked("UPLOADER_PASSWORD_NOT_LOCKED_OR_LOCAL")
+
+
 def account_status():
     """Return None if absent; reject privileged/inconsistent existing users."""
     try:
@@ -64,6 +94,7 @@ def account_status():
         raise Blocked("UPLOADER_GROUP_LOOKUP_FAILED") from None
     if primary.gr_name != ACCOUNT or groups != {ACCOUNT} or groups & BANNED_GROUPS:
         raise Blocked("UPLOADER_GROUP_SCOPE_UNSAFE")
+    require_disabled_local_shadow()
     return u
 
 
