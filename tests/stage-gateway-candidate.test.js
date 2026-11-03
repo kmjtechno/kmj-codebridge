@@ -49,7 +49,9 @@ test("gate-staging handles only untracked test debris with fresh exact-commit ch
   }
   assert.ok(
     source.indexOf("STAGING=BLOCKED_TRACKED_CHANGES") <
-      source.indexOf("STAGING=UNTRACKED_TEST_OUTPUT_REBUILDING_CLEAN_CANDIDATE"),
+      source.indexOf(
+        "STAGING=UNTRACKED_TEST_OUTPUT_REBUILDING_CLEAN_CANDIDATE",
+      ),
   );
   assert.ok(
     source.indexOf("STAGING_CLEAN_CANDIDATE=PASS") <
@@ -75,8 +77,17 @@ test(
     git("init", "-q", src);
     fs.writeFileSync(path.join(src, "committed.txt"), "approved\\n");
     git("-C", src, "add", "committed.txt");
-    git("-C", src, "-c", "user.name=QA", "-c", "user.email=qa@example.invalid",
-      "commit", "-qm", "baseline");
+    git(
+      "-C",
+      src,
+      "-c",
+      "user.name=QA",
+      "-c",
+      "user.email=qa@example.invalid",
+      "commit",
+      "-qm",
+      "baseline",
+    );
     const sha = git("-C", src, "rev-parse", "HEAD");
     git("-C", src, "checkout", "--detach", "-q", sha);
     fs.writeFileSync(path.join(src, "test-generated.log.txt"), "throwaway\\n");
@@ -84,8 +95,14 @@ test(
     git("-C", dst, "checkout", "--detach", "-q", sha);
     assert.equal(git("-C", dst, "rev-parse", "HEAD"), sha);
     assert.equal(git("-C", dst, "status", "--porcelain"), "");
-    assert.equal(fs.existsSync(path.join(dst, "test-generated.log.txt")), false);
-    assert.equal(fs.readFileSync(path.join(dst, "committed.txt"), "utf8"), "approved\\n");
+    assert.equal(
+      fs.existsSync(path.join(dst, "test-generated.log.txt")),
+      false,
+    );
+    assert.equal(
+      fs.readFileSync(path.join(dst, "committed.txt"), "utf8"),
+      "approved\\n",
+    );
   },
 );
 
