@@ -122,8 +122,11 @@ test("shared installer locks an empty token before writing the first secret byte
   const source = fs.readFileSync(installer, "utf8");
   const create = source.indexOf("[System.IO.FileMode]::CreateNew");
   const acl = source.indexOf("& icacls.exe $tokenFile /inheritance:r");
-  const aclFailure = source.indexOf(
-    "Token file ACL still contains a broad principal",
+  // PR merge builds may include main's stronger SID-based ACL validation.
+  // Either implementation must finish its last fail-closed check before write.
+  const aclFailure = Math.max(
+    source.indexOf("Token file ACL still contains a broad principal"),
+    source.indexOf("SUPERVISOR_TOKEN_ACL_REQUIRED_PRINCIPAL_MISSING"),
   );
   const secretWrite = source.indexOf(
     "Set-Content -LiteralPath $tokenFile -Value $hex",
