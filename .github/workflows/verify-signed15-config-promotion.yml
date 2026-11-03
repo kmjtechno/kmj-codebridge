@@ -1,0 +1,27 @@
+name: Guarded Signed15 Updater URL Promotion
+on:
+  pull_request:
+    paths:
+      - scripts/production/owner_promote_signed15_stable_config_20261103.py
+      - tests/test_signed15_config_promotion.py
+      - .github/workflows/verify-signed15-config-promotion.yml
+  push:
+    branches: [main]
+    paths:
+      - scripts/production/owner_promote_signed15_stable_config_20261103.py
+      - tests/test_signed15_config_promotion.py
+      - .github/workflows/verify-signed15-config-promotion.yml
+permissions:
+  contents: read
+jobs:
+  offline_safety:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Syntax-check root-only URL promotion source
+        run: python3 -B -m py_compile scripts/production/owner_promote_signed15_stable_config_20261103.py
+      - name: Verify two-field transition and strict private backup
+        run: python3 -B -m unittest discover -s tests -p test_signed15_config_promotion.py -v
