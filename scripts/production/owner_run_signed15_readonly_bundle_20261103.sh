@@ -28,7 +28,7 @@ cleanup() {
 trap cleanup EXIT
 download() {
   local rev=$1 name=$2
-  /usr/bin/curl -fLSs --retry 2 --max-time 60 --connect-timeout 5 \
+  /usr/bin/curl -q -fLSs --retry 2 --max-time 60 --connect-timeout 5 \
     --proto '=https' --proto-redir '=https' --tlsv1.2 \
     "$REPO/$rev/scripts/production/$name" -o "$work/$name" ||
     block FETCH
