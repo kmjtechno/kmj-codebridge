@@ -38,6 +38,12 @@ jobs:
           for node in ast.walk(t):
               if isinstance(node,ast.Call):
                   f=node.func
+                  # Pure string.replace in self_test must not be confused with
+                  # a filesystem os.replace mutation. Exempt only base.replace.
+                  if (isinstance(f, ast.Attribute) and f.attr == "replace"
+                          and isinstance(f.value, ast.Name)
+                          and f.value.id == "base"):
+                      continue
                   calls.add(f.attr if isinstance(f,ast.Attribute)
                             else f.id if isinstance(f,ast.Name) else "")
           assert not (calls & forbidden), calls & forbidden
