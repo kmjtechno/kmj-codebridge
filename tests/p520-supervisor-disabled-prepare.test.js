@@ -112,6 +112,29 @@ test("protected directory and installer ACL checks reject destructive ownership 
   }
 });
 
+test("shared installer locks an empty token before writing the first secret byte", () => {
+  const installer = fileURLToPath(
+    new URL(
+      "../scripts/windows/install-windows-supervisor.ps1",
+      import.meta.url,
+    ),
+  );
+  const source = fs.readFileSync(installer, "utf8");
+  const create = source.indexOf("[System.IO.FileMode]::CreateNew");
+  const acl = source.indexOf("& icacls.exe $tokenFile /inheritance:r");
+  const aclFailure = source.indexOf("Token file ACL still contains a broad principal");
+  const secretWrite = source.indexOf("Set-Content -LiteralPath $tokenFile -Value $hex");
+  assert.ok(create > 0 && acl > create, "token must be empty when ACL is set");
+  assert.ok(
+    aclFailure > acl && secretWrite > aclFailure,
+    "no secret bytes may be written before ACL verification",
+  );
+  assert.ok(
+    source.indexOf("$manifest.tokenCreatedByInstaller = $true") < secretWrite,
+    "rollback manifest must record the empty created file",
+  );
+});
+
 test("shared installer registers task disabled atomically, without enabled interval", () => {
   const installer = fileURLToPath(
     new URL(
