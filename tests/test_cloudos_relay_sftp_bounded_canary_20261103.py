@@ -90,6 +90,20 @@ class CanaryLifecycleTests(unittest.TestCase):
         self.assertTrue(self.deleted)
         self.assertEqual(len(self.commands), 6)
 
+    def test_cleanup_connection_exception_preserves_manual_review_gate(self):
+        original = self.fake_sftp
+
+        def interrupted(smoke, argv, batch, timeout=28):
+            if batch.startswith("rm "):
+                raise mod.Blocked("TEST_REMOTE_TIMEOUT")
+            return original(smoke, argv, batch, timeout=timeout)
+
+        with patch.object(mod, "sftp", side_effect=interrupted):
+            with self.assertRaisesRegex(
+                    mod.Blocked, "REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW"):
+                mod.canary(self.smoke, Path("/private/local"),
+                           b"103.212.136.154 ssh-ed25519 pin\\n")
+
     def test_cleanup_failure_requires_review(self):
         self.cleanup_denied = True
         with patch.object(mod, "sftp", side_effect=self.fake_sftp):
