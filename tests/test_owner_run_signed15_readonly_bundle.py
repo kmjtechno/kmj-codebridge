@@ -30,6 +30,7 @@ class Signed15ReadOnlyBundleTests(unittest.TestCase):
         self.assertIn("os.O_NOFOLLOW",TEXT)
     def test_no_live_mutation_and_safe_transport(self):
         self.assertIn("--proto '=https' --proto-redir '=https' --tlsv1.2",TEXT)
+        self.assertIn("/usr/bin/curl -q -fLSs",TEXT)
         self.assertIn("KMJ_SIGNED15_READONLY_BUNDLE=PASS",TEXT)
         self.assertIn("KMJ_PRODUCTION_MUTATION=NONE",TEXT)
         self.assertIn("KMJ_SIGNED15_PINNED_SOURCES=PASS",TEXT)
