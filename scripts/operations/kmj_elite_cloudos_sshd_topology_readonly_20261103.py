@@ -164,14 +164,29 @@ def run_checked(argv, seconds=12):
 
 
 def parse_effective(text):
+    """Preserve SSHD's repeatable directives; never relax backup policy.
+
+    OpenSSH -T may legitimately print several hostkey, acceptenv, port,
+    listenaddress or similar multivalue directives. Their repetition is not
+    a conflicting scalar setting. Every SFTP security-critical option is
+    strictly single-valued: even two identical occurrences are rejected.
+    Other options do not grant release credit and are advisory here only.
+    """
     result = {}
+    protected = frozenset(TARGET_CONFIG) | frozenset(REQUIRED_FORBIDDEN)
     for raw in text.splitlines():
         pair = raw.strip().split(None, 1)
-        if len(pair) == 2:
-            name, value = pair
-            if name in result and result[name] != value:
-                raise Blocked("SSHD_DUPLICATE_EFFECTIVE_SETTING")
-            result[name] = value
+        if len(pair) != 2:
+            continue
+        name, value = pair
+        name = name.lower()
+        if name in result:
+            if name in protected:
+                raise Blocked("SSHD_DUPLICATE_PROTECTED_EFFECTIVE_SETTING")
+            # Non-policy multivalued attributes are permitted to repeat.
+            # We do not use their arbitrarily selected value for a PASS.
+            continue
+        result[name] = value
     return result
 
 
@@ -238,6 +253,30 @@ def self_test():
     assert directives("  # comment\nPasswordAuthentication no\n")[0] == (
         "passwordauthentication", ["no"])
     assert target_policy_status({**TARGET_CONFIG, **REQUIRED_FORBIDDEN})
+    # sshd -T commonly emits repeated hostkey / acceptenv / port lines.
+    benign = ("hostkey /etc/ssh/ssh_host_ed25519_key\n"
+              "hostkey /etc/ssh/ssh_host_rsa_key\n"
+              "acceptenv LANG\nacceptenv LC_*\n"
+              "port 22\nport 2222\n"
+              "listenaddress 0.0.0.0:22\nlistenaddress [::]:22\n")
+    vals = parse_effective(benign)
+    assert vals["hostkey"] == "/etc/ssh/ssh_host_ed25519_key"
+    assert vals["acceptenv"] == "LANG"
+    assert vals["port"] == "22"
+    assert vals["listenaddress"] == "0.0.0.0:22"
+    assert target_policy_status(parse_effective(
+        benign + "".join(f"{k} {v}\n"
+                         for k, v in {**TARGET_CONFIG,
+                                      **REQUIRED_FORBIDDEN}.items())))
+    for setting in TARGET_CONFIG.keys() | REQUIRED_FORBIDDEN.keys():
+        good = TARGET_CONFIG.get(setting, REQUIRED_FORBIDDEN.get(setting))
+        for duplicate in (good, "untrusted"):
+            try:
+                parse_effective(f"{setting} {good}\n{setting} {duplicate}\n")
+            except Blocked:
+                pass
+            else:
+                raise AssertionError("Duplicate protected SSHD setting accepted")
     for setting in ("forcecommand", "chrootdirectory",
                     "passwordauthentication", "authorizedkeysfile"):
         bad = {**TARGET_CONFIG, **REQUIRED_FORBIDDEN}
