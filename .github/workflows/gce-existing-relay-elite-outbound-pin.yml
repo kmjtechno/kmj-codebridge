@@ -50,7 +50,7 @@ jobs:
                   f=n.func
                   calls.append(f.attr if isinstance(f,ast.Attribute) else
                                f.id if isinstance(f,ast.Name) else "")
-          assert calls.count("run")==3  # local public fingerprint, keyscan and remote-key fingerprint
+          assert calls.count("run")==4  # three public-key checks plus one subprocess.run wrapper
           for bad in ("system", "Popen", "mkdir", "unlink", "rmtree",
                       "rmdir", "remove", "rename", "write", "write_bytes",
                       "write_text", "chmod", "chown", "connect",
