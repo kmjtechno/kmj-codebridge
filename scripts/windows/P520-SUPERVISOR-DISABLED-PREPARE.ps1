@@ -51,6 +51,42 @@ function Assert-Path([string]$value,[string]$tag,[bool]$required) {
 }
 # A protected Supervisor release/token must not be stored in a user-writable
 # checkout or %LOCALAPPDATA%. This checks only the P520 owner-protected scope.
+# Prevent a non-admin from deleting/renaming a protected P520 subtree
+# through DELETE_CHILD or ACL-owner rights on one of its parent directories.
+# InheritOnly entries do not apply to the parent directory itself.
+function Assert-ProtectedAncestorDeleteGuard([string]$base,[string]$tag) {
+  $ancestor=[IO.Path]::GetDirectoryName($base.TrimEnd('\'))
+  $trustedWriters=@('S-1-5-18','S-1-5-32-544')
+  $danger=([Security.AccessControl.FileSystemRights]::Delete -bor
+           [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor
+           [Security.AccessControl.FileSystemRights]::ChangePermissions -bor
+           [Security.AccessControl.FileSystemRights]::TakeOwnership)
+  for($i=0;$i -lt 32;$i++) {
+    if([string]::IsNullOrWhiteSpace($ancestor)) { return }
+    $item=Get-Item -LiteralPath $ancestor -Force -ErrorAction Stop
+    if(-not $item.PSIsContainer -or
+       (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+      throw ('PROTECTED_ANCESTOR_REPARSE_'+$tag)
+    }
+    $acl=Get-Acl -LiteralPath $ancestor -ErrorAction Stop
+    foreach($ace in $acl.Access) {
+      if($ace.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
+      if(($ace.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) -ne 0) {
+        continue
+      }
+      $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+      if($sid -notin $trustedWriters -and
+         (($ace.FileSystemRights -band $danger) -ne 0)) {
+        throw ('PROTECTED_ANCESTOR_DELETION_RIGHT_'+$tag)
+      }
+    }
+    $parent=[IO.Path]::GetDirectoryName($ancestor.TrimEnd('\'))
+    if([string]::IsNullOrWhiteSpace($parent) -or $parent -ieq $ancestor) { return }
+    $ancestor=$parent
+  }
+  throw ('PROTECTED_ANCESTOR_DEPTH_UNBOUNDED_'+$tag)
+}
+
 function Assert-ProtectedLocation([string]$target,[string]$tag) {
   $base=[IO.Path]::GetFullPath((Join-Path $env:ProgramData 'KMJ-CodeBridge\P520')).TrimEnd('\')
   $targetFull=[IO.Path]::GetFullPath($target)
@@ -60,6 +96,7 @@ function Assert-ProtectedLocation([string]$target,[string]$tag) {
   if(-not(Test-Path -LiteralPath $base -PathType Container)) {
     throw 'OWNER_PROTECTED_ROOT_NOT_PROVISIONED'
   }
+  Assert-ProtectedAncestorDeleteGuard $base $tag
   $cur=if(Test-Path -LiteralPath $targetFull -PathType Container) {
     $targetFull
   } else { [IO.Path]::GetDirectoryName($targetFull) }
