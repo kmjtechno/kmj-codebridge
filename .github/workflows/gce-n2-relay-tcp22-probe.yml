@@ -1,0 +1,73 @@
+name: Protected N2 to existing relay TCP22 probe safety
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_existing_relay_tcp22_probe_20261103.sh
+      - .github/workflows/gce-n2-relay-tcp22-probe.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_existing_relay_tcp22_probe_20261103.sh
+      - .github/workflows/gce-n2-relay-tcp22-probe.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-private-relay-probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Shell, embedded-Python, guards and no guest mutation
+        run: |
+          bash -n scripts/operations/gce_n2_existing_relay_tcp22_probe_20261103.sh
+          sha256sum scripts/operations/gce_n2_existing_relay_tcp22_probe_20261103.sh
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/operations/gce_n2_existing_relay_tcp22_probe_20261103.sh")
+          s=p.read_text()
+          assert s.count("REMOTE=$(cat <<'REMOTE_SCRIPT'") == 1
+          remote=s.split("python3 - <<'PY'\n",1)[1].split("\nPY\nREMOTE_SCRIPT",1)[0]
+          tree=ast.parse(remote)
+          # Two separate local guards plus remote bounded code.
+          guards=s.split("python3 -c '\n")[1:]
+          assert len(guards)==2
+          for g in guards:
+              ast.parse(g.split("\n')",1)[0])
+          for token in (
+              'N2_DELETION_GUARDS=PROTECTED_VERIFIED',
+              'd.get("deletionProtection") is True',
+              'disks[0].get("autoDelete") is False',
+              'RELAY_PRECHECK=EXACT_EXISTING_RUNNING_VERIFIED',
+              'instance-20260912-094732',
+              '"10.128.0.2"',
+              '"kmj-cloudos-kvm-test"',
+              'SERVER_SIDE_AUTO_STOP=900_SECONDS_VERIFIED',
+              'trap stop_n2 EXIT',
+              'VM_FINAL_STATE=',
+              'IAP_SSH_PREFLIGHT=PASS',
+              'N2_TO_RELAY_NETWORK_CONNECTIVITY=PASS_TCP22_ONLY',
+              'RELAY_SSH_HOST_IDENTITY=UNVERIFIED_DO_NOT_TRUST_KEYSCAN',
+              'RELAY_TO_ELITE_ED25519_TRUST_AND_EGRESS=NOT_TESTED',
+              'ENCRYPTED_BOOT_DISK_BACKUP_TRANSFER=NOT_ATTEMPTED',
+              'INDEPENDENT_DISPOSABLE_RESTORE=NOT_VERIFIED',
+              'CLOUDOS_PRODUCTION_RELEASE=BLOCKED',
+          ):
+              assert token in s, token
+          assert s.count("socket.create_connection") == 1
+          assert 'socket.create_connection((RELAY_IP, 22), timeout=6)' in s
+          assert "SSH-2.0-" in s
+          for forbidden in (
+              "virsh start", "virsh destroy", "virsh undefine",
+              "net-start", "net-destroy", "net-define", "net-undefine",
+              "sudo ", "ssh-copy-id", "scp ", "rsync ", "qemu-img create",
+              "gcloud compute disks create", "gcloud compute snapshots create",
+              "gcloud compute firewall-rules create", "gcloud compute routers create",
+              "gcloud compute addresses create", "chmod ", "chown ", "rm -rf",
+              "ssh -o", "dd if=", "mkfs", "ssh-keyscan", "ssh-keygen",
+          ):
+              assert forbidden not in s, forbidden
+          print("N2_EXISTING_RELAY_TCP22_BOUNDED_NO_GUEST_MUTATION=PASS")
+          PY
