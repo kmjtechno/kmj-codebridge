@@ -155,9 +155,11 @@ function host(t, tweak = {}) {
       return `kmjcode:x:${process.getuid?.() ?? 1000}:${process.getgid?.() ?? 1000}::${base}:/bin/sh`;
     if (cmd === "runuser") {
       if (argv.includes("mktemp")) {
-        state.qaRoot = fs.mkdtempSync(
-          path.join(base, ".kmj-codebridge-gates."),
-        );
+        // Node mkdtemp emits 6 random chars; model the 8-char GNU mktemp
+        // template used by the real non-root QA command.
+        const six = fs.mkdtempSync(path.join(base, ".kmj-codebridge-gates."));
+        state.qaRoot = six + "QA";
+        fs.renameSync(six, state.qaRoot);
         fs.chmodSync(state.qaRoot, 0o700);
         return state.qaRoot;
       }
@@ -310,10 +312,7 @@ test(
   { skip: POSIX_ONLY },
   async (t) => {
     const h = host(t, { state: { qaTrackedDirty: true } });
-    await assert.rejects(
-      runCutover(h.options, h.deps),
-      /QA_TRACKED_CHANGES/,
-    );
+    await assert.rejects(runCutover(h.options, h.deps), /QA_TRACKED_CHANGES/);
     assert.equal(h.state.restarts, 0);
     assert.equal(fs.existsSync(h.state.qaRoot), false);
   },
