@@ -85,9 +85,17 @@ def candidate(vm: dict) -> dict | None:
     name, zone = identity
     nic = vm["networkInterfaces"][0]
     try:
-        internal = str(ipaddress.IPv4Address(nic.get("networkIP", "")))
-        if not ipaddress.IPv4Address(internal).is_private:
+        address = ipaddress.IPv4Address(nic.get("networkIP", ""))
+        # ipaddress.is_private is also true for some non-RFC1918 ranges.
+        # A candidate here must be an RFC1918 internal VM address.
+        allowed = (
+            ipaddress.ip_network("10.0.0.0/8"),
+            ipaddress.ip_network("172.16.0.0/12"),
+            ipaddress.ip_network("192.168.0.0/16"),
+        )
+        if not any(address in network for network in allowed):
             return None
+        internal = str(address)
     except ValueError:
         return None
     access = nic.get("accessConfigs", [])
