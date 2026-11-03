@@ -174,6 +174,8 @@ function host(t, tweak = {}) {
       const at = argv.indexOf("npm");
       if (at === -1) return "CONFIG_VALID";
       const gate = argv.slice(at).join(" ");
+      if (gate.includes(" --prefix ") && gate.includes(" ci "))
+        return "";
       state.gatesRun.push(gate);
       if (state.failGate && gate.includes(state.failGate))
         throw new CutoverError("COMMAND_FAILED:runuser");
