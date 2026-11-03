@@ -1,0 +1,61 @@
+name: GCE N2 zero-start outbound network inventory
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_public_egress_inventory_readonly_20261103.py
+      - .github/workflows/gce-n2-egress-controlplane-audit.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_public_egress_inventory_readonly_20261103.py
+      - .github/workflows/gce-n2-egress-controlplane-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  no-start-egress-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline VPC/NAT classification and no-cloud-mutation checks
+        run: |
+          python3 -B scripts/operations/gce_n2_public_egress_inventory_readonly_20261103.py --self-test
+          sha256sum scripts/operations/gce_n2_public_egress_inventory_readonly_20261103.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p = Path("scripts/operations/gce_n2_public_egress_inventory_readonly_20261103.py")
+          s = p.read_text()
+          tree = ast.parse(s)
+          for exact in (
+              'PROJECT = "kmj-techno"',
+              'ZONE = "us-central1-a"',
+              'VM = "kmj-cloudos-kvm-test"',
+              'N2_EXTERNAL_IPV4=',
+              'N2_PUBLIC_NAT_PRIMARY_SUBNET_COVERAGE=',
+              'N2_DIRECT_EXTERNAL_EGRESS_CONFIGURATION=',
+              'N2_INSTANCE_PROXY_EGRESS=NOT_INSPECTED',
+              'N2_LIVE_SSH_OR_FINGERPRINT=NOT_RETESTED',
+              'GCE_VM_START_STOP_OR_RESOURCE_MUTATION=NONE',
+              'CLOUDOS_PRODUCTION_RELEASE=BLOCKED',
+          ):
+              assert exact in s, exact
+          calls = []
+          for node in ast.walk(tree):
+              if isinstance(node, ast.Call):
+                  f = node.func
+                  calls.append(f.attr if isinstance(f, ast.Attribute) else
+                               f.id if isinstance(f, ast.Name) else "")
+          assert calls.count("run") == 1
+          for forbidden in ("write", "write_text", "write_bytes", "mkdir",
+                            "unlink", "rmtree", "rmdir", "remove", "rename",
+                            "chown", "chmod", "connect", "socket",
+                            "system", "Popen", "get", "post", "put"):
+              assert forbidden not in calls, forbidden
+          for mutation in ('"start"', '"stop"', '"create"', '"delete"',
+                           '"update"', '"set-scheduling"', '"set-access-config"'):
+              assert mutation not in s, mutation
+          print("N2_GCE_EGRESS_ZERO_START_NO_MUTATION_STATIC_GUARDS=PASS")
+          PY
