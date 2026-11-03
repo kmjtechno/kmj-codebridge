@@ -758,7 +758,7 @@ test(
     for (const call of gateCalls) {
       assert.ok(call.includes("GIT_CONFIG_COUNT=1"));
       assert.ok(call.includes("GIT_CONFIG_KEY_0=safe.directory"));
-      assert.ok(call.includes(`GIT_CONFIG_VALUE_0=${ok.target} `));
+      assert.ok(call.includes(`GIT_CONFIG_VALUE_0=${ok.state.qaRoot} `));
       assert.ok(!call.includes("safe.directory=*"));
     }
     assert.deepEqual(ok.state.gatesRun, [
