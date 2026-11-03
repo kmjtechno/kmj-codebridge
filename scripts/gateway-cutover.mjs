@@ -434,6 +434,10 @@ function inspect(options, deps) {
       SAFE_PATH.test(entry) && SAFE_NAME.test(name),
       "SYSTEMD_DROPINS_UNVERIFIED",
     );
+    check(
+      name !== DROPIN || entry === existingDropIn,
+      "SYSTEMD_SAME_NAME_DROPIN_COLLISION",
+    );
     check(name <= DROPIN, "LATER_SYSTEMD_OVERRIDE_BLOCKS_CUTOVER");
   }
   check(show("NeedDaemonReload") === "no", "SYSTEMD_DAEMON_RELOAD_PENDING");
