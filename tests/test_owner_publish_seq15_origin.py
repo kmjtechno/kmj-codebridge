@@ -45,7 +45,7 @@ class StaticPublisherSafety(unittest.TestCase):
         oldfile = webroot / "codebridge" / "releases" / "stable" / publisher.PREVIOUS / "release-manifest.json"
         oldfile.parent.mkdir(parents=True)
         oldfile.write_bytes(b"old-manifest")
-        site = types.SimpleNamespace(returncode=0, stdout=f"server {{ root {webroot}; }}\\nroot {webroot};\\n")
+        site = types.SimpleNamespace(returncode=0, stdout=f"server {{ root {webroot}; }}\nroot {webroot};\n")
         url = f"https://kmjtechno.com/codebridge/releases/stable/{publisher.PREVIOUS}/release-manifest.json"
         with patch.object(publisher.subprocess, "run", return_value=site):
             parent = publisher.find_static_release_parent(url, b"old-manifest")
