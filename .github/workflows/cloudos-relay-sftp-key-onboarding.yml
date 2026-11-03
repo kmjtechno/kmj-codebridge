@@ -1,0 +1,43 @@
+name: CloudOS relay dedicated SFTP public identity source QA
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_dedicated_sftp_public_identity_20261103.py
+      - .github/workflows/cloudos-relay-sftp-key-onboarding.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_dedicated_sftp_public_identity_20261103.py
+      - .github/workflows/cloudos-relay-sftp-key-onboarding.yml
+
+permissions:
+  contents: read
+
+jobs:
+  relay-identity-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Offline ED25519 fingerprint and negative input validation
+        run: |
+          python3 -B scripts/operations/kmj_cloudos_relay_dedicated_sftp_public_identity_20261103.py --self-test
+      - name: Static separation of private relay identity and external authorization
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          s=Path("scripts/operations/kmj_cloudos_relay_dedicated_sftp_public_identity_20261103.py").read_text()
+          ast.parse(s)
+          assert "metadata.google.internal" in s
+          assert "EXACT_GCE_RELAY_IDENTITY_MISMATCH" in s
+          assert "if os.geteuid() == 0:" in s
+          assert "os.O_NOFOLLOW" in s
+          assert "RELAY_SFTP_PRIVATE_KEY=RETAINED_LOCALLY_NEVER_EXPORTED" in s
+          assert "ELITE_SFTP_AUTHORIZATION=NOT_ATTEMPTED" in s
+          assert "CLOUDOS_PRODUCTION_RELEASE=BLOCKED" in s
+          for x in ("systemctl", "ssh-copy-id", "authorized_keys", "gcloud compute", "ssh.service",
+                    "sshpass", "curl ", "scp ", "requests.post", "shell=True"):
+              assert x not in s, x
+          print("RELAY_SFTP_KEY_LOCAL_ONLY_GUARD=PASS")
+          PY
