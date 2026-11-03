@@ -193,10 +193,13 @@ def effective(blob):
 
 def baseline():
     query()
-    try:
-        present = [name for name in ADMINS if pwd.getpwnam(name)]
-    except KeyError:
-        present = ["root", "kmjcode"]
+    present = []
+    for name in ADMINS:
+        try:
+            pwd.getpwnam(name)
+        except KeyError:
+            continue
+        present.append(name)
     if "root" not in present or len(present) < 2:
         raise Blocked("ADMIN_BASELINE_IDENTITIES_INCOMPLETE")
     return {(u, addr): query(user=u, addr=addr) for u in present for addr in IPS}
@@ -255,6 +258,11 @@ def apply(original, info, admin):
         verify(temp, admin)
         os.replace(temp, MAIN)
         temp = None
+        parent_fd = os.open(SSH_DIR, D)
+        try:
+            os.fsync(parent_fd)
+        finally:
+            os.close(parent_fd)
         try:
             verify(None, admin)
         except (Blocked, UnicodeError):
@@ -264,6 +272,11 @@ def apply(original, info, admin):
                 os.chmod(restore, original_mode, follow_symlinks=False)
                 os.replace(restore, MAIN)
                 restore = None
+                parent_fd = os.open(SSH_DIR, D)
+                try:
+                    os.fsync(parent_fd)
+                finally:
+                    os.close(parent_fd)
             finally:
                 if restore and os.path.exists(restore):
                     os.unlink(restore)
