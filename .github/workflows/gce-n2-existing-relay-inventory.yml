@@ -1,0 +1,61 @@
+name: N2 existing same-VPC relay inventory no-start guard
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_existing_vpc_relay_inventory_readonly_20261103.py
+      - .github/workflows/gce-n2-existing-relay-inventory.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_existing_vpc_relay_inventory_readonly_20261103.py
+      - .github/workflows/gce-n2-existing-relay-inventory.yml
+
+permissions:
+  contents: read
+
+jobs:
+  same-vpc-relay-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hermetic network classification and no-start mutation guards
+        run: |
+          python3 -B scripts/operations/gce_n2_existing_vpc_relay_inventory_readonly_20261103.py --self-test
+          sha256sum scripts/operations/gce_n2_existing_vpc_relay_inventory_readonly_20261103.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_existing_vpc_relay_inventory_readonly_20261103.py")
+          s = path.read_text()
+          tree=ast.parse(s)
+          for marker in (
+              'PROJECT = "kmj-techno"',
+              'ZONE = "us-central1-a"',
+              'VM = "kmj-cloudos-kvm-test"',
+              'N2_EXACT_PROTECTED_TERMINATED=VERIFIED',
+              'SAME_PROJECT_RUNNING_SAME_VPC_RELAY_CANDIDATES=',
+              'RELAY_INTERNAL_TCP22_AND_FIREWALL=NOT_TESTED',
+              'RELAY_TO_ELITE_OUTBOUND_SSH=NOT_TESTED',
+              'IAP_BULK_BACKUP_POLICY=NOT_APPROVED',
+              'N2_VM_START_STOP_AND_GCE_RESOURCE_MUTATIONS=NONE',
+              'CLOUDOS_COMMERCIAL_RELEASE=BLOCKED',
+          ):
+              assert marker in s,marker
+          calls=[]
+          for n in ast.walk(tree):
+              if isinstance(n,ast.Call):
+                  f=n.func
+                  calls.append(f.attr if isinstance(f,ast.Attribute) else
+                               f.id if isinstance(f,ast.Name) else "")
+          assert calls.count("run")==1
+          for forbidden in ("system","Popen","mkdir","unlink","rename",
+                            "remove","write","write_bytes","write_text",
+                            "chmod","chown","connect","socket","start","stop"):
+              assert forbidden not in calls, forbidden
+          assert '("instances", "list")' not in s
+          assert 'query("instances", "list")' in s
+          assert 'n2.get("deletionProtection") is not True' in s
+          assert 'disks[0].get("autoDelete") is not False' in s
+          print("N2_SAME_VPC_RELAY_ZERO_GCE_START_STATIC_GUARDS=PASS")
+          PY
