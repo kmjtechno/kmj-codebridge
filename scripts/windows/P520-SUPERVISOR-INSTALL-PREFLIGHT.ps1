@@ -9,11 +9,20 @@ $expectedDevice='kmj-kmj-codebridge-desktop-5fvjmet'
 $taskName='KMJ-CodeBridge-Supervisor-P520'
 function Mark([string]$key,[string]$value) { Write-Output ($key+'='+$value) }
 function Candidate-Identity($cfg) {
-  if($null -eq $cfg -or [string]$cfg.id -cne $expectedDevice -or
-    @($cfg.projects | Where-Object { $null -ne $_ -and [string]$_.id -ceq 'kmj-codebridge' }).Count -ne 1) {
-    return 'UNRELATED'
-  }
+  # StrictMode must not let an unrelated, malformed JSON object abort the
+  # read-only inventory. Missing properties are unrelated, never approved.
+  if($null -eq $cfg -or $cfg -isnot [pscustomobject]) { return 'UNRELATED' }
   $names=@($cfg.PSObject.Properties.Name)
+  if($names -notcontains 'id' -or $names -notcontains 'gateway' -or
+     $names -notcontains 'projects') { return 'UNRELATED' }
+  if([string]$cfg.id -cne $expectedDevice -or $cfg.projects -isnot [array] -or
+     @($cfg.projects).Count -gt 32) { return 'UNRELATED' }
+  $projectMatches=@($cfg.projects | Where-Object {
+    $null -ne $_ -and $_ -is [pscustomobject] -and
+    $null -ne $_.PSObject.Properties['id'] -and
+    [string]$_.id -ceq 'kmj-codebridge'
+  })
+  if($projectMatches.Count -ne 1) { return 'UNRELATED' }
   if($names -contains 'supervisorSocket' -or $names -contains 'supervisorPipe' -or
      $names -contains 'supervisorTokenFile') { return 'ALREADY_CONFIGURED' }
   if([string]$cfg.gateway -cne 'https://kmjtechno.com/mcp') { return 'UNTRUSTED_GATEWAY' }
@@ -52,11 +61,17 @@ if($SelfTest) {
   $other=[pscustomobject]@{id='kmj-kmj-omnidesk-desktop-5fvjmet';projects=@([pscustomobject]@{id='kmj-omnidesk'});gateway='https://kmjtechno.com/mcp'}
   $configured=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp';supervisorPipe='something'}
   $wrongGateway=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/not-mcp'}
+  $missingFields=[pscustomobject]@{id=$expectedDevice}
+  $malformedProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/mcp';projects=@('kmj-codebridge')}
+  $duplicateProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/mcp';projects=@([pscustomobject]@{id='kmj-codebridge'},[pscustomobject]@{id='kmj-codebridge'})}
   $collision=[pscustomobject]@{TaskName=$taskName;TaskPath='\Other\'}
   if((Candidate-Identity $good) -cne 'MATCH' -or
      (Candidate-Identity $other) -cne 'UNRELATED' -or
      (Candidate-Identity $configured) -cne 'ALREADY_CONFIGURED' -or
      (Candidate-Identity $wrongGateway) -cne 'UNTRUSTED_GATEWAY' -or
+     (Candidate-Identity $missingFields) -cne 'UNRELATED' -or
+     (Candidate-Identity $malformedProjects) -cne 'UNRELATED' -or
+     (Candidate-Identity $duplicateProjects) -cne 'UNRELATED' -or
      (Task-Status -tasks @()) -cne 'ABSENT' -or
      (Task-Status -tasks @($collision)) -cne 'COLLISION') {
     throw 'P520_INSTALL_PREFLIGHT_SELFTEST_FAILED'
