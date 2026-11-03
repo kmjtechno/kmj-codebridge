@@ -54,7 +54,6 @@ STANZA = (
     "    AllowAgentForwarding no\n"
     "    X11Forwarding no\n"
     "    PermitTunnel no\n"
-    "    PermitUserEnvironment no\n"
     "    AuthorizedKeysFile /etc/ssh/authorized_keys/%u\n"
     "    PermitOpen none\n"
     "    PermitListen none\n"
@@ -273,6 +272,10 @@ def evaluate():
 def self_test():
     assert STANZA.count(b"Match User kmjcloudosbackup") == 1
     assert STANZA.endswith(b"PermitListen none\n")
+    # OpenSSH forbids PermitUserEnvironment inside Match blocks. Verify it
+    # remains explicitly required by the *effective* global policy instead.
+    assert b"PermitUserEnvironment" not in STANZA
+    assert RESTRICTIONS["permituserenvironment"] == "no"
     assert len(RESTRICTIONS) == 14
     for key, value in RESTRICTIONS.items():
         for duplicate in (value, "unsafe"):
