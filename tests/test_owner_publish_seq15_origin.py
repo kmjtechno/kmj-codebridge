@@ -53,5 +53,54 @@ class StaticPublisherSafety(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "STATIC_ORIGIN_PATH_UNRESOLVED"):
                 publisher.find_static_release_parent(url, b"different-manifest")
 
+    def test_exact_verified_kmj_elite_static_release_root(self):
+        root = self.root / "var" / "lib" / "kmj-codebridge-releases" / "stable"
+        baseline = root / publisher.PREVIOUS / "release-manifest.json"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_bytes(b"previous-public-release-manifest")
+        unrelated = self.root / "unrelated" / "public"
+        unrelated.mkdir(parents=True)
+        site = types.SimpleNamespace(
+            returncode=0,
+            stdout=f"server {{ root {unrelated}; }}\nroot {unrelated};\n",
+        )
+        url = (
+            f"https://kmjtechno.com/codebridge/releases/stable/"
+            f"{publisher.PREVIOUS}/release-manifest.json"
+        )
+        with patch.object(publisher.subprocess, "run", return_value=site), \
+             patch.object(publisher, "PINNED_STATIC_STABLE_ROOT", root):
+            parent = publisher.find_static_release_parent(
+                url, b"previous-public-release-manifest"
+            )
+            self.assertEqual(parent, root.resolve())
+            with self.assertRaisesRegex(
+                ValueError, "STATIC_ORIGIN_PATH_UNRESOLVED"
+            ):
+                publisher.find_static_release_parent(
+                    url, b"wrong-manifest-bytes"
+                )
+
+    def test_verified_static_release_path_refuses_symlink_parent(self):
+        root = self.root / "stable"
+        actual = self.root / "actual"
+        old = actual / publisher.PREVIOUS / "release-manifest.json"
+        old.parent.mkdir(parents=True)
+        old.write_bytes(b"existing-validated-release")
+        root.symlink_to(actual, target_is_directory=True)
+        site = types.SimpleNamespace(returncode=0, stdout="root /empty;\n")
+        url = (
+            f"https://kmjtechno.com/codebridge/releases/stable/"
+            f"{publisher.PREVIOUS}/release-manifest.json"
+        )
+        with patch.object(publisher.subprocess, "run", return_value=site), \
+             patch.object(publisher, "PINNED_STATIC_STABLE_ROOT", root):
+            with self.assertRaisesRegex(
+                ValueError, "STATIC_ORIGIN_PATH_UNRESOLVED"
+            ):
+                publisher.find_static_release_parent(
+                    url, b"existing-validated-release"
+                )
+
 if __name__ == "__main__":
     unittest.main()
