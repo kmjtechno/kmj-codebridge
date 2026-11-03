@@ -27,10 +27,10 @@ class NegativeSFTPTest(unittest.TestCase):
             read_local_identity=lambda: Path("/private/local-only"),
             pin_remote_host=lambda: b"103.212.136.154 ssh-ed25519 testpin\n",
             actual_sftp=lambda private, host: self.calls.append(("positive", host)),
-            run=self.run,
+            run=self.mock_run,
         )
 
-    def run(self, argv, *, stdin=None, timeout=0):
+    def mock_run(self, argv, *, stdin=None, timeout=0):
         self.calls.append((argv, stdin, timeout))
         if argv[0] == "/usr/bin/sftp":
             return result(1, b"Remote working directory: /incoming\n",
