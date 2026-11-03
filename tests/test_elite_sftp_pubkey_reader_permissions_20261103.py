@@ -68,7 +68,7 @@ class PublicKeyReaderPermissions(unittest.TestCase):
             self.assertEqual(stat.S_IMODE(auth_dir.stat().st_mode), 0o755)
             self.assertEqual(stat.S_IMODE(auth_file.stat().st_mode), 0o644)
             self.assertEqual(auth_file.read_bytes(), self.canonical)
-            self.assertFalse(auth_file.stat().st_mode & 0o222)
+            self.assertFalse(auth_file.stat().st_mode & 0o022)
         finally:
             os.umask(prior)
 
