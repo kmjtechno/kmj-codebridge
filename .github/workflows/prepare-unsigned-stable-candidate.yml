@@ -1,0 +1,101 @@
+name: Prepare CodeBridge stable source archive (UNSIGNED, no deployment)
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/prepare-unsigned-stable-candidate.yml
+      - src/main-platform-staging-unit-policy.js
+      - tests/main-platform-staging-unit-policy.test.js
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prepare-unsigned-stable-candidate.yml
+      - src/main-platform-staging-unit-policy.js
+      - tests/main-platform-staging-unit-policy.test.js
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  archive_source:
+    name: Build immutable unsigned candidate (no signing or publishing)
+    if: github.repository == 'kmjtechno/kmj-codebridge'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout exact event commit without persisted credentials
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Verify exact Git source and already-merged approval guard
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]]
+          [[ "$(git rev-parse HEAD)" == "$SOURCE_SHA" ]]
+          git cat-file -e "$SOURCE_SHA^{commit}"
+          test -f src/main-platform-staging-unit-policy.js
+          test -f tests/main-platform-staging-unit-policy.test.js
+          grep -Fq 'else if (approval && digest(runner) !== approval.runnerSha256)' \
+            src/main-platform-staging-unit-policy.js
+          grep -Fq 'else if (approval && digest(unitText) !== approval.unitSha256)' \
+            src/main-platform-staging-unit-policy.js
+          grep -Fq 'staging diagnostics do not invent digest failures without valid approval' \
+            tests/main-platform-staging-unit-policy.test.js
+          echo 'APPROVAL_GATED_STAGING_POLICY_SOURCE=PASS'
+          echo 'SOURCE_COMMIT_PIN=PASS'
+
+      - name: Build source-only archive and unsigned checksum proposal
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          umask 077
+          version=$(node -p "require('./package.json').version")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 2
+          stem="kmj-codebridge-$version-$(printf '%s' "$SOURCE_SHA" | cut -c1-12)"
+          archive="$stem.tar.gz"
+          mkdir -p unsigned-candidate
+          git archive --format=tar.gz --prefix="$stem/" \
+            --output="unsigned-candidate/$archive" "$SOURCE_SHA"
+          test -s "unsigned-candidate/$archive"
+          first=$(tar -tzf "unsigned-candidate/$archive" | sed -n '1p')
+          test "$first" = "$stem/"
+          tar -xOf "unsigned-candidate/$archive" \
+            "$stem/src/main-platform-staging-unit-policy.js" \
+            | grep -Fq 'approval && digest(runner) !== approval.runnerSha256'
+          sha=$(sha256sum "unsigned-candidate/$archive" | cut -d ' ' -f1)
+          bytes=$(stat -c %s "unsigned-candidate/$archive")
+          [[ "$sha" =~ ^[a-f0-9]{64}$ && "$bytes" =~ ^[1-9][0-9]*$ ]]
+          {
+            printf 'STATUS=UNSIGNED_NOT_DEPLOYABLE\n'
+            printf 'SOURCE_SHA=%s\n' "$SOURCE_SHA"
+            printf 'VERSION=%s\n' "$version"
+            printf 'ARCHIVE_NAME=%s\n' "$archive"
+            printf 'ARCHIVE_SHA256=%s\n' "$sha"
+            printf 'ARCHIVE_BYTES=%s\n' "$bytes"
+            printf 'LAST_KNOWN_PUBLIC_SIGNED_SEQUENCE=15\n'
+            printf 'NEXT_RELEASE_SEQUENCE=OWNER_VERIFICATION_REQUIRED\n'
+            printf 'MANIFEST_SIGNATURE=NOT_CREATED\n'
+            printf 'PRODUCTION_ACTIVATION=NOT_PERFORMED\n'
+            printf 'REQUIRED_NEXT=OWNER_SIGN_EXACT_MANIFEST_AND_INDEPENDENTLY_VERIFY_ARCHIVE_BEFORE_PUBLISH\n'
+          } > unsigned-candidate/UNSIGNED-CANDIDATE-RECEIPT.txt
+          chmod 600 unsigned-candidate/*
+          echo 'UNSIGNED_SOURCE_BUNDLE=PASS'
+          echo 'RELEASE_SIGNING_OR_DEPLOYMENT=NOT_ATTEMPTED'
+
+      - name: Retain source-only candidate for offline owner Ed25519 signing
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: unsigned-codebridge-${{ github.sha }}
+          path: unsigned-candidate/
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
