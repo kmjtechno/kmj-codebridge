@@ -4446,8 +4446,8 @@ export function createDispatcher(
             : a.command === "vioso_rig_preflight" && p.id === "vioso-clone"
               ? "vioso_rig_qa"
               : isPinnedPowerShell
-              ? "windows_ps_" + a.command.slice(0, 15)
-              : null;
+                ? "windows_ps_" + a.command.slice(0, 15)
+                : null;
       const autoLane =
         autoLanePrefix !== null &&
         a.laneId === undefined &&
