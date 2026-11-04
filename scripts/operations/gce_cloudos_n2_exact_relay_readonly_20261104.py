@@ -23,26 +23,39 @@ def exact_url(value, suffix):
         "https://www.googleapis.com/compute/v1/projects/"+PROJECT+"/"+suffix,
         "https://compute.googleapis.com/compute/v1/projects/"+PROJECT+"/"+suffix)
 
+def require(value):
+    if not value:
+        raise ValueError("EXACT_GCE_STATE_MISMATCH")
+
 def inspect(source, disk, relay):
-    assert source["name"] == SOURCE and source["status"] == "TERMINATED"
-    assert source["deletionProtection"] is True
-    assert len(source["disks"]) == 1
+    require(source.get("name") == SOURCE and source.get("status") == "TERMINATED")
+    require(source.get("deletionProtection") is True)
+    require(type(source.get("disks")) is list and len(source["disks"]) == 1)
     boot = source["disks"][0]
-    assert boot["boot"] is True and boot["autoDelete"] is False
-    assert boot["mode"] == "READ_WRITE"
-    assert exact_url(boot["source"],"zones/"+ZONE+"/disks/"+SOURCE)
-    assert disk["name"] == SOURCE and disk["sizeGb"] == "30"
-    assert disk["status"] == "READY"
-    assert exact_url(disk["type"],"zones/"+ZONE+"/diskTypes/pd-standard")
-    assert disk["users"] == ["https://www.googleapis.com/compute/v1/projects/"+PROJECT+"/zones/"+ZONE+"/instances/"+SOURCE] or disk["users"] == ["https://compute.googleapis.com/compute/v1/projects/"+PROJECT+"/zones/"+ZONE+"/instances/"+SOURCE]
-    assert relay["name"] == RELAY and relay["status"] == "RUNNING"
-    assert exact_url(relay["selfLink"],"zones/"+ZONE+"/instances/"+RELAY)
-    assert source["networkInterfaces"][0]["network"] == relay["networkInterfaces"][0]["network"]
-    assert len(relay["disks"]) > 0 and sum(d["boot"] is True for d in relay["disks"]) == 1
-    assert all(not exact_url(d["source"],"zones/"+ZONE+"/disks/"+SOURCE) for d in relay["disks"])
-    configs = relay["networkInterfaces"][0].get("accessConfigs",[])
+    require(boot.get("boot") is True and boot.get("autoDelete") is False)
+    require(boot.get("mode") == "READ_WRITE")
+    require(exact_url(boot.get("source"),"zones/"+ZONE+"/disks/"+SOURCE))
+    require(disk.get("name") == SOURCE and str(disk.get("sizeGb")) == "30" and type(disk.get("sizeGb")) is not bool)
+    require(disk.get("status") == "READY")
+    require(exact_url(disk.get("type"),"zones/"+ZONE+"/diskTypes/pd-standard"))
+    users = disk.get("users")
+    require(type(users) is list and len(users) == 1 and exact_url(users[0],"zones/"+ZONE+"/instances/"+SOURCE))
+    require(relay.get("name") == RELAY and relay.get("status") == "RUNNING")
+    require(exact_url(relay.get("selfLink"),"zones/"+ZONE+"/instances/"+RELAY))
+    nics_source = source.get("networkInterfaces")
+    nics_relay = relay.get("networkInterfaces")
+    require(type(nics_source) is list and len(nics_source) == 1 and type(nics_relay) is list and len(nics_relay) == 1)
+    n = nics_source[0].get("network")
+    r = nics_relay[0].get("network")
+    require(type(n) is str and n == r and "/global/networks/" in n and len(n) <= 400)
+    disks = relay.get("disks")
+    require(type(disks) is list and 1 <= len(disks) <= 16 and sum(d.get("boot") is True for d in disks) == 1)
+    require(all(type(d) is dict and type(d.get("boot")) is bool and type(d.get("source")) is str for d in disks))
+    require(all(not exact_url(d["source"],"zones/"+ZONE+"/disks/"+SOURCE) for d in disks))
+    configs = nics_relay[0].get("accessConfigs",[])
+    require(type(configs) is list and len(configs) <= 1)
     tier = configs[0].get("networkTier","UNVERIFIED") if len(configs)==1 else "UNVERIFIED"
-    assert tier in ("PREMIUM","STANDARD","UNVERIFIED")
+    require(tier in ("PREMIUM","STANDARD","UNVERIFIED"))
     return tier
 
 def main():
@@ -55,7 +68,7 @@ def main():
         tier = inspect(source,disk,relay)
         print("EXACT_RELAY_SAME_ZONE_VPC_DISK_COLLISION_CHECK=PASS_READ_ONLY")
         print("RELAY_EGRESS_TIER="+tier)
-    except (AssertionError,KeyError,ValueError,TypeError,OSError,subprocess.TimeoutExpired):
+    except (KeyError,ValueError,TypeError,AttributeError,OSError,subprocess.TimeoutExpired):
         print("EXACT_RELAY_READ_ONLY_AUDIT=BLOCKED")
         return 2
     finally:
