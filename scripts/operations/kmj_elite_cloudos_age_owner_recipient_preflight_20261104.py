@@ -170,7 +170,7 @@ def inspect():
             os.close(etc)
     finally:
         os.close(root)
-    print("ELITE_N2_AGE_OWNER_PRIVATE_IDENTITY=NOT_ON_ELITE_NOT_READ", flush=True)
+    print("ELITE_N2_AGE_OWNER_PRIVATE_IDENTITY=NOT_INSPECTED_MUST_STAY_OFF_ELITE", flush=True)
     if result is None:
         print("ELITE_OWNER_AGE_PUBLIC_RECIPIENT=NOT_INSTALLED", flush=True)
         print("ELITE_OWNER_AGE_PUBLIC_ENCRYPTION=NOT_ATTEMPTED", flush=True)
