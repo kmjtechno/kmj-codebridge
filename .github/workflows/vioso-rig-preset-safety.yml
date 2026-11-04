@@ -33,9 +33,5 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Run command-profile and signed-script safety tests
         run: node --test tests/command-presets.test.js tests/windows-powershell-profile.test.js
-      - name: Verify source formatting and emit minimal patch on mismatch
-        shell: bash
-        run: |
-          npx prettier --write src/command-presets.js tests/command-presets.test.js
-          git diff -- src/command-presets.js tests/command-presets.test.js
-          git diff --exit-code -- src/command-presets.js tests/command-presets.test.js
+      - name: Verify source formatting
+        run: npx prettier --check src/command-presets.js tests/command-presets.test.js
