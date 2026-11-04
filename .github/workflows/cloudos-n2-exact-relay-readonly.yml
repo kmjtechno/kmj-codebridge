@@ -1,0 +1,39 @@
+name: CloudOS N2 exact relay inventory (offline)
+on:
+  push:
+    paths:
+      - scripts/operations/gce_cloudos_n2_exact_relay_readonly_20261104.py
+      - tests/test_gce_cloudos_n2_exact_relay_readonly_20261104.py
+      - .github/workflows/cloudos-n2-exact-relay-readonly.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_cloudos_n2_exact_relay_readonly_20261104.py
+      - tests/test_gce_cloudos_n2_exact_relay_readonly_20261104.py
+      - .github/workflows/cloudos-n2-exact-relay-readonly.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source-only-read-guards:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run exact relay offline negative tests
+        shell: bash
+        run: |
+          python3 -B -m py_compile scripts/operations/gce_cloudos_n2_exact_relay_readonly_20261104.py
+          python3 -B -m unittest discover -s tests -p 'test_gce_cloudos_n2_exact_relay_readonly_20261104.py' -v
+      - name: No privileged GCE mutation or release credit
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s = Path('scripts/operations/gce_cloudos_n2_exact_relay_readonly_20261104.py').read_text()
+          assert 'GCE_RESOURCE_MUTATIONS=NONE' in s
+          assert 'N2_DISK_RECOVERY_AND_COST_GATES=NOT_VERIFIED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          for banned in ('AGE-SECRET-KEY-', 'shell=True', 'subprocess.Popen'):
+              assert banned not in s, banned
+          print('EXACT_GCE_RELAY_OFFLINE_NO_WRITE=PASS')
+          PY
