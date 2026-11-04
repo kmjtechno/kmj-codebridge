@@ -58,8 +58,10 @@ class CanaryLifecycleTests(unittest.TestCase):
             Path(p[2]).write_bytes(data)
             return response()
         if action == "rm":
-            self.assertEqual(p[1], self.remote_file)
-            if self.cleanup_denied:
+            self.assertEqual(p[1], self.remote_dir + "/canary.bin")
+            if self.cleanup_denied or self.remote_file is None:
+                # Upload never happened: removing absent file may fail,
+                # but successful rmdir + missing dir still prove cleanup.
                 return response(1)
             self.deleted = True
             return response()
@@ -84,7 +86,7 @@ class CanaryLifecycleTests(unittest.TestCase):
         self.corrupt = True
         with patch.object(mod, "sftp", side_effect=self.fake_sftp):
             with self.assertRaisesRegex(mod.Blocked,
-                                        "CANARY_CONTENT_INTEGRITY_MISMATCH"):
+                                        "CANARY_TRANSFER_OR_REMOTE_OPERATION_FAILED"):
                 mod.canary(self.smoke, Path("/private/local"),
                            b"103.212.136.154 ssh-ed25519 pin\n")
         self.assertTrue(self.deleted)
@@ -99,6 +101,40 @@ class CanaryLifecycleTests(unittest.TestCase):
             return original(smoke, argv, batch, timeout=timeout)
 
         with patch.object(mod, "sftp", side_effect=interrupted):
+            with self.assertRaisesRegex(
+                    mod.Blocked, "REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW"):
+                mod.canary(self.smoke, Path("/private/local"),
+                           b"103.212.136.154 ssh-ed25519 pin\\n")
+
+    def test_companion_specific_exception_on_upload_triggers_cleanup(self):
+        class CompanionBlocked(RuntimeError):
+            pass
+        original = self.fake_sftp
+
+        def disconnected(smoke, argv, batch, timeout=28):
+            if batch.startswith("put "):
+                raise CompanionBlocked("private SSH timeout")
+            return original(smoke, argv, batch, timeout=timeout)
+
+        with patch.object(mod, "sftp", side_effect=disconnected):
+            with self.assertRaisesRegex(
+                    mod.Blocked, "CANARY_TRANSFER_OR_REMOTE_OPERATION_FAILED"):
+                mod.canary(self.smoke, Path("/private/local"),
+                           b"103.212.136.154 ssh-ed25519 pin\\n")
+        self.assertIn("rmdir", [x.split(" ")[0] for x in self.commands])
+        self.assertIn("ls", [x.split(" ")[0] for x in self.commands])
+
+    def test_companion_specific_exception_during_cleanup_reports_path(self):
+        class CompanionBlocked(RuntimeError):
+            pass
+        original = self.fake_sftp
+
+        def disconnected(smoke, argv, batch, timeout=28):
+            if batch.startswith("rm "):
+                raise CompanionBlocked("private SSH timeout")
+            return original(smoke, argv, batch, timeout=timeout)
+
+        with patch.object(mod, "sftp", side_effect=disconnected):
             with self.assertRaisesRegex(
                     mod.Blocked, "REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW"):
                 mod.canary(self.smoke, Path("/private/local"),
