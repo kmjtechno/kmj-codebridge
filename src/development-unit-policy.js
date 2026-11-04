@@ -8,7 +8,7 @@ export const DEVELOPMENT_UNIT_PATH =
 export const DEVELOPMENT_HELPER_PATH =
   "/usr/local/libexec/kmj-codebridge-dev-probe.py";
 export const DEVELOPMENT_HELPER_SHA256 =
-  "1191b0ebff956e64da17e52b6dd65b43afe3c80bdad21900a4c719d941da5be7";
+  "5873f40e31a853531089147b66ff97a64a9d123975f172d2970243b3307ac5e7";
 
 export const DEVELOPMENT_UNIT_CONTENT = [
   "[Unit]",
@@ -198,7 +198,14 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
     // turn an unsafe effective property into a false exact-policy match.
     if (output.length > 8192 || /[\r\0]/.test(output)) return unreadable();
     const lines = output.replace(/\n$/, "").split("\n");
-    if (lines.length !== PROPERTIES.length) return unreadable();
+    // Some systemd versions omit the empty EnvironmentFiles property
+    // altogether, including with --all. Only that single omission is
+    // recoverable, and only after the canonical root-owned unit/helper
+    // bytes and no-drop-in/NeedDaemonReload safeguards pass below.
+    if (
+      lines.length !== PROPERTIES.length &&
+      lines.length !== PROPERTIES.length - 1
+    ) return unreadable();
     props = {};
     for (const line of lines) {
       const i = line.indexOf("=");
@@ -207,6 +214,17 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
       if (!PROPERTIES.includes(key) || Object.hasOwn(props, key))
         return unreadable();
       props[key] = line.slice(i + 1);
+    }
+    const missing = PROPERTIES.filter((key) => !Object.hasOwn(props, key));
+    if (
+      missing.length > 1 ||
+      (missing.length === 1 && missing[0] !== "EnvironmentFiles")
+    ) return unreadable();
+    if (missing.length === 1) {
+      // This is not trusted as a reported systemd value. Admission depends
+      // on the independently checked exact unit bytes and no effective
+      // drop-ins (below); fail closed if either is wrong.
+      props.EnvironmentFiles = "";
     }
     if (props.LoadState === "not-found") return blocked("UNIT_NOT_INSTALLED");
     // Report only fixed policy PROPERTY NAMES, never the effective values:
