@@ -132,13 +132,17 @@ test("omitted empty EnvironmentFiles requires exact pinned unit and helper befor
     [{ properties: { ActiveState: "active" } }, "UNIT_NOT_IDLE"],
   ];
   for (const [overrides, expected] of checks) {
-    const { args, supervisor, started } = fixture(overrides);
+    const { args, started } = fixture(overrides);
     const original = args.run;
     args.run = (exe, argv) =>
       original(exe, argv)
         .split("\n")
         .filter((line) => !line.startsWith("EnvironmentFiles="))
         .join("\n");
+    const supervisor = createSupervisorHandler({
+      ...args,
+      start: (unit) => started.push(unit),
+    });
     const result = attestDevelopmentCi(args);
     assert.equal(result.reason, expected);
     if (expected !== "PINNED_NONROOT_UNIT_VERIFIED") {
@@ -156,13 +160,17 @@ test("omitted empty EnvironmentFiles requires exact pinned unit and helper befor
 
 test("only EnvironmentFiles can be omitted; other missing properties never authorize start", async () => {
   for (const key of ["User", "PrivateNetwork", "DropInPaths", "ReadWritePaths"]) {
-    const { args, supervisor, started } = fixture();
+    const { args, started } = fixture();
     const original = args.run;
     args.run = (exe, argv) =>
       original(exe, argv)
         .split("\n")
         .filter((line) => !line.startsWith(key + "="))
         .join("\n");
+    const supervisor = createSupervisorHandler({
+      ...args,
+      start: (unit) => started.push(unit),
+    });
     const result = attestDevelopmentCi(args);
     assert.equal(result.ready, false);
     assert.equal(result.reason, "UNIT_PROPERTIES_UNVERIFIED");
