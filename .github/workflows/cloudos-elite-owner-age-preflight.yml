@@ -1,0 +1,51 @@
+name: CloudOS ELITE owner AGE public recipient read-only preflight
+
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_age_owner_recipient_preflight_20261104.py
+      - tests/test_cloudos_elite_owner_age_recipient_preflight_20261104.py
+      - .github/workflows/cloudos-elite-owner-age-preflight.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_age_owner_recipient_preflight_20261104.py
+      - tests/test_cloudos_elite_owner_age_recipient_preflight_20261104.py
+      - .github/workflows/cloudos-elite-owner-age-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  age-owner-public-recipient-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test AGE public parsing, secret rejection and encryption probe
+        run: |
+          python3 -B scripts/operations/kmj_elite_cloudos_age_owner_recipient_preflight_20261104.py --self-test
+          python3 -B tests/test_cloudos_elite_owner_age_recipient_preflight_20261104.py
+      - name: Prohibit AGE secret-key handling, backup or live GCE actions
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/operations/kmj_elite_cloudos_age_owner_recipient_preflight_20261104.py")
+          s=p.read_text()
+          ast.parse(s)
+          assert 'HOST = "kmj-elite"' in s
+          assert 'EXPECTED_FILE = "/etc/kmj-cloudos-backup/owner-recipient.txt"' in s
+          assert 'PUBLIC_FILE = "owner-recipient.txt"' in s
+          assert 'REQUIRED_SPACE = 65 * 1024 ** 3' in s
+          assert 'os.O_NOFOLLOW' in s
+          assert 'OWNER_INDEPENDENT_PRIVATE_KEY_RECOVERY=NOT_VERIFIED' in s
+          assert 'N2_CONSISTENT_FULL_DISK_BACKUP=NOT_ATTEMPTED' in s
+          assert 'INDEPENDENT_N2_DISPOSABLE_BOOT_RESTORE=NOT_VERIFIED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          for token in ("age-keygen", "gcloud compute", "systemctl",
+                        "shell=True", "subprocess.Popen", "os.unlink(", 
+                        "os.mkdir(", "os.replace(", "os.rename(", "os.chmod(",
+                        " -d ", '"--decrypt"', '["-d"', '["-i"'):
+              assert token not in s, token
+          print("ELITE_AGE_PUBLIC_ONLY_READONLY_SCOPE=PASS")
+          PY
