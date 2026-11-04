@@ -33,7 +33,7 @@ The verifier script in this PR is **read only** and checks strict no-follow root
 
 ## Independent restoration gate
 
-A full release requires a separate trusted device to decrypt the USB-stored, passphrase-encrypted AGE identity (without moving raw private material onto ELITE). From a *real source-captured* archive, decrypt through an owner-controlled protected mechanism to a disposable isolated restore target, verify restored raw byte count and SHA256 against independently witnessed source stream, then boot/test CloudOS and roll back **without modifying the original N2 boot disk**.
+A full release requires a separate trusted device to decrypt the USB-stored, passphrase-encrypted AGE identity (without moving raw private material onto ELITE). From a _real source-captured_ archive, decrypt through an owner-controlled protected mechanism to a disposable isolated restore target, verify restored raw byte count and SHA256 against independently witnessed source stream, then boot/test CloudOS and roll back **without modifying the original N2 boot disk**.
 
 The restored VM must have no uncontrolled network reachability or tenant crossover. Check KVM guest boot, QGA, per-tenant libvirt network isolation, storage consistency, schema/application service health, observed rollback, boot disk restoration, and all 62 CloudOS release gates. Only direct operator-generated receipts from the actual restored VM count; offline fake-host tests and script-local assertions do not.
 
