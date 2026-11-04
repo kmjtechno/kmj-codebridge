@@ -445,4 +445,15 @@ test("VIOSO P520 rig preflight preset stays explicitly opt-in and detached-head"
     ),
   );
   assert.ok(toolsSource.includes("beforeStart: verify"));
+  assert.ok(
+    toolsSource.includes(
+      'a.command === "vioso_rig_preflight" && p.id === "vioso-clone"',
+    ),
+  );
+  assert.ok(
+    toolsSource.includes(
+      'if (a.command === "vioso_rig_preflight" && p.id !== "vioso-clone")',
+    ),
+  );
+  assert.ok(toolsSource.includes('"vioso_rig_qa"'));
 });
