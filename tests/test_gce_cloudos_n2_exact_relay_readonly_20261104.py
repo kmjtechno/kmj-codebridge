@@ -104,7 +104,23 @@ class TestExactRelay(unittest.TestCase):
                 unittest.mock.call("instances", mod.RELAY),
             ])
             self.assertIn("RELAY_EGRESS_TIER=PREMIUM", out.getvalue())
+            self.assertIn("RELAY_TO_ELITE_BULK_EGRESS=BLOCKED_PREMIUM_INTERNET_EGRESS_COST_UNVERIFIED", out.getvalue())
+            self.assertIn("RELAY_NETWORK_TIER_CHANGE=NOT_AUTHORIZED_NOT_ATTEMPTED", out.getvalue())
             self.assertIn("CLOUDOS_PRODUCTION_RELEASE=BLOCKED", out.getvalue())
+
+    def test_no_bulk_egress_grant_from_any_network_tier(self):
+        self.assertEqual(
+            mod.bulk_egress_zero_spend_gate("PREMIUM"),
+            "BLOCKED_PREMIUM_INTERNET_EGRESS_COST_UNVERIFIED",
+        )
+        self.assertEqual(
+            mod.bulk_egress_zero_spend_gate("STANDARD"),
+            "BLOCKED_STANDARD_FREE_ALLOWANCE_NOT_ATTESTED",
+        )
+        self.assertEqual(
+            mod.bulk_egress_zero_spend_gate("UNVERIFIED"),
+            "BLOCKED_NETWORK_TIER_OR_BILLING_NOT_ATTESTED",
+        )
 
     def test_invariant_no_resource_mutation_or_secrets(self):
         source = PATH.read_text()
