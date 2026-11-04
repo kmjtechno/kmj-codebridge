@@ -125,7 +125,10 @@ test("omitted empty EnvironmentFiles requires exact pinned unit and helper befor
     [{}, "PINNED_NONROOT_UNIT_VERIFIED"],
     [{ unit: unit + "# tampered\n" }, "UNIT_CONTENT_MISMATCH"],
     [{ helper: helper + "# tampered\n" }, "HELPER_HASH_MISMATCH"],
-    [{ properties: { DropInPaths: "/etc/override.conf" } }, "UNIT_PROPERTIES_UNSAFE"],
+    [
+      { properties: { DropInPaths: "/etc/override.conf" } },
+      "UNIT_PROPERTIES_UNSAFE",
+    ],
     [{ properties: { NeedDaemonReload: "yes" } }, "UNIT_PROPERTIES_UNSAFE"],
     [{ properties: { User: "root" } }, "UNIT_PROPERTIES_UNSAFE"],
     [{ properties: { Result: "exit-code" } }, "UNIT_PROPERTIES_UNSAFE"],
@@ -159,7 +162,12 @@ test("omitted empty EnvironmentFiles requires exact pinned unit and helper befor
 });
 
 test("only EnvironmentFiles can be omitted; other missing properties never authorize start", async () => {
-  for (const key of ["User", "PrivateNetwork", "DropInPaths", "ReadWritePaths"]) {
+  for (const key of [
+    "User",
+    "PrivateNetwork",
+    "DropInPaths",
+    "ReadWritePaths",
+  ]) {
     const { args, started } = fixture();
     const original = args.run;
     args.run = (exe, argv) =>
