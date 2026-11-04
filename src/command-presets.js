@@ -310,7 +310,11 @@ const PRESETS = freeze({
 // Fail closed on the production/main checkout even after an administrator
 // explicitly enables the Main Platform frontend CI profile.
 export function commandRequiresIsolatedLane(commandId) {
-  return ["main_platform_ui_ci", "calibration_v4_qa", "vioso_rig_preflight"].includes(commandId);
+  return [
+    "main_platform_ui_ci",
+    "calibration_v4_qa",
+    "vioso_rig_preflight",
+  ].includes(commandId);
 }
 
 export const COMMAND_PRESET_IDS = Object.freeze(Object.keys(PRESETS));
