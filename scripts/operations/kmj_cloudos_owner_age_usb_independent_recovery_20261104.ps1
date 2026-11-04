@@ -83,10 +83,14 @@ function Write-Exclusive([string]$p,[byte[]]$b) {
   $f=[IO.File]::Open($p,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
   try {$f.Write($b,0,$b.Length);$f.Flush($true)} finally {$f.Dispose()}
 }
-function Run-Age([string]$binary,[string[]]$args) {
+function Run-Age([string]$Binary,[string[]]$Arguments) {
+  if (-not $Binary -or $null -eq $Arguments -or $Arguments.Count -eq 0) {throw "AGE_ARGUMENTS_MISSING"}
   $old=$ErrorActionPreference
-  try {$ErrorActionPreference="Continue"; & $binary @args; $rc=$LASTEXITCODE}
-  finally {$ErrorActionPreference=$old}
+  try {
+    $ErrorActionPreference="Continue"
+    & $Binary @Arguments
+    $rc=$LASTEXITCODE
+  } finally {$ErrorActionPreference=$old}
   if ($rc -ne 0) {throw "AGE_OPERATION_FAILED"}
 }
 if ($Mode -eq "SelfTest") {
@@ -97,6 +101,23 @@ if ($Mode -eq "SelfTest") {
   try {Reject-SameHost ("c"*64) ("c"*64);throw "SELFTEST_FALSE_ALLOW"}
   catch {if ($_.Exception.Message -eq "SELFTEST_FALSE_ALLOW") {throw}}
   Reject-SameHost ("c"*64) ("d"*64)
+  if (-not $env:ComSpec -or -not (Test-Path -LiteralPath $env:ComSpec -PathType Leaf)) {
+    throw "WINDOWS_NATIVE_TEST_EXECUTABLE_MISSING"
+  }
+  Run-Age -Binary $env:ComSpec -Arguments @("/d","/c","exit","0")
+  try {
+    Run-Age -Binary $env:ComSpec -Arguments @("/d","/c","exit","9")
+    throw "NATIVE_NONZERO_EXIT_NOT_REJECTED"
+  } catch {
+    if ($_.Exception.Message -ne "AGE_OPERATION_FAILED") {throw}
+  }
+  try {
+    Run-Age -Binary $env:ComSpec -Arguments @()
+    throw "EMPTY_NATIVE_ARGS_NOT_REJECTED"
+  } catch {
+    if ($_.Exception.Message -ne "AGE_ARGUMENTS_MISSING") {throw}
+  }
+  "CLOUDOS_OWNER_USB_NATIVE_ARG_BINDING_OFFLINE=PASS"
   "CLOUDOS_OWNER_USB_INDEPENDENT_RECOVERY_OFFLINE_TESTS=PASS"
   "OWNER_INDEPENDENT_DEVICE_RECOVERY=NOT_VERIFIED_SELFTEST_ONLY"
   return
@@ -133,7 +154,7 @@ if ($Mode -eq "Prepare") {
   try {
     Write-Exclusive $src $bytes
     $plainSha=(Get-FileHash -LiteralPath $src -Algorithm SHA256).Hash.ToLowerInvariant()
-    Run-Age $tools.Age @("-r",$pub,"-o",$cipher,$src)
+    Run-Age -Binary $tools.Age -Arguments @("-r",$pub,"-o",$cipher,$src)
     $f=Safe-File $cipher
     if ($f.Length -lt 100 -or $f.Length -gt 16384) {throw "WITNESS_ENCRYPT_SIZE_INVALID"}
     $record=[ordered]@{
@@ -182,7 +203,7 @@ $out=Join-Path $env:TEMP (([guid]::NewGuid().ToString("N"))+".recovered")
 try {
   "SECOND_DEVICE_IDENTITY=DIFFERENT_MACHINE_GUID"
   "Enter owner-chosen USB identity passphrase privately. Never share it in logs."
-  Run-Age $tools.Age @("-d","-i",$backup,"-o",$out,$cipher)
+  Run-Age -Binary $tools.Age -Arguments @("-d","-i",$backup,"-o",$out,$cipher)
   [void](Safe-File $out)
   if ((Get-FileHash -LiteralPath $out -Algorithm SHA256).Hash.ToLowerInvariant() -cne $m.PlaintextSha256) {
     throw "USB_INDEPENDENT_RECOVERY_SHA256_MISMATCH"
