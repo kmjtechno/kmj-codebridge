@@ -252,6 +252,10 @@ export function attestMainPlatformStaging({
     unitInstalled: unit.LoadState === "loaded",
     ready: blockers.length === 0,
     blockers,
+    // Distinguishes this approval-gated digest policy from earlier signed
+    // stable releases where an absent approval falsely raised digest failures.
+    // Informational only: never treat this marker as approval or signer proof.
+    stagingPolicyContract: "approval-gated-digests-v2",
     // Never expose root-owned scripts, command lines or private unit contents.
   };
 }

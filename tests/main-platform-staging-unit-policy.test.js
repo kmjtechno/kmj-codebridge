@@ -252,6 +252,9 @@ test("staging diagnostics do not invent digest failures without valid approval",
   const status = (await absent.handle({ op: "main_platform_staging_status" }))
     .response;
   assert.equal(status.ready, false);
+  // An installed runtime without this marker predates the approved
+  // missing-approval diagnostic policy. This is NOT signer attestation.
+  assert.equal(status.stagingPolicyContract, "approval-gated-digests-v2");
   assert.ok(status.blockers.includes("PROTECTED_STAGING_APPROVAL_INVALID"));
   assert.ok(!status.blockers.includes("STAGING_RUNNER_ATTESTATION_FAILED"));
   assert.ok(!status.blockers.includes("STAGING_UNIT_ATTESTATION_FAILED"));
