@@ -134,6 +134,28 @@ class TestSpoolAdmission(unittest.TestCase):
             with self.subTest(name=name), self.assertRaises(a.Blocked):
                 a.admission(self.sfd, self.vfd, os.getuid(), name, self.sha, promote=False)
 
+    def test_manifest_publish_failure_rolls_back_final_cipher(self):
+        original = os.link
+        calls = [0]
+        def second_link_fails(*args, **kwargs):
+            calls[0] += 1
+            if calls[0] == 2:
+                raise OSError("simulated manifest publication failure")
+            return original(*args, **kwargs)
+        with patch.object(a, "check_space", return_value=None):
+            with patch.object(a.os, "link", side_effect=second_link_fails):
+                with self.assertRaisesRegex(OSError, "publication failure"):
+                    self.admit(commit=True)
+        self.assertEqual(calls[0], 2)
+        self.assertEqual(list(self.vault.iterdir()), [])
+        self.assertEqual(self.source.read_bytes(), CIPHER)
+
+    def test_insufficient_vault_headroom_prevents_any_write(self):
+        with patch.object(a, "check_space", side_effect=a.Blocked("NO_HEADROOM")):
+            with self.assertRaisesRegex(a.Blocked, "NO_HEADROOM"):
+                self.admit(commit=True)
+        self.assertEqual(list(self.vault.iterdir()), [])
+
     def test_always_blocks_false_release_credit(self):
         s = src.read_text()
         for m in ("N2_SOURCE_DISK_COMPLETENESS=NOT_INDEPENDENTLY_ATTESTED",
