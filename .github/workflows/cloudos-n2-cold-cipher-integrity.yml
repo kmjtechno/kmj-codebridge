@@ -1,0 +1,42 @@
+name: CloudOS N2 cold ciphertext integrity (offline)
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_n2_cold_archive_integrity_20261104.py
+      - tests/test_cloudos_n2_cold_archive_integrity_20261104.py
+      - .github/workflows/cloudos-n2-cold-cipher-integrity.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_n2_cold_archive_integrity_20261104.py
+      - tests/test_cloudos_n2_cold_archive_integrity_20261104.py
+      - .github/workflows/cloudos-n2-cold-cipher-integrity.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  isolated-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run offline fake-archive security negatives
+        shell: bash
+        run: |
+          python3 -B -m py_compile scripts/operations/kmj_elite_cloudos_n2_cold_archive_integrity_20261104.py
+          python3 -B -m unittest discover -s tests -p 'test_cloudos_n2_cold_archive_integrity_20261104.py' -v
+      - name: Verify that standalone source cannot write N2, use private AGE keys, or claim release readiness
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("scripts/operations/kmj_elite_cloudos_n2_cold_archive_integrity_20261104.py")
+          s=p.read_text()
+          for marker in ("N2_SOURCE_TERMINATION=NOT_INDEPENDENTLY_ATTESTED",
+                         "N2_SOURCE_DISK_COMPLETENESS=NOT_INDEPENDENTLY_ATTESTED",
+                         "N2_INDEPENDENT_DISPOSABLE_BOOT_RESTORE=NOT_VERIFIED",
+                         "CLOUDOS_PRODUCTION_RELEASE=BLOCKED"):
+              assert marker in s, marker
+          for banned in ("subprocess.", "shell=True", "gcloud compute", "AGE-SECRET-KEY-"):
+              assert banned not in s, banned
+          print("CLOUDOS_N2_CIPHER_INTEGRITY_STATIC_SAFETY=PASS")
+          PY
