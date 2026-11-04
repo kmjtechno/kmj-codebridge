@@ -25,8 +25,9 @@ jobs:
           $errors = $null
           [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $p), [ref]$tokens, [ref]$errors)
           if ($errors.Count -ne 0) { $errors | ForEach-Object { Write-Error $_ }; throw "POWERSHELL_PARSE_FAILED" }
-          & $p -Mode SelfTest
-          if ($LASTEXITCODE -ne 0) { throw "POWERSHELL_SELFTEST_FAILED" }
+          $output = @(& (Resolve-Path $p) -Mode SelfTest)
+          if ($output -notcontains "CLOUDOS_OWNER_USB_INDEPENDENT_RECOVERY_OFFLINE_TESTS=PASS") { throw "POWERSHELL_SELFTEST_FAILED" }
+          $output | ForEach-Object { Write-Host $_ }
       - name: Source no cloud/secret-transfer operations
         shell: pwsh
         run: |
