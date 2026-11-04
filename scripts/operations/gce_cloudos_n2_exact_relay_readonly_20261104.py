@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exact owner-only GCE relay inventory; read-only and non-mutating."""
 import json
+import re
 import subprocess
 import sys
 
@@ -27,6 +28,14 @@ def require(value):
     if not value:
         raise ValueError("EXACT_GCE_STATE_MISMATCH")
 
+def valid_network(url):
+    if type(url) is not str or len(url) > 400:
+        return False
+    prefix = "/compute/v1/projects/" + PROJECT + "/global/networks/"
+    return any(url.startswith(host + prefix) and
+               re.fullmatch(r"[a-z][a-z0-9-]{0,62}",url[len(host + prefix):])
+               for host in ("https://www.googleapis.com","https://compute.googleapis.com"))
+
 def inspect(source, disk, relay):
     require(source.get("name") == SOURCE and source.get("status") == "TERMINATED")
     require(source.get("deletionProtection") is True)
@@ -47,7 +56,7 @@ def inspect(source, disk, relay):
     require(type(nics_source) is list and len(nics_source) == 1 and type(nics_relay) is list and len(nics_relay) == 1)
     n = nics_source[0].get("network")
     r = nics_relay[0].get("network")
-    require(type(n) is str and n == r and "/global/networks/" in n and len(n) <= 400)
+    require(n == r and valid_network(n))
     disks = relay.get("disks")
     require(type(disks) is list and 1 <= len(disks) <= 16 and sum(d.get("boot") is True for d in disks) == 1)
     require(all(type(d) is dict and type(d.get("boot")) is bool and type(d.get("source")) is str for d in disks))
