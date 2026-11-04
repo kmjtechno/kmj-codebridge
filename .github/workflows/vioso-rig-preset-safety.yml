@@ -1,0 +1,38 @@
+name: CodeBridge VIOSO rig preset safety
+on:
+  pull_request:
+    paths:
+      - "src/command-presets.js"
+      - "src/config.js"
+      - "src/tools.js"
+      - "src/windows-powershell-profile.js"
+      - "tests/command-presets.test.js"
+      - ".github/workflows/vioso-rig-preset-safety.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/command-presets.js"
+      - "tests/command-presets.test.js"
+      - ".github/workflows/vioso-rig-preset-safety.yml"
+permissions:
+  contents: read
+jobs:
+  presets:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+      - name: Install exact reviewed dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run command-profile and signed-script safety tests
+        run: node --test tests/command-presets.test.js tests/windows-powershell-profile.test.js
+      - name: Verify source formatting
+        run: npx prettier --check src/command-presets.js src/tools.js tests/command-presets.test.js

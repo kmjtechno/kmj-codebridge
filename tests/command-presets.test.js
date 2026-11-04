@@ -39,6 +39,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "windows-visual-qa",
     "windows-python-trial-qa",
     "calibration-v4-software-qa",
+    "vioso-clone-rig-readonly",
     "go-standard",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
@@ -389,4 +390,70 @@ test("frontend CI cannot use shared checkout, other command profiles retain comp
       'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
     ),
   );
+});
+
+test("VIOSO P520 rig preflight preset stays explicitly opt-in and detached-head", () => {
+  const baseline = agentSchema.parse(base).projects[0];
+  assert.equal(baseline.commands.vioso_rig_preflight, undefined);
+
+  const configured = agentSchema.parse({
+    ...base,
+    projects: [
+      { ...base.projects[0], commandPresets: ["vioso-clone-rig-readonly"] },
+    ],
+  }).projects[0];
+  const profile = configured.commands.vioso_rig_preflight;
+  assert.equal(profile.category, "build");
+  assert.equal(
+    profile.command,
+    process.platform === "win32" ? "python" : "python3",
+  );
+  assert.equal(profile.description.includes("unverified"), true);
+  assert.deepEqual(Object.keys(profile.variants), ["displays"]);
+  assert.deepEqual(profile.variants.displays.args, [
+    "-m",
+    "vclone",
+    "rig-preflight",
+    "--expected-projectors",
+    "2",
+  ]);
+  assert.equal(profile.variants.displays.timeoutMs, 30000);
+  for (const unsafe of [
+    "shell",
+    "camera",
+    "capture",
+    "project",
+    "deploy",
+    "install",
+    "write",
+  ]) {
+    assert.equal(profile.variants[unsafe], undefined);
+  }
+  assert.equal(commandRequiresIsolatedLane("vioso_rig_preflight"), true);
+  assert.equal(configured.commands.windows_python_trial_qa, undefined);
+  assert.equal(configured.commands.calibration_v4_qa, undefined);
+  // Source must protect the caller from running the new profile in a dirty
+  // shared checkout. It cannot fetch latest GitHub main on its own.
+  const toolsSource = fs.readFileSync(
+    new URL("../src/tools.js", import.meta.url),
+    "utf8",
+  );
+  assert.ok(toolsSource.includes("commandRequiresIsolatedLane(a.command)"));
+  assert.ok(
+    toolsSource.includes(
+      'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
+    ),
+  );
+  assert.ok(toolsSource.includes("beforeStart: verify"));
+  assert.ok(
+    toolsSource.includes(
+      'a.command === "vioso_rig_preflight" && p.id === "vioso-clone"',
+    ),
+  );
+  assert.ok(
+    toolsSource.includes(
+      'if (a.command === "vioso_rig_preflight" && p.id !== "vioso-clone")',
+    ),
+  );
+  assert.ok(toolsSource.includes('"vioso_rig_qa"'));
 });
