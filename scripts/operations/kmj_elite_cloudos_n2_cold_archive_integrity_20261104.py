@@ -25,7 +25,7 @@ HEX_RE = re.compile(r"[0-9a-f]{64}\Z")
 FIELDS = frozenset({
     "schema", "capture_id", "project", "zone", "instance", "source_disk_bytes",
     "captured_at_utc", "capture_method", "source_state_reported",
-    "age_recipient_sha256", "ciphertext_bytes", "ciphertext_sha256"
+    "age_recipient_sha256", "source_disk_sha256", "ciphertext_bytes", "ciphertext_sha256"
 })
 DIR = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
 FILE = os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC
@@ -98,9 +98,9 @@ def parse_manifest(data, name, now=None):
         raise Blocked("N2_SOURCE_DISK_SIZE_OUT_OF_RANGE")
     if not 128 <= payload["ciphertext_bytes"] <= 65 * 1024**3:
         raise Blocked("CIPHERTEXT_SIZE_OUT_OF_RANGE")
-    if (type(payload["ciphertext_sha256"]) is not str
-            or HEX_RE.fullmatch(payload["ciphertext_sha256"]) is None):
-        raise Blocked("CIPHERTEXT_DIGEST_INVALID")
+    for field in ("source_disk_sha256", "ciphertext_sha256"):
+        if type(payload[field]) is not str or HEX_RE.fullmatch(payload[field]) is None:
+            raise Blocked("SHA256_MANIFEST_FIELD_INVALID")
     ts = payload["captured_at_utc"]
     if type(ts) is not str or re.fullmatch(r"20\d\d-\d\d-\d\dT\d\d:\d\d:\d\dZ", ts) is None:
         raise Blocked("CAPTURE_TIMESTAMP_FORMAT_INVALID")
