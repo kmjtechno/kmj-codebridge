@@ -1,0 +1,60 @@
+name: CloudOS relay SFTP isolated bounded canary test
+
+on:
+  pull_request:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_sftp_bounded_canary_20261103.py
+      - tests/test_cloudos_relay_sftp_bounded_canary_20261103.py
+      - .github/workflows/cloudos-relay-sftp-bounded-canary.yml
+  push:
+    paths:
+      - scripts/operations/kmj_cloudos_relay_sftp_bounded_canary_20261103.py
+      - tests/test_cloudos_relay_sftp_bounded_canary_20261103.py
+      - .github/workflows/cloudos-relay-sftp-bounded-canary.yml
+
+permissions:
+  contents: read
+
+jobs:
+  bounded-sftp-canary-offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify immutable PR820 source and bounded canary lifecycle tests
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          src=Path("scripts/operations/kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py")
+          assert hashlib.sha256(src.read_bytes()).hexdigest() == "b3224318810bc7fffe28571f7545cbf3de3453ac9220140d750bdc4ce0ec4c1c"
+          print("RELAY_CANARY_COMPANION_SMOKE_SHA256=PASS")
+          PY
+          python3 -B scripts/operations/kmj_cloudos_relay_sftp_bounded_canary_20261103.py --self-test
+          python3 -B tests/test_cloudos_relay_sftp_bounded_canary_20261103.py
+      - name: Block arbitrary uploads and source mutations
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          s=Path("scripts/operations/kmj_cloudos_relay_sftp_bounded_canary_20261103.py").read_text()
+          ast.parse(s)
+          assert 'NAME_PREFIX = ".kmj-cloudos-relay-canary-"' in s
+          assert 'MAX_BYTES = 96' in s
+          assert 'secrets.token_hex(16)' in s
+          assert 'remote_dir = "/incoming/" + NAME_PREFIX + unique' in s
+          assert '"mkdir " + remote_dir' in s
+          assert '"put " + str(src) + " " + remote_file' in s
+          assert '"get " + remote_file + " " + str(dst)' in s
+          assert '"rm " + remote_file' in s
+          assert '"rmdir " + remote_dir' in s
+          assert 'RELAY_SFTP_CANARY_CLEANUP=PASS_REMOTE_ABSENT' in s
+          assert 'OWNER_AGE_RECOVERY_AND_N2_RESTORE' not in s or 'NOT_VERIFIED' in s
+          assert 'CLOUDOS_PRODUCTION_RELEASE=BLOCKED' in s
+          assert 'smoke.actual_sftp(private, host)' in s
+          for x in ("systemctl", "ssh-copy-id", "authorized_keys",
+                    "gcloud compute", "shell=True", "shutil.rmtree",
+                    "subprocess.Popen", "os.replace(", "os.rename(", "gcloud "):
+              assert x not in s, x
+          print("RELAY_SFTP_BOUNDED_CANARY_SCOPE=PASS")
+          PY
