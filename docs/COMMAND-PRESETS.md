@@ -11,6 +11,7 @@ Supported presets:
 - `python-standard` — requirements install plus pytest and compile verification.
 - `cargo-standard` — locked check/build/test/clippy/format-check plus formatter.
 - `windows-python-trial-qa` — explicit Windows-only, project-local Python trial doctor, regression tests, and non-interactive GUI smoke checks. The administrator first installs and reviews `scripts/codebridge-python-trial-qa.mjs` inside an _enrolled calibration project_, and explicitly enables the preset. Never execute this profile in an unrelated repository or elevated/background desktop session.
+- `vioso-clone-rig-readonly` — owner-opt-in P520 VIOSO Clone **Windows display topology** check, fixed `vioso_rig_preflight:displays` Python entrypoint. It runs only on an exact-head detached worktree, never the dirty shared checkout; camera profiles, projectors, display modes, PowerShell, Git fetching and source updates are out of scope.
 - `calibration-v4-software-qa` — explicit Calibration Pro V4 `calibration_v4_qa:full` profile invokes the existing `python tools/verify.py` from a clean SHA-pinned detached worktree. It configures/builds/tests both Debug and Release; no projector/camera activation, physical acceptance, candidate promotion, signing, deployment or publishing.
 - `go-standard` — test/vet/build plus formatter.
 - `cmake-standard` — configure into the fixed `.kmj-codebridge-build` directory, Debug/Release build and CTest with bounded parallelism. It never installs, publishes or signs.
