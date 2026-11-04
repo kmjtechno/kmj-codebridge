@@ -23,9 +23,9 @@ FILES = (
         0o444,
     ),
     (
-        BASE + "/KMJ_CB_PINNED_DEV_PROBE_20261027.py",
+        "/srv/kmj-codebridge-projects/kmj-main-platform/scripts/KMJ_CODEBRIDGE_NONROOT_HELPER_CANDIDATE_20261104.py",
         "/usr/local/libexec/kmj-codebridge-dev-probe.py",
-        "1191b0ebff956e64da17e52b6dd65b43afe3c80bdad21900a4c719d941da5be7",
+        "5873f40e31a853531089147b66ff97a64a9d123975f172d2970243b3307ac5e7",
         0o444,
     ),
 )

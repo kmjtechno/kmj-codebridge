@@ -106,6 +106,93 @@ function fixture(overrides = {}) {
   return { args, supervisor, calls, started, props };
 }
 
+test("nonroot helper refuses the protected shared checkout and pins one isolated commit", () => {
+  assert.match(helper, /\/var\/lib\/kmj-codebridge-development-ci\/source/);
+  assert.match(helper, /a9796a25a2801cd303a69f5ad468aa9a704e5fff/);
+  assert.match(helper, /GIT_NO_LAZY_FETCH/);
+  assert.match(helper, /GIT_TERMINAL_PROMPT/);
+  assert.match(helper, /rev-list/);
+  assert.match(helper, /--count/);
+  assert.match(helper, /HEAD\^\{commit\}/);
+  assert.doesNotMatch(helper, /safe\.directory=/);
+  assert.doesNotMatch(helper, /srv\/kmj-codebridge-projects/);
+});
+
+test("omitted empty EnvironmentFiles requires exact pinned unit and helper before admission", async () => {
+  // Some installed systemd versions omit the empty property entirely, even
+  // with show --all. An omitted non-empty property must never be tolerated.
+  const checks = [
+    [{}, "PINNED_NONROOT_UNIT_VERIFIED"],
+    [{ unit: unit + "# tampered\n" }, "UNIT_CONTENT_MISMATCH"],
+    [{ helper: helper + "# tampered\n" }, "HELPER_HASH_MISMATCH"],
+    [
+      { properties: { DropInPaths: "/etc/override.conf" } },
+      "UNIT_PROPERTIES_UNSAFE",
+    ],
+    [{ properties: { NeedDaemonReload: "yes" } }, "UNIT_PROPERTIES_UNSAFE"],
+    [{ properties: { User: "root" } }, "UNIT_PROPERTIES_UNSAFE"],
+    [{ properties: { Result: "exit-code" } }, "UNIT_PROPERTIES_UNSAFE"],
+    [{ properties: { ActiveState: "active" } }, "UNIT_NOT_IDLE"],
+  ];
+  for (const [overrides, expected] of checks) {
+    const { args, started } = fixture(overrides);
+    const original = args.run;
+    args.run = (exe, argv) =>
+      original(exe, argv)
+        .split("\n")
+        .filter((line) => !line.startsWith("EnvironmentFiles="))
+        .join("\n");
+    const supervisor = createSupervisorHandler({
+      ...args,
+      start: (unit) => started.push(unit),
+    });
+    const result = attestDevelopmentCi(args);
+    assert.equal(result.reason, expected);
+    if (expected !== "PINNED_NONROOT_UNIT_VERIFIED") {
+      await assert.rejects(
+        supervisor({
+          op: "development_ci_start",
+          confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+        }),
+        /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+      );
+      assert.deepEqual(started, []);
+    }
+  }
+});
+
+test("only EnvironmentFiles can be omitted; other missing properties never authorize start", async () => {
+  for (const key of [
+    "User",
+    "PrivateNetwork",
+    "DropInPaths",
+    "ReadWritePaths",
+  ]) {
+    const { args, started } = fixture();
+    const original = args.run;
+    args.run = (exe, argv) =>
+      original(exe, argv)
+        .split("\n")
+        .filter((line) => !line.startsWith(key + "="))
+        .join("\n");
+    const supervisor = createSupervisorHandler({
+      ...args,
+      start: (unit) => started.push(unit),
+    });
+    const result = attestDevelopmentCi(args);
+    assert.equal(result.ready, false);
+    assert.equal(result.reason, "UNIT_PROPERTIES_UNVERIFIED");
+    await assert.rejects(
+      supervisor({
+        op: "development_ci_start",
+        confirmation: "START_PINNED_NONROOT_DEV_PROBE",
+      }),
+      /SUPERVISOR_DEVELOPMENT_CI_NOT_READY/,
+    );
+    assert.deepEqual(started, []);
+  }
+});
+
 test("pinned unit and helper are exactly the source contract", () => {
   assert.equal(unit, DEVELOPMENT_UNIT_CONTENT);
   assert.equal(
