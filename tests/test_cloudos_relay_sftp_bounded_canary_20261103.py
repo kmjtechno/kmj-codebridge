@@ -58,8 +58,10 @@ class CanaryLifecycleTests(unittest.TestCase):
             Path(p[2]).write_bytes(data)
             return response()
         if action == "rm":
-            self.assertEqual(p[1], self.remote_file)
-            if self.cleanup_denied:
+            self.assertEqual(p[1], self.remote_dir + "/canary.bin")
+            if self.cleanup_denied or self.remote_file is None:
+                # Upload never happened: removing absent file may fail,
+                # but successful rmdir + missing dir still prove cleanup.
                 return response(1)
             self.deleted = True
             return response()
