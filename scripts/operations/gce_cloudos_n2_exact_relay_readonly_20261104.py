@@ -81,6 +81,7 @@ def main():
         print("EXACT_RELAY_READ_ONLY_AUDIT=BLOCKED")
         return 2
     finally:
+        print("GCE_RESOURCE_MUTATIONS=NONE")
         print("N2_DISK_RECOVERY_AND_COST_GATES=NOT_VERIFIED")
         print("CLOUDOS_PRODUCTION_RELEASE=BLOCKED")
     return 0
