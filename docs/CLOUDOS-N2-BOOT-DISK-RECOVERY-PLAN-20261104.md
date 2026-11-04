@@ -4,18 +4,18 @@
 
 ## GCE state, witnessed by owner
 
-| Fact | Receipt |
-| --- | --- |
-| Identity | `kmj-techno/us-central1-a/kmj-cloudos-kvm-test` EXACT_VERIFIED |
-| N2 state | `TERMINATED`, deletion protection true |
-| Source boot disk | `kmj-cloudos-kvm-test`, 30 GB, `pd-standard` |
-| Source disk attachment mode | `READ_WRITE` on original N2 |
-| Running same-zone/VPC relay | `instance-20260912-094732` |
-| Concurrent read-only attach to relay | CONFLICT: source is attached READ_WRITE |
-| Source disk mode rollback | NOT_VERIFIED |
-| Encrypted disk transfer | NOT_ATTEMPTED |
-| Disposable independent boot recovery | NOT_VERIFIED |
-| GCE mutations from audit | NONE |
+| Fact                                 | Receipt                                                        |
+| ------------------------------------ | -------------------------------------------------------------- |
+| Identity                             | `kmj-techno/us-central1-a/kmj-cloudos-kvm-test` EXACT_VERIFIED |
+| N2 state                             | `TERMINATED`, deletion protection true                         |
+| Source boot disk                     | `kmj-cloudos-kvm-test`, 30 GB, `pd-standard`                   |
+| Source disk attachment mode          | `READ_WRITE` on original N2                                    |
+| Running same-zone/VPC relay          | `instance-20260912-094732`                                     |
+| Concurrent read-only attach to relay | CONFLICT: source is attached READ_WRITE                        |
+| Source disk mode rollback            | NOT_VERIFIED                                                   |
+| Encrypted disk transfer              | NOT_ATTEMPTED                                                  |
+| Disposable independent boot recovery | NOT_VERIFIED                                                   |
+| GCE mutations from audit             | NONE                                                           |
 
 The source disk's **existing RW attachment is incompatible with a simultaneous RO attachment**. A future cold extraction could involve changing the original boot-disk attachment after verifying stopped state and explicitly planning reattachment. That is not authorized by this read-only inventory.
 
