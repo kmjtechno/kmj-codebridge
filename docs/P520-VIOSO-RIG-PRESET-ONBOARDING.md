@@ -10,7 +10,7 @@ The runner requires an **exact-head clean detached lane**, never the shared chec
 
 ## Explicit owner administrator opt-in
 
-After reviewing, testing, merging and installing a trusted CodeBridge release containing this preset, the owner-controlled P520 administrator may edit the *existing private agent configuration* for just the already-authorized `vioso-clone` project by adding this preset ID to its `commandPresets` array. Preserve other project entries, device credentials, token ACLs, existing commands and source path. **Do not replace the full private config using a chat-generated file**:
+After reviewing, testing, merging and installing a trusted CodeBridge release containing this preset, the owner-controlled P520 administrator may edit the _existing private agent configuration_ for just the already-authorized `vioso-clone` project by adding this preset ID to its `commandPresets` array. Preserve other project entries, device credentials, token ACLs, existing commands and source path. **Do not replace the full private config using a chat-generated file**:
 
 ```json
 {
