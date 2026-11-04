@@ -67,6 +67,20 @@ def inspect(source, disk, relay):
     require(tier in ("PREMIUM","STANDARD","UNVERIFIED"))
     return tier
 
+
+def bulk_egress_zero_spend_gate(tier):
+    """Observed network tier is not verified free backup transfer capacity.
+
+    Premium Tier has billable internet egress beyond applicable allowances.
+    Standard Tier is not free unless account/monthly usage is independently
+    confirmed. No tier grants an automatic bulk-data transfer authorization.
+    """
+    if tier == "PREMIUM":
+        return "BLOCKED_PREMIUM_INTERNET_EGRESS_COST_UNVERIFIED"
+    if tier == "STANDARD":
+        return "BLOCKED_STANDARD_FREE_ALLOWANCE_NOT_ATTESTED"
+    return "BLOCKED_NETWORK_TIER_OR_BILLING_NOT_ATTESTED"
+
 def main():
     if sys.argv[1:] != ["--inspect",PROJECT,ZONE,SOURCE,RELAY]:
         return 64
@@ -77,6 +91,8 @@ def main():
         tier = inspect(source,disk,relay)
         print("EXACT_RELAY_SAME_ZONE_VPC_DISK_COLLISION_CHECK=PASS_READ_ONLY")
         print("RELAY_EGRESS_TIER="+tier)
+        print("RELAY_TO_ELITE_BULK_EGRESS=" + bulk_egress_zero_spend_gate(tier))
+        print("RELAY_NETWORK_TIER_CHANGE=NOT_AUTHORIZED_NOT_ATTEMPTED")
     except (KeyError,ValueError,TypeError,AttributeError,OSError,subprocess.TimeoutExpired):
         print("EXACT_RELAY_READ_ONLY_AUDIT=BLOCKED")
         return 2
