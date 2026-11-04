@@ -29,6 +29,7 @@ def good():
         "capture_method": "cold-block-read",
         "source_state_reported": "TERMINATED",
         "age_recipient_sha256": mod.RECIPIENT_SHA,
+        "source_disk_sha256": "b" * 64,
         "ciphertext_bytes": len(DATA),
         "ciphertext_sha256": hashlib.sha256(DATA).hexdigest(),
     }
@@ -70,6 +71,8 @@ class TestColdN2Cipher(unittest.TestCase):
             ("ciphertext_bytes", False),
             ("ciphertext_bytes", 0),
             ("ciphertext_sha256", "wrong"),
+            ("source_disk_sha256", "wrong"),
+            ("source_disk_sha256", True),
         ):
             with self.subTest(key=key):
                 d = good()
