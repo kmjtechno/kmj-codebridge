@@ -4,6 +4,7 @@ on:
     paths:
       - "src/command-presets.js"
       - "src/config.js"
+      - "src/tools.js"
       - "src/windows-powershell-profile.js"
       - "tests/command-presets.test.js"
       - ".github/workflows/vioso-rig-preset-safety.yml"
@@ -34,4 +35,4 @@ jobs:
       - name: Run command-profile and signed-script safety tests
         run: node --test tests/command-presets.test.js tests/windows-powershell-profile.test.js
       - name: Verify source formatting
-        run: npx prettier --check src/command-presets.js tests/command-presets.test.js
+        run: npx prettier --check src/command-presets.js src/tools.js tests/command-presets.test.js
