@@ -4427,6 +4427,10 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
+      // A VIOSO optical preflight may only run for its explicitly enrolled
+      // VIOSO project. An unrelated administrator opt-in does not grant it.
+      if (a.command === "vioso_rig_preflight" && p.id !== "vioso-clone")
+        fail("VIOSO_RIG_PROJECT_NOT_ALLOWED");
       if (profile.category !== "inspect" && !p.writable)
         fail("READ_ONLY_PROJECT");
       // Opt-in fixed CI profiles can derive an isolated QA lane from the
@@ -4439,7 +4443,9 @@ export function createDispatcher(
           ? "mainplatform_ci"
           : a.command === "calibration_v4_qa" && p.id === "kmj-calibration-pro"
             ? "calibration_v4_qa"
-            : isPinnedPowerShell
+            : a.command === "vioso_rig_preflight" && p.id === "vioso-clone"
+              ? "vioso_rig_qa"
+              : isPinnedPowerShell
               ? "windows_ps_" + a.command.slice(0, 15)
               : null;
       const autoLane =
