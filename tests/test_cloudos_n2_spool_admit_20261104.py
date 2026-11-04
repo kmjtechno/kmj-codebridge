@@ -158,7 +158,10 @@ class TestSpoolAdmission(unittest.TestCase):
 
     def test_always_blocks_false_release_credit(self):
         s = src.read_text()
-        for m in ("N2_SOURCE_DISK_COMPLETENESS=NOT_INDEPENDENTLY_ATTESTED",
+        for m in ("CALLER_PIN_PROVENANCE=NOT_INDEPENDENTLY_ATTESTED",
+                  "SPOOL_CIPHERTEXT_AND_CALLER_PIN_SHA256=PASS_LOCAL_HASH_ONLY",
+                  "N2_CIPHERTEXT_DECRYPTION=NOT_ATTEMPTED",
+                  "N2_SOURCE_DISK_COMPLETENESS=NOT_INDEPENDENTLY_ATTESTED",
                   "N2_INDEPENDENT_BOOTED_RESTORE=NOT_VERIFIED",
                   "CLOUDOS_PRODUCTION_RELEASE=BLOCKED"):
             self.assertIn(m, s)
