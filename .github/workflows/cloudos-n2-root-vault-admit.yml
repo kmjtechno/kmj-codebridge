@@ -1,0 +1,45 @@
+name: CloudOS N2 SFTP ciphertext root-vault admission (offline)
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_n2_root_vault_admit_20261104.py
+      - tests/test_cloudos_n2_spool_admit_20261104.py
+      - .github/workflows/cloudos-n2-root-vault-admit.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_n2_root_vault_admit_20261104.py
+      - tests/test_cloudos_n2_spool_admit_20261104.py
+      - .github/workflows/cloudos-n2-root-vault-admit.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  pure-fake-spool:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax and root-free synthetic admission negative tests
+        shell: bash
+        run: |
+          python3 -B -m py_compile scripts/operations/kmj_elite_cloudos_n2_root_vault_admit_20261104.py
+          python3 -B scripts/operations/kmj_elite_cloudos_n2_root_vault_admit_20261104.py --self-test
+          python3 -B -m unittest discover -s tests -p 'test_cloudos_n2_spool_admit_20261104.py' -v
+      - name: Static release and private-key refusal
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('scripts/operations/kmj_elite_cloudos_n2_root_vault_admit_20261104.py').read_text()
+          for marker in (
+              "N2_SOURCE_DISK_COMPLETENESS=NOT_INDEPENDENTLY_ATTESTED",
+              "N2_INDEPENDENT_BOOTED_RESTORE=NOT_VERIFIED",
+              "N2_OWNER_AGE_PRIVATE_KEY_ON_ELITE=NONE",
+              "CLOUDOS_PRODUCTION_RELEASE=BLOCKED",
+              "ROOT_COPY_APPROVAL_NOT_SUPPLIED",
+          ):
+              assert marker in s, marker
+          for banned in ("subprocess.run", "shell=True", "AGE-SECRET-KEY-"):
+              assert banned not in s, banned
+          print("N2_ROOT_VAULT_SPOOL_ADMISSION_STATIC_SAFETY=PASS")
+          PY
