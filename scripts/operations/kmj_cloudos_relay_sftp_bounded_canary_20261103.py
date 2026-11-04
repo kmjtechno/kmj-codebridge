@@ -122,7 +122,9 @@ def canary(smoke, private, trusted_host):
                 raise Blocked("CANARY_CONTENT_INTEGRITY_MISMATCH")
             transfer_success = True
             print("RELAY_SFTP_CANARY_UPLOAD_READBACK_SHA256=PASS", flush=True)
-        except (Blocked, OSError, UnicodeError) as exc:
+        except Exception as exc:
+            # The companion module defines its own Blocked exception.
+            # Even its network timeouts must flow through remote cleanup.
             failure = exc
         finally:
             if created:
@@ -136,7 +138,9 @@ def canary(smoke, private, trusted_host):
                                         and absent.returncode != 0
                                         and (rm.returncode == 0
                                              or not transfer_success))
-                except (Blocked, OSError, UnicodeError, ValueError):
+                except Exception:
+                    # Connection/timeout errors from the pinned companion
+                    # must never suppress a cleanup-review receipt.
                     cleanup_verified = False
         if not cleanup_verified:
             print("RELAY_SFTP_CANARY_CLEANUP=NOT_VERIFIED", flush=True)
@@ -144,7 +148,7 @@ def canary(smoke, private, trusted_host):
             raise Blocked("REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW")
         print("RELAY_SFTP_CANARY_CLEANUP=PASS_REMOTE_ABSENT", flush=True)
         if failure is not None:
-            raise Blocked(str(failure)) from None
+            raise Blocked("CANARY_TRANSFER_OR_REMOTE_OPERATION_FAILED") from None
         if not transfer_success:
             raise Blocked("CANARY_TRANSFER_NOT_PROVEN")
         print("RELAY_SFTP_CANARY_WRITE_READ_DELETE=PASS", flush=True)
@@ -176,7 +180,8 @@ def main():
         print("RELAY_SFTP_IDENTITY_HOSTPIN_AND_POSITIVE_AUTH=PASS", flush=True)
         canary(smoke, private, host)
         return 0
-    except (Blocked, OSError, UnicodeError, ValueError) as exc:
+    except Exception as exc:
+        # Sanitize all errors, including the imported module's Blocked.
         print("RELAY_SFTP_CANARY_WRITE_READ_DELETE=BLOCKED", flush=True)
         print("RELAY_SFTP_CANARY_REASON=" +
               (str(exc)[:90] if isinstance(exc, Blocked)
