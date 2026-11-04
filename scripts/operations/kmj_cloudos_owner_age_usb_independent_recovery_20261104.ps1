@@ -117,6 +117,9 @@ if ($Mode -eq "SelfTest") {
   } catch {
     if ($_.Exception.Message -ne "AGE_ARGUMENTS_MISSING") {throw}
   }
+  # Clear the expected nonzero native exit code from the negative test; `pwsh`
+  # otherwise exits 1 even though all PowerShell assertions passed.
+  Run-Age -Binary $env:ComSpec -Arguments @("/d","/c","exit","0")
   "CLOUDOS_OWNER_USB_NATIVE_ARG_BINDING_OFFLINE=PASS"
   "CLOUDOS_OWNER_USB_INDEPENDENT_RECOVERY_OFFLINE_TESTS=PASS"
   "OWNER_INDEPENDENT_DEVICE_RECOVERY=NOT_VERIFIED_SELFTEST_ONLY"
