@@ -205,7 +205,8 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
     if (
       lines.length !== PROPERTIES.length &&
       lines.length !== PROPERTIES.length - 1
-    ) return unreadable();
+    )
+      return unreadable();
     props = {};
     for (const line of lines) {
       const i = line.indexOf("=");
@@ -219,7 +220,8 @@ export function attestDevelopmentCi({ run, lstat, readFile }) {
     if (
       missing.length > 1 ||
       (missing.length === 1 && missing[0] !== "EnvironmentFiles")
-    ) return unreadable();
+    )
+      return unreadable();
     if (missing.length === 1) {
       // This is not trusted as a reported systemd value. Admission depends
       // on the independently checked exact unit bytes and no effective
