@@ -1,0 +1,42 @@
+name: CloudOS N2 protected PD attach mode preflight (offline)
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_cold_disk_mode_readonly_20261104.py
+      - tests/test_gce_n2_cold_disk_mode_readonly_20261104.py
+      - .github/workflows/cloudos-n2-cold-disk-mode.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_cold_disk_mode_readonly_20261104.py
+      - tests/test_gce_n2_cold_disk_mode_readonly_20261104.py
+      - .github/workflows/cloudos-n2-cold-disk-mode.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-exact-gce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile and run deterministic source + GCE fake inventory negatives
+        shell: bash
+        run: |
+          python3 -B -m py_compile scripts/operations/gce_n2_cold_disk_mode_readonly_20261104.py
+          python3 -B scripts/operations/gce_n2_cold_disk_mode_readonly_20261104.py --self-test
+          python3 -B -m unittest discover -s tests -p 'test_gce_n2_cold_disk_mode_readonly_20261104.py' -v
+      - name: No mutation primitive or false cost/release readiness
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('scripts/operations/gce_n2_cold_disk_mode_readonly_20261104.py').read_text()
+          for marker in ('N2_COLD_DISK_MODE_READONLY_OFFLINE_TESTS=PASS',
+                         'N2_READ_ONLY_ATTACHMENT_OR_DETACH=NOT_AUTHORIZED_NOT_ATTEMPTED',
+                         'N2_RELAY_BACKUP_EGRESS_ZERO_COST=NOT_VERIFIED',
+                         'CLOUDOS_PRODUCTION_RELEASE=BLOCKED'):
+              assert marker in s, marker
+          for prohibited in ('shell=True','AGE-SECRET-KEY-','subprocess.Popen'):
+              assert prohibited not in s, prohibited
+          print('N2_GCE_DISK_AUDIT_STATIC_NO_WRITE=PASS')
+          PY
