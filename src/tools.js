@@ -1031,14 +1031,14 @@ export const definitions = {
   local_model_status: {
     title: "Check offline AI model runtime",
     description:
-      "Probe only the current device's loopback Ollama API, report bounded installed local models and readiness; never downloads models, contacts external AI providers or starts a service.",
+      "Probe only the authorized device-local runtime (Ollama by default or owner-enabled P520 llama.cpp) and report bounded readiness, without downloads, service starts or cloud inference.",
     input: scoped,
     access: "read",
   },
   local_model_generate: {
     title: "Generate with a locally installed offline model",
     description:
-      "Opt-in bounded prompt to an already-running loopback Ollama model on the authorized device, with no cloud or paid fallback. The model is unloaded after generation; output is untrusted text, not executable code.",
+      "Opt-in bounded generation on the device-local Ollama or explicit P520 llama.cpp runtime, without cloud or paid fallback. Output is untrusted text; llama.cpp retains its owner-managed model.",
     input: {
       ...scoped,
       model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
@@ -2461,7 +2461,11 @@ export function createDispatcher(
         maxTokens: a.maxTokens,
         timeoutSeconds: a.timeoutSeconds,
       });
-      const usage = localModelReceipt(a.model, "local_model_generate");
+      const usage = localModelReceipt(
+        a.model,
+        "local_model_generate",
+        response.provider,
+      );
       rememberModel(p.id, usage);
       return {
         device: config.id,
@@ -3337,7 +3341,11 @@ export function createDispatcher(
       });
       const proposal = redact(generated.response ?? "").slice(0, 4096);
       if (!proposal.trim()) fail("AUTOPILOT_LOCAL_DRAFT_EMPTY");
-      const usage = localModelReceipt(a.model, "autopilot_local_draft");
+      const usage = localModelReceipt(
+        a.model,
+        "autopilot_local_draft",
+        generated.provider,
+      );
       const saved = autopilot.checkpoint(a.task, p.id, {
         summary: proposal,
         next: "LOCAL_DRAFT_AWAITING_REVIEW",

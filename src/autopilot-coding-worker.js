@@ -632,6 +632,7 @@ export class LocalFirstCodingWorker {
           const modelUsage = localModelReceipt(
             config.model,
             "autopilot_coding_worker",
+            generated.provider,
           );
           this.journal.checkpoint(task.id, project.id, {
             summary: JSON.stringify({
