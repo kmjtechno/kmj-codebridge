@@ -1,0 +1,54 @@
+name: CloudOS AGE owner USB independent recovery (offline)
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_cloudos_owner_age_usb_independent_recovery_20261104.ps1
+      - .github/workflows/cloudos-age-usb-independent-recovery.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_cloudos_owner_age_usb_independent_recovery_20261104.ps1
+      - .github/workflows/cloudos-age-usb-independent-recovery.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  windows-offline-proof:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: PowerShell parse + offline negative test (no USB/device access)
+        shell: pwsh
+        run: |
+          $p = "scripts/operations/kmj_cloudos_owner_age_usb_independent_recovery_20261104.ps1"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $p), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -ne 0) { $errors | ForEach-Object { Write-Error $_ }; throw "POWERSHELL_PARSE_FAILED" }
+          $output = @(& (Resolve-Path $p) -Mode SelfTest)
+          if ($output -notcontains "CLOUDOS_OWNER_USB_INDEPENDENT_RECOVERY_OFFLINE_TESTS=PASS") { throw "POWERSHELL_SELFTEST_FAILED" }
+          $output | ForEach-Object { Write-Host $_ }
+      - name: Windows PowerShell 5.1 syntax and offline machine policy
+        shell: powershell
+        run: |
+          $p = "scripts/operations/kmj_cloudos_owner_age_usb_independent_recovery_20261104.ps1"
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $p), [ref]$tokens, [ref]$errors)
+          if ($errors.Count -gt 0) { throw "WINDOWS_PS51_PARSE_FAILED" }
+          $results = @(& (Resolve-Path $p) -Mode SelfTest)
+          if ($results -notcontains "CLOUDOS_OWNER_USB_PHYSICAL_HOST_POLICY_OFFLINE=PASS") { throw "WINDOWS_PS51_PHYSICAL_VERIFIER_TEST_FAILED" }
+          if ($results -notcontains "CLOUDOS_OWNER_USB_INDEPENDENT_RECOVERY_OFFLINE_TESTS=PASS") { throw "WINDOWS_PS51_NATIVE_ARG_TEST_FAILED" }
+          Write-Host "CLOUDOS_OWNER_USB_WINDOWS_PS51=PASS"
+      - name: Source no cloud/secret-transfer operations
+        shell: pwsh
+        run: |
+          $s = Get-Content "scripts/operations/kmj_cloudos_owner_age_usb_independent_recovery_20261104.ps1" -Raw
+          foreach ($forbidden in @("gcloud compute", "ssh ", "sftp ", "AGE-SECRET-KEY-1", "Invoke-Expression", "Set-ExecutionPolicy")) {
+            if ($s.Contains($forbidden)) { throw "FORBIDDEN_OPERATION_IN_SOURCE" }
+          }
+          if (-not $s.Contains("SAME_DEVICE_RECOVERY_DENIED")) { throw "MISSING_SAME_HOST_BLOCK" }
+          if (-not $s.Contains("RAW_OWNER_PRIVATE_KEY_ON_VERIFIER_DENIED")) { throw "MISSING_RAW_KEY_DENY" }
+          foreach ($expected in @("P720_HARDWARE_VERIFIER_DENIED", "ORIGIN_P520_VERIFICATION_DENIED", "VIRTUAL_MACHINE_VERIFIER_DENIED", "OWNER_APPROVED_SECOND_PHYSICAL_HOST_REQUIRED")) {
+            if (-not $s.Contains($expected)) { throw "MISSING_SECOND_PHYSICAL_HOST_GUARD" }
+          }
