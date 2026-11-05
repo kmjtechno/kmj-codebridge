@@ -139,6 +139,206 @@ def verify_backup(sha, old_release):
         stop("BACKUP_CHECKSUM_MISMATCH")
 
 
+# --- Preserved pre-shared storage directory --------------------------------------------------------------
+# The reviewed storage switch (main platform scripts/operations/main_platform_storage_switch.py) leaves the
+# original storage tree beside the symlink as apps/platform/storage.pre-shared-<UTC stamp>/. Git sees it as
+# untracked. Exactly ONE such name is exempted from the cleanliness scan, and only with journal + content +
+# Git evidence. Keep the plan-id format byte-compatible with the switch tool (parity vector in tests).
+STORAGE_STATE = Path("/var/lib/kmj-main-platform-storage-switch")
+STATE_OWNER_UIDS = (0,)
+PRESERVED_NAME = re.compile(r"\Astorage\.pre-shared-\d{8}T\d{6}Z\Z")
+PRESERVED_LINK = re.compile(r"\A\.kmj-storage-link-[0-9a-f]{16}\Z")
+PRESERVED_PHASES = {"begin", "live_frozen", "both_frozen", "link_created", "exchanged", "preserved", "verified", "complete"}
+PLAN_HEX = re.compile(r"\A[0-9a-f]{16}\Z")
+_DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+
+
+def _receipt_entries(directory_fd, name):
+    try:
+        fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory_fd)
+    except OSError:
+        return None
+    try:
+        info = os.fstat(fd)
+        if (
+            not stat.S_ISREG(info.st_mode)
+            or info.st_nlink != 1
+            or info.st_uid not in STATE_OWNER_UIDS
+            or stat.S_IMODE(info.st_mode) & 0o077
+            or info.st_size > 65536
+        ):
+            return None
+        raw = os.read(fd, 65537)
+    finally:
+        os.close(fd)
+    if not raw.endswith(b"\n"):
+        return None  # unterminated tail: not a closed receipt
+    entries = []
+    try:
+        for line in raw.decode("utf-8", "strict").splitlines():
+            entry = json.loads(line)
+            phase = entry.get("phase") if isinstance(entry, dict) else None
+            if not isinstance(entry.get("t"), int) or not (
+                phase in PRESERVED_PHASES or (isinstance(phase, str) and phase.startswith("rollback_"))
+            ):
+                return None
+            if "kept" in entry and not (isinstance(entry["kept"], str) and PRESERVED_NAME.match(entry["kept"])):
+                return None
+            if "link" in entry and not (isinstance(entry["link"], str) and PRESERVED_LINK.match(entry["link"])):
+                return None
+            for key in ("plan", "shared_plan"):
+                if key in entry and not (isinstance(entry[key], str) and PLAN_HEX.match(entry[key])):
+                    return None
+            entries.append(entry)
+    except (ValueError, AttributeError, RecursionError):
+        return None
+    return entries or None
+
+
+def _storage_plan_id(directory_fd):
+    """sha256[:16] over persistent-class files and persistent directory metadata (same bytes as the switch tool)."""
+    files, dirs, count = {}, {}, [0]
+
+    def no_xattr(fd):
+        try:
+            if os.listxattr(fd):
+                stop("PRESERVED_STORAGE_XATTR")
+        except OSError as error:
+            if error.errno not in (95, 61):
+                stop("PRESERVED_STORAGE_XATTR_UNREADABLE")
+
+    def visit(fd, prefix):
+        for name in sorted(os.listdir(fd)):
+            count[0] += 1
+            if count[0] > 20000:
+                stop("PRESERVED_STORAGE_TOO_LARGE")
+            rel = prefix + name
+            info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if stat.S_ISDIR(info.st_mode):
+                child = os.open(name, _DIR_FLAGS, dir_fd=fd)
+                try:
+                    opened = os.fstat(child)
+                    if opened.st_ino != info.st_ino:
+                        stop("PRESERVED_STORAGE_SWAPPED")
+                    no_xattr(child)
+                    dirs[rel] = (stat.S_IMODE(opened.st_mode), opened.st_uid, opened.st_gid)
+                    visit(child, rel + "/")
+                finally:
+                    os.close(child)
+            elif stat.S_ISREG(info.st_mode):
+                if name == ".gitignore" or name.startswith(".kmj-tmp-"):
+                    continue
+                if info.st_nlink != 1 or info.st_size > 8 * 1024**3:
+                    stop("PRESERVED_STORAGE_UNSAFE_FILE")
+                child = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=fd)
+                try:
+                    opened = os.fstat(child)
+                    if (opened.st_ino, opened.st_size) != (info.st_ino, info.st_size):
+                        stop("PRESERVED_STORAGE_SWAPPED")
+                    no_xattr(child)
+                    digest, left = hashlib.sha256(), opened.st_size
+                    while left:
+                        block = os.read(child, min(left, 1 << 20))
+                        if not block:
+                            stop("PRESERVED_STORAGE_SHORT_READ")
+                        left -= len(block)
+                        digest.update(block)
+                    after = os.fstat(child)
+                    if (opened.st_mtime_ns, opened.st_size) != (after.st_mtime_ns, after.st_size):
+                        stop("PRESERVED_STORAGE_CHANGED")
+                finally:
+                    os.close(child)
+                files[rel] = (digest.hexdigest(), info.st_size, stat.S_IMODE(info.st_mode), info.st_uid, info.st_gid)
+            else:
+                stop("PRESERVED_STORAGE_SPECIAL_ENTRY")
+
+    no_xattr(directory_fd)
+    visit(directory_fd, "")
+
+    def persistent(rel):
+        return not rel.startswith(("framework/views/", "framework/cache/", "logs/"))
+
+    view = [
+        sorted((r, m) for r, m in files.items() if persistent(r)),
+        sorted((r, m) for r, m in dirs.items() if persistent(r + "/")),
+    ]
+    return hashlib.sha256(json.dumps(view).encode()).hexdigest()[:16]
+
+
+def preserved_storage_name(release):
+    """None when the release has no preserved storage directory; the exact attested name otherwise.
+    Any unattested entry stops the activation (fail closed)."""
+    app = release / "apps/platform"
+    names = sorted(entry for entry in os.listdir(app) if entry.startswith("storage.pre-shared-"))
+    if not names:
+        return None
+    if len(names) != 1 or not PRESERVED_NAME.match(names[0]):
+        stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+    name = names[0]
+    info = os.lstat(app / name)
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or info.st_uid not in trusted_uids()
+        or (info.st_mode & 0o022)
+    ):
+        stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+    try:
+        state_fd = os.open(STORAGE_STATE, _DIR_FLAGS)
+    except OSError:
+        stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+    try:
+        state = os.fstat(state_fd)
+        if state.st_uid not in STATE_OWNER_UIDS or stat.S_IMODE(state.st_mode) & 0o077:
+            stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+        key = hashlib.sha256(os.path.realpath(app).encode()).hexdigest()[:12]
+        files = os.listdir(state_fd)
+        if key + ".journal" in files:
+            stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")  # a storage transaction is still open
+        plan = None
+        for receipt in sorted(entry for entry in files if entry.startswith(key + ".journal.done-")):
+            entries = _receipt_entries(state_fd, receipt)
+            if entries is None:
+                continue
+            if any(e["phase"].startswith("rollback_") and e.get("kept") == name for e in entries):
+                stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+            phases = [e["phase"] for e in entries]
+            begin = next((e for e in entries if e["phase"] == "begin"), None)
+            if (
+                begin is not None
+                and begin.get("kept") == name
+                and "plan" in begin
+                and phases[0] == "begin"
+                and phases[-1] == "complete"
+                and "verified" in phases
+                and phases.index("verified") < len(phases) - 1
+            ):
+                plan = begin["plan"]
+    finally:
+        os.close(state_fd)
+    if plan is None:
+        stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+    directory_fd = os.open(app / name, _DIR_FLAGS)
+    try:
+        if _storage_plan_id(directory_fd) != plan:
+            stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+    finally:
+        os.close(directory_fd)
+    tracked = run(
+        "/usr/bin/git",
+        "-c",
+        "safe.directory=" + str(release),
+        "-C",
+        str(release),
+        "ls-files",
+        "--",
+        "apps/platform/" + name,
+        capture=True,
+    )
+    if tracked:
+        stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+    return name
+
+
 def verify_candidate(sha):
     release = RELEASES / ("platform-" + sha[:12])
     info = os.lstat(release)
@@ -166,6 +366,10 @@ def verify_candidate(sha):
     if not (release / "apps/platform/storage").is_symlink():
         stop("CONTINUITY_STORAGE_NOT_SHARED")
     real_storage(release)
+    preserved = preserved_storage_name(release)
+    excludes = [":(exclude)apps/platform/storage"]
+    if preserved:
+        excludes.append(":(exclude)apps/platform/" + preserved)
     dirty = run(
         "/usr/bin/git",
         "-c",
@@ -181,7 +385,7 @@ def verify_candidate(sha):
         "--untracked-files=normal",
         "--",
         ".",
-        ":(exclude)apps/platform/storage",
+        *excludes,
         capture=True,
     )
     if dirty:
