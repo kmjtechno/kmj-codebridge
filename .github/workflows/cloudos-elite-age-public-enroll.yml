@@ -1,0 +1,27 @@
+name: CloudOS ELITE AGE public recipient enrollment (offline)
+on:
+  push:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_age_public_recipient_enroll_20261104.py
+      - tests/test_elite_cloudos_age_public_recipient_enroll_20261104.py
+      - .github/workflows/cloudos-elite-age-public-enroll.yml
+  pull_request:
+    paths:
+      - scripts/operations/kmj_elite_cloudos_age_public_recipient_enroll_20261104.py
+      - tests/test_elite_cloudos_age_public_recipient_enroll_20261104.py
+      - .github/workflows/cloudos-elite-age-public-enroll.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile + offline self-test + unit tests (NO HOST/VM MUTATION)
+        shell: bash
+        run: |
+          python3 -B -m py_compile scripts/operations/kmj_elite_cloudos_age_public_recipient_enroll_20261104.py
+          python3 -B scripts/operations/kmj_elite_cloudos_age_public_recipient_enroll_20261104.py --self-test
+          python3 -B -m unittest discover -s tests -p 'test_elite_cloudos_age_public_recipient_enroll_20261104.py' -v
