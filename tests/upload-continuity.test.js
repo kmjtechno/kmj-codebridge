@@ -259,7 +259,7 @@ test(
       code.indexOf("def verify_candidate("),
     );
     const checked = code.indexOf(
-      "dirty = run(",
+      "verify_candidate_source(release, sha)",
       code.indexOf("def verify_candidate("),
     );
     assert.ok(
