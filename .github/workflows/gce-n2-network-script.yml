@@ -1,0 +1,155 @@
+name: N2 isolated tenant network script static checks
+
+on:
+  push:
+    paths:
+      - scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+      - scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh
+      - scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
+      - .github/workflows/gce-n2-network-script.yml
+  pull_request:
+    paths:
+      - scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+      - scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh
+      - scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
+      - .github/workflows/gce-n2-network-script.yml
+
+permissions:
+  contents: read
+
+jobs:
+  static-guard:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bash syntax and Python remote syntax
+        run: |
+          bash -n scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+          sha256sum scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh")
+          source = path.read_text()
+          code = source.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_CODE", 1)[0]
+          compile(code, str(path) + "#host", "exec")
+          assert "SERVER_SIDE_AUTO_STOP=900_SECONDS_VERIFIED" in source
+          assert "trap stop_host EXIT" in source
+          assert "VM_FINAL_STATE=" in source
+          assert "PRODUCTION_RELEASE_CREDIT=NO" in source
+          assert "REFUSE_OTHER_VM" in source
+          assert "net-define" in source
+          assert "net-start" in source
+          assert "net-autostart" in source
+          # IAP connection failure after GCE start must stop the VM; never
+          # execute network-mutating Python until a read-only SSH probe passes.
+          assert "IAP_SSH_PREFLIGHT=PASS" in source
+          assert "IAP_SSH_PREFLIGHT=BLOCKED_5_ATTEMPTS" in source
+          assert "timeout 30 gcloud compute ssh" in source
+          assert "exit 71" in source
+          assert source.index("IAP_SSH_PREFLIGHT=PASS") < source.index("REMOTE=$(cat")
+          assert "rm -rf" not in source
+          assert "virsh(\"undefine\"" not in source
+          print("N2_BASH_AND_HOST_PYTHON_SYNTAX=PASS")
+          PY
+      - name: Exercise net-info field parsing with realistic padded output
+        run: |
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_isolated_tenant_networks_20261102.sh")
+          source = path.read_text()
+          host = source.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_CODE", 1)[0]
+          root = ast.parse(host)
+          functions = [n for n in root.body if isinstance(n, ast.FunctionDef) and n.name == "net_info_flags"]
+          assert len(functions) == 1
+          namespace = {"virsh": lambda *args: ""}
+          module = ast.fix_missing_locations(ast.Module(body=functions, type_ignores=[]))
+          exec(compile(module, str(path) + "#netinfo", "exec"), namespace)
+          parser = namespace["net_info_flags"]
+          def check(txt):
+              namespace["virsh"] = lambda *args: txt
+              return parser("kmjtn-kmj-validation")
+          good = (
+              "Name:           kmjtn-kmj-validation\n"
+              "Active:         yes\n"
+              "Persistent:     yes\n"
+              "Autostart:      yes\n"
+              "Bridge:         virbr71\n"
+          )
+          assert check(good) == {"active": "yes", "persistent": "yes", "autostart": "yes"}
+          assert check("Active:\tyes\nAutostart: YES\nPersistent: yes\n") == {
+              "active": "yes", "autostart": "yes", "persistent": "yes"
+          }
+          assert check(good.replace("Autostart:      yes", "Autostart:      no"))["autostart"] == "no"
+          assert check("Active: yes\n") == {"active": "yes"}
+          try:
+              check(good + "Active: no\n")
+          except RuntimeError as exc:
+              assert str(exc) == "NETWORK_INFO_DUPLICATE_FIELD"
+          else:
+              raise AssertionError("Duplicate network field was not rejected")
+          assert "NEW_NETWORK_ROLLBACK=VERIFIED_LIBVIRT_DEFINITIONS_ABSENT" in source
+          print("N2_VIRSH_NET_INFO_PADDING_AND_FAIL_CLOSED_TESTS=PASS")
+          PY
+
+      - name: Verify N2 read-only isolation preflight
+        run: |
+          bash -n scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh
+          sha256sum scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          f = Path("scripts/operations/gce_n2_tenant_isolation_preflight_20261102.sh")
+          source = f.read_text()
+          remote = source.split("python3 - <<'PY'\n", 1)[1].split("\nPY\nREMOTE_SCRIPT", 1)[0]
+          tree = ast.parse(remote, filename=str(f) + "#remote")
+          assert tree is not None
+          assert "SERVER_SIDE_AUTO_STOP=900_SECONDS_VERIFIED" in source
+          assert "trap stop_n2 EXIT" in source
+          assert "VM_FINAL_STATE=" in source
+          assert "N2_HOST_READONLY_EXIT=" in source
+          assert "kmj-ci-kmj-validation-26b557dc40dc0d0cf5cf" in source
+          assert "kmj-ci-other-tenant-8fd54398cc6bb3e5658d" in source
+          assert "kmjtn-kmj-validation" in source
+          assert "kmjtn-other-tenant" in source
+          assert "LIVE_CROSS_TENANT_NEGATIVE_TEST=NOT_VERIFIED" in source
+          for forbidden in ("net-start", "net-define", "net-destroy", "net-undefine",
+                            "virsh('start'", "virsh('destroy'", "virsh('undefine'",
+                            "rm -rf", "sudo", "net-autostart"):
+              assert forbidden not in source, forbidden
+          # Exercise strict parser with standard aligned libvirt output.
+          namespace = {"virsh": lambda *args: (
+              "Name: kmjtn-test\nActive:         yes\nPersistent:     yes\nAutostart:      yes\n"
+          )}
+          defs = [n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "flags"]
+          assert len(defs) == 1
+          exec(compile(ast.fix_missing_locations(ast.Module(body=defs, type_ignores=[])),
+                       str(f), "exec"), namespace)
+          assert namespace["flags"]("kmjtn-test") == {
+              "active": "yes", "persistent": "yes", "autostart": "yes"
+          }
+          print("N2_READONLY_PREFLIGHT_SYNTAX_AND_GUARDS=PASS")
+          PY
+
+      - name: Verify zero-start N2 backup recovery inventory
+        run: |
+          python3 -m py_compile scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
+          python3 -B scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py --self-test
+          sha256sum scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          path = Path("scripts/operations/gce_n2_recovery_inventory_readonly_20261102.py")
+          s = path.read_text()
+          ast.parse(s, filename=str(path))
+          assert "GCE_VM_START_STOP_OR_RESOURCE_MUTATION=NONE" in s
+          assert "N2_BACKUP_ROLLBACK_RELEASE_GATE=BLOCKED" in s
+          assert "OTHER_PROJECTS_CLOUD_STORAGE_BACKUP_DR_VAULTS=NOT_INSPECTED" in s
+          assert "INDEPENDENT_DISPOSABLE_RESTORE=NOT_VERIFIED" in s
+          for blocked in ('["instances", "start"', '["instances", "stop"',
+                          '["snapshots", "create"', '["machine-images", "create"',
+                          '["disks", "create"', '["disks", "delete"', '["snapshots", "delete"'):
+              assert blocked not in s, blocked
+          print("N2_GCE_ZERO_START_RECOVERY_AUDIT_STATIC_GUARDS=PASS")
+          PY
