@@ -107,6 +107,23 @@ extra.write_text(json.dumps({"t": 1, "phase": "rollback_begin", "kept": NAME}) +
 out["rollback_recorded"] = attempt(rel)
 
 b, rel, app, pres, state, key, receipt, lines, plan = world()
+extra = state / (key + ".journal.done-2")
+extra.write_text("".join(lines)); extra.chmod(0o600)
+out["duplicate_completed_receipt"] = attempt(rel)
+
+b, rel, app, pres, state, key, receipt, lines, plan = world()
+extra = state / (key + ".journal.done-2")
+conflicting = lines.copy()
+conflicting[0] = json.dumps({"t": 1, "phase": "begin", "link": ".kmj-storage-link-0123456789abcdef", "kept": NAME, "plan": "ffffffffffffffff"}) + "\\n"
+extra.write_text("".join(conflicting)); extra.chmod(0o600)
+out["conflicting_completed_plan"] = attempt(rel)
+
+b, rel, app, pres, state, key, receipt, lines, plan = world()
+extra = state / (key + ".journal.done-2")
+extra.write_text('{"t":'); extra.chmod(0o600)
+out["malformed_extra_receipt"] = attempt(rel)
+
+b, rel, app, pres, state, key, receipt, lines, plan = world()
 moved = app / "elsewhere"; pres.rename(moved); pres.symlink_to(moved)
 out["symlinked_dir"] = attempt(rel)
 print(json.dumps(out))
@@ -140,6 +157,9 @@ test(
       "receipt_mode",
       "state_mode",
       "rollback_recorded",
+      "duplicate_completed_receipt",
+      "conflicting_completed_plan",
+      "malformed_extra_receipt",
       "symlinked_dir",
     ])
       assert.equal(r[key], "CANDIDATE_PRESERVED_STORAGE_UNATTESTED", key);

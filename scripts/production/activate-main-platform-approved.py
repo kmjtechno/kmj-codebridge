@@ -296,22 +296,26 @@ def preserved_storage_name(release):
             stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")  # a storage transaction is still open
         plan = None
         for receipt in sorted(entry for entry in files if entry.startswith(key + ".journal.done-")):
+            # A malformed or untrusted receipt is not an ignorable candidate:
+            # it can hide a conflicting plan or a rollback for this directory.
             entries = _receipt_entries(state_fd, receipt)
             if entries is None:
-                continue
-            if any(e["phase"].startswith("rollback_") and e.get("kept") == name for e in entries):
                 stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
             phases = [e["phase"] for e in entries]
-            begin = next((e for e in entries if e["phase"] == "begin"), None)
-            if (
-                begin is not None
-                and begin.get("kept") == name
-                and "plan" in begin
-                and phases[0] == "begin"
-                and phases[-1] == "complete"
-                and "verified" in phases
-                and phases.index("verified") < len(phases) - 1
-            ):
+            if any(phase.startswith("rollback_") for phase in phases):
+                stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+            begin = entries[0]
+            if begin.get("phase") != "begin" or "kept" not in begin or "plan" not in begin:
+                stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+            # Every closed receipt must be structurally complete. Historical
+            # receipts for a different kept name do not attest this directory.
+            if phases[-1] != "complete" or "verified" not in phases[:-1]:
+                stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
+            if begin["kept"] == name:
+                if plan is not None:
+                    # Even two identical completed receipts are ambiguous:
+                    # there must be one unambiguous transaction witness.
+                    stop("CANDIDATE_PRESERVED_STORAGE_UNATTESTED")
                 plan = begin["plan"]
     finally:
         os.close(state_fd)
