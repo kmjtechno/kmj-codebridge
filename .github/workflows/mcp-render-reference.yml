@@ -1,0 +1,59 @@
+name: Capture public Render MCP reference
+
+on:
+  push:
+    branches: [qa/render-schema-reference-20261026]
+    paths: [.github/workflows/mcp-render-reference.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  capture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+      - name: Capture anonymous verified critical schemas
+        env:
+          CAPTURE_RUN_ID: ${{ github.run_id }}
+          CAPTURE_WORKFLOW_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'JS'
+          import fs from 'node:fs';
+          import {
+            CRITICAL_TOOL_PROPERTIES, ENDPOINTS, probeCatalog,
+            probeServerCommit, verifyCriticalToolSchemas
+          } from './scripts/verify-public-mcp-catalog.mjs';
+          const origin = ENDPOINTS.render;
+          const catalog = await probeCatalog(origin, fetch, {withSchemas: true});
+          verifyCriticalToolSchemas(catalog);
+          const reportedCommit = await probeServerCommit(origin);
+          if (!/^[a-f0-9]{40}$/.test(reportedCommit ?? '')) throw Error('REFERENCE_COMMIT_UNVERIFIED');
+          if (!/^[0-9]+$/.test(process.env.CAPTURE_RUN_ID ?? '')) throw Error('RUN_ID_UNVERIFIED');
+          const criticalSchemas = Object.fromEntries(
+            Object.keys(CRITICAL_TOOL_PROPERTIES).map(name => [name, catalog.tools.get(name).inputSchema])
+          );
+          const snapshot = {
+            schema: 1, origin, capturedAt: new Date().toISOString(),
+            reportedCommit, workflowSha: process.env.CAPTURE_WORKFLOW_SHA,
+            runId: process.env.CAPTURE_RUN_ID, criticalSchemas
+          };
+          fs.mkdirSync('out', {recursive:true});
+          fs.writeFileSync('out/render-critical-schemas.json', JSON.stringify(snapshot, null, 2) + '\n');
+          console.log('RENDER_REFERENCE=PASS_PUBLIC_DISCOVERY_ONLY');
+          console.log('RENDER_REPORTED_COMMIT=' + reportedCommit);
+          console.log('CRITICAL_SCHEMA_COUNT=' + Object.keys(criticalSchemas).length);
+          JS
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: kmj-render-critical-schemas
+          path: out/render-critical-schemas.json
+          retention-days: 2
+          if-no-files-found: error
