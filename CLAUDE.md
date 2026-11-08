@@ -50,3 +50,14 @@ action, not just once per chat.
 - Report each slice as `repo / PR / head SHA / device / exact commands or gate / test PASS/FAIL / CI / artifact hashes / blockers / next step`. Continue only while this session has tools and explicit authorization.
 
 This is a project handoff, **not an instruction to autonomously spend money or bypass release approvals**.
+
+### Merging pull requests (owner-approved 2026-11-08)
+
+The owner approved Claude merging **its own** PRs in this repo so routine work does not wait on a human click. Bounded conditions, all required:
+
+1. The PR was opened by Claude in this session, is not a draft, and is not a change to `CLAUDE.md`, `SECURITY.md`, branch protection, or any file that widens Claude's own permissions. Those are merged by the owner.
+2. Immediately before merging, re-read every check run for the **exact head SHA**: all must be completed and successful (re-run a flaky failure and record it; never merge on a failing or pending check).
+3. Signed-release metadata PRs (`releases/stable/**`, `publish-signed-stable*.yml`) merge only after the owner's own `Get-FileHash` of the signed manifest matched the bytes rebuilt in the PR. That owner signing step is the release approval.
+4. Method: prefer `github_merge_pull_request` when the connector has write access; otherwise REST with the head pinned: `gh api -X PUT repos/<owner>/<repo>/pulls/<n>/merge -f sha=<head> -f merge_method=squash`. If the head moved, GitHub refuses it. GraphQL is unavailable in Claude Code sessions.
+5. Never force-merge, never change branch protection or repository settings, never merge PRs authored by others without the owner, and never treat a merge as a deployment: publishing to the origin, config promotion and updater triggers stay owner-run.
+6. Afterwards verify the merge commit on `main` and the result of any workflow it triggers; report both.
