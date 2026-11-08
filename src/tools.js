@@ -3930,10 +3930,10 @@ export function createDispatcher(
                   id: "main_platform_php_deps",
                   category: "build",
                   description:
-                    "Explicit, SHA-pinned PHP Composer install (ci) or Wayfinder route generation (routes) in the same private Main Platform CI worktree. Fixed argv, no Composer plugins/scripts, no production env/DB or shared checkout.",
+                    "Explicit, SHA-pinned PHP Composer install (ci), Wayfinder route generation (routes) or the Laravel test suite (test) in the same private Main Platform CI worktree. Fixed argv; tests use a fixed in-memory SQLite testing env. No Composer plugins/scripts, no production env/DB or shared checkout.",
                   risk: "TEST",
                   approvalRequired: false,
-                  variants: ["ci", "routes"],
+                  variants: ["ci", "routes", "test"],
                 },
               ]
             : []),
@@ -4286,7 +4286,7 @@ export function createDispatcher(
       // checkout and never accept caller-selected paths, refs or env vars.
       if (a.command === "main_platform_php_deps") {
         if (
-          !["ci", "routes"].includes(a.variant) ||
+          !["ci", "routes", "test"].includes(a.variant) ||
           a.laneId !== undefined ||
           a.expectedHead !== undefined
         )
@@ -4342,7 +4342,7 @@ export function createDispatcher(
             !lock.packages.some((pkg) => pkg.name === "laravel/wayfinder")
           )
             fail("WORKTREE_COMPOSER_LOCK_MISMATCH");
-          if (a.variant === "routes") {
+          if (a.variant === "routes" || a.variant === "test") {
             const autoload = path.join(appRoot, "vendor", "autoload.php");
             let stat;
             try {
@@ -4382,13 +4382,20 @@ export function createDispatcher(
                   "--no-scripts",
                   "--no-ansi",
                 ]
-              : [
-                  "apps/platform/artisan",
-                  "wayfinder:generate",
-                  "--with-form",
-                  "--no-ansi",
-                ],
-          timeoutMs: a.variant === "ci" ? 300000 : 120000,
+              : a.variant === "test"
+                ? ["apps/platform/artisan", "test", "--compact", "--no-ansi"]
+                : [
+                    "apps/platform/artisan",
+                    "wayfinder:generate",
+                    "--with-form",
+                    "--no-ansi",
+                  ],
+          timeoutMs:
+            a.variant === "ci"
+              ? 300000
+              : a.variant === "test"
+                ? 900000
+                : 120000,
         });
       }
       // Use an already captured client command schema for the same fixed-origin

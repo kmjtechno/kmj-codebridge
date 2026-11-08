@@ -596,6 +596,24 @@ export class JobRunner {
       env.HOME = composerHome;
       env.COMPOSER_HOME = composerHome;
     }
+    // The Laravel test suite runs against a FIXED, non-secret testing
+    // environment: in-memory SQLite and array drivers only. The isolated lane
+    // has no .env, and no production credential or database is ever passed.
+    if (j.gate.startsWith("command:main_platform_php_deps:test:build@")) {
+      Object.assign(env, {
+        APP_ENV: "testing",
+        APP_KEY: "base64:a21qLWNvZGVicmlkZ2UtdGVzdC1rZXktbm90LXNlYyE=",
+        APP_DEBUG: "false",
+        DB_CONNECTION: "sqlite",
+        DB_DATABASE: ":memory:",
+        DB_URL: "",
+        CACHE_STORE: "array",
+        SESSION_DRIVER: "array",
+        QUEUE_CONNECTION: "sync",
+        MAIL_MAILER: "array",
+        BROADCAST_CONNECTION: "null",
+      });
+    }
     // Give the approved PowerShell 7 process a closed stdin pipe rather
     // than allowing terminal input or an interactive session.
     // This is not an interactive terminal: the pipe is immediately closed.

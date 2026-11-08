@@ -298,6 +298,42 @@ test("approved Composer CI gets a private home without inherited environment", a
   assert.match(done.output, /PRIVATE_COMPOSER_HOME_PASS/);
 });
 
+test("approved PHP test job gets only the fixed in-memory testing environment", async (t) => {
+  const { root, runner } = fixture(t);
+  const script = [
+    "const e=process.env;",
+    'const ok=e.APP_ENV==="testing" && e.DB_CONNECTION==="sqlite" &&',
+    'e.DB_DATABASE===":memory:" && e.DB_URL==="" &&',
+    'e.CACHE_STORE==="array" && e.SESSION_DRIVER==="array" &&',
+    'e.QUEUE_CONNECTION==="sync" && e.APP_DEBUG==="false" &&',
+    '/^base64:[A-Za-z0-9+\\/]{43}=$/.test(e.APP_KEY||"") &&',
+    "!e.DB_HOST && !e.DB_PASSWORD && !e.DB_USERNAME;",
+    'console.log(ok ? "PHP_TEST_ENV_PASS" : "PHP_TEST_ENV_FAIL");',
+    "if (!ok) process.exitCode=1;",
+  ].join("");
+  const job = runner.run({
+    ...opts(root, "php-test-env", script),
+    gate: "command:main_platform_php_deps:test:build@test#901",
+  });
+  const done = await finished(runner, job.id);
+  assert.equal(done.state, "succeeded");
+  assert.match(done.output, /PHP_TEST_ENV_PASS/);
+});
+
+test("other jobs never receive the PHP testing environment", async (t) => {
+  const { root, runner } = fixture(t);
+  const job = runner.run({
+    ...opts(
+      root,
+      "php-test-env-isolated",
+      'console.log(process.env.APP_KEY===undefined && process.env.DB_DATABASE===undefined ? "NO_TEST_ENV_PASS" : "NO_TEST_ENV_FAIL")',
+    ),
+    gate: "command:main_platform_php_deps:routes:build@test#902",
+  });
+  const done = await finished(runner, job.id);
+  assert.match(done.output, /NO_TEST_ENV_PASS/);
+});
+
 test("Composer job rejects a symlinked private-home parent without execution", async (t) => {
   if (process.platform === "win32") {
     t.skip("POSIX symlink fixture");

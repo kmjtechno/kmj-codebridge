@@ -91,7 +91,7 @@ test("fixed Composer install is explicit, plugin/script-free and isolated at exa
   const profile = listed.commands.find(
     (x) => x.id === "main_platform_php_deps",
   );
-  assert.deepEqual(profile.variants, ["ci", "routes"]);
+  assert.deepEqual(profile.variants, ["ci", "routes", "test"]);
   assert.equal(profile.risk, "TEST");
 
   const queued = await f.dispatch("run_project_command", input(), ["execute"]);
@@ -167,6 +167,42 @@ test("Wayfinder generation requires installed vendor and never calls a custom sh
   ]);
   assert.equal(f.calls[1].timeoutMs, 120000);
   assert.equal(f.calls[1].cwd, row.cwd);
+});
+
+test("Laravel test suite needs installed vendor and runs with fixed argv in the isolated lane", async (t) => {
+  const f = fixture(t);
+  await assert.rejects(
+    f.dispatch("run_project_command", input({ variant: "test" }), ["execute"]),
+    /WORKTREE_PHP_VENDOR_NOT_INSTALLED/,
+  );
+  assert.equal(f.calls.length, 0);
+
+  await f.dispatch("run_project_command", input(), ["execute"]);
+  const lane = f.calls[0];
+  const vendor = path.join(lane.cwd, "apps", "platform", "vendor");
+  fs.mkdirSync(vendor, { recursive: true });
+  fs.writeFileSync(path.join(vendor, "autoload.php"), "<?php return true;");
+  const queued = await f.dispatch(
+    "run_project_command",
+    input({ variant: "test", requestKey: "php-test-p0-20261108" }),
+    ["execute"],
+  );
+  assert.equal(queued.state, "queued");
+  const job = f.calls[1];
+  assert.equal(job.command, "php");
+  assert.deepEqual(job.args, [
+    "apps/platform/artisan",
+    "test",
+    "--compact",
+    "--no-ansi",
+  ]);
+  assert.equal(job.timeoutMs, 900000);
+  assert.equal(job.cwd, lane.cwd);
+  assert.equal(job.cwd.startsWith(f.root), false);
+  assert.match(job.gate, /^command:main_platform_php_deps:test:build@/);
+  // The job options carry no caller-selected environment; the fixed testing
+  // environment is applied by the job runner from the gate name only.
+  assert.equal(job.env, undefined);
 });
 
 test("PHP profile rejects caller overrides, unapproved projects, unsafe and missing locks", async (t) => {
