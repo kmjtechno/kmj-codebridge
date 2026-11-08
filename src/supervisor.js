@@ -2174,7 +2174,9 @@ export function createSupervisorHandler({
         "SubState",
         "NRestarts",
       ]);
-      const updater = fixedUnitStatus(run, UPDATE_SERVICE, [
+      // The SIGNED updater is the stable-update unit; the legacy auto-update unit
+      // is a different (unsigned) path and must not be reported as signed.
+      const updater = fixedUnitStatus(run, UPDATE_CHECK_SERVICE, [
         "ActiveState",
         "SubState",
       ]);

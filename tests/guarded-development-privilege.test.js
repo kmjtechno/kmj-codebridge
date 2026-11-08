@@ -5,6 +5,7 @@ import { createSupervisorHandler } from "../src/supervisor.js";
 const ALLOWED = [
   "kmj-codebridge-kmj-main-platform.service",
   "kmj-codebridge-auto-update.service",
+  "kmj-codebridge-stable-update.service",
   "kmj-codebridge-development-ci.service",
 ];
 
@@ -77,6 +78,22 @@ test("missing dev unit never becomes available and nothing starts", async () => 
   assert.equal(response.developmentWorker.installed, false);
   assert.equal(response.brokerStartAuthorized, false);
   assert.deepEqual(actions, []);
+});
+
+test("signed updater installed reflects the stable-update unit, not the legacy auto-update unit", async () => {
+  const legacyOnly = fixture({
+    missing: ["kmj-codebridge-stable-update.service"],
+  });
+  const a = await legacyOnly.handle({ op: "development_privilege_status" });
+  assert.equal(a.response.signedUpdaterInstalled, false);
+  assert.equal(a.response.signedUpdaterVerified, false);
+
+  const signedOnly = fixture({
+    missing: ["kmj-codebridge-auto-update.service"],
+  });
+  const b = await signedOnly.handle({ op: "development_privilege_status" });
+  assert.equal(b.response.signedUpdaterInstalled, true);
+  assert.equal(b.response.signedUpdaterVerified, false);
 });
 
 test("masked, malformed and unknown systemd states cannot imply installed development or updater services", async () => {
