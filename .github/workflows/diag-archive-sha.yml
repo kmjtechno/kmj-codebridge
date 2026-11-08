@@ -1,0 +1,28 @@
+name: Diagnostic archive hash (temporary, not for merge)
+on:
+  pull_request:
+    paths:
+      - .github/workflows/diag-archive-sha.yml
+permissions:
+  contents: read
+jobs:
+  diag:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Print archive hashes for the pinned commit
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pin=f6be5acc9b87d725f4a7663ee623c30da9e7552d
+          git --version
+          pre=kmj-codebridge-0.3.2-f6be5acc9b87/
+          git archive --format=tar.gz --prefix="$pre" "$pin" | tee /tmp/a.tgz | sha256sum
+          stat -c 'DIAG_TGZ_BYTES=%s' /tmp/a.tgz
+          git archive --format=tar --prefix="$pre" "$pin" | sha256sum | sed 's/^/DIAG_TAR_SHA=/'
+          git archive --format=tar --prefix="$pre" "$pin" | gzip -n -6 | sha256sum | sed 's/^/DIAG_GZIPN6_SHA=/'
+          git archive --format=tar --prefix="$pre" "$pin" | gzip -n -6 | wc -c | sed 's/^/DIAG_GZIPN6_BYTES=/'
