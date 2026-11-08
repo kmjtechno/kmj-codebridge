@@ -559,8 +559,13 @@ evidence_log:
     - fact: signedUpdaterInstalled now reflects the signed stable-update unit (fix in PR 853); the Supervisor drop-in points at that release.
       evidence: supervisor_development_privilege_status signedUpdaterInstalled true.
       scope: installed only. signedUpdaterVerified stays false by design.
+    - fact: Command-profile contract (deny-by-default rules, field limits, reason codes, preset matrix) is documented and guarded by a drift test; IDE job receipts carry the gate label, timestamps and a tamper-evident receiptSha256.
+      evidence: PR 858 (merge 0d1337f8) and PR 859 (merge d81d9488); exact-head checks 10/10 success; CodeBridge CI success on main for both.
+      scope: documentation plus additive receipt fields. Supports the M0 capability-matrix deliverable only partially; no milestone status was changed.
   not_claimed_2026_11_08:
     - Autonomous coding worker (developmentWorkerReady false; no local model runtime on the checked devices). Autonomy remains milestone M8 and needs its own design, security review and cost model.
     - Device-jobs flag (OFF; needs separate explicit owner approval).
     - Product Manager owner QA, Workspace chat end-to-end, Google backup restore test, VPS gateway currently behind main (VPS Deployment Smoke VPS_COMMIT_MISMATCH).
     - signedUpdaterVerified, production release approval, any public or paid launch.
+    - Any Windows P520 or CineCore build/test receipt. No node or cmake command profile is configured on the enrolled desktop devices (kmj-codebridge desktop lists 0 commands), so the M1 runner remains unproven on real hardware.
+    - Milestone statuses were reviewed against this evidence and left unchanged; no acceptance criterion in M0 to M8 was newly proven.
