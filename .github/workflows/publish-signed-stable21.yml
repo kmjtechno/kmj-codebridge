@@ -1,0 +1,69 @@
+name: Publish owner-signed CodeBridge stable sequence 21
+on:
+  push:
+    branches: [main]
+    paths:
+      - releases/stable/dc14877375a5a87181b23106ac5fe0830856f9b6/**
+      - .github/workflows/publish-signed-stable21.yml
+permissions:
+  contents: write
+jobs:
+  signed_release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify immutable owner-signed release metadata and archive
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          pin=dc14877375a5a87181b23106ac5fe0830856f9b6
+          folder="releases/stable/$pin"
+          file=kmj-codebridge-0.3.2-dc14877375a5.tar.gz
+          dest="$RUNNER_TEMP/$file"
+          python3 - "$folder" "$pin" <<'PY'
+          import base64, hashlib, json, pathlib, sys
+          folder = pathlib.Path(sys.argv[1]); pin = sys.argv[2]
+          manifest = (folder / 'release-manifest.json').read_bytes()
+          signature = (folder / 'release-manifest.sig').read_bytes()
+          assert hashlib.sha256(manifest).hexdigest() == '1dd8ae09baeb4654ea44e94b3d795ee641c523e11f0fe2379a1a18cfb76fe3e7', 'manifest SHA'
+          data = json.loads(manifest)
+          assert data['schema'] == 1 and data['product'] == 'KMJ CodeBridge'
+          assert data['sequence'] == 21 and data['revision'] == pin
+          assert data['channel'] == 'stable' and data['keyId'] == 'kmj-release-2026'
+          assert data['archive'] == f'https://kmjtechno.com/codebridge/releases/stable/{pin}/kmj-codebridge-0.3.2-dc14877375a5.tar.gz'
+          assert data['sha256'] == 'ea892fe84ab21e0f8840d09a14e50379fe6a1ae08dcdf7696362f5d2db1f554a'
+          assert data['bytes'] == 2066456 and data['nodeMajor'] == 24
+          assert len(base64.urlsafe_b64decode(signature.strip() + b'==')) == 64
+          print('PUBLIC_METADATA_INTEGRITY=PASS')
+          print('SIGNATURE_TRUST=OWNER_HOST_VERIFICATION_REQUIRED')
+          PY
+          git cat-file -e "$pin^{commit}"
+          git archive --format=tar.gz --prefix="kmj-codebridge-0.3.2-dc14877375a5/" --output="$dest" "$pin"
+          printf '%s  %s\n' ea892fe84ab21e0f8840d09a14e50379fe6a1ae08dcdf7696362f5d2db1f554a "$dest" | sha256sum --check --status
+          test "$(stat -c %s "$dest")" -eq 2066456
+          echo 'IMMUTABLE_ARCHIVE_SHA_SIZE=PASS'
+      - name: Publish immutable public assets without overwriting any release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -Eeuo pipefail
+          pin=dc14877375a5a87181b23106ac5fe0830856f9b6
+          tag=codebridge-stable-seq21-dc148773
+          folder="releases/stable/$pin"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'EXISTING_RELEASE_REVIEW_REQUIRED' >&2
+            exit 2
+          fi
+          gh release create "$tag" \
+            "$RUNNER_TEMP/kmj-codebridge-0.3.2-dc14877375a5.tar.gz" \
+            "$folder/release-manifest.json" \
+            "$folder/release-manifest.sig" \
+            --target "$pin" \
+            --title 'KMJ CodeBridge stable sequence 21 — owner-signed assets' \
+            --notes 'Owner-signed public metadata and exact CI-source runtime. Deployment remains pending independent KMJ-elite key verification, trusted HTTPS origin publication, protected systemd release promotion, direct/local/public Gateway QA and rollback receipt. Do not claim LIVE solely from this release.'
+          echo 'GITHUB_RELEASE_PUBLISHED=PASS'
