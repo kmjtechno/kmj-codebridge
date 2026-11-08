@@ -112,3 +112,35 @@ test("MCP dispatcher reuses policy-gated, idempotent project command; no raw she
     /\b(?:spawn|exec|eval)\s*\(/,
   );
 });
+
+test("receipt digest binds gate, state, exit code and log hash and is stable", () => {
+  const base = job({
+    gate: "command:cmake_test:debug:build@lane#" + "a".repeat(40),
+    startedAt: "2026-11-08T10:00:00.000Z",
+    endedAt: "2026-11-08T10:01:00.000Z",
+    truncated: false,
+  });
+  const a = compactIdeJobReceipt(base);
+  assert.match(a.receiptSha256, /^[a-f0-9]{64}$/);
+  assert.equal(a.gate, base.gate);
+  assert.equal(compactIdeJobReceipt(base).receiptSha256, a.receiptSha256);
+  for (const change of [
+    { exitCode: 1 },
+    { state: "failed" },
+    { output: "different" },
+    { gate: "command:cmake_test:release:build@lane#" + "b".repeat(40) },
+    { truncated: true },
+  ])
+    assert.notEqual(
+      compactIdeJobReceipt({ ...base, ...change }).receiptSha256,
+      a.receiptSha256,
+    );
+});
+
+test("hostile gate or timestamp strings are dropped, not echoed", () => {
+  const r = compactIdeJobReceipt(
+    job({ gate: "x\nTOKEN=abc;rm -rf /", startedAt: "<script>" }),
+  );
+  assert.equal(r.gate, null);
+  assert.equal(r.startedAt, null);
+});

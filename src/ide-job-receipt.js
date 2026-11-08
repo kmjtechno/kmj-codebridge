@@ -75,8 +75,40 @@ export function compactIdeJobReceipt(job) {
     "timed_out",
     "interrupted",
   ].includes(state);
+  const gate =
+    typeof job.gate === "string" &&
+    /^[A-Za-z0-9_:@#./ -]{1,200}$/.test(job.gate)
+      ? job.gate
+      : null;
+  const iso = (v) =>
+    typeof v === "string" && /^\d{4}-\d\d-\d\dT[\d:.]+Z$/.test(v) ? v : null;
+  const logSha256 = createHash("sha256").update(output).digest("hex");
+  const exitCode = Number.isInteger(job.exitCode) ? job.exitCode : null;
+  // Tamper-evident digest over the fixed-field execution record. It binds the
+  // gate label (command:variant:category@lane#head), terminal state, exit code,
+  // timestamps, truncation flag and log hash. It is NOT a signature and proves
+  // nothing about the truth of project output.
+  const record = {
+    v: 1,
+    job: job.id,
+    gate,
+    state,
+    exitCode,
+    startedAt: iso(job.startedAt),
+    endedAt: iso(job.endedAt),
+    truncated: job.truncated === true,
+    logSha256,
+  };
+  const receiptSha256 = createHash("sha256")
+    .update(JSON.stringify(record))
+    .digest("hex");
   return {
     job: job.id,
+    gate,
+    startedAt: record.startedAt,
+    endedAt: record.endedAt,
+    truncated: record.truncated,
+    receiptSha256,
     state,
     exitCode: Number.isInteger(job.exitCode) ? job.exitCode : null,
     terminal: finished,
@@ -85,7 +117,7 @@ export function compactIdeJobReceipt(job) {
     evidenceScope: "LOCAL_RUNNER_AND_UNTRUSTED_PROJECT_OUTPUT",
     markers: selected,
     markersTruncated: markers.length > MAX_MARKERS,
-    logSha256: createHash("sha256").update(output).digest("hex"),
+    logSha256,
     logTailAvailableVia: "get_job_status",
     // No caller-selected argv, cwd, environment, shell, file path, token,
     // transcript or raw command output is ever returned in a compact receipt.
