@@ -190,11 +190,13 @@ test("Laravel test suite needs installed vendor and runs with fixed argv in the 
   assert.equal(queued.state, "queued");
   const job = f.calls[1];
   assert.equal(job.command, "php");
+  // `artisan test` re-execs a RELATIVE vendor/phpunit path from the lane root
+  // and fails with "Could not open input file". Run PHPUnit directly instead.
   assert.deepEqual(job.args, [
-    "apps/platform/artisan",
-    "test",
-    "--compact",
-    "--no-ansi",
+    "apps/platform/vendor/phpunit/phpunit/phpunit",
+    "--configuration",
+    "apps/platform/phpunit.xml",
+    "--colors=never",
   ]);
   assert.equal(job.timeoutMs, 900000);
   assert.equal(job.cwd, lane.cwd);
