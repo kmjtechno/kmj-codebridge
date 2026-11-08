@@ -4383,7 +4383,12 @@ export function createDispatcher(
                   "--no-ansi",
                 ]
               : a.variant === "test"
-                ? ["apps/platform/artisan", "test", "--compact", "--no-ansi"]
+                ? [
+                    "apps/platform/vendor/phpunit/phpunit/phpunit",
+                    "--configuration",
+                    "apps/platform/phpunit.xml",
+                    "--colors=never",
+                  ]
                 : [
                     "apps/platform/artisan",
                     "wayfinder:generate",
