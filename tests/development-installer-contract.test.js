@@ -154,6 +154,18 @@ diagnostic = inspect([k + "=" + v for k, v in changed.items()])
 assert diagnostic == {"status": "MISMATCH", "mismatchKeys": ["ActiveState", "User"]}
 assert "root" not in str(diagnostic) and "failed" not in str(diagnostic)
 assert inspect(baseline[:-1]) == {"status": "MALFORMED", "mismatchKeys": []}
+# systemd 255 omits an empty EnvironmentFiles line. Only that single omission
+# is tolerated; it must not hide another mismatch or any other missing line.
+no_env = [line for line in baseline if not line.startswith("EnvironmentFiles=")]
+assert len(no_env) == 18
+assert check(no_env)
+assert inspect(no_env) == {"status": "MATCH", "mismatchKeys": []}
+unsafe_no_env = [line for line in no_env if not line.startswith("User=")] + ["User=root"]
+assert not check(unsafe_no_env)
+assert inspect(unsafe_no_env) == {"status": "MISMATCH", "mismatchKeys": ["User"]}
+assert inspect(no_env[:-1]) == {"status": "MALFORMED", "mismatchKeys": []}
+assert inspect(no_env + ["InjectedProperty=secret"]) == {"status": "MALFORMED", "mismatchKeys": []}
+assert inspect(no_env + [no_env[0]]) == {"status": "MALFORMED", "mismatchKeys": []}
 assert inspect(baseline + ["User=root"]) == {"status": "MALFORMED", "mismatchKeys": []}
 assert inspect(baseline, status=1) == {"status": "READ_FAILED", "mismatchKeys": []}
 # subprocess.run(text=True) can raise UnicodeDecodeError on malformed

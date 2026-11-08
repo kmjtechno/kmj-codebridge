@@ -176,7 +176,11 @@ def effective_unit_diagnostic():
             "\r" in output or "\x00" in output):
         return malformed
     lines = output.removesuffix("\n").split("\n")
-    if len(lines) != len(EXPECTED_UNIT_PROPERTIES):
+    # systemd 255 omits an empty EnvironmentFiles property entirely. The
+    # Supervisor policy tolerates exactly that one omission; so does this
+    # diagnostic. Any other missing, extra or duplicate line is malformed.
+    if len(lines) not in (len(EXPECTED_UNIT_PROPERTIES),
+                          len(EXPECTED_UNIT_PROPERTIES) - 1):
         return malformed
     props = {}
     for line in lines:
@@ -186,7 +190,10 @@ def effective_unit_diagnostic():
         if key not in EXPECTED_UNIT_PROPERTIES or key in props:
             return malformed
         props[key] = value
-    if set(props) != set(EXPECTED_UNIT_PROPERTIES):
+    missing = set(EXPECTED_UNIT_PROPERTIES) - set(props)
+    if missing == {"EnvironmentFiles"}:
+        props["EnvironmentFiles"] = ""
+    elif missing:
         return malformed
     mismatch = [
         key for key, expected in EXPECTED_UNIT_PROPERTIES.items()
