@@ -2,8 +2,8 @@
 # Roadmap plus evidence-gated implementation tracking. Source/CI/live evidence is recorded; future milestones are not implied complete.
 roadmap:
   schema_version: '1.0'
-  document_version: '1.2.0'
-  updated_on: '2026-10-04'
+  document_version: '1.3.0'
+  updated_on: '2026-11-08'
   created_on: '2026-09-29'
   timezone: Asia/Kolkata
   language: English
@@ -544,3 +544,23 @@ execution_and_governance:
     - Complete trademark/name clearance and current public-directory policy review before broad launch claims.
     - Assign an independent security reviewer before external paid pilot.
     - Approve production release-signing key custody and updater endpoint operations before enabling unattended self-update.
+evidence_log:
+  note: Dated facts verified on 2026-11-08 through live tool reads and exact-SHA CI. Milestone statuses above were NOT re-audited in this update and still reflect 2026-10-04.
+  verified_2026_11_08:
+    - fact: Owner-signed stable runtime sequence 21 (revision dc14877375a5a87181b23106ac5fe0830856f9b6) is the current release on KMJ-elite; sequences 19 and 20 were installed the same way.
+      evidence: supervisor_release_history current 0.3.2-dc14877375a5; owner apply receipt TRIGGER_EXIT=0; GitHub release codebridge-stable-seq21-dc148773.
+      scope: signed-update chain publish, config promotion and guarded updater trigger; signature trust checked on the host against a pinned key fingerprint.
+    - fact: Fixed project command main_platform_php_deps (variant test) runs the Main Platform PHPUnit suite in an isolated worktree lane on KMJ-elite.
+      evidence: job 71f102f9-a461-42f1-98e0-c9abc2c45e2b succeeded exit 0; PHPUnit 12.5.35 on PHP 8.4.26; 516 tests, 3293 assertions, 1 skipped.
+      scope: test profile only; no caller environment or arguments; fixed in-memory testing environment.
+    - fact: Non-root development unit attestation is ready (PINNED_NONROOT_UNIT_VERIFIED, runsAsRoot false).
+      evidence: supervisor_development_privilege_status after seq 21.
+      scope: attestation of the unit, not a running coding worker.
+    - fact: signedUpdaterInstalled now reflects the signed stable-update unit (fix in PR 853); the Supervisor drop-in points at that release.
+      evidence: supervisor_development_privilege_status signedUpdaterInstalled true.
+      scope: installed only. signedUpdaterVerified stays false by design.
+  not_claimed_2026_11_08:
+    - Autonomous coding worker (developmentWorkerReady false; no local model runtime on the checked devices). Autonomy remains milestone M8 and needs its own design, security review and cost model.
+    - Device-jobs flag (OFF; needs separate explicit owner approval).
+    - Product Manager owner QA, Workspace chat end-to-end, Google backup restore test, VPS gateway currently behind main (VPS Deployment Smoke VPS_COMMIT_MISMATCH).
+    - signedUpdaterVerified, production release approval, any public or paid launch.
