@@ -565,11 +565,17 @@ evidence_log:
     - fact: On the P520 Windows desktop agent, the cargo-standard command preset is live for the OmniDesk project and cargo_verify variant check completed successfully through the bounded job runner.
       evidence: job d1135b0b-9d8b-4758-bb38-a23851adbd8b, gate command:cargo_verify:check:build, state succeeded, exit 0, 2.9 s; project checkout tracked-file status identical before and after.
       scope: compile check only, run in the owner's DIRTY working checkout (not commit-pinned, not an isolated lane). It proves neither a pinned-commit build, tests, a CMake/CTest or Node receipt, nor release readiness.
+    - fact: A commit-pinned, isolated-lane cargo_verify check on the P520 OmniDesk project FAILED at commit d49fa215b56fb730338487917e97b5f7c541a144 because the committed Cargo.lock is out of sync with Cargo.toml (cargo --locked refuses to update it).
+      evidence: job 9e8d9abd-5fa7-4d16-819b-7c8aa63948bf, gate command:cargo_verify:check:build@omni-cargo-check#d49fa215b56fb730338487917e97b5f7c541a144, state failed, exit 101, 8.4 s. The earlier dirty-checkout pass (job d1135b0b) used the owner's uncommitted Cargo.lock, so it does not describe the commit.
+      scope: one compile check on one commit. It shows the runner enforces lane and head pinning on Windows; it says nothing about tests or the uncommitted work.
+    - fact: The isolated-lane tool failed (WORKTREE_GIT_FAILED) because an old worktree held thousands of untracked build files; the lane scan buffers git status output with a 64 KB limit.
+      evidence: src/worktree-lanes.js entries() runs git status --porcelain --untracked-files=all with maxBuffer 65536 for every folder; after the old worktree's work was snapshotted to a local branch and its build folders removed, worktree_lane_prepare succeeded.
+      scope: explains one failure on one device. The tool still fails closed for any lane folder with a large untracked tree; no code change was made here.
   not_claimed_2026_11_08:
     - Autonomous coding worker (developmentWorkerReady false; no local model runtime on the checked devices). Autonomy remains milestone M8 and needs its own design, security review and cost model.
     - Device-jobs flag (OFF; needs separate explicit owner approval).
     - Product Manager owner QA, Workspace chat end-to-end, Google backup restore test, VPS gateway currently behind main (VPS Deployment Smoke VPS_COMMIT_MISMATCH).
     - signedUpdaterVerified, production release approval, any public or paid launch.
-    - A commit-pinned or isolated-lane build/test receipt on the P520, any CMake/CTest or Node receipt there, or any CineCore receipt. The isolated lane tool failed with WORKTREE_GIT_FAILED on the OmniDesk project while an older dirty worktree exists; no node or cmake profile is configured on the other enrolled desktop agents, so the M1 runner is still unproven for those profiles.
-    - Startup durability of the P520 agents: the existing launcher reports DEVICE_STARTUP_SHORTCUT_CONFLICT, so the watchdog could not respawn the OmniDesk agent; it currently runs from a manual hidden process.
+    - A PASSING commit-pinned build or any test receipt on the P520, any CMake/CTest or Node receipt there, or any CineCore receipt. The only commit-pinned receipt so far is the FAIL above; no node or cmake profile is configured on the other enrolled desktop agents, so the M1 runner is still unproven for those profiles.
+    - Mid-session watchdog respawn on the P520: the dual-agent watchdog's launcher path does not match the existing Startup shortcuts, so the launcher reports DEVICE_STARTUP_SHORTCUT_CONFLICT. Logon reconnect shortcuts do exist for the agents; the OmniDesk agent currently runs from a manually started process.
     - Milestone statuses were reviewed against this evidence and left unchanged; no acceptance criterion in M0 to M8 was newly proven.
