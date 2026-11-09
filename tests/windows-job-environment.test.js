@@ -98,3 +98,44 @@ test("REA doctor opt-in refuses relative, control-character and oversized provid
   );
   assert.equal(Object.hasOwn(longEnv, "JAVA_HOME"), false);
 });
+
+test("CMAKE_PREFIX_PATH is inherited only by approved cmake commands and only when safe", () => {
+  const base = { PATH: "C:\\Windows\\System32", SystemRoot: "C:\\Windows" };
+  const good = "C:\\Qt\\6.10.3\\msvc2022_64;D:\\libs\\opencv";
+  const withPrefix = { ...base, CMAKE_PREFIX_PATH: good };
+  assert.equal(
+    Object.hasOwn(jobEnvironment(withPrefix, "win32"), "CMAKE_PREFIX_PATH"),
+    false,
+  );
+  assert.equal(
+    jobEnvironment(withPrefix, "win32", { allowCmakePrefixPath: true })
+      .CMAKE_PREFIX_PATH,
+    good,
+  );
+  assert.equal(
+    Object.hasOwn(
+      jobEnvironment(withPrefix, "linux", { allowCmakePrefixPath: true }),
+      "CMAKE_PREFIX_PATH",
+    ),
+    false,
+  );
+  for (const bad of [
+    "relative\\qt",
+    "C:\\Qt;..\\evil",
+    "C:\\Qt\\..\\evil",
+    "C:\\Qt" + String.fromCharCode(10) + "x",
+    "C:\\" + "a".repeat(5000),
+    ";;",
+  ]) {
+    assert.equal(
+      Object.hasOwn(
+        jobEnvironment({ ...base, CMAKE_PREFIX_PATH: bad }, "win32", {
+          allowCmakePrefixPath: true,
+        }),
+        "CMAKE_PREFIX_PATH",
+      ),
+      false,
+      bad.slice(0, 20),
+    );
+  }
+});
