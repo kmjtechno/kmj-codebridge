@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { symlinkFixtureAvailable } from "./windows-symlink-capability.js";
 import {
   HarnessLearningStore,
   reviewHarnessEvidence,
@@ -229,6 +230,7 @@ test("dangling journal symlink is corrupt, not an empty journal", (t) => {
   const s = store(t);
   const project = "kmj-codebridge";
   const file = s.filename(project);
+  if (!symlinkFixtureAvailable(t, path.dirname(file))) return;
   const missingTarget = path.join(path.dirname(file), "missing-journal.json");
   fs.symlinkSync(missingTarget, file);
   assert.equal(fs.existsSync(file), false);
@@ -252,6 +254,7 @@ test("dangling journal symlink is corrupt, not an empty journal", (t) => {
 test("symlinked or corrupt journal fails closed", (t) => {
   const s = store(t);
   const p = "kmj-codebridge";
+  if (!symlinkFixtureAvailable(t, path.dirname(s.filename(p)))) return;
   s.record(p, {
     ...evidence,
     requestKey: "first",
@@ -274,6 +277,7 @@ test("symlinked or corrupt journal fails closed", (t) => {
 test("journal path swap between lstat and open fails closed", (t) => {
   const s = store(t);
   const project = "kmj-codebridge";
+  if (!symlinkFixtureAvailable(t, path.dirname(s.filename(project)))) return;
   s.record(project, {
     ...evidence,
     requestKey: "initial",

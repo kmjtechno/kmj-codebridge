@@ -1,4 +1,5 @@
 import fs from "node:fs";
+import path from "node:path";
 
 /**
  * Only symbolic-link fixture creation is optional on non-admin Windows
@@ -27,5 +28,28 @@ export function tryFileSymlink(t, target, link) {
       "WINDOWS_SYMLINK_ASSERTION_NOT_EXECUTED: non-admin fixture creation denied; audited Windows CI must exercise this assertion",
     );
     return false;
+  }
+}
+
+/**
+ * For tests that create the link inside a hook or helper: probe once up front.
+ * Returns false (after t.skip) only on a non-audited Windows workstation.
+ */
+export function symlinkFixtureAvailable(t, dir) {
+  const target = path.join(dir, "symlink-probe-target");
+  const link = path.join(dir, "symlink-probe-link");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(target, "probe");
+  try {
+    if (!tryFileSymlink(t, target, link)) {
+      t.skip(
+        "Windows cannot create symlink fixture; security assertion NOT EXECUTED",
+      );
+      return false;
+    }
+    return true;
+  } finally {
+    fs.rmSync(link, { force: true });
+    fs.rmSync(target, { force: true });
   }
 }
