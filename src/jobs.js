@@ -6,6 +6,7 @@ import os from "node:os";
 import { fail } from "./errors.js";
 import { hash } from "./policy.js";
 import { DurableJobArchive } from "./job-archive.js";
+import { resolveWindowsNpm } from "./windows-command.js";
 export function redact(text) {
   return text
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, "$1[REDACTED]")
@@ -620,7 +621,21 @@ export class JobRunner {
     const powershellStdin =
       process.platform === "win32" &&
       path.win32.basename(command).toLowerCase() === "pwsh.exe";
-    const child = spawn(command, args, {
+    let spawnCommand = command;
+    let spawnArgs = args;
+    try {
+      ({ command: spawnCommand, args: spawnArgs } = resolveWindowsNpm(
+        command,
+        args,
+      ));
+    } catch {
+      j.state = "failed";
+      j.endedAt = new Date().toISOString();
+      j.output = "JOB_COMMAND_UNRESOLVED";
+      this.persist(j);
+      return;
+    }
+    const child = spawn(spawnCommand, spawnArgs, {
       cwd,
       env,
       shell: false,
