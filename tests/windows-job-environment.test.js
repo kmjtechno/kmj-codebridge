@@ -126,6 +126,9 @@ test("CMAKE_PREFIX_PATH is inherited only by approved cmake commands and only wh
     "C:\\Qt" + String.fromCharCode(10) + "x",
     "C:\\" + "a".repeat(5000),
     ";;",
+    ";C:\\Qt",
+    "C:\\Qt;",
+    "C:\\Qt;;D:\\libs",
   ]) {
     assert.equal(
       Object.hasOwn(
