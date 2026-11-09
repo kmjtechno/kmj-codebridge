@@ -571,6 +571,9 @@ evidence_log:
     - fact: The isolated-lane tool failed (WORKTREE_GIT_FAILED) because an old worktree held thousands of untracked build files; the lane scan buffers git status output with a 64 KB limit.
       evidence: src/worktree-lanes.js entries() runs git status --porcelain --untracked-files=all with maxBuffer 65536 for every folder; after the old worktree's work was snapshotted to a local branch and its build folders removed, worktree_lane_prepare succeeded.
       scope: explains one failure on one device. The tool still fails closed for any lane folder with a large untracked tree; no code change was made here.
+    - fact: The OmniDesk lock-file failure is not limited to the old local commit. Upstream origin/main (22406fbe7507da5cb45bf6619367d09c917188e2) also fails cargo check --locked because Cargo.lock lacks entries Cargo.toml needs, and none of the 51 commits since d49fa215 changed Cargo.lock. A minimal regeneration adds 132 lines and removes none, after which cargo check --locked passes.
+      evidence: owner-run local commands on the P520 (not CodeBridge runner jobs). Upstream check exit 101; fix commit 23884fe1d08d4d0fa75d36ad925fe6928f72fa25 on a local-only branch, check --locked exit 0, no other tracked file changed.
+      scope: compile check only on one machine. The fix is not pushed or merged; the OmniDesk upstream CI does not use --locked, so it does not catch this. The CodeBridge cargo-standard preset does use --locked, which is why it exposed it.
   not_claimed_2026_11_08:
     - Autonomous coding worker (developmentWorkerReady false; no local model runtime on the checked devices). Autonomy remains milestone M8 and needs its own design, security review and cost model.
     - Device-jobs flag (OFF; needs separate explicit owner approval).
