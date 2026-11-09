@@ -3,7 +3,9 @@ import fs from "node:fs";
 /**
  * Only symbolic-link fixture creation is optional on non-admin Windows
  * workstations without Developer Mode. Production link rejection is unchanged.
- * Our Windows CI must exercise the real symlink case, never waive it.
+ * Audited GitHub Actions Windows CI must exercise the real symlink case, never
+ * waive it. The local job runner also sets CI=true but is a workstation, so only
+ * GITHUB_ACTIONS (never an arbitrary CI flag) makes the privilege mandatory.
  */
 export function tryFileSymlink(t, target, link) {
   try {
@@ -16,7 +18,7 @@ export function tryFileSymlink(t, target, link) {
     ) {
       throw error;
     }
-    if (process.env.CI === "true") {
+    if (process.env.GITHUB_ACTIONS === "true") {
       throw new Error("WINDOWS_CI_SYMLINK_PRIVILEGE_REQUIRED", {
         cause: error,
       });
