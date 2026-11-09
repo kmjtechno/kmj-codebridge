@@ -22,7 +22,7 @@ export function redact(text) {
 export function jobEnvironment(
   source = process.env,
   platform = process.platform,
-  { allowReaProviderPaths = false } = {},
+  { allowReaProviderPaths = false, allowCmakePrefixPath = false } = {},
 ) {
   // Only standard OS paths needed for native build tools may be inherited.
   const env = {
@@ -98,6 +98,27 @@ export function jobEnvironment(
         )
           env[key] = value;
       }
+    }
+    // Qt and other CMake packages are found through CMAKE_PREFIX_PATH. Only the
+    // approved cmake-standard commands inherit it, and only when every entry is
+    // an absolute Windows directory without control characters or ".." parts.
+    if (allowCmakePrefixPath) {
+      const value = source.CMAKE_PREFIX_PATH;
+      const parts =
+        typeof value === "string" && value.length <= 4096
+          ? value.split(";").filter((part) => part.length > 0)
+          : [];
+      if (
+        parts.length > 0 &&
+        parts.length <= 16 &&
+        parts.every(
+          (part) =>
+            path.win32.isAbsolute(part) &&
+            !Array.from(part).some((ch) => ch.charCodeAt(0) < 32) &&
+            !part.split(/[\\/]/).includes(".."),
+        )
+      )
+        env.CMAKE_PREFIX_PATH = parts.join(";");
     }
   }
   return env;
@@ -560,6 +581,7 @@ export class JobRunner {
       j.gate.startsWith("command:rea_doctor:check:inspect@");
     const env = jobEnvironment(process.env, process.platform, {
       allowReaProviderPaths: isReaDoctor,
+      allowCmakePrefixPath: j.gate.startsWith("command:cmake_"),
     });
     // Composer requires HOME even when the job runner deliberately strips
     // inherited user environment. Use a private, deterministic directory in

@@ -92,7 +92,13 @@ Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
 - No explicit output-size/log-byte cap or memory/CPU limit is documented here for
   the generic runner; only `timeoutMs` and `--parallel 2` are enforced by profile.
   Verify against `src/jobs.js` before claiming bounds.
-- Qt-specific profiles do not exist; Qt builds go through CMake only.
+- Qt-specific profiles do not exist; Qt builds go through CMake only. Commands
+  whose gate starts with `command:cmake_` additionally inherit `CMAKE_PREFIX_PATH`
+  on Windows (at most 16 absolute directories, no control characters, no `..`
+  segments, at most 4096 characters); no other job inherits it.
+- Windows MAX_PATH: a CMake project configured inside an isolated lane under the
+  agent state folder can exceed the Visual Studio generator's path limit
+  (FileTracker error FTK1011 seen on the P520). Status: open; no fix claimed.
 - Any GUI/HIL interaction needs explicit user consent and stays pending.
 
 ## 6. What is not claimed
