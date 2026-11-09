@@ -117,6 +117,13 @@ test(
       assert.match(testRun.stdout, /KMJ_AUTOCONNECT_SELFTEST=PASS/);
       assert.match(testRun.stdout, /REAL_STARTUP_MODIFIED=NO/);
     }
+    // The denial must be provoked from a scope whose expected host is NOT this
+    // machine; on the real HomeOffice computer (DESKTOP-5FVJMET) a HomeOffice
+    // scope is legitimately accepted and would run the real reconnect path.
+    const deniedScope =
+      (process.env.COMPUTERNAME ?? "").toUpperCase() === "DESKTOP-5FVJMET"
+        ? "P720"
+        : "HomeOffice";
     const denied = spawnSync(
       "powershell.exe",
       [
@@ -127,7 +134,7 @@ test(
         "-File",
         autoPath,
         "-Device",
-        "HomeOffice",
+        deniedScope,
         "-AtLogon",
       ],
       { shell: false, windowsHide: true, encoding: "utf8", timeout: 15000 },
