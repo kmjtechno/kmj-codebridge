@@ -98,7 +98,12 @@ Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
   segments, at most 4096 characters); no other job inherits it.
 - Windows MAX_PATH: a CMake project configured inside an isolated lane under the
   agent state folder can exceed the Visual Studio generator's path limit
-  (FileTracker error FTK1011 seen on the P520). Status: open; no fix claimed.
+  (FileTracker error FTK1011 seen on the P520). Mitigation available: the owner
+  may set the optional agent.json `laneBaseDir` to a short absolute directory
+  (for example `C:\\kcb`, at most 120 characters, disjoint from every project
+  root) and lanes are then created there instead of under `stateDir`. It is
+  never taken from tool input. Status: mitigation implemented and unit tested
+  on Linux only; not yet proven on the P520.
 - Any GUI/HIL interaction needs explicit user consent and stays pending.
 
 ## 6. What is not claimed

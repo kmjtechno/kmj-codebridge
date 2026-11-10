@@ -233,6 +233,9 @@ export const agentSchema = z.object({
   id,
   tenant: id,
   stateDir: z.string(),
+  // Optional short absolute directory for isolated worktree lanes (Windows
+  // MAX_PATH). Owner-set only; defaults to stateDir/isolated-worktrees.
+  laneBaseDir: z.string().min(3).max(120).optional(),
   // Explicit owner/operator approval. Disabled by default and SHA-pinned.
   browserAgentic: z
     .object({

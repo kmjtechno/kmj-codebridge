@@ -72,9 +72,29 @@ function verifyLane(root, candidate) {
     fail("WORKTREE_SOURCE_MISMATCH");
 }
 export class WorktreeLanes {
-  constructor(stateDir) {
+  // Optional owner-configured short base (agent.json laneBaseDir) keeps lane
+  // paths under the Windows MAX_PATH limit for generators such as Visual
+  // Studio. It is never taken from tool input, must already exist as a real
+  // directory, and must be absolute and not nested in the project's own tree
+  // (callers verify the latter against the project roots).
+  constructor(stateDir, laneBaseDir) {
     this.stateDir = directory(stateDir);
-    this.base = path.join(this.stateDir, "isolated-worktrees");
+    if (laneBaseDir === undefined || laneBaseDir === null) {
+      this.base = path.join(this.stateDir, "isolated-worktrees");
+    } else {
+      if (
+        typeof laneBaseDir !== "string" ||
+        !path.isAbsolute(laneBaseDir) ||
+        /[\u0000-\u001f]/.test(laneBaseDir) ||
+        laneBaseDir.split(/[\\/]+/).includes("..")
+      )
+        fail("WORKTREE_LANE_BASE_INVALID");
+      try {
+        this.base = directory(laneBaseDir);
+      } catch {
+        fail("WORKTREE_LANE_BASE_INVALID");
+      }
+    }
   }
   folder(project) {
     if (!PROJECT.test(project)) fail("WORKTREE_PROJECT_INVALID");

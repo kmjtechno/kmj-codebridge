@@ -68,6 +68,11 @@ export async function startAgent(
     fail("DUPLICATE_PROJECT");
   fs.mkdirSync(c.stateDir, { recursive: true, mode: 0o700 });
   const state = fs.realpathSync(c.stateDir);
+  let laneBase;
+  if (c.laneBaseDir !== undefined) {
+    fs.mkdirSync(c.laneBaseDir, { recursive: true, mode: 0o700 });
+    laneBase = fs.realpathSync(c.laneBaseDir);
+  }
   if (c.license.mode === "signed")
     c.license.tokenFile = fs.realpathSync(c.license.tokenFile);
   for (const project of c.projects) {
@@ -91,6 +96,20 @@ export async function startAgent(
         !path.isAbsolute(rel))
     )
       fail("STATE_INSIDE_PROJECT");
+    if (laneBase) {
+      // Lane base must be disjoint from every project tree in both directions.
+      for (const [a, b] of [
+        [root, laneBase],
+        [laneBase, root],
+      ]) {
+        const r = path.relative(a, b);
+        if (
+          !r ||
+          (!r.startsWith(".." + path.sep) && r !== ".." && !path.isAbsolute(r))
+        )
+          fail("LANE_BASE_INSIDE_PROJECT");
+      }
+    }
   }
   const agentLock = acquireAgentLock(state);
   let runner;
@@ -200,7 +219,7 @@ export async function startAgent(
     licenseProvider,
     // Reuse audited WorktreeLanes boundaries. This never executes another
     // agent's dirty checkout; enabling still requires admin-approved gates.
-    lanes: new WorktreeLanes(state),
+    lanes: new WorktreeLanes(state, laneBase),
   });
   const repairWorker = startIsolatedRepairWorker({
     activity,
@@ -209,7 +228,7 @@ export async function startAgent(
     journal: autopilot,
     runner,
     licenseProvider,
-    lanes: new WorktreeLanes(state),
+    lanes: new WorktreeLanes(state, laneBase),
   });
   const ciWatchWorker = startGitHubCiWatchWorker({
     activity,
@@ -235,7 +254,7 @@ export async function startAgent(
     runner,
     licenseProvider,
     localModel,
-    lanes: new WorktreeLanes(state),
+    lanes: new WorktreeLanes(state, laneBase),
   });
   // Opt-in Main Platform workspace tool queue. Uses ONLY the device's existing signed-license
   // renewal credential and that endpoint's own origin; no new listener, URL or installer.
