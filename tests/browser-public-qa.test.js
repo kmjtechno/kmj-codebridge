@@ -3,6 +3,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import vm from "node:vm";
 import {
   TARGETS,
   VIEWPORTS,
@@ -12,6 +13,7 @@ import {
   createChromePrivateEnvironment,
   measureAfterTextReady,
   measureAfterImagesReady,
+  IMAGE_SETTLE_EXPRESSION,
 } from "../scripts/browser-public-qa.mjs";
 
 test("browser test destinations and viewports are fixed", () => {
@@ -200,6 +202,104 @@ test("browser compatibility profile uses captured commands without widening exec
   assert.match(src, /command: process\.execPath/);
   assert.match(src, /"kmj_public"/);
   assert.match(src, /timeoutMs: 120000/);
+});
+
+
+test("mobile lazy-image traversal reaches below fold and restores scroll state", async () => {
+  const positions = [];
+  const image = {
+    loading: "lazy",
+    complete: false,
+    naturalWidth: 0,
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+  };
+  const second = {
+    loading: "lazy",
+    complete: false,
+    naturalWidth: 0,
+    listeners: {},
+    addEventListener(type, listener) {
+      this.listeners[type] = listener;
+    },
+  };
+  const html = { scrollHeight: 3200, style: { scrollBehavior: "smooth" } };
+  const document = {
+    documentElement: html,
+    body: { scrollHeight: 3200 },
+    fonts: { ready: Promise.resolve() },
+    images: [image],
+  };
+  const window = {
+    scrollTo(_x, y) {
+      positions.push(y);
+      if (y >= 600) {
+        image.complete = true;
+        image.naturalWidth = 240;
+        image.listeners.load?.();
+      }
+      if (y >= 1200 && !document.images.includes(second))
+        document.images.push(second);
+      if (y >= 1800) {
+        second.complete = true;
+        second.naturalWidth = 280;
+        second.listeners.load?.();
+      }
+    },
+  };
+  const done = await vm.runInNewContext(
+    IMAGE_SETTLE_EXPRESSION,
+    { document, window, setTimeout: (callback) => { callback(); return 0; } },
+  );
+  assert.equal(done, true);
+  assert.ok(positions.includes(600));
+  assert.ok(positions.includes(1800));
+  assert.equal(positions.at(-1), 0);
+  assert.equal(html.style.scrollBehavior, "smooth");
+  assert.equal(document.images.length, 2);
+  assert.ok(document.images.every((i) => i.complete && i.naturalWidth > 0));
+  assert.ok(document.images.every((i) => i.loading === "eager"));
+});
+
+test("lazy image traversal is capped and never turns unresolved images into PASS", async () => {
+  const positions = [];
+  const pending = {
+    loading: "lazy", complete: false, naturalWidth: 0,
+    addEventListener() {},
+  };
+  const html = { scrollHeight: 1000000000, style: { scrollBehavior: "auto" } };
+  const document = {
+    documentElement: html,
+    body: { scrollHeight: 1000000000 },
+    fonts: { ready: Promise.resolve() },
+    images: [pending],
+  };
+  const window = {
+    scrollTo(_x, y) { positions.push(y); },
+  };
+  assert.equal(
+    await vm.runInNewContext(IMAGE_SETTLE_EXPRESSION, {
+      document, window, setTimeout: (callback) => { callback(); return 0; },
+    }),
+    true,
+  );
+  assert.ok(positions.length <= 42);
+  assert.ok(positions.every((n) => n >= 0 && n <= 24000));
+  assert.equal(positions.at(-1), 0);
+  assert.equal(pending.complete, false);
+  const sample = {
+    actualUrl: "https://kmjtechno.com/",
+    expectedUrl: "https://kmjtechno.com/",
+    httpStatus: 200, bodyLength: 600,
+    overflowPx: 0, exceptions: 0,
+    brokenImages: 1, pendingImages: 1, failedImages: 0,
+  };
+  assert.deepEqual(assess(sample), ["PENDING_IMAGES_TIMEOUT"]);
+  const source = fs.readFileSync("scripts/browser-public-qa.mjs", "utf8");
+  assert.match(source, /expression: IMAGE_SETTLE_EXPRESSION/);
+  assert.doesNotMatch(source, /--no-sandbox|--remote-debugging-port/);
 });
 
 test("mobile lazy images settle within bounded retry without suppressing actual failures", async () => {
