@@ -535,6 +535,45 @@ const CLOUDOS_HOST_STORAGE_AUDIT_PYTHON = [
   "sys.exit(1 if critical_failed else 0)",
 ].join("\n");
 
+const CLOUDOS_ELITE_ORIGIN_HTTPS_AUDIT_PYTHON = [
+  "import http.client,json,socket,ssl,sys",
+  "HOST='cloudos.kmjtechno.com'",
+  "ORIGIN='127.0.0.1'",
+  "PATH='/info'",
+  "MAX_BODY=16384",
+  "MARKER=b'<title>CloudOS'",
+  "if socket.gethostname().split('.')[0].lower() != 'kmj-elite':",
+  " print('CLOUDOS_ORIGIN_HTTPS_AUDIT=BLOCKED_WRONG_HOST')",
+  " sys.exit(2)",
+  "def accept(response):",
+  " if response.status != 200: return False",
+  " if not response.getheader('Content-Type','').lower().startswith('text/html'): return False",
+  " body=response.read(MAX_BODY+1)",
+  " return len(body)<=MAX_BODY and MARKER in body",
+  "def check_api():",
+  " connection=http.client.HTTPConnection(ORIGIN,8080,timeout=4)",
+  " try:",
+  "  connection.request('GET',PATH,headers={'Host':HOST,'Connection':'close','Accept':'text/html'})",
+  "  return accept(connection.getresponse())",
+  " except (OSError,ValueError,http.client.HTTPException): return False",
+  " finally: connection.close()",
+  "def check_tls():",
+  " try:",
+  "  context=ssl.create_default_context()",
+  "  with socket.create_connection((ORIGIN,443),timeout=4) as raw:",
+  "   with context.wrap_socket(raw,server_hostname=HOST) as secure:",
+  "    secure.settimeout(4)",
+  "    secure.sendall(('GET /info HTTP/1.1\\r\\nHost: '+HOST+'\\r\\nConnection: close\\r\\nAccept: text/html\\r\\n\\r\\n').encode('ascii'))",
+  "    response=http.client.HTTPResponse(secure)",
+  "    response.begin()",
+  "    return accept(response)",
+  " except (OSError,ValueError,ssl.SSLError,http.client.HTTPException): return False",
+  "api=check_api()",
+  "tls=check_tls()",
+  "print(json.dumps({'schema':'kmj.codebridge.cloudos-elite-origin-https.v1','loopback_api_info':'PASS' if api else 'BLOCKED','loopback_tls_sni_info':'PASS' if tls else 'BLOCKED','local_origin_readiness':'PASS_LOCAL_ONLY' if api and tls else 'BLOCKED','external_https_reachability':'NOT_VERIFIED','commercial_release':'NOT_APPROVED','host_modified':False},sort_keys=True))",
+  "sys.exit(0 if api and tls else 3)",
+].join("\n");
+
 function commandRisk(category) {
   return (
     {
@@ -3985,6 +4024,23 @@ export function createDispatcher(
                 },
               ]
             : []),
+          // Fixed host-specific loopback-only HTTPS audit. It cannot modify
+          // nginx, services or certificates, and cannot prove public reachability.
+          ...(p.id === "kmj-cloudos" &&
+          p.writable &&
+          config.id === "kmj-elite-cloudos"
+            ? [
+                {
+                  id: "cloudos_origin_https_audit",
+                  category: "inspect",
+                  description:
+                    "Check exact CloudOS loopback API and trusted SNI HTTPS on KMJ-elite without Nginx, TLS or production changes.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["check"],
+                },
+              ]
+            : []),
           // CloudOS already has an authorized QA runner, but older installed
           // agents report commands: [] and the shared checkout is dirty.
           // Expose a fixed, supervisor-independent, HEAD-pinned test lane.
@@ -4213,6 +4269,29 @@ export function createDispatcher(
           command: "python3",
           args: ["-I", "-B", "-c", CLOUDOS_HOST_STORAGE_AUDIT_PYTHON],
           timeoutMs: 180000,
+        });
+      }
+      if (a.command === "cloudos_origin_https_audit") {
+        if (
+          a.variant !== "check" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-cloudos" ||
+          config.id !== "kmj-elite-cloudos" ||
+          !p.writable
+        )
+          fail("CLOUDOS_ORIGIN_HTTPS_AUDIT_NOT_AUTHORIZED");
+        return runner.run({
+          project: p.id,
+          gate: "command:cloudos_origin_https_audit:check:inspect",
+          key: a.requestKey,
+          cwd: p.files.root,
+          command: "python3",
+          args: ["-I", "-B", "-c", CLOUDOS_ELITE_ORIGIN_HTTPS_AUDIT_PYTHON],
+          timeoutMs: 30000,
         });
       }
       if (a.command === "cloudos_release_qa") {
