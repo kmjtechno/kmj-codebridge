@@ -124,9 +124,7 @@ test("compat diagnosis cannot be invoked with non-exact variants or lane overrid
     { variant: "upload" },
     { laneId: "my-lane" },
     { expectedHead: "a".repeat(40) },
-    { command: "main_platform_offsite_status" , variant: "RUN_FIXED_READONLY_OFFSITE_DIAGNOSTIC" },
   ]) {
-    if (change.command === "main_platform_offsite_status") continue;
     await assert.rejects(f.dispatch("run_project_command", f.input(change), ["execute"]));
   }
   await assert.rejects(
