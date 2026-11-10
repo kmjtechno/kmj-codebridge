@@ -7,6 +7,11 @@ export const REQUIRED_LOCAL_TOOLS = Object.freeze([
   "autopilot_local_draft",
 ]);
 
+// Only the trusted dispatcher may attach these additional fixed diagnostics
+// for an exact, enrolled project. Client-supplied tool lists remain advisory.
+export const MAIN_PLATFORM_CLIENT_TOOL = "supervisor_main_platform_offsite_diagnostic";
+
+
 const SAFE_ACTIONS = Object.freeze({
   CLIENT_TOOL_NOT_ADVERTISED: {
     requiredCodeBridgeFeature: "HOSTED_MCP_TOOL_CAPTURE_DIAGNOSTIC",
@@ -116,6 +121,7 @@ export function isTrustedWindowsSupervisorStatus(status) {
 
 export function inspectBlockers({
   clientVisibleTools = null,
+  fixedProjectRequiredTools = [],
   workerConfiguration = {},
   workerStarted = null,
   supervisorConfigured = null,
@@ -134,6 +140,12 @@ export function inspectBlockers({
       ))
   )
     throw new TypeError("INVALID_CLIENT_TOOL_OBSERVATION");
+  if (
+    !Array.isArray(fixedProjectRequiredTools) ||
+    fixedProjectRequiredTools.length > 1 ||
+    !fixedProjectRequiredTools.every((name) => name === MAIN_PLATFORM_CLIENT_TOOL)
+  )
+    throw new TypeError("INVALID_FIXED_CLIENT_TOOL_POLICY");
   if (
     ![
       "unknown",
@@ -224,10 +236,14 @@ export function inspectBlockers({
         connectionVerified: false,
       }),
     );
+  const expectedClientTools = [
+    ...REQUIRED_LOCAL_TOOLS,
+    ...fixedProjectRequiredTools,
+  ];
   const missingClientTools =
     clientVisibleTools === null
       ? null
-      : REQUIRED_LOCAL_TOOLS.filter(
+      : expectedClientTools.filter(
           (name) => !clientVisibleTools.includes(name),
         );
   if (missingClientTools !== null && missingClientTools.length)
