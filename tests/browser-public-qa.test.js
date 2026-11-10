@@ -204,7 +204,6 @@ test("browser compatibility profile uses captured commands without widening exec
   assert.match(src, /timeoutMs: 120000/);
 });
 
-
 test("mobile lazy-image traversal reaches below fold and restores scroll state", async () => {
   const positions = [];
   const image = {
@@ -249,10 +248,14 @@ test("mobile lazy-image traversal reaches below fold and restores scroll state",
       }
     },
   };
-  const done = await vm.runInNewContext(
-    IMAGE_SETTLE_EXPRESSION,
-    { document, window, setTimeout: (callback) => { callback(); return 0; } },
-  );
+  const done = await vm.runInNewContext(IMAGE_SETTLE_EXPRESSION, {
+    document,
+    window,
+    setTimeout: (callback) => {
+      callback();
+      return 0;
+    },
+  });
   assert.equal(done, true);
   assert.ok(positions.includes(600));
   assert.ok(positions.includes(1800));
@@ -266,7 +269,9 @@ test("mobile lazy-image traversal reaches below fold and restores scroll state",
 test("lazy image traversal is capped and never turns unresolved images into PASS", async () => {
   const positions = [];
   const pending = {
-    loading: "lazy", complete: false, naturalWidth: 0,
+    loading: "lazy",
+    complete: false,
+    naturalWidth: 0,
     addEventListener() {},
   };
   const html = { scrollHeight: 1000000000, style: { scrollBehavior: "auto" } };
@@ -277,11 +282,18 @@ test("lazy image traversal is capped and never turns unresolved images into PASS
     images: [pending],
   };
   const window = {
-    scrollTo(_x, y) { positions.push(y); },
+    scrollTo(_x, y) {
+      positions.push(y);
+    },
   };
   assert.equal(
     await vm.runInNewContext(IMAGE_SETTLE_EXPRESSION, {
-      document, window, setTimeout: (callback) => { callback(); return 0; },
+      document,
+      window,
+      setTimeout: (callback) => {
+        callback();
+        return 0;
+      },
     }),
     true,
   );
@@ -292,9 +304,13 @@ test("lazy image traversal is capped and never turns unresolved images into PASS
   const sample = {
     actualUrl: "https://kmjtechno.com/",
     expectedUrl: "https://kmjtechno.com/",
-    httpStatus: 200, bodyLength: 600,
-    overflowPx: 0, exceptions: 0,
-    brokenImages: 1, pendingImages: 1, failedImages: 0,
+    httpStatus: 200,
+    bodyLength: 600,
+    overflowPx: 0,
+    exceptions: 0,
+    brokenImages: 1,
+    pendingImages: 1,
+    failedImages: 0,
   };
   assert.deepEqual(assess(sample), ["PENDING_IMAGES_TIMEOUT"]);
   const source = fs.readFileSync("scripts/browser-public-qa.mjs", "utf8");
