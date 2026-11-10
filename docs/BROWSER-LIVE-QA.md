@@ -17,9 +17,14 @@ Each run captures public pages at 1440, 768, and 390-pixel widths (nine
 screenshots). It checks actual navigation, HTTP 200, nonblank text, broken
 images, uncaught JS exceptions, and horizontal overflow. Incomplete or undecodable
 images fail closed rather than being counted as healthy. The isolated browser
-first requests deferred lazy images and waits up to four seconds for load/error
-before measurement; images still pending afterward are recorded as failures. Mobile lazy-image
-loading has a second bounded 3-second settle phase for _pending-only_ images;
+first traverses the current document in a fixed, bounded scroll (at most 24,000
+pixels in 600-pixel increments), promoting native lazy images to eager as they
+enter view; this also notices images inserted by late hydration. It returns to
+the original page top and restores scroll behavior. The traversal is bounded
+to 41 steps with a 60-millisecond delay per step. It then waits up to four
+seconds for load/error before measurement. Images still pending afterward
+remain failures. Mobile lazy-image loading has a second bounded 3-second
+settle phase for _pending-only_ images;
 hard-failed or undecodable images still fail immediately. Each sample now
 reports safe aggregate `pendingImages` and `failedImages` counts (no URLs,
 DOM content, cookies or image bytes). The initial and second windows are
