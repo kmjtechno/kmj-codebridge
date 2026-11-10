@@ -47,7 +47,7 @@ export function verifyBrowsenticEntry(expected, options = {}) {
     }
     // The executable may be ordinary but a parent could point outside the
     // reviewed installation. Do not follow any directory symlink/junction.
-    for (let dir = paths.dirname(entry); ; ) {
+    for (let dir = paths.dirname(entry); ;) {
       const stat = lstat(dir);
       if (!stat.isDirectory() || stat.isSymbolicLink())
         throw Error("BROWSENTIC_LINKED_DIRECTORY_DENIED");

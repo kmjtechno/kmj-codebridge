@@ -2354,7 +2354,7 @@ export function createDispatcher(
                 // upgrades the filesystem observation into live health.
                 supervisorConfigured: Boolean(
                   config.supervisorSocket ||
-                    (config.supervisorPipe && config.supervisorTokenFile),
+                  (config.supervisorPipe && config.supervisorTokenFile),
                 ),
                 supervisorObservation: doctorSocketObservation,
                 supervisorHealthVerified: doctorSupervisorVerified,

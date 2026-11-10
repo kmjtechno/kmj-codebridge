@@ -37,7 +37,7 @@ function scanStructure(prompt) {
   const fences = [];
   let open = null;
   let headingCount = 0;
-  for (let start = 0; start < prompt.length; ) {
+  for (let start = 0; start < prompt.length;) {
     const newline = prompt.indexOf("\n", start);
     const end = newline === -1 ? prompt.length : newline + 1;
     const raw = prompt.slice(start, newline === -1 ? end : newline);
@@ -138,7 +138,7 @@ export function planLargePrompt({
   const { headings, headingCount, fences, unclosedCodeFence } =
     scanStructure(prompt);
   const parts = [];
-  for (let start = 0; start < prompt.length; ) {
+  for (let start = 0; start < prompt.length;) {
     if (parts.length >= MAX_PARTS) invalid("TOO_MANY_PARTS");
     const limit = Math.min(prompt.length, start + chunkChars);
     const end = safeCut(prompt, start, limit, headings, fences, chunkChars);
