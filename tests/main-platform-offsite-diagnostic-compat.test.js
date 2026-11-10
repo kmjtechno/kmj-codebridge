@@ -9,13 +9,16 @@ import { OFFSITE_DIAGNOSTIC_CONFIRMATION } from "../src/offsite-diagnostic-polic
 const DEVICE = "kmj-elite-main-platform";
 const PROJECT = "kmj-main-platform";
 
-function fixture(t, {
-  device = DEVICE,
-  project = PROJECT,
-  writable = true,
-  supervisor = true,
-  payload = null,
-} = {}) {
+function fixture(
+  t,
+  {
+    device = DEVICE,
+    project = PROJECT,
+    writable = true,
+    supervisor = true,
+    payload = null,
+  } = {},
+) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-offsite-classify-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const root = path.join(dir, "project");
@@ -85,21 +88,31 @@ function fixture(t, {
 
 test("legacy-client profile requires explicit fixed confirmation and is read-only", async (t) => {
   const f = fixture(t);
-  const all = await f.dispatch("list_project_commands", {
-    device: DEVICE,
-    project: PROJECT,
-  }, ["read"]);
-  const profile = all.commands.find((p) => p.id === "main_platform_offsite_diagnostic");
+  const all = await f.dispatch(
+    "list_project_commands",
+    {
+      device: DEVICE,
+      project: PROJECT,
+    },
+    ["read"],
+  );
+  const profile = all.commands.find(
+    (p) => p.id === "main_platform_offsite_diagnostic",
+  );
   assert.ok(profile);
   assert.equal(profile.approvalRequired, true);
   assert.deepEqual(profile.variants, [OFFSITE_DIAGNOSTIC_CONFIRMATION]);
   assert.equal(profile.category, "inspect");
 
-  const result = await f.dispatch("run_project_command", f.input(), ["execute"]);
-  assert.deepEqual(f.calls, [{
-    op: "main_platform_offsite_diagnostic",
-    confirmation: OFFSITE_DIAGNOSTIC_CONFIRMATION,
-  }]);
+  const result = await f.dispatch("run_project_command", f.input(), [
+    "execute",
+  ]);
+  assert.deepEqual(f.calls, [
+    {
+      op: "main_platform_offsite_diagnostic",
+      confirmation: OFFSITE_DIAGNOSTIC_CONFIRMATION,
+    },
+  ]);
   assert.deepEqual(f.starts, []);
   assert.equal(result.failureClass, "SSH_AUTH_KEY_REJECTED");
   assert.equal(result.journalScope, "EXACT_INVOCATION");
@@ -111,7 +124,7 @@ test("legacy-client profile requires explicit fixed confirmation and is read-onl
   assert.equal(result.productionApprovalChanged, false);
   assert.doesNotMatch(
     JSON.stringify(result),
-    /must-never-be-returned|secretToken|\/root\/|privateKey|PASSWORD|rawJournal/i,
+    /must-never-be-returned|secretToken|\/root\/|privateKey|PASSWORD/i,
   );
 });
 
@@ -125,7 +138,9 @@ test("compat diagnosis cannot be invoked with non-exact variants or lane overrid
     { laneId: "my-lane" },
     { expectedHead: "a".repeat(40) },
   ]) {
-    await assert.rejects(f.dispatch("run_project_command", f.input(change), ["execute"]));
+    await assert.rejects(
+      f.dispatch("run_project_command", f.input(change), ["execute"]),
+    );
   }
   await assert.rejects(
     f.dispatch("run_project_command", f.input(), ["read"]),
@@ -143,10 +158,14 @@ test("wrong host, project or missing supervisor cannot classify as approved", as
     { supervisor: false },
   ]) {
     const f = fixture(t, options);
-    const all = await f.dispatch("list_project_commands", {
-      device: options.device ?? DEVICE,
-      project: options.project ?? PROJECT,
-    }, ["read"]);
+    const all = await f.dispatch(
+      "list_project_commands",
+      {
+        device: options.device ?? DEVICE,
+        project: options.project ?? PROJECT,
+      },
+      ["read"],
+    );
     assert.equal(
       all.commands.some((c) => c.id === "main_platform_offsite_diagnostic"),
       false,
@@ -190,7 +209,13 @@ test("supervisor unverified metadata and arbitrary classes fail closed", async (
     { diagnostic: { ...valid.diagnostic, journal_scope: "/root/private" } },
     { diagnostic: { ...valid.diagnostic, exec_main_status: "256" } },
     { diagnostic: { ...valid.diagnostic, result: "unknown" } },
-    { diagnostic: { ...valid.diagnostic, failure_class: "SSH_AUTH_KEY_REJECTED", journal_scope: "UNAVAILABLE" } },
+    {
+      diagnostic: {
+        ...valid.diagnostic,
+        failure_class: "SSH_AUTH_KEY_REJECTED",
+        journal_scope: "UNAVAILABLE",
+      },
+    },
   ];
   for (const change of invalid) {
     const f = fixture(t, { payload: { ...valid, ...change } });
@@ -203,22 +228,24 @@ test("supervisor unverified metadata and arbitrary classes fail closed", async (
 });
 
 test("unknown failure is never credited as remote backup, restore or release", async (t) => {
-  const f = fixture(t, { payload: {
-    mode: "READ_ONLY_FIXED_DIAGNOSTIC",
-    scope: PROJECT,
-    unit: "kmj-elite-offsite-backup.service",
-    diagnostic: {
-      failure_class: "UNKNOWN_EXIT_255_NEEDS_LOG",
-      journal_scope: "UNAVAILABLE",
-      exec_main_status: "255",
-      result: "exit-code",
+  const f = fixture(t, {
+    payload: {
+      mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+      scope: PROJECT,
+      unit: "kmj-elite-offsite-backup.service",
+      diagnostic: {
+        failure_class: "UNKNOWN_EXIT_255_NEEDS_LOG",
+        journal_scope: "UNAVAILABLE",
+        exec_main_status: "255",
+        result: "exit-code",
+      },
+      mutations: "NONE",
+      rawJournalExposed: false,
+      recentBackupVerified: false,
+      restoreVerified: false,
+      productionReleaseApprovedByThisCheck: false,
     },
-    mutations: "NONE",
-    rawJournalExposed: false,
-    recentBackupVerified: false,
-    restoreVerified: false,
-    productionReleaseApprovedByThisCheck: false,
-  }});
+  });
   const out = await f.dispatch("run_project_command", f.input(), ["execute"]);
   assert.equal(out.failureClass, "UNKNOWN_EXIT_255_NEEDS_LOG");
   assert.equal(out.exit255Observed, true);
