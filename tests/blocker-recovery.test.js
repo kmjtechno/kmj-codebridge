@@ -93,23 +93,24 @@ test("recovery advisor maps absent client tool exposure to a safe native fix wit
 });
 
 test("Main Platform client capture reports the missing fixed offsite diagnostic without granting root access", async (t) => {
-  const { dispatch, scope } = fixture(
-    t, null, {}, null, null,
-    { device: "kmj-elite-main-platform", project: "kmj-main-platform" },
-  );
+  const { dispatch, scope } = fixture(t, null, {}, null, null, {
+    device: "kmj-elite-main-platform",
+    project: "kmj-main-platform",
+  });
   const clientVisibleTools = [
-    "connection_doctor", "local_model_status",
-    "local_model_generate", "autopilot_local_draft",
+    "connection_doctor",
+    "local_model_status",
+    "local_model_generate",
+    "autopilot_local_draft",
   ];
   const result = await dispatch(
     "connection_doctor",
     { ...scope, clientVisibleTools },
     ["read"],
   );
-  assert.deepEqual(
-    result.blockerRecovery.clientModelToolsMissing,
-    ["supervisor_main_platform_offsite_diagnostic"],
-  );
+  assert.deepEqual(result.blockerRecovery.clientModelToolsMissing, [
+    "supervisor_main_platform_offsite_diagnostic",
+  ]);
   const blocker = result.blockerRecovery.blockers.find(
     (entry) => entry.code === "CLIENT_TOOL_NOT_ADVERTISED",
   );
@@ -132,18 +133,22 @@ test("Main Platform client capture reports the missing fixed offsite diagnostic 
 
 test("project-required client tool names are fixed and cannot request arbitrary privileged tools", () => {
   assert.throws(
-    () => inspectBlockers({
-      fixedProjectRequiredTools: ["supervisor_main_platform_production_activate"],
-    }),
+    () =>
+      inspectBlockers({
+        fixedProjectRequiredTools: [
+          "supervisor_main_platform_production_activate",
+        ],
+      }),
     /INVALID_FIXED_CLIENT_TOOL_POLICY/,
   );
   assert.throws(
-    () => inspectBlockers({
-      fixedProjectRequiredTools: [
-        "supervisor_main_platform_offsite_diagnostic",
-        "supervisor_main_platform_offsite_diagnostic",
-      ],
-    }),
+    () =>
+      inspectBlockers({
+        fixedProjectRequiredTools: [
+          "supervisor_main_platform_offsite_diagnostic",
+          "supervisor_main_platform_offsite_diagnostic",
+        ],
+      }),
     /INVALID_FIXED_CLIENT_TOOL_POLICY/,
   );
   const withoutCapture = inspectBlockers({
@@ -151,7 +156,9 @@ test("project-required client tool names are fixed and cannot request arbitrary 
   });
   assert.equal(withoutCapture.clientModelToolsMissing, null);
   assert.ok(
-    !withoutCapture.blockers.some((entry) => entry.code === "CLIENT_TOOL_NOT_ADVERTISED"),
+    !withoutCapture.blockers.some(
+      (entry) => entry.code === "CLIENT_TOOL_NOT_ADVERTISED",
+    ),
   );
 });
 
