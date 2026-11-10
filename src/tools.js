@@ -17,6 +17,7 @@ import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
 import { fail, publicError } from "./errors.js";
+import { OFFSITE_DIAGNOSTIC_CONFIRMATION, FAILURE_CLASSES } from "./offsite-diagnostic-policy.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
@@ -3954,6 +3955,15 @@ export function createDispatcher(
                   approvalRequired: false,
                   variants: ["overview"],
                 },
+                {
+                  id: "main_platform_offsite_diagnostic",
+                  category: "inspect",
+                  description:
+                    "Explicitly run the fixed, root-owned SHA-pinned READ-ONLY exit-255 journal classifier via Supervisor. Requires the exact confirmation variant and execute permission; only fixed failure classes returned. No raw journal, SSH, keys, backup, restore or release approval.",
+                  risk: "READ",
+                  approvalRequired: true,
+                  variants: [OFFSITE_DIAGNOSTIC_CONFIRMATION],
+                },
               ]
             : []),
           // Host-specific read-only storage inventory without root/sudo or
@@ -4059,6 +4069,77 @@ export function createDispatcher(
       // dirty. Keep this compatible with older MCP clients and require the
       // existing execute grant. No root supervisor, shell, caller-selected
       // path/ref/args or deployment is needed.
+      // Older MCP clients cannot see the newer dedicated diagnostic tool.
+      // Reuse ONLY its already-reviewed pinned Supervisor operation through
+      // this named profile. The variant itself is the explicit approval
+      // literal; this does not grant a generic privileged read or shell.
+      if (a.command === "main_platform_offsite_diagnostic") {
+        if (
+          a.variant !== OFFSITE_DIAGNOSTIC_CONFIRMATION ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-main-platform" ||
+          config.id !== "kmj-elite-main-platform" ||
+          !p.writable
+        )
+          fail("MAIN_PLATFORM_OFFSITE_DIAGNOSTIC_NOT_AUTHORIZED");
+        if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+        const received = await supervisor.request({
+          op: "main_platform_offsite_diagnostic",
+          confirmation: OFFSITE_DIAGNOSTIC_CONFIRMATION,
+        });
+        const state = received?.response ?? received;
+        const diagnostic = state?.diagnostic;
+        const classes = new Set(FAILURE_CLASSES);
+        if (
+          state?.mode !== "READ_ONLY_FIXED_DIAGNOSTIC" ||
+          state?.scope !== "kmj-main-platform" ||
+          state?.unit !== "kmj-elite-offsite-backup.service" ||
+          state?.mutations !== "NONE" ||
+          state?.rawJournalExposed !== false ||
+          state?.recentBackupVerified !== false ||
+          state?.restoreVerified !== false ||
+          state?.productionReleaseApprovedByThisCheck !== false ||
+          !diagnostic ||
+          typeof diagnostic !== "object" ||
+          Array.isArray(diagnostic) ||
+          !classes.has(diagnostic.failure_class) ||
+          !["EXACT_INVOCATION", "UNAVAILABLE"].includes(
+            diagnostic.journal_scope,
+          ) ||
+          !["exit-code", "success", "signal", "timeout"].includes(
+            diagnostic.result,
+          ) ||
+          !/^(?:[0-9]{1,3}|unknown)$/.test(
+            diagnostic.exec_main_status ?? "",
+          )
+        )
+          fail("MAIN_PLATFORM_OFFSITE_DIAGNOSTIC_UNVERIFIED");
+        const exit255Observed =
+          diagnostic.exec_main_status === "255" &&
+          diagnostic.result === "exit-code";
+        if (
+          diagnostic.failure_class !== "UNKNOWN_EXIT_255_NEEDS_LOG" &&
+          (!exit255Observed ||
+            diagnostic.journal_scope !== "EXACT_INVOCATION")
+        )
+          fail("MAIN_PLATFORM_OFFSITE_DIAGNOSTIC_UNVERIFIED");
+        return {
+          command: "main_platform_offsite_diagnostic",
+          mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+          failureClass: diagnostic.failure_class,
+          journalScope: diagnostic.journal_scope,
+          exit255Observed,
+          rawJournalExposed: false,
+          candidateEncryptedOffsiteVerified: false,
+          independentRestoreVerified: false,
+          rollbackVerified: false,
+          productionApprovalChanged: false,
+        };
+      }
       if (a.command === "main_platform_offsite_status") {
         if (
           a.variant !== "overview" ||
