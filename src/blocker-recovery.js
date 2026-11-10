@@ -9,8 +9,8 @@ export const REQUIRED_LOCAL_TOOLS = Object.freeze([
 
 // Only the trusted dispatcher may attach these additional fixed diagnostics
 // for an exact, enrolled project. Client-supplied tool lists remain advisory.
-export const MAIN_PLATFORM_CLIENT_TOOL = "supervisor_main_platform_offsite_diagnostic";
-
+export const MAIN_PLATFORM_CLIENT_TOOL =
+  "supervisor_main_platform_offsite_diagnostic";
 
 const SAFE_ACTIONS = Object.freeze({
   CLIENT_TOOL_NOT_ADVERTISED: {
@@ -143,7 +143,9 @@ export function inspectBlockers({
   if (
     !Array.isArray(fixedProjectRequiredTools) ||
     fixedProjectRequiredTools.length > 1 ||
-    !fixedProjectRequiredTools.every((name) => name === MAIN_PLATFORM_CLIENT_TOOL)
+    !fixedProjectRequiredTools.every(
+      (name) => name === MAIN_PLATFORM_CLIENT_TOOL,
+    )
   )
     throw new TypeError("INVALID_FIXED_CLIENT_TOOL_POLICY");
   if (
