@@ -118,10 +118,10 @@ test(
   "offline TLS and page checks never claim public release",
   { skip: process.platform === "win32" },
   async (t) => {
-  const f = fixture(t);
-  await f.dispatch("run_project_command", f.request(), ["execute"]);
-  const program = f.jobs[0].args[3];
-  const driver = String.raw`
+    const f = fixture(t);
+    await f.dispatch("run_project_command", f.request(), ["execute"]);
+    const program = f.jobs[0].args[3];
+    const driver = String.raw`
 import socket,ssl,http.client,sys,json
 scenario=sys.argv[2]
 socket.gethostname=lambda: 'not-elite' if scenario == 'wronghost' else 'KMJ-elite'
@@ -152,28 +152,28 @@ http.client.HTTPResponse=lambda conn: Response('page' if scenario=='page' else '
 socket.create_connection=lambda addr,timeout: Sock() if addr==('127.0.0.1',443) and timeout==4 else (_ for _ in ()).throw(AssertionError('wrong target'))
 ssl.create_default_context=lambda: Context()
 exec(sys.argv[1], {'__name__':'__main__'})
-`;
-  const run = (mode) =>
-    spawnSync("python3", ["-I", "-B", "-c", driver, program, mode], {
-      timeout: 10000,
-      encoding: "utf8",
-    });
-  const healthy = run("ok");
-  assert.equal(healthy.status, 0, healthy.stderr);
-  const result = JSON.parse(healthy.stdout);
-  assert.equal(result.local_origin_readiness, "PASS_LOCAL_ONLY");
-  assert.equal(result.external_https_reachability, "NOT_VERIFIED");
-  assert.equal(result.commercial_release, "NOT_APPROVED");
-  assert.equal(result.host_modified, false);
-  for (const mode of ["cert", "page", "redirect"]) {
-    const blocked = run(mode);
-    assert.equal(blocked.status, 3, blocked.stderr);
-    const receipt = JSON.parse(blocked.stdout);
-    assert.equal(receipt.local_origin_readiness, "BLOCKED");
-    assert.equal(receipt.external_https_reachability, "NOT_VERIFIED");
-  }
-  const wrong = run("wronghost");
-  assert.equal(wrong.status, 2, wrong.stderr);
-  assert.match(wrong.stdout, /CLOUDOS_ORIGIN_HTTPS_AUDIT=BLOCKED_WRONG_HOST/);
+  `;
+    const run = (mode) =>
+      spawnSync("python3", ["-I", "-B", "-c", driver, program, mode], {
+        timeout: 10000,
+        encoding: "utf8",
+      });
+    const healthy = run("ok");
+    assert.equal(healthy.status, 0, healthy.stderr);
+    const result = JSON.parse(healthy.stdout);
+    assert.equal(result.local_origin_readiness, "PASS_LOCAL_ONLY");
+    assert.equal(result.external_https_reachability, "NOT_VERIFIED");
+    assert.equal(result.commercial_release, "NOT_APPROVED");
+    assert.equal(result.host_modified, false);
+    for (const mode of ["cert", "page", "redirect"]) {
+      const blocked = run(mode);
+      assert.equal(blocked.status, 3, blocked.stderr);
+      const receipt = JSON.parse(blocked.stdout);
+      assert.equal(receipt.local_origin_readiness, "BLOCKED");
+      assert.equal(receipt.external_https_reachability, "NOT_VERIFIED");
+    }
+    const wrong = run("wronghost");
+    assert.equal(wrong.status, 2, wrong.stderr);
+    assert.match(wrong.stdout, /CLOUDOS_ORIGIN_HTTPS_AUDIT=BLOCKED_WRONG_HOST/);
   },
 );
