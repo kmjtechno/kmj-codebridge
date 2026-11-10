@@ -83,7 +83,20 @@ Timeouts are per variant, in ms. "Lane" = must run in a pinned isolated lane.
 Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
 (`start`), `main_platform_ui_deps` (`ci`), `main_platform_php_deps`
 (`ci`, `routes`, `test`), `main_platform_offsite_status` and
-`cloudos_host_storage_audit` (`overview`, inspect), `cloudos_release_qa` (`full`).
+`cloudos_host_storage_audit` (`overview`, inspect), `cloudos_release_qa` (`full`),
+`cloudos_origin_https_audit` (`check`, inspect, **kmj-elite-cloudos only**).
+
+The last profile runs a fixed inline Python script, not an arbitrary repository
+script. It requires the writable authorized `kmj-cloudos` project on the exact
+CodeBridge device `kmj-elite-cloudos`, then rechecks the on-host name
+`KMJ-elite`. It contacts only `127.0.0.1:8080` and `127.0.0.1:443` to request
+`/info` with the fixed SNI/Host `cloudos.kmjtechno.com`, validates system-CA
+TLS and an exact CloudOS HTML marker, and prints bounded status only. It
+never enables a service, downloads certificates, edits Nginx, reads private
+keys, changes DNS, or grants public HTTPS/commercial-release credit. The
+30-second job is still **not** proof of real public reachability; source
+installation, host-profile availability and an external HTTPS acceptance check
+must all be independently observed before any release decision.
 
 ## 5. Gaps against the M1 target (Pending)
 
