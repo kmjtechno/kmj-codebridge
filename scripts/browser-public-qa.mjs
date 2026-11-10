@@ -50,6 +50,52 @@ export function assess(sample) {
 const digest = (buf) => createHash("sha256").update(buf).digest("hex");
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Fixed browser-internal QA expression. Chromium may not request below-fold
+// native lazy images simply because a test flips loading="eager" once.
+// The mobile homepage is much taller than a desktop viewport, so explicitly
+// traverse a bounded distance before settling. Never classify pending assets
+// as PASS, navigate to arbitrary URLs, or inject browser-side user inputs.
+export const IMAGE_SETTLE_EXPRESSION = String.raw`(async()=>{
+  const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+  const html=document.documentElement;
+  const previous=html.style.scrollBehavior;
+  const promote=()=>{
+    for(const image of document.images)if(image.loading==='lazy')image.loading='eager';
+  };
+  html.style.scrollBehavior='auto';
+  try{
+    const MAX_SCROLL_PX=24000;
+    const SCROLL_STEP_PX=600;
+    const MAX_SCROLL_STEPS=41;
+    for(let n=0;n<MAX_SCROLL_STEPS;n++){
+      const height=Math.min(MAX_SCROLL_PX,Math.max(
+        Number(html.scrollHeight)||0,Number(document.body?.scrollHeight)||0
+      ));
+      const y=Math.min(height,n*SCROLL_STEP_PX);
+      window.scrollTo(0,y);
+      promote();
+      await pause(60);
+      if(y>=height)break;
+    }
+    promote();
+    const images=[...document.images];
+    await Promise.race([
+      Promise.all(images.map(image=>image.complete?Promise.resolve():
+        new Promise(resolve=>{
+          image.addEventListener('load',resolve,{once:true});
+          image.addEventListener('error',resolve,{once:true});
+        })
+      )),
+      pause(4000)
+    ]);
+    await document.fonts.ready;
+    return true;
+  }finally{
+    window.scrollTo(0,0);
+    html.style.scrollBehavior=previous;
+  }
+})()`;
+
 // A load event can precede client hydration. Permit a tightly bounded retry
 // only when text is initially blank; persistent blanks remain QA failures.
 export async function measureAfterTextReady(
@@ -313,8 +359,7 @@ export async function publicBrowserQa(targetName, outputDir) {
           {
             awaitPromise: true,
             returnByValue: true,
-            expression:
-              "(async()=>{const images=[...document.images];for(const image of images)if(image.loading==='lazy')image.loading='eager';await Promise.race([Promise.all(images.map(image=>image.complete?Promise.resolve():new Promise(resolve=>{image.addEventListener('load',resolve,{once:true});image.addEventListener('error',resolve,{once:true})}))),new Promise(resolve=>setTimeout(resolve,4000))]);await document.fonts.ready;return true})()",
+            expression: IMAGE_SETTLE_EXPRESSION,
           },
           sessionId,
         );
