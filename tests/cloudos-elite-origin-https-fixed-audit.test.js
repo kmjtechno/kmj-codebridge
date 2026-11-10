@@ -6,7 +6,12 @@ import os from "node:os";
 import path from "node:path";
 import { createDispatcher } from "../src/tools.js";
 
-function fixture(t, device = "kmj-elite-cloudos", project = "kmj-cloudos", writable = true) {
+function fixture(
+  t,
+  device = "kmj-elite-cloudos",
+  project = "kmj-cloudos",
+  writable = true,
+) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cloudos-elite-https-"));
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const root = path.join(directory, "repo");
@@ -39,11 +44,16 @@ function fixture(t, device = "kmj-elite-cloudos", project = "kmj-cloudos", writa
   return { root, jobs, dispatch, request };
 }
 
-test("KMJ-elite CloudOS gets one bounded, loopback-only, no-mutation HTTPS command", async (t) => {
+test("fixed ELITE CloudOS origin audit is read-only and bounded", async (t) => {
   const f = fixture(t);
-  const list = await f.dispatch("list_project_commands",
-    { device: "kmj-elite-cloudos", project: "kmj-cloudos" }, ["read"]);
-  const profile = list.commands.find((cmd) => cmd.id === "cloudos_origin_https_audit");
+  const list = await f.dispatch(
+    "list_project_commands",
+    { device: "kmj-elite-cloudos", project: "kmj-cloudos" },
+    ["read"],
+  );
+  const profile = list.commands.find(
+    (cmd) => cmd.id === "cloudos_origin_https_audit",
+  );
   assert.deepEqual(profile.variants, ["check"]);
   assert.equal(profile.risk, "READ");
   assert.equal(profile.approvalRequired, false);
@@ -63,11 +73,14 @@ test("KMJ-elite CloudOS gets one bounded, loopback-only, no-mutation HTTPS comma
   assert.doesNotMatch(cmd.args[3], /subprocess|os\.system|os\.remove|open\(.*['"]w/);
 });
 
-test("rejects wrong device, project, grants, variant and caller-supplied lane or SHA", async (t) => {
+test("audit denies wrong device, project and caller overrides", async (t) => {
   const f = fixture(t);
   for (const extra of [
-    { variant: "apply" }, { variant: "issue-cert" }, { variant: "cleanup" },
-    { laneId: "other" }, { expectedHead: "a".repeat(40) },
+    { variant: "apply" },
+    { variant: "issue-cert" },
+    { variant: "cleanup" },
+    { laneId: "other" },
+    { expectedHead: "a".repeat(40) },
   ]) {
     await assert.rejects(
       f.dispatch("run_project_command", f.request(extra), ["execute"]),
@@ -75,7 +88,8 @@ test("rejects wrong device, project, grants, variant and caller-supplied lane or
     );
   }
   await assert.rejects(
-    f.dispatch("run_project_command", f.request(), ["read"]), /ACCESS_DENIED/,
+    f.dispatch("run_project_command", f.request(), ["read"]),
+    /ACCESS_DENIED/,
   );
   for (const [device, project, writable] of [
     ["google-vps", "kmj-cloudos", true],
@@ -83,9 +97,15 @@ test("rejects wrong device, project, grants, variant and caller-supplied lane or
     ["kmj-elite-cloudos", "kmj-cloudos", false],
   ]) {
     const other = fixture(t, device, project, writable);
-    const list = await other.dispatch("list_project_commands",
-      { device, project }, ["read"]);
-    assert.equal(list.commands.some((item) => item.id === "cloudos_origin_https_audit"), false);
+    const list = await other.dispatch(
+      "list_project_commands",
+      { device, project },
+      ["read"],
+    );
+    assert.equal(
+      list.commands.some((item) => item.id === "cloudos_origin_https_audit"),
+      false,
+    );
     await assert.rejects(
       other.dispatch("run_project_command", other.request(), ["execute"]),
       /CLOUDOS_ORIGIN_HTTPS_AUDIT_NOT_AUTHORIZED/,
@@ -94,9 +114,10 @@ test("rejects wrong device, project, grants, variant and caller-supplied lane or
   assert.equal(f.jobs.length, 0);
 });
 
-test("offline simulated origin validates certificate and page; never earns public/release credit", {
-  skip: process.platform === "win32",
-}, async (t) => {
+test(
+  "offline TLS and page checks never claim public release",
+  { skip: process.platform === "win32" },
+  async (t) => {
   const f = fixture(t);
   await f.dispatch("run_project_command", f.request(), ["execute"]);
   const program = f.jobs[0].args[3];
@@ -132,10 +153,11 @@ socket.create_connection=lambda addr,timeout: Sock() if addr==('127.0.0.1',443) 
 ssl.create_default_context=lambda: Context()
 exec(sys.argv[1], {'__name__':'__main__'})
 `;
-  const run = (mode) => spawnSync(
-    "python3", ["-I", "-B", "-c", driver, program, mode],
-    { timeout: 10000, encoding: "utf8" },
-  );
+  const run = (mode) =>
+    spawnSync("python3", ["-I", "-B", "-c", driver, program, mode], {
+      timeout: 10000,
+      encoding: "utf8",
+    });
   const healthy = run("ok");
   assert.equal(healthy.status, 0, healthy.stderr);
   const result = JSON.parse(healthy.stdout);
@@ -153,4 +175,5 @@ exec(sys.argv[1], {'__name__':'__main__'})
   const wrong = run("wronghost");
   assert.equal(wrong.status, 2, wrong.stderr);
   assert.match(wrong.stdout, /CLOUDOS_ORIGIN_HTTPS_AUDIT=BLOCKED_WRONG_HOST/);
-});
+  },
+);
