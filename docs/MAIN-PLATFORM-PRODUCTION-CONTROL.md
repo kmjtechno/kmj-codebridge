@@ -207,6 +207,40 @@ live-tool verification remain separate owner-approved operations. No backup
 service is started and no private key, path, target URL, secret, environment
 content or operator-selected process arguments can be requested.
 
+## Captured-client offsite SSH exit-255 classification (explicit approval)
+
+When a connected client lacks the separately registered
+`supervisor_main_platform_offsite_diagnostic` action, use only the existing
+`run_project_command` profile on authorized KMJ-elite with
+`command="main_platform_offsite_diagnostic"`,
+`variant="RUN_FIXED_READONLY_OFFSITE_DIAGNOSTIC"` and a nonempty unique
+`requestKey`. This route requires the existing `execute` grant, an explicit
+exact confirmation variant, an authorized writable `kmj-main-platform`
+project, and the already installed protected root-owned Supervisor.
+
+The route reuses the exact existing root-owned script at
+`/usr/local/libexec/kmj-main-platform-diagnose-offsite-backup-unit-20261029.sh`,
+which the Supervisor independently verifies against the pinned SHA-256
+`3ac8127f8e66ac4579330ae7671c2a2b31f68f6865c2a7c67e376adb475f6e32`
+before and after execution. It examines only the most recent matching failed
+offsite unit invocation and emits categorical results such as
+`SSH_AUTH_KEY_REJECTED`, `SSH_HOSTKEY`,
+`NETWORK_OR_REMOTE_DOWN`, `LOCAL_PERMISSION` or
+`UNKNOWN_EXIT_255_NEEDS_LOG`. The compatibility adapter validates its
+Supervisor envelope again and returns only the bounded failure class,
+invocation scope, and whether exit 255 was observed, never the raw journal or
+SSH/key/config details. It refuses paths, branches, arguments, other variants,
+unknown host/project, wrong permissions, missing pinned script, or a mutated
+or untrusted Supervisor result.
+
+This operation **does not** repair SSH credentials, upload data, start a
+backup, change a systemd unit, prove any offsite copy or independent
+restore, update approval manifests, or activate production. The
+`candidateEncryptedOffsiteVerified`, `independentRestoreVerified`,
+`rollbackVerified` and `productionApprovalChanged` flags always remain
+`false`. Merging source alone does not deploy this route into an already
+running agent; live invocation must be verified separately.
+
 ## Prestage, verify backups and approve
 
 The fixed service expects an **already prepared** immutable, clean release:
