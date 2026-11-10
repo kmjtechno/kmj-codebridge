@@ -19,7 +19,10 @@ function fixture(
   projectOptions = {},
   supervisorSocket = null,
   nativeSupervisor = null,
+  runtimeScope = null,
 ) {
+  const scopedDevice = runtimeScope?.device ?? "device1";
+  const scopedProject = runtimeScope?.project ?? "project1";
   const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-blocker-recovery-"));
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const root = path.join(base, "project");
@@ -34,7 +37,7 @@ function fixture(
   });
   const dispatch = createDispatcher(
     {
-      id: "device1",
+      id: scopedDevice,
       stateDir: path.join(base, "state"),
       ...(supervisorSocket ? { supervisorSocket } : {}),
       ...(nativeSupervisor
@@ -45,7 +48,7 @@ function fixture(
         : {}),
       projects: [
         {
-          id: "project1",
+          id: scopedProject,
           root,
           writable: true,
           gates: {},
@@ -65,7 +68,7 @@ function fixture(
   return {
     dispatch,
     autopilot,
-    scope: { device: "device1", project: "project1" },
+    scope: { device: scopedDevice, project: scopedProject },
     root,
   };
 }
@@ -87,6 +90,76 @@ test("recovery advisor maps absent client tool exposure to a safe native fix wit
   assert.equal(result.autonomousCodingProven, false);
   assert.equal(result.taskActuallyClaimed, false);
   assert.equal(result.productionOrBillingModified, false);
+});
+
+test("Main Platform client capture reports the missing fixed offsite diagnostic without granting root access", async (t) => {
+  const { dispatch, scope } = fixture(t, null, {}, null, null, {
+    device: "kmj-elite-main-platform",
+    project: "kmj-main-platform",
+  });
+  const clientVisibleTools = [
+    "connection_doctor",
+    "local_model_status",
+    "local_model_generate",
+    "autopilot_local_draft",
+  ];
+  const result = await dispatch(
+    "connection_doctor",
+    { ...scope, clientVisibleTools },
+    ["read"],
+  );
+  assert.deepEqual(result.blockerRecovery.clientModelToolsMissing, [
+    "supervisor_main_platform_offsite_diagnostic",
+  ]);
+  const blocker = result.blockerRecovery.blockers.find(
+    (entry) => entry.code === "CLIENT_TOOL_NOT_ADVERTISED",
+  );
+  assert.deepEqual(blocker?.evidence.missingTools, [
+    "supervisor_main_platform_offsite_diagnostic",
+  ]);
+  assert.equal(blocker?.evidenceSource, "CALLER_CLIENT_TOOL_SNAPSHOT");
+  assert.match(blocker?.nextAction ?? "", /refresh app\/catalog/);
+  assert.equal(result.blockerRecovery.productionOrBillingModified, false);
+  assert.equal(result.blockerRecovery.autonomousCodingProven, false);
+  // This is only a client-capture report; no root command was executed.
+  const ordinary = fixture(t);
+  const unscoped = await ordinary.dispatch(
+    "connection_doctor",
+    { ...ordinary.scope, clientVisibleTools },
+    ["read"],
+  );
+  assert.deepEqual(unscoped.blockerRecovery.clientModelToolsMissing, []);
+});
+
+test("project-required client tool names are fixed and cannot request arbitrary privileged tools", () => {
+  assert.throws(
+    () =>
+      inspectBlockers({
+        fixedProjectRequiredTools: [
+          "supervisor_main_platform_production_activate",
+        ],
+      }),
+    /INVALID_FIXED_CLIENT_TOOL_POLICY/,
+  );
+  assert.throws(
+    () =>
+      inspectBlockers({
+        fixedProjectRequiredTools: [
+          "supervisor_main_platform_offsite_diagnostic",
+          "supervisor_main_platform_offsite_diagnostic",
+        ],
+      }),
+    /INVALID_FIXED_CLIENT_TOOL_POLICY/,
+  );
+  const withoutCapture = inspectBlockers({
+    fixedProjectRequiredTools: ["supervisor_main_platform_offsite_diagnostic"],
+  });
+  assert.equal(withoutCapture.clientModelToolsMissing, null);
+  assert.ok(
+    !withoutCapture.blockers.some(
+      (entry) => entry.code === "CLIENT_TOOL_NOT_ADVERTISED",
+    ),
+  );
 });
 
 test("supervisor absent is diagnosed from runtime config without privilege escalation", async (t) => {
