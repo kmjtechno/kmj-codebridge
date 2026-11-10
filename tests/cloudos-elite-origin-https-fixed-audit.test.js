@@ -135,7 +135,7 @@ class Response:
  def getheader(self,key,default=''): return 'text/html; charset=utf-8'
  def begin(self): pass
  def read(self,n):
-  return (b'<title>Main Platform' if self.mode == 'page' else b'<title>CloudOS')
+  return (b'<title>Main Platform' if self.mode == 'page' else b'<title>CloudOS-different' if self.mode == 'different' else b'<title>CloudOS')
 class FakeHTTP:
  def __init__(self,*args,**kwargs):
   assert args[0]=='127.0.0.1' and args[1]==8080 and kwargs['timeout']==4
@@ -153,7 +153,7 @@ class Context:
   if scenario=='cert': raise ssl.SSLError('invalid cert')
   return Sock()
 http.client.HTTPConnection=FakeHTTP
-http.client.HTTPResponse=lambda conn: Response('page' if scenario=='page' else 'redirect' if scenario=='redirect' else 'ok')
+http.client.HTTPResponse=lambda conn: Response('page' if scenario=='page' else 'redirect' if scenario=='redirect' else 'different' if scenario=='different' else 'ok')
 socket.create_connection=lambda addr,timeout: Sock() if addr==('127.0.0.1',443) and timeout==4 else (_ for _ in ()).throw(AssertionError('wrong target'))
 ssl.create_default_context=lambda: Context()
 exec(sys.argv[1], {'__name__':'__main__'})
@@ -167,14 +167,17 @@ exec(sys.argv[1], {'__name__':'__main__'})
     assert.equal(healthy.status, 0, healthy.stderr);
     const result = JSON.parse(healthy.stdout);
     assert.equal(result.local_origin_readiness, "PASS_LOCAL_ONLY");
+    assert.equal(result.upstream_content_parity, "PASS");
     assert.equal(result.external_https_reachability, "NOT_VERIFIED");
     assert.equal(result.commercial_release, "NOT_APPROVED");
     assert.equal(result.host_modified, false);
-    for (const mode of ["cert", "page", "redirect"]) {
+    // A TLS page with a matching CloudOS title but different bytes is not our API.
+    for (const mode of ["cert", "page", "redirect", "different"]) {
       const blocked = run(mode);
       assert.equal(blocked.status, 3, blocked.stderr);
       const receipt = JSON.parse(blocked.stdout);
       assert.equal(receipt.local_origin_readiness, "BLOCKED");
+      assert.equal(receipt.upstream_content_parity, "BLOCKED");
       assert.equal(receipt.external_https_reachability, "NOT_VERIFIED");
     }
     const wrong = run("wronghost");
