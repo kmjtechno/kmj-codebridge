@@ -224,3 +224,36 @@ test("cached origin/main is strict, opt-in, and refuses missing tracking ref", (
     false,
   );
 });
+
+test("owner-set short lane base hosts lanes outside stateDir and rejects unsafe values", (t) => {
+  const x = fixture(t);
+  const short = path.join(path.dirname(x.state), "short");
+  fs.mkdirSync(short);
+  const lanes = new WorktreeLanes(x.state, short);
+  const lane = lanes.prepare("project1", x.repo, "chatA", x.head);
+  assert.equal(lane.head, x.head);
+  assert.ok(lane.path.startsWith(fs.realpathSync(short) + path.sep));
+  assert.ok(!lane.path.startsWith(fs.realpathSync(x.state) + path.sep));
+  assert.equal(lanes.prepare("project1", x.repo, "chatA", x.head).reused, true);
+  assert.equal(
+    lanes.cleanup("project1", x.repo, "chatA", x.head).released,
+    true,
+  );
+  for (const bad of [
+    "relative/path",
+    `${short}${path.sep}..${path.sep}short`,
+    path.join(short, "missing"),
+    `${short}\u0001`,
+    42,
+  ]) {
+    assert.throws(() => new WorktreeLanes(x.state, bad), /WORKTREE_/);
+  }
+  // No base keeps the legacy location under stateDir.
+  const legacy = new WorktreeLanes(x.state).prepare(
+    "project1",
+    x.repo,
+    "chatB",
+    x.head,
+  );
+  assert.ok(legacy.path.startsWith(fs.realpathSync(x.state) + path.sep));
+});

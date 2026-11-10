@@ -2236,7 +2236,7 @@ export function createDispatcher(
   let worktrees;
   const worktreeLanes = () => {
     if (!laneStateDir) fail("WORKTREE_STATE_UNAVAILABLE");
-    return (worktrees ??= new WorktreeLanes(laneStateDir));
+    return (worktrees ??= new WorktreeLanes(laneStateDir, config.laneBaseDir));
   };
   let checkpointStore;
   const checkpoints = () =>
