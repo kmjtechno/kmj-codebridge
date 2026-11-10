@@ -17,7 +17,10 @@ import { auditFreeFirst } from "./free-first.js";
 import { ProjectFiles } from "./policy.js";
 import { FileCheckpoints } from "./checkpoints.js";
 import { fail, publicError } from "./errors.js";
-import { OFFSITE_DIAGNOSTIC_CONFIRMATION, FAILURE_CLASSES } from "./offsite-diagnostic-policy.js";
+import {
+  OFFSITE_DIAGNOSTIC_CONFIRMATION,
+  FAILURE_CLASSES,
+} from "./offsite-diagnostic-policy.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
@@ -4113,9 +4116,7 @@ export function createDispatcher(
           !["exit-code", "success", "signal", "timeout"].includes(
             diagnostic.result,
           ) ||
-          !/^(?:[0-9]{1,3}|unknown)$/.test(
-            diagnostic.exec_main_status ?? "",
-          )
+          !/^(?:[0-9]{1,3}|unknown)$/.test(diagnostic.exec_main_status ?? "")
         )
           fail("MAIN_PLATFORM_OFFSITE_DIAGNOSTIC_UNVERIFIED");
         const exit255Observed =
@@ -4123,8 +4124,7 @@ export function createDispatcher(
           diagnostic.result === "exit-code";
         if (
           diagnostic.failure_class !== "UNKNOWN_EXIT_255_NEEDS_LOG" &&
-          (!exit255Observed ||
-            diagnostic.journal_scope !== "EXACT_INVOCATION")
+          (!exit255Observed || diagnostic.journal_scope !== "EXACT_INVOCATION")
         )
           fail("MAIN_PLATFORM_OFFSITE_DIAGNOSTIC_UNVERIFIED");
         return {
