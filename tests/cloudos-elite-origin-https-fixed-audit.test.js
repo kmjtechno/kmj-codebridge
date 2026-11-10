@@ -12,7 +12,9 @@ function fixture(
   project = "kmj-cloudos",
   writable = true,
 ) {
-  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cloudos-elite-https-"));
+  const directory = fs.mkdtempSync(
+    path.join(os.tmpdir(), "cb-cloudos-elite-https-"),
+  );
   t.after(() => fs.rmSync(directory, { recursive: true, force: true }));
   const root = path.join(directory, "repo");
   fs.mkdirSync(root);
@@ -70,7 +72,10 @@ test("fixed ELITE CloudOS origin audit is read-only and bounded", async (t) => {
   assert.match(cmd.args[3], /127\.0\.0\.1/);
   assert.match(cmd.args[3], /server_hostname=HOST/);
   assert.match(cmd.args[3], /ssl\.create_default_context\(\)/);
-  assert.doesNotMatch(cmd.args[3], /subprocess|os\.system|os\.remove|open\(.*['"]w/);
+  assert.doesNotMatch(
+    cmd.args[3],
+    /subprocess|os\.system|os\.remove|open\(.*['"]w/,
+  );
 });
 
 test("audit denies wrong device, project and caller overrides", async (t) => {
@@ -152,7 +157,7 @@ http.client.HTTPResponse=lambda conn: Response('page' if scenario=='page' else '
 socket.create_connection=lambda addr,timeout: Sock() if addr==('127.0.0.1',443) and timeout==4 else (_ for _ in ()).throw(AssertionError('wrong target'))
 ssl.create_default_context=lambda: Context()
 exec(sys.argv[1], {'__name__':'__main__'})
-  `;
+`;
     const run = (mode) =>
       spawnSync("python3", ["-I", "-B", "-c", driver, program, mode], {
         timeout: 10000,
