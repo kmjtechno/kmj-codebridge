@@ -2393,6 +2393,13 @@ export function createDispatcher(
               },
               blockerRecovery: inspectBlockers({
                 clientVisibleTools: a.clientVisibleTools ?? null,
+                // Runtime-selected, not caller-selectable. A source policy
+                // entry is not evidence this chat exposes the action.
+                fixedProjectRequiredTools:
+                  config.id === "kmj-elite-main-platform" &&
+                  p.id === "kmj-main-platform"
+                    ? ["supervisor_main_platform_offsite_diagnostic"]
+                    : [],
                 // Only a successful trusted bounded Supervisor status RPC
                 // upgrades the filesystem observation into live health.
                 supervisorConfigured: Boolean(
