@@ -17,6 +17,7 @@ import re
 import subprocess
 import sys
 
+# Keep the previously owner-attested ED25519 pin despite the origin IP rotation.
 EXPECTED_FINGERPRINT = "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI"
 KEYTYPE = "ssh-ed25519"
 HOST_KEY_RE = re.compile(r"^[A-Za-z0-9+/]+={0,2}$")
@@ -101,10 +102,10 @@ def check(host: str, command=run) -> None:
 
 
 def self_test() -> None:
-    assert require_public_ipv4("103.212.136.154") == "103.212.136.154"
+    assert require_public_ipv4("150.242.200.81") == "150.242.200.81"
     for invalid in ("127.0.0.1", "10.128.0.3", "192.168.1.1",
-                    "103.212.136.154;id", "103.212.136.154\n",
-                    "http://103.212.136.154", "1.1.1.01", "::1"):
+                    "150.242.200.81;id", "150.242.200.81\n",
+                    "http://150.242.200.81", "1.1.1.01", "::1"):
         try:
             require_public_ipv4(invalid)
         except Blocked:
@@ -112,14 +113,14 @@ def self_test() -> None:
         else:
             raise AssertionError("Unsafe endpoint accepted: " + invalid)
     key = base64.b64encode(b"x" * 60).decode()
-    data = "103.212.136.154 ssh-ed25519 " + key
-    assert parse_keyscan(data, "103.212.136.154").strip() == data
+    data = "150.242.200.81 ssh-ed25519 " + key
+    assert parse_keyscan(data, "150.242.200.81").strip() == data
     for invalid in (data + "\n" + data,
                     data.replace("ssh-ed25519", "ssh-rsa"),
-                    data.replace("103.212.136.154", "8.8.8.8"),
+                    data.replace("150.242.200.81", "8.8.8.8"),
                     data.replace(key, "!!!!")):
         try:
-            parse_keyscan(invalid, "103.212.136.154")
+            parse_keyscan(invalid, "150.242.200.81")
         except Blocked:
             pass
         else:
@@ -133,14 +134,14 @@ def self_test() -> None:
             assert stdin == data + "\n"
             return "256 " + EXPECTED_FINGERPRINT + " host (ED25519)"
         raise AssertionError("Unexpected command")
-    check("103.212.136.154", command=fake)
+    check("150.242.200.81", command=fake)
     assert [a[0] for a in calls] == ["ssh-keyscan", "ssh-keygen"]
     def wrong(argv, *, stdin=None, timeout=12):
         if argv[0] == "ssh-keyscan":
             return data
         return "256 SHA256:" + "a"*43 + " host (ED25519)"
     try:
-        check("103.212.136.154", command=wrong)
+        check("150.242.200.81", command=wrong)
     except Blocked:
         pass
     else:
