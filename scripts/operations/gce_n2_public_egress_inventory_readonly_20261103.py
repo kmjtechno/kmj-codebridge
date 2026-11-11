@@ -18,7 +18,8 @@ PROJECT = "kmj-techno"
 ZONE = "us-central1-a"
 REGION = "us-central1"
 VM = "kmj-cloudos-kvm-test"
-PUBLIC_IP = "103.212.136.154"
+# Fixed target is KMJ-elite origin (not GCE/Google SFTP receiver).
+PUBLIC_IP = "150.242.200.81"
 ALLOWED_HOSTS = {"compute.googleapis.com", "www.googleapis.com"}
 VALID_NAME = re.compile(r"[a-z][a-z0-9-]{0,62}\Z")
 
