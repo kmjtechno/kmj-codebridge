@@ -7,6 +7,11 @@ const LANE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/;
 const PROJECT = /^[A-Za-z0-9_-]{1,64}$/;
 const SHA = /^[a-f0-9]{40}$/;
 const MAX_LANES = 4;
+// Fixed, generated out-of-source build directory used by the cmake-standard
+// command profile. It is output of an approved command, not unsaved work, so it
+// must not make a lane look dirty (otherwise a lane could never run configure
+// and then build). Any other untracked or modified path still counts.
+const BUILD_DIR = ".kmj-codebridge-build";
 
 function git(root, args) {
   try {
@@ -115,8 +120,14 @@ export class WorktreeLanes {
         verifyLane(root, target);
         const head = git(target, ["rev-parse", "--verify", "HEAD"]);
         const dirty =
-          git(target, ["status", "--porcelain", "--untracked-files=all"]) !==
-          "";
+          git(target, [
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            ".",
+            `:(exclude)${BUILD_DIR}`,
+          ]) !== "";
         return { laneId: name, head, dirty, path: target };
       })
       .sort((a, b) => a.laneId.localeCompare(b.laneId));
@@ -212,6 +223,15 @@ export class WorktreeLanes {
     if (current.head !== expectedHead || current.dirty)
       fail("WORKTREE_HAS_UNSAVED_WORK");
     const target = path.join(this.folder(project), laneId);
+    // Only the generated build directory may remain; remove it as a real
+    // directory (never through a link) so plain `worktree remove` can succeed.
+    const build = path.join(target, BUILD_DIR);
+    if (exists(build)) {
+      const stat = fs.lstatSync(build);
+      if (!stat.isDirectory() || stat.isSymbolicLink())
+        fail("WORKTREE_PATH_UNSAFE");
+      fs.rmSync(build, { recursive: true, force: true, maxRetries: 5 });
+    }
     git(repo, ["worktree", "remove", target]);
     if (exists(target)) fail("WORKTREE_REMOVE_UNVERIFIED");
     return { released: true, laneId, originalCheckoutPreserved: true };
