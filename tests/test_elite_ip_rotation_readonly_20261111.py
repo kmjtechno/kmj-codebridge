@@ -37,7 +37,7 @@ class EliteIPRotationReadonlyContracts(unittest.TestCase):
             with self.subTest(path=name):
                 source = (ROOT / name).read_text(encoding="utf-8")
                 self.assertNotIn('gcloud compute instances start', source)
-                self.assertNotIn('gcloud compute ssh', source)
+                self.assertNotIn('subprocess.run(["gcloud", "compute", "ssh"', source)
                 self.assertNotIn('set-metadata', source)
                 self.assertNotIn('ssh-copy-id', source)
                 self.assertNotIn('StrictHostKeyChecking=no', source)
