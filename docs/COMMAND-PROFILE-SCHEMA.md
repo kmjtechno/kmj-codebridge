@@ -117,6 +117,11 @@ must all be independently observed before any release decision.
   root) and lanes are then created there instead of under `stateDir`. It is
   never taken from tool input. Status: mitigation implemented and unit tested
   on Linux only; not yet proven on the P520.
+- Lane dirtiness: the fixed generated `.kmj-codebridge-build` directory of the
+  `cmake-standard` profile no longer counts as unsaved work, so one lane can run
+  `cmake_configure`, `cmake_build` and `cmake_test` in sequence. Every other
+  untracked or modified path still makes the lane dirty, and cleanup removes the
+  generated directory (never through a link) before `git worktree remove`.
 - Any GUI/HIL interaction needs explicit user consent and stays pending.
 
 ## 6. What is not claimed

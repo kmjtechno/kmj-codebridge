@@ -257,3 +257,33 @@ test("owner-set short lane base hosts lanes outside stateDir and rejects unsafe 
   );
   assert.ok(legacy.path.startsWith(fs.realpathSync(x.state) + path.sep));
 });
+
+test("generated cmake build directory does not make a lane dirty and is removed on cleanup", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  const lane = lanes.prepare("project1", x.repo, "cmakeLane", x.head);
+  const build = path.join(lane.path, ".kmj-codebridge-build");
+  fs.mkdirSync(path.join(build, "CMakeFiles"), { recursive: true });
+  fs.writeFileSync(path.join(build, "CMakeCache.txt"), "generated\n");
+  assert.equal(lanes.status("project1", x.repo).lanes[0].dirty, false);
+  // The same lane can be reused for the next command in the profile.
+  assert.equal(
+    lanes.prepare("project1", x.repo, "cmakeLane", x.head).reused,
+    true,
+  );
+  // Any other untracked file still counts as unsaved work.
+  fs.writeFileSync(path.join(lane.path, "notes.txt"), "mine\n");
+  assert.equal(lanes.status("project1", x.repo).lanes[0].dirty, true);
+  assert.throws(
+    () => lanes.cleanup("project1", x.repo, "cmakeLane", x.head),
+    /WORKTREE_HAS_UNSAVED_WORK/,
+  );
+  // A modified tracked file inside is dirty too; remove the extra file and cleanup works.
+  fs.rmSync(path.join(lane.path, "notes.txt"));
+  assert.equal(lanes.status("project1", x.repo).lanes[0].dirty, false);
+  assert.equal(
+    lanes.cleanup("project1", x.repo, "cmakeLane", x.head).released,
+    true,
+  );
+  assert.equal(fs.existsSync(lane.path), false);
+});
