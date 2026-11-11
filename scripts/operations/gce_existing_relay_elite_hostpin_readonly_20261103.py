@@ -26,7 +26,8 @@ PROJECT = "kmj-techno"
 ZONE = "us-central1-a"
 VM = "instance-20260912-094732"
 INTERNAL_IP = "10.128.0.2"
-ELITE_IPV4 = "103.212.136.154"
+# Origin reassigned 2026-11-11; host ED25519 pin must still match exactly.
+ELITE_IPV4 = "150.242.200.81"
 ELITE_EXPECTED_ED25519 = "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI"
 RELAY_EXPECTED_ED25519 = "SHA256:9ibmOwHchvHmaLTDNv8Osm0IIepfZNnQY+BMF7CuJWU"
 PUBKEY_FILE = Path("/etc/ssh/ssh_host_ed25519_key.pub")
