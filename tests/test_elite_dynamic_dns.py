@@ -22,8 +22,8 @@ class EliteDynamicDns(unittest.TestCase):
         self.assertNotIn('"POST"', source)
         self.assertIn('{"content": item["content"]}', source)
         records = ast.literal_eval(source.split("A_RECORDS = ", 1)[1].split("}", 1)[0] + "}")
-        self.assertEqual(records, {"kmjtechno.com": True, "staging.kmjtechno.com": True,
-                                   "elite-ssh.kmjtechno.com": False, "mail.kmjtechno.com": False})
+        self.assertEqual(records, {"kmjtechno.com": True, "staging.kmjtechno.com": True})
+        self.assertNotIn("spf", source.split("def plan_updates", 1)[1].split("def run", 1)[0].lower())
 
     def test_token_never_printed(self):
         tree = ast.parse(SCRIPT.read_text(encoding="utf-8"))
