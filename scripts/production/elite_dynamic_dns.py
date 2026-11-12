@@ -1,17 +1,18 @@
 #!/usr/bin/env python3
-"""KMJ-elite dynamic DNS: keep the few non-tunnel records on the current IPv4.
+"""KMJ-elite dynamic DNS: keep IP-bound records on the current IPv4.
 
-The website hostnames (kmjtechno.com, www, staging, cloudos) go through the
-Cloudflare Tunnel and never need DNS changes. Only these stay IP-bound:
+IP-bound records (www and cloudos are CNAMEs to the apex and follow it):
 
+* A    kmjtechno.com            (proxied)
+* A    staging.kmjtechno.com    (proxied)
 * A    elite-ssh.kmjtechno.com  (DNS only, SSH; host key stays pinned)
 * A    mail.kmjtechno.com       (DNS only)
 * TXT  kmjtechno.com SPF        (only the "ip4:<old>" token is replaced)
 
 Safety:
 * Dry run by default; --apply is required to PATCH anything.
-* Never creates or deletes records, never touches proxied/tunnel records,
-  never changes any other field than content.
+* Never creates or deletes records and never changes any field other than
+  content; each record's proxy status must match the expected value.
 * A record is updated only when it currently holds the IPv4 recorded in the
   state file (or, on first run, the --expect-old value), so an unexpected
   manual change is never overwritten.
@@ -34,7 +35,12 @@ import urllib.request
 from pathlib import Path
 
 ZONE = "kmjtechno.com"
-A_RECORDS = ("elite-ssh.kmjtechno.com", "mail.kmjtechno.com")
+A_RECORDS = {
+    "kmjtechno.com": True,
+    "staging.kmjtechno.com": True,
+    "elite-ssh.kmjtechno.com": False,
+    "mail.kmjtechno.com": False,
+}  # name -> expected proxied
 TRACE_URL = "https://1.1.1.1/cdn-cgi/trace"
 API = "https://api.cloudflare.com/client/v4"
 TOKEN_FILE = Path("/etc/kmj-elite-ddns/cloudflare.token")
@@ -98,14 +104,14 @@ def plan_updates(fetch, token: str, old_ip: str, new_ip: str) -> list[dict]:
         raise Blocked("ZONE_NOT_UNIQUE")
     zone = zones[0]["id"]
     updates = []
-    for name in A_RECORDS:
+    for name, proxied in A_RECORDS.items():
         query = urllib.parse.urlencode({"type": "A", "name": name})
         records = api(fetch, token, "GET", f"/zones/{zone}/dns_records?{query}")["result"]
         if len(records) != 1:
             raise Blocked("A_RECORD_NOT_UNIQUE:" + name)
         record = records[0]
-        if record.get("proxied"):
-            raise Blocked("A_RECORD_PROXIED:" + name)
+        if bool(record.get("proxied")) != proxied:
+            raise Blocked("A_RECORD_PROXY_MISMATCH:" + name)
         if record["content"] == new_ip:
             continue
         if record["content"] != old_ip:
@@ -212,6 +218,8 @@ def self_test() -> None:
 
     def records():
         return [
+            {"id": "5", "type": "A", "name": "kmjtechno.com", "content": "150.242.200.81", "proxied": True},
+            {"id": "6", "type": "A", "name": "staging.kmjtechno.com", "content": "150.242.200.81", "proxied": True},
             {"id": "1", "type": "A", "name": "elite-ssh.kmjtechno.com", "content": "150.242.200.81", "proxied": False},
             {"id": "2", "type": "A", "name": "mail.kmjtechno.com", "content": "150.242.200.81", "proxied": False},
             {"id": "3", "type": "TXT", "name": ZONE, "content": "v=spf1 ip4:150.242.200.81 include:_spf.mx.cloudflare.net ~all"},
@@ -243,16 +251,16 @@ def self_test() -> None:
         assert not state.exists()
         args.apply = True
         assert run(args, fake) == 0
-        assert [r["content"] for r in fake.records][:3] == [
-            "8.8.4.4", "8.8.4.4", "v=spf1 ip4:8.8.4.4 include:_spf.mx.cloudflare.net ~all"]
-        assert fake.records[3]["content"] == "brevo-code:x"
+        assert [r["content"] for r in fake.records][:5] == [
+            "8.8.4.4", "8.8.4.4", "8.8.4.4", "8.8.4.4", "v=spf1 ip4:8.8.4.4 include:_spf.mx.cloudflare.net ~all"]
+        assert fake.records[5]["content"] == "brevo-code:x"
         assert state.read_text().strip() == "8.8.4.4"
         # Idempotent: same IP means no PATCH.
         fake.calls.clear()
         assert run(args, fake) == 0 and not any(c[0] == "PATCH" for c in fake.calls)
         # A manually changed record is never overwritten.
         recs = records()
-        recs[1]["content"] = "9.9.9.9"
+        recs[3]["content"] = "9.9.9.9"
         state.write_text("150.242.200.81\n")
         fake = FakeCloudflare("8.8.4.4", recs)
         try:
@@ -262,13 +270,13 @@ def self_test() -> None:
         else:
             raise AssertionError("overwrote unexpected record")
         assert not any(c[0] == "PATCH" for c in fake.calls)
-        # Proxied records are refused.
+        # A record whose proxy status differs from the expectation is refused.
         recs = records()
-        recs[0]["proxied"] = True
+        recs[2]["proxied"] = True
         try:
             run(args, FakeCloudflare("8.8.4.4", recs))
         except Blocked as error:
-            assert str(error).startswith("A_RECORD_PROXIED"), error
+            assert str(error).startswith("A_RECORD_PROXY_MISMATCH"), error
         else:
             raise AssertionError("touched proxied record")
         # Private trace IP is refused.
