@@ -5,10 +5,12 @@ on:
     paths:
       - scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py
       - .github/workflows/gce-existing-relay-elite-outbound-pin.yml
+      - config/elite-origin.json
   pull_request:
     paths:
       - scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py
       - .github/workflows/gce-existing-relay-elite-outbound-pin.yml
+      - config/elite-origin.json
 
 permissions:
   contents: read
@@ -24,7 +26,7 @@ jobs:
           python3 -B scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py --self-test
           sha256sum scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py
           python3 - <<'PY'
-          import ast
+          import ast, json
           from pathlib import Path
           p=Path("scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py")
           s=p.read_text()
@@ -32,7 +34,7 @@ jobs:
           for expected in (
               'VM = "instance-20260912-094732"',
               'INTERNAL_IP = "10.128.0.2"',
-              'ELITE_IPV4 = "150.242.200.81"',
+              'ELITE_IPV4 = "' + json.load(open("config/elite-origin.json"))["ipv4"] + '"',
               'RELAY_EXPECTED_ED25519 = "SHA256:9ibmOwHchvHmaLTDNv8Osm0IIepfZNnQY+BMF7CuJWU"',
               'RELAY_INTERNAL_ED25519_PIN=EXACT_MATCH_LOCAL_VANTAGE',
               'N2_TO_RELAY_AUTHENTICATED_SSH_LOGIN=NOT_ATTEMPTED',

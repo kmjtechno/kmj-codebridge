@@ -1,0 +1,77 @@
+name: Rotate KMJ-elite origin IP
+
+# One-click owner action: Actions -> "Rotate KMJ-elite origin IP" -> Run
+# workflow -> enter the new public IPv4. It rewrites only the files listed in
+# config/elite-origin.json, keeps the SSH ED25519 pin unchanged, runs every
+# offline guard and opens a pull request for the owner to review and merge.
+# It never touches DNS, Cloudflare, SSH, GCE, servers or production.
+
+on:
+  workflow_dispatch:
+    inputs:
+      new_ipv4:
+        description: New public IPv4 of the KMJ-elite origin (e.g. 150.242.200.81)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: rotate-elite-origin-ip
+  cancel-in-progress: false
+
+jobs:
+  rotate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Rewrite managed files (input validated, never interpolated into shell)
+        env:
+          NEW_IPV4: ${{ inputs.new_ipv4 }}
+        run: |
+          set -euo pipefail
+          python3 -B scripts/operations/rotate_elite_origin_ip.py --to "$NEW_IPV4" --apply | tee rotation.txt
+          grep -q '^ELITE_IP_ROTATION=APPLIED' rotation.txt
+      - name: Run all offline guards on the rotated tree
+        run: |
+          python3 -B scripts/operations/rotate_elite_origin_ip.py --self-test
+          python3 -B scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py --self-test
+          python3 -B scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py --self-test
+          python3 -B -m unittest discover -s tests -p 'test_elite_*.py' -v
+      - name: Open review pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NEW_IPV4: ${{ inputs.new_ipv4 }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          branch="ops/elite-origin-ip-${NEW_IPV4//./-}-${RUN_ID}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898900+github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add -u
+          git commit -m "ops: rotate KMJ-elite origin IPv4 to ${NEW_IPV4}" -m "$(cat rotation.txt)"
+          git push origin "$branch"
+          {
+            echo "Automated KMJ-elite origin IPv4 rotation (run ${RUN_ID})."
+            echo
+            echo '```'
+            cat rotation.txt
+            echo '```'
+            echo
+            echo "SSH ED25519 pin is unchanged, so a different host key still fails closed."
+            echo "MANUAL_REVIEW files were deliberately not changed (billable, SFTP-auth, known_hosts)."
+            echo "PRs opened by GITHUB_TOKEN do not trigger CI: close and reopen this PR to run it."
+            echo "DNS/Cloudflare records and server config are still updated by the owner."
+          } > body.md
+          compare="https://github.com/${GITHUB_REPOSITORY}/compare/${GITHUB_REF_NAME}...${branch}?expand=1"
+          if gh pr create --base "${GITHUB_REF_NAME}" --head "$branch" \
+               --title "ops: rotate KMJ-elite origin IPv4 to ${NEW_IPV4}" --body-file body.md; then
+            echo "ROTATION_PR=CREATED" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "ROTATION_PR=OPEN_MANUALLY ${compare}" | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+          cat rotation.txt >> "$GITHUB_STEP_SUMMARY"
