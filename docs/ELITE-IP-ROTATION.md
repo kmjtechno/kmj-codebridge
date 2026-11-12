@@ -1,5 +1,28 @@
 # KMJ-elite origin IP rotation (one click)
 
+## What happens when the server IP changes
+
+| Part                                   | How it follows the new IP                                             |
+| -------------------------------------- | --------------------------------------------------------------------- |
+| kmjtechno.com, www, staging, cloudos   | Cloudflare Tunnel (outbound from the server) — nothing to do          |
+| elite-ssh, mail A records + SPF `ip4:` | `kmj-elite-ddns.timer` on KMJ-elite updates them within 5 minutes     |
+| Repository probes and tests            | GitHub Actions → **Rotate KMJ-elite origin IP** (one click, below)    |
+| SSH host key                           | Never changed automatically; a new key fails closed until re-attested |
+
+### One-time setup of the DNS timer (owner, on KMJ-elite)
+
+1. Cloudflare → My Profile → API Tokens → Create token → _Edit zone DNS_,
+   zone `kmjtechno.com` only.
+2. `sudo bash examples/elite-ddns/install.sh` (paste the token when asked; it
+   is stored root-only and never printed; ends with a dry run).
+3. `sudo systemctl enable --now kmj-elite-ddns.timer`
+
+The updater only edits the content of those three records, only when they
+still hold the previously recorded IP, and never creates, deletes or touches
+tunnel/proxied records.
+
+## Repository rotation
+
 `config/elite-origin.json` is the single source of truth for the KMJ-elite
 public origin IPv4 and its SSH ED25519 host-key pin.
 
