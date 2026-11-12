@@ -1478,9 +1478,9 @@ export async function startGateway(rawConfig) {
                   pipeStrategy: "input",
                 })
               : { type: "object", properties: {} },
-            // Preserve legacy non-OAuth discovery presentation while
-            // keeping owner-approved icons on the protected customer path.
-            ...(config.oauth ? { icons: clientIcons } : {}),
+            // Advertise the approved icon on every tools/list path (OAuth and
+            // non-OAuth) so ChatGPT/MCP Apps hosts can resolve tool icons.
+            icons: clientIcons,
             annotations: {
               title: d.title,
               readOnlyHint: d.access === "read",

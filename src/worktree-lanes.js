@@ -22,7 +22,9 @@ function git(root, args) {
         cwd: root,
         encoding: "utf8",
         timeout: 20000,
-        maxBuffer: 65536,
+        // Large untracked trees (build output) overflowed the old 64 KB cap
+        // and made lane scans fail with WORKTREE_GIT_FAILED.
+        maxBuffer: 16 * 1024 * 1024,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
         env: {
