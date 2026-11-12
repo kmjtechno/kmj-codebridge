@@ -1,5 +1,5 @@
 [Unit]
-Description=KMJ-elite dynamic DNS (elite-ssh, mail, SPF only)
+Description=KMJ-elite dynamic DNS (proxied web A records: apex, staging)
 Wants=network-online.target
 After=network-online.target
 

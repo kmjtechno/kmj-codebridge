@@ -21,7 +21,9 @@ website hostnames now reach the origin directly through Cloudflare's proxy.
    is stored root-only and never printed; ends with a dry run).
 3. `sudo systemctl enable --now kmj-elite-ddns.timer`
 
-The updater only edits the content of those records, only when they still
+`kmj-elite-ddns` only manages the two proxied web A records; it never
+touches mail, elite-ssh or SPF, which stay with `kmj-ip-autopilot`. It only
+edits the content of its records, only when they still
 hold the previously recorded IP and have the expected proxy status, and never
 creates or deletes records.
 
