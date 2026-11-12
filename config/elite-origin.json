@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "description": "Single source of truth for the KMJ-elite public origin IPv4. Change it only with scripts/operations/rotate_elite_origin_ip.py (or the 'Rotate KMJ-elite origin IP' workflow). The SSH ED25519 pin is never changed by IP rotation. Workflows read the IPv4 from this file at run time and are never rewritten (GITHUB_TOKEN cannot push workflow files).",
+  "ipv4": "150.242.200.81",
+  "sshEd25519": "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI",
+  "managedFiles": [
+    "scripts/operations/gce_existing_relay_elite_hostpin_readonly_20261103.py",
+    "scripts/operations/gce_n2_public_egress_inventory_readonly_20261103.py",
+    "scripts/operations/cloudos_elite_ssh_trust_probe_20261102.py",
+    "tests/test_elite_ip_rotation_readonly_20261111.py"
+  ]
+}
