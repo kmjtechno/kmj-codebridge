@@ -75,7 +75,7 @@ class ReadOnlySftpSmokeTests(unittest.TestCase):
         self.assertIn("IdentityAgent=none", captured["argv"])
         self.assertIn("HostKeyAlgorithms=ssh-ed25519", captured["argv"])
         self.assertIn("-b", captured["argv"])
-        self.assertIn("kmjcloudosbackup@103.212.136.154", captured["argv"])
+        self.assertIn("kmjcloudosbackup@elite-ssh.kmjtechno.com", captured["argv"])
         self.assertLessEqual(captured["timeout"], 30)
         self.assertFalse(any(
             x in captured["stdin"] for x in (b"put", b"rm ", b"mkdir",
