@@ -158,3 +158,129 @@ test("different causes are never incorrectly merged as one systemic failure", ()
     r.proposals.every((proposal) => proposal.stage === "EVIDENCE_COLLECTION"),
   );
 });
+
+test("repeated observed skill gaps become design-review candidates, not installed skills", () => {
+  const result = evaluateEngineeringObservations({
+    project,
+    observations: [
+      make({ kind: "skill_gap" }),
+      make({
+        eventId: "evt-00000002",
+        sessionId: "chat-00000002",
+        kind: "skill_gap",
+        evidence: "USER_CONFIRMED",
+      }),
+    ],
+  });
+  assert.equal(result.newSkillCandidates.length, 1);
+  const candidate = result.newSkillCandidates[0];
+  assert.equal(candidate.observedInSkill, "debugging");
+  assert.equal(candidate.stage, "NEW_SKILL_DESIGN_REVIEW");
+  assert.equal(candidate.status, "PROPOSED_NOT_INSTALLED");
+  assert.equal(candidate.externalEvidenceVerified, false);
+  assert.ok(candidate.requiredGates.includes("project-scoped owner review"));
+  assert.equal(result.liveSkillsChanged, false);
+});
+
+test("unverified repeated skill gaps never promote a new skill design", () => {
+  const result = evaluateEngineeringObservations({
+    project,
+    observations: [
+      make({ kind: "skill_gap", evidence: "UNVERIFIED" }),
+      make({
+        eventId: "evt-00000002",
+        sessionId: "chat-00000002",
+        kind: "skill_gap",
+        evidence: "UNVERIFIED",
+      }),
+    ],
+  });
+  assert.equal(result.newSkillCandidates[0].stage, "EVIDENCE_COLLECTION");
+  assert.equal(result.crossCuttingCandidates.length, 0);
+});
+
+test("independent skills and sessions produce a cross-cutting review proposal only", () => {
+  const observations = [
+    make({ skill: "debugging" }),
+    make({
+      eventId: "evt-00000002",
+      sessionId: "chat-00000002",
+      skill: "security-hardening",
+      kind: "user_correction",
+    }),
+  ];
+  const result = evaluateEngineeringObservations({ project, observations });
+  assert.equal(result.crossCuttingCandidates.length, 1);
+  const candidate = result.crossCuttingCandidates[0];
+  assert.deepEqual(candidate.affectedSkills, [
+    "debugging",
+    "security-hardening",
+  ]);
+  assert.equal(candidate.stage, "CROSS_SKILL_REVIEW");
+  assert.equal(candidate.distinctSessions, 2);
+  assert.equal(candidate.externalEvidenceVerified, false);
+  assert.equal(candidate.status, "PROPOSED_NOT_INSTALLED");
+  assert.equal(result.durableStateSaved, false);
+  assert.deepEqual(
+    result,
+    evaluateEngineeringObservations({
+      project,
+      observations: [...observations].reverse(),
+    }),
+  );
+});
+
+test("a shared cause in only one session or with unverified evidence stays in collection", () => {
+  const singleSession = evaluateEngineeringObservations({
+    project,
+    observations: [
+      make(),
+      make({
+        eventId: "evt-00000002",
+        skill: "security-hardening",
+      }),
+    ],
+  });
+  assert.equal(
+    singleSession.crossCuttingCandidates[0].stage,
+    "EVIDENCE_COLLECTION",
+  );
+  const unverified = evaluateEngineeringObservations({
+    project,
+    observations: [
+      make(),
+      make({
+        eventId: "evt-00000002",
+        sessionId: "chat-00000002",
+        skill: "security-hardening",
+        evidence: "UNVERIFIED",
+      }),
+    ],
+  });
+  assert.equal(
+    unverified.crossCuttingCandidates[0].stage,
+    "EVIDENCE_COLLECTION",
+  );
+});
+
+test("new outputs preserve safe idempotent retries without extra candidates", () => {
+  const events = [
+    make({ kind: "skill_gap" }),
+    make({
+      eventId: "evt-00000002",
+      sessionId: "chat-00000002",
+      skill: "security-hardening",
+    }),
+  ];
+  const exact = evaluateEngineeringObservations({
+    project,
+    observations: events,
+  });
+  const replay = evaluateEngineeringObservations({
+    project,
+    observations: [...events, events[0]],
+  });
+  assert.equal(replay.idempotentReplays, 1);
+  assert.deepEqual(replay.newSkillCandidates, exact.newSkillCandidates);
+  assert.deepEqual(replay.crossCuttingCandidates, exact.crossCuttingCandidates);
+});
