@@ -328,11 +328,13 @@ test("KMJ Calibration Studio offline QA requires opt-in and an exact isolated he
   assert.equal(normal.commands.calibration_studio_qt_qa, undefined);
   const configured = agentSchema.parse({
     ...base,
-    projects: [{
-      ...base.projects[0],
-      id: "kmj-calibration-studio",
-      commandPresets: ["calibration-studio-qt-offline"],
-    }],
+    projects: [
+      {
+        ...base.projects[0],
+        id: "kmj-calibration-studio",
+        commandPresets: ["calibration-studio-qt-offline"],
+      },
+    ],
   }).projects[0];
   const profile = configured.commands.calibration_studio_qt_qa;
   assert.equal(profile.category, "build");
@@ -346,7 +348,13 @@ test("KMJ Calibration Studio offline QA requires opt-in and an exact isolated he
   ]);
   assert.equal(profile.variants.full.timeoutMs, 300000);
   for (const forbidden of [
-    "scan", "camera", "project", "install", "deploy", "publish", "shell",
+    "scan",
+    "camera",
+    "project",
+    "install",
+    "deploy",
+    "publish",
+    "shell",
   ]) {
     assert.equal(profile.variants[forbidden], undefined);
   }
@@ -364,7 +372,10 @@ test("KMJ Calibration Studio offline QA requires opt-in and an exact isolated he
     'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
     "beforeStart: verify",
   ]) {
-    assert.ok(toolsSource.includes(proof), "Missing Studio QA guard: " + proof);
+    assert.ok(
+      toolsSource.includes(proof),
+      "Missing Studio QA guard: " + proof,
+    );
   }
 });
 
