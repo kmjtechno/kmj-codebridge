@@ -57,7 +57,8 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     // Render config is often an environment-held secret, not a writable file.
     // This opt-in adds only the owner-approved CloudOS repo, never a wildcard.
     const cloudosOptIn = env.CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY;
-    const calibrationOptIn = env.CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY;
+    const calibrationOptIn =
+      env.CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY;
     for (const optIn of [cloudosOptIn, calibrationOptIn]) {
       if (optIn !== undefined && optIn !== "true" && optIn !== "false")
         fail("HOSTED_CONFIG_INVALID");
