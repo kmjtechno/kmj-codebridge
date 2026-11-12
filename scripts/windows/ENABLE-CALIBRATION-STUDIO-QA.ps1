@@ -192,8 +192,14 @@ try {
         Ordinary $node $false
         # Full CodeBridge schema validation before any protected config write.
         $js='import fs from "node:fs"; import {agentSchema} from "./src/config.js"; try { agentSchema.parse(JSON.parse(fs.readFileSync(process.argv[1],"utf8"))); process.stdout.write("SCHEMA_PASS"); } catch { process.exit(2); }'
-        $valid=[string](& $node --input-type=module -e $js $tmp 2>$null)
-        if($LASTEXITCODE -ne 0 -or $valid -cne 'SCHEMA_PASS'){
+        Push-Location -LiteralPath $repo
+        try {
+            $valid=[string](& $node --input-type=module -e $js $tmp 2>$null)
+            $nodeExit=$LASTEXITCODE
+        }finally{
+            Pop-Location
+        }
+        if($nodeExit -ne 0 -or $valid -cne 'SCHEMA_PASS'){
             Fail 'QA_STAGED_CODEBRIDGE_SCHEMA_REJECTED'
         }
         [IO.File]::Replace($tmp,$config,$backup)
