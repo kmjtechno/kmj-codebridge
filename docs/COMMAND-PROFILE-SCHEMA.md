@@ -59,27 +59,27 @@ separate, backward-compatible change and is not done here.
 
 Timeouts are per variant, in ms. "Lane" = must run in a pinned isolated lane.
 
-| Preset                       | Profile id                | Category | Executable                   | Variants (timeout)                                                      | Lane    |
-| ---------------------------- | ------------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------- | ------- |
-| `node-standard`              | `node_deps`               | network  | `npm`                        | `locked` = `ci` (300000)                                                | no      |
-| `node-standard`              | `node_verify`             | build    | `npm`                        | `test`, `build`, `check`, `lint`, `typecheck` (300000)                  | no      |
-| `node-standard`              | `node_format`             | write    | `npm`                        | `write` = `run format` (300000)                                         | no      |
-| `node-standard`              | `node_dev`                | build    | `npm`                        | `start` = `run dev` (300000)                                            | no      |
-| `main-platform-ui-ci`        | `main_platform_ui_ci`     | build    | `npm`                        | `check`, `types`, `build` under `--prefix apps/platform` (300000)       | **yes** |
-| `python-standard`            | `python_deps`             | network  | `python3`                    | `requirements` (300000)                                                 | no      |
-| `python-standard`            | `python_verify`           | build    | `python3`                    | `test` (pytest), `compile` (300000)                                     | no      |
-| `cargo-standard`             | `cargo_verify`            | build    | `cargo`                      | `check`, `build`, `test`, `clippy`, `format_check` (300000, `--locked`) | no      |
-| `cargo-standard`             | `cargo_format`            | write    | `cargo`                      | `write` = `fmt` (300000)                                                | no      |
-| `cmake-standard`             | `cmake_configure`         | build    | `cmake`                      | `default` -S . -B `.kmj-codebridge-build` (300000)                      | no      |
-| `cmake-standard`             | `cmake_build`             | build    | `cmake`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
-| `cmake-standard`             | `cmake_test`              | build    | `ctest`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
-| `windows-visual-qa`          | `windows_visual_qa`       | build    | `node`                       | `capture`, `compare`, `accessibility` (120000)                          | no      |
-| `windows-python-trial-qa`    | `windows_python_trial_qa` | build    | `node`                       | `doctor` (30000), `tests` (300000), `smoke` (120000)                    | no      |
-| `calibration-v4-software-qa` | `calibration_v4_qa`       | build    | `python` (win32) / `python3` | `full` = `tools/verify.py` (300000)                                     | **yes** |
-| `calibration-studio-qt-offline` | `calibration_studio_qt_qa` | build    | `python` (win32) / `python3` | `full` = `tools/codebridge_locked_release_qa.py` (300000) | **yes** |
-| `vioso-clone-rig-readonly`   | `vioso_rig_preflight`     | build    | `python` (win32) / `python3` | `displays` (30000)                                                      | **yes** |
-| `go-standard`                | `go_verify`               | build    | `go`                         | `test`, `vet`, `build` (300000)                                         | no      |
-| `go-standard`                | `go_format`               | write    | `gofmt`                      | `write` = `-w .` (300000)                                               | no      |
+| Preset                          | Profile id                 | Category | Executable                   | Variants (timeout)                                                      | Lane    |
+| ------------------------------- | -------------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------- | ------- |
+| `node-standard`                 | `node_deps`                | network  | `npm`                        | `locked` = `ci` (300000)                                                | no      |
+| `node-standard`                 | `node_verify`              | build    | `npm`                        | `test`, `build`, `check`, `lint`, `typecheck` (300000)                  | no      |
+| `node-standard`                 | `node_format`              | write    | `npm`                        | `write` = `run format` (300000)                                         | no      |
+| `node-standard`                 | `node_dev`                 | build    | `npm`                        | `start` = `run dev` (300000)                                            | no      |
+| `main-platform-ui-ci`           | `main_platform_ui_ci`      | build    | `npm`                        | `check`, `types`, `build` under `--prefix apps/platform` (300000)       | **yes** |
+| `python-standard`               | `python_deps`              | network  | `python3`                    | `requirements` (300000)                                                 | no      |
+| `python-standard`               | `python_verify`            | build    | `python3`                    | `test` (pytest), `compile` (300000)                                     | no      |
+| `cargo-standard`                | `cargo_verify`             | build    | `cargo`                      | `check`, `build`, `test`, `clippy`, `format_check` (300000, `--locked`) | no      |
+| `cargo-standard`                | `cargo_format`             | write    | `cargo`                      | `write` = `fmt` (300000)                                                | no      |
+| `cmake-standard`                | `cmake_configure`          | build    | `cmake`                      | `default` -S . -B `.kmj-codebridge-build` (300000)                      | no      |
+| `cmake-standard`                | `cmake_build`              | build    | `cmake`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
+| `cmake-standard`                | `cmake_test`               | build    | `ctest`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
+| `windows-visual-qa`             | `windows_visual_qa`        | build    | `node`                       | `capture`, `compare`, `accessibility` (120000)                          | no      |
+| `windows-python-trial-qa`       | `windows_python_trial_qa`  | build    | `node`                       | `doctor` (30000), `tests` (300000), `smoke` (120000)                    | no      |
+| `calibration-v4-software-qa`    | `calibration_v4_qa`        | build    | `python` (win32) / `python3` | `full` = `tools/verify.py` (300000)                                     | **yes** |
+| `calibration-studio-qt-offline` | `calibration_studio_qt_qa` | build    | `python` (win32) / `python3` | `full` = `tools/codebridge_locked_release_qa.py` (300000)               | **yes** |
+| `vioso-clone-rig-readonly`      | `vioso_rig_preflight`      | build    | `python` (win32) / `python3` | `displays` (30000)                                                      | **yes** |
+| `go-standard`                   | `go_verify`                | build    | `go`                         | `test`, `vet`, `build` (300000)                                         | no      |
+| `go-standard`                   | `go_format`                | write    | `gofmt`                      | `write` = `-w .` (300000)                                               | no      |
 
 Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
 (`start`), `main_platform_ui_deps` (`ci`), `main_platform_php_deps`
