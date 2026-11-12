@@ -15,6 +15,7 @@ import {
   OFFSITE_DIAGNOSTIC_CONFIRMATION,
   runOffsiteDiagnostic,
 } from "./offsite-diagnostic-policy.js";
+import { fixedOffsitePrefixLineStatus } from "./offsite-prefix-line-status.js";
 import {
   attestMainPlatformStaging,
   STAGING_DEPLOY_UNIT,
@@ -2129,11 +2130,29 @@ export function createSupervisorHandler({
           ]),
         ]),
       );
+      // Query only this fixed unit's failed exact invocation; do not return
+      // InvocationID or raw journal content. A line is advisory, not backup proof.
+      let offsiteInvocationID = null;
+      if (
+        services.offsiteBackup.installed === true &&
+        services.offsiteBackup.result === "exit-code" &&
+        services.offsiteBackup.execMainStatus === "3"
+      ) {
+        offsiteInvocationID = fixedUnitStatus(
+          run, targets.offsiteBackup, ["InvocationID"],
+        ).invocationID;
+      }
+      const offsitePrefixFailure = fixedOffsitePrefixLineStatus({
+        run,
+        unit: services.offsiteBackup,
+        invocationID: offsiteInvocationID,
+      });
       return {
         response: {
           mode: "READ_ONLY",
           scope: "kmj-main-platform",
           services,
+          offsitePrefixFailure,
           recentBackupVerified: false,
           restoreVerified: false,
           productionReleaseApprovedByThisCheck: false,
