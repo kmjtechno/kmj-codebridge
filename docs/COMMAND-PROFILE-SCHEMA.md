@@ -134,3 +134,33 @@ must all be independently observed before any release decision.
 
 This document proves no build or test ran on any device. It is a contract
 description checked against source and a drift test, nothing more.
+
+## KMJ Calibration Studio P520 owner-only opt-in (2026-11-12)
+
+`calibration-studio-qt-offline` is disabled by default. A new **local-only**
+PowerShell 5.1 tool, `scripts/windows/ENABLE-CALIBRATION-STUDIO-QA.ps1`,
+accepts `-SelfTest` (no user files), default read-only preflight, or explicit
+`-Apply`. It is not callable as an unrestricted MCP shell.
+
+Prerequisite: the P520 CodeBridge checkout must fast-forward to a commit
+containing the merged source preset (`91718429`), be tracked and clean,
+and point at the canonical `kmjtechno/kmj-codebridge` origin. The protected
+owner-browser-paired device must match the current Windows hostname,
+contain exactly the approved `kmj-calibration-studio` Git project,
+and reference the canonical `kmjtechno/KMJ-Calibration-Studio` origin.
+
+Without `-Apply` the script validates the source and private scope, reports
+`READY_FOR_OWNER_APPLY` and changes no files. With `-Apply`, it adds only
+`calibration-studio-qt-offline` to that project's `commandPresets`,
+preserves other fields/presets and private credentials, validates the staged
+JSON against the actual CodeBridge Zod agent schema and uses an atomic
+same-directory replacement with a private ACL and protected original backup.
+Any wrong host, symlink, dirty source, untrusted origin, unknown schema,
+failed ACL or duplicate project identity fails closed.
+
+**Important:** even after an applied config write the running CodeBridge
+agent is **not** restarted. It will keep the old in-memory profile until
+an operator-approved, scoped restart. Verify remote `list_project_commands`
+then the exact isolated HEAD before running the Qt acceptance command.
+No physical projector activation, camera scan, cloud deployment or user
+password/token export occurs in this opt-in.
