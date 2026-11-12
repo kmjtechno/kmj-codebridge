@@ -146,47 +146,66 @@ test("hosted Calibration Studio opt-in is private, exact-scoped, and preserves e
   assert.equal(scoped.github.apiBase, baseline.github.apiBase);
   assert.deepEqual(scoped.users, baseline.users);
   assert.deepEqual(scoped.agents, baseline.agents);
-  assert.deepEqual(hostedConfig(JSON.stringify(original), "10000", {
-    CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "false",
-  }).github.repositories, baseline.github.repositories);
-  assert.deepEqual(hostedConfig(JSON.stringify({
-    ...original,
-    github: {
-      ...original.github,
-      repositories: [...original.github.repositories, "kmjtechno/KMJ-Calibration-Studio"],
-    },
-  }), "10000", {
-    CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true",
-  }).github.repositories, [
-    "kmjtechno/kmj-codebridge",
-    "kmjtechno/kmj-cinecore",
-    "kmjtechno/KMJ-Calibration-Studio",
-  ]);
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(original), "10000", {
+      CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "false",
+    }).github.repositories,
+    baseline.github.repositories,
+  );
+  assert.deepEqual(
+    hostedConfig(
+      JSON.stringify({
+        ...original,
+        github: {
+          ...original.github,
+          repositories: [
+            ...original.github.repositories,
+            "kmjtechno/KMJ-Calibration-Studio",
+          ],
+        },
+      }),
+      "10000",
+      {
+        CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true",
+      },
+    ).github.repositories,
+    [
+      "kmjtechno/kmj-codebridge",
+      "kmjtechno/kmj-cinecore",
+      "kmjtechno/KMJ-Calibration-Studio",
+    ],
+  );
 });
 
 test("hosted Calibration Studio opt-in fails closed on anonymous or incomplete private credentials", () => {
   const optIn = { CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true" };
-  assert.throws(() => hostedConfig(JSON.stringify(config), "10000", optIn), /HOSTED_CONFIG_INVALID/);
   assert.throws(
-    () => hostedConfig(JSON.stringify(config), "10000", {
-      ...optIn,
-      CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
-      CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
-    }),
+    () => hostedConfig(JSON.stringify(config), "10000", optIn),
     /HOSTED_CONFIG_INVALID/,
   );
   assert.throws(
-    () => hostedConfig(JSON.stringify(config), "10000", {
-      CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "TRUE",
-    }),
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        ...optIn,
+        CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+        CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+      }),
     /HOSTED_CONFIG_INVALID/,
   );
   assert.throws(
-    () => hostedConfig(JSON.stringify(config), "10000", {
-      ...optIn,
-      CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
-      CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
-    }),
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "TRUE",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        ...optIn,
+        CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
+        CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+      }),
     /HOSTED_CONFIG_INVALID/,
   );
   const privateEnv = {
@@ -196,7 +215,8 @@ test("hosted Calibration Studio opt-in fails closed on anonymous or incomplete p
     CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
   };
   assert.deepEqual(
-    hostedConfig(JSON.stringify(config), "10000", privateEnv).github.repositories,
+    hostedConfig(JSON.stringify(config), "10000", privateEnv).github
+      .repositories,
     ["kmjtechno/kmj-codebridge", "kmjtechno/KMJ-Calibration-Studio"],
   );
 });
