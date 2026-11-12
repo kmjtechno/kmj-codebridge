@@ -1,0 +1,17 @@
+[Unit]
+Description=KMJ-elite dynamic DNS (elite-ssh, mail, SPF only)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 -B /opt/kmj-elite-ddns/elite_dynamic_dns.py --apply
+StateDirectory=kmj-elite-ddns
+StateDirectoryMode=0700
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6
+TimeoutStartSec=60
