@@ -2,6 +2,7 @@ import { gatewaySchema } from "./config.js";
 import { startGateway } from "./gateway.js";
 import { fail } from "./errors.js";
 const EXACT_CLOUDOS_REPO = "kmjtechno/kmj-cloudos";
+const EXACT_CALIBRATION_STUDIO_REPO = "kmjtechno/KMJ-Calibration-Studio";
 function hostedGitHubConfig(env) {
   const apiBase = env.CODEBRIDGE_GITHUB_API_BASE;
   const token = env.CODEBRIDGE_GITHUB_PROXY_TOKEN;
@@ -56,12 +57,12 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     // Render config is often an environment-held secret, not a writable file.
     // This opt-in adds only the owner-approved CloudOS repo, never a wildcard.
     const cloudosOptIn = env.CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY;
-    if (
-      cloudosOptIn !== undefined &&
-      cloudosOptIn !== "true" &&
-      cloudosOptIn !== "false"
-    )
-      fail("HOSTED_CONFIG_INVALID");
+    const calibrationOptIn =
+      env.CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY;
+    for (const optIn of [cloudosOptIn, calibrationOptIn]) {
+      if (optIn !== undefined && optIn !== "true" && optIn !== "false")
+        fail("HOSTED_CONFIG_INVALID");
+    }
     const github = parsed.github ?? hostedGitHubConfig(env);
     let userIntrospection = parsed.userIntrospection;
     const userIntrospectionEndpoint =
@@ -109,6 +110,24 @@ export function hostedConfig(text, port = "10000", env = process.env) {
       const repositories = existing.includes(EXACT_CLOUDOS_REPO)
         ? existing
         : [...existing, EXACT_CLOUDOS_REPO];
+      config = gatewaySchema.parse({
+        ...config,
+        github: { ...config.github, repositories },
+      });
+    }
+    // Owner-scoped opt-in: never replace the protected repository list, grant
+    // wildcard access or silently promote public/anonymous GitHub credentials.
+    if (calibrationOptIn === "true") {
+      if (
+        !config.github ||
+        config.github.publicReadOnly ||
+        !config.github.tokenEnv
+      )
+        fail("HOSTED_CONFIG_INVALID");
+      const existing = config.github.repositories;
+      const repositories = existing.includes(EXACT_CALIBRATION_STUDIO_REPO)
+        ? existing
+        : [...existing, EXACT_CALIBRATION_STUDIO_REPO];
       config = gatewaySchema.parse({
         ...config,
         github: { ...config.github, repositories },
