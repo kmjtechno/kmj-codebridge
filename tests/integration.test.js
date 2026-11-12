@@ -1644,8 +1644,11 @@ test("MCP server defaults to the pinned icon and honors custom icon override", a
     "the unprotected gateway must advertise the same closed input contract as OAuth",
   );
   assert.ok(
-    defaultTools.tools.every((tool) => tool.icons === undefined),
-    "non-OAuth catalog keeps its existing icon presentation",
+    defaultTools.tools.every(
+      (tool) =>
+        JSON.stringify(tool.icons) === JSON.stringify(defaultServer?.icons),
+    ),
+    "non-OAuth catalog advertises the same approved tool icons as serverInfo",
   );
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));
@@ -1684,8 +1687,8 @@ test("MCP server defaults to the pinned icon and honors custom icon override", a
       mimeType: "image/png",
     },
   ]);
-  // The installed SDK v1.31 default handler drops registerTool icons;
-  // the hosted OAuth tools/list override is verified in auth.test.js.
+  // The tools/list override advertises icons on every path; the hosted
+  // OAuth variant is additionally verified in auth.test.js.
   const advertisedTools = await client.listTools();
   assert.ok(advertisedTools.tools.length >= 10);
   assert.equal(
@@ -1693,7 +1696,11 @@ test("MCP server defaults to the pinned icon and honors custom icon override", a
       ?.inputSchema?.additionalProperties,
     false,
   );
-  assert.ok(advertisedTools.tools.every((tool) => tool.icons === undefined));
+  assert.ok(
+    advertisedTools.tools.every(
+      (tool) => JSON.stringify(tool.icons) === JSON.stringify(server?.icons),
+    ),
+  );
 });
 
 test("agent-configured jobArchiveMaxEntries actually bounds the live job archive (issue #186)", async (t) => {
