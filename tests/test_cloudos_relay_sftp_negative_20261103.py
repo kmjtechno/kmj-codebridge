@@ -25,7 +25,7 @@ class NegativeSFTPTest(unittest.TestCase):
         self.smoke = SimpleNamespace(
             SFTP="/usr/bin/sftp",
             read_local_identity=lambda: Path("/private/local-only"),
-            pin_remote_host=lambda: b"103.212.136.154 ssh-ed25519 testpin\n",
+            pin_remote_host=lambda: b"elite-ssh.kmjtechno.com ssh-ed25519 testpin\n",
             actual_sftp=lambda private, host: self.calls.append(("positive", host)),
             run=self.mock_run,
         )
