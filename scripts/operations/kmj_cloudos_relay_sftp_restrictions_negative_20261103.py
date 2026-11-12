@@ -25,7 +25,7 @@ SMOKE_FILE = BASE / "kmj_cloudos_relay_elite_sftp_auth_smoke_20261103.py"
 SMOKE_SHA256 = "b3224318810bc7fffe28571f7545cbf3de3453ac9220140d750bdc4ce0ec4c1c"
 SENTINEL = b"KMJ_CLOUDOS_UNAUTHORIZED_SHELL_EXECUTED_20261103"
 BATCH_CHROOT = b"pwd\nls /etc\n"
-HOST = "103.212.136.154"
+HOST = "elite-ssh.kmjtechno.com"
 USER = "kmjcloudosbackup"
 
 
