@@ -28,7 +28,7 @@ class CanaryLifecycleTests(unittest.TestCase):
         self.deleted = False
         self.corrupt = False
         self.cleanup_denied = False
-        self.smoke = SimpleNamespace(SFTP="/usr/bin/sftp", ELITE_IP="103.212.136.154",
+        self.smoke = SimpleNamespace(SFTP="/usr/bin/sftp", ELITE_IP="elite-ssh.kmjtechno.com",
                                      UPLOADER="kmjcloudosbackup")
 
     def fake_sftp(self, smoke, argv, batch, timeout=28):
@@ -76,7 +76,7 @@ class CanaryLifecycleTests(unittest.TestCase):
     def test_bounded_canary_roundtrip_and_cleanup(self):
         with patch.object(mod, "sftp", side_effect=self.fake_sftp):
             mod.canary(self.smoke, Path("/private/never-read-by-test"),
-                       b"103.212.136.154 ssh-ed25519 pinnedpublic\n")
+                       b"elite-ssh.kmjtechno.com ssh-ed25519 pinnedpublic\n")
         self.assertEqual(len(self.commands), 6)
         self.assertEqual([x.split(" ")[0] for x in self.commands],
                          ["mkdir", "put", "get", "rm", "rmdir", "ls"])
@@ -88,7 +88,7 @@ class CanaryLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(mod.Blocked,
                                         "CANARY_TRANSFER_OR_REMOTE_OPERATION_FAILED"):
                 mod.canary(self.smoke, Path("/private/local"),
-                           b"103.212.136.154 ssh-ed25519 pin\n")
+                           b"elite-ssh.kmjtechno.com ssh-ed25519 pin\n")
         self.assertTrue(self.deleted)
         self.assertEqual(len(self.commands), 6)
 
@@ -104,7 +104,7 @@ class CanaryLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(
                     mod.Blocked, "REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW"):
                 mod.canary(self.smoke, Path("/private/local"),
-                           b"103.212.136.154 ssh-ed25519 pin\\n")
+                           b"elite-ssh.kmjtechno.com ssh-ed25519 pin\\n")
 
     def test_companion_specific_exception_on_upload_triggers_cleanup(self):
         class CompanionBlocked(RuntimeError):
@@ -120,7 +120,7 @@ class CanaryLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(
                     mod.Blocked, "CANARY_TRANSFER_OR_REMOTE_OPERATION_FAILED"):
                 mod.canary(self.smoke, Path("/private/local"),
-                           b"103.212.136.154 ssh-ed25519 pin\\n")
+                           b"elite-ssh.kmjtechno.com ssh-ed25519 pin\\n")
         self.assertIn("rmdir", [x.split(" ")[0] for x in self.commands])
         self.assertIn("ls", [x.split(" ")[0] for x in self.commands])
 
@@ -138,7 +138,7 @@ class CanaryLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(
                     mod.Blocked, "REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW"):
                 mod.canary(self.smoke, Path("/private/local"),
-                           b"103.212.136.154 ssh-ed25519 pin\\n")
+                           b"elite-ssh.kmjtechno.com ssh-ed25519 pin\\n")
 
     def test_cleanup_failure_requires_review(self):
         self.cleanup_denied = True
@@ -146,7 +146,7 @@ class CanaryLifecycleTests(unittest.TestCase):
             with self.assertRaisesRegex(mod.Blocked,
                                         "REMOTE_CANARY_CLEANUP_REQUIRES_REVIEW"):
                 mod.canary(self.smoke, Path("/private/local"),
-                           b"103.212.136.154 ssh-ed25519 pin\n")
+                           b"elite-ssh.kmjtechno.com ssh-ed25519 pin\n")
         self.assertFalse(self.deleted)
 
 
