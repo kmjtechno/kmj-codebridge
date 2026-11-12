@@ -106,7 +106,7 @@ export function jobEnvironment(
       const value = source.CMAKE_PREFIX_PATH;
       const parts =
         typeof value === "string" && value.length <= 4096
-          ? value.split(";").filter((part) => part.length > 0)
+          ? value.split(";")
           : [];
       if (
         parts.length > 0 &&
