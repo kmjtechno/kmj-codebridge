@@ -4246,12 +4246,32 @@ export function createDispatcher(
               ? unit.execMainStatus
               : null,
         });
+        // The root supervisor may include an advisory numeric line from the
+        // exact failed backup invocation. Never forward its raw journal data.
+        const prefix = state?.offsitePrefixFailure;
+        const permittedLine =
+          state?.mode === "READ_ONLY" &&
+          service?.installed === true &&
+          service?.result === "exit-code" &&
+          service?.execMainStatus === "3" &&
+          prefix?.journalScope === "EXACT_INVOCATION" &&
+          prefix?.rawJournalExposed === false &&
+          prefix?.backupVerified === false &&
+          prefix?.restoreVerified === false &&
+          typeof prefix?.line === "string" &&
+          /^LINE_(?:0[1-9]|1[0-9]|2[0-8])$/.test(prefix.line)
+            ? prefix.line
+            : "UNKNOWN";
         return {
           command: "main_platform_offsite_status",
           mode: "READ_ONLY",
           backupService: safe(service),
           backupTimer: safe(timer),
           healthCheck: safe(health),
+          backupPrefixFailureLine: permittedLine,
+          backupPrefixJournalScope:
+            permittedLine === "UNKNOWN" ? "UNVERIFIED" : "EXACT_INVOCATION",
+          rawJournalExposed: false,
           // Always explicitly distinguish service success from independent
           // proof of the current candidate's encrypted remote recovery.
           candidateEncryptedOffsiteVerified: false,
