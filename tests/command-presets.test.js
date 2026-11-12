@@ -372,10 +372,7 @@ test("KMJ Calibration Studio offline QA requires opt-in and an exact isolated he
     'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
     "beforeStart: verify",
   ]) {
-    assert.ok(
-      toolsSource.includes(proof),
-      "Missing Studio QA guard: " + proof,
-    );
+    assert.ok(toolsSource.includes(proof), "Missing Studio QA guard: " + proof);
   }
 });
 
