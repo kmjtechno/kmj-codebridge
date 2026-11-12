@@ -123,6 +123,105 @@ test("hosted CloudOS opt-in fails closed without a configured private GitHub cre
   );
 });
 
+test("hosted Calibration Studio opt-in is private, exact-scoped, and preserves existing grants", () => {
+  const original = {
+    ...config,
+    github: {
+      apiBase: "https://existing-github-proxy.example/",
+      tokenEnv: "KMJ_GITHUB_PRIVATE_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-cinecore"],
+      cacheSeconds: 30,
+    },
+  };
+  const baseline = hostedConfig(JSON.stringify(original), "10000", {});
+  const scoped = hostedConfig(JSON.stringify(original), "10000", {
+    CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true",
+  });
+  assert.deepEqual(scoped.github.repositories, [
+    "kmjtechno/kmj-codebridge",
+    "kmjtechno/kmj-cinecore",
+    "kmjtechno/KMJ-Calibration-Studio",
+  ]);
+  assert.equal(scoped.github.tokenEnv, baseline.github.tokenEnv);
+  assert.equal(scoped.github.apiBase, baseline.github.apiBase);
+  assert.deepEqual(scoped.users, baseline.users);
+  assert.deepEqual(scoped.agents, baseline.agents);
+  assert.deepEqual(hostedConfig(JSON.stringify(original), "10000", {
+    CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "false",
+  }).github.repositories, baseline.github.repositories);
+  assert.deepEqual(hostedConfig(JSON.stringify({
+    ...original,
+    github: {
+      ...original.github,
+      repositories: [...original.github.repositories, "kmjtechno/KMJ-Calibration-Studio"],
+    },
+  }), "10000", {
+    CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true",
+  }).github.repositories, [
+    "kmjtechno/kmj-codebridge",
+    "kmjtechno/kmj-cinecore",
+    "kmjtechno/KMJ-Calibration-Studio",
+  ]);
+});
+
+test("hosted Calibration Studio opt-in fails closed on anonymous or incomplete private credentials", () => {
+  const optIn = { CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true" };
+  assert.throws(() => hostedConfig(JSON.stringify(config), "10000", optIn), /HOSTED_CONFIG_INVALID/);
+  assert.throws(
+    () => hostedConfig(JSON.stringify(config), "10000", {
+      ...optIn,
+      CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+      CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+    }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () => hostedConfig(JSON.stringify(config), "10000", {
+      CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "TRUE",
+    }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () => hostedConfig(JSON.stringify(config), "10000", {
+      ...optIn,
+      CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
+      CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+    }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  const privateEnv = {
+    ...optIn,
+    CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
+    CODEBRIDGE_GITHUB_PROXY_TOKEN: "x".repeat(48),
+    CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+  };
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(config), "10000", privateEnv).github.repositories,
+    ["kmjtechno/kmj-codebridge", "kmjtechno/KMJ-Calibration-Studio"],
+  );
+});
+
+test("hosted CloudOS and Calibration Studio owner opt-ins preserve both exact scopes", () => {
+  const secured = {
+    ...config,
+    github: {
+      apiBase: "https://existing-github-proxy.example/",
+      tokenEnv: "KMJ_GITHUB_PRIVATE_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge"],
+      cacheSeconds: 30,
+    },
+  };
+  const scoped = hostedConfig(JSON.stringify(secured), "10000", {
+    CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true",
+    CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true",
+  });
+  assert.deepEqual(scoped.github.repositories, [
+    "kmjtechno/kmj-codebridge",
+    "kmjtechno/kmj-cloudos",
+    "kmjtechno/KMJ-Calibration-Studio",
+  ]);
+});
+
 test("hosted config supports explicit public read-only GitHub mode without a credential", () => {
   const parsed = hostedConfig(JSON.stringify(config), "10000", {
     CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
