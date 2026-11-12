@@ -312,3 +312,40 @@ customer UI acceptance.
 - One-time operator bootstrap is unavoidable while the existing agent's
   privileged supervisor is unavailable. Do not use Desktop Commander
   as an unauthorized workaround.
+
+## 12 Nov 2026: read-only v32 local failure-line telemetry (source-only)
+
+The existing `main_platform_offsite_status` compatibility command can expose a
+single **advisory** `backupPrefixFailureLine` value when an independently
+installed, approved root Supervisor implements this extension. The new
+`supervisor_main_platform_maintenance_status` response has
+`offsitePrefixFailure` with only `line`, `journalScope`,
+`rawJournalExposed=false`, `backupVerified=false` and
+`restoreVerified=false`.
+
+The Supervisor reads **only** `kmj-elite-offsite-backup.service` systemd
+status and, **only when** that unit's most recent result is `exit-code` with
+`ExecMainStatus=3` and an exact 32-hex InvocationID, queries
+`journalctl --no-pager --output=cat --lines=200
+_SYSTEMD_INVOCATION_ID=<systemd-verified-id>`.
+The ID comes from the fixed systemd unit, **never caller input**.
+The journal is bounded, parsed in-memory and **never returned**. Only one
+canonical `LOCAL_PREFIX_ERR_TRAP_LINE_CANDIDATE=LINE_XX` with `XX=01..28`
+is accepted; duplicate/malformed/missing/out-of-range evidence is
+`UNKNOWN`. Installed older Supervisors continue returning `UNKNOWN`.
+
+This extension does **not** start a backup, execute a shell, read arbitrary
+files, transfer archives, decrypt, restore, approve a release or change DNS.
+There is no new remote command profile and no extra root permission for the
+ChatGPT client. The line marker can only exist after a separately reviewed
+v32 backup wrapper was installed and its one-shot executed by the owner;
+the telemetry source does not install or trigger that wrapper.
+
+The implementation and unit tests live on the separate feature branch
+`feat/offsite-v32-line-supervisor-20261112`. This source-only branch must
+remain **unmerged/undeployed** until exact-head Node regression tests,
+security review and the signed owner-approved agent/Supervisor update pass.
+The user has requested zero additional CI cost; do not launch paid hosted
+GitHub Actions merely to obtain a green check. Even a future valid
+`LINE_XX` result is only a diagnostic hint, **never** proof of encrypted
+offsite backup or independent restore.
