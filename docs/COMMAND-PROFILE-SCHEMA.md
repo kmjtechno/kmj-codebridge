@@ -135,7 +135,6 @@ must all be independently observed before any release decision.
 This document proves no build or test ran on any device. It is a contract
 description checked against source and a drift test, nothing more.
 
-
 ## KMJ Calibration Studio P520 owner-only opt-in (2026-11-12)
 
 `calibration-studio-qt-offline` is disabled by default. A new **local-only**
