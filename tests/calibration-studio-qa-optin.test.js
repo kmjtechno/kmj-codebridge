@@ -6,7 +6,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const sourcePath = fileURLToPath(
-  new URL("../scripts/windows/ENABLE-CALIBRATION-STUDIO-QA.ps1", import.meta.url),
+  new URL(
+    "../scripts/windows/ENABLE-CALIBRATION-STUDIO-QA.ps1",
+    import.meta.url,
+  ),
 );
 const source = readFileSync(sourcePath, "utf8");
 
@@ -29,9 +32,14 @@ test("Studio private QA opt-in is explicit, scope-only and fail closed", () => {
     "PRIVATE_TOKENS_PRINTED=NO",
     "KJ_CODEBRIDGE_QA_OPTIN_SELFTEST=PASS",
   ]) {
-    assert.ok(source.includes(marker), "Missing fail-closed control: " + marker);
+    assert.ok(
+      source.includes(marker),
+      "Missing fail-closed control: " + marker,
+    );
   }
-  assert.ok(source.indexOf("if(!$Apply)") < source.indexOf("[IO.File]::Replace("));
+  assert.ok(
+    source.indexOf("if(!$Apply)") < source.indexOf("[IO.File]::Replace("),
+  );
   assert.ok(source.includes("qa-stage-"));
   assert.ok(source.includes("qa-backup-"));
   assert.ok(!source.includes("Remove-Item -LiteralPath $config"));
