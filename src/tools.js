@@ -2122,7 +2122,7 @@ export const definitions = {
   run_project_command: {
     title: "Run project command",
     description:
-      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci, project-scoped calibration_v4_qa, and explicitly administrator-approved SHA-pinned Windows PowerShell scripts automatically use detached private worktrees at exact HEAD when laneId/expectedHead are omitted. PowerShell script paths and SHA-256 are fixed in the agent profile; chat clients cannot choose or upload commands/scripts/argv.",
+      "Run one exact administrator-approved command profile variant through the bounded CodeBridge job runner. No shell, cwd, environment, argv or timeout override is accepted. The main_platform_ui_ci, project-scoped calibration_v4_qa/calibration_studio_qt_qa, and explicitly administrator-approved SHA-pinned Windows PowerShell scripts automatically use detached private worktrees at exact HEAD when laneId/expectedHead are omitted. PowerShell script paths and SHA-256 are fixed in the agent profile; chat clients cannot choose or upload commands/scripts/argv.",
     input: {
       ...scoped,
       command: identifier,
@@ -4611,6 +4611,11 @@ export function createDispatcher(
       // VIOSO project. An unrelated administrator opt-in does not grant it.
       if (a.command === "vioso_rig_preflight" && p.id !== "vioso-clone")
         fail("VIOSO_RIG_PROJECT_NOT_ALLOWED");
+      if (
+        a.command === "calibration_studio_qt_qa" &&
+        p.id !== "kmj-calibration-studio"
+      )
+        fail("CALIBRATION_STUDIO_QA_PROJECT_NOT_ALLOWED");
       if (profile.category !== "inspect" && !p.writable)
         fail("READ_ONLY_PROJECT");
       // Opt-in fixed CI profiles can derive an isolated QA lane from the
@@ -4623,11 +4628,14 @@ export function createDispatcher(
           ? "mainplatform_ci"
           : a.command === "calibration_v4_qa" && p.id === "kmj-calibration-pro"
             ? "calibration_v4_qa"
-            : a.command === "vioso_rig_preflight" && p.id === "vioso-clone"
-              ? "vioso_rig_qa"
-              : isPinnedPowerShell
-                ? "windows_ps_" + a.command.slice(0, 15)
-                : null;
+            : a.command === "calibration_studio_qt_qa" &&
+                p.id === "kmj-calibration-studio"
+              ? "calibration_studio_qa"
+              : a.command === "vioso_rig_preflight" && p.id === "vioso-clone"
+                ? "vioso_rig_qa"
+                : isPinnedPowerShell
+                  ? "windows_ps_" + a.command.slice(0, 15)
+                  : null;
       const autoLane =
         autoLanePrefix !== null &&
         a.laneId === undefined &&

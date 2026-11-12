@@ -1,6 +1,6 @@
 # Command-profile schema and compatibility matrix
 
-Document version: **1.0** (2026-11-08). Milestone: **M0 inventory/contracts** of
+Document version: **1.1** (2026-11-12). Milestone: **M0 inventory/contracts** of
 `docs/UNIVERSAL-LOCAL-DEVELOPMENT-ENGINE.md`.
 
 This documents the contract that the code enforces **today**. It adds no new
@@ -22,7 +22,7 @@ not proven on a real device; see "What is not claimed".
 5. Explicit `commands` entries override a preset with the same id (`expandCommandPresets`).
    An unknown preset id fails config load (`UNKNOWN_COMMAND_PRESET`).
 6. Profiles in `commandRequiresIsolatedLane` (`main_platform_ui_ci`,
-   `calibration_v4_qa`, `vioso_rig_preflight`) run only in a SHA-pinned isolated
+   `calibration_v4_qa`, `calibration_studio_qt_qa`, `vioso_rig_preflight`) run only in a SHA-pinned isolated
    worktree lane, never in the main checkout. Pinned lanes require `laneId` and
    `expectedHead`; head mismatch or dirty lane is refused and re-verified in the
    `beforeStart` hook.
@@ -59,26 +59,27 @@ separate, backward-compatible change and is not done here.
 
 Timeouts are per variant, in ms. "Lane" = must run in a pinned isolated lane.
 
-| Preset                       | Profile id                | Category | Executable                   | Variants (timeout)                                                      | Lane    |
-| ---------------------------- | ------------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------- | ------- |
-| `node-standard`              | `node_deps`               | network  | `npm`                        | `locked` = `ci` (300000)                                                | no      |
-| `node-standard`              | `node_verify`             | build    | `npm`                        | `test`, `build`, `check`, `lint`, `typecheck` (300000)                  | no      |
-| `node-standard`              | `node_format`             | write    | `npm`                        | `write` = `run format` (300000)                                         | no      |
-| `node-standard`              | `node_dev`                | build    | `npm`                        | `start` = `run dev` (300000)                                            | no      |
-| `main-platform-ui-ci`        | `main_platform_ui_ci`     | build    | `npm`                        | `check`, `types`, `build` under `--prefix apps/platform` (300000)       | **yes** |
-| `python-standard`            | `python_deps`             | network  | `python3`                    | `requirements` (300000)                                                 | no      |
-| `python-standard`            | `python_verify`           | build    | `python3`                    | `test` (pytest), `compile` (300000)                                     | no      |
-| `cargo-standard`             | `cargo_verify`            | build    | `cargo`                      | `check`, `build`, `test`, `clippy`, `format_check` (300000, `--locked`) | no      |
-| `cargo-standard`             | `cargo_format`            | write    | `cargo`                      | `write` = `fmt` (300000)                                                | no      |
-| `cmake-standard`             | `cmake_configure`         | build    | `cmake`                      | `default` -S . -B `.kmj-codebridge-build` (300000)                      | no      |
-| `cmake-standard`             | `cmake_build`             | build    | `cmake`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
-| `cmake-standard`             | `cmake_test`              | build    | `ctest`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
-| `windows-visual-qa`          | `windows_visual_qa`       | build    | `node`                       | `capture`, `compare`, `accessibility` (120000)                          | no      |
-| `windows-python-trial-qa`    | `windows_python_trial_qa` | build    | `node`                       | `doctor` (30000), `tests` (300000), `smoke` (120000)                    | no      |
-| `calibration-v4-software-qa` | `calibration_v4_qa`       | build    | `python` (win32) / `python3` | `full` = `tools/verify.py` (300000)                                     | **yes** |
-| `vioso-clone-rig-readonly`   | `vioso_rig_preflight`     | build    | `python` (win32) / `python3` | `displays` (30000)                                                      | **yes** |
-| `go-standard`                | `go_verify`               | build    | `go`                         | `test`, `vet`, `build` (300000)                                         | no      |
-| `go-standard`                | `go_format`               | write    | `gofmt`                      | `write` = `-w .` (300000)                                               | no      |
+| Preset                          | Profile id                 | Category | Executable                   | Variants (timeout)                                                      | Lane    |
+| ------------------------------- | -------------------------- | -------- | ---------------------------- | ----------------------------------------------------------------------- | ------- |
+| `node-standard`                 | `node_deps`                | network  | `npm`                        | `locked` = `ci` (300000)                                                | no      |
+| `node-standard`                 | `node_verify`              | build    | `npm`                        | `test`, `build`, `check`, `lint`, `typecheck` (300000)                  | no      |
+| `node-standard`                 | `node_format`              | write    | `npm`                        | `write` = `run format` (300000)                                         | no      |
+| `node-standard`                 | `node_dev`                 | build    | `npm`                        | `start` = `run dev` (300000)                                            | no      |
+| `main-platform-ui-ci`           | `main_platform_ui_ci`      | build    | `npm`                        | `check`, `types`, `build` under `--prefix apps/platform` (300000)       | **yes** |
+| `python-standard`               | `python_deps`              | network  | `python3`                    | `requirements` (300000)                                                 | no      |
+| `python-standard`               | `python_verify`            | build    | `python3`                    | `test` (pytest), `compile` (300000)                                     | no      |
+| `cargo-standard`                | `cargo_verify`             | build    | `cargo`                      | `check`, `build`, `test`, `clippy`, `format_check` (300000, `--locked`) | no      |
+| `cargo-standard`                | `cargo_format`             | write    | `cargo`                      | `write` = `fmt` (300000)                                                | no      |
+| `cmake-standard`                | `cmake_configure`          | build    | `cmake`                      | `default` -S . -B `.kmj-codebridge-build` (300000)                      | no      |
+| `cmake-standard`                | `cmake_build`              | build    | `cmake`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
+| `cmake-standard`                | `cmake_test`               | build    | `ctest`                      | `debug`, `release`, `--parallel 2` (300000)                             | no      |
+| `windows-visual-qa`             | `windows_visual_qa`        | build    | `node`                       | `capture`, `compare`, `accessibility` (120000)                          | no      |
+| `windows-python-trial-qa`       | `windows_python_trial_qa`  | build    | `node`                       | `doctor` (30000), `tests` (300000), `smoke` (120000)                    | no      |
+| `calibration-v4-software-qa`    | `calibration_v4_qa`        | build    | `python` (win32) / `python3` | `full` = `tools/verify.py` (300000)                                     | **yes** |
+| `calibration-studio-qt-offline` | `calibration_studio_qt_qa` | build    | `python` (win32) / `python3` | `full` = `tools/codebridge_locked_release_qa.py` (300000)               | **yes** |
+| `vioso-clone-rig-readonly`      | `vioso_rig_preflight`      | build    | `python` (win32) / `python3` | `displays` (30000)                                                      | **yes** |
+| `go-standard`                   | `go_verify`                | build    | `go`                         | `test`, `vet`, `build` (300000)                                         | no      |
+| `go-standard`                   | `go_format`                | write    | `gofmt`                      | `write` = `-w .` (300000)                                               | no      |
 
 Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
 (`start`), `main_platform_ui_deps` (`ci`), `main_platform_php_deps`
@@ -105,7 +106,12 @@ must all be independently observed before any release decision.
 - No explicit output-size/log-byte cap or memory/CPU limit is documented here for
   the generic runner; only `timeoutMs` and `--parallel 2` are enforced by profile.
   Verify against `src/jobs.js` before claiming bounds.
-- Qt-specific profiles do not exist; Qt builds go through CMake only. Commands
+- KMJ Calibration Studio has a new **owner-opt-in**, detached-head offline Qt
+  verifier profile. It is not enabled on the P520 until the administrator
+  explicitly configures the protected project; its source depends on the
+  accompanying `tools/codebridge_locked_release_qa.py` in the Studio repo.
+  Windows exact-head execution, native visual parity and hardware calibration
+  remain unverified. Other Qt projects still use generic CMake. Commands
   whose gate starts with `command:cmake_` additionally inherit `CMAKE_PREFIX_PATH`
   on Windows (at most 16 absolute directories, no control characters, no `..`
   segments, at most 4096 characters); no other job inherits it.

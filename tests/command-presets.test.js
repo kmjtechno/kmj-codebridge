@@ -39,6 +39,7 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "windows-visual-qa",
     "windows-python-trial-qa",
     "calibration-v4-software-qa",
+    "calibration-studio-qt-offline",
     "vioso-clone-rig-readonly",
     "go-standard",
   ]);
@@ -320,6 +321,59 @@ test("Calibration Pro V4 QA is opt-in, SHA-pinned, and hardware fail-closed", ()
       source.includes(required),
       "Missing isolation guard: " + required,
     );
+});
+
+test("KMJ Calibration Studio offline QA requires opt-in and an exact isolated head", () => {
+  const normal = agentSchema.parse(base).projects[0];
+  assert.equal(normal.commands.calibration_studio_qt_qa, undefined);
+  const configured = agentSchema.parse({
+    ...base,
+    projects: [
+      {
+        ...base.projects[0],
+        id: "kmj-calibration-studio",
+        commandPresets: ["calibration-studio-qt-offline"],
+      },
+    ],
+  }).projects[0];
+  const profile = configured.commands.calibration_studio_qt_qa;
+  assert.equal(profile.category, "build");
+  assert.equal(
+    profile.command,
+    process.platform === "win32" ? "python" : "python3",
+  );
+  assert.deepEqual(Object.keys(profile.variants), ["full"]);
+  assert.deepEqual(profile.variants.full.args, [
+    "tools/codebridge_locked_release_qa.py",
+  ]);
+  assert.equal(profile.variants.full.timeoutMs, 300000);
+  for (const forbidden of [
+    "scan",
+    "camera",
+    "project",
+    "install",
+    "deploy",
+    "publish",
+    "shell",
+  ]) {
+    assert.equal(profile.variants[forbidden], undefined);
+  }
+  assert.equal(commandRequiresIsolatedLane("calibration_studio_qt_qa"), true);
+  const toolsSource = fs.readFileSync(
+    new URL("../src/tools.js", import.meta.url),
+    "utf8",
+  );
+  for (const proof of [
+    'a.command === "calibration_studio_qt_qa"',
+    'p.id !== "kmj-calibration-studio"',
+    '"CALIBRATION_STUDIO_QA_PROJECT_NOT_ALLOWED"',
+    '"calibration_studio_qa"',
+    "worktreeLanes().prepareCurrentHead(",
+    'if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED")',
+    "beforeStart: verify",
+  ]) {
+    assert.ok(toolsSource.includes(proof), "Missing Studio QA guard: " + proof);
+  }
 });
 
 test("jobArchiveMaxEntries defaults to the archive's own default and stays bounded (issue #186)", () => {

@@ -266,6 +266,23 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  // Explicit owner opt-in: run the project-owned Qt Release/CTest verifier
+  // only in a detached exact-head CodeBridge worktree; never scan hardware,
+  // activate projectors, promote a package, or overwrite KJStandalone-Qt612.
+  "calibration-studio-qt-offline": freeze({
+    calibration_studio_qt_qa: freeze({
+      category: "build",
+      description:
+        "Verify KMJ Calibration Studio Qt 6.12 Release, offline CTests and native screenshots at detached exact HEAD.",
+      command: process.platform === "win32" ? "python" : "python3",
+      variants: freeze({
+        full: freeze({
+          args: ["tools/codebridge_locked_release_qa.py"],
+          timeoutMs: 300000,
+        }),
+      }),
+    }),
+  }),
   // Explicit administrator opt-in for the enrolled VIOSO Clone P520 project.
   // This Python command only reports the interactive Windows desktop's
   // current rectangles; the actual target project must already contain the
@@ -313,6 +330,7 @@ export function commandRequiresIsolatedLane(commandId) {
   return [
     "main_platform_ui_ci",
     "calibration_v4_qa",
+    "calibration_studio_qt_qa",
     "vioso_rig_preflight",
   ].includes(commandId);
 }
