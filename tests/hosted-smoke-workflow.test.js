@@ -16,8 +16,16 @@ test("scheduled deployment smoke checks the owner VPS and not Render", () => {
   assert.match(gateway, /node scripts\/verify-vps-catalog\.mjs/);
   // A green gateway gate must attest current code, not merely an older
   // healthy MCP process with the right public catalog.
-  assert.ok(gateway.includes("EXPECT_DEPLOYED_COMMIT: ${{ github.sha }}"));
-  assert.match(gateway, /exact deployed main commit/);
+  // The live gateway must run exactly the newest owner-signed release; main may
+  // legitimately be ahead with docs/tests/metadata-only merges.
+  assert.ok(
+    gateway.includes(
+      "EXPECT_DEPLOYED_COMMIT: ${{ steps.release.outputs.revision }}",
+    ),
+  );
+  assert.ok(!gateway.includes("EXPECT_DEPLOYED_COMMIT: ${{ github.sha }}"));
+  assert.match(gateway, /node scripts\/latest-signed-release\.mjs/);
+  assert.match(gateway, /exact deployed signed release commit/);
   assert.doesNotMatch(workflow, /onrender\.com|verify-render-deployment\.mjs/);
   assert.doesNotMatch(production, /needs:\s*gateway/);
   assert.doesNotMatch(workflow, /continue-on-error:\s*true/);
