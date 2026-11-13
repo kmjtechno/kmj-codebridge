@@ -67,10 +67,10 @@ if (new Set(ids).size !== ids.length) fail("duplicate plan ids");
 
 const expected = {
   community: { INR: 0, USD: 0, devices: 1, projects: 1, concurrentJobs: 1 },
-  pro: { INR: 149, USD: 1.99, devices: 3, projects: 10, concurrentJobs: 3 },
+  pro: { INR: 299, USD: 7, devices: 3, projects: 10, concurrentJobs: 3 },
   team: {
-    INR: 399,
-    USD: 4.99,
+    INR: 699,
+    USD: 10,
     devicesPerUser: 10,
     projectsPerUser: 50,
     concurrentJobsPerUser: 10,
@@ -144,7 +144,7 @@ for (const [label, text] of [
   ["docs/PRICING.md", pricing],
   ["README.md", readme],
 ]) {
-  for (const required of ["₹149", "US$1.99", "₹399", "US$4.99", "30 days"])
+  for (const required of ["₹299", "US$7", "₹699", "US$10", "14 days"])
     if (!text.includes(required)) fail(label + " missing " + required);
 }
 

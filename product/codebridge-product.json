@@ -30,7 +30,7 @@
     "agentGateway": "https://kmjtechno.com"
   },
   "launch": {
-    "trialDays": 30,
+    "trialDays": 14,
     "trialCardRequired": false,
     "trialAutoConvert": false,
     "foundingPriceMonths": 12
@@ -53,8 +53,8 @@
       "id": "pro",
       "name": "Pro Launch",
       "prices": {
-        "INR": 149,
-        "USD": 1.99
+        "INR": 299,
+        "USD": 7
       },
       "limits": {
         "devices": 3,
@@ -66,8 +66,8 @@
       "id": "team",
       "name": "Team Launch",
       "prices": {
-        "INR": 399,
-        "USD": 4.99
+        "INR": 699,
+        "USD": 10
       },
       "limits": {
         "devicesPerUser": 10,
