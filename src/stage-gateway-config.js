@@ -58,7 +58,10 @@ function trustedFile(info, directory) {
 // No symlink traversal of the stage directory or final file, no unbounded
 // secret reads, no TOCTOU between path metadata and the opened inode.
 // The caller only receives schema-validation outcome, never this text.
-export function readTrustedStageGatewayConfig({ io = fs, serviceUid = null } = {}) {
+export function readTrustedStageGatewayConfig({
+  io = fs,
+  serviceUid = null,
+} = {}) {
   const directory = io.lstatSync(STAGE_GATEWAY_DIR);
   if (!trustedDirectory(directory, serviceUid)) {
     throw trustFailure();
