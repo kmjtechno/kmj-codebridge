@@ -1,6 +1,6 @@
 # KMJ CodeBridge — competitive plans and activation criteria
 
-**As of 14 October 2026.** This is a truthful comparison and a proposed release contract, **not** evidence that hosted subscriptions, a 30-day trial or live checkout are available.
+**As of 14 October 2026.** This is a truthful comparison and a proposed release contract, **not** evidence that hosted subscriptions, a 14-day trial or live checkout are available.
 
 ## Public comparison baseline
 

@@ -49,7 +49,7 @@ The headline should state the concrete differentiator: project-scoped AI coding 
 
 Recommended sequence:
 
-`GitHub → quick start → successful first device → 30-day Pro trial → value event → optional paid plan`
+`GitHub → quick start → successful first device → 14-day Pro trial → value event → optional paid plan`
 
 A “value event” should be measurable, for example:
 
