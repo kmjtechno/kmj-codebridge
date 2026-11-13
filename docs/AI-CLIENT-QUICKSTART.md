@@ -118,6 +118,6 @@ If CodeBridge helped you on a real engineering task, you may **choose** to share
 
 ## Commercial availability
 
-Community is a useful free open-source option. Proposed paid launch plans and 30-day Pro trial are listed in [PRICING.md](PRICING.md). **Payment capture, subscription renewal and hosted paid entitlements are not generally live yet.** Any checkout must be completed by KMJ Main Platform after verified payment, tax/currency disclosures, consent and entitlement security gates—not by an AI model or a device agent.
+Community is a useful free open-source option. Proposed paid launch plans and 14-day Pro trial are listed in [PRICING.md](PRICING.md). **Payment capture, subscription renewal and hosted paid entitlements are not generally live yet.** Any checkout must be completed by KMJ Main Platform after verified payment, tax/currency disclosures, consent and entitlement security gates—not by an AI model or a device agent.
 
 Need help? See [support](https://kmjtechno.com/products/kmj-codebridge/support), [privacy](https://kmjtechno.com/products/kmj-codebridge/privacy) and [terms](https://kmjtechno.com/products/kmj-codebridge/terms).
