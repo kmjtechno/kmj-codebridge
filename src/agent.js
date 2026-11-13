@@ -132,7 +132,22 @@ export async function startAgent(
     releaseAgentLock(agentLock);
     throw e;
   }
-  const licenseProvider = createLicenseProvider(c, state);
+  const licenseProvider = createLicenseProvider(c, state, {
+    // Tamper-evident record of licence state changes, written to every project
+    // ledger with the existing audit schema (no tool input or token content).
+    onTransition: ({ to, code }) => {
+      for (const project of c.projects)
+        audit.append(project.id, {
+          device: c.id,
+          tool: "license_state",
+          access: "read",
+          risk: "READ",
+          phase: "result",
+          outcome: to === "ACTIVE" || to === "GRACE" ? "succeeded" : "failed",
+          error: code ?? undefined,
+        });
+    },
+  });
   // The Elite CloudOS socket belongs to one dedicated, non-Main-Platform
   // project. Even a misconfigured enrolled agent must not select it for a
   // different project identity or a multi-project process.

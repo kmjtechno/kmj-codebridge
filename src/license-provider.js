@@ -15,12 +15,26 @@ const FREE_ENTITLEMENT = Object.freeze({
 export function createLicenseProvider(
   c,
   stateDir,
-  { now = () => Math.floor(Date.now() / 1000) } = {},
+  { now = () => Math.floor(Date.now() / 1000), onTransition } = {},
 ) {
   const licenseState = path.join(stateDir, "license-state.json");
   let trusted = fs.existsSync(licenseState)
     ? JSON.parse(fs.readFileSync(licenseState, "utf8"))
     : { sequence: -1, lastTime: 0 };
+  // Report only CHANGES of licence state (never per tool call), so the audit
+  // trail records ACTIVE -> REVOKED/FREE_FALLBACK/denied without flooding.
+  let lastState;
+  const observe = (kind, code) => {
+    if (kind === lastState) return;
+    const previous = lastState;
+    lastState = kind;
+    if (previous === undefined && kind === "ACTIVE") return;
+    try {
+      onTransition?.({ from: previous ?? null, to: kind, code: code ?? null });
+    } catch {
+      // Auditing must never change an entitlement decision.
+    }
+  };
   const provider = () => {
     if (c.license.mode === "free")
       return {
@@ -48,18 +62,22 @@ export function createLicenseProvider(
       // Persist the sequence BEFORE refusing: a revocation must raise the replay
       // high-water mark so an older ACTIVE token cannot be swapped back in.
       if (p.state === "REVOKED") fail("LICENSE_REVOKED");
+      observe(p.state);
       return p;
     } catch (e) {
       if (
         c.license.fallbackToFree === true &&
         (e?.code === "LICENSE_EXPIRED" || e?.code === "LICENSE_REVOKED")
-      )
+      ) {
+        observe("FREE_FALLBACK", e.code);
         return {
           features: [...FREE_ENTITLEMENT.features],
           limits: { ...FREE_ENTITLEMENT.limits },
           state: "FREE_FALLBACK",
           reason: e.code,
         };
+      }
+      observe("DENIED", typeof e?.code === "string" ? e.code : "UNKNOWN");
       throw e;
     }
   };

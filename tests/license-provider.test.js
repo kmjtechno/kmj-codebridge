@@ -36,7 +36,7 @@ function token(change = {}) {
     body + "." + sign(null, Buffer.from(body), privateKey).toString("base64url")
   );
 }
-function setup(fallbackToFree, jws) {
+function setup(fallbackToFree, jws, onTransition) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-licprov-"));
   const tokenFile = path.join(dir, "license.jws");
   if (jws !== undefined) fs.writeFileSync(tokenFile, jws);
@@ -46,7 +46,10 @@ function setup(fallbackToFree, jws) {
     tenant: "t1",
     license: { mode: "signed", tokenFile, keys, fallbackToFree },
   };
-  const provider = createLicenseProvider(c, dir, { now: () => clock.now });
+  const provider = createLicenseProvider(c, dir, {
+    now: () => clock.now,
+    onTransition,
+  });
   return { dir, tokenFile, clock, provider };
 }
 
@@ -124,4 +127,34 @@ test("free mode is unchanged and returns fresh objects", () => {
   const a = p();
   a.limits.concurrent_jobs = 99;
   assert.equal(p().limits.concurrent_jobs, 1);
+});
+
+test("state changes are reported once, first ACTIVE is silent, hook errors are ignored", () => {
+  const events = [];
+  const { tokenFile, clock, provider } = setup(true, token(), (e) =>
+    events.push(e),
+  );
+  provider();
+  provider();
+  assert.deepEqual(events, []);
+  fs.writeFileSync(tokenFile, token({ sequence: 2, status: "REVOKED" }));
+  assert.equal(provider().state, "FREE_FALLBACK");
+  provider();
+  assert.deepEqual(events, [
+    { from: "ACTIVE", to: "FREE_FALLBACK", code: "LICENSE_REVOKED" },
+  ]);
+  clock.now = T;
+  const thrower = setup(true, token(), () => {
+    throw new Error("boom");
+  });
+  assert.equal(thrower.provider().state, "ACTIVE");
+});
+
+test("hard failures are reported as DENIED with the code only", () => {
+  const events = [];
+  const { provider } = setup(false, "garbage", (e) => events.push(e));
+  assert.throws(() => provider());
+  assert.equal(events.length, 1);
+  assert.equal(events[0].to, "DENIED");
+  assert.match(events[0].code, /^[A-Z0-9_]+$/);
 });
