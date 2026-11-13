@@ -1755,9 +1755,30 @@ export function createSupervisorHandler({
                 chosenUnit === MAIN_PLATFORM_AGENT_SERVICE
               ? MAIN_PLATFORM_AGENT_CONFIG
               : CONFIGS[request.service];
+        // Bind the nonroot private stage config to the *installed service*
+        // identity, not to caller-provided paths or process environment.
+        // A mismatched systemd User fails before touching credential bytes.
+        let stageServiceUid = null;
+        if (chosenUnit === STAGE_GATEWAY_UNIT) {
+          const unitUser = parseProperties(
+            run(SYSTEMCTL, [
+              "show",
+              STAGE_GATEWAY_UNIT,
+              "--property=User",
+              "--no-pager",
+            ]),
+          ).User;
+          if (unitUser !== "kmjcode") fail("STAGE_GATEWAY_IDENTITY_UNVERIFIED");
+          const uidText = String(run("/usr/bin/id", ["-u", "kmjcode"])).trim();
+          if (!/^[1-9][0-9]*$/.test(uidText))
+            fail("STAGE_GATEWAY_IDENTITY_UNVERIFIED");
+          stageServiceUid = Number(uidText);
+          if (!Number.isSafeInteger(stageServiceUid))
+            fail("STAGE_GATEWAY_IDENTITY_UNVERIFIED");
+        }
         const raw = JSON.parse(
           chosenUnit === STAGE_GATEWAY_UNIT
-            ? readStageGatewayConfig()
+            ? readStageGatewayConfig({ serviceUid: stageServiceUid })
             : readFile(configPath),
         );
         if (request.service === "agent") agentSchema.parse(raw);
