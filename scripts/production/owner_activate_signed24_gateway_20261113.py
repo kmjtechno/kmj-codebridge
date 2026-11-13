@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """KMJ-elite owner-only signed stable24 gateway cutover.
 
-Preserve the signed22 root-owned override as rollback authority. Create only a
+Preserve the signed23 root-owned override as rollback authority. Create only a
 lexicographically later signed24 override. Never touch keys, updater, agent,
 Nginx, source repos, stable/current, or an existing override. Verify direct,
 local-Nginx, and public commit+MCP schemas; rollback on any failure.
@@ -21,10 +21,10 @@ import time
 UNIT = "kmj-codebridge-gateway-stage.service"
 UNIT_PATH = pathlib.Path("/etc/systemd/system/kmj-codebridge-gateway-stage.service")
 DIR = pathlib.Path("/etc/systemd/system/kmj-codebridge-gateway-stage.service.d")
-OLD_CONF = DIR / "zzzzzz-kmj-signed22.conf"
-NEW_CONF = DIR / "zzzzzzz-kmj-signed24.conf"
-PREVIOUS_SHA = "0bf9b3cc0c1ffb7555540ec66f1e26ec517bd624"
-OLD_DIR = pathlib.Path("/opt/kmj-codebridge-stable/releases/0.3.2-0bf9b3cc0c1f")
+OLD_CONF = DIR / "zzzzzzz-kmj-signed23.conf"
+NEW_CONF = DIR / "zzzzzzzz-kmj-signed24.conf"
+PREVIOUS_SHA = "37a6627bff6435a29d6b2863a0304db6e41a680b"
+OLD_DIR = pathlib.Path("/opt/kmj-codebridge-stable/releases/0.3.2-37a6627bff64")
 NEW_DIR = pathlib.Path("/opt/kmj-codebridge-stable/releases/0.3.2-dd1ccf3232f9")
 STABLE_CURRENT = pathlib.Path("/opt/kmj-codebridge-stable/current")
 NEW_SHA = "dd1ccf3232f9678df6e8e87172c36ff4397c0cac"
@@ -94,7 +94,7 @@ def require_root_parent(path):
         need(stat.S_ISDIR(st.st_mode) and st.st_uid==0 and (st.st_mode&0o022)==0,
              "OWNER_PARENT_UNTRUSTED")
 
-OLD_CONF_BYTES = [b""]  # exact bytes of the signed22 override seen at preflight
+OLD_CONF_BYTES = [b""]  # exact bytes of the signed23 override seen at preflight
 
 def previous_content(config):
     return ("[Service]\n"
@@ -116,9 +116,9 @@ def old_conf_and_gateway_config():
              r"/src/cli\.js gateway (/[A-Za-z0-9_./-]+)")
     m=re.fullmatch(pattern,execs[1])
     need(m is not None, "SIGNED14_EXEC_UNEXPECTED")
-    # The signed22 override was written by the reviewed signed22 script from a
+    # The signed23 override was written by the reviewed signed23 script from a
     # fixed template; require exactly those bytes (no hash pin to a live host file).
-    need(data==previous_content(m.group(1)),"SIGNED22_OVERRIDE_DRIFT")
+    need(data==previous_content(m.group(1)),"SIGNED23_OVERRIDE_DRIFT")
     OLD_CONF_BYTES[:]=[data]
     return data,m.group(1)
 
