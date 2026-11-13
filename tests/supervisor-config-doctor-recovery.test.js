@@ -12,10 +12,17 @@ const validStageGateway = JSON.stringify({
     jwksUri: "https://kmjtechno.com/jwks",
   },
 });
-const stageGatewayState = (_bin, args) =>
-  args[1] === "kmj-codebridge-gateway-stage.service"
+const stageGatewayState = (bin, args) => {
+  if (bin === "/usr/bin/id" && args[0] === "-u" && args[1] === "kmjcode")
+    return "997\n";
+  if (bin === "/usr/bin/systemctl" &&
+      args[1] === "kmj-codebridge-gateway-stage.service" &&
+      args.includes("--property=User"))
+    return "User=kmjcode\n";
+  return args[1] === "kmj-codebridge-gateway-stage.service"
     ? "LoadState=loaded\nActiveState=active\n"
     : "LoadState=not-found\nActiveState=inactive\n";
+};
 
 const validAgent = JSON.stringify({
   gateway: "https://kmjtechno.com",
@@ -174,6 +181,43 @@ test("active stage gateway refuses a missing protected stage config", async () =
     JSON.stringify(result),
     /PRIVATE_GATEWAY_CREDENTIAL|\/etc\//,
   );
+});
+
+test("stage gateway service-owned credential trust is bound to systemd User and OS UID", async () => {
+  const seen = [];
+  const handler = createSupervisorHandler({
+    run: (...params) => { seen.push(params); return stageGatewayState(...params); },
+    readFile: () => { throw new Error("must not load canonical gateway config"); },
+    readStageGatewayConfig: (args) => {
+      assert.deepEqual(args, { serviceUid: 997 });
+      return validStageGateway;
+    },
+  });
+  const result = await handler({ op: "config_validate", service: "gateway" });
+  assert.equal(result.response.valid, true);
+  assert.equal(result.response.runtimeBindingVerified, false);
+  assert.ok(seen.some(([binary, argv]) => binary === "/usr/bin/id" &&
+                                   argv[0] === "-u" && argv[1] === "kmjcode"));
+});
+
+test("stage gateway rejects wrong systemd User or unresolved UID before credential read", async () => {
+  for (const bad of ["wrong-user", "bad-uid", "root-uid"]) {
+    let reads = 0;
+    const handler = createSupervisorHandler({
+      run: (bin, args) => {
+        if (bin === "/usr/bin/id")
+          return bad === "bad-uid" ? "NOT_NUMBER" : "0";
+        if (args.includes("--property=User"))
+          return bad === "wrong-user" ? "User=root\n" : "User=kmjcode\n";
+        return stageGatewayState(bin, args);
+      },
+      readStageGatewayConfig: () => { reads++; throw new Error("SECRET"); },
+    });
+    const result = await handler({ op: "config_validate", service: "gateway" });
+    assert.equal(result.response.valid, false);
+    assert.equal(reads, 0);
+    assert.doesNotMatch(JSON.stringify(result), /SECRET|\/etc\//);
+  }
 });
 
 test("active stage gateway validates only protected config, not runtime identity", async () => {
