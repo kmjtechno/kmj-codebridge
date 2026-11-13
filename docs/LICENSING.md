@@ -83,6 +83,19 @@ This is the agent side only. Main Platform must still implement and sign the
 issue, renew and revoke endpoints; until it does, revocation in production remains
 "renewal refused, lease ends at expiry plus signed grace".
 
+## Optional Free fallback (agent side)
+
+Signed configuration accepts `"fallbackToFree": true` (default `false`). When set,
+an **authentic** lease that has lapsed past its signed grace, or a signed `REVOKED`
+token, degrades the agent to Free limits (one project, one concurrent job) instead
+of locking it out, so customer data stays usable. The agent refuses to start with
+this flag unless exactly one project is configured, matching Free mode.
+
+The fallback never applies to a bad signature, wrong tenant/device binding, replay,
+clock rollback, or a missing/unreadable token: those still fail closed. Renewal
+keeps running, so a newer `ACTIVE` token upgrades the agent again automatically.
+Account-wide device limits and trial issuance remain Main Platform concerns.
+
 ## Optional renewal client (proposed contract)
 
 Signed agent configuration now accepts `renewal` with `endpoint` (HTTPS URL without
