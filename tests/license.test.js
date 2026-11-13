@@ -112,3 +112,35 @@ test("rejects unsupported version and oversized token", () => {
     /LICENSE/,
   );
 });
+
+test("signed REVOKED status is reported as REVOKED and absent status stays ACTIVE", () => {
+  const revoked = verifyEntitlement(
+    token({ ...base, status: "REVOKED", sequence: 2 }),
+    keys,
+    binding,
+    now,
+  );
+  assert.equal(revoked.state, "REVOKED");
+  assert.equal(
+    verifyEntitlement(token({ ...base, status: "ACTIVE" }), keys, binding, now)
+      .state,
+    "ACTIVE",
+  );
+});
+test("rejects unknown status values", () => {
+  for (const status of ["SUSPENDED", "", 1, null])
+    assert.throws(
+      () => verifyEntitlement(token({ ...base, status }), keys, binding, now),
+      /LICENSE/,
+    );
+});
+test("unsigned status tampering is rejected by the signature", () => {
+  const parts = token().split(".");
+  parts[1] = Buffer.from(
+    JSON.stringify({ ...base, status: "REVOKED" }),
+  ).toString("base64url");
+  assert.throws(
+    () => verifyEntitlement(parts.join("."), keys, binding, now),
+    /LICENSE/,
+  );
+});

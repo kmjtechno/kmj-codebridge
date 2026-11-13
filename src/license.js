@@ -65,6 +65,14 @@ export function verifyEntitlement(
       now >= p.grace_until
     )
       fail("LICENSE_EXPIRED");
+    // Optional signed lifecycle status. Absent means ACTIVE, so tokens issued
+    // before this claim existed keep verifying unchanged.
+    if (
+      p.status !== undefined &&
+      p.status !== "ACTIVE" &&
+      p.status !== "REVOKED"
+    )
+      fail("LICENSE_CLAIMS");
     if (
       !Array.isArray(p.features) ||
       p.features.some((f) => !["read", "write", "execute"].includes(f))
@@ -79,6 +87,7 @@ export function verifyEntitlement(
       p.limits.devices < 1
     )
       fail("LICENSE_LIMITS");
+    if (p.status === "REVOKED") return { ...p, state: "REVOKED" };
     return { ...p, state: now < p.exp ? "ACTIVE" : "GRACE" };
   } catch {
     fail("LICENSE_INVALID");

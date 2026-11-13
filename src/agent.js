@@ -153,6 +153,9 @@ export async function startAgent(
     const tmp = licenseState + ".tmp";
     fs.writeFileSync(tmp, JSON.stringify(trusted), { mode: 0o600 });
     fs.renameSync(tmp, licenseState);
+    // Persist the sequence BEFORE refusing: a revocation must raise the replay
+    // high-water mark so an older ACTIVE token cannot be swapped back in.
+    if (p.state === "REVOKED") fail("LICENSE_REVOKED");
     return p;
   };
   // The Elite CloudOS socket belongs to one dedicated, non-Main-Platform

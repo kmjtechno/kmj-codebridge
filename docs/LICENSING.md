@@ -67,6 +67,22 @@ No synchronous Main Platform call is made for each tool invocation.
 Never treat Free mode as a locally issued commercial trial. No payments are taken by
 this preview. Pricing and trial limits in the roadmap remain proposals.
 
+## Signed revocation (backward-compatible)
+
+An entitlement may carry an optional signed `status` claim: `"ACTIVE"` (also the
+meaning when the claim is absent) or `"REVOKED"`. Any other value is rejected as
+`LICENSE_CLAIMS`. A signed `REVOKED` token follows the same signature, binding and
+time checks, must carry a strictly higher `sequence`, and is installed by the
+renewal client like any lease. The agent then raises its persisted replay
+high-water mark **before** refusing tool use with `LICENSE_REVOKED`, so an older
+`ACTIVE` token cannot be swapped back in. Status and cancellation stay available,
+as after expiry. A later `ACTIVE` token with a still higher `sequence` reactivates
+the device.
+
+This is the agent side only. Main Platform must still implement and sign the
+issue, renew and revoke endpoints; until it does, revocation in production remains
+"renewal refused, lease ends at expiry plus signed grace".
+
 ## Optional renewal client (proposed contract)
 
 Signed agent configuration now accepts `renewal` with `endpoint` (HTTPS URL without

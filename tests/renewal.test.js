@@ -166,3 +166,19 @@ for (const outcome of ["renewed", "outage", "invalid", "symlink"])
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+test("renewal accepts a higher-sequence signed REVOKED token but never a replayed one", async () => {
+  const revoked = issue({ status: "REVOKED", sequence: 3 });
+  const result = await requestRenewal(config, keys, binding, 2, {
+    now,
+    fetch: async () => Response.json({ token: revoked }),
+  });
+  assert.equal(result.claims.state, "REVOKED");
+  await assert.rejects(
+    requestRenewal(config, keys, binding, 3, {
+      now,
+      fetch: async () => Response.json({ token: revoked }),
+    }),
+    /LICENSE_REPLAY/,
+  );
+});

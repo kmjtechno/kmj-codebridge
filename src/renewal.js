@@ -40,6 +40,9 @@ export async function requestRenewal(
     options.now ?? Math.floor(Date.now() / 1000),
   );
   if (claims.sequence <= sequence) fail("LICENSE_REPLAY");
-  if (claims.state !== "ACTIVE") fail("LICENSE_RENEWAL_NOT_ACTIVE");
+  // A signed REVOKED token with a strictly higher sequence is a valid answer:
+  // the caller installs it so the revocation raises the replay high-water mark.
+  if (claims.state !== "ACTIVE" && claims.state !== "REVOKED")
+    fail("LICENSE_RENEWAL_NOT_ACTIVE");
   return { token: data.token, claims };
 }
