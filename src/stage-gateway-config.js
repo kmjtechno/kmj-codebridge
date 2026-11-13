@@ -12,49 +12,59 @@ function trustFailure() {
   return error;
 }
 
-function trustedRootDirectory(info) {
+function trustedDirectory(info, serviceUid) {
+  const ownerIsRoot = info.uid === 0;
+  const ownerIsService =
+    Number.isSafeInteger(serviceUid) &&
+    serviceUid > 0 &&
+    info.uid === serviceUid;
   return (
     info.isDirectory() &&
     !info.isSymbolicLink() &&
-    info.uid === 0 &&
     Number.isSafeInteger(info.gid) &&
     info.gid >= 0 &&
-    // The credential directory must never be traversable by other users.
-    (info.mode & 0o027) === 0
+    // Retain the existing trusted root-owned directory policy. A dedicated
+    // nonroot service-owned directory MUST be 0700-equivalent, with no
+    // traversal/read bits for any other account, even its own group.
+    ((ownerIsRoot && (info.mode & 0o027) === 0) ||
+      (ownerIsService && (info.mode & 0o077) === 0))
   );
 }
 
-function trustedRootFile(info, directory) {
+function trustedFile(info, directory) {
+  const ownerIsRoot = directory.uid === 0;
   return (
     info.isFile() &&
     !info.isSymbolicLink() &&
-    info.uid === 0 &&
+    // The file must be owned by exactly the same trusted owner as its
+    // protected parent. Never allow mixed-root/service ownership.
+    info.uid === directory.uid &&
     info.nlink === 1 &&
-    // JSON credentials must not be executable, group-writable or accessible
-    // to any unrelated local account.
-    (info.mode & 0o137) === 0 &&
     Number.isSafeInteger(info.gid) &&
     info.gid >= 0 &&
-    // Group-readable secrets are allowed only for the same root-controlled
-    // group as the protected parent directory. Runtime group membership
-    // still requires a separate owner/root attestation.
-    ((info.mode & 0o040) === 0 || info.gid === directory.gid) &&
     Number.isSafeInteger(info.size) &&
     info.size >= 0 &&
-    info.size <= MAX_CONFIG_BYTES
+    info.size <= MAX_CONFIG_BYTES &&
+    (ownerIsRoot
+      ? // Preserve the previous root-owned 0600/0640 protection.
+        (info.mode & 0o137) === 0 &&
+        ((info.mode & 0o040) === 0 || info.gid === directory.gid)
+      : // A service-owned credential is accepted ONLY as a fully private
+        // non-executable file with the same group as its parent.
+        info.gid === directory.gid && (info.mode & 0o177) === 0)
   );
 }
 
 // No symlink traversal of the stage directory or final file, no unbounded
 // secret reads, no TOCTOU between path metadata and the opened inode.
 // The caller only receives schema-validation outcome, never this text.
-export function readTrustedStageGatewayConfig({ io = fs } = {}) {
+export function readTrustedStageGatewayConfig({ io = fs, serviceUid = null } = {}) {
   const directory = io.lstatSync(STAGE_GATEWAY_DIR);
-  if (!trustedRootDirectory(directory)) {
+  if (!trustedDirectory(directory, serviceUid)) {
     throw trustFailure();
   }
   const before = io.lstatSync(STAGE_GATEWAY_CONFIG);
-  if (!trustedRootFile(before, directory)) throw trustFailure();
+  if (!trustedFile(before, directory)) throw trustFailure();
   const nofollow = fs.constants.O_NOFOLLOW;
   if (!Number.isInteger(nofollow) || nofollow === 0) throw trustFailure();
   const fd = io.openSync(
@@ -64,7 +74,7 @@ export function readTrustedStageGatewayConfig({ io = fs } = {}) {
   try {
     const opened = io.fstatSync(fd);
     if (
-      !trustedRootFile(opened, directory) ||
+      !trustedFile(opened, directory) ||
       opened.dev !== before.dev ||
       opened.ino !== before.ino
     ) {
