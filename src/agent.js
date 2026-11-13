@@ -28,7 +28,7 @@ import {
   createToolGuardHost,
   registerReadOnlyProjectGuard,
 } from "./tool-guard-host.js";
-import { verifyEntitlement } from "./license.js";
+import { createLicenseProvider } from "./license-provider.js";
 import { fail, publicError } from "./errors.js";
 import { acquireAgentLock, releaseAgentLock } from "./agent-lock.js";
 import { singleFlightClose } from "./single-flight-close.js";
@@ -63,6 +63,12 @@ export async function startAgent(
   )
     fail("INVALID_GATEWAY_URL");
   if (c.license.mode === "free" && c.projects.length !== 1)
+    fail("FREE_PROJECT_LIMIT");
+  if (
+    c.license.mode === "signed" &&
+    c.license.fallbackToFree === true &&
+    c.projects.length !== 1
+  )
     fail("FREE_PROJECT_LIMIT");
   if (new Set(c.projects.map((p) => p.id)).size !== c.projects.length)
     fail("DUPLICATE_PROJECT");
@@ -126,38 +132,7 @@ export async function startAgent(
     releaseAgentLock(agentLock);
     throw e;
   }
-  const licenseState = path.join(state, "license-state.json");
-  let trusted = fs.existsSync(licenseState)
-    ? JSON.parse(fs.readFileSync(licenseState, "utf8"))
-    : { sequence: -1, lastTime: 0 };
-  const licenseProvider = () => {
-    if (c.license.mode === "free")
-      return {
-        features: ["read", "write", "execute"],
-        limits: { concurrent_jobs: 1 },
-      };
-    const now = Math.floor(Date.now() / 1000);
-    if (now + 60 < trusted.lastTime) fail("LICENSE_CLOCK_ROLLBACK");
-    const token = fs.readFileSync(c.license.tokenFile, "utf8").trim();
-    const p = verifyEntitlement(
-      token,
-      c.license.keys,
-      { tenant: c.tenant, device: c.id },
-      now,
-    );
-    if (p.sequence < trusted.sequence) fail("LICENSE_REPLAY");
-    trusted = {
-      sequence: p.sequence,
-      lastTime: Math.max(now, trusted.lastTime),
-    };
-    const tmp = licenseState + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(trusted), { mode: 0o600 });
-    fs.renameSync(tmp, licenseState);
-    // Persist the sequence BEFORE refusing: a revocation must raise the replay
-    // high-water mark so an older ACTIVE token cannot be swapped back in.
-    if (p.state === "REVOKED") fail("LICENSE_REVOKED");
-    return p;
-  };
+  const licenseProvider = createLicenseProvider(c, state);
   // The Elite CloudOS socket belongs to one dedicated, non-Main-Platform
   // project. Even a misconfigured enrolled agent must not select it for a
   // different project identity or a multi-project process.
@@ -376,7 +351,7 @@ export async function startAgent(
       return;
     nextRenewal = Date.now() + c.license.renewal.intervalSeconds * 1000;
     const now = Math.floor(Date.now() / 1000);
-    if (now + 60 < trusted.lastTime) return;
+    if (now + 60 < licenseProvider.trusted().lastTime) return;
     try {
       // Check the installed cache before requesting a strictly newer signed lease.
       // If it is expired, persisted high-water marks still constrain renewal.
@@ -390,7 +365,7 @@ export async function startAgent(
         c.license.renewal,
         c.license.keys,
         { tenant: c.tenant, device: c.id },
-        trusted.sequence,
+        licenseProvider.trusted().sequence,
         { signal: controller.signal },
       );
       const tmp = c.license.tokenFile + ".renew-" + process.pid;

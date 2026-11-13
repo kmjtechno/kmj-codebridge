@@ -657,6 +657,9 @@ export const agentSchema = z.object({
         })
         .optional(),
       keys: z.record(z.string()),
+      // Opt-in: an authentic lapsed or revoked lease degrades to Free limits
+      // (one project, one job) instead of locking the agent out.
+      fallbackToFree: z.boolean().default(false),
     }),
   ]),
 });

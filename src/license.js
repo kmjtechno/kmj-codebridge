@@ -89,7 +89,10 @@ export function verifyEntitlement(
       fail("LICENSE_LIMITS");
     if (p.status === "REVOKED") return { ...p, state: "REVOKED" };
     return { ...p, state: now < p.exp ? "ACTIVE" : "GRACE" };
-  } catch {
+  } catch (e) {
+    // Expiry is only reachable after the signature and binding checks passed, so
+    // it proves an authentic lapsed lease. Every other failure stays generic.
+    if (e?.code === "LICENSE_EXPIRED") throw e;
     fail("LICENSE_INVALID");
   }
 }
