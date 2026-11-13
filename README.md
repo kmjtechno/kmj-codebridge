@@ -366,18 +366,18 @@ Already-enrolled Main Platform agents can be refreshed through a fixed Superviso
 
 **Current production gate:** deterministic bootstrap/repair and existing-enrollment refresh behavior are verified in CI and the live account currently reports both authorized projects READY. A recorded end-to-end run on a disposable fresh device is still required before claiming fresh-device production proof. See [enrollment contract](docs/ENROLLMENT.md) and [current status](docs/STATUS.md).
 
-## Free forever + ultra-low-cost launch plans
+## Free forever + low-cost launch plans
 
 The open-source Community tier stays useful. Hosted convenience and higher commercial limits are paid entitlements through **KMJ Main Platform**.
 
-| Plan            |                                    Launch price | Best for                                  |
-| --------------- | ----------------------------------------------: | ----------------------------------------- |
-| **Community**   |                                        **Free** | OSS users, evaluation, one device/project |
-| **Pro Launch**  |           **₹149/mo India · US$1.99/mo global** | Individual developers                     |
-| **Team Launch** | **₹399/user/mo India · US$4.99/user/mo global** | Small engineering teams                   |
-| **Business**    |                                          Custom | Larger deployments, support, procurement  |
+| Plan            |                                  Launch price | Best for                                  |
+| --------------- | --------------------------------------------: | ----------------------------------------- |
+| **Community**   |                                      **Free** | OSS users, evaluation, one device/project |
+| **Pro Launch**  |            **₹299/mo India · US$7/mo global** | Individual developers                     |
+| **Team Launch** | **₹699/user/mo India · US$10/user/mo global** | Small engineering teams                   |
+| **Business**    |                                        Custom | Larger deployments, support, procurement  |
 
-**Planned launch trial (not active):** eligible new accounts may receive **30 days of Pro** after Main Platform's trial-entitlement and payment gates are verified. There is no automatic paid conversion without an explicit subscription choice.
+**Planned launch trial (not active):** eligible new accounts may receive **14 days of Pro** after Main Platform's trial-entitlement and payment gates are verified. There is no automatic paid conversion without an explicit subscription choice.
 
 Third-party AI subscriptions/API usage are separate. Taxes and final checkout terms are controlled by KMJ Main Platform.
 

@@ -4,16 +4,18 @@
 
 KMJ CodeBridge keeps the open-source core useful while reserving hosted convenience, higher limits, team controls and commercial operations for paid entitlements.
 
-## Viral launch offer
+## Launch plans
 
-- **Community — Free forever:** no card required, 1 device, 1 project, 1 concurrent job.
-- **Pro Launch — ₹149/month in India or US$1.99/month globally:** introductory price for early adopters while the launch offer is active.
-- **Team Launch — ₹399/user/month in India or US$4.99/user/month globally:** introductory team price.
-- **Business — custom:** larger deployments, procurement, advanced support and negotiated limits.
-- **Planned trial (not active):** eligible new accounts may receive **30 days of Pro** after the trial entitlement is production-tested, with no automatic paid conversion unless the customer explicitly chooses a paid subscription.
-- **Proposed founding-users offer (not active):** accounts that activate a paid Pro or Team subscription during an announced launch window may keep the launch base price for 12 months, subject to taxes, abuse controls and published Terms. No founding-user price protection applies until the owner publishes actual checkout terms.
+Owner-approved on 2026-11-13 (see [Suite plans](LICENSING-HUB-SUITE-PLANS.md) for the reasoning and the plan-change policy). Prices are list prices and may change prospectively with notice.
 
-These prices intentionally exclude AI-model subscription/API fees charged by third-party AI providers.
+- **Community: free forever.** No card required, 1 device, 1 project, 1 concurrent job.
+- **Pro: US$7/month or US$59/year globally; ₹299/month or ₹2,499/year in India.**
+- **Team: US$10/user/month globally (minimum 3); ₹699/user/month in India.**
+- **Business: from US$299/month, quoted.** Larger deployments, procurement, advanced support and negotiated limits.
+- **Planned trial (not active):** eligible new accounts may receive **14 days of Pro**, no card required, after the trial entitlement is production-tested. No automatic paid conversion unless the customer explicitly chooses a paid subscription.
+- **Proposed founding-users offer (not active):** Pro annual at US$39 for the first 200 paying accounts in an announced window, price locked for 12 months, subject to taxes, abuse controls and published Terms. No founding price applies until the owner publishes actual checkout terms.
+
+These prices exclude AI-model subscription or API fees charged by third-party AI providers.
 
 **Pilot enquiries:** Developers who want an early access evaluation can [contact KMJ CodeBridge support](https://kmjtechno.com/products/kmj-codebridge/support) voluntarily. This is not a payment link. Only a KMJ Main Platform owner-authorized, independently verified commercial order may lead to a hosted paid entitlement.
 
