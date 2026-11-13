@@ -17,7 +17,8 @@ export function latestSignedRelease(root = "releases/stable") {
     const file = join(root, dir, "release-manifest.json");
     if (!existsSync(file)) continue;
     const manifest = JSON.parse(readFileSync(file, "utf8"));
-    if (manifest.revision !== dir) throw new Error("RELEASE_REVISION_DIR_MISMATCH");
+    if (manifest.revision !== dir)
+      throw new Error("RELEASE_REVISION_DIR_MISMATCH");
     if (!Number.isInteger(manifest.sequence) || manifest.sequence < 1) {
       throw new Error("RELEASE_SEQUENCE_INVALID");
     }
@@ -32,16 +33,28 @@ export function latestSignedRelease(root = "releases/stable") {
   return best;
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
-    const { sequence, revision } = latestSignedRelease(process.argv[2] ?? undefined);
-    console.log(`LATEST_SIGNED_RELEASE sequence=${sequence} revision=${revision}`);
+    const { sequence, revision } = latestSignedRelease(
+      process.argv[2] ?? undefined,
+    );
+    console.log(
+      `LATEST_SIGNED_RELEASE sequence=${sequence} revision=${revision}`,
+    );
     if (process.env.GITHUB_OUTPUT) {
       const { appendFileSync } = await import("node:fs");
-      appendFileSync(process.env.GITHUB_OUTPUT, `revision=${revision}\nsequence=${sequence}\n`);
+      appendFileSync(
+        process.env.GITHUB_OUTPUT,
+        `revision=${revision}\nsequence=${sequence}\n`,
+      );
     }
   } catch (error) {
-    console.error("LATEST_SIGNED_RELEASE=FAIL " + (error?.message ?? "UNKNOWN"));
+    console.error(
+      "LATEST_SIGNED_RELEASE=FAIL " + (error?.message ?? "UNKNOWN"),
+    );
     process.exit(1);
   }
 }
