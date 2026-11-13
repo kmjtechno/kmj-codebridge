@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 REV = "37a6627bff6435a29d6b2863a0304db6e41a680b"
 PREVIOUS = "0bf9b3cc0c1ffb7555540ec66f1e26ec517bd624"
-SOURCE = "698def1fe59b8bdb30a5c1c66b77ff1f546b4b15"
+SOURCE = "b370d9ed125ef4f8853e6c60709f19e7207388d4"
 ARCHIVE = "kmj-codebridge-0.3.2-37a6627bff64.tar.gz"
 BASE = f"https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/{SOURCE}/releases/stable/{REV}"
 GITHUB = f"https://github.com/kmjtechno/kmj-codebridge/releases/download/codebridge-stable-seq23-37a6627b/{ARCHIVE}"
