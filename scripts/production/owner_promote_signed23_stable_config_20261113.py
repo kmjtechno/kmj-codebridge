@@ -119,7 +119,7 @@ def check_public(config):
         root=pathlib.Path(td)
         manifest=bounded_https(expected_url(NEW,"release-manifest.json"),root/"manifest",65536)
         signature=bounded_https(expected_url(NEW,"release-manifest.sig"),root/"signature",1024)
-        archive=bounded_https(expected_url(NEW,ARCHIVE),root/"archive",2097152)
+        archive=bounded_https(expected_url(NEW,ARCHIVE),root/"archive",4194304)
     guard(hashlib.sha256(manifest).hexdigest() == MANIFEST_SHA,"SIGNED23_MANIFEST_HASH")
     guard(len(archive)==ARCHIVE_SIZE and hashlib.sha256(archive).hexdigest()==ARCHIVE_SHA,
           "SIGNED23_ARCHIVE_HASH")
