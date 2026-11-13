@@ -38,3 +38,22 @@ must run it locally on P720; current connected MCP supervisor reports
 it. The command must include both opt-ins if the checkout has both kinds of
 changes. Never paste agent tokens, configs, or process command lines.
 Successful GitHub CI is not evidence that the actual Windows agent updated.
+
+## Other enrolled Windows devices (for example P520) and dry run
+
+The updater defaults to the original P720 layout. A different enrolled device
+passes its own absolute paths: `-RepoPath`, `-PrivateDir`, `-ReleasesDir`
+(leaf name must stay `codebridge-releases`) and `-LogsDir`. The private
+`agent.json` must still name exactly that repo root and state directory, so a
+wrong path stops with `AGENT_SCOPE_NOT_APPROVED`. Paths must be plain absolute
+drive paths (no UNC, relative, `..`, `.` segments or trailing separator).
+
+Run `-DryRun` first. It performs only the read-only preflight (identity,
+checkout cleanliness, one scoped agent, idle journals) and then prints
+`DRY_RUN=UNCHANGED`: no fetch, worktree, npm, stop or start. Branch and
+fast-forward guards are unchanged, so a device whose checkout is not on a clean
+`main` is refused, and that refusal is the expected result of the dry run.
+
+This adds parameters only. It is not evidence that any P520 update has run,
+and no P520 runtime change is claimed until the owner's local run reports
+`NEW_RUNTIME_HEARTBEAT=PASS`.

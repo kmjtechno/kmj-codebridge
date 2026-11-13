@@ -6,17 +6,28 @@ param(
     [ValidatePattern('^[a-f0-9]{40}$')]
     [string]$TargetSha,
     [switch]$AllowTrackedDirtyCheckout,
-    [switch]$AllowUntrackedFiles
+    [switch]$AllowUntrackedFiles,
+    # Defaults are the original P720 layout. Another enrolled Windows device
+    # (for example P520) passes its own ABSOLUTE paths; the private agent.json
+    # must still name exactly this repo root and state dir, so a wrong path
+    # fails closed with AGENT_SCOPE_NOT_APPROVED instead of touching anything.
+    [string]$RepoPath = 'D:\KMJ-HyperSpeed\projects\kmj-codebridge',
+    [string]$PrivateDir = 'D:\KMJ-HyperSpeed\private\p720-codebridge',
+    [string]$ReleasesDir = 'D:\KMJ-HyperSpeed\codebridge-releases',
+    [string]$LogsDir = 'D:\KMJ-HyperSpeed\logs',
+    # Preflight only: no fetch, worktree, npm, stop or start. Reports why an
+    # update would be refused so the owner can review before any switch.
+    [switch]$DryRun
 )
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
-$repo = 'D:\KMJ-HyperSpeed\projects\kmj-codebridge'
-$private = 'D:\KMJ-HyperSpeed\private\p720-codebridge'
+$repo = $RepoPath
+$private = $PrivateDir
 $configPath = Join-Path $private 'agent.json'
 $statePath = Join-Path $private 'state'
-$releases = 'D:\KMJ-HyperSpeed\codebridge-releases'
+$releases = $ReleasesDir
 $release = Join-Path $releases $TargetSha
-$logs = 'D:\KMJ-HyperSpeed\logs'
+$logs = $LogsDir
 $expectedGateway = 'https://kmjtechno.com'
 $allowedOrigins = @(
     'https://github.com/kmjtechno/kmj-codebridge',
@@ -37,6 +48,15 @@ function AssertApprovedGateway([string]$value) {
     # endpoint or legacy external origin is allowed to receive the device token.
     if ($value -cnotin @($expectedGateway, ($expectedGateway + '/'))) {
         throw 'AGENT_GATEWAY_NOT_APPROVED'
+    }
+}
+
+function AssertSafeWindowsPath([string]$Value, [string]$Code) {
+    # Plain absolute drive paths only: no UNC, device, ADS, relative or
+    # traversal forms, and no trailing separator.
+    if ($Value -cnotmatch '^[A-Za-z]:\\[A-Za-z0-9_. \-]+(\\[A-Za-z0-9_. \-]+)*$' -or
+        $Value.Contains('..') -or $Value -match '\\\.(\\|$)') {
+        throw $Code
     }
 }
 
@@ -349,6 +369,14 @@ function ConfirmRuntime([int]$processId, [string]$entry, [datetime]$since) {
 
 try {
     if ($env:OS -ne 'Windows_NT') { throw 'WINDOWS_P720_REQUIRED' }
+    AssertSafeWindowsPath $repo 'REPO_PATH_UNSAFE'
+    AssertSafeWindowsPath $private 'PRIVATE_PATH_UNSAFE'
+    AssertSafeWindowsPath $releases 'RELEASES_PATH_UNSAFE'
+    AssertSafeWindowsPath $logs 'LOGS_PATH_UNSAFE'
+    # Managed-release detection matches this exact directory name.
+    if ((Split-Path -Leaf $releases) -cne 'codebridge-releases') {
+        throw 'RELEASES_PATH_UNSAFE'
+    }
     $node = (Get-Command node.exe -ErrorAction Stop).Source
     $major = [string](& $node --version)
     if ($LASTEXITCODE -ne 0 -or $major -notmatch '^v(\d+)\.' -or
@@ -414,6 +442,10 @@ try {
     Write-Host ('TARGET_SHA=' + $TargetSha)
     Write-Host ('OLD_AGENT_PID=' + $oldPid)
 
+    if ($DryRun) {
+        Write-Host 'DRY_RUN=UNCHANGED'
+        $exitCode = 0
+    } else {
     # Fetch Git commits directly; not via ChatGPT GitHub or desktop plugins.
     # Keep the running project's main checkout unchanged.
     Git -GitArgs @('fetch', '--quiet', '--no-tags', 'origin', 'main') | Out-Null
@@ -475,6 +507,7 @@ try {
     Write-Host 'NEW_RUNTIME_HEARTBEAT=PASS'
     Write-Host 'ROLLBACK_SOURCE=PREVIOUS_VERIFIED_AGENT_RUNTIME'
     $exitCode = 0
+    }
 } catch {
     Write-Host ('UPDATE_BLOCKED=' + [string]$_.Exception.Message)
 } finally {
