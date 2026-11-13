@@ -426,3 +426,86 @@ test(
     assert.equal(result.status, 0, result.stdout + result.stderr);
   },
 );
+
+test("updater accepts explicit device paths and a no-mutation dry run without weakening guards", () => {
+  const source = fs.readFileSync(updaterPath, "utf8");
+  // Original P720 layout stays the default.
+  assert.match(
+    source,
+    /\[string\]\$RepoPath = 'D:\\KMJ-HyperSpeed\\projects\\kmj-codebridge'/,
+  );
+  assert.match(
+    source,
+    /\[string\]\$PrivateDir = 'D:\\KMJ-HyperSpeed\\private\\p720-codebridge'/,
+  );
+  assert.match(source, /\$repo = \$RepoPath/);
+  assert.match(source, /\$private = \$PrivateDir/);
+  assert.match(source, /\$releases = \$ReleasesDir/);
+  assert.match(source, /\$logs = \$LogsDir/);
+  // Path safety is checked before anything is read or run.
+  for (const code of [
+    "REPO_PATH_UNSAFE",
+    "PRIVATE_PATH_UNSAFE",
+    "RELEASES_PATH_UNSAFE",
+    "LOGS_PATH_UNSAFE",
+  ]) {
+    assert.ok(source.includes(code), code);
+  }
+  assert.ok(
+    source.indexOf("AssertSafeWindowsPath $repo") <
+      source.indexOf("Get-Command node.exe"),
+  );
+  // Dry run stops before any fetch, worktree, npm, stop or start.
+  const dry = source.indexOf("if ($DryRun)");
+  assert.ok(dry > 0);
+  for (const mutating of [
+    "'fetch'",
+    "'worktree', 'add'",
+    "npm.cmd --prefix $release ci",
+    "Stop-Process",
+    "StartScoped $newEntry",
+  ]) {
+    assert.ok(source.indexOf(mutating) > dry, mutating + " must follow DryRun");
+  }
+  assert.match(source, /DRY_RUN=UNCHANGED/);
+  // Existing identity, branch and anti-downgrade guards are untouched.
+  for (const guard of [
+    "AGENT_SCOPE_NOT_APPROVED",
+    "ONLY_MAIN_CHECKOUT_SUPPORTED",
+    "TARGET_NOT_FAST_FORWARD",
+    "SHA_NOT_ON_ORIGIN_MAIN",
+    "UNTRUSTED_SOURCE_REMOTE",
+    "ACTIVE_WORK_REQUIRES_DRAIN",
+  ]) {
+    assert.ok(source.includes(guard), guard);
+  }
+});
+
+test("updater path validator accepts plain drive paths and refuses unsafe forms", () => {
+  const source = fs.readFileSync(updaterPath, "utf8");
+  const fn = source.match(/function AssertSafeWindowsPath[\s\S]*?\n\}/);
+  assert.ok(fn);
+  const pattern = fn[0].match(/-cnotmatch '([^']+)'/);
+  assert.ok(pattern);
+  const re = new RegExp(pattern[1]);
+  const ok = (p) => re.test(p) && !p.includes("..") && !/\\\.(\\|$)/.test(p);
+  for (const good of [
+    "D:\\KMJ-HyperSpeed\\codebridge-releases",
+    "C:\\Users\\KMJ TECHNO\\kmj-codebridge",
+  ]) {
+    assert.ok(ok(good), good);
+  }
+  for (const bad of [
+    "\\\\server\\share\\x",
+    "\\\\?\\C:\\x",
+    "C:\\x\\..\\y",
+    "C:\\x\\.\\y",
+    "C:relative",
+    "relative\\path",
+    "C:\\x\\",
+    "C:\\x:stream",
+    "C:\\x\\y;calc",
+  ]) {
+    assert.ok(!ok(bad), bad);
+  }
+});
