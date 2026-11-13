@@ -84,10 +84,26 @@ test(
   "UID-bound nonroot stage service accepts only private matching 0700/0600 files",
   { skip: !nofollowSupported },
   () => {
-    const serviceDirectory = { ...trustedDir(), uid: 997, gid: 997, mode: 0o40700 };
-    const serviceFile = { ...trustedFile(), uid: 997, gid: 997, mode: 0o100600 };
-    const { io } = fixture({ directory: serviceDirectory, before: serviceFile });
-    assert.equal(readTrustedStageGatewayConfig({ io, serviceUid: 997 }), secret);
+    const serviceDirectory = {
+      ...trustedDir(),
+      uid: 997,
+      gid: 997,
+      mode: 0o40700,
+    };
+    const serviceFile = {
+      ...trustedFile(),
+      uid: 997,
+      gid: 997,
+      mode: 0o100600,
+    };
+    const { io } = fixture({
+      directory: serviceDirectory,
+      before: serviceFile,
+    });
+    assert.equal(
+      readTrustedStageGatewayConfig({ io, serviceUid: 997 }),
+      secret,
+    );
   },
 );
 
@@ -106,13 +122,22 @@ test("nonroot service-owned credentials reject missing UID, mismatched owners, g
     { directory: dir, before: { ...file, mode: 0o100640 }, serviceUid: 997 },
     { directory: dir, before: { ...file, mode: 0o100700 }, serviceUid: 997 },
     { directory: dir, before: { ...file, nlink: 2 }, serviceUid: 997 },
-    { directory: dir, before: { ...file, isSymbolicLink: () => true }, serviceUid: 997 },
+    {
+      directory: dir,
+      before: { ...file, isSymbolicLink: () => true },
+      serviceUid: 997,
+    },
   ];
   for (const { serviceUid, ...scenario } of cases) {
     const { io, seen } = fixture(scenario);
-    assert.throws(() => readTrustedStageGatewayConfig({ io, serviceUid }),
-                  (e) => e.code === "CONFIG_TRUST_INVALID");
-    assert.equal(seen.some(([op]) => op === "open"), false);
+    assert.throws(
+      () => readTrustedStageGatewayConfig({ io, serviceUid }),
+      (e) => e.code === "CONFIG_TRUST_INVALID",
+    );
+    assert.equal(
+      seen.some(([op]) => op === "open"),
+      false,
+    );
   }
 });
 
@@ -123,10 +148,14 @@ test(
     const dir = { ...trustedDir(), uid: 997, gid: 997, mode: 0o40700 };
     const file = { ...trustedFile(), uid: 997, gid: 997, mode: 0o100600 };
     const { io, seen } = fixture({
-      directory: dir, before: file, after: { ...file, ino: 100 },
+      directory: dir,
+      before: file,
+      after: { ...file, ino: 100 },
     });
-    assert.throws(() => readTrustedStageGatewayConfig({ io, serviceUid: 997 }),
-                  (e) => e.code === "CONFIG_TRUST_INVALID");
+    assert.throws(
+      () => readTrustedStageGatewayConfig({ io, serviceUid: 997 }),
+      (e) => e.code === "CONFIG_TRUST_INVALID",
+    );
     assert.equal(seen.at(-1)[0], "close");
   },
 );
