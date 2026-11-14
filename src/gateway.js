@@ -106,6 +106,71 @@ export function effectivePollWaitMs(configuredMs) {
     : AGENT_POLL_WAIT_CAP_MS;
 }
 
+// A healthy agent opens one /agent/health session per gateway or agent start.
+// Several new sessions inside a short window mean its requests keep failing
+// (proxy or tunnel idle timeouts, poll/timeout mismatch, unstable network).
+// This is a caller-visible hint only; it never changes authorization.
+export const SESSION_CHURN_WINDOW_MS = 10 * 60 * 1000;
+export const SESSION_CHURN_FLAPPING_COUNT = 5;
+export const SESSION_HISTORY_LIMIT = 32;
+export function recordSessionStart(previous, now) {
+  const history = Array.isArray(previous?.recentSessionStarts)
+    ? previous.recentSessionStarts
+    : [];
+  return {
+    sessionCount: (previous?.sessionCount ?? 0) + 1,
+    sessionStartedAt: now,
+    lastHealthAt: now,
+    recentSessionStarts: [...history, now].slice(-SESSION_HISTORY_LIMIT),
+  };
+}
+export function sessionChurn(health, now = Date.now()) {
+  const starts = Array.isArray(health?.recentSessionStarts)
+    ? health.recentSessionStarts
+    : [];
+  const recentSessionCount = starts.filter(
+    (at) =>
+      Number.isFinite(at) && at <= now && now - at < SESSION_CHURN_WINDOW_MS,
+  ).length;
+  return {
+    recentSessionCount,
+    recentSessionWindowSeconds: SESSION_CHURN_WINDOW_MS / 1000,
+    sessionChurn:
+      recentSessionCount >= SESSION_CHURN_FLAPPING_COUNT
+        ? "flapping"
+        : "stable",
+  };
+}
+
+// Explains an ACCESS_DENIED for the caller's own sign-in without revealing
+// anything about other accounts: either this OAuth session was not granted
+// the scope, or the account itself lacks the permission.
+export function accessDenialReason(user, access, oauthEnabled) {
+  const scope = `codebridge:${access}`;
+  if (
+    oauthEnabled &&
+    Array.isArray(user?.grantedScopes) &&
+    !user.grantedScopes.includes(scope)
+  )
+    return "OAUTH_SCOPE_NOT_GRANTED";
+  return "ACCOUNT_PERMISSION_NOT_GRANTED";
+}
+export function accessSummary(user, oauthEnabled) {
+  const effective = [...(user?.permissions ?? [])].sort();
+  return {
+    effectivePermissions: effective,
+    grantedScopes: Array.isArray(user?.grantedScopes)
+      ? user.grantedScopes.filter((s) => s.startsWith("codebridge:")).sort()
+      : null,
+    missing: ["read", "write", "execute"]
+      .filter((access) => !effective.includes(access))
+      .map((access) => ({
+        permission: access,
+        reason: accessDenialReason(user, access, oauthEnabled),
+      })),
+  };
+}
+
 export function connectionHealth(lastSeenAt, health, now = Date.now()) {
   const seen =
     Number.isFinite(lastSeenAt) && lastSeenAt > 0 ? lastSeenAt : null;
@@ -985,11 +1050,7 @@ export async function startGateway(rawConfig) {
         if (req.url === "/agent/health") {
           const now = lastSeen.get(a.id) ?? Date.now();
           const previous = agentHealth.get(a.id);
-          agentHealth.set(a.id, {
-            sessionCount: (previous?.sessionCount ?? 0) + 1,
-            sessionStartedAt: now,
-            lastHealthAt: now,
-          });
+          agentHealth.set(a.id, recordSessionStart(previous, now));
           json(res, 200, { ok: true });
           return;
         }
@@ -1150,7 +1211,18 @@ export async function startGateway(rawConfig) {
                 return {
                   isError: true,
                   content: [
-                    { type: "text", text: '{"error":"ACCESS_DENIED"}' },
+                    {
+                      type: "text",
+                      text: JSON.stringify({
+                        error: "ACCESS_DENIED",
+                        reason: accessDenialReason(
+                          user,
+                          d.access,
+                          Boolean(config.oauth),
+                        ),
+                        requiredPermission: d.access,
+                      }),
+                    },
                   ],
                   ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
@@ -1204,6 +1276,14 @@ export async function startGateway(rawConfig) {
                       nextAction,
                       ...(health
                         ? { connectionState: health.connectionState }
+                        : {}),
+                      ...(registered &&
+                      sessionChurn(agentHealth.get(device)).sessionChurn ===
+                        "flapping"
+                        ? {
+                            sessionChurn: "flapping",
+                            stabilityHint: "CHECK_PROXY_AND_POLL_TIMEOUTS",
+                          }
                         : {}),
                     });
                   }
@@ -1300,6 +1380,7 @@ export async function startGateway(rawConfig) {
                       lastSeen.get(agent.id),
                       agentHealth.get(agent.id),
                     ),
+                    ...sessionChurn(agentHealth.get(agent.id)),
                     dynamic: Boolean(agent.dynamic),
                   }))
                   .sort((a, b) => a.id.localeCompare(b.id));
@@ -1310,6 +1391,7 @@ export async function startGateway(rawConfig) {
                       text: JSON.stringify({
                         subject: user.subject ?? null,
                         dynamic: Boolean(user.dynamic),
+                        access: accessSummary(user, Boolean(config.oauth)),
                         memberships,
                         visibleAgents,
                       }),
