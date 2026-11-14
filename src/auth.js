@@ -53,10 +53,20 @@ export function createOAuthVerifier(config, users, resolveUser) {
             ),
           ]
         : filterPermissions(user.permissions);
+      // Kept only so diagnostics can tell "the account lacks this permission"
+      // from "this sign-in did not grant the scope". Never used to authorize.
+      const accountPermissions = [
+        ...new Set(
+          user.memberships
+            ? user.memberships.flatMap((membership) => membership.permissions)
+            : user.permissions,
+        ),
+      ];
       return {
         ...user,
         ...(memberships ? { memberships } : {}),
         grantedScopes: [...granted],
+        accountPermissions,
         permissions,
       };
     } catch {
