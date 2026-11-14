@@ -28,11 +28,11 @@ test("v2 only adds the startable-config preflight to the reviewed seq25 script",
 });
 
 test("the preflight rule is the one the gateway runtime enforces at startup", () => {
-  // src/cli.js rejects any group/other permission bit on the config file.
-  assert.match(
-    cli,
-    /stat\.mode & 0o077\)\s*throw startupFailure\(\s*"CONFIG_MODE_NOT_PRIVATE"/,
-  );
+  // src/cli.js delegates to configModeAcceptable. The cutover preflight is
+  // deliberately at least as strict: service-owned and no group/other bits
+  // is always startable under that rule.
+  assert.match(cli, /!configModeAcceptable\(mode, stat\)/);
+  assert.match(cli, /"CONFIG_MODE_NOT_PRIVATE"/);
   // The check runs while reading the config, before any systemd change.
   const check = v2.indexOf("GATEWAY_CONFIG_NOT_STARTABLE_MODE_OR_OWNER");
   const firstMutation = v2.indexOf("write_new(data);created=True");

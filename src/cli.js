@@ -7,6 +7,7 @@ import { startSupervisor } from "./supervisor.js";
 import { runWindowsSupervisorCli } from "./windows-supervisor-cli.js";
 import { runStableRollback, runStableUpdate } from "./stable-updater.js";
 import { startupFailure, startupFailureCode } from "./startup-failure.js";
+import { configModeAcceptable } from "./config-file-mode.js";
 const version = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
@@ -40,10 +41,10 @@ try {
   } else {
     const absolute = path.resolve(file);
     const stat = fs.statSync(absolute);
-    if (process.platform !== "win32" && stat.mode & 0o077)
+    if (process.platform !== "win32" && !configModeAcceptable(mode, stat))
       throw startupFailure(
         "CONFIG_MODE_NOT_PRIVATE",
-        "Configuration must have mode 0600.",
+        "Configuration must be private (0600), or root-owned and at most group-readable for the gateway.",
       );
     if (
       ["stable-update", "stable-rollback"].includes(mode) &&

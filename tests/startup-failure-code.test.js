@@ -49,7 +49,8 @@ const run = (file) =>
 
 test(
   "a group-readable config names CONFIG_MODE_NOT_PRIVATE and leaks nothing",
-  { skip: process.platform === "win32" },
+  // As root the file would be root-owned, which the gateway may accept.
+  { skip: process.platform === "win32" || process.getuid?.() === 0 },
   (t) => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-startup-"));
     t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
