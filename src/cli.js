@@ -6,6 +6,7 @@ import { startAgent } from "./agent.js";
 import { startSupervisor } from "./supervisor.js";
 import { runWindowsSupervisorCli } from "./windows-supervisor-cli.js";
 import { runStableRollback, runStableUpdate } from "./stable-updater.js";
+import { startupFailure, startupFailureCode } from "./startup-failure.js";
 const version = JSON.parse(
   fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
 ).version;
@@ -40,7 +41,10 @@ try {
     const absolute = path.resolve(file);
     const stat = fs.statSync(absolute);
     if (process.platform !== "win32" && stat.mode & 0o077)
-      throw Error("Configuration must have mode 0600.");
+      throw startupFailure(
+        "CONFIG_MODE_NOT_PRIVATE",
+        "Configuration must have mode 0600.",
+      );
     if (
       ["stable-update", "stable-rollback"].includes(mode) &&
       process.platform !== "win32" &&
@@ -106,9 +110,9 @@ try {
           );
       });
   }
-} catch {
+} catch (error) {
   console.error(
-    "Startup failed. Check configuration, file permissions, project roots and state lock. No secrets were logged.",
+    `Startup failed [${startupFailureCode(error)}]. Check configuration, file permissions, project roots and state lock. No secrets were logged.`,
   );
   process.exitCode = 1;
 }
