@@ -8,3 +8,7 @@ coverage/
 *.log
 .superpowers/
 .deployed-commit
+
+# Python bytecode caches are build output, never source.
+__pycache__/
+*.pyc
