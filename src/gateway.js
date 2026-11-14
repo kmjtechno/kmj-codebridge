@@ -92,6 +92,20 @@ function identify(req, records) {
 const ONLINE_WINDOW_MS = 30000;
 const STALE_WINDOW_MS = 120000;
 
+// Every released agent aborts each gateway request after 20s
+// (AGENT_REQUEST_TIMEOUT_MS in src/agent.js). An empty long poll held longer
+// than that is seen by the agent as a failed request: it marks itself
+// disconnected, backs off for up to 10s without polling, and re-probes
+// /agent/health, which shows up as a climbing gatewaySessionCount and as
+// work that waits for the backoff to end. The gateway therefore never holds
+// an empty poll longer than this cap, whatever pollWaitMs is configured.
+export const AGENT_POLL_WAIT_CAP_MS = 15000;
+export function effectivePollWaitMs(configuredMs) {
+  return Number.isFinite(configuredMs) && configuredMs > 0
+    ? Math.min(configuredMs, AGENT_POLL_WAIT_CAP_MS)
+    : AGENT_POLL_WAIT_CAP_MS;
+}
+
 export function connectionHealth(lastSeenAt, health, now = Date.now()) {
   const seen =
     Number.isFinite(lastSeenAt) && lastSeenAt > 0 ? lastSeenAt : null;
@@ -1001,7 +1015,7 @@ export async function startGateway(rawConfig) {
               resolve();
             };
             waiting.set(a.id, finish);
-            timer = setTimeout(finish, config.pollWaitMs);
+            timer = setTimeout(finish, effectivePollWaitMs(config.pollWaitMs));
             res.once("close", finish);
           });
           return;
