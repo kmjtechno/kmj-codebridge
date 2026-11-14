@@ -86,9 +86,12 @@ of the two options in the brief. Given finding (1), it is rejected for now:
    _or_ a clean empty long-poll return — the agent loops straight back into
    `/agent/poll` with no added `pollMs` delay.
 2. The gateway long-poll timeout is controlled by the bounded
-   `pollWaitMs` gateway config field. The default is 45 seconds. This is a
-   pure idle-chatter reduction — it cannot add latency to real work,
-   because wake is driven by `waiting.get(id)()`, not by the timeout.
+   `pollWaitMs` gateway config field. The default is 45 seconds, but the
+   gateway never holds an empty poll longer than `AGENT_POLL_WAIT_CAP_MS`
+   (15 seconds): every released agent aborts a request after 20 seconds, so
+   a longer hold was treated as a connection failure (10 second backoff
+   without polling, then a new `/agent/health` session). Wake for real work
+   is driven by `waiting.get(id)()`, not by the timeout.
 3. `connection.json` persistence is now transition-only in P5: healthy
    traffic leaves the file untouched, failures mark the in-memory connection
    state disconnected, and the next successful cycle records one reconnect.

@@ -37,6 +37,10 @@ import {
   gatewayFailureCode,
 } from "./agent-connection-status.js";
 import { VERSION } from "./version.js";
+
+// Must stay above the gateway's AGENT_POLL_WAIT_CAP_MS (src/gateway.js), or an
+// idle long poll is aborted and counted as a connection failure.
+export const AGENT_REQUEST_TIMEOUT_MS = 20000;
 export async function startAgent(
   rawConfig,
   { createUpdateGuard = (options) => new AgentUpdateGuard(options) } = {},
@@ -344,7 +348,10 @@ export async function startAgent(
         "content-type": "application/json",
       },
       body: JSON.stringify(data),
-      signal: AbortSignal.any([controller.signal, AbortSignal.timeout(20000)]),
+      signal: AbortSignal.any([
+        controller.signal,
+        AbortSignal.timeout(AGENT_REQUEST_TIMEOUT_MS),
+      ]),
       redirect: "error",
     });
     if (!response.ok) {
