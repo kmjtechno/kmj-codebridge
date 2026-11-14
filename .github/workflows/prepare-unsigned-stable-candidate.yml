@@ -87,6 +87,9 @@ jobs:
             printf 'REQUIRED_NEXT=OWNER_SIGN_EXACT_MANIFEST_AND_INDEPENDENTLY_VERIFY_ARCHIVE_BEFORE_PUBLISH\n'
           } > unsigned-candidate/UNSIGNED-CANDIDATE-RECEIPT.txt
           chmod 600 unsigned-candidate/*
+          # Public, non-secret values the owner needs for offline signing.
+          # Printed so they can be read without downloading the artifact.
+          cat unsigned-candidate/UNSIGNED-CANDIDATE-RECEIPT.txt
           echo 'UNSIGNED_SOURCE_BUNDLE=PASS'
           echo 'RELEASE_SIGNING_OR_DEPLOYMENT=NOT_ATTEMPTED'
 
