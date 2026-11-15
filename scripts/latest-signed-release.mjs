@@ -100,6 +100,20 @@ function checkedDirectory(dir) {
   if (!initial.isDirectory() || initial.isSymbolicLink()) {
     fail("RELEASE_DIRECTORY_UNSAFE");
   }
+  // The hosted smoke runs on Linux; Windows test fixtures cannot open
+  // directory handles with O_DIRECTORY. Both paths still reject symlinks.
+  if (process.platform === "win32") {
+    const after = fs.lstatSync(dir);
+    if (
+      !after.isDirectory() ||
+      after.isSymbolicLink() ||
+      after.dev !== initial.dev ||
+      after.ino !== initial.ino
+    ) {
+      fail("RELEASE_DIRECTORY_CHANGED");
+    }
+    return;
+  }
   let fd;
   try {
     fd = fs.openSync(
