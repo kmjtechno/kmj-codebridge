@@ -6,6 +6,7 @@ on:
     paths:
       - "src/**"
       - "scripts/verify-vps-catalog.mjs"
+      - "scripts/latest-signed-release.mjs"
       - "scripts/verify-public-mcp-catalog.mjs"
       - ".github/workflows/hosted-smoke.yml"
   workflow_dispatch:
@@ -29,8 +30,12 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Resolve newest owner-signed stable release
+      - name: Resolve newest cryptographically verified owner-signed stable release
         id: release
+        # Owner public key is not fetched from unsigned release metadata.
+        # A missing owner-provisioned key deliberately FAILS the smoke gate.
+        env:
+          KMJ_RELEASE_OWNER_PUBLIC_KEY_B64: ${{ secrets.KMJ_RELEASE_OWNER_PUBLIC_KEY_B64 }}
         run: node scripts/latest-signed-release.mjs
       - name: Verify owner VPS catalog, critical schemas and exact deployed signed release commit
         # Health may pass while the public gateway is still on an obsolete
