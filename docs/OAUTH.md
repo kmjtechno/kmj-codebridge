@@ -26,6 +26,25 @@ and timing validity. The hosted permission scopes are:
 The gateway never treats a Main Platform billing/license envelope as an OAuth access
 token.
 
+### Which scopes the first sign-in asks for
+
+By default a caller with no valid token is challenged only for the scope of the tool
+it called (`codebridge:read` for a read tool). A client is expected to step up later
+when a write or execute tool returns an `insufficient_scope` challenge.
+
+Some clients never act on that later challenge. Observed on 14 November 2026: a
+Claude.ai connector sign-in was granted `codebridge:read` only, and every write tool
+then returned `ACCESS_DENIED` with reason `OAUTH_SCOPE_NOT_GRANTED`, while a ChatGPT
+sign-in on the same account held all three scopes.
+
+For such clients set the optional `oauth.signInScopes` to `"all"`. The sign-in
+challenge then asks for all three CodeBridge scopes at once. It grants nothing by
+itself: the authorization server and the account's own permissions still decide, and a
+token that was granted less is still refused, with the same exact step-up challenge.
+The default, `"requested-tool"`, keeps the current behaviour. This is an operator
+choice about how much a first consent screen asks for; the option has not been tested
+against a live Claude client yet.
+
 ## User and device authorization
 
 OAuth identity is only the first boundary. The gateway maps the authenticated subject
