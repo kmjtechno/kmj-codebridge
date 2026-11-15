@@ -3,11 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import {
-  createHash,
-  generateKeyPairSync,
-  sign,
-} from "node:crypto";
+import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import {
   ownerPublicKey,
   REQUIRED_RELEASES,
@@ -82,10 +78,7 @@ test("a PEM from another owner must fail before reading releases", (t) => {
 test("private PEM input is explicitly rejected", (t) => {
   const f = fixture(t);
   assert.throws(
-    () =>
-      ownerPublicKey(
-        f.privateKey.export({ type: "pkcs8", format: "pem" }),
-      ),
+    () => ownerPublicKey(f.privateKey.export({ type: "pkcs8", format: "pem" })),
     /OWNER_PUBLIC_KEY_FORMAT_INVALID/,
   );
 });
@@ -95,8 +88,7 @@ test("public PEM must represent Ed25519, never RSA", () => {
     modulusLength: 2048,
   });
   assert.throws(
-    () =>
-      ownerPublicKey(publicKey.export({ type: "spki", format: "pem" })),
+    () => ownerPublicKey(publicKey.export({ type: "spki", format: "pem" })),
     /OWNER_PUBLIC_KEY_NOT_ED25519/,
   );
 });
