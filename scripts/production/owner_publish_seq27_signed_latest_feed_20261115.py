@@ -180,6 +180,16 @@ def https_exact(url,expected):
                  limit=len(expected)+1,timeout=22)
     need(fetched==expected,"PUBLIC_RELEASE_BYTES_MISMATCH")
 
+def https_archive_verified():
+    url=f"{ORIGIN}/{REV}/{ARCHIVE}"
+    raw=run(["/usr/bin/curl","-fsS","--proto","=https",
+             "--max-time","45","--connect-timeout","5",
+             "--max-filesize",str(ARCHIVE_SIZE+1),url],
+             limit=ARCHIVE_SIZE+1,timeout=50)
+    need(len(raw)==ARCHIVE_SIZE and
+         hashlib.sha256(raw).hexdigest()==ARCHIVE_SHA,
+         "PUBLIC_IMMUTABLE_ARCHIVE_HASH_MISMATCH")
+
 def check_existing(blobs):
     if not os.path.lexists(DEST):return False
     ancestry(DEST)
@@ -244,9 +254,11 @@ def main(argv):
     blobs=loaded_source()
     https_exact(f"{ORIGIN}/{REV}/release-manifest.json",
                 blobs["release-manifest.json"])
+    https_archive_verified()
     already=check_existing(blobs)
     print("SIGNED27_FEED_SOURCE=OWNER_ED25519_AND_ARCHIVE_PASS")
     print("PUBLIC_IMMUTABLE_SEQ27_MANIFEST=EXACT_MATCH")
+    print("PUBLIC_IMMUTABLE_SEQ27_ARCHIVE_SHA256=PASS")
     if already:
         https_exact(f"{ORIGIN}/latest/release-manifest.json",
                     blobs["release-manifest.json"])
