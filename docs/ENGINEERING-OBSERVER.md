@@ -4,7 +4,8 @@
 
 This design is independently implemented for KMJ CodeBridge after reviewing
 [Eoghan Henn / rebelytics, Task Observer (“One Skill to Rule Them All”)](https://github.com/rebelytics/one-skill-to-rule-them-all),
-v3.7.0, pinned source commit `3463c7c9cd2a2c2745af09c742100ad0b1465a68`.
+originally v3.7.0 (commit `3463c7c9cd2a2c2745af09c742100ad0b1465a68`)
+and now v3.8.0 (tagged source commit `ac00bed07526475a6679a3dc018e145f5e0a672f`).
 Upstream is **CC BY 4.0**, not Apache or MIT; attribution matters for
 derivative copied materials. No upstream scripts, text blocks, assets or
 binaries are bundled in this implementation. The _methodology_ inspires
@@ -53,6 +54,38 @@ Each event has exactly these seven fields:
 - The tool does not route AI models, add GitHub Actions capacity, update
   autonomous workers, change P720 Windows agents, migrate PostgreSQL,
   write any file, send data to an API, or activate any skill.
+
+## v3.8-inspired candidate review (opt-in, backward compatible)
+
+When the existing authorized caller includes `observations`, the same
+deterministic analysis also returns two _review-only_ lists:
+
+- `newSkillCandidates`: only explicit `skill_gap` observations propose a
+  possible new skill design. A matching existing skill is the **context** of
+  the gap, not a pre-approved new skill name. At least two distinct sessions
+  with asserted evidence are needed before `NEW_SKILL_DESIGN_REVIEW`;
+  otherwise the candidate remains `EVIDENCE_COLLECTION`.
+- `crossCuttingCandidates`: a machine-safe cause code seen under at least
+  two existing skills may indicate a reusable cross-skill rule. It requires
+  asserted evidence from **two skills and two independent sessions** to reach
+  `CROSS_SKILL_REVIEW`; all other cases remain evidence collection. An
+  identical cause code is not proof of a shared root cause.
+
+These lists carry only bounded, already-authorized signal metadata and stable
+candidate IDs. They never copy raw session text, auto-generate executable
+rules, install skills, write an observation store, contact a service, or
+promote caller-supplied assertions to verified evidence. Existing
+`proposals` and omitted-`observations` tool behavior are preserved. Each
+candidate requires scope review, negative tests, isolated staging, exact-head
+CI, rollback, and explicit approval before a separately implemented install.
+
+**Upstream mechanisms deliberately not imported:** shell/Python workspace
+scanners, ambient session hooks, global cross-project logs, automatic local
+file mutations, scheduled reviews, and upstream activation instructions.
+Those could exceed customer device/project grants, leak multi-tenant data or
+increase per-chat token usage. If needed, first design a tenant-scoped,
+redacted, opt-in persistence and review contract with tests and permission
+gates; do not use raw conversations as executable instructions.
 
 ## Reliable integration path
 

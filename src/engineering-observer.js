@@ -156,6 +156,81 @@ export function evaluateEngineeringObservations({
       };
     });
 
+  // Propose new skills only from explicit skill-gap signals. A known skill
+  // acts as the observation context, not as proof that a new pack is needed.
+  // Candidates contain no generated instructions, filenames or log content.
+  const newSkillCandidates = proposals
+    .filter((proposal) => proposal.eventKinds.includes("skill_gap"))
+    .map((proposal) => ({
+      candidateId: digest([
+        project,
+        "new-skill",
+        proposal.skill,
+        proposal.causeCode,
+      ]),
+      observedInSkill: proposal.skill,
+      causeCode: proposal.causeCode,
+      distinctSessions: proposal.distinctSessions,
+      sessionsWithAssertedEvidence: proposal.sessionsWithAssertedEvidence,
+      stage:
+        proposal.stage === "STRUCTURAL_GUARD_REVIEW"
+          ? "NEW_SKILL_DESIGN_REVIEW"
+          : "EVIDENCE_COLLECTION",
+      status: "PROPOSED_NOT_INSTALLED",
+      externalEvidenceVerified: false,
+      requiredGates: [
+        "verify real workflow gap against existing skill catalog",
+        "project-scoped owner review",
+        "isolated staged skill candidate",
+        "negative regression tests and exact-head required CI",
+        "rollback plan",
+      ],
+    }));
+
+  // Detect possible cross-cutting rules without treating a matching cause
+  // code as proof of one systemic defect. Only independently asserted
+  // observations in two distinct sessions AND skills reach review stage.
+  const crossSkillGroups = new Map();
+  for (const event of byId.values()) {
+    if (!crossSkillGroups.has(event.causeCode))
+      crossSkillGroups.set(event.causeCode, {
+        skills: new Set(),
+        sessions: new Set(),
+        assertedSkills: new Set(),
+        assertedSessions: new Set(),
+      });
+    const group = crossSkillGroups.get(event.causeCode);
+    group.skills.add(event.skill);
+    group.sessions.add(event.sessionId);
+    if (event.evidence !== "UNVERIFIED") {
+      group.assertedSkills.add(event.skill);
+      group.assertedSessions.add(event.sessionId);
+    }
+  }
+  const crossCuttingCandidates = [...crossSkillGroups.entries()]
+    .filter(([, group]) => group.skills.size >= 2)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([causeCode, group]) => ({
+      candidateId: digest([project, "cross-cutting", causeCode]),
+      causeCode,
+      affectedSkills: [...group.skills].sort(),
+      distinctSessions: group.sessions.size,
+      sessionsWithAssertedEvidence: group.assertedSessions.size,
+      stage:
+        group.assertedSkills.size >= 2 && group.assertedSessions.size >= 2
+          ? "CROSS_SKILL_REVIEW"
+          : "EVIDENCE_COLLECTION",
+      status: "PROPOSED_NOT_INSTALLED",
+      externalEvidenceVerified: false,
+      requiredGates: [
+        "independently verify cause and skill scope",
+        "review cross-skill exceptions and confidentiality",
+        "project-scoped owner review",
+        "isolated negative regression tests and exact-head required CI",
+        "rollback plan",
+      ],
+    }));
+
   return {
     version: 1,
     kind: "kmj.engineering_observer_review",
@@ -164,6 +239,8 @@ export function evaluateEngineeringObservations({
     idempotentReplays: replayed,
     proposalCount: proposals.length,
     proposals,
+    newSkillCandidates,
+    crossCuttingCandidates,
     source: "CALLER_SUPPLIED_STRUCTURED_SIGNALS",
     externalEvidenceVerified: false,
     durableStateSaved: false,
