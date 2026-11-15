@@ -240,3 +240,17 @@ test("signed manifest doesn't count as installed, publicly accessible or restore
 test("real repository without owner-provided trusted key fails closed", () => {
   assert.throws(() => latestSignedRelease(), /RELEASE_OWNER_KEY_REQUIRED/);
 });
+
+test("owner-exported public PEM verifies real signed stable release", () => {
+  const trustedPublicKeyPem = fs.readFileSync(
+    "tests/fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt",
+    "utf8",
+  );
+  assert.deepEqual(
+    latestSignedRelease("releases/stable", { trustedPublicKeyPem }),
+    {
+      sequence: 27,
+      revision: "40655678db7fa62edca28ccc4988614010253ef1",
+    },
+  );
+});
