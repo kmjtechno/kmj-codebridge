@@ -41,5 +41,5 @@ test("config owner script executes eight real root-only behaviour tests in Linux
 
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   assert.match(result.stderr, /Ran 8 tests/);
-  assert.doesNotMatch(result.stderr, /\\(skipped=\\d+\\)/);
+  assert.equal(result.stderr.includes("skipped="), false, "root tests were skipped");
 });
