@@ -1659,7 +1659,7 @@ export const definitions = {
   model_route_plan: {
     title: "Intelligent zero-cost model route plan",
     description:
-      "Read-only routing plan for configured CodeBridge AI-chat inference. Cloud models need caller-approved access, fresh healthy provider metadata, confirmed zero price, exact OpenRouter :free model ID and context/quota fit; local is the backup. No model invocation, provider keys or host-chat model switching.",
+      "Read-only zero-cost AI-chat route planning. Choose verified-free-cloud-only to forbid local fallback; every cloud requires owner approval, fresh healthy zero-price metadata, exact OpenRouter :free ID if applicable, private-code permission and quota. Caller metadata is NOT trusted billing proof; host must reverify before any real request. No model invocation or host-chat switching.",
     input: {
       ...scoped,
       models: z
@@ -1696,6 +1696,7 @@ export const definitions = {
           .enum([
             "local-first",
             "approved-free-cloud-first",
+            "verified-free-cloud-only",
             "fastest",
             "highest-quality",
           ])

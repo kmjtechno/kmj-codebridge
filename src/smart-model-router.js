@@ -6,6 +6,7 @@ import { ModelFailoverPolicy } from "./model-failover-policy.js";
 const STRATEGIES = new Set([
   "local-first",
   "approved-free-cloud-first",
+  "verified-free-cloud-only",
   "fastest",
   "highest-quality",
 ]);
@@ -129,7 +130,13 @@ export function planSmartModelRoute({
     now: () => nowMs,
     state,
   });
-  const excluded = [];
+  // Explicit cloud-only mode is a privacy/cost boundary, not just a ranking
+  // preference. Prevent local fallback even when free-cloud quota is empty,
+  // provider metadata expires or the selected model fails its health gate.
+  const cloudOnly = strategy === "verified-free-cloud-only";
+  const excluded = cloudOnly
+    ? models.filter((model) => model.kind !== "cloud").map((model) => model.id)
+    : [];
   const options = [];
   while (excluded.length < models.length) {
     const selection = policy.select({
@@ -146,7 +153,7 @@ export function planSmartModelRoute({
       (candidate) => candidate.id === selection.modelId,
     );
     const hint = hintById.get(model.id);
-    if (!hint) continue;
+    if (!hint || (cloudOnly && model.kind !== "cloud")) continue;
     options.push({
       modelId: model.id,
       provider: model.provider,
@@ -185,6 +192,7 @@ export function planSmartModelRoute({
     requiredContextTokens: task.inputTokens + task.maxOutputTokens,
     cloudAllowedForPlanning: task.cloudApproved,
     privateCode: task.privateCode,
+    localFallbackAllowed: !cloudOnly,
     outcome:
       ranked.length > 0
         ? "ROUTE_PLAN_READY"
