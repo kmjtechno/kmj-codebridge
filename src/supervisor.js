@@ -20,6 +20,7 @@ import {
   STAGING_DEPLOY_UNIT,
 } from "./main-platform-staging-unit-policy.js";
 import { mainPlatformLocalBackupEvidence } from "./main-platform-local-backup-evidence.js";
+import { mainPlatformBackupInventory } from "./main-platform-backup-inventory.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -1514,6 +1515,7 @@ export function createSupervisorHandler({
   stat = (target) => fs.statSync(target),
   deviceStatus = defaultDeviceStatus,
   backupEvidence = mainPlatformLocalBackupEvidence,
+  backupInventory = mainPlatformBackupInventory,
   profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
 } = {}) {
   if (
@@ -2149,6 +2151,72 @@ export function createSupervisorHandler({
     if (request.op === "main_platform_local_backup_evidence") {
       exactKeys(request, ["op"]);
       return { response: backupEvidence() };
+    }
+
+    // Seq26+: fixed-path inventory and retention PREVIEW only.
+    // Nothing here executes a backup, retention, service or root command from
+    // a caller-controlled argument. An inventory receipt is NOT restore proof.
+    if (request.op === "main_platform_backup_inventory") {
+      exactKeys(request, ["op"]);
+      const inventory = backupInventory();
+      const health = fixedUnitStatus(run, "kmj-elite-health-check.service", [
+        "Result",
+        "ExecMainStatus",
+      ]);
+      const offsite = fixedUnitStatus(run, "kmj-elite-offsite-backup.service", [
+        "Result",
+        "ExecMainStatus",
+      ]);
+      const healthResult = ["success", "exit-code", "signal", "timeout"].includes(
+        health.result,
+      )
+        ? health.result
+        : "unknown";
+      const healthExit =
+        typeof health.execMainStatus === "string" &&
+        /^(?:0|[1-9][0-9]{0,2})$/.test(health.execMainStatus)
+          ? health.execMainStatus
+          : "unknown";
+      const backupResult = ["success", "exit-code", "signal", "timeout"].includes(
+        offsite.result,
+      )
+        ? offsite.result
+        : "unknown";
+      const inspected =
+        inventory?.daily?.status === "INSPECTED" &&
+        inventory?.vault?.status === "INSPECTED";
+      const localFresh = inventory?.correlation?.localArtifactsFresh === true;
+      const verdict = !inspected
+        ? "INSPECTION_BLOCKED"
+        : !localFresh
+          ? "LOCAL_ARTIFACTS_STALE_OR_MISSING"
+          : healthResult !== "success" || healthExit !== "0"
+            ? "HEALTH_UNIT_NOT_PASSING"
+            : "LOCAL_PRESENT_UNIT_MARKER_NOT_ATTESTED";
+      return {
+        response: {
+          ...inventory,
+          healthUnit: {
+            result: healthResult,
+            exitCode: healthExit,
+            ownInvocationMarkerVerified: false,
+            scheduledTimerRunProven: false,
+          },
+          backupUnit: {
+            result: backupResult,
+            exitCode:
+              typeof offsite.execMainStatus === "string" &&
+              /^(?:0|[1-9][0-9]{0,2})$/.test(offsite.execMainStatus)
+                ? offsite.execMainStatus
+                : "unknown",
+            remoteShaReadbackVerified: false,
+          },
+          verdict,
+          automaticRepairPerformed: false,
+          productionReleaseApproved: false,
+          mutations: "NONE",
+        },
+      };
     }
 
     // Seq26: validate the exact last health UNIT journal invocation, without
