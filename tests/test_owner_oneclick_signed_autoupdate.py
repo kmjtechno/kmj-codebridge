@@ -84,6 +84,62 @@ class SignedOneClickTests(unittest.TestCase):
         with self.assertRaisesRegex(mod.Blocked, "UNEXPECTED_UNIT"):
             mod.status("sshd.service")
 
+    def test_live_timer_omits_service_only_properties(self):
+        # Exact shape observed on KMJ-elite 2026-11-15: the timer's User
+        # and ExecStart keys are entirely absent, not printed as empty.
+        payload = (
+            "LoadState=loaded\n"
+            "FragmentPath=/etc/systemd/system/kmj-codebridge-stable-update.timer\n"
+            "NeedDaemonReload=no\nActiveState=inactive\n"
+            "UnitFileState=disabled\nResult=success\n"
+        ).encode()
+        with patch.object(mod, "command", return_value=payload):
+            timer = mod.status(mod.SIGNED_TIMER)
+        self.assertEqual(timer["User"], "")
+        self.assertEqual(timer["ExecStart"], "")
+        self.assertEqual(timer["UnitFileState"], "disabled")
+
+    def test_missing_user_execstart_on_absent_dev_timer_are_normal(self):
+        payload = (
+            "LoadState=not-found\nFragmentPath=\nNeedDaemonReload=no\n"
+            "ActiveState=inactive\nUnitFileState=\nResult=success\n"
+        ).encode()
+        with patch.object(mod, "command", return_value=payload):
+            dev = mod.status(mod.DEV_TIMER)
+        self.assertEqual(dev["User"], "")
+        self.assertEqual(dev["ExecStart"], "")
+
+    def test_signed_service_must_still_report_user_and_execstart(self):
+        payload = (
+            "LoadState=loaded\n"
+            "FragmentPath=/etc/systemd/system/kmj-codebridge-stable-update.service\n"
+            "NeedDaemonReload=no\nActiveState=inactive\n"
+            "UnitFileState=static\nResult=success\n"
+        ).encode()
+        with patch.object(mod, "command", return_value=payload):
+            with self.assertRaisesRegex(mod.Blocked,
+                                        "UNIT_PROPERTIES_INCOMPLETE"):
+                mod.status(mod.SIGNED_SERVICE)
+
+    def test_timer_missing_security_property_and_nonempty_service_props_fail(self):
+        missing_result = (
+            "LoadState=loaded\nFragmentPath=/etc/systemd/system/"
+            "kmj-codebridge-stable-update.timer\n"
+            "NeedDaemonReload=no\nActiveState=inactive\n"
+            "UnitFileState=disabled\n"
+        ).encode()
+        wrong_execstart = missing_result + (
+            "Result=success\nExecStart=/bin/sh -c attacker\n"
+        ).encode()
+        with patch.object(mod, "command", return_value=missing_result):
+            with self.assertRaisesRegex(mod.Blocked,
+                                        "UNIT_PROPERTIES_INCOMPLETE"):
+                mod.status(mod.SIGNED_TIMER)
+        with patch.object(mod, "command", return_value=wrong_execstart):
+            with self.assertRaisesRegex(mod.Blocked,
+                                        "TIMER_SERVICE_PROPERTY_DRIFT"):
+                mod.status(mod.SIGNED_TIMER)
+
     def test_systemd_preflight_and_idempotence(self):
         timer, service, dev = unit_fixtures()
         self.assertFalse(mod.systemd_policy(timer, service, dev))
