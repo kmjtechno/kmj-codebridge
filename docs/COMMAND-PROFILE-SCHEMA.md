@@ -1,6 +1,6 @@
 # Command-profile schema and compatibility matrix
 
-Document version: **1.1** (2026-11-12). Milestone: **M0 inventory/contracts** of
+Document version: **1.2** (2026-11-15). Milestone: **M0 inventory/contracts** of
 `docs/UNIVERSAL-LOCAL-DEVELOPMENT-ENGINE.md`.
 
 This documents the contract that the code enforces **today**. It adds no new
@@ -44,9 +44,10 @@ Risk mapping: `inspect`->READ, `build`->TEST, `write`->EDIT, `network`->SERVICE;
 anything else -> PRIVILEGED. `approvalRequired` applies only to DEPLOY, PRIVILEGED
 and DESTRUCTIVE risk.
 
-The config has no explicit `schemaVersion` field yet; versioning is by this
-document and the drift test. Adding a machine-readable `schemaVersion` is a
-separate, backward-compatible change and is not done here.
+`COMMAND_PROFILE_SCHEMA_VERSION` (exported from `src/command-presets.js`) carries the
+version of this document and a test fails if the two differ. It is informational:
+the config file still has no `schemaVersion` field and nothing is allowed or denied
+because of it.
 
 ## 3. Reason codes (Enforced)
 
@@ -103,9 +104,13 @@ must all be independently observed before any release decision.
 
 - CMake/CTest profiles exist (`cmake-standard`) but have **no** receipt from the
   authorized Windows P720 or the CineCore project. Status: pending.
-- No explicit output-size/log-byte cap or memory/CPU limit is documented here for
-  the generic runner; only `timeoutMs` and `--parallel 2` are enforced by profile.
-  Verify against `src/jobs.js` before claiming bounds.
+- Verified in `src/jobs.js` (2026-11-15): captured job output is bounded at 32768
+  bytes (first 8192 bytes plus the last 20000 bytes when more is produced),
+  `truncated` is set, and output is passed through `redact`. The per-job `timeoutMs`
+  is enforced with kill escalation. There is **no** per-job memory or CPU limit;
+  free memory and CPU are only an admission check before a job starts
+  (`LOW_MEMORY`, constrained ratio 0.1, minimum 128 MiB free). Do not describe
+  this as resource isolation.
 - KMJ Calibration Studio has a new **owner-opt-in**, detached-head offline Qt
   verifier profile. It is not enabled on the P520 until the administrator
   explicitly configures the protected project; its source depends on the
