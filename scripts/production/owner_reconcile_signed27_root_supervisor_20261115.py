@@ -20,6 +20,7 @@ import socket
 import stat
 import subprocess
 import sys
+import tempfile
 
 SOURCE_SHA="40655678db7fa62edca28ccc4988614010253ef1"
 SOURCE_ROOT=Path("/opt/kmj-codebridge-stable/releases/0.3.2-40655678db7f")
@@ -227,48 +228,68 @@ def apply():
     if not DROP_DIR.exists():
         os.mkdir(DROP_DIR,0o755)
     verified_dropin_directory()
-    fd=os.open(DROP_PATH,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW|os.O_CLOEXEC,0o644)
-    wrote=False
+    # Never expose a partially written systemd drop-in: first write+fsync a
+    # private temporary file, then hard-link create-only and remove temporary.
+    fd,temporary=tempfile.mkstemp(prefix=".kmj-signed27-supervisor-",dir=DROP_DIR)
+    committed=False
     try:
         encoded=REPLACEMENT.encode()
+        os.fchmod(fd,0o644)
         offset=0
         while offset<len(encoded):
             n=os.write(fd,encoded[offset:])
             if n<=0:fail("DROPIN_SHORT_WRITE")
             offset+=n
-        os.fchmod(fd,0o644)
         os.fsync(fd)
-        wrote=True
-    finally:os.close(fd)
-    folder=os.open(DROP_DIR,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
-    try:os.fsync(folder)
-    finally:os.close(folder)
-    try:
-        call(["/usr/bin/systemctl","daemon-reload"],timeout=35)
-        validate_after()
-        # Socket is already active, and root service was idle at admission.
-        call(["/usr/bin/systemctl","start",SERVICE],timeout=45)
-        live=props(SERVICE,UNIT_FIELDS)
-        if live["ActiveState"]!="active":
-            fail("SIGNED27_ROOT_SUPERVISOR_NOT_ACTIVE")
-        print("ROOT_SUPERVISOR_SIGNED27_EFFECTIVE=PASS")
-        print("SUPERVISOR_SERVICE_STARTED=YES")
-        print("GATEWAY_AGENT_AND_BACKUPS_RESTARTED=NO")
-        print("RESULT=GUARDED_SUPERVISOR_SIGNED27_APPLY_PASS")
-    except BaseException:
-        # Rollback is limited to our exact bytes and the existing stable
-        # unit. No deletion of the old service, drop-ins or release tree.
+        os.close(fd)
+        fd=-1
+        if props(SERVICE,UNIT_FIELDS)["ActiveState"]!="inactive":
+            fail("ROOT_SUPERVISOR_BECAME_BUSY")
+        if os.path.lexists(DROP_PATH):
+            fail("PROTECTED_DROPIN_ALREADY_EXISTS")
+        os.link(temporary,DROP_PATH,follow_symlinks=False)
+        committed=True
+        os.unlink(temporary)
+        temporary=""
+        folder=os.open(DROP_DIR,os.O_RDONLY|os.O_DIRECTORY|os.O_NOFOLLOW)
+        try:os.fsync(folder)
+        finally:os.close(folder)
         try:
-            current=Path(DROP_PATH).read_bytes()
-            if hashlib.sha256(current).hexdigest()==DROP_SHA and current==REPLACEMENT.encode():
-                os.unlink(DROP_PATH)
-                call(["/usr/bin/systemctl","daemon-reload"],timeout=35)
-                print("ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=PASS")
-            else:
-                print("ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=BLOCKED_SOURCE_DRIFT")
-        except Exception:
-            print("ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=NEEDS_OWNER_REVIEW")
-        raise
+            call(["/usr/bin/systemctl","daemon-reload"],timeout=35)
+            validate_after()
+            if props(SERVICE,UNIT_FIELDS)["ActiveState"]!="inactive":
+                fail("ROOT_SUPERVISOR_ACTIVATED_DURING_UNIT_SWAP")
+            # Socket already active, root service was idle at admission.
+            call(["/usr/bin/systemctl","start",SERVICE],timeout=45)
+            live=props(SERVICE,UNIT_FIELDS)
+            if live["ActiveState"]!="active":
+                fail("SIGNED27_ROOT_SUPERVISOR_NOT_ACTIVE")
+            print("ROOT_SUPERVISOR_SIGNED27_EFFECTIVE=PASS")
+            print("SUPERVISOR_SERVICE_STARTED=YES")
+            print("GATEWAY_AGENT_AND_BACKUPS_RESTARTED=NO")
+            print("RESULT=GUARDED_SUPERVISOR_SIGNED27_APPLY_PASS")
+        except BaseException:
+            # Rollback only our exact bytes. Stop only our newly started root
+            # Supervisor (never the gateway/agent), then restore prior unit.
+            try:
+                current=Path(DROP_PATH).read_bytes()
+                if hashlib.sha256(current).hexdigest()==DROP_SHA and current==REPLACEMENT.encode():
+                    status=props(SERVICE,UNIT_FIELDS)
+                    if status["WorkingDirectory"]==str(SOURCE_ROOT) and status["ActiveState"]=="active":
+                        call(["/usr/bin/systemctl","stop",SERVICE],timeout=25)
+                    os.unlink(DROP_PATH)
+                    call(["/usr/bin/systemctl","daemon-reload"],timeout=35)
+                    print("ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=PASS")
+                else:
+                    print("ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=BLOCKED_SOURCE_DRIFT")
+            except Exception:
+                print("ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=NEEDS_OWNER_REVIEW")
+            raise
+    finally:
+        if fd!=-1:os.close(fd)
+        if temporary:
+            try:os.unlink(temporary)
+            except FileNotFoundError:pass
 
 
 def selftest():
