@@ -119,6 +119,28 @@ def ensure_approval():
     finally:os.close(dirfd)
     return read_approval()
 
+def helper_call(helper,argv,code):
+    try:helper.main(argv)
+    except Exception:
+        # Helper errors contain only fixed operator tokens; never disclose
+        # their exception details or config bytes from this root entrypoint.
+        raise Block(code) from None
+
+def existing_signed_feed(feed,updater):
+    if not os.path.lexists(feed.DEST):return False
+    feed.ancestry(feed.DEST/"x")
+    st=os.lstat(feed.DEST)
+    need(stat.S_ISDIR(st.st_mode) and st.st_uid==0
+         and not stat.S_ISLNK(st.st_mode) and not st.st_mode&0o022,
+         "EXISTING_LATEST_ROOT_UNTRUSTED")
+    try:
+        raw=updater.read_root(updater.CONFIG)
+        config=updater.parse_config(raw)
+        updater.verify_feed(config)
+    except Exception:
+        raise Block("EXISTING_SIGNED_FEED_UNVERIFIED") from None
+    return True
+
 def run(argv):
     need(argv in ([],["--status"],["--apply",CONFIRM],
                   ["--disable",CONFIRM]),"ONEPASS_UNEXPECTED_ARGS")
@@ -128,22 +150,28 @@ def run(argv):
     verified_source(SELF)
     updater=load_helper(UPDATER)
     if argv in ([],["--status"]):
-        updater.main([])
+        helper_call(updater,[],"ONEPASS_STATUS_FAILED")
         print("ONEPASS_MODE=READ_ONLY_STATUS")
         return
     if argv[0]=="--disable":
         read_approval()
-        updater.main(["--disable",updater.CONFIRM])
+        helper_call(updater,["--disable",updater.CONFIRM],
+                    "ONEPASS_DISABLE_FAILED")
         print("ONEPASS_MODE=SIGNED_TIMER_DISABLED")
         return
     feed=load_helper(FEED)
-    feed.main(["--inspect"])
-    print("ONEPASS_SIGNED_FEED_PREFLIGHT=PASS")
-    feed.main(["--apply",feed.CONFIRM])
-    print("ONEPASS_SIGNED_FEED_PUBLISH=PASS")
+    if existing_signed_feed(feed,updater):
+        print("ONEPASS_SIGNED_FEED=ALREADY_PRESENT_OWNER_VERIFIED")
+    else:
+        helper_call(feed,["--inspect"],"ONEPASS_FEED_INSPECT_FAILED")
+        print("ONEPASS_SIGNED_FEED_PREFLIGHT=PASS")
+        helper_call(feed,["--apply",feed.CONFIRM],
+                    "ONEPASS_FEED_PUBLISH_FAILED")
+        print("ONEPASS_SIGNED_FEED_PUBLISH=PASS")
     ensure_approval()
     print("ONEPASS_PRIVATE_OWNER_APPROVAL=PASS")
-    updater.main(["--enable",updater.CONFIRM])
+    helper_call(updater,["--enable",updater.CONFIRM],
+                "ONEPASS_TIMER_ENABLE_FAILED")
     print("ONEPASS_SIGNED_AGENT_AUTOMATION=ENABLED")
     print("GATEWAY_SUPERVISOR_WINDOWS_AUTOPROMOTION=NOT_ENABLED")
 
