@@ -19,6 +19,7 @@ import {
   attestMainPlatformStaging,
   STAGING_DEPLOY_UNIT,
 } from "./main-platform-staging-unit-policy.js";
+import { mainPlatformLocalBackupEvidence } from "./main-platform-local-backup-evidence.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -1512,6 +1513,7 @@ export function createSupervisorHandler({
   exists = (target) => fs.existsSync(target),
   stat = (target) => fs.statSync(target),
   deviceStatus = defaultDeviceStatus,
+  backupEvidence = mainPlatformLocalBackupEvidence,
   profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
 } = {}) {
   if (
@@ -2137,6 +2139,73 @@ export function createSupervisorHandler({
           recentBackupVerified: false,
           restoreVerified: false,
           productionReleaseApprovedByThisCheck: false,
+        },
+      };
+    }
+
+    // Seq26: fixed local daily PGDMP + encrypted vault receipt presence/freshness.
+    // Unlike a generic root command, this op takes NO paths, argv or environment.
+    // The result is never proof of restoration, remote SHA readback or unit exit 0.
+    if (request.op === "main_platform_local_backup_evidence") {
+      exactKeys(request, ["op"]);
+      return { response: backupEvidence() };
+    }
+
+    // Seq26: validate the exact last health UNIT journal invocation, without
+    // exposing journal lines or accepting a caller-selected unit/invocation.
+    // It cannot establish that the invocation came from a scheduled timer.
+    if (request.op === "main_platform_health_unit_receipt") {
+      exactKeys(request, ["op"]);
+      const unit = fixedUnitStatus(run, "kmj-elite-health-check.service", [
+        "Result",
+        "ExecMainStatus",
+        "InvocationID",
+        "ExecMainExitTimestamp",
+      ]);
+      const invocationAvailable =
+        unit.installed && /^[a-f0-9]{32}$/.test(unit.invocationID ?? "");
+      let marker = false;
+      if (invocationAvailable) {
+        try {
+          const raw = run(JOURNALCTL, [
+            "--no-pager",
+            "--output=cat",
+            "--lines=150",
+            "_SYSTEMD_INVOCATION_ID=" + unit.invocationID,
+          ]);
+          marker =
+            typeof raw === "string" &&
+            raw.length <= 65536 &&
+            raw.split(/\r?\n/).includes("KMJ_ELITE_HEALTH_PASS");
+        } catch {
+          marker = false;
+        }
+      }
+      const unitResult = ["success", "exit-code", "signal", "timeout"].includes(
+        unit.result,
+      )
+        ? unit.result
+        : "unknown";
+      const unitExit =
+        typeof unit.execMainStatus === "string" &&
+        /^(?:0|[1-9][0-9]{0,2})$/.test(unit.execMainStatus)
+          ? unit.execMainStatus
+          : "unknown";
+      return {
+        response: {
+          mode: "READ_ONLY",
+          scope: "kmj-main-platform",
+          unitInstalled: unit.installed,
+          invocationAvailable: Boolean(invocationAvailable),
+          unitResult,
+          unitExit,
+          healthPassMarkerInOwnInvocation: marker,
+          unitInvocationPass:
+            unitResult === "success" && unitExit === "0" && marker,
+          scheduledTimerRunProven: false,
+          independentRestoreVerified: false,
+          rawJournalExposed: false,
+          mutations: "NONE",
         },
       };
     }
