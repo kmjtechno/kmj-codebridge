@@ -9,6 +9,13 @@ health-check repair, remote backup/restore proof or permission to modify product
   to kmj-elite-main-platform / kmj-main-platform.
 - Backward-compatible run_project_command: command main_platform_local_backup_evidence,
   variant overview. Old clients use an existing execute grant, not an escalation.
+- New read-only health unit receipt: direct tool
+  supervisor_main_platform_health_unit_receipt and old-client command
+  main_platform_health_unit_receipt with overview variant. It checks only
+  the exact health-check unit's invocation ID and its journal for the
+  KMJ_ELITE_HEALTH_PASS marker, returning no raw journal lines.
+  scheduledTimerRunProven always remains false (manual unit invocations
+  cannot be mistaken for scheduled timer proof).
 - One fixed no-argument Supervisor operation inspects the root-owned daily
   platform.dump and legacy-named age ciphertext + 91-byte sha256 sidecar.
 - Read-only: checks name, ownership, file mode, symlink/hardlink, PGDMP magic,
@@ -16,6 +23,8 @@ health-check repair, remote backup/restore proof or permission to modify product
   configuration are read or returned.
 - Even when fresh, remoteShaReadbackVerified, exactHealthUnitExitVerified,
   independentRestoreVerified and productionReleaseApproved remain false.
+  A health receipt proves the last unit invocation marker/exit only, never
+  scheduled triggering, remote recovery or a successful restore.
 - The old-client command reconstructs an allowlisted response and suppresses
   unrecognized Supervisor fields.
 
