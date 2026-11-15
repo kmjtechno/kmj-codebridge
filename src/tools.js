@@ -4311,13 +4311,24 @@ export function createDispatcher(
             ? item.state
             : "UNVERIFIED",
           fresh: item?.fresh === true,
-          stamp: typeof item?.stamp === "string" &&
-              /^20[0-9]{6}T[0-9]{6}Z$/.test(item.stamp) ? item.stamp : null,
-          ageHours: typeof item?.ageHours === "number" &&
-              Number.isFinite(item.ageHours) && item.ageHours >= 0 &&
-              item.ageHours < 1000000 ? item.ageHours : null,
-          bytes: Number.isSafeInteger(item?.bytes) && item.bytes >= 0 &&
-              item.bytes <= 8 * 1024 ** 3 ? item.bytes : null,
+          stamp:
+            typeof item?.stamp === "string" &&
+            /^20[0-9]{6}T[0-9]{6}Z$/.test(item.stamp)
+              ? item.stamp
+              : null,
+          ageHours:
+            typeof item?.ageHours === "number" &&
+            Number.isFinite(item.ageHours) &&
+            item.ageHours >= 0 &&
+            item.ageHours < 1000000
+              ? item.ageHours
+              : null,
+          bytes:
+            Number.isSafeInteger(item?.bytes) &&
+            item.bytes >= 0 &&
+            item.bytes <= 8 * 1024 ** 3
+              ? item.bytes
+              : null,
         });
         return {
           command: "main_platform_local_backup_evidence",
