@@ -31,7 +31,9 @@ test("config owner script executes eight real root-only behaviour tests in Linux
   assert.ok(fs.existsSync(python), "Linux CI needs pinned system Python");
   const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
   if (!isRoot && !process.env.CI) {
-    return t.skip("root-only fixture; executed in Linux CI via noninteractive sudo");
+    return t.skip(
+      "root-only fixture; executed in Linux CI via noninteractive sudo",
+    );
   }
 
   const args = ["-I", "-B", "tests/test_owner_config_root_group_20261115.py"];
@@ -41,5 +43,9 @@ test("config owner script executes eight real root-only behaviour tests in Linux
 
   assert.equal(result.status, 0, result.stderr || result.error?.message);
   assert.match(result.stderr, /Ran 8 tests/);
-  assert.equal(result.stderr.includes("skipped="), false, "root tests were skipped");
+  assert.equal(
+    result.stderr.includes("skipped="),
+    false,
+    "root tests were skipped",
+  );
 });
