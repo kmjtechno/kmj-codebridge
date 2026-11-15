@@ -16,13 +16,14 @@ CloudOS or backups. This PR must never claim those components auto-deploy.
 ## One-click controller
 
 scripts/production/owner_oneclick_signed_autoupdate.py supports only:
+
 - --status (read only)
 - --enable --confirm-signed-auto-owner-go
 - --disable --confirm-signed-auto-owner-go
 
 It accepts no caller path, URL, channel, unit or executable.
 Before enable, it enforces a root-owned approval file, fixed stable-agent
-scope, pinned owner public SPKI, signed *latest-feed* bytes, precise
+scope, pinned owner public SPKI, signed _latest-feed_ bytes, precise
 config and service unit policy, and no development-timer conflict. It
 migrates only manifestUrl and signatureUrl from the exact Seq27 immutable
 release URLs to the fixed stable latest feed, retaining a private original
@@ -44,10 +45,10 @@ obtained from unsigned metadata.
 
 Only after exact-head CI, security review and a trusted signed operator
 bundle, install the helper as a root-owned regular file at:
-  /usr/local/libexec/kmj-codebridge/owner_oneclick_signed_autoupdate.py
+/usr/local/libexec/kmj-codebridge/owner_oneclick_signed_autoupdate.py
 
 The owner provisions a private 0600 root-owned approval file at:
-  /etc/kmj-codebridge-oneclick/signed-auto-update-approval.json
+/etc/kmj-codebridge-oneclick/signed-auto-update-approval.json
 
 Contents must have exactly the following object, no extra keys:
 
@@ -60,7 +61,7 @@ Contents must have exactly the following object, no extra keys:
       "ownerGo": true
     }
 
-This authorizes future owner-signed stable *agent* releases only. No
+This authorizes future owner-signed stable _agent_ releases only. No
 private signing key is required or written on the managed device.
 
 The owner then uses ONE command to enable ongoing checks:
