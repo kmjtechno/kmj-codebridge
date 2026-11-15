@@ -2162,18 +2162,13 @@ export function createSupervisorHandler({
       // Defensive allowlist: the privileged response must never forward
       // unforeseen provider fields, paths or invented proof flags.
       const bounded = (value, limit = 512) =>
-        Number.isSafeInteger(value) && value >= 0 && value <= limit
-          ? value
-          : 0;
+        Number.isSafeInteger(value) && value >= 0 && value <= limit ? value : 0;
       const safeStamp = (value) =>
-        typeof value === "string" &&
-        /^20[0-9]{6}T[0-9]{6}Z$/.test(value)
+        typeof value === "string" && /^20[0-9]{6}T[0-9]{6}Z$/.test(value)
           ? value
           : null;
       const safeAge = (value) =>
-        Number.isFinite(value) && value >= 0 && value < 1000000
-          ? value
-          : null;
+        Number.isFinite(value) && value >= 0 && value < 1000000 ? value : null;
       const daily = untrustedInventory?.daily;
       const vault = untrustedInventory?.vault;
       const preview = untrustedInventory?.retentionPreview;
@@ -2228,12 +2223,18 @@ export function createSupervisorHandler({
           exampleOldestDailyStamps: Array.isArray(
             preview?.exampleOldestDailyStamps,
           )
-            ? preview.exampleOldestDailyStamps.slice(0, 3).map(safeStamp).filter(Boolean)
+            ? preview.exampleOldestDailyStamps
+                .slice(0, 3)
+                .map(safeStamp)
+                .filter(Boolean)
             : [],
           exampleOldestCipherPairStamps: Array.isArray(
             preview?.exampleOldestCipherPairStamps,
           )
-            ? preview.exampleOldestCipherPairStamps.slice(0, 3).map(safeStamp).filter(Boolean)
+            ? preview.exampleOldestCipherPairStamps
+                .slice(0, 3)
+                .map(safeStamp)
+                .filter(Boolean)
             : [],
           inspectionComplete:
             dailyOk &&
