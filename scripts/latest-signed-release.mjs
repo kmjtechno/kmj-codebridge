@@ -9,7 +9,7 @@ import {
   readdirSync, realpathSync,
 } from "node:fs";
 import { createHash, createPublicKey, verify } from "node:crypto";
-import { basename, join, resolve, sep } from "node:path";
+import { basename, join, parse, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 const FULL_SHA = /^[0-9a-f]{40}$/;
@@ -41,7 +41,8 @@ function safeFile(path, maximum) {
   try { pre = lstatSync(path); }
   catch { fail("RELEASE_SIGNED_FILE_MISSING"); }
   if (!pre.isFile() || pre.isSymbolicLink() || pre.nlink !== 1 ||
-      (pre.mode & 0o022) !== 0 || pre.size < 1 || pre.size > maximum) {
+      (process.platform !== "win32" && (pre.mode & 0o022) !== 0) ||
+      pre.size < 1 || pre.size > maximum) {
     fail("RELEASE_SIGNED_FILE_UNTRUSTED");
   }
   let fd;
@@ -118,8 +119,9 @@ function signedManifest(bytes, signature, dirname, key) {
 
 function trustedPathChain(path) {
   const absolute = resolve(path);
-  const components = absolute.split(sep).filter(Boolean);
-  let current = sep;
+  const root = parse(absolute).root;
+  const components = absolute.slice(root.length).split(sep).filter(Boolean);
+  let current = root;
   for (const component of components) {
     current = join(current,component);
     const st = lstatSync(current);
@@ -127,7 +129,8 @@ function trustedPathChain(path) {
     const trustedSticky = (current === "/tmp" || current === "/var/tmp") &&
       st.uid === 0 && perms === 0o1777;
     if (!st.isDirectory() || st.isSymbolicLink() ||
-        ((st.mode & 0o022) !== 0 && !trustedSticky))
+        (process.platform !== "win32" &&
+         (st.mode & 0o022) !== 0 && !trustedSticky))
       fail("RELEASE_ROOT_UNTRUSTED");
   }
   return absolute;
@@ -146,7 +149,8 @@ export function latestSignedRelease(root = "releases/stable", {
   const base = trustedPathChain(root);
   const rootStat = lstatSync(base);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink() ||
-      (rootStat.mode & 0o022) !== 0) fail("RELEASE_ROOT_UNTRUSTED");
+      (process.platform !== "win32" &&
+       (rootStat.mode & 0o022) !== 0)) fail("RELEASE_ROOT_UNTRUSTED");
   const actualRoot = realpathSync(base);
   let best = null;
   const sequences = new Set();
@@ -158,7 +162,7 @@ export function latestSignedRelease(root = "releases/stable", {
     const directory = join(base, item.name);
     const entry = lstatSync(directory);
     if (!entry.isDirectory() || entry.isSymbolicLink() ||
-        (entry.mode & 0o022) !== 0 ||
+        (process.platform !== "win32" && (entry.mode & 0o022) !== 0) ||
         !realpathSync(directory).startsWith(actualRoot + sep)) {
       fail("RELEASE_DIRECTORY_UNTRUSTED");
     }
