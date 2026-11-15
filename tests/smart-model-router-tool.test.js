@@ -138,10 +138,7 @@ test("MCP model_route_plan exposes cloud-only and cannot fall back to local", as
     "model_route_plan",
     {
       ...input,
-      models: [
-        models[0],
-        { ...models[1], freeTierVerified: false },
-      ],
+      models: [models[0], { ...models[1], freeTierVerified: false }],
     },
     ["read"],
   );
