@@ -95,6 +95,98 @@ test("client cannot smuggle shell/path/unknown variants through old command", as
   }
   assert.deepEqual(f.calls, []);
 });
+
+test("fixed health invocation receipt parses only current unit journal marker", async () => {
+  const invocation = "a".repeat(32);
+  const calls = [];
+  const handle = createSupervisorHandler({
+    run: (command, args) => {
+      calls.push({ command, args });
+      if (command === "/usr/bin/systemctl") {
+        assert.deepEqual(args.slice(0, 2), ["show", "kmj-elite-health-check.service"]);
+        return [
+          "LoadState=loaded",
+          "Result=success",
+          "ExecMainStatus=0",
+          "InvocationID=" + invocation,
+          "ExecMainExitTimestamp=Sun 2026-11-15 12:00:00 IST",
+        ].join("\n");
+      }
+      assert.equal(command, "/usr/bin/journalctl");
+      assert.ok(args.includes("_SYSTEMD_INVOCATION_ID=" + invocation));
+      assert.equal(args.includes("--lines=150"), true);
+      return "redacted private unrelated text\nKMJ_ELITE_HEALTH_PASS\n";
+    },
+    start: () => { throw Error("unexpected service start"); },
+    restart: () => { throw Error("unexpected restart"); },
+  });
+  const result = await handle({ op: "main_platform_health_unit_receipt" });
+  assert.equal(result.response.unitInvocationPass, true);
+  assert.equal(result.response.scheduledTimerRunProven, false);
+  assert.equal(result.response.rawJournalExposed, false);
+  assert.doesNotMatch(JSON.stringify(result), /private unrelated text/);
+  assert.equal(calls.length, 2);
+  for (const supplied of [{ unit: "other" }, { path: "/root" }, { args: ["start"] }]) {
+    await assert.rejects(handle({ op: "main_platform_health_unit_receipt", ...supplied }));
+  }
+  assert.equal(calls.length, 2);
+});
+
+test("failed health unit never passes despite a forged success marker", async () => {
+  const handle = createSupervisorHandler({
+    run: (command) => command === "/usr/bin/systemctl"
+      ? "LoadState=loaded\nResult=exit-code\nExecMainStatus=1\nInvocationID=" + "b".repeat(32) + "\n"
+      : "KMJ_ELITE_HEALTH_PASS\n",
+  });
+  const { response } = await handle({ op: "main_platform_health_unit_receipt" });
+  assert.equal(response.healthPassMarkerInOwnInvocation, true);
+  assert.equal(response.unitInvocationPass, false);
+  assert.equal(response.scheduledTimerRunProven, false);
+});
+
+test("missing invocation id does not read a broad journal", async () => {
+  let journalRead = false;
+  const handle = createSupervisorHandler({
+    run: (command) => {
+      if (command === "/usr/bin/systemctl") return "LoadState=loaded\nResult=success\nExecMainStatus=0\nInvocationID=\n";
+      journalRead = true;
+      throw Error("should not read journal without scoped invocation");
+    },
+  });
+  const { response } = await handle({ op: "main_platform_health_unit_receipt" });
+  assert.equal(response.invocationAvailable, false);
+  assert.equal(response.healthPassMarkerInOwnInvocation, false);
+  assert.equal(response.unitInvocationPass, false);
+  assert.equal(journalRead, false);
+});
+
+test("captured client gets a sanitized health receipt command without root shell", async (t) => {
+  const f = fixture(t);
+  const list = await f.dispatcher("list_project_commands", {
+    device: DEVICE, project: PROJECT,
+  }, ["read"]);
+  assert.deepEqual(
+    list.commands.find((command) => command.id === "main_platform_health_unit_receipt")?.variants,
+    ["overview"],
+  );
+  const request = {
+    device: DEVICE, project: PROJECT, command: "main_platform_health_unit_receipt",
+    variant: "overview", requestKey: "seq26-health-receipt",
+  };
+  const receipt = await f.dispatcher("run_project_command", request, ["execute"]);
+  assert.equal(receipt.command, "main_platform_health_unit_receipt");
+  assert.equal(receipt.unitInvocationPass, false);
+  assert.equal(receipt.scheduledTimerRunProven, false);
+  assert.equal(receipt.rawJournalExposed, false);
+  assert.deepEqual(f.calls, [{ op: "main_platform_health_unit_receipt" }]);
+  for (const change of [{ variant: "restart" }, { path: "/root" }, { laneId: "other" }]) {
+    await assert.rejects(
+      f.dispatcher("run_project_command", { ...request, ...change }, ["execute"]),
+    );
+  }
+  assert.deepEqual(f.calls, [{ op: "main_platform_health_unit_receipt" }]);
+});
+
 test("wrong device/project, disabled write grant or absent Supervisor never exposes privileged inspection", async(t) => {
   for (const variant of [
     { device: "other", project: PROJECT }, { device: DEVICE, project: "other" },
