@@ -21,3 +21,9 @@ Examples: Chat A reserves `src/api`; Chat B reserves `docs`. Both can edit their
 - No ChatGPT credit bypass exists. Minimize use via `compact_work_brief`, `context_pack` small budget and bounded read batching; measure actual usage before promising savings.
 
 No release credit until CI, separate gateway deployment and live cross-client test results are verified.
+
+## Share owner-only results without copying terminal output
+
+CodeBridge already provides `run_project_command` / `get_job_status` for approved non-root commands, `chat_continuity_save` / `multi_chat_sync` for a durable project-and-lane checkpoint, and `read_file` for narrowly scoped project artifacts. Root-only procedures remain executed by the owner.
+
+A fixed SHA-pinned owner-side adapter may export **redacted status receipts only** to an approved project directory. For a full safe workflow and current tool-version limitations, see [Shared chat handoffs and operator-only evidence receipts](OPERATOR-RECEIPTS-CROSS-CHAT.md). This never enables an unrestricted remote terminal or wakes an inactive ChatGPT chat.
