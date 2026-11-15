@@ -24,6 +24,8 @@ test("config owner script only touches the two fixed paths and never restarts or
 });
 
 test("config owner script behavioural tests pass (apply order, rollback, blocked states)", (t) => {
+  // Linux-only root script: pwd/grp and chown do not exist on Windows.
+  if (process.platform === "win32") return t.skip("Linux-only owner script");
   const python = spawnSync("python3", ["--version"]);
   if (python.status !== 0) return t.skip("python3 unavailable");
   const result = spawnSync(
