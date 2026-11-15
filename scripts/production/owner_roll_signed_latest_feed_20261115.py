@@ -193,6 +193,15 @@ def latest_current(pub):
     info,filename,blobs=read_pair(LATEST,pub,revision)
     return info,filename,blobs
 
+def rollback_ready(current,pub):
+    previous=current[0]
+    info,filename,blobs=validated_release(previous["revision"],pub)
+    need(info==previous and blobs==current[2],
+         "ROLLBACK_SOURCE_UNVERIFIED")
+    # A saved previous pair is useful only if its immutable release archive
+    # still exists and is reachable at the pinned public HTTPS origin.
+    public_archive(info,filename)
+
 def choose_candidate(pub):
     trusted_parent_chain(ROOT/"x")
     names=os.listdir(ROOT)
@@ -323,6 +332,7 @@ def main(argv):
          "OWNER_ROOT_ELITE_REQUIRED")
     pub=trusted_public_key()
     current=latest_current(pub)
+    rollback_ready(current,pub)
     candidate=choose_candidate(pub)
     _,revision,info,filename,blobs=candidate
     need(info["sequence"]>=27,"SEQ27_MINIMUM_NOT_MET")
