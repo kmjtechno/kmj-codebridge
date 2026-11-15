@@ -153,21 +153,21 @@ test(
   "symlinked signed manifest is never followed",
   { skip: process.platform === "win32" },
   (t) => {
-  const f = fixture(t);
-  const [, revision] = REQUIRED_RELEASES[0];
-  const file = path.join(f.dir, revision, "release-manifest.json");
-  const moved = file + ".moved";
-  fs.renameSync(file, moved);
-  fs.symlinkSync(moved, file);
-  assert.throws(
-    () =>
-      verifyAllReleaseSignatures({
-        publicKeyPem: f.pem,
-        releasesRoot: f.dir,
-        expectedFingerprint: f.pin,
-      }),
-    /RELEASE_EVIDENCE_FILE_MISSING|RELEASE_EVIDENCE_FILE_UNTRUSTED/,
-  );
+    const f = fixture(t);
+    const [, revision] = REQUIRED_RELEASES[0];
+    const file = path.join(f.dir, revision, "release-manifest.json");
+    const moved = file + ".moved";
+    fs.renameSync(file, moved);
+    fs.symlinkSync(moved, file);
+    assert.throws(
+      () =>
+        verifyAllReleaseSignatures({
+          publicKeyPem: f.pem,
+          releasesRoot: f.dir,
+          expectedFingerprint: f.pin,
+        }),
+      /RELEASE_EVIDENCE_FILE_MISSING|RELEASE_EVIDENCE_FILE_UNTRUSTED/,
+    );
   },
 );
 
@@ -175,21 +175,21 @@ test(
   "symlinked release directory is denied",
   { skip: process.platform === "win32" },
   (t) => {
-  const f = fixture(t);
-  const [, revision] = REQUIRED_RELEASES[0];
-  const dir = path.join(f.dir, revision);
-  const moved = dir + ".moved";
-  fs.renameSync(dir, moved);
-  fs.symlinkSync(moved, dir, "dir");
-  assert.throws(
-    () =>
-      verifyAllReleaseSignatures({
-        publicKeyPem: f.pem,
-        releasesRoot: f.dir,
-        expectedFingerprint: f.pin,
-      }),
-    /RELEASE_DIRECTORY_UNTRUSTED/,
-  );
+    const f = fixture(t);
+    const [, revision] = REQUIRED_RELEASES[0];
+    const dir = path.join(f.dir, revision);
+    const moved = dir + ".moved";
+    fs.renameSync(dir, moved);
+    fs.symlinkSync(moved, dir, "dir");
+    assert.throws(
+      () =>
+        verifyAllReleaseSignatures({
+          publicKeyPem: f.pem,
+          releasesRoot: f.dir,
+          expectedFingerprint: f.pin,
+        }),
+      /RELEASE_DIRECTORY_UNTRUSTED/,
+    );
   },
 );
 
