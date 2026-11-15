@@ -17,6 +17,7 @@ import types
 DIR=Path("/usr/local/libexec/kmj-codebridge")
 FEED=DIR/"owner_publish_seq27_signed_latest_feed_20261115.py"
 UPDATER=DIR/"owner_oneclick_signed_autoupdate.py"
+SELF=DIR/"owner_onepass_signed_agent_autoupdate_20261115.py"
 APPROVAL=Path("/etc/kmj-codebridge-oneclick/signed-auto-update-approval.json")
 OWNER_SPKI="2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8"
 CONFIRM="--confirm-owner-production-auto-signed-agent"
@@ -42,7 +43,7 @@ def protected_ancestors(file):
              "OWNER_PARENT_UNTRUSTED")
 
 def verified_source(file):
-    need(file in (FEED,UPDATER),"UNAPPROVED_HELPER_PATH")
+    need(file in (FEED,UPDATER,SELF),"UNAPPROVED_HELPER_PATH")
     protected_ancestors(file)
     try:fd=os.open(file,os.O_RDONLY|os.O_NOFOLLOW|os.O_CLOEXEC)
     except OSError:raise Block("INSTALLED_HELPER_MISSING") from None
@@ -92,7 +93,7 @@ def read_approval():
     return True
 
 def ensure_approval():
-    protected_ancestors(APPROVAL.parent/"proof")
+    protected_ancestors(APPROVAL.parent)
     if not os.path.lexists(APPROVAL.parent):
         os.mkdir(APPROVAL.parent,mode=0o700)
         os.chmod(APPROVAL.parent,0o700)
@@ -123,7 +124,8 @@ def run(argv):
                   ["--disable",CONFIRM]),"ONEPASS_UNEXPECTED_ARGS")
     need(os.geteuid()==0 and socket.gethostname().split(".")[0].lower()=="kmj-elite",
          "OWNER_ROOT_KMJ_ELITE_REQUIRED")
-    need(verified_source(Path(__file__)) or True,"ONEPASS_SELF_UNTRUSTED") if Path(__file__) in (FEED,UPDATER) else protected_ancestors(Path(__file__))
+    need(Path(__file__)==SELF,"ONEPASS_INSTALLED_PATH_DRIFT")
+    verified_source(SELF)
     updater=load_helper(UPDATER)
     if argv in ([],["--status"]):
         updater.main([])
