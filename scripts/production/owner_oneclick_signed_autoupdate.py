@@ -150,7 +150,17 @@ def status(unit):
             if key in allowed:
                 require(key not in result, "UNIT_PROPERTY_DUPLICATE")
                 result[key] = value
-    require(len(result) == len(allowed), "UNIT_PROPERTIES_INCOMPLETE")
+    # systemctl show <timer> omits service-only properties (User and
+    # ExecStart) on real systemd versions, rather than printing empty values.
+    # Do not weaken mandatory identity checks for the signed SERVICE.
+    optional = {"User", "ExecStart"} if unit in (SIGNED_TIMER, DEV_TIMER) else set()
+    require((allowed - optional).issubset(result), "UNIT_PROPERTIES_INCOMPLETE")
+    if unit == SIGNED_SERVICE:
+        require(len(result) == len(allowed), "UNIT_PROPERTIES_INCOMPLETE")
+    else:
+        for name in optional:
+            require(result.get(name, "") == "", "TIMER_SERVICE_PROPERTY_DRIFT")
+            result.setdefault(name, "")
     return result
 
 
