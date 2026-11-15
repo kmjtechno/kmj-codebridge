@@ -55,11 +55,23 @@ function requireThat(ok, code) {
 function readRegularNoFollow(file, limit) {
   let fd;
   try {
+    // O_NOFOLLOW is not implemented uniformly (especially on Windows).
+    // Check the path before/after the descriptor, as well as fd identity.
+    const pathBefore = fs.lstatSync(file);
+    requireThat(
+      pathBefore.isFile() && !pathBefore.isSymbolicLink() &&
+        pathBefore.nlink === 1,
+      "RELEASE_EVIDENCE_FILE_UNTRUSTED",
+    );
     fd = fs.openSync(
       file,
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
     const before = fs.fstatSync(fd);
+    requireThat(
+      pathBefore.dev === before.dev && pathBefore.ino === before.ino,
+      "RELEASE_EVIDENCE_FILE_CHANGED",
+    );
     requireThat(
       before.isFile() &&
         !before.isSymbolicLink() &&
@@ -70,6 +82,12 @@ function readRegularNoFollow(file, limit) {
     );
     const buffer = fs.readFileSync(fd);
     const after = fs.fstatSync(fd);
+    const pathAfter = fs.lstatSync(file);
+    requireThat(
+      pathAfter.isFile() && !pathAfter.isSymbolicLink() &&
+        pathAfter.dev === before.dev && pathAfter.ino === before.ino,
+      "RELEASE_EVIDENCE_FILE_CHANGED",
+    );
     requireThat(
       buffer.length === before.size &&
         before.dev === after.dev &&
