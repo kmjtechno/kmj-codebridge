@@ -179,7 +179,9 @@ export function latestSignedRelease(
     if (!SHA.test(revision)) continue;
     const directory = path.join(stableRoot, revision);
     checkedDirectory(directory);
-    if (!hasManifest(directory)) continue;
+    // A SHA-shaped release directory missing its manifest is ambiguous.
+    // Never silently downgrade to an older signed release.
+    if (!hasManifest(directory)) fail("RELEASE_MANIFEST_MISSING");
     const rawManifest = readBounded(
       path.join(directory, "release-manifest.json"),
       65536,
