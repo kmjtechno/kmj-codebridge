@@ -62,3 +62,31 @@ No generic root-shell capability is granted by these scripts.
   gates; automatically accepting an untrusted GitHub branch is forbidden.
 - Never touch Seq26 legacy scripts, gateway.json ownership, V2 backups,
   Main Platform health lines 25/28 or the owner private signing key.
+
+
+## Actual owner PEM cross-verification — 2026-11-15
+
+The owner supplied the public PEM printed by a read-only root command that
+opened /etc/kmj-codebridge-update/stable-update.json using O_NOFOLLOW,
+required UID 0, regular single-linked file, mode 0600 and read the
+trustedKeys.kmj-release-2026 field. The key is **public-only**.
+
+- PEM SHA-256 (exact owner-supplied bytes):
+  `e2cc3af00ed64206f1e86c7f26a15805491b3fd2ec5948b4897e883719be8c0c`
+- Public key type: Ed25519
+- DER/SPKI SHA-256:
+  `2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8`
+- Ten release manifest bytes were reconstructed byte-for-byte from retrieved
+  GitHub content and checked against each Git blob SHA-1, **10/10 MATCH**;
+  signatures verified on those exact bytes with this owner-supplied public
+  key: **Seq15 and Seq19–27, 10/10 PASS**.
+- Repository CI now runs the same **real ten-signature verification** using
+  `tests/fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt`. This is
+  a public-only fixture, not a credential or a new signing authority.
+  It must not be used to authorize an unreviewed future release without
+  exact sequence, signed manifest, archive hash and owner rollout policy.
+
+These observations establish consistent owner-supplied public-key provenance
+and authentic detached signatures of the ten committed releases. They do
+**not** prove private-key custody, live origin feed publication, health check,
+rollback readiness or production auto-updater enablement.
