@@ -98,7 +98,9 @@ test("invalid signature on higher sequence is a hard blocker", (t) => {
 test("tampered signed manifest bytes are not trusted", (t) => {
   const f = fixtures(t);
   const row = f.add(A, 25);
-  const changed = row.bytes.toString("utf8").replace('"sequence": 25', '"sequence": 26');
+  const changed = row.bytes
+    .toString("utf8")
+    .replace('"sequence": 25', '"sequence": 26');
   fs.writeFileSync(row.manifestPath, changed);
   assert.throws(() => f.select(), /UPDATE_SIGNATURE_INVALID/);
 });
@@ -138,7 +140,10 @@ test("missing/empty catalog, missing trust and invalid floor all deny", (t) => {
   const f = fixtures(t);
   assert.throws(() => f.select(), /RELEASE_NONE_FOUND/);
   f.add(A, 25);
-  assert.throws(() => latestSignedRelease(f.root), /RELEASE_TRUST_KEYS_REQUIRED/);
+  assert.throws(
+    () => latestSignedRelease(f.root),
+    /RELEASE_TRUST_KEYS_REQUIRED/,
+  );
   assert.throws(
     () => f.select({ trustedKeys: {} }),
     /RELEASE_TRUST_KEYS_REQUIRED/,
@@ -200,7 +205,6 @@ test("missing signed manifest files never silently become a signed release", (t)
   f.add(A, 25, { signature: false });
   assert.throws(() => f.select(), /RELEASE_METADATA_UNAVAILABLE/);
 });
-
 
 test("a revision directory without a manifest cannot hide a newer signed release", (t) => {
   const f = fixtures(t);
