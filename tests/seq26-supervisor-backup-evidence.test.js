@@ -381,11 +381,20 @@ test("fixed backup inventory returns categorical receipt and rejects parameter i
     },
     run: (command, args) => {
       assert.equal(command, "/usr/bin/systemctl");
-      assert.ok(["kmj-elite-health-check.service", "kmj-elite-offsite-backup.service"].includes(args[1]));
+      assert.ok(
+        [
+          "kmj-elite-health-check.service",
+          "kmj-elite-offsite-backup.service",
+        ].includes(args[1]),
+      );
       return "LoadState=loaded\nResult=exit-code\nExecMainStatus=1\n";
     },
-    start: () => { throw Error("unexpected start"); },
-    restart: () => { throw Error("unexpected restart"); },
+    start: () => {
+      throw Error("unexpected start");
+    },
+    restart: () => {
+      throw Error("unexpected restart");
+    },
   });
   const { response } = await handle({ op: "main_platform_backup_inventory" });
   assert.equal(response.verdict, "LOCAL_ARTIFACTS_STALE_OR_MISSING");
@@ -396,28 +405,44 @@ test("fixed backup inventory returns categorical receipt and rejects parameter i
   assert.equal(response.automaticRepairPerformed, false);
   assert.equal(calls, 1);
   for (const extra of [
-    { path: "/root/.ssh" }, { command: "rm" }, { keepCount: 0 },
-    { retentionApply: true }, { unit: "nginx.service" },
+    { path: "/root/.ssh" },
+    { command: "rm" },
+    { keepCount: 0 },
+    { retentionApply: true },
+    { unit: "nginx.service" },
   ]) {
-    await assert.rejects(handle({ op: "main_platform_backup_inventory", ...extra }));
+    await assert.rejects(
+      handle({ op: "main_platform_backup_inventory", ...extra }),
+    );
   }
   assert.equal(calls, 1);
 });
 
 test("inventory old-client alias exposes sanitized allowlist and never grants pruning", async (t) => {
   const f = fixture(t);
-  const listed = await f.dispatcher("list_project_commands", {
-    device: DEVICE, project: PROJECT,
-  }, ["read"]);
+  const listed = await f.dispatcher(
+    "list_project_commands",
+    {
+      device: DEVICE,
+      project: PROJECT,
+    },
+    ["read"],
+  );
   assert.deepEqual(
-    listed.commands.find(x => x.id === "main_platform_backup_inventory")?.variants,
+    listed.commands.find((x) => x.id === "main_platform_backup_inventory")
+      ?.variants,
     ["overview"],
   );
   const parameters = {
-    device: DEVICE, project: PROJECT, command: "main_platform_backup_inventory",
-    variant: "overview", requestKey: "seq26-preview-fixture",
+    device: DEVICE,
+    project: PROJECT,
+    command: "main_platform_backup_inventory",
+    variant: "overview",
+    requestKey: "seq26-preview-fixture",
   };
-  const receipt = await f.dispatcher("run_project_command", parameters, ["execute"]);
+  const receipt = await f.dispatcher("run_project_command", parameters, [
+    "execute",
+  ]);
   assert.equal(receipt.command, "main_platform_backup_inventory");
   assert.equal(receipt.daily.status, "BLOCKED");
   assert.equal(receipt.vault.status, "BLOCKED");
@@ -429,11 +454,16 @@ test("inventory old-client alias exposes sanitized allowlist and never grants pr
   assert.equal(receipt.shellExecuted, false);
   assert.deepEqual(f.calls, [{ op: "main_platform_backup_inventory" }]);
   for (const injected of [
-    { variant: "apply" }, { path: "/root/secrets" }, { keepCount: 0 },
-    { laneId: "other" }, { expectedHead: "a".repeat(40) },
+    { variant: "apply" },
+    { path: "/root/secrets" },
+    { keepCount: 0 },
+    { laneId: "other" },
+    { expectedHead: "a".repeat(40) },
   ]) {
     await assert.rejects(
-      f.dispatcher("run_project_command", { ...parameters, ...injected }, ["execute"]),
+      f.dispatcher("run_project_command", { ...parameters, ...injected }, [
+        "execute",
+      ]),
     );
   }
   assert.deepEqual(f.calls, [{ op: "main_platform_backup_inventory" }]);
@@ -447,16 +477,27 @@ test("inventory direct/legacy routes refuse wrong device or readonly enrollment"
   ]) {
     const f = fixture(t, variant);
     await assert.rejects(
-      f.dispatcher("supervisor_main_platform_backup_inventory", {
-        device: f.device, project: f.project,
-      }, ["read"]),
+      f.dispatcher(
+        "supervisor_main_platform_backup_inventory",
+        {
+          device: f.device,
+          project: f.project,
+        },
+        ["read"],
+      ),
     );
     await assert.rejects(
-      f.dispatcher("run_project_command", {
-        device: f.device, project: f.project,
-        command: "main_platform_backup_inventory", variant: "overview",
-        requestKey: "seq26-inventory-unauthorized",
-      }, ["execute"]),
+      f.dispatcher(
+        "run_project_command",
+        {
+          device: f.device,
+          project: f.project,
+          command: "main_platform_backup_inventory",
+          variant: "overview",
+          requestKey: "seq26-inventory-unauthorized",
+        },
+        ["execute"],
+      ),
     );
     assert.deepEqual(f.calls, []);
   }
