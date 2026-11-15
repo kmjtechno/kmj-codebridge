@@ -13,6 +13,7 @@ The operator must separately verify fixed read-only MCP command receipts.
 """
 from __future__ import annotations
 import hashlib
+import json
 import os
 from pathlib import Path
 import re
@@ -223,6 +224,45 @@ def validate_after():
         fail("SIGNED27_SUPERVISOR_EFFECTIVE_UNIT_MISMATCH")
 
 
+def fixed_socket_smoke():
+    """Verify actual new Supervisor read-only ops, never expose response data.
+
+    The socket is the exact pre-existing CodeBridge root Supervisor socket,
+    not an arbitrary host/path. Never send privileged write requests.
+    """
+    names=("main_platform_local_backup_evidence",
+           "main_platform_backup_inventory",
+           "main_platform_health_unit_receipt")
+    address="/run/kmj-codebridge/supervisor.sock"
+    for op in names:
+        encoded=(json.dumps({"op":op},separators=(",",":"))+"\n").encode()
+        sock=socket.socket(socket.AF_UNIX,socket.SOCK_STREAM)
+        try:
+            sock.settimeout(12)
+            sock.connect(address)
+            sock.sendall(encoded)
+            data=bytearray()
+            while b"\n" not in data and len(data)<65536:
+                chunk=sock.recv(min(4096,65537-len(data)))
+                if not chunk:break
+                data.extend(chunk)
+        except (OSError,TimeoutError):
+            fail("ROOT_SUPERVISOR_SOCKET_PROBE_FAILED")
+        finally:
+            sock.close()
+        if b"\n" not in data or len(data)>65536:
+            fail("ROOT_SUPERVISOR_SOCKET_RESPONSE_INVALID")
+        try:
+            result=json.loads(bytes(data).split(b"\n",1)[0])
+        except (UnicodeError,ValueError,TypeError):
+            fail("ROOT_SUPERVISOR_SOCKET_RESPONSE_INVALID")
+        if not isinstance(result,dict) or result.get("ok") is not True:
+            fail("ROOT_SUPERVISOR_READONLY_OP_DENIED")
+        if not isinstance(result.get("result"),dict):
+            fail("ROOT_SUPERVISOR_READONLY_OP_RESPONSE_SHAPE")
+    print("ROOT_SUPERVISOR_FIXED_BACKUP_OPS=3_PASS")
+
+
 def apply():
     preflight()
     if not DROP_DIR.exists():
@@ -264,6 +304,10 @@ def apply():
             live=props(SERVICE,UNIT_FIELDS)
             if live["ActiveState"]!="active":
                 fail("SIGNED27_ROOT_SUPERVISOR_NOT_ACTIVE")
+            # Unit activity alone is not proof that the newly advertised
+            # protected RPCs are actually implemented by the root process.
+            # A denied RPC triggers the exact-byte override rollback below.
+            fixed_socket_smoke()
             print("ROOT_SUPERVISOR_SIGNED27_EFFECTIVE=PASS")
             print("SUPERVISOR_SERVICE_STARTED=YES")
             print("GATEWAY_AGENT_AND_BACKUPS_RESTARTED=NO")

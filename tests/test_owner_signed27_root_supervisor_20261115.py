@@ -159,6 +159,72 @@ class RootSupervisorSafeReconcile(unittest.TestCase):
                 m.pinned_bytes("/dummy/file","a"*64)
         opened.assert_not_called()
 
+    def test_fixed_socket_actual_three_readonly_ops_smoke(self):
+        seen=[]
+        class Fake:
+            def __init__(self):self.out=b'{"ok":true,"result":{"verdict":"READ_ONLY"}}\n'
+            def settimeout(self,seconds):
+                assert seconds<=12
+            def connect(self,address):
+                self.address=address
+            def sendall(self,payload):
+                seen.append((self.address,payload))
+            def recv(self,n):
+                result=self.out
+                self.out=b""
+                return result
+            def close(self):pass
+        with mock.patch.object(m.socket,"socket",side_effect=lambda *a:Fake()):
+            m.fixed_socket_smoke()
+        expected=(
+            b'{"op":"main_platform_local_backup_evidence"}\n',
+            b'{"op":"main_platform_backup_inventory"}\n',
+            b'{"op":"main_platform_health_unit_receipt"}\n',
+        )
+        self.assertEqual(tuple(x[1] for x in seen),expected)
+        self.assertTrue(all(addr=="/run/kmj-codebridge/supervisor.sock"
+                            for addr,_ in seen))
+
+    def test_fixed_socket_denied_supervisor_operation_blocks_success(self):
+        class Denied:
+            def __init__(self):
+                self.body=b'{"ok":false,"error":"SUPERVISOR_OPERATION_NOT_ALLOWED"}\n'
+            def settimeout(self,*a):pass
+            def connect(self,*a):pass
+            def sendall(self,*a):pass
+            def recv(self,*a):
+                data=self.body
+                self.body=b""
+                return data
+            def close(self):pass
+        with mock.patch.object(m.socket,"socket",side_effect=lambda *a:Denied()):
+            with self.assertRaisesRegex(m.Block,"ROOT_SUPERVISOR_READONLY_OP_DENIED"):
+                m.fixed_socket_smoke()
+
+    def test_broken_socket_connect_fails_closed(self):
+        class Broken:
+            def settimeout(self,*a):pass
+            def connect(self,*a):raise ConnectionError("UNTRUSTED_TEST_SOCKET")
+            def close(self):pass
+        with mock.patch.object(m.socket,"socket",side_effect=lambda *a:Broken()):
+            with self.assertRaisesRegex(m.Block,"ROOT_SUPERVISOR_SOCKET_PROBE_FAILED"):
+                m.fixed_socket_smoke()
+
+    def test_invalid_socket_json_fails_closed(self):
+        class Invalid:
+            def __init__(self):self.body=b'{this is not valid JSON}\n'
+            def settimeout(self,*a):pass
+            def connect(self,*a):pass
+            def sendall(self,*a):pass
+            def recv(self,*a):
+                data=self.body
+                self.body=b""
+                return data
+            def close(self):pass
+        with mock.patch.object(m.socket,"socket",side_effect=lambda *a:Invalid()):
+            with self.assertRaisesRegex(m.Block,"ROOT_SUPERVISOR_SOCKET_RESPONSE_INVALID"):
+                m.fixed_socket_smoke()
+
     def test_preview_selftest_is_nonprivileged_no_effects(self):
         with mock.patch.object(m,"call") as execute:
             m.selftest()
