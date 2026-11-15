@@ -1982,6 +1982,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_health_unit_receipt: {
+    title: "Verify latest health unit's own pass receipt",
+    description:
+      "Check only the fixed KMJ-elite health-check systemd unit status and its exact invocation journal for KMJ_ELITE_HEALTH_PASS. Never returns logs or accepts unit/path/argv. This does not prove a scheduled trigger or restore.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_offsite_diagnostic: {
     title: "Run fixed read-only offsite backup diagnostic",
     description:
@@ -3536,6 +3543,14 @@ export function createDispatcher(
         op: "main_platform_local_backup_evidence",
       });
     }
+    if (name === "supervisor_main_platform_health_unit_receipt") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({ op: "main_platform_health_unit_receipt" });
+    }
     if (name === "supervisor_main_platform_offsite_diagnostic") {
       if (
         a.project !== "kmj-main-platform" ||
@@ -4032,6 +4047,15 @@ export function createDispatcher(
                   variants: ["overview"],
                 },
                 {
+                  id: "main_platform_health_unit_receipt",
+                  category: "inspect",
+                  description:
+                    "Read only the exact health-check systemd unit invocation result and journal success marker; never prints log lines, runs a service or claims the timer triggered.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["overview"],
+                },
+                {
                   id: "main_platform_offsite_diagnostic",
                   category: "inspect",
                   description:
@@ -4342,6 +4366,49 @@ export function createDispatcher(
           independentRestoreVerified: false,
           productionReleaseApproved: false,
           rootShellExecuted: false,
+          mutations: "NONE",
+        };
+      }
+      if (a.command === "main_platform_health_unit_receipt") {
+        if (
+          a.variant !== "overview" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-main-platform" ||
+          config.id !== "kmj-elite-main-platform" ||
+          !p.writable
+        )
+          fail("MAIN_PLATFORM_HEALTH_RECEIPT_NOT_AUTHORIZED");
+        if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+        const received = await supervisor.request({
+          op: "main_platform_health_unit_receipt",
+        });
+        const receipt = received?.response ?? received;
+        const result = ["success", "exit-code", "signal", "timeout"].includes(
+          receipt?.unitResult,
+        )
+          ? receipt.unitResult
+          : "unknown";
+        const code =
+          typeof receipt?.unitExit === "string" &&
+          /^(?:0|[1-9][0-9]{0,2})$/.test(receipt.unitExit)
+            ? receipt.unitExit
+            : "unknown";
+        const marker = receipt?.healthPassMarkerInOwnInvocation === true;
+        return {
+          command: "main_platform_health_unit_receipt",
+          mode: "READ_ONLY",
+          unitResult: result,
+          unitExit: code,
+          invocationAvailable: receipt?.invocationAvailable === true,
+          healthPassMarkerInOwnInvocation: marker,
+          unitInvocationPass: result === "success" && code === "0" && marker,
+          scheduledTimerRunProven: false,
+          independentRestoreVerified: false,
+          rawJournalExposed: false,
           mutations: "NONE",
         };
       }
