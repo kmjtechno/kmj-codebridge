@@ -46,7 +46,8 @@ function assertPrivateRoot(root, uid, protectedRoot) {
         p.isSymbolicLink() ||
         p.uid !== 0 ||
         (p.mode & 0o022) !== 0
-      ) reject();
+      )
+        reject();
     }
   }
   const st = fs.lstatSync(root);
@@ -55,12 +56,11 @@ function assertPrivateRoot(root, uid, protectedRoot) {
     st.isSymbolicLink() ||
     st.uid !== uid ||
     (st.mode & 0o022) !== 0
-  ) reject();
+  )
+    reject();
   const fd = fs.openSync(
     root,
-    fs.constants.O_RDONLY |
-      (fs.constants.O_DIRECTORY ?? 0) |
-      NOFOLLOW,
+    fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0) | NOFOLLOW,
   );
   try {
     const opened = fs.fstatSync(fd);
@@ -69,7 +69,8 @@ function assertPrivateRoot(root, uid, protectedRoot) {
       opened.dev !== st.dev ||
       opened.ino !== st.ino ||
       opened.uid !== uid
-    ) reject();
+    )
+      reject();
   } finally {
     fs.closeSync(fd);
   }
@@ -91,7 +92,8 @@ function privateRegular(file, uid, minBytes, maxBytes) {
     st.nlink !== 1 ||
     st.size < minBytes ||
     st.size > maxBytes
-  ) reject();
+  )
+    reject();
   return st;
 }
 
@@ -104,7 +106,8 @@ function readBounded(file, uid, bytes) {
       opened.dev !== before.dev ||
       opened.ino !== before.ino ||
       opened.size !== before.size
-    ) reject();
+    )
+      reject();
     const data = Buffer.alloc(bytes);
     if (fs.readSync(fd, data, 0, bytes, 0) !== bytes) reject();
     const after = fs.fstatSync(fd);
@@ -118,7 +121,8 @@ function readBounded(file, uid, bytes) {
       named.size !== before.size ||
       after.mtimeMs !== before.mtimeMs ||
       named.mtimeMs !== before.mtimeMs
-    ) reject();
+    )
+      reject();
     return data;
   } finally {
     fs.closeSync(fd);
@@ -144,7 +148,8 @@ function inspectDaily(root, uid, now) {
       st.isSymbolicLink() ||
       st.uid !== uid ||
       (st.mode & 0o777) !== 0o700
-    ) reject();
+    )
+      reject();
     const file = path.join(directory, "platform.dump");
     let dump;
     try {
@@ -214,9 +219,7 @@ function inspectVault(root, uid, now) {
   const newestStat = newest
     ? fs.lstatSync(path.join(root, newest + ".tar.age"))
     : null;
-  const newestAgeHours = newestStat
-    ? lastModifiedHours(newestStat, now)
-    : null;
+  const newestAgeHours = newestStat ? lastModifiedHours(newestStat, now) : null;
   return {
     status: "INSPECTED",
     cipherCount: cipherStamps.size,
@@ -269,10 +272,16 @@ export function mainPlatformBackupInventory({
     vault.cipherWithoutSidecarCount === 0 &&
     vault.sidecarWithoutCipherCount === 0;
   const oldestDaily = clean
-    ? daily.candidateStamps.slice(0, Math.max(0, daily.validDumpCount - KEEP_PREVIEW))
+    ? daily.candidateStamps.slice(
+        0,
+        Math.max(0, daily.validDumpCount - KEEP_PREVIEW),
+      )
     : [];
   const oldestVault = clean
-    ? vault.candidateStamps.slice(0, Math.max(0, vault.pairedCount - KEEP_PREVIEW))
+    ? vault.candidateStamps.slice(
+        0,
+        Math.max(0, vault.pairedCount - KEEP_PREVIEW),
+      )
     : [];
 
   // Disclose ONLY bounded stamp names (timestamps, never arbitrary filenames).
