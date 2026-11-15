@@ -226,7 +226,6 @@ test("all ten committed release manifests and detached signatures are present", 
   }
 });
 
-
 test("owner-exported Ed25519 PEM verifies all ten real signed release manifests", () => {
   // Root-config PEM printed by the owner on 2026-11-15.
   // This repository fixture is NOT an independent live root-file custody proof.
