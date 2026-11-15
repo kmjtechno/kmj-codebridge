@@ -149,7 +149,10 @@ test("signature with malformed base64url is rejected", (t) => {
   );
 });
 
-test("symlinked signed manifest is never followed", (t) => {
+test(
+  "symlinked signed manifest is never followed",
+  { skip: process.platform === "win32" },
+  (t) => {
   const f = fixture(t);
   const [, revision] = REQUIRED_RELEASES[0];
   const file = path.join(f.dir, revision, "release-manifest.json");
@@ -165,9 +168,13 @@ test("symlinked signed manifest is never followed", (t) => {
       }),
     /RELEASE_EVIDENCE_FILE_MISSING|RELEASE_EVIDENCE_FILE_UNTRUSTED/,
   );
-});
+  },
+);
 
-test("symlinked release directory is denied", (t) => {
+test(
+  "symlinked release directory is denied",
+  { skip: process.platform === "win32" },
+  (t) => {
   const f = fixture(t);
   const [, revision] = REQUIRED_RELEASES[0];
   const dir = path.join(f.dir, revision);
@@ -183,7 +190,8 @@ test("symlinked release directory is denied", (t) => {
       }),
     /RELEASE_DIRECTORY_UNTRUSTED/,
   );
-});
+  },
+);
 
 test("all ten releases are required, never a subset", (t) => {
   const f = fixture(t);
