@@ -159,6 +159,34 @@ test("malformed signed payload or unsupported key policy is blocked", t => {
   assert.throws(h.resolve,/RELEASE_MANIFEST_SHAPE_INVALID/);
 });
 
+test("signed rollback below an independently supplied floor is denied", t => {
+  const f=freshCatalog(t);
+  f.signed(fullSha("a"),25);
+  assert.throws(() => latestSignedRelease(f.root, {
+    trustedPublicKeyPem:f.publicKeyPem,
+    trustedSpkiSha256:f.trustedSpkiSha256,
+    minimumSequence:26,
+  }),/RELEASE_SEQUENCE_ROLLBACK/);
+  assert.throws(() => latestSignedRelease(f.root, {
+    trustedPublicKeyPem:f.publicKeyPem,
+    trustedSpkiSha256:f.trustedSpkiSha256,
+    minimumSequence:0,
+  }),/RELEASE_SEQUENCE_FLOOR_INVALID/);
+});
+
+test("symlinked root ancestor is rejected even when signed files are valid", t => {
+  const f=freshCatalog(t);
+  f.signed(fullSha("a"),25);
+  const alias=path.join(path.dirname(f.root),"symlinked-signed-catalog-" +
+    crypto.randomBytes(6).toString("hex"));
+  fs.symlinkSync(f.root,alias,"dir");
+  t.after(() => fs.unlinkSync(alias));
+  assert.throws(() => latestSignedRelease(alias, {
+    trustedPublicKeyPem:f.publicKeyPem,
+    trustedSpkiSha256:f.trustedSpkiSha256,
+  }),/RELEASE_ROOT_UNTRUSTED/);
+});
+
 test("signed manifest doesn't count as installed, publicly accessible or restored", t => {
   const f=freshCatalog(t);
   f.signed(fullSha("a"),25);
