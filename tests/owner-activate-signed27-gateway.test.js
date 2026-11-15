@@ -36,8 +36,8 @@ test("seq27 old/rollback side (seq26 was never deployed) is the live signed25 ov
   );
   assert.match(seq27, /0\.3\.2-55a3f976fd3b"\)\nNEW_DIR/);
   assert.match(seq27, /NEW_CONF = DIR \/ "zzzzzzzzzz-kmj-signed27\.conf"/);
-  assert.match(seq27, /NEW_SHA = "bcf0557f1bf9c6fe6b14f3378d57654efea814a4"/);
-  assert.match(seq27, /0\.3\.2-bcf0557f1bf9"\)/);
+  assert.match(seq27, /NEW_SHA = "40655678db7fa62edca28ccc4988614010253ef1"/);
+  assert.match(seq27, /0\.3\.2-40655678db7f"\)/);
   assert.doesNotMatch(
     seq27,
     /dd1ccf32|signed24|SIGNED24|2e8c4b7d|signed26|SIGNED26/,
