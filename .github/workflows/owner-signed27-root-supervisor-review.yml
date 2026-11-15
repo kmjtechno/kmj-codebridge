@@ -1,0 +1,41 @@
+name: Signed27 root Supervisor reconciliation (source-only QA)
+on:
+  pull_request:
+    paths:
+      - "scripts/production/owner_reconcile_signed27_root_supervisor_20261115.py"
+      - "tests/test_owner_signed27_root_supervisor_20261115.py"
+      - ".github/workflows/owner-signed27-root-supervisor-review.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  disposable-guard-fixtures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact tested commit
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate Python AST and CLI review-only default
+        run: |
+          python3 -m py_compile scripts/production/owner_reconcile_signed27_root_supervisor_20261115.py
+          python3 -m py_compile tests/test_owner_signed27_root_supervisor_20261115.py
+          python3 - <<'PY'
+          import ast
+          from pathlib import Path
+          p=Path("scripts/production/owner_reconcile_signed27_root_supervisor_20261115.py")
+          body=p.read_text()
+          tree=ast.parse(body)
+          assert "OWNER_ROOT_KMJ_ELITE_REQUIRED" in body
+          assert '"--apply","--confirm-owner-supervisor-only"' in body
+          assert 'SUPERVISOR_OLD_STAGE_UNEXPECTED' in body
+          assert 'SIGNED27_ROOT_SUPERVISOR_NOT_ACTIVE' in body
+          assert "PROTECTED_DROPIN_ALREADY_EXISTS" in body
+          assert "ROOT_SUPERVISOR_OVERRIDE_ROLLBACK=PASS" in body
+          print("SOURCE_ONLY_OWNER_ROOT_GATE=PASS")
+          PY
+      - name: Run isolated negative safety fixtures (no root/server)
+        run: |
+          python3 -B -m unittest discover -s tests \
+            -p 'test_owner_signed27_root_supervisor_20261115.py' -v
