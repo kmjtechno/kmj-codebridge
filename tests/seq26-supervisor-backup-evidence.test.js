@@ -345,3 +345,28 @@ test("wrong device/project, disabled write grant or absent Supervisor never expo
     assert.deepEqual(f.calls, []);
   }
 });
+
+
+test("direct root Supervisor receipts reject wrong device and readonly project enrollment", async (t) => {
+  for (const variant of [
+    { device: "other", project: PROJECT },
+    { device: DEVICE, project: "other" },
+    { device: DEVICE, project: PROJECT, writable: false },
+  ]) {
+    const f = fixture(t, variant);
+    for (const name of [
+      "supervisor_main_platform_local_backup_evidence",
+      "supervisor_main_platform_health_unit_receipt",
+    ]) {
+      await assert.rejects(
+        f.dispatcher(
+          name,
+          { device: f.device, project: f.project },
+          ["read"],
+        ),
+        /ACCESS_DENIED/,
+      );
+    }
+    assert.deepEqual(f.calls, []);
+  }
+});
