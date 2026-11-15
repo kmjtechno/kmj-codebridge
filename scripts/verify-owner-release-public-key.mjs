@@ -59,7 +59,8 @@ function readRegularNoFollow(file, limit) {
     // Check the path before/after the descriptor, as well as fd identity.
     const pathBefore = fs.lstatSync(file);
     requireThat(
-      pathBefore.isFile() && !pathBefore.isSymbolicLink() &&
+      pathBefore.isFile() &&
+        !pathBefore.isSymbolicLink() &&
         pathBefore.nlink === 1,
       "RELEASE_EVIDENCE_FILE_UNTRUSTED",
     );
@@ -84,8 +85,10 @@ function readRegularNoFollow(file, limit) {
     const after = fs.fstatSync(fd);
     const pathAfter = fs.lstatSync(file);
     requireThat(
-      pathAfter.isFile() && !pathAfter.isSymbolicLink() &&
-        pathAfter.dev === before.dev && pathAfter.ino === before.ino,
+      pathAfter.isFile() &&
+        !pathAfter.isSymbolicLink() &&
+        pathAfter.dev === before.dev &&
+        pathAfter.ino === before.ino,
       "RELEASE_EVIDENCE_FILE_CHANGED",
     );
     requireThat(
