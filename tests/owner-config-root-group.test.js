@@ -23,15 +23,23 @@ test("config owner script only touches the two fixed paths and never restarts or
   assert.match(source, /RUNTIME_DOES_NOT_ACCEPT_ROOT_OWNED_CONFIG/);
 });
 
-test("config owner script behavioural tests pass (apply order, rollback, blocked states)", (t) => {
-  // Linux-only root script: pwd/grp and chown do not exist on Windows.
-  if (process.platform === "win32") return t.skip("Linux-only owner script");
-  const python = spawnSync("python3", ["--version"]);
-  if (python.status !== 0) return t.skip("python3 unavailable");
-  const result = spawnSync(
-    "python3",
-    ["-I", "-B", "tests/test_owner_config_root_group_20261115.py"],
-    { encoding: "utf8" },
-  );
-  assert.equal(result.status, 0, result.stderr);
+test("config owner script executes eight real root-only behaviour tests in Linux CI", (t) => {
+  // Windows has no pwd/grp/chown. Linux CI must exercise actual fchown/fchmod
+  // on an isolated /run fixture; zero executed tests is never a green CI gate.
+  if (process.platform !== "linux") return t.skip("Linux-only owner test");
+  const python = "/usr/bin/python3";
+  assert.ok(fs.existsSync(python), "Linux CI needs pinned system Python");
+  const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
+  if (!isRoot && !process.env.CI) {
+    return t.skip("root-only fixture; executed in Linux CI via noninteractive sudo");
+  }
+
+  const args = ["-I", "-B", "tests/test_owner_config_root_group_20261115.py"];
+  const result = isRoot
+    ? spawnSync(python, args, { encoding: "utf8" })
+    : spawnSync("sudo", ["-n", python, ...args], { encoding: "utf8" });
+
+  assert.equal(result.status, 0, result.stderr || result.error?.message);
+  assert.match(result.stderr, /Ran 8 tests/);
+  assert.doesNotMatch(result.stderr, /\\(skipped=\\d+\\)/);
 });
