@@ -63,7 +63,6 @@ No generic root-shell capability is granted by these scripts.
 - Never touch Seq26 legacy scripts, gateway.json ownership, V2 backups,
   Main Platform health lines 25/28 or the owner private signing key.
 
-
 ## Actual owner PEM cross-verification — 2026-11-15
 
 The owner supplied the public PEM printed by a read-only root command that
