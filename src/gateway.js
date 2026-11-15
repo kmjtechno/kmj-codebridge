@@ -6,7 +6,12 @@ import {
   resolveChatWorkspaceCheckpoint,
 } from "./chat-workspace-continuity.js";
 import { buildCapabilityMemory } from "./capability-memory.js";
-import { createOAuthVerifier, oauthMetadata, oauthChallenge } from "./auth.js";
+import {
+  createOAuthVerifier,
+  oauthMetadata,
+  oauthChallenge,
+  signInScope,
+} from "./auth.js";
 import { createUserIntrospector } from "./user-access.js";
 import {
   insufficientScopeMeta,
@@ -1134,7 +1139,7 @@ export async function startGateway(rawConfig) {
             : undefined;
           res.setHeader(
             "WWW-Authenticate",
-            oauthChallenge(config.oauth, scope) +
+            oauthChallenge(config.oauth, signInScope(config.oauth, scope)) +
               ', error="invalid_token", error_description="Sign in to KMJ CodeBridge to continue"',
           );
         }
@@ -1195,7 +1200,10 @@ export async function startGateway(rawConfig) {
               if (!user) {
                 const authenticate = config.oauth
                   ? [
-                      oauthChallenge(config.oauth, `codebridge:${d.access}`) +
+                      oauthChallenge(
+                        config.oauth,
+                        signInScope(config.oauth, `codebridge:${d.access}`),
+                      ) +
                         ', error="invalid_token", error_description="Sign in to KMJ CodeBridge to continue"',
                     ]
                   : null;

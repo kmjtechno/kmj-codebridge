@@ -59,6 +59,14 @@ export const gatewaySchema = z
           })
           .optional(),
         jwksUri: httpsUrl.optional(),
+        // Which scopes the sign-in challenge asks for when a caller has no
+        // valid token. "requested-tool" (default) asks only for the scope of
+        // the tool being called and relies on the client to step up later.
+        // "all" asks for every CodeBridge scope at first sign-in, for clients
+        // that never act on a later step-up challenge and would otherwise be
+        // stuck read-only. The authorization server and the account's own
+        // permissions still decide what is granted.
+        signInScopes: z.enum(["requested-tool", "all"]).optional(),
       })
       .superRefine((oauth, ctx) => {
         if (Boolean(oauth.jwks) === Boolean(oauth.jwksUri)) {

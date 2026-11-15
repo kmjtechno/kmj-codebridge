@@ -81,6 +81,12 @@ export function oauthMetadata(config) {
     scopes_supported: scopes,
   };
 }
+// Scope for the challenge sent to a caller with no valid token. A step-up
+// challenge for an already signed-in caller always names the exact scope and
+// does not use this.
+export function signInScope(config, toolScope) {
+  return config?.signInScopes === "all" ? scopes.join(" ") : toolScope;
+}
 export function oauthChallenge(config, scope) {
   const url = new URL("/.well-known/oauth-protected-resource", config.resource)
     .href;
