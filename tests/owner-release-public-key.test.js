@@ -232,7 +232,7 @@ test("owner-exported Ed25519 PEM verifies all ten real signed release manifests"
   // This repository fixture is NOT an independent live root-file custody proof.
   const base = path.dirname(fileURLToPath(import.meta.url));
   const publicKeyPem = fs.readFileSync(
-    path.join(base, "fixtures/KMJ_RELEASE_PUBKEY_OWNER_ATTESTED_20261115.pem"),
+    path.join(base, "fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt"),
     "utf8",
   );
   const verified = verifyAllReleaseSignatures({
