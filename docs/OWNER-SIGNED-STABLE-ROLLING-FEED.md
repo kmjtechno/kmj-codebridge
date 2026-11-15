@@ -11,6 +11,7 @@ piece: publish a future already owner-signed immutable release as the new
 
 \`scripts/production/owner_roll_signed_latest_feed_20261115.py\` performs
 only owner-root, fixed-path actions:
+
 1. Read the root-owned, private, nofollow \`stable-update.json\` and use
    its \`kmj-release-2026\` Ed25519 public key, checked against the
    independently owner-attested SHA256 SPKI pin.
@@ -32,7 +33,7 @@ only owner-root, fixed-path actions:
    and validates public \`latest\` readback. Original signed \`latest\`
    remains in the previously staged directory. No cleanup/overwrite.
 6. If public readback fails, restore the old signed feed with a second
-   atomic exchange *only if both sides still match exact expected bytes*;
+   atomic exchange _only if both sides still match exact expected bytes_;
    otherwise block for owner review without deleting evidence.
 
 No change to nginx, systemd, gateway, Supervisor, CodeBridge agent, Main
