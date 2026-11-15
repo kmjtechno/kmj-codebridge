@@ -1982,6 +1982,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_backup_inventory: {
+    title: "Read fixed backup inventory and retention preview",
+    description:
+      "Report fixed KMJ-elite daily PGDMP and encrypted vault pair counts, orphan counts, latest matching stamp, freshness, and advisory-only oldest-stamp retention preview. Includes unit result without claiming restore or scheduled unit proof. No caller path/argv, file mutation, deletion or root shell.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_health_unit_receipt: {
     title: "Verify latest health unit's own pass receipt",
     description:
@@ -3544,6 +3551,17 @@ export function createDispatcher(
         op: "main_platform_local_backup_evidence",
       });
     }
+    if (name === "supervisor_main_platform_backup_inventory") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform" ||
+        !p.writable
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_backup_inventory",
+      });
+    }
     if (name === "supervisor_main_platform_health_unit_receipt") {
       if (
         a.project !== "kmj-main-platform" ||
@@ -4051,6 +4069,15 @@ export function createDispatcher(
                   variants: ["overview"],
                 },
                 {
+                  id: "main_platform_backup_inventory",
+                  category: "inspect",
+                  description:
+                    "Fixed read-only daily/vault inventory, orphan classification, retention PREVIEW and health unit status. No delete, backup, shell, secrets, restore proof or owner approval.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["overview"],
+                },
+                {
                   id: "main_platform_health_unit_receipt",
                   category: "inspect",
                   description:
@@ -4370,6 +4397,128 @@ export function createDispatcher(
           independentRestoreVerified: false,
           productionReleaseApproved: false,
           rootShellExecuted: false,
+          mutations: "NONE",
+        };
+      }
+      if (a.command === "main_platform_backup_inventory") {
+        if (
+          a.variant !== "overview" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-main-platform" ||
+          config.id !== "kmj-elite-main-platform" ||
+          !p.writable
+        )
+          fail("MAIN_PLATFORM_BACKUP_INVENTORY_NOT_AUTHORIZED");
+        if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+        const received = await supervisor.request({
+          op: "main_platform_backup_inventory",
+        });
+        const raw = received?.response ?? received;
+        const natural = (number, limit) =>
+          Number.isSafeInteger(number) && number >= 0 && number <= limit
+            ? number
+            : 0;
+        const stamp = (value) =>
+          typeof value === "string" &&
+          /^20[0-9]{6}T[0-9]{6}Z$/.test(value)
+            ? value
+            : null;
+        const onlyStamps = (value) =>
+          Array.isArray(value)
+            ? value.slice(0, 3).map(stamp).filter(Boolean)
+            : [];
+        const daily = raw?.daily;
+        const vault = raw?.vault;
+        const preview = raw?.retentionPreview;
+        const dailyInspected = daily?.status === "INSPECTED";
+        const vaultInspected = vault?.status === "INSPECTED";
+        const unitResult = ["success", "exit-code", "signal", "timeout"].includes(
+          raw?.healthUnit?.result,
+        )
+          ? raw.healthUnit.result
+          : "unknown";
+        const healthExit =
+          typeof raw?.healthUnit?.exitCode === "string" &&
+          /^(?:0|[1-9][0-9]{0,2})$/.test(raw.healthUnit.exitCode)
+            ? raw.healthUnit.exitCode
+            : "unknown";
+        const verdict = [
+          "INSPECTION_BLOCKED",
+          "LOCAL_ARTIFACTS_STALE_OR_MISSING",
+          "HEALTH_UNIT_NOT_PASSING",
+          "LOCAL_PRESENT_UNIT_MARKER_NOT_ATTESTED",
+        ].includes(raw?.verdict)
+          ? raw.verdict
+          : "INSPECTION_BLOCKED";
+        return {
+          command: "main_platform_backup_inventory",
+          mode: "READ_ONLY",
+          daily: {
+            status: dailyInspected ? "INSPECTED" : "BLOCKED",
+            timestampedDirectoryCount: natural(
+              daily?.timestampedDirectoryCount,
+              512,
+            ),
+            validDumpCount: natural(daily?.validDumpCount, 512),
+            missingDumpCount: natural(daily?.missingDumpCount, 512),
+            newestStamp: stamp(daily?.newestStamp),
+            newestFresh: daily?.newestFresh === true,
+          },
+          vault: {
+            status: vaultInspected ? "INSPECTED" : "BLOCKED",
+            cipherCount: natural(vault?.cipherCount, 512),
+            pairedCount: natural(vault?.pairedCount, 512),
+            cipherWithoutSidecarCount: natural(
+              vault?.cipherWithoutSidecarCount,
+              512,
+            ),
+            sidecarWithoutCipherCount: natural(
+              vault?.sidecarWithoutCipherCount,
+              512,
+            ),
+            newestStamp: stamp(vault?.newestStamp),
+            newestFresh: vault?.newestFresh === true,
+            cipherDigestComparedToSidecar: false,
+            remoteRestoreVerified: false,
+          },
+          correlation: {
+            sameNewestStamp: raw?.correlation?.sameNewestStamp === true,
+            localArtifactsFresh:
+              raw?.correlation?.localArtifactsFresh === true,
+          },
+          retentionPreview: {
+            fixedKeepCount: 34,
+            candidateDailyCount: natural(preview?.candidateDailyCount, 512),
+            candidateCipherPairCount: natural(
+              preview?.candidateCipherPairCount,
+              512,
+            ),
+            exampleOldestDailyStamps: onlyStamps(
+              preview?.exampleOldestDailyStamps,
+            ),
+            exampleOldestCipherPairStamps: onlyStamps(
+              preview?.exampleOldestCipherPairStamps,
+            ),
+            inspectionComplete: preview?.inspectionComplete === true,
+            policyApproved: false,
+            deletionAuthorized: false,
+          },
+          healthUnit: {
+            result: unitResult,
+            exitCode: healthExit,
+            ownInvocationMarkerVerified: false,
+            scheduledTimerRunProven: false,
+          },
+          verdict,
+          remoteSftpShaVerified: false,
+          independentRestoreVerified: false,
+          productionReleaseApproved: false,
+          automaticRepairPerformed: false,
+          shellExecuted: false,
           mutations: "NONE",
         };
       }
