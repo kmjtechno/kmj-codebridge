@@ -220,3 +220,111 @@ test("routing invalid configuration and timing metadata fails closed", () => {
       /SMART_MODEL_ROUTER_|MODEL_POLICY_/,
     );
 });
+
+test("verified-free-cloud-only always excludes every local model including fallback", () => {
+  const options = [
+    { ...local, id: "local-high-quality", qualityScore: 100 },
+    { ...cloud, id: "free-cloud-one", privateCodeAllowed: true },
+    { ...cloud, id: "free-cloud-two", privateCodeAllowed: true },
+  ];
+  const r = planSmartModelRoute({
+    models: options,
+    task: { ...task, strategy: "verified-free-cloud-only", privateCode: true },
+  });
+  assert.equal(r.outcome, "ROUTE_PLAN_READY");
+  assert.equal(r.eligibleCount, 2);
+  assert.equal(r.localFallbackAllowed, false);
+  assert.equal(r.selected.kind, "cloud");
+  assert.ok(r.fallbacks.every((m) => m.kind === "cloud"));
+  assert.ok(!JSON.stringify(r.selected).includes("local"));
+  assert.equal(r.modelExecution, "NOT_EXECUTED");
+  assert.equal(r.metadataProvenance, "CALLER_SUPPLIED_NOT_VERIFIED_BY_CODEBRIDGE");
+});
+
+test("cloud-only fails closed with zero usable free cloud; never silently selects local", () => {
+  const now = Date.now();
+  const unusable = [
+    { ...cloud, freeTierVerified: false },
+    { ...cloud, freeTierVerified: undefined },
+    { ...cloud, costPerMillionTokensUsd: 0.000001 },
+    { ...cloud, costPerMillionTokensUsd: undefined },
+    { ...cloud, free: false },
+    { ...cloud, health: "unknown" },
+    { ...cloud, enabled: false },
+    { ...cloud, modelsDiscoveredAtMs: now - 24 * 60 * 60 * 1000 },
+    { ...cloud, contextWindow: 1 },
+  ];
+  for (const bad of unusable) {
+    const r = planSmartModelRoute({
+      models: [local, bad],
+      task: { ...task, strategy: "verified-free-cloud-only" },
+      nowMs: now,
+    });
+    assert.equal(r.selected, null);
+    assert.deepEqual(r.fallbacks, []);
+    assert.equal(r.eligibleCount, 0);
+    assert.equal(r.localFallbackAllowed, false);
+    assert.equal(r.outcome, "NO_FREE_AUTHORIZED_CAPABLE_MODEL");
+  }
+});
+
+test("cloud-only rejects unapproved code transfer, unauthenticated cloud and exhausted quota", () => {
+  const params = {
+    models: [local, cloud],
+    task: { ...task, strategy: "verified-free-cloud-only" },
+  };
+  for (const patch of [
+    { cloudApproved: false },
+    { privateCode: true },
+  ]) {
+    const r = planSmartModelRoute({
+      ...params,
+      task: { ...params.task, ...patch },
+    });
+    assert.equal(r.selected, null);
+    assert.equal(r.localFallbackAllowed, false);
+  }
+  const quota = planSmartModelRoute({
+    ...params,
+    state: { [cloud.id]: { remainingRequests: 0 } },
+  });
+  assert.equal(quota.selected, null);
+  const cooldown = planSmartModelRoute({
+    ...params,
+    state: { [cloud.id]: { cooldownUntil: Date.now() + 50000 } },
+  });
+  assert.equal(cooldown.selected, null);
+});
+
+test("cloud-only blocks OpenRouter paid aliases even if caller marks free", () => {
+  const freeId = "vendor/exact-model:free";
+  const base = { ...cloud, provider: "openrouter", id: freeId };
+  const ok = planSmartModelRoute({
+    models: [local, base],
+    task: { ...task, strategy: "verified-free-cloud-only" },
+  });
+  assert.equal(ok.selected.modelId, freeId);
+  const paid = planSmartModelRoute({
+    models: [local, { ...base, id: "vendor/exact-model" }],
+    task: { ...task, strategy: "verified-free-cloud-only" },
+  });
+  assert.equal(paid.selected, null);
+  assert.equal(paid.localFallbackAllowed, false);
+});
+
+test("cloud-only never plans unverified FreeLLMAPI chain as free cloud", () => {
+  const candidate = {
+    ...cloud,
+    provider: "freellmapi",
+    id: "auto:free-router",
+    freeTierVerified: false,
+    costPerMillionTokensUsd: undefined,
+  };
+  const result = planSmartModelRoute({
+    models: [candidate, local],
+    task: { ...task, strategy: "verified-free-cloud-only" },
+  });
+  assert.equal(result.outcome, "NO_FREE_AUTHORIZED_CAPABLE_MODEL");
+  assert.equal(result.modelExecution, "NOT_EXECUTED");
+  assert.equal(result.promptOrConversationTransferred, false);
+});
