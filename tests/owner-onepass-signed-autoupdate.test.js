@@ -15,6 +15,7 @@ test("onepass signed auto-update never enables unsigned gateway or dynamic root 
     "UNAPPROVED_HELPER_PATH",
     "SIGNED_FEED_PREFLIGHT",
     "ONEPASS_PRIVATE_OWNER_APPROVAL=PASS",
+    "EXISTING_SIGNED_FEED_UNVERIFIED",
     "ONEPASS_SIGNED_AGENT_AUTOMATION=ENABLED",
     "GATEWAY_SUPERVISOR_WINDOWS_AUTOPROMOTION=NOT_ENABLED",
   ]) {
@@ -43,6 +44,6 @@ test(
       { encoding: "utf8", timeout: 30000 },
     );
     assert.equal(run.status, 0, String(run.stderr || run.error).slice(-4000));
-    assert.match(run.stderr, /Ran 9 tests/);
+    assert.match(run.stderr, /Ran 11 tests/);
   },
 );
