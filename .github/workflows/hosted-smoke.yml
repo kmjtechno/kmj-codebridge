@@ -6,6 +6,7 @@ on:
     paths:
       - "src/**"
       - "scripts/verify-vps-catalog.mjs"
+      - "scripts/latest-signed-release.mjs"
       - "scripts/verify-public-mcp-catalog.mjs"
       - ".github/workflows/hosted-smoke.yml"
   workflow_dispatch:
@@ -29,9 +30,19 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-      - name: Resolve newest owner-signed stable release
+      - name: Resolve newest cryptographically verified owner-signed stable release
         id: release
-        run: node scripts/latest-signed-release.mjs
+        shell: bash
+        # Public key copied from owner's protected updater trust config,
+        # verified against exact pinned SHA256(SPKI) and 10 signed releases.
+        # Public key is NOT a signing secret. Missing/tampered pin fails closed.
+        run: |
+          set -Eeuo pipefail
+          pem=tests/fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt
+          test -f "$pem"
+          export KMJ_RELEASE_OWNER_PUBLIC_KEY_B64
+          KMJ_RELEASE_OWNER_PUBLIC_KEY_B64="$(base64 -w 0 "$pem")"
+          node scripts/latest-signed-release.mjs
       - name: Verify owner VPS catalog, critical schemas and exact deployed signed release commit
         # Health may pass while the public gateway is still on an obsolete
         # binary. Never report a push/scheduled release smoke as fully green
