@@ -225,3 +225,24 @@ test("all ten committed release manifests and detached signatures are present", 
     assert.equal(Buffer.from(signature, "base64url").length, 64);
   }
 });
+
+
+test("owner-exported Ed25519 PEM verifies all ten real signed release manifests", () => {
+  // Root-config PEM printed by the owner on 2026-11-15.
+  // This repository fixture is NOT an independent live root-file custody proof.
+  const base = path.dirname(fileURLToPath(import.meta.url));
+  const publicKeyPem = fs.readFileSync(
+    path.join(base, "fixtures/KMJ_RELEASE_PUBKEY_OWNER_ATTESTED_20261115.pem"),
+    "utf8",
+  );
+  const verified = verifyAllReleaseSignatures({
+    publicKeyPem,
+    releasesRoot: path.resolve(base, "../releases/stable"),
+  });
+  assert.deepEqual(verified, {
+    fingerprint:
+      "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8",
+    passed: 10,
+    required: 10,
+  });
+});
