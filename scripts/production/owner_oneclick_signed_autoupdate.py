@@ -74,7 +74,7 @@ def read_root(file, limit=65536, private=True):
             require(bool(chunk), "ROOT_FILE_RACE")
             data += chunk
         now = os.fstat(fd)
-        require((st.st_dev, st.st_ino, st.st.st_size if False else st.st_size,
+        require((st.st_dev, st.st_ino, st.st_size,
                  st.st_mtime_ns, st.st_ctime_ns) ==
                 (now.st_dev, now.st_ino, now.st_size, now.st_mtime_ns,
                  now.st_ctime_ns), "ROOT_FILE_RACE")
