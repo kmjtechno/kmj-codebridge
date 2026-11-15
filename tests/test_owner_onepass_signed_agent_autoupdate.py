@@ -23,7 +23,7 @@ class OnePassSignedAgentTests(unittest.TestCase):
             mock.patch.object(m,"verified_source",return_value=b"owner-root-script")
         ]
 
-    def run_with_patches(self,argv,feed_error=False):
+    def run_with_patches(self,argv,feed_error=False,existing=False):
         events=[]
         class FakeFeed:
             CONFIRM="--confirm-owner-publish-signed27-feed"
@@ -41,11 +41,12 @@ class OnePassSignedAgentTests(unittest.TestCase):
             mock.patch.object(m,"load_helper",side_effect=load),
             mock.patch.object(m,"ensure_approval",side_effect=lambda:events.append(("approval",()))),
             mock.patch.object(m,"read_approval",return_value=True),
+            mock.patch.object(m,"existing_signed_feed",return_value=existing),
         ]
         for p in patches:p.start()
         try:
             if feed_error:
-                with self.assertRaisesRegex(m.Block,"SIGNED_FEED_PREFLIGHT_FAILED"):
+                with self.assertRaisesRegex(m.Block,"ONEPASS_FEED_INSPECT_FAILED"):
                     m.run(argv)
             else:m.run(argv)
         finally:
@@ -64,6 +65,22 @@ class OnePassSignedAgentTests(unittest.TestCase):
         self.assertEqual(self.run_with_patches(["--apply",m.CONFIRM],feed_error=True),[
             ("feed",("--inspect",)),
         ])
+
+    def test_existing_later_signed_feed_skips_seq27_republication(self):
+        self.assertEqual(self.run_with_patches(["--apply",m.CONFIRM],existing=True),[
+            ("approval",()),
+            ("updater",("--enable","--confirm-signed-auto-owner-go")),
+        ])
+
+    def test_existing_latest_symlink_is_blocked_before_signature_read(self):
+        with tempfile.TemporaryDirectory() as d:
+            base=Path(d)
+            (base/"real").mkdir()
+            (base/"latest").symlink_to(base/"real",target_is_directory=True)
+            feed=types.SimpleNamespace(DEST=base/"latest",ancestry=lambda p:None)
+            updater=types.SimpleNamespace()
+            with self.assertRaisesRegex(m.Block,"EXISTING_LATEST_ROOT_UNTRUSTED"):
+                m.existing_signed_feed(feed,updater)
 
     def test_status_is_no_mutation_and_no_feed(self):
         self.assertEqual(self.run_with_patches(["--status"]),[
