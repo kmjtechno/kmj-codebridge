@@ -118,9 +118,7 @@ function checkedDirectory(dir) {
   try {
     fd = fs.openSync(
       dir,
-      fs.constants.O_RDONLY |
-        (fs.constants.O_DIRECTORY ?? 0) |
-        NOFOLLOW,
+      fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0) | NOFOLLOW,
     );
     const opened = fs.fstatSync(fd);
     if (
@@ -189,7 +187,9 @@ export function latestSignedRelease(
     const signature = readBounded(
       path.join(directory, "release-manifest.sig"),
       2048,
-    ).toString("utf8").trim();
+    )
+      .toString("utf8")
+      .trim();
     // Reuse production's Ed25519 raw-byte verifier, never manifest claims.
     const manifest = verifyReleaseManifest(rawManifest, signature, keys);
     if (manifest.revision !== revision) {
@@ -266,11 +266,7 @@ if (
     if (process.env.GITHUB_OUTPUT) {
       fs.appendFileSync(
         process.env.GITHUB_OUTPUT,
-        "revision=" +
-          result.revision +
-          "\nsequence=" +
-          result.sequence +
-          "\n",
+        "revision=" + result.revision + "\nsequence=" + result.sequence + "\n",
       );
     }
   } catch (error) {
