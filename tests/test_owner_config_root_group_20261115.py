@@ -115,6 +115,47 @@ class Tests(Harness):
         self.assertEqual(self.state(), ((UID, GID, 0o700), (UID, GID, 0o600)))
         self.assertEqual(self.calls, ["stage", "gateway.json"])
 
+    def test_partial_apply_failure_restores_same_original_inodes(self):
+        initial_dir = os.lstat(self.dir).st_ino
+        initial_file = os.lstat(self.file).st_ino
+        real = mod.set_owner
+        injected = [False]
+
+        def fail_after_file(path, uid, gid, mode, inode, is_dir):
+            if pathlib.Path(path) == self.dir and not injected[0]:
+                injected[0] = True
+                raise mod.Blocked("INJECTED_SECOND_STEP")
+            return real(path, uid, gid, mode, inode, is_dir)
+
+        mod.set_owner = fail_after_file
+        out, err = self.go("--apply", mod.CONFIRM)
+        self.assertTrue(injected[0])
+        self.assertEqual(err, "OWNER_CHANGE_FAILED")
+        self.assertIn("CONFIG_OWNER_AUTO_ROLLBACK=PASS", out)
+        self.assertEqual(self.state(), ((UID, GID, 0o700), (UID, GID, 0o600)))
+        self.assertEqual(os.lstat(self.dir).st_ino, initial_dir)
+        self.assertEqual(os.lstat(self.file).st_ino, initial_file)
+        self.assertFalse(mod.LOCK.exists())
+
+    def test_partial_explicit_rollback_failure_restores_target_shape(self):
+        self.go("--apply", mod.CONFIRM)
+        real = mod.set_owner
+        injected = [False]
+
+        def fail_after_dir(path, uid, gid, mode, inode, is_dir):
+            if pathlib.Path(path) == self.file and not injected[0]:
+                injected[0] = True
+                raise mod.Blocked("INJECTED_SECOND_STEP")
+            return real(path, uid, gid, mode, inode, is_dir)
+
+        mod.set_owner = fail_after_dir
+        out, err = self.go("--rollback", mod.CONFIRM)
+        self.assertTrue(injected[0])
+        self.assertEqual(err, "OWNER_CHANGE_FAILED")
+        self.assertIn("CONFIG_OWNER_AUTO_ROLLBACK=PASS", out)
+        self.assertEqual(self.state(), ((0, GID, 0o750), (0, GID, 0o640)))
+        self.assertFalse(mod.LOCK.exists())
+
     def test_unexpected_state_blocks_before_any_change(self):
         os.chmod(self.file, 0o644)
         out, err = self.go("--apply", mod.CONFIRM)
