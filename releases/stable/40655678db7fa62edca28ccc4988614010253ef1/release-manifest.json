@@ -1,0 +1,14 @@
+{
+  "schema": 1,
+  "product": "KMJ CodeBridge",
+  "channel": "stable",
+  "sequence": 27,
+  "version": "0.3.2",
+  "revision": "40655678db7fa62edca28ccc4988614010253ef1",
+  "archive": "https://kmjtechno.com/codebridge/releases/stable/40655678db7fa62edca28ccc4988614010253ef1/kmj-codebridge-0.3.2-40655678db7f.tar.gz",
+  "sha256": "81282d540021bbb4ab345f5c4f2aab639dd70eb8b4ff27202f6c68a46f29d77e",
+  "bytes": 2171009,
+  "nodeMajor": 24,
+  "publishedAt": "2026-11-15T08:38:34.759Z",
+  "keyId": "kmj-release-2026"
+}
