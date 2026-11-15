@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { createHash, generateKeyPairSync, sign } from "node:crypto";
 import {
   ownerPublicKey,
@@ -196,4 +197,28 @@ test("all ten releases are required, never a subset", (t) => {
       }),
     /RELEASE_SET_INVALID/,
   );
+});
+
+test("all ten committed release manifests and detached signatures are present", () => {
+  // Structure/coverage only. This does NOT claim a real signing key was verified.
+  const root = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "../releases/stable",
+  );
+  for (const [sequence, revision] of REQUIRED_RELEASES) {
+    const dir = path.join(root, revision);
+    assert.equal(fs.lstatSync(dir).isDirectory(), true);
+    const manifestFile = path.join(dir, "release-manifest.json");
+    const signatureFile = path.join(dir, "release-manifest.sig");
+    assert.equal(fs.lstatSync(manifestFile).isFile(), true);
+    assert.equal(fs.lstatSync(signatureFile).isFile(), true);
+    const manifest = JSON.parse(fs.readFileSync(manifestFile, "utf8"));
+    assert.equal(manifest.sequence, sequence);
+    assert.equal(manifest.revision, revision);
+    assert.equal(manifest.keyId, "kmj-release-2026");
+    assert.equal(manifest.channel, "stable");
+    const signature = fs.readFileSync(signatureFile, "ascii").trim();
+    assert.match(signature, /^[A-Za-z0-9_-]{86}$/);
+    assert.equal(Buffer.from(signature, "base64url").length, 64);
+  }
 });
