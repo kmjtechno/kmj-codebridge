@@ -39,6 +39,6 @@ test(
       { encoding: "utf8", timeout: 20000 },
     );
     assert.equal(run.status, 0, String(run.stderr || run.error).slice(-4000));
-    assert.match(run.stderr, /Ran 11 tests/);
+    assert.match(run.stderr, /Ran 15 tests/);
   },
 );
