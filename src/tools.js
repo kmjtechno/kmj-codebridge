@@ -4423,8 +4423,7 @@ export function createDispatcher(
             ? number
             : 0;
         const stamp = (value) =>
-          typeof value === "string" &&
-          /^20[0-9]{6}T[0-9]{6}Z$/.test(value)
+          typeof value === "string" && /^20[0-9]{6}T[0-9]{6}Z$/.test(value)
             ? value
             : null;
         const onlyStamps = (value) =>
@@ -4436,9 +4435,12 @@ export function createDispatcher(
         const preview = raw?.retentionPreview;
         const dailyInspected = daily?.status === "INSPECTED";
         const vaultInspected = vault?.status === "INSPECTED";
-        const unitResult = ["success", "exit-code", "signal", "timeout"].includes(
-          raw?.healthUnit?.result,
-        )
+        const unitResult = [
+          "success",
+          "exit-code",
+          "signal",
+          "timeout",
+        ].includes(raw?.healthUnit?.result)
           ? raw.healthUnit.result
           : "unknown";
         const healthExit =
@@ -4487,8 +4489,7 @@ export function createDispatcher(
           },
           correlation: {
             sameNewestStamp: raw?.correlation?.sameNewestStamp === true,
-            localArtifactsFresh:
-              raw?.correlation?.localArtifactsFresh === true,
+            localArtifactsFresh: raw?.correlation?.localArtifactsFresh === true,
           },
           retentionPreview: {
             fixedKeepCount: 34,
