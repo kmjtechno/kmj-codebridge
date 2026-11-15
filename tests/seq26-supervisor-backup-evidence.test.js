@@ -358,11 +358,7 @@ test("direct privileged reads reject readonly and wrong-device enrollments", asy
       "supervisor_main_platform_health_unit_receipt",
     ]) {
       await assert.rejects(
-        f.dispatcher(
-          name,
-          { device: f.device, project: f.project },
-          ["read"],
-        ),
+        f.dispatcher(name, { device: f.device, project: f.project }, ["read"]),
         /ACCESS_DENIED/,
       );
     }
