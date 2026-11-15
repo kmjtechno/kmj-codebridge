@@ -139,3 +139,18 @@ than the agent's request timeout.
 `git switch` refuses to overwrite an untracked file when `main` tracks a file at the
 same path. Build output such as `__pycache__` must never be committed; the repository
 ignores it since #922.
+
+## Owner scripts after the signed27 cutover
+
+All three are root-only on KMJ-elite, pinned by SHA-256 before running, and print
+fixed tokens only. A merge does not run them.
+
+| Script (`scripts/production/`)                        | Changes                                                                                                                                                                                         | Default                                                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `owner_check_signed27_rollback_readiness_20261115.py` | Nothing. Checks that a gateway rollback to signed25 would start: override bytes, release tree, config owner/mode, and the signed25 schema against the live config.                              | read-only, no arguments                                                            |
+| `owner_switch_supervisor_signed27_20261115.py`        | One later Supervisor `ExecStart` drop-in; no restart. Needed because the gateway cutover and the updater do not move the Supervisor unit.                                                       | dry-run; `--apply`, `--rollback`                                                   |
+| `owner_enable_gateway_signin_scopes_all_20261115.py`  | One key, `oauth.signInScopes: "all"`, in the gateway config, then one gateway restart; restores the previous bytes if the expected sign-in challenge does not appear. See [OAUTH.md](OAUTH.md). | dry-run; `--apply --confirm-no-active-jobs`, `--rollback --confirm-no-active-jobs` |
+
+Run the readiness check before and after the sign-in scopes change. After that change a
+client that was read-only has to sign in again in the browser to be offered the wider
+consent; the gateway restart drops agent connections for a few seconds.
