@@ -3536,7 +3536,8 @@ export function createDispatcher(
     if (name === "supervisor_main_platform_local_backup_evidence") {
       if (
         a.project !== "kmj-main-platform" ||
-        config.id !== "kmj-elite-main-platform"
+        config.id !== "kmj-elite-main-platform" ||
+        !p.writable
       )
         fail("ACCESS_DENIED");
       return await supervisor.request({
@@ -3546,7 +3547,8 @@ export function createDispatcher(
     if (name === "supervisor_main_platform_health_unit_receipt") {
       if (
         a.project !== "kmj-main-platform" ||
-        config.id !== "kmj-elite-main-platform"
+        config.id !== "kmj-elite-main-platform" ||
+        !p.writable
       )
         fail("ACCESS_DENIED");
       return await supervisor.request({
