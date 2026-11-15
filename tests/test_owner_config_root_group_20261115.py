@@ -156,6 +156,36 @@ class Tests(Harness):
         self.assertEqual(self.state(), ((0, GID, 0o750), (0, GID, 0o640)))
         self.assertFalse(mod.LOCK.exists())
 
+    def test_directory_already_root_group_only_file_changes(self):
+        # Real KMJ-elite state on 2026-11-15: dir root:kmjcode 0750, file service-owned 0600.
+        os.chown(self.dir, 0, GID)
+        os.chmod(self.dir, 0o750)
+        out, err = self.go("--apply", mod.CONFIRM)
+        self.assertIsNone(err, out)
+        self.assertIn("CONFIG_DIR_ALREADY_ROOT_GROUP=YES", out)
+        self.assertEqual(self.state(), ((0, GID, 0o750), (0, GID, 0o640)))
+        self.assertEqual(self.calls, ["gateway.json"])
+
+    def test_directory_already_root_group_failed_verification_restores_found_state(self):
+        os.chown(self.dir, 0, GID)
+        os.chmod(self.dir, 0o750)
+
+        def boom(pid, gid):
+            raise mod.Blocked("SUPERVISOR_VALIDATOR_STILL_REJECTS")
+
+        mod.verify_after = boom
+        out, err = self.go("--apply", mod.CONFIRM)
+        self.assertEqual(err, "OWNER_CHANGE_FAILED")
+        self.assertIn("CONFIG_OWNER_AUTO_ROLLBACK=PASS", out)
+        # Directory returns to how it was found; only the file goes back to the service user.
+        self.assertEqual(self.state(), ((0, GID, 0o750), (UID, GID, 0o600)))
+
+    def test_unexpected_directory_state_blocks(self):
+        os.chmod(self.dir, 0o755)
+        _, err = self.go("--apply", mod.CONFIRM)
+        self.assertEqual(err, "CONFIG_DIR_STATE_UNEXPECTED")
+        self.assertEqual(self.calls, [])
+
     def test_unexpected_state_blocks_before_any_change(self):
         os.chmod(self.file, 0o644)
         out, err = self.go("--apply", mod.CONFIRM)

@@ -23,7 +23,7 @@ test("config owner script only touches the two fixed paths and never restarts or
   assert.match(source, /RUNTIME_DOES_NOT_ACCEPT_ROOT_OWNED_CONFIG/);
 });
 
-test("config owner script executes ten real root-only behaviour tests in Linux CI", (t) => {
+test("config owner script executes real root-only behaviour tests in Linux CI", (t) => {
   // Windows has no pwd/grp/chown. Linux CI must exercise actual fchown/fchmod
   // on an isolated /run fixture; zero executed tests is never a green CI gate.
   if (process.platform !== "linux") return t.skip("Linux-only owner test");
@@ -42,7 +42,11 @@ test("config owner script executes ten real root-only behaviour tests in Linux C
     : spawnSync("sudo", ["-n", python, ...args], { encoding: "utf8" });
 
   assert.equal(result.status, 0, result.stderr || result.error?.message);
-  assert.match(result.stderr, /Ran 10 tests/);
+  const ran = /Ran (\d+) tests/.exec(result.stderr);
+  assert.ok(
+    ran && Number(ran[1]) >= 10,
+    "expected at least ten executed tests",
+  );
   assert.equal(
     result.stderr.includes("skipped="),
     false,

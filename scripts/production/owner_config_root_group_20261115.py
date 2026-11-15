@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """KMJ-elite owner-only: make the stage gateway config root-owned, group-readable.
 
-Moves /etc/kmj-codebridge-stage from kmjcode:kmjcode 0700 and gateway.json from
-kmjcode:kmjcode 0600 to root:kmjcode 0750 / 0640. The signed28 gateway accepts
+Moves gateway.json from kmjcode:kmjcode 0600 to root:kmjcode 0640 and, if it is
+not already, /etc/kmj-codebridge-stage from kmjcode:kmjcode 0700 to root:kmjcode
+0750 (the 14 Nov one-pass left the directory in that shape on KMJ-elite). The signed28 gateway accepts
 that shape (src/config-file-mode.js) and the Supervisor config validator
 requires it, so supervisor_config_validate stops reporting CONFIG_TRUST_INVALID.
 
@@ -87,18 +88,29 @@ def require_root_parents(path):
 
 
 def snapshot(expect_owner, expect_group, modes):
-    """Return identity of dir and file; they must be exactly in the given state."""
+    """Pin dir and file inodes. The file must be in exactly the expected state.
+    The directory may be service-owned 0700 or already root:kmjcode 0750 (the
+    14 Nov one-pass left it that way); callers that need a specific directory
+    state check dir_state_now() themselves."""
     require_root_parents(DIR)
     d = os.lstat(DIR)
     need(stat.S_ISDIR(d.st_mode), "CONFIG_DIR_NOT_DIRECTORY")
-    need(d.st_uid == expect_owner and d.st_gid == expect_group
-         and stat.S_IMODE(d.st_mode) == modes[0], "CONFIG_DIR_STATE_UNEXPECTED")
+    dir_state = (d.st_uid, d.st_gid, stat.S_IMODE(d.st_mode))
+    service_uid = ids()[0]
+    need(dir_state in ((service_uid, expect_group, BEFORE[0]),
+                       (0, expect_group, AFTER[0])), "CONFIG_DIR_STATE_UNEXPECTED")
     f = os.lstat(FILE)
     need(stat.S_ISREG(f.st_mode) and f.st_nlink == 1
          and 1 <= f.st_size <= 1048576, "CONFIG_FILE_NOT_REGULAR")
     need(f.st_uid == expect_owner and f.st_gid == expect_group
          and stat.S_IMODE(f.st_mode) == modes[1], "CONFIG_FILE_STATE_UNEXPECTED")
-    return {"dir": (d.st_dev, d.st_ino), "file": (f.st_dev, f.st_ino)}
+    return {"dir": (d.st_dev, d.st_ino), "file": (f.st_dev, f.st_ino),
+            "dir_state": dir_state}
+
+
+def dir_state_now():
+    d = os.lstat(DIR)
+    return (d.st_uid, d.st_gid, stat.S_IMODE(d.st_mode))
 
 
 def prove_runtime():
@@ -172,13 +184,17 @@ def set_owner(path, uid, gid, mode, expected_inode, is_dir):
         os.close(fd)
 
 
-def change(snap, to_owner, to_group, to_modes, order):
-    """File first when relaxing, directory first when restoring."""
+def change(snap, to_owner, to_group, to_modes, order, dir_to=None):
+    """File first when relaxing, directory first when restoring. A directory
+    already in its target state is left alone."""
     for kind in order:
-        target = DIR if kind == "dir" else FILE
-        idx = 0 if kind == "dir" else 1
-        set_owner(target, to_owner, to_group, to_modes[idx], snap[kind],
-                  kind == "dir")
+        if kind == "dir":
+            want = dir_to or (to_owner, to_group, to_modes[0])
+            if dir_state_now() == want:
+                continue
+            set_owner(DIR, want[0], want[1], want[2], snap["dir"], True)
+        else:
+            set_owner(FILE, to_owner, to_group, to_modes[1], snap["file"], False)
 
 
 def validator_passes():
@@ -208,9 +224,11 @@ def run(argv):
         snap = snapshot(0, kmj_gid, AFTER)
     else:
         snap = snapshot(kmj_uid, kmj_gid, BEFORE)
+    original_dir = snap["dir_state"]
     pid = prove_runtime()
     print("GATEWAY_RUNTIME_SIGNED28=PASS")
     print("CONFIG_STATE_EXPECTED=PASS")
+    print("CONFIG_DIR_ALREADY_ROOT_GROUP=" + ("YES" if original_dir[0] == 0 else "NO"))
     if not rolling_back:
         prove_readable_with_dummy(kmj_gid)
         print("TARGET_SHAPE_STARTABLE_AS_SERVICE_USER=PASS")
@@ -236,6 +254,8 @@ def run(argv):
             changed = True
             change(snap, kmj_uid, kmj_gid, BEFORE, ("dir", "file"))
             snapshot(kmj_uid, kmj_gid, BEFORE)
+            need(dir_state_now() == (kmj_uid, kmj_gid, BEFORE[0]),
+                 "ROLLBACK_DIR_STATE_WRONG")
             need(show("ActiveState") == "active"
                  and int(show("MainPID")) == pid, "GATEWAY_CHANGED")
             print("CONFIG_OWNER_ROLLBACK=PASS")
@@ -243,6 +263,7 @@ def run(argv):
             changed = True
             change(snap, 0, kmj_gid, AFTER, ("file", "dir"))
             snapshot(0, kmj_gid, AFTER)
+            need(dir_state_now() == (0, kmj_gid, AFTER[0]), "CONFIG_DIR_NOT_TARGET")
             verify_after(pid, kmj_gid)
             print("CONFIG_OWNER_CHANGE=PASS")
             print("SUPERVISOR_CONFIG_VALIDATE_EXPECTED=VALID")
@@ -257,8 +278,13 @@ def run(argv):
                 restore_uid = 0 if rolling_back else kmj_uid
                 restore_mode = AFTER if rolling_back else BEFORE
                 restore_order = ("file", "dir") if rolling_back else ("dir", "file")
-                change(snap, restore_uid, kmj_gid, restore_mode, restore_order)
+                # After a failed apply the directory returns to the state it was
+                # found in (service-owned, or already root:kmjcode 0750).
+                dir_to = (0, kmj_gid, AFTER[0]) if rolling_back else original_dir
+                change(snap, restore_uid, kmj_gid, restore_mode, restore_order,
+                       dir_to=dir_to)
                 snapshot(restore_uid, kmj_gid, restore_mode)
+                need(dir_state_now() == dir_to, "ROLLBACK_DIR_STATE_WRONG")
                 print("CONFIG_OWNER_AUTO_ROLLBACK=PASS")
             except BaseException:
                 keep_lock = True
