@@ -94,6 +94,21 @@ class SignedLatestRollingOfflineTests(unittest.TestCase):
                 with self.assertRaisesRegex(m.Block,"SIGNED_SEQUENCE_DUPLICATE"):
                     m.choose_candidate("public")
 
+    def test_rollback_source_must_match_old_signed_pair_and_public_archive(self):
+        current=({"sequence":27,"revision":A},"old.tar.gz",pair(27,A))
+        with mock.patch.object(m,"validated_release",
+                               return_value=({"sequence":27,"revision":A},
+                                             "old.tar.gz",pair(28,B))),\
+             mock.patch.object(m,"public_archive") as public:
+            with self.assertRaisesRegex(m.Block,"ROLLBACK_SOURCE_UNVERIFIED"):
+                m.rollback_ready(current,"public")
+            public.assert_not_called()
+        with mock.patch.object(m,"validated_release",
+                               return_value=current),\
+             mock.patch.object(m,"public_archive") as public:
+            m.rollback_ready(current,"public")
+            public.assert_called_once()
+
     def test_no_signed_release_is_denied(self):
         with tempfile.TemporaryDirectory() as d:
             with mock.patch.object(m,"ROOT",Path(d)),mock.patch.object(m,"trusted_parent_chain"):
