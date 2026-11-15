@@ -13,6 +13,7 @@ test("rolling feed retains signature, antirollback and atomic previous-pair reco
     "OWNER_SPKI",
     "SIGNED_SEQUENCE_DUPLICATE",
     "SIGNED_SEQUENCE_ROLLBACK",
+    "ROLLBACK_SOURCE_UNVERIFIED",
     "SIGNED_SEQUENCE_EQUIVOCATION",
     "PUBLIC_READBACK_FAILED_PREVIOUS_FEED_RESTORED",
     "PREVIOUS_SIGNED_PAIR=PRESERVED",
@@ -44,6 +45,6 @@ test(
       { encoding: "utf8", timeout: 30000 },
     );
     assert.equal(run.status, 0, String(run.stderr || run.error).slice(-4000));
-    assert.match(run.stderr, /Ran 12 tests/);
+    assert.match(run.stderr, /Ran 13 tests/);
   },
 );
