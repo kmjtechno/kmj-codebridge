@@ -3549,7 +3549,9 @@ export function createDispatcher(
         config.id !== "kmj-elite-main-platform"
       )
         fail("ACCESS_DENIED");
-      return await supervisor.request({ op: "main_platform_health_unit_receipt" });
+      return await supervisor.request({
+        op: "main_platform_health_unit_receipt",
+      });
     }
     if (name === "supervisor_main_platform_offsite_diagnostic") {
       if (
