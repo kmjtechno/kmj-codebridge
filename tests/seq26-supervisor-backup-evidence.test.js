@@ -346,8 +346,7 @@ test("wrong device/project, disabled write grant or absent Supervisor never expo
   }
 });
 
-
-test("direct root Supervisor receipts reject wrong device and readonly project enrollment", async (t) => {
+test("direct privileged reads reject readonly and wrong-device enrollments", async (t) => {
   for (const variant of [
     { device: "other", project: PROJECT },
     { device: DEVICE, project: "other" },
