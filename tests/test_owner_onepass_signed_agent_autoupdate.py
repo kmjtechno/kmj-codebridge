@@ -92,6 +92,30 @@ class OnePassSignedAgentTests(unittest.TestCase):
             ("updater",("--disable","--confirm-signed-auto-owner-go")),
         ])
 
+    def test_signed_existing_feed_with_public_byte_mismatch_is_rejected(self):
+        root=Path("/fake-trusted-static/latest")
+        files={"release-manifest.json":b"local-manifest",
+               "release-manifest.sig":b"local-sig"}
+        feed=types.SimpleNamespace(
+            DEST=root,
+            ancestry=lambda p:None,
+            read_owned=lambda p,limit:files[p.name],
+        )
+        updater=types.SimpleNamespace(
+            CONFIG=Path("/fake-config"),
+            FEED_MANIFEST="https://trusted/manifest",
+            FEED_SIG="https://trusted/sig",
+            read_root=lambda p:b"{}",
+            parse_config=lambda raw:{},
+            verify_feed=lambda cfg:None,
+            fetch=lambda url,size=65536:b"different-public-bytes",
+        )
+        fake_stat=types.SimpleNamespace(st_mode=stat.S_IFDIR|0o755,st_uid=0)
+        with mock.patch.object(m.os.path,"lexists",return_value=True),\
+             mock.patch.object(m.os,"lstat",return_value=fake_stat):
+            with self.assertRaisesRegex(m.Block,"EXISTING_SIGNED_FEED_UNVERIFIED"):
+                m.existing_signed_feed(feed,updater)
+
     def test_dynamic_paths_or_unapproved_arguments_denied_first(self):
         for args in (["--apply"],["--apply","--force"],
                      ["--install","/tmp/a.py"],["--url","http://evil.example"]):
