@@ -238,7 +238,10 @@ test("verified-free-cloud-only always excludes every local model including fallb
   assert.ok(r.fallbacks.every((m) => m.kind === "cloud"));
   assert.ok(!JSON.stringify(r.selected).includes("local"));
   assert.equal(r.modelExecution, "NOT_EXECUTED");
-  assert.equal(r.metadataProvenance, "CALLER_SUPPLIED_NOT_VERIFIED_BY_CODEBRIDGE");
+  assert.equal(
+    r.metadataProvenance,
+    "CALLER_SUPPLIED_NOT_VERIFIED_BY_CODEBRIDGE",
+  );
 });
 
 test("cloud-only fails closed with zero usable free cloud; never silently selects local", () => {
@@ -273,10 +276,7 @@ test("cloud-only rejects unapproved code transfer, unauthenticated cloud and exh
     models: [local, cloud],
     task: { ...task, strategy: "verified-free-cloud-only" },
   };
-  for (const patch of [
-    { cloudApproved: false },
-    { privateCode: true },
-  ]) {
+  for (const patch of [{ cloudApproved: false }, { privateCode: true }]) {
     const r = planSmartModelRoute({
       ...params,
       task: { ...params.task, ...patch },
