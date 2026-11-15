@@ -401,7 +401,7 @@ test("fixed backup inventory returns categorical receipt and rejects parameter i
   assert.equal(response.healthUnit.result, "exit-code");
   assert.equal(response.healthUnit.ownInvocationMarkerVerified, false);
   assert.equal(response.retentionPreview.deletionAuthorized, false);
-  assert.equal(response.remoteSftpShaVerified, undefined);
+  assert.equal(response.remoteSftpShaVerified, false);
   assert.equal(response.automaticRepairPerformed, false);
   assert.equal(calls, 1);
   for (const extra of [
