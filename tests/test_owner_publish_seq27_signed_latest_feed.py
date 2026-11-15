@@ -49,6 +49,11 @@ class SignedLatestOfflineTests(unittest.TestCase):
         with self.assertRaisesRegex(m.Block,"PUBLIC_URL_NOT_PINNED"):
             m.https_exact("https://attacker.example/latest/manifest",b"test")
 
+    def test_public_archive_must_match_exact_sha_and_size(self):
+        with mock.patch.object(m,"run",return_value=b"wrong-content"):
+            with self.assertRaisesRegex(m.Block,"PUBLIC_IMMUTABLE_ARCHIVE_HASH_MISMATCH"):
+                m.https_archive_verified()
+
     def test_signed_feed_has_two_files_only_and_no_config_edit_api(self):
         source=SRC.read_text()
         self.assertNotIn("systemctl",source)
