@@ -201,6 +201,14 @@ test("missing signed manifest files never silently become a signed release", (t)
   assert.throws(() => f.select(), /RELEASE_METADATA_UNAVAILABLE/);
 });
 
+
+test("a revision directory without a manifest cannot hide a newer signed release", (t) => {
+  const f = fixtures(t);
+  f.add(A, 25);
+  fs.mkdirSync(path.join(f.root, B), { mode: 0o700 });
+  assert.throws(() => f.select(), /RELEASE_MANIFEST_MISSING/);
+});
+
 test("fixture generated signing key is ephemeral and never exported privately", (t) => {
   const f = fixtures(t);
   f.add(A, 25);
