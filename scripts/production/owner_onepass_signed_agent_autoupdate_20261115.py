@@ -137,6 +137,13 @@ def existing_signed_feed(feed,updater):
         raw=updater.read_root(updater.CONFIG)
         config=updater.parse_config(raw)
         updater.verify_feed(config)
+        # A signed public pair is not enough if the pinned origin directory
+        # currently serves different bytes. Avoid stale or redirected aliases.
+        local_m=feed.read_owned(feed.DEST/"release-manifest.json",65536)
+        local_s=feed.read_owned(feed.DEST/"release-manifest.sig",1024)
+        if (local_m!=updater.fetch(updater.FEED_MANIFEST)
+            or local_s!=updater.fetch(updater.FEED_SIG,1024)):
+            raise Block("LOCAL_PUBLIC_SIGNED_FEED_MISMATCH")
     except Exception:
         raise Block("EXISTING_SIGNED_FEED_UNVERIFIED") from None
     return True
