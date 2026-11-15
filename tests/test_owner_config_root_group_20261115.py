@@ -3,6 +3,7 @@ import io
 import os
 import pathlib
 import shutil
+import tempfile
 import socket
 import stat
 import sys
@@ -15,18 +16,15 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 UID, GID = 59997, 59997
-ROOT = pathlib.Path("/srv/kmjt-cfgowner")
 
 
 class Harness(unittest.TestCase):
     def setUp(self):
         if os.geteuid() != 0:
             self.skipTest("needs root to chown")
-        shutil.rmtree(ROOT, ignore_errors=True)
-        ROOT.parent.mkdir(exist_ok=True)
-        os.chmod(ROOT.parent, 0o755)
-        ROOT.mkdir(mode=0o755)
-        self.dir = ROOT / "stage"
+        # Root-owned, exclusive fixture; never delete a predictable host path.
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="kmjt-cfgowner-", dir="/run"))
+        self.dir = self.root / "stage"
         self.dir.mkdir()
         self.file = self.dir / "gateway.json"
         self.file.write_text('{"x":1}\n')
@@ -35,7 +33,7 @@ class Harness(unittest.TestCase):
                       ("DIR", "FILE", "LOCK", "ids", "prove_runtime", "prove_readable_with_dummy",
                        "verify_after", "show")}
         mod.DIR, mod.FILE = self.dir, self.file
-        mod.LOCK = ROOT / "lock"
+        mod.LOCK = self.root / "lock"
         mod.ids = lambda: (UID, GID)
         mod.prove_runtime = lambda: 4242
         mod.prove_readable_with_dummy = lambda gid: None
@@ -58,7 +56,8 @@ class Harness(unittest.TestCase):
         mod.set_owner = getattr(self, "real_set_owner", mod.set_owner)
         if hasattr(self, "hostname"):
             socket.gethostname = self.hostname
-        shutil.rmtree(ROOT, ignore_errors=True)
+        if hasattr(self, "root"):
+            shutil.rmtree(self.root)
 
     def set(self, uid, gid, dmode, fmode):
         os.chown(self.dir, uid, gid)
@@ -115,6 +114,47 @@ class Tests(Harness):
         self.assertIsNone(err, out)
         self.assertEqual(self.state(), ((UID, GID, 0o700), (UID, GID, 0o600)))
         self.assertEqual(self.calls, ["stage", "gateway.json"])
+
+    def test_partial_apply_failure_restores_same_original_inodes(self):
+        initial_dir = os.lstat(self.dir).st_ino
+        initial_file = os.lstat(self.file).st_ino
+        real = mod.set_owner
+        injected = [False]
+
+        def fail_after_file(path, uid, gid, mode, inode, is_dir):
+            if pathlib.Path(path) == self.dir and not injected[0]:
+                injected[0] = True
+                raise mod.Blocked("INJECTED_SECOND_STEP")
+            return real(path, uid, gid, mode, inode, is_dir)
+
+        mod.set_owner = fail_after_file
+        out, err = self.go("--apply", mod.CONFIRM)
+        self.assertTrue(injected[0])
+        self.assertEqual(err, "OWNER_CHANGE_FAILED")
+        self.assertIn("CONFIG_OWNER_AUTO_ROLLBACK=PASS", out)
+        self.assertEqual(self.state(), ((UID, GID, 0o700), (UID, GID, 0o600)))
+        self.assertEqual(os.lstat(self.dir).st_ino, initial_dir)
+        self.assertEqual(os.lstat(self.file).st_ino, initial_file)
+        self.assertFalse(mod.LOCK.exists())
+
+    def test_partial_explicit_rollback_failure_restores_target_shape(self):
+        self.go("--apply", mod.CONFIRM)
+        real = mod.set_owner
+        injected = [False]
+
+        def fail_after_dir(path, uid, gid, mode, inode, is_dir):
+            if pathlib.Path(path) == self.file and not injected[0]:
+                injected[0] = True
+                raise mod.Blocked("INJECTED_SECOND_STEP")
+            return real(path, uid, gid, mode, inode, is_dir)
+
+        mod.set_owner = fail_after_dir
+        out, err = self.go("--rollback", mod.CONFIRM)
+        self.assertTrue(injected[0])
+        self.assertEqual(err, "OWNER_CHANGE_FAILED")
+        self.assertIn("CONFIG_OWNER_AUTO_ROLLBACK=PASS", out)
+        self.assertEqual(self.state(), ((0, GID, 0o750), (0, GID, 0o640)))
+        self.assertFalse(mod.LOCK.exists())
 
     def test_unexpected_state_blocks_before_any_change(self):
         os.chmod(self.file, 0o644)
