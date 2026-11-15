@@ -163,6 +163,9 @@ test("hardlinks and writable directories/files are denied", (t) => {
   fs.linkSync(target, path.join(a.folder, "duplicate"));
   assert.throws(f.resolve, /RELEASE_SIGNED_FILE_UNTRUSTED/);
   fs.unlinkSync(path.join(a.folder, "duplicate"));
+  // Windows does not expose a reliable POSIX group/other mode contract.
+  // The hardlink denial above is portable; mode checks are Linux-only.
+  if (process.platform === "win32") return;
   fs.chmodSync(target, 0o666);
   assert.throws(f.resolve, /RELEASE_SIGNED_FILE_UNTRUSTED/);
   fs.chmodSync(target, 0o644);
