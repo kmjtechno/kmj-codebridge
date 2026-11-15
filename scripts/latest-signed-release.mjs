@@ -5,7 +5,7 @@
 // healthy, or permitted for deployment. Trust is supplied by the owner and
 // independently pinned to the known release-key SPKI SHA-256 fingerprint.
 import {
-  constants, closeSync, fstatSync, lstatSync, openSync, readFileSync,
+  constants, closeSync, fstatSync, lstatSync, openSync, readSync,
   readdirSync, realpathSync,
 } from "node:fs";
 import { createHash, createPublicKey, verify } from "node:crypto";
@@ -52,9 +52,18 @@ function safeFile(path, maximum) {
         before.size !== pre.size || before.nlink !== 1) {
       fail("RELEASE_SIGNED_FILE_RACE");
     }
-    const bytes = readFileSync(fd);
+    const bytes = Buffer.alloc(pre.size);
+    let offset = 0;
+    while (offset < bytes.length) {
+      const read = readSync(fd,bytes,offset,bytes.length-offset,offset);
+      if (read < 1) fail("RELEASE_SIGNED_FILE_RACE");
+      offset += read;
+    }
+    const extra = Buffer.alloc(1);
+    if (readSync(fd,extra,0,1,bytes.length) !== 0)
+      fail("RELEASE_SIGNED_FILE_RACE");
     const after = fstatSync(fd);
-    if (bytes.length !== pre.size || after.dev !== before.dev ||
+    if (after.dev !== before.dev ||
         after.ino !== before.ino || after.size !== before.size ||
         after.mtimeMs !== before.mtimeMs || after.ctimeMs !== before.ctimeMs) {
       fail("RELEASE_SIGNED_FILE_RACE");
@@ -107,14 +116,34 @@ function signedManifest(bytes, signature, dirname, key) {
   return { sequence: manifest.sequence, revision: manifest.revision };
 }
 
+function trustedPathChain(path) {
+  const absolute = resolve(path);
+  const components = absolute.split(sep).filter(Boolean);
+  let current = sep;
+  for (const component of components) {
+    current = join(current,component);
+    const st = lstatSync(current);
+    const perms = st.mode & 0o7777;
+    const trustedSticky = (current === "/tmp" || current === "/var/tmp") &&
+      st.uid === 0 && perms === 0o1777;
+    if (!st.isDirectory() || st.isSymbolicLink() ||
+        ((st.mode & 0o022) !== 0 && !trustedSticky))
+      fail("RELEASE_ROOT_UNTRUSTED");
+  }
+  return absolute;
+}
+
 export function latestSignedRelease(root = "releases/stable", {
   trustedPublicKeyPem,
   trustedSpkiSha256 = PINNED_OWNER_SPKI_SHA256,
+  minimumSequence = 1,
 } = {}) {
   // Caller choice of trust key is permitted only for isolated unit fixtures.
   // The CLI below always forces PINNED_OWNER_SPKI_SHA256.
   const key = ownerKey(trustedPublicKeyPem, trustedSpkiSha256);
-  const base = resolve(root);
+  if (!Number.isSafeInteger(minimumSequence) || minimumSequence < 1)
+    fail("RELEASE_SEQUENCE_FLOOR_INVALID");
+  const base = trustedPathChain(root);
   const rootStat = lstatSync(base);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink() ||
       (rootStat.mode & 0o022) !== 0) fail("RELEASE_ROOT_UNTRUSTED");
@@ -149,6 +178,7 @@ export function latestSignedRelease(root = "releases/stable", {
     if (best === null || signed.sequence > best.sequence) best = signed;
   }
   if (!best) fail("RELEASE_NONE_VERIFIED");
+  if (best.sequence < minimumSequence) fail("RELEASE_SEQUENCE_ROLLBACK");
   return best;
 }
 
@@ -164,7 +194,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const pem = Buffer.from(b64,"base64").toString("utf8");
     const { sequence, revision } = latestSignedRelease(
       process.argv[2] ?? undefined,
-      { trustedPublicKeyPem: pem, trustedSpkiSha256: PINNED_OWNER_SPKI_SHA256 },
+      { trustedPublicKeyPem: pem,
+        trustedSpkiSha256: PINNED_OWNER_SPKI_SHA256,
+        minimumSequence: 25 },
     );
     console.log("LATEST_SIGNED_RELEASE sequence=" + sequence + " revision=" + revision);
     if (process.env.GITHUB_OUTPUT) {
@@ -181,7 +213,8 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
       "RELEASE_MANIFEST_JSON_INVALID","RELEASE_MANIFEST_SHAPE_INVALID",
       "RELEASE_REVISION_DIR_MISMATCH","RELEASE_SEQUENCE_INVALID",
       "RELEASE_SIGNATURE_SHAPE_INVALID","RELEASE_SIGNATURE_INVALID",
-      "RELEASE_SEQUENCE_DUPLICATE","RELEASE_NONE_VERIFIED"
+      "RELEASE_SEQUENCE_DUPLICATE","RELEASE_NONE_VERIFIED",
+      "RELEASE_SEQUENCE_ROLLBACK","RELEASE_SEQUENCE_FLOOR_INVALID"
     ]);
     const message = allowed.has(error?.message) ? error.message : "RELEASE_CATALOG_UNVERIFIED";
     console.error("LATEST_SIGNED_RELEASE=FAIL " + message);
