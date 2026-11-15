@@ -20,6 +20,7 @@ import {
   STAGING_DEPLOY_UNIT,
 } from "./main-platform-staging-unit-policy.js";
 import { mainPlatformLocalBackupEvidence } from "./main-platform-local-backup-evidence.js";
+import { mainPlatformBackupInventory } from "./main-platform-backup-inventory.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -1514,6 +1515,7 @@ export function createSupervisorHandler({
   stat = (target) => fs.statSync(target),
   deviceStatus = defaultDeviceStatus,
   backupEvidence = mainPlatformLocalBackupEvidence,
+  backupInventory = mainPlatformBackupInventory,
   profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
 } = {}) {
   if (
@@ -2149,6 +2151,173 @@ export function createSupervisorHandler({
     if (request.op === "main_platform_local_backup_evidence") {
       exactKeys(request, ["op"]);
       return { response: backupEvidence() };
+    }
+
+    // Seq26+: fixed-path inventory and retention PREVIEW only.
+    // Nothing here executes a backup, retention, service or root command from
+    // a caller-controlled argument. An inventory receipt is NOT restore proof.
+    if (request.op === "main_platform_backup_inventory") {
+      exactKeys(request, ["op"]);
+      const untrustedInventory = backupInventory();
+      // Defensive allowlist: the privileged response must never forward
+      // unforeseen provider fields, paths or invented proof flags.
+      const bounded = (value, limit = 512) =>
+        Number.isSafeInteger(value) && value >= 0 && value <= limit ? value : 0;
+      const safeStamp = (value) =>
+        typeof value === "string" && /^20[0-9]{6}T[0-9]{6}Z$/.test(value)
+          ? value
+          : null;
+      const safeAge = (value) =>
+        Number.isFinite(value) && value >= 0 && value < 1000000 ? value : null;
+      const daily = untrustedInventory?.daily;
+      const vault = untrustedInventory?.vault;
+      const preview = untrustedInventory?.retentionPreview;
+      const dailyOk = daily?.status === "INSPECTED";
+      const vaultOk = vault?.status === "INSPECTED";
+      const inventory = {
+        schema: "KMJ_FIXED_BACKUP_INVENTORY_V1",
+        mode: "READ_ONLY",
+        daily: {
+          status: dailyOk ? "INSPECTED" : "BLOCKED",
+          timestampedDirectoryCount: bounded(daily?.timestampedDirectoryCount),
+          validDumpCount: bounded(daily?.validDumpCount),
+          missingDumpCount: bounded(daily?.missingDumpCount),
+          unrelatedRootEntryCount: bounded(daily?.unrelatedRootEntryCount),
+          newestStamp: safeStamp(daily?.newestStamp),
+          newestAgeHours: safeAge(daily?.newestAgeHours),
+          newestFresh: dailyOk && daily?.newestFresh === true,
+        },
+        vault: {
+          status: vaultOk ? "INSPECTED" : "BLOCKED",
+          cipherCount: bounded(vault?.cipherCount),
+          sidecarCount: bounded(vault?.sidecarCount),
+          pairedCount: bounded(vault?.pairedCount),
+          cipherWithoutSidecarCount: bounded(vault?.cipherWithoutSidecarCount),
+          sidecarWithoutCipherCount: bounded(vault?.sidecarWithoutCipherCount),
+          unrelatedRootEntryCount: bounded(vault?.unrelatedRootEntryCount),
+          newestStamp: safeStamp(vault?.newestStamp),
+          newestAgeHours: safeAge(vault?.newestAgeHours),
+          newestFresh: vaultOk && vault?.newestFresh === true,
+          sidecarFormatValidated:
+            vaultOk && vault?.sidecarFormatValidated === true,
+          cipherDigestComparedToSidecar: false,
+          recipientVerified: false,
+          remoteRestoreVerified: false,
+        },
+        correlation: {
+          sameNewestStamp:
+            dailyOk &&
+            vaultOk &&
+            safeStamp(daily?.newestStamp) !== null &&
+            safeStamp(daily?.newestStamp) === safeStamp(vault?.newestStamp),
+          localArtifactsFresh:
+            dailyOk &&
+            vaultOk &&
+            daily?.newestFresh === true &&
+            vault?.newestFresh === true,
+        },
+        retentionPreview: {
+          fixedKeepCount: 34,
+          candidateDailyCount: bounded(preview?.candidateDailyCount),
+          candidateCipherPairCount: bounded(preview?.candidateCipherPairCount),
+          exampleOldestDailyStamps: Array.isArray(
+            preview?.exampleOldestDailyStamps,
+          )
+            ? preview.exampleOldestDailyStamps
+                .slice(0, 3)
+                .map(safeStamp)
+                .filter(Boolean)
+            : [],
+          exampleOldestCipherPairStamps: Array.isArray(
+            preview?.exampleOldestCipherPairStamps,
+          )
+            ? preview.exampleOldestCipherPairStamps
+                .slice(0, 3)
+                .map(safeStamp)
+                .filter(Boolean)
+            : [],
+          inspectionComplete:
+            dailyOk &&
+            vaultOk &&
+            daily?.missingDumpCount === 0 &&
+            vault?.cipherWithoutSidecarCount === 0 &&
+            vault?.sidecarWithoutCipherCount === 0 &&
+            preview?.inspectionComplete === true,
+          policyApproved: false,
+          deletionAuthorized: false,
+        },
+        remoteSftpShaVerified: false,
+        healthUnitPassVerified: false,
+        independentRestoreVerified: false,
+        signedReleaseApproved: false,
+        callerSelectedPaths: false,
+        shellExecuted: false,
+        mutations: "NONE",
+      };
+      const health = fixedUnitStatus(run, "kmj-elite-health-check.service", [
+        "Result",
+        "ExecMainStatus",
+      ]);
+      const offsite = fixedUnitStatus(run, "kmj-elite-offsite-backup.service", [
+        "Result",
+        "ExecMainStatus",
+      ]);
+      const healthResult = [
+        "success",
+        "exit-code",
+        "signal",
+        "timeout",
+      ].includes(health.result)
+        ? health.result
+        : "unknown";
+      const healthExit =
+        typeof health.execMainStatus === "string" &&
+        /^(?:0|[1-9][0-9]{0,2})$/.test(health.execMainStatus)
+          ? health.execMainStatus
+          : "unknown";
+      const backupResult = [
+        "success",
+        "exit-code",
+        "signal",
+        "timeout",
+      ].includes(offsite.result)
+        ? offsite.result
+        : "unknown";
+      const inspected =
+        inventory?.daily?.status === "INSPECTED" &&
+        inventory?.vault?.status === "INSPECTED";
+      const localFresh = inventory?.correlation?.localArtifactsFresh === true;
+      const verdict = !inspected
+        ? "INSPECTION_BLOCKED"
+        : !localFresh
+          ? "LOCAL_ARTIFACTS_STALE_OR_MISSING"
+          : healthResult !== "success" || healthExit !== "0"
+            ? "HEALTH_UNIT_NOT_PASSING"
+            : "LOCAL_PRESENT_UNIT_MARKER_NOT_ATTESTED";
+      return {
+        response: {
+          ...inventory,
+          healthUnit: {
+            result: healthResult,
+            exitCode: healthExit,
+            ownInvocationMarkerVerified: false,
+            scheduledTimerRunProven: false,
+          },
+          backupUnit: {
+            result: backupResult,
+            exitCode:
+              typeof offsite.execMainStatus === "string" &&
+              /^(?:0|[1-9][0-9]{0,2})$/.test(offsite.execMainStatus)
+                ? offsite.execMainStatus
+                : "unknown",
+            remoteShaReadbackVerified: false,
+          },
+          verdict,
+          automaticRepairPerformed: false,
+          productionReleaseApproved: false,
+          mutations: "NONE",
+        },
+      };
     }
 
     // Seq26: validate the exact last health UNIT journal invocation, without
