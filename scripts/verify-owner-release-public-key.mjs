@@ -37,7 +37,7 @@ export const REQUIRED_RELEASES = Object.freeze([
 
 const RELEASES_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "../../releases/stable",
+  "../releases/stable",
 );
 const MAX_MANIFEST = 65536;
 const MAX_SIGNATURE = 1024;
