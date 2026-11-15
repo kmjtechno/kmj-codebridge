@@ -372,8 +372,9 @@ test("fixed backup inventory returns categorical receipt and rejects parameter i
     backupInventory: () => {
       calls++;
       return {
-        daily: { status: "INSPECTED" },
+        daily: { status: "INSPECTED", secretToken: "MUST_NOT_LEAK" },
         vault: { status: "INSPECTED" },
+        privateKey: "MUST_NOT_LEAK",
         correlation: { localArtifactsFresh: false },
         retentionPreview: { policyApproved: false, deletionAuthorized: false },
         mutations: "NONE",
@@ -402,7 +403,10 @@ test("fixed backup inventory returns categorical receipt and rejects parameter i
   assert.equal(response.healthUnit.ownInvocationMarkerVerified, false);
   assert.equal(response.retentionPreview.deletionAuthorized, false);
   assert.equal(response.remoteSftpShaVerified, false);
+  assert.equal(response.independentRestoreVerified, false);
   assert.equal(response.automaticRepairPerformed, false);
+  assert.equal(Object.hasOwn(response, "privateKey"), false);
+  assert.equal(Object.hasOwn(response.daily, "secretToken"), false);
   assert.equal(calls, 1);
   for (const extra of [
     { path: "/root/.ssh" },
