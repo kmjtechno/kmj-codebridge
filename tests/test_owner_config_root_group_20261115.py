@@ -3,6 +3,7 @@ import io
 import os
 import pathlib
 import shutil
+import tempfile
 import socket
 import stat
 import sys
@@ -15,18 +16,15 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 UID, GID = 59997, 59997
-ROOT = pathlib.Path("/srv/kmjt-cfgowner")
 
 
 class Harness(unittest.TestCase):
     def setUp(self):
         if os.geteuid() != 0:
             self.skipTest("needs root to chown")
-        shutil.rmtree(ROOT, ignore_errors=True)
-        ROOT.parent.mkdir(exist_ok=True)
-        os.chmod(ROOT.parent, 0o755)
-        ROOT.mkdir(mode=0o755)
-        self.dir = ROOT / "stage"
+        # Root-owned, exclusive fixture; never delete a predictable host path.
+        self.root = pathlib.Path(tempfile.mkdtemp(prefix="kmjt-cfgowner-", dir="/run"))
+        self.dir = self.root / "stage"
         self.dir.mkdir()
         self.file = self.dir / "gateway.json"
         self.file.write_text('{"x":1}\n')
@@ -35,7 +33,7 @@ class Harness(unittest.TestCase):
                       ("DIR", "FILE", "LOCK", "ids", "prove_runtime", "prove_readable_with_dummy",
                        "verify_after", "show")}
         mod.DIR, mod.FILE = self.dir, self.file
-        mod.LOCK = ROOT / "lock"
+        mod.LOCK = self.root / "lock"
         mod.ids = lambda: (UID, GID)
         mod.prove_runtime = lambda: 4242
         mod.prove_readable_with_dummy = lambda gid: None
@@ -58,7 +56,8 @@ class Harness(unittest.TestCase):
         mod.set_owner = getattr(self, "real_set_owner", mod.set_owner)
         if hasattr(self, "hostname"):
             socket.gethostname = self.hostname
-        shutil.rmtree(ROOT, ignore_errors=True)
+        if hasattr(self, "root"):
+            shutil.rmtree(self.root)
 
     def set(self, uid, gid, dmode, fmode):
         os.chown(self.dir, uid, gid)
