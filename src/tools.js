@@ -1975,6 +1975,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_local_backup_evidence: {
+    title: "Read fixed local backup evidence without root terminal",
+    description:
+      "Read exact KMJ-elite local daily PGDMP and legacy-named age cipher/sidecar freshness metadata via the fixed root Supervisor. No caller-selected path, shell, file content, retention, service operation, secret, or release/restore proof.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_offsite_diagnostic: {
     title: "Run fixed read-only offsite backup diagnostic",
     description:
@@ -3519,6 +3526,16 @@ export function createDispatcher(
         op: "main_platform_maintenance_status",
       });
     }
+    if (name === "supervisor_main_platform_local_backup_evidence") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_local_backup_evidence",
+      });
+    }
     if (name === "supervisor_main_platform_offsite_diagnostic") {
       if (
         a.project !== "kmj-main-platform" ||
@@ -4006,6 +4023,15 @@ export function createDispatcher(
                   variants: ["overview"],
                 },
                 {
+                  id: "main_platform_local_backup_evidence",
+                  category: "inspect",
+                  description:
+                    "Read fixed root-only local daily PGDMP and age cipher/sidecar freshness via Supervisor, no shell/argv or production changes; never proves remote restore or health unit success.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["overview"],
+                },
+                {
                   id: "main_platform_offsite_diagnostic",
                   category: "inspect",
                   description:
@@ -4258,6 +4284,54 @@ export function createDispatcher(
           independentRestoreVerified: false,
           rollbackVerified: false,
           productionApprovalChanged: false,
+        };
+      }
+      if (a.command === "main_platform_local_backup_evidence") {
+        if (
+          a.variant !== "overview" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-main-platform" ||
+          config.id !== "kmj-elite-main-platform" ||
+          !p.writable
+        )
+          fail("MAIN_PLATFORM_BACKUP_EVIDENCE_NOT_AUTHORIZED");
+        if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+        const received = await supervisor.request({
+          op: "main_platform_local_backup_evidence",
+        });
+        const evidence = received?.response ?? received;
+        // Rebuild the receipt from allowlisted fields. Never pass through
+        // arbitrary Supervisor response data to old captured MCP clients.
+        const clean = (item) => ({
+          state: ["MISSING", "PRESENT", "UNVERIFIED"].includes(item?.state)
+            ? item.state
+            : "UNVERIFIED",
+          fresh: item?.fresh === true,
+          stamp: typeof item?.stamp === "string" &&
+              /^20[0-9]{6}T[0-9]{6}Z$/.test(item.stamp) ? item.stamp : null,
+          ageHours: typeof item?.ageHours === "number" &&
+              Number.isFinite(item.ageHours) && item.ageHours >= 0 &&
+              item.ageHours < 1000000 ? item.ageHours : null,
+          bytes: Number.isSafeInteger(item?.bytes) && item.bytes >= 0 &&
+              item.bytes <= 8 * 1024 ** 3 ? item.bytes : null,
+        });
+        return {
+          command: "main_platform_local_backup_evidence",
+          mode: "READ_ONLY",
+          daily: clean(evidence?.daily),
+          vault: clean(evidence?.vault),
+          localHealthArtifactsFresh:
+            evidence?.localHealthArtifactsFresh === true,
+          exactHealthUnitExitVerified: false,
+          remoteShaReadbackVerified: false,
+          independentRestoreVerified: false,
+          productionReleaseApproved: false,
+          rootShellExecuted: false,
+          mutations: "NONE",
         };
       }
       if (a.command === "cloudos_host_storage_audit") {
