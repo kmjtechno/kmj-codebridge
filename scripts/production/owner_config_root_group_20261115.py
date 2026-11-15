@@ -232,15 +232,16 @@ def run(argv):
         signal.signal(s, interrupted)
     try:
         if rolling_back:
-            change(snap, kmj_uid, kmj_gid, BEFORE, ("dir", "file"))
+            # Mark before the first fchown/fchmod: an exception can happen mid-change.
             changed = True
+            change(snap, kmj_uid, kmj_gid, BEFORE, ("dir", "file"))
             snapshot(kmj_uid, kmj_gid, BEFORE)
             need(show("ActiveState") == "active"
                  and int(show("MainPID")) == pid, "GATEWAY_CHANGED")
             print("CONFIG_OWNER_ROLLBACK=PASS")
         else:
-            change(snap, 0, kmj_gid, AFTER, ("file", "dir"))
             changed = True
+            change(snap, 0, kmj_gid, AFTER, ("file", "dir"))
             snapshot(0, kmj_gid, AFTER)
             verify_after(pid, kmj_gid)
             print("CONFIG_OWNER_CHANGE=PASS")
@@ -249,12 +250,15 @@ def run(argv):
     except BaseException as error:
         reason = error.args[0] if isinstance(error, Blocked) else "UNCLASSIFIED"
         print("CONFIG_OWNER_CHANGE=BLOCKED:" + str(reason))
-        if changed and not rolling_back:
+        if changed:
             try:
-                restore = {"dir": os.lstat(DIR), "file": os.lstat(FILE)}
-                inodes = {k: (v.st_dev, v.st_ino) for k, v in restore.items()}
-                change(inodes, kmj_uid, kmj_gid, BEFORE, ("dir", "file"))
-                snapshot(kmj_uid, kmj_gid, BEFORE)
+                # Restore only the SAME inodes independently pinned before the change.
+                # Never chown a replaced path or borrow a new inode from lstat.
+                restore_uid = 0 if rolling_back else kmj_uid
+                restore_mode = AFTER if rolling_back else BEFORE
+                restore_order = ("file", "dir") if rolling_back else ("dir", "file")
+                change(snap, restore_uid, kmj_gid, restore_mode, restore_order)
+                snapshot(restore_uid, kmj_gid, restore_mode)
                 print("CONFIG_OWNER_AUTO_ROLLBACK=PASS")
             except BaseException:
                 keep_lock = True
