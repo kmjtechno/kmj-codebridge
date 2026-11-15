@@ -32,11 +32,17 @@ jobs:
           persist-credentials: false
       - name: Resolve newest cryptographically verified owner-signed stable release
         id: release
-        # Owner public key is not fetched from unsigned release metadata.
-        # A missing owner-provisioned key deliberately FAILS the smoke gate.
-        env:
-          KMJ_RELEASE_OWNER_PUBLIC_KEY_B64: ${{ secrets.KMJ_RELEASE_OWNER_PUBLIC_KEY_B64 }}
-        run: node scripts/latest-signed-release.mjs
+        shell: bash
+        # Public key copied from owner's protected updater trust config,
+        # verified against exact pinned SHA256(SPKI) and 10 signed releases.
+        # Public key is NOT a signing secret. Missing/tampered pin fails closed.
+        run: |
+          set -Eeuo pipefail
+          pem=tests/fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt
+          test -f "$pem"
+          export KMJ_RELEASE_OWNER_PUBLIC_KEY_B64
+          KMJ_RELEASE_OWNER_PUBLIC_KEY_B64="$(base64 -w 0 "$pem")"
+          node scripts/latest-signed-release.mjs
       - name: Verify owner VPS catalog, critical schemas and exact deployed signed release commit
         # Health may pass while the public gateway is still on an obsolete
         # binary. Never report a push/scheduled release smoke as fully green
