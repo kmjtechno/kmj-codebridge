@@ -2167,9 +2167,12 @@ export function createSupervisorHandler({
         "Result",
         "ExecMainStatus",
       ]);
-      const healthResult = ["success", "exit-code", "signal", "timeout"].includes(
-        health.result,
-      )
+      const healthResult = [
+        "success",
+        "exit-code",
+        "signal",
+        "timeout",
+      ].includes(health.result)
         ? health.result
         : "unknown";
       const healthExit =
@@ -2177,9 +2180,12 @@ export function createSupervisorHandler({
         /^(?:0|[1-9][0-9]{0,2})$/.test(health.execMainStatus)
           ? health.execMainStatus
           : "unknown";
-      const backupResult = ["success", "exit-code", "signal", "timeout"].includes(
-        offsite.result,
-      )
+      const backupResult = [
+        "success",
+        "exit-code",
+        "signal",
+        "timeout",
+      ].includes(offsite.result)
         ? offsite.result
         : "unknown";
       const inspected =
