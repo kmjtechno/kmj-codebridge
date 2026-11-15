@@ -13,7 +13,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createHash, createPublicKey, verify as cryptoVerify } from "node:crypto";
+import {
+  createHash,
+  createPublicKey,
+  verify as cryptoVerify,
+} from "node:crypto";
 
 export const OWNER_KEY_SPKI_SHA256 =
   "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8";
@@ -32,7 +36,8 @@ export const REQUIRED_RELEASES = Object.freeze([
 ]);
 
 const RELEASES_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)), "../../releases/stable",
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../releases/stable",
 );
 const MAX_MANIFEST = 65536;
 const MAX_SIGNATURE = 1024;
@@ -50,19 +55,27 @@ function requireThat(ok, code) {
 function readRegularNoFollow(file, limit) {
   let fd;
   try {
-    fd = fs.openSync(file, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0));
+    fd = fs.openSync(
+      file,
+      fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
+    );
     const before = fs.fstatSync(fd);
     requireThat(
-      before.isFile() && !before.isSymbolicLink() &&
-      before.nlink === 1 && before.size > 0 && before.size <= limit,
+      before.isFile() &&
+        !before.isSymbolicLink() &&
+        before.nlink === 1 &&
+        before.size > 0 &&
+        before.size <= limit,
       "RELEASE_EVIDENCE_FILE_UNTRUSTED",
     );
     const buffer = fs.readFileSync(fd);
     const after = fs.fstatSync(fd);
     requireThat(
-      buffer.length === before.size && before.dev === after.dev &&
-      before.ino === after.ino && before.size === after.size &&
-      before.mtimeMs === after.mtimeMs,
+      buffer.length === before.size &&
+        before.dev === after.dev &&
+        before.ino === after.ino &&
+        before.size === after.size &&
+        before.mtimeMs === after.mtimeMs,
       "RELEASE_EVIDENCE_FILE_CHANGED",
     );
     return buffer;
@@ -75,18 +88,24 @@ function readRegularNoFollow(file, limit) {
 }
 
 export function ownerPublicKey(pem) {
-  requireThat(typeof pem === "string" && pem.length < MAX_PEM &&
-    pem.startsWith("-----BEGIN PUBLIC KEY-----") &&
-    pem.trimEnd().endsWith("-----END PUBLIC KEY-----") &&
-    !pem.includes("PRIVATE KEY"), "OWNER_PUBLIC_KEY_FORMAT_INVALID");
+  requireThat(
+    typeof pem === "string" &&
+      pem.length < MAX_PEM &&
+      pem.startsWith("-----BEGIN PUBLIC KEY-----") &&
+      pem.trimEnd().endsWith("-----END PUBLIC KEY-----") &&
+      !pem.includes("PRIVATE KEY"),
+    "OWNER_PUBLIC_KEY_FORMAT_INVALID",
+  );
   let key;
   try {
     key = createPublicKey(pem);
   } catch {
     deny("OWNER_PUBLIC_KEY_INVALID");
   }
-  requireThat(key.type === "public" && key.asymmetricKeyType === "ed25519",
-    "OWNER_PUBLIC_KEY_NOT_ED25519");
+  requireThat(
+    key.type === "public" && key.asymmetricKeyType === "ed25519",
+    "OWNER_PUBLIC_KEY_NOT_ED25519",
+  );
   const der = key.export({ type: "spki", format: "der" });
   const fingerprint = createHash("sha256").update(der).digest("hex");
   return { key, fingerprint };
@@ -94,11 +113,15 @@ export function ownerPublicKey(pem) {
 
 function parseSignature(raw) {
   const text = raw.toString("ascii").trim();
-  requireThat(/^[A-Za-z0-9_-]{86}$/.test(text),
-    "RELEASE_SIGNATURE_ENCODING_INVALID");
+  requireThat(
+    /^[A-Za-z0-9_-]{86}$/.test(text),
+    "RELEASE_SIGNATURE_ENCODING_INVALID",
+  );
   const bytes = Buffer.from(text, "base64url");
-  requireThat(bytes.length === 64 && bytes.toString("base64url") === text,
-    "RELEASE_SIGNATURE_ENCODING_INVALID");
+  requireThat(
+    bytes.length === 64 && bytes.toString("base64url") === text,
+    "RELEASE_SIGNATURE_ENCODING_INVALID",
+  );
   return bytes;
 }
 
@@ -109,18 +132,30 @@ function parseManifest(raw, sequence, revision) {
   } catch {
     deny("RELEASE_MANIFEST_JSON_INVALID");
   }
-  requireThat(item !== null && typeof item === "object" && !Array.isArray(item) &&
-    item.schema === 1 && item.product === "KMJ CodeBridge" &&
-    item.channel === "stable" && item.sequence === sequence &&
-    item.revision === revision && item.version === "0.3.2" &&
-    item.keyId === "kmj-release-2026" &&
-    item.nodeMajor === 24 &&
-    typeof item.sha256 === "string" && /^[a-f0-9]{64}$/.test(item.sha256) &&
-    Number.isSafeInteger(item.bytes) && item.bytes > 0 &&
-    item.archive ===
-      "https://kmjtechno.com/codebridge/releases/stable/" + revision +
-      "/kmj-codebridge-0.3.2-" + revision.slice(0, 12) + ".tar.gz",
-    "RELEASE_MANIFEST_IDENTITY_INVALID");
+  requireThat(
+    item !== null &&
+      typeof item === "object" &&
+      !Array.isArray(item) &&
+      item.schema === 1 &&
+      item.product === "KMJ CodeBridge" &&
+      item.channel === "stable" &&
+      item.sequence === sequence &&
+      item.revision === revision &&
+      item.version === "0.3.2" &&
+      item.keyId === "kmj-release-2026" &&
+      item.nodeMajor === 24 &&
+      typeof item.sha256 === "string" &&
+      /^[a-f0-9]{64}$/.test(item.sha256) &&
+      Number.isSafeInteger(item.bytes) &&
+      item.bytes > 0 &&
+      item.archive ===
+        "https://kmjtechno.com/codebridge/releases/stable/" +
+          revision +
+          "/kmj-codebridge-0.3.2-" +
+          revision.slice(0, 12) +
+          ".tar.gz",
+    "RELEASE_MANIFEST_IDENTITY_INVALID",
+  );
 }
 
 export function verifyAllReleaseSignatures({
@@ -129,46 +164,81 @@ export function verifyAllReleaseSignatures({
   expectedFingerprint = OWNER_KEY_SPKI_SHA256,
   releases = REQUIRED_RELEASES,
 }) {
-  requireThat(Array.isArray(releases) && releases.length === 10 &&
-    releases.every((v) =>
-      Array.isArray(v) && v.length === 2 &&
-      Number.isSafeInteger(v[0]) && /^[a-f0-9]{40}$/.test(v[1])),
-    "RELEASE_SET_INVALID");
+  requireThat(
+    Array.isArray(releases) &&
+      releases.length === 10 &&
+      releases.every(
+        (v) =>
+          Array.isArray(v) &&
+          v.length === 2 &&
+          Number.isSafeInteger(v[0]) &&
+          /^[a-f0-9]{40}$/.test(v[1]),
+      ),
+    "RELEASE_SET_INVALID",
+  );
   const { key, fingerprint } = ownerPublicKey(publicKeyPem);
-  requireThat(fingerprint === expectedFingerprint, "OWNER_PUBLIC_KEY_FINGERPRINT_MISMATCH");
+  requireThat(
+    fingerprint === expectedFingerprint,
+    "OWNER_PUBLIC_KEY_FINGERPRINT_MISMATCH",
+  );
   const root = fs.realpathSync(releasesRoot);
   let count = 0;
   for (const [sequence, revision] of releases) {
     const dir = path.join(root, revision);
     const stat = fs.lstatSync(dir);
-    requireThat(stat.isDirectory() && !stat.isSymbolicLink(),
-      "RELEASE_DIRECTORY_UNTRUSTED");
-    const raw = readRegularNoFollow(path.join(dir, "release-manifest.json"), MAX_MANIFEST);
+    requireThat(
+      stat.isDirectory() && !stat.isSymbolicLink(),
+      "RELEASE_DIRECTORY_UNTRUSTED",
+    );
+    const raw = readRegularNoFollow(
+      path.join(dir, "release-manifest.json"),
+      MAX_MANIFEST,
+    );
     const sig = parseSignature(
-      readRegularNoFollow(path.join(dir, "release-manifest.sig"), MAX_SIGNATURE),
+      readRegularNoFollow(
+        path.join(dir, "release-manifest.sig"),
+        MAX_SIGNATURE,
+      ),
     );
     parseManifest(raw, sequence, revision);
-    requireThat(cryptoVerify(null, raw, key, sig),
-      "RELEASE_SIGNATURE_VERIFICATION_FAILED");
+    requireThat(
+      cryptoVerify(null, raw, key, sig),
+      "RELEASE_SIGNATURE_VERIFICATION_FAILED",
+    );
     count++;
   }
-  return Object.freeze({ fingerprint, passed: count, required: releases.length });
+  return Object.freeze({
+    fingerprint,
+    passed: count,
+    required: releases.length,
+  });
 }
 
 function main(args) {
-  requireThat(args.length === 2 && args[0] === "--public-key-file" &&
-    typeof args[1] === "string" && args[1].length > 0 &&
-    !args[1].startsWith("-"), "OWNER_EVIDENCE_USAGE");
-  const pem = readRegularNoFollow(path.resolve(args[1]), MAX_PEM).toString("utf8");
+  requireThat(
+    args.length === 2 &&
+      args[0] === "--public-key-file" &&
+      typeof args[1] === "string" &&
+      args[1].length > 0 &&
+      !args[1].startsWith("-"),
+    "OWNER_EVIDENCE_USAGE",
+  );
+  const pem = readRegularNoFollow(path.resolve(args[1]), MAX_PEM).toString(
+    "utf8",
+  );
   const result = verifyAllReleaseSignatures({ publicKeyPem: pem });
   console.log("OWNER_PUBLIC_SPKI_SHA256=" + result.fingerprint);
-  console.log("RELEASE_SIGNATURES_VERIFIED=" + result.passed + "/" + result.required);
+  console.log(
+    "RELEASE_SIGNATURES_VERIFIED=" + result.passed + "/" + result.required,
+  );
   console.log("OWNER_RELEASE_KEY_CUSTODY=REQUIRES_ROOT_CONFIG_SOURCE_PROOF");
   console.log("RELEASE_SOURCE_MUTATIONS=NONE");
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) ===
-  fileURLToPath(import.meta.url)) {
+if (
+  process.argv[1] &&
+  path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+) {
   try {
     main(process.argv.slice(2));
   } catch (error) {
