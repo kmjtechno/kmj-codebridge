@@ -1092,6 +1092,6 @@ test("cloud worker cannot claim tasks or read source without verified zero-cost 
   assert.deepEqual(f.lanes.status(f.project.id, f.root).lanes, []);
   assert.equal(
     fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
-    "export const value = 1;\\n",
+    "export const value = 1;\n",
   );
 });
