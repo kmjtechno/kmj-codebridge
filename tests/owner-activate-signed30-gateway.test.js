@@ -54,7 +54,10 @@ test("seq30 rollback side is the live signed29 override, new side is signed30", 
   assert.match(seq30, /NEW_SHA = "597037b07cac08729290d549c023111d1ab7e7c0"/);
   assert.match(seq30, /0\.3\.2-e8c353dc839a"\)/);
   assert.match(seq30, /SIGNED29_OVERRIDE_DRIFT/);
-  assert.doesNotMatch(seq30, /signed27|SIGNED27|40655678|signed25|SIGNED25|signed28|SIGNED28/);
+  assert.doesNotMatch(
+    seq30,
+    /signed27|SIGNED27|40655678|signed25|SIGNED25|signed28|SIGNED28/,
+  );
 });
 
 test("seq30 identities match the owner-signed manifest merged on main", () => {
