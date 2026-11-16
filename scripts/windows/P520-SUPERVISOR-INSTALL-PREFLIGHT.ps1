@@ -1,0 +1,171 @@
+# KMJ P520 protected Supervisor installation discovery — read-only.
+# No task creation, file writes, service restarts, downloads or execution of
+# unknown programs. Never prints private configuration paths or credentials.
+[CmdletBinding()]
+param([switch]$SelfTest)
+Set-StrictMode -Version Latest
+$ErrorActionPreference='Stop'
+$expectedDevice='kmj-kmj-codebridge-desktop-5fvjmet'
+$taskName='KMJ-CodeBridge-Supervisor-P520'
+function Mark([string]$key,[string]$value) { Write-Output ($key+'='+$value) }
+function Candidate-Identity($cfg) {
+  # StrictMode must not let an unrelated, malformed JSON object abort the
+  # read-only inventory. Missing properties are unrelated, never approved.
+  if($null -eq $cfg -or $cfg -isnot [pscustomobject]) { return 'UNRELATED' }
+  $names=@($cfg.PSObject.Properties.Name)
+  if($names -notcontains 'id' -or $names -notcontains 'gateway' -or
+     $names -notcontains 'projects') { return 'UNRELATED' }
+  if([string]$cfg.id -cne $expectedDevice -or $cfg.projects -isnot [array] -or
+     @($cfg.projects).Count -gt 32) { return 'UNRELATED' }
+  $projectMatches=@($cfg.projects | Where-Object {
+    $null -ne $_ -and $_ -is [pscustomobject] -and
+    $null -ne $_.PSObject.Properties['id'] -and
+    [string]$_.id -ceq 'kmj-codebridge'
+  })
+  if($projectMatches.Count -ne 1) { return 'UNRELATED' }
+  if($names -contains 'supervisorSocket' -or $names -contains 'supervisorPipe' -or
+     $names -contains 'supervisorTokenFile') { return 'ALREADY_CONFIGURED' }
+  if([string]$cfg.gateway -cne 'https://kmjtechno.com/mcp') { return 'UNTRUSTED_GATEWAY' }
+  return 'MATCH'
+}
+function Safe-Candidate-Path([string]$root,[string]$candidate) {
+  # File paths inherited from a junction/redirected parent are not trusted.
+  try {
+    $rootFull=[IO.Path]::GetFullPath($root).TrimEnd('\')
+    $fileFull=[IO.Path]::GetFullPath($candidate)
+    if(-not $fileFull.StartsWith($rootFull+'\', [StringComparison]::OrdinalIgnoreCase)) {
+      return $false
+    }
+    $dir=[IO.Path]::GetDirectoryName($fileFull)
+    for($i=0;$i -lt 16;$i++) {
+      $item=Get-Item -LiteralPath $dir -Force -ErrorAction Stop
+      if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        return $false
+      }
+      if($dir -ieq $rootFull) { return $true }
+      $parent=[IO.Path]::GetDirectoryName($dir.TrimEnd('\'))
+      if([string]::IsNullOrWhiteSpace($parent) -or $parent -ieq $dir) { return $false }
+      $dir=$parent
+    }
+  } catch {}
+  return $false
+}
+function Task-Status([object[]]$tasks) {
+  if(@($tasks | Where-Object { $null -ne $_ -and [string]$_.TaskName -ieq $taskName }).Count -gt 0) {
+    return 'COLLISION'
+  }
+  return 'ABSENT'
+}
+if($SelfTest) {
+  $good=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp'}
+  $other=[pscustomobject]@{id='kmj-kmj-omnidesk-desktop-5fvjmet';projects=@([pscustomobject]@{id='kmj-omnidesk'});gateway='https://kmjtechno.com/mcp'}
+  $configured=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp';supervisorPipe='something'}
+  $wrongGateway=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/not-mcp'}
+  $missingFields=[pscustomobject]@{id=$expectedDevice}
+  $malformedProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/mcp';projects=@('kmj-codebridge')}
+  $duplicateProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/mcp';projects=@([pscustomobject]@{id='kmj-codebridge'},[pscustomobject]@{id='kmj-codebridge'})}
+  $collision=[pscustomobject]@{TaskName=$taskName;TaskPath='\Other\'}
+  if((Candidate-Identity $good) -cne 'MATCH' -or
+     (Candidate-Identity $other) -cne 'UNRELATED' -or
+     (Candidate-Identity $configured) -cne 'ALREADY_CONFIGURED' -or
+     (Candidate-Identity $wrongGateway) -cne 'UNTRUSTED_GATEWAY' -or
+     (Candidate-Identity $missingFields) -cne 'UNRELATED' -or
+     (Candidate-Identity $malformedProjects) -cne 'UNRELATED' -or
+     (Candidate-Identity $duplicateProjects) -cne 'UNRELATED' -or
+     (Task-Status -tasks @()) -cne 'ABSENT' -or
+     (Task-Status -tasks @($collision)) -cne 'COLLISION') {
+    throw 'P520_INSTALL_PREFLIGHT_SELFTEST_FAILED'
+  }
+  Mark 'P520_INSTALL_PREFLIGHT_SELFTEST' 'PASS'
+  exit 0
+}
+try {
+  if($env:OS -cne 'Windows_NT' -or $env:COMPUTERNAME -ine 'DESKTOP-5FVJMET' -or
+     -not [Environment]::Is64BitOperatingSystem) { throw 'WRONG_DEVICE' }
+  $pc=Get-CimInstance Win32_ComputerSystem -ErrorAction Stop
+  if($pc.Manufacturer -notmatch '(?i)lenovo' -or [string]$pc.Model -cne '30BFS1JG13') {
+    throw 'WRONG_HARDWARE'
+  }
+  Mark 'P520_INSTALL_DEVICE' 'PASS'
+  $allTasks=@(Get-ScheduledTask -ErrorAction Stop)
+  Mark 'P520_INSTALL_SUPERVISOR_TASK' (Task-Status -tasks $allTasks)
+
+  # Known possible P520 private roots only, never the P720 agent installation.
+  # Missing roots are skipped, never created.
+  $roots=@(
+    (Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\private'),
+    (Join-Path $env:USERPROFILE 'KMJ\codebridge-runtime\private'),
+    (Join-Path $env:USERPROFILE 'KMJ\private'),
+    'D:\KMJ-HyperSpeed\private',
+    'E:\KMJ\private',
+    'E:\KMJ\CodeBridge-HomeOffice\private'
+  )
+  $matches=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+  $searched=0
+  $unsafe=$false
+  foreach($root in $roots) {
+    if(-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+    $rootInfo=Get-Item -LiteralPath $root -Force -ErrorAction Stop
+    if(($rootInfo.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+      $unsafe=$true
+      break
+    }
+    # Bounded BFS: NEVER materialize unbounded recursive Get-ChildItem output.
+    $pending=New-Object 'System.Collections.Queue'
+    $pending.Enqueue(@($root,0))
+    while($pending.Count -gt 0 -and -not $unsafe) {
+      $node=$pending.Dequeue()
+      $folder=[string]$node[0]
+      $depth=[int]$node[1]
+      # Cap the enumerated filesystem entries BEFORE materializing the array.
+      # Select-Object stops upstream traversal after the remaining budget + 1.
+      $limit = 161 - $searched
+      if($limit -le 0) { $unsafe=$true;break }
+      foreach($entry in @(Get-ChildItem -LiteralPath $folder -Force -ErrorAction Stop |
+                        Select-Object -First $limit)) {
+        $searched++
+        if($searched -gt 160) { $unsafe=$true;break }
+        if(($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+          $unsafe=$true
+          break
+        }
+        if($entry.PSIsContainer) {
+          if($depth -lt 3) { $pending.Enqueue(@([string]$entry.FullName,($depth+1))) }
+          continue
+        }
+        if($entry.Name -ine 'agent.json') { continue }
+        if($entry.Length -lt 20 -or $entry.Length -gt 524288) { continue }
+        if(-not (Safe-Candidate-Path $root ([string]$entry.FullName))) {
+          $unsafe=$true
+          break
+        }
+        # Parse locally but never print the sensitive JSON or file path.
+        try {
+          $cfg=Get-Content -LiteralPath $entry.FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+          if((Candidate-Identity $cfg) -ceq 'MATCH') {
+            [void]$matches.Add([string]$entry.FullName)
+          }
+        } catch {}
+      }
+    }
+    if($unsafe) { break }
+  }
+  if($unsafe) { $candidate='UNSAFE_OR_UNBOUNDED' }
+  elseif($matches.Count -eq 0) { $candidate='NO_EXACT_MATCH' }
+  elseif($matches.Count -eq 1) { $candidate='ONE_UNATTESTED_CANDIDATE' }
+  else { $candidate='MULTIPLE_AMBIGUOUS' }
+  Mark 'P520_INSTALL_AGENT_CONFIG' $candidate
+
+  # A matching config is NOT evidence that this is the live process's config.
+  Mark 'P520_INSTALL_OWNER_SIGNATURE' 'NOT_VERIFIED'
+  Mark 'P520_INSTALL_TOKEN_ACL' 'NOT_VERIFIED'
+  Mark 'P520_INSTALL_RUNTIME_BINDING' 'NOT_VERIFIED'
+  Mark 'P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'
+  Mark 'P520_INSTALL_ACTION' 'NONE'
+  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
+  Mark 'P520_INSTALL_PREFLIGHT' 'READ_ONLY_COMPLETE'
+} catch {
+  Mark 'P520_INSTALL_PREFLIGHT' 'BLOCKED_NOT_ATTESTED'
+  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
+  exit 2
+}

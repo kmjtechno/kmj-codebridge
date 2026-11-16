@@ -92,6 +92,18 @@ if (@($json.PSObject.Properties.Name) -contains 'supervisorSocket' -or
 }
 if (Test-Path -LiteralPath $backup) { throw 'BACKUP_DESTINATION_EXISTS' }
 New-Item -ItemType Directory -Path $backup -ErrorAction Stop | Out-Null
+# Backup copies contain the existing agent credentials. Restrict the EMPTY
+# backup directory before copying anything, even when the parent is readable.
+& icacls.exe $backup /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)(F)' 'BUILTIN\Administrators:(OI)(CI)(F)' | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'BACKUP_ACL_LOCK_FAILED' }
+$backupAcl = Get-Acl -LiteralPath $backup -ErrorAction Stop
+foreach ($ace in $backupAcl.Access) {
+  if ($ace.AccessControlType -ne [Security.AccessControl.AccessControlType]::Allow) { continue }
+  $sid = $ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+  if ($sid -notin @('S-1-5-18', 'S-1-5-32-544')) {
+    throw 'BACKUP_ACL_UNAPPROVED_READER'
+  }
+}
 $manifest = [ordered]@{
   schema = 2
   createdUtc = $stamp
@@ -116,12 +128,19 @@ $bytes = New-Object byte[] 32
 [System.Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes)
 $hex = -join ($bytes | ForEach-Object { $_.ToString('x2') })
 New-Item -ItemType Directory -Path (Split-Path -Parent $tokenFile) -Force | Out-Null
-Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
+# Create a NEW EMPTY file atomically before setting ACLs; never place the
+# secret in a file which may still inherit a broad parent read permission.
+$tokenStream = [System.IO.File]::Open(
+  $tokenFile,
+  [System.IO.FileMode]::CreateNew,
+  [System.IO.FileAccess]::Write,
+  [System.IO.FileShare]::None
+)
+$tokenStream.Dispose()
 $manifest.tokenCreatedByInstaller = $true
-$manifest.tokenSha256 = Get-Sha256 $tokenFile
 Write-Manifest $manifestPath $manifest
 
-# Restrict the secret: no inherited ACEs, only SYSTEM, Administrators and the service account.
+# Harden the EMPTY token file before putting any secret bytes on disk.
 & icacls.exe $tokenFile /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(F)' 'BUILTIN\Administrators:(F)' "${ServiceAccount}:(R)" | Out-Null
 if ($LASTEXITCODE -ne 0) { throw 'icacls failed to restrict the token file.' }
 # Read the DACL as Windows security identities, not icacls display text.
@@ -153,6 +172,10 @@ foreach ($sid in $allowedSids) {
     throw 'SUPERVISOR_TOKEN_ACL_REQUIRED_PRINCIPAL_MISSING'
   }
 }
+# Only after successful permission checks may the secret be written.
+Set-Content -LiteralPath $tokenFile -Value $hex -NoNewline -Encoding ASCII
+$manifest.tokenSha256 = Get-Sha256 $tokenFile
+Write-Manifest $manifestPath $manifest
 
 $taskArgs = "`"$RuntimeDir\src\cli.js`" windows-supervisor `"$SupervisorConfig`""
 $manifest.taskExe = $node
@@ -163,9 +186,14 @@ $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -
 # A persistent agent must recover after reboot and transient failures. This
 # task remains DISABLED after preparation; activation is a distinct step.
 $trigger = New-ScheduledTaskTrigger -AtStartup
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
+# -Disable is set in the registered definition: there is no transient
+# enabled/startable task between registration and a later disable call.
+$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable -Disable
 Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
-Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' | Out-Null
+$registeredTask = Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+if (@($registeredTask).Count -ne 1 -or [string]$registeredTask.State -cne 'Disabled') {
+  throw 'SUPERVISOR_TASK_NOT_DISABLED_AT_REGISTRATION'
+}
 
 $proposed = "$AgentConfig.proposed"
 $json | Add-Member -NotePropertyName supervisorPipe -NotePropertyValue $pipe -Force

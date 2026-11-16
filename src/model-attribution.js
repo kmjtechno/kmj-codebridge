@@ -2,6 +2,8 @@
 // This does NOT identify a host chat application's own GPT/Claude/Gemini model.
 // No prompts, responses, secrets, URLs, account IDs or lease tokens enter receipts.
 const MODEL_ID = /^[A-Za-z0-9._:/-]{1,96}$/;
+const LOCAL_PROVIDERS = new Set(["local-ollama", "local-llamacpp"]);
+const PINNED_P520_LLAMA_MODEL = "Qwen3.5-9B-Q4_K_M.gguf";
 const OPERATIONS = new Set([
   "local_model_generate",
   "autopilot_local_draft",
@@ -9,15 +11,17 @@ const OPERATIONS = new Set([
   "autopilot_coding_worker",
 ]);
 
-export function localModelReceipt(model, operation) {
+export function localModelReceipt(model, operation, provider = "local-ollama") {
   if (
     typeof model !== "string" ||
     !MODEL_ID.test(model) ||
-    !OPERATIONS.has(operation)
+    !OPERATIONS.has(operation) ||
+    !LOCAL_PROVIDERS.has(provider) ||
+    (provider === "local-llamacpp" && model !== PINNED_P520_LLAMA_MODEL)
   )
     throw new TypeError("INVALID_MODEL_ATTRIBUTION");
   return {
-    provider: "local-ollama",
+    provider,
     model,
     execution: "verified_local_generation",
     operation,
@@ -68,7 +72,7 @@ export function normalizeModelReceipt(value) {
           "hostChatModel",
         ].includes(key),
     ) ||
-    value.provider !== "local-ollama" ||
+    !LOCAL_PROVIDERS.has(value.provider) ||
     value.execution !== "verified_local_generation" ||
     value.routing !== "local-only" ||
     value.cloudFallback !== false ||
@@ -80,5 +84,5 @@ export function normalizeModelReceipt(value) {
     !OPERATIONS.has(value.operation)
   )
     throw new TypeError("INVALID_MODEL_ATTRIBUTION");
-  return localModelReceipt(value.model, value.operation);
+  return localModelReceipt(value.model, value.operation, value.provider);
 }
