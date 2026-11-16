@@ -248,6 +248,115 @@ test("untracked files and empty fixes never claim success", (t) => {
   assert.equal(verifyRepairCandidate(f.starts[0].cwd, ["src/"]), null);
 });
 
+test("lost repair job result safely releases active slot without replay", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.starts.length, 1);
+  const preserved = path.join(f.starts[0].cwd, "owner-review.txt");
+  fs.writeFileSync(preserved, "keep uncommitted repair evidence\n");
+  f.jobs.delete("job-1");
+
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_REPAIR_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+  f.worker.tick();
+  assert.equal(f.starts.length, 1, "uncertain formatter cannot replay");
+  assert.equal(
+    fs.readFileSync(preserved, "utf8"),
+    "keep uncommitted repair evidence\n",
+  );
+
+  f.project.gates.otherFix = {
+    command: "node",
+    args: ["--version"],
+    timeoutMs: 1000,
+  };
+  f.project.autopilotRepairWorker.recipes.other = {
+    fixGate: "otherFix",
+    verifyGate: "check",
+    paths: ["src/"],
+  };
+  const independent = f.enqueue(`auto-repair:other:${f.head}`);
+  f.worker.tick();
+  assert.equal(f.starts.length, 2, "separate approved task can progress");
+  assert.equal(f.journal.get(independent.id, "repo").state, "running");
+});
+
+test("unreadable job store does not crash autonomous repair loop", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  f.runner.get = () => {
+    throw new Error("JOB_STORE_READ_FAILED");
+  };
+  assert.doesNotThrow(() => f.worker.tick());
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_REPAIR_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+  assert.equal(f.starts.length, 1);
+});
+
+test("malformed runner job state pauses for review, not indefinite running", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  f.jobs.get("job-1").state = "UNTRUSTED_STATE";
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "ISOLATED_REPAIR_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+});
+
+test("lost verification result never publishes an unverified patch", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  const lane = f.starts[0].cwd;
+  fs.writeFileSync(
+    path.join(lane, "src", "format.js"),
+    "const x = 1;\n",
+  );
+  f.jobs.get("job-1").state = "succeeded";
+  f.jobs.get("job-1").exitCode = 0;
+  f.worker.tick();
+  assert.equal(f.starts.length, 2);
+  f.jobs.delete("job-2");
+  f.worker.tick();
+  const result = f.journal.get(task.id, "repo");
+  assert.equal(result.state, "waiting");
+  assert.equal(
+    result.lastReason,
+    "ISOLATED_REPAIR_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+  assert.equal(f.starts.length, 2);
+  assert.equal(
+    fs.readFileSync(path.join(lane, "src", "format.js"), "utf8"),
+    "const x = 1;\n",
+  );
+  assert.throws(
+    () =>
+      reviewRepairCandidate({
+        project: f.project,
+        journal: f.journal,
+        lanes: f.lanes,
+        taskId: task.id,
+      }),
+    /AUTOPILOT_REPAIR_NOT_VERIFIED/,
+  );
+});
+
 test("failed fixing command does not run tests or loop forever", (t) => {
   const f = fixture(t);
   const task = f.enqueue();
