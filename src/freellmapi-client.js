@@ -103,7 +103,7 @@ export function createFreeLlmApiClient({
       proof.expiresAtEpochMs > checkedAt &&
       proof.expiresAtEpochMs <= observedAt + 60000;
     if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
-    return true;
+    return checkedAt;
   };
   const client = {
     async checkZeroCostChain({ chain }) {
@@ -151,7 +151,10 @@ export function createFreeLlmApiClient({
         timeoutSeconds > 90
       )
         fail("FREELLMAPI_INVALID_TIMEOUT");
-      await verifyChainAdmission(chain);
+      const admittedAt = await verifyChainAdmission(chain);
+      // A second clock read closes the gap between asynchronous proof and POST.
+      // Fail closed if the device clock moved backwards after admission.
+      if (now() < admittedAt) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
       const res = await call(
         "POST",
         "/v1/chat/completions",
