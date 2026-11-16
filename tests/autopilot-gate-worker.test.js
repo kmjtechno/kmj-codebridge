@@ -276,6 +276,39 @@ test("runner lookup exception cannot crash the event-driven gate loop", (t) => {
   assert.equal(f.count(), 1);
 });
 
+for (const terminal of ["timed_out", "interrupted"]) {
+  test(`terminal ${terminal} gate jobs release their active slot without retry`, (t) => {
+    const f = fixture(t);
+    const task = f.enqueue();
+    f.worker.tick();
+    f.jobs.get("job-1").state = terminal;
+    f.jobs.get("job-1").exitCode = null;
+    f.worker.tick();
+    assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+    assert.equal(
+      f.journal.get(task.id, "repo").lastReason,
+      "ADMIN_APPROVED_GATE_FAILED_REVIEW_REQUIRED",
+    );
+    assert.equal(f.worker.active.size, 0);
+    f.worker.tick();
+    assert.equal(f.count(), 1, "terminal job must not be re-executed");
+  });
+}
+
+test("malformed runner status fails closed instead of pinning slot forever", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  f.runner.get = () => ({ state: "UNKNOWN_UNTRUSTED_STATE" });
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "APPROVED_GATE_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+});
+
 test("unconfigured gate and malformed task never start an executable", (t) => {
   const f = fixture(t);
   f.p.autopilotGateWorker.gates = ["absent"];
