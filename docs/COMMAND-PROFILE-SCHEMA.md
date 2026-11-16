@@ -1,6 +1,6 @@
 # Command-profile schema and compatibility matrix
 
-Document version: **1.2** (2026-11-15). Milestone: **M0 inventory/contracts** of
+Document version: **1.3** (2026-11-16). Milestone: **M0 inventory/contracts** of
 `docs/UNIVERSAL-LOCAL-DEVELOPMENT-ENGINE.md`.
 
 This documents the contract that the code enforces **today**. It adds no new
@@ -102,8 +102,29 @@ must all be independently observed before any release decision.
 
 ## 5. Gaps against the M1 target (Pending)
 
-- CMake/CTest profiles exist (`cmake-standard`) but have **no** receipt from the
-  authorized Windows P720 or the CineCore project. Status: pending.
+- Device receipts observed through CodeBridge `list_project_jobs` / `get_job_status`
+  on 2026-11-16 (read-only; job state, exit code and duration as reported by the
+  device agent, not independently re-run, no artifact hashes captured):
+  - Node, device `kmj-kmj-codebridge-desktop-5fvjmet`, project `kmj-codebridge`:
+    `node_deps:locked` succeeded in pinned lanes `node-m1-receipt`/`node-m1-main`
+    (2-4 s). `node_verify:check` succeeded in lane `node-m1-receipt`
+    (job `91c072ef`, 2026-11-15, exit 0, 29.8 s). `node_verify:test` succeeded on
+    2026-11-09 (`node-m1-main3`, exit 0), 2026-11-12, 2026-11-13 and 2026-11-15
+    (exit 0, output truncated flag set). Earlier lane runs also failed
+    (`node-m1-main`/`node-m1-main2`/`node-m1-receipt` test, exit 1; unpinned
+    `check` exit 1 on 2026-11-12 and 2026-11-15) so this is a mixed record, not a
+    clean pass.
+  - CMake/CTest, device `kmj-kmj-cinecore-desktop-5fvjmet`, project `kmj-cinecore`
+    (separate grant): in pinned lane `cc-m1-a60e89a` at head `a60e89ac`,
+    `cmake_configure` (job `e827602c`, exit 0, 6 s) and `cmake_build:release`
+    (job `08240c0e`, exit 0, 145 s) succeeded. `cmake_test:release` (job
+    `49aead0c`, 2026-11-11) ran 30 tests: 29 passed, `tst_visualregression`
+    failed, CTest exit 8. The same test failure and exit 8 recur on 2026-11-13.
+    Several earlier configure attempts failed (exit 1) before the lane was set up.
+  - Not proven: a fully green CineCore CTest run, any GUI/HIL step (needs user
+    consent), the CineCore failure's root cause, artifact SHA-256 receipts, and
+    whether these jobs ran under the exact commands in section 4 on every date.
+    M1 is therefore **partly evidenced, not complete**.
 - Verified in `src/jobs.js` (2026-11-15): captured job output is bounded at 32768
   bytes (first 8192 bytes plus the last 20000 bytes when more is produced),
   `truncated` is set, and output is passed through `redact`. The per-job `timeoutMs`
