@@ -21,7 +21,8 @@ export function createVerifiedFreeCloudCodingModel({
   const getClient = () => (client ??= createClient());
   return {
     async status() {
-      if (!approved()) return { available: false, activeRequest: false, models: [] };
+      if (!approved())
+        return { available: false, activeRequest: false, models: [] };
       const status = await getClient().status();
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved())
