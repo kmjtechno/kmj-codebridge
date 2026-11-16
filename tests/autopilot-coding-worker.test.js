@@ -997,7 +997,7 @@ test("cloud-only coding never contacts a local LLM and labels the reviewed patch
   assert.equal(review.publishStatus, "NOT_PUBLISHED");
   assert.equal(
     fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
-    "export const value = 1;\\n",
+    "export const value = 1;\n",
   );
 });
 
