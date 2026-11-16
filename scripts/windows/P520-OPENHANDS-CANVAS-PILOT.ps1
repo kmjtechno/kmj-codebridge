@@ -80,9 +80,25 @@ if ($LASTEXITCODE -ne 0 -or @($context).Count -ne 1 -or
     ([string]$context).Trim() -ne 'desktop-linux') {
   throw 'OPENHANDS_LOCAL_DOCKER_DESKTOP_CONTEXT_REQUIRED'
 }
-$endpoint = & $dockerExe context inspect desktop-linux --format '{{(index .Endpoints "docker").Host}}'
+# Docker's Go template parser must not receive inner quoted keys through
+# Windows PowerShell 5.1 native-argument forwarding. Emit JSON and validate it.
+$endpointsJson = & $dockerExe context inspect desktop-linux --format '{{json .Endpoints}}'
 if ($LASTEXITCODE -ne 0 -or
-    ([string]$endpoint).Trim() -ne 'npipe:////./pipe/dockerDesktopLinuxEngine') {
+    [string]::IsNullOrWhiteSpace([string]$endpointsJson)) {
+  throw 'OPENHANDS_REMOTE_DOCKER_CONTEXT_DENIED'
+}
+try {
+  $endpoints = ConvertFrom-Json -InputObject ([string]$endpointsJson) -ErrorAction Stop
+  $dockerEntry = $endpoints.PSObject.Properties['docker']
+  if ($null -eq $dockerEntry) {
+    throw 'OPENHANDS_DOCKER_ENDPOINT_MISSING'
+  }
+  $hostEntry = $dockerEntry.Value.PSObject.Properties['Host']
+  if ($null -eq $hostEntry -or
+      [string]$hostEntry.Value -ne 'npipe:////./pipe/dockerDesktopLinuxEngine') {
+    throw 'OPENHANDS_DOCKER_ENDPOINT_NOT_LOCAL'
+  }
+} catch {
   throw 'OPENHANDS_REMOTE_DOCKER_CONTEXT_DENIED'
 }
 $osType = & $dockerExe info --format '{{.OSType}}'
