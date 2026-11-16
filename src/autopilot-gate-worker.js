@@ -2,7 +2,14 @@ import { execFileSync } from "node:child_process";
 import { waitForTaskChange } from "./autopilot-continuation.js";
 
 const GATE_TASK = /^auto-gate:([A-Za-z0-9_-]{1,64}):([a-f0-9]{40})$/;
-const TERMINAL = new Set(["succeeded", "failed", "cancelled"]);
+const TERMINAL = new Set([
+  "succeeded",
+  "failed",
+  "cancelled",
+  "timed_out",
+  "interrupted",
+]);
+const ACTIVE = new Set(["queued", "running"]);
 
 // Queueing an auto-gate task is an execution request, not just a write.
 // The caller must hold both the ordinary enqueue (write) permission and
@@ -90,7 +97,7 @@ export class AutopilotGateWorker {
         } catch {
           result = null;
         }
-        if (!result) {
+        if (!result || (!TERMINAL.has(result.state) && !ACTIVE.has(result.state))) {
           // A lost/corrupt archived job receipt cannot remain an in-memory
           // active gate forever. Fence the leased task for human review and
           // NEVER retry its command automatically; an earlier job may still
