@@ -7,7 +7,10 @@ import {
   parseRepairTask,
   verifyRepairCandidate,
 } from "./autopilot-repair-worker.js";
-import { parseCodingTask } from "./autopilot-coding-worker.js";
+import {
+  parseCodingTask,
+  codingRouteApproved,
+} from "./autopilot-coding-worker.js";
 
 const MAX_PREVIEW_CHARS = 24000;
 
@@ -23,8 +26,7 @@ export function reviewRepairCandidate({
   const repairRecipes = project?.autopilotRepairWorker?.recipes;
   const codingConfig = project?.autopilotCodingWorker;
   const codingRecipes =
-    codingConfig?.enabled === true &&
-    codingConfig?.localProcessingApproved === true
+    codingRouteApproved(codingConfig)
       ? codingConfig.recipes
       : null;
   if (!project?.writable || (!repairRecipes && !codingRecipes))
