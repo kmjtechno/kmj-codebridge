@@ -19,3 +19,15 @@ When `main_platform_ui_ci/check` or `build` fails with `vp: not found`, the UI a
 The explicit bootstrap uses the same existing SHA-derived `mainplatform_ci_<12-character HEAD>` private detached Git worktree; it **never** installs into the production/shared checkout. It checks the real committed app package and lockfile for exact `vite-plus@0.3.0`, rejects symlinks and changed worktrees, rechecks the HEAD and lock before executing the queued job, and runs fixed argv `npm --prefix apps/platform ci --ignore-scripts --no-audit --no-fund --prefer-offline`, bounded to 180 seconds. This may download ordinary npm packages when cache is empty; it neither buys services nor invokes npm lifecycle scripts. It is not an arbitrary installer, generic shell, extra concurrent worker, production deploy, or automatic fix for missing PHP `vendor/`.
 
 Installing dependencies is a deliberate requested action; callers should first confirm the package-lock remains trusted and the correct authorized project is selected. Its result is a job receipt, **not** proof that app checks passed. Run checks separately at the same exact checkout HEAD and report their actual results. `WorktreeLanes` allows at most four private lanes per project and never force-cleans dirty or changed lanes.
+
+## Large untracked directories and safe dirty status
+
+The private-lane status and read-only doctor check Git's normal untracked
+summary instead of enumerating every child file. Even a single untracked
+file or directory keeps the lane **dirty** and blocks cleanup; summarizing
+children prevents a large generated tree from exhausting the bounded Git
+output buffer. Only the fixed `.kmj-codebridge-build` command-output folder
+is excluded as before. The scan does not delete, prune, reset, or change
+owner files. Corrupt Git links or registrations still fail closed and require
+`worktree_lane_diagnose` on an updated authorized agent. A source-level fix
+is not evidence that a stale P520 agent has recovered.

@@ -121,11 +121,13 @@ export class WorktreeLanes {
         const target = directory(path.join(parent, name));
         verifyLane(root, target);
         const head = git(target, ["rev-parse", "--verify", "HEAD"]);
+        // A deep untracked directory still marks the lane dirty; avoid
+        // enumerating every generated file into a bounded child-process pipe.
         const dirty =
           git(target, [
             "status",
             "--porcelain",
-            "--untracked-files=all",
+            "--untracked-files=normal",
             "--",
             ".",
             `:(exclude)${BUILD_DIR}`,
@@ -242,11 +244,12 @@ export class WorktreeLanes {
         return { laneId: name, status: "LANE_HEAD_INVALID_REVIEW_REQUIRED" };
       let dirty;
       try {
+        // Keep diagnosis read-only and truthful even with large untracked trees.
         dirty =
           git(target, [
             "status",
             "--porcelain",
-            "--untracked-files=all",
+            "--untracked-files=normal",
             "--",
             ".",
             `:(exclude)${BUILD_DIR}`,
