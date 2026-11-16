@@ -68,7 +68,7 @@ function fixture(t, overrides = {}) {
       jobs.set(job.id, job);
       return { ...job };
     },
-    get: (id) => ({ ...jobs.get(id) }),
+    get: (id) => (jobs.has(id) ? { ...jobs.get(id) } : null),
   };
   const entitlement = () => ({
     features: ["execute"],
