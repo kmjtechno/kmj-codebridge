@@ -335,10 +335,7 @@ export class LocalFirstCodingWorker {
             } catch {
               job = null;
             }
-            if (
-              !job ||
-              (!TERMINAL.has(job.state) && !ACTIVE.has(job.state))
-            ) {
+            if (!job || (!TERMINAL.has(job.state) && !ACTIVE.has(job.state))) {
               this.active.delete(project.id);
               this.journal.wait(
                 existing.taskId,
