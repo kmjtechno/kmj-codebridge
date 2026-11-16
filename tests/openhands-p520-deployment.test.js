@@ -144,3 +144,15 @@ test("finds per-user and machine Docker Desktop without weakening context policy
   assert.match(source, /npipe:\/\/\/\/\.\/pipe\/dockerDesktopLinuxEngine/);
   assert.doesNotMatch(executableSource, /--context\s+https?:|--host\s+https?:/);
 });
+
+test("PowerShell 5.1 Docker endpoint inspection avoids nested quoted Go templates", () => {
+  assert.match(
+    source,
+    /context inspect desktop-linux --format '\{\{json \.Endpoints\}\}'/,
+  );
+  assert.doesNotMatch(source, /\{\{\(index \.Endpoints/);
+  assert.match(source, /ConvertFrom-Json -InputObject/);
+  assert.match(source, /\$endpoints\.PSObject\.Properties\['docker'\]/);
+  assert.match(source, /\$dockerEntry\.Value\.PSObject\.Properties\['Host'\]/);
+  assert.match(source, /OPENHANDS_REMOTE_DOCKER_CONTEXT_DENIED/);
+});
