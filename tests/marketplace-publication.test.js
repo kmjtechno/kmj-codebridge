@@ -208,16 +208,16 @@ test("competitive launch terms are comparison only, not active billing", () => {
 
 test("signable release artifact only uploads on main push with exact source commitment", () => {
   const workflow = fs.readFileSync(".github/workflows/ci.yml", "utf8");
-  assert.match(
-    workflow,
-    /- name: Upload release-candidate evidence\\n\\s+if: github\\.event_name == 'push' && github\\.ref == 'refs\\/heads\\/main'\\n\\s+uses: actions\\/upload-artifact@/,
-  );
-  assert.match(
-    workflow,
-    /- name: Verify exact main SHA before release-candidate publication[\\s\\S]*?EXPECTED_SHA: \\$\\{\\{ github\\.sha \\}\\}/,
-  );
-  assert.ok(workflow.includes('runtime.revision !== process.env.EXPECTED_SHA'));
-  assert.ok(workflow.includes('request.revision !== process.env.EXPECTED_SHA'));
-  assert.ok(workflow.includes('RELEASE_CANDIDATE_SOURCE_MISMATCH'));
-  assert.ok(workflow.includes('RELEASE_CANDIDATE_MAIN_SOURCE_PIN=PASS'));
+  const exactUpload = [
+    "      - name: Upload release-candidate evidence",
+    "        if: github.event_name == 'push' && github.ref == 'refs/heads/main'",
+    "        uses: actions/upload-artifact@v7.0.2",
+  ].join("\n");
+  assert.ok(workflow.includes(exactUpload));
+  assert.ok(workflow.includes("Verify exact main SHA before release-candidate publication"));
+  assert.ok(workflow.includes("EXPECTED_SHA: " + "$" + "{{ github.sha }}"));
+  assert.ok(workflow.includes("runtime.revision !== process.env.EXPECTED_SHA"));
+  assert.ok(workflow.includes("request.revision !== process.env.EXPECTED_SHA"));
+  assert.ok(workflow.includes("RELEASE_CANDIDATE_SOURCE_MISMATCH"));
+  assert.ok(workflow.includes("RELEASE_CANDIDATE_MAIN_SOURCE_PIN=PASS"));
 });
