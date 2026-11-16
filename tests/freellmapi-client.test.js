@@ -4,10 +4,23 @@ import http from "node:http";
 import { createFreeLlmApiClient } from "../src/freellmapi-client.js";
 
 const KEY = "freellma-test-key-0001";
+const verifiedProof = ({ chain, observedAtEpochMs }) => ({
+  source: "authenticated_provider_billing_and_route_binding",
+  chain,
+  routeBindingVerified: true,
+  accountNoChargeVerified: true,
+  noPaidFallback: true,
+  inputPriceUsdPerToken: 0,
+  outputPriceUsdPerToken: 0,
+  requestsRemaining: 2,
+  observedAtEpochMs,
+  expiresAtEpochMs: observedAtEpochMs + 30000,
+});
 
 function fake(handler) {
   return createFreeLlmApiClient({
     apiKey: KEY,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:default", "auto:code"],
     request: async (r) => handler(r),
   });
@@ -125,6 +138,7 @@ test("generateRouted routes by task and retries one next chain on quota", async 
   const calls = [];
   const c = createFreeLlmApiClient({
     apiKey: KEY,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:default", "auto:code"],
     request: async (r) => {
       if (r.path === "/v1/models")
@@ -153,6 +167,7 @@ test("generateRouted routes by task and retries one next chain on quota", async 
 test("generateRouted fails closed when every chain is exhausted or task invalid", async () => {
   const c = createFreeLlmApiClient({
     apiKey: KEY,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:default", "auto:code"],
     request: async (r) => {
       if (r.path === "/v1/models") return { data: [{ id: "auto:default" }] };
@@ -176,6 +191,7 @@ test("no fallback, no cloud consent and unapproved chains never send a prompt", 
   const sent = [];
   const client = createFreeLlmApiClient({
     apiKey: KEY,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:code"],
     request: async (r) => {
       if (r.path === "/v1/models")
@@ -237,6 +253,7 @@ test("429 fallback shares one bounded timeout across both chains", async () => {
   const c = createFreeLlmApiClient({
     apiKey: KEY,
     now: () => clock,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:code", "auto:default"],
     request: async (r) => {
       if (r.path === "/v1/models")
@@ -269,6 +286,7 @@ test("429 after exhausted deadline never sends prompt to another cloud chain", a
   const c = createFreeLlmApiClient({
     apiKey: KEY,
     now: () => clock,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:code", "auto:default"],
     request: async (r) => {
       if (r.path === "/v1/models")
@@ -297,6 +315,7 @@ test("catalog discovery consumes the same generation deadline", async () => {
   const c = createFreeLlmApiClient({
     apiKey: KEY,
     now: () => clock,
+    verifyZeroCostChain: verifiedProof,
     approvedFreeChains: ["auto:default"],
     request: async (r) => {
       if (r.path === "/v1/models") {
@@ -317,4 +336,70 @@ test("catalog discovery consumes the same generation deadline", async () => {
     { message: "FREELLMAPI_DEADLINE_EXCEEDED" },
   );
   assert.equal(promptsSent, 0);
+});
+
+test("without independent zero-charge route proof no prompt is sent", async () => {
+  const sent = [];
+  const client = createFreeLlmApiClient({
+    apiKey: KEY,
+    approvedFreeChains: ["auto:default"],
+    request: async (request) => {
+      if (request.path === "/v1/models") return { data: [{ id: "auto:default" }] };
+      sent.push(request.body);
+      return { choices: [{ message: { content: "not allowed" } }] };
+    },
+  });
+  await assert.rejects(
+    client.generate({
+      prompt: "PRIVATE_SOURCE_SENTINEL",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
+  );
+  await assert.rejects(
+    client.generateRouted({
+      prompt: "PRIVATE_SOURCE_SENTINEL",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
+  );
+  assert.deepEqual(sent, []);
+});
+
+test("stale, mismatched or paid route proofs cannot authorize code transmission", async () => {
+  const wrong = [
+    { chain: "auto:other" },
+    { accountNoChargeVerified: false },
+    { routeBindingVerified: false },
+    { noPaidFallback: false },
+    { inputPriceUsdPerToken: 0.01 },
+    { outputPriceUsdPerToken: 0.01 },
+    { requestsRemaining: 0 },
+    { source: "user_claim" },
+    { expiresAtEpochMs: 0 },
+    { observedAtEpochMs: 0 },
+  ];
+  for (const patch of wrong) {
+    let sent = false;
+    const client = createFreeLlmApiClient({
+      apiKey: KEY,
+      approvedFreeChains: ["auto:default"],
+      verifyZeroCostChain: (args) => ({ ...verifiedProof(args), ...patch }),
+      request: async () => {
+        sent = true;
+        throw new Error("unexpected network");
+      },
+    });
+    await assert.rejects(
+      client.generate({
+        prompt: "private-code",
+        localProcessingApproved: true,
+        upstreamCloudApproved: true,
+      }),
+      { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
+    );
+    assert.equal(sent, false);
+  }
 });
