@@ -68,7 +68,7 @@ function fixture(t, overrides = {}) {
       jobs.set(job.id, job);
       return { ...job };
     },
-    get: (id) => ({ ...jobs.get(id) }),
+    get: (id) => (jobs.has(id) ? { ...jobs.get(id) } : null),
   };
   const entitlement = () => ({
     features: ["execute"],
@@ -228,6 +228,85 @@ test("failed quality gate waits for review instead of looping", (t) => {
   assert.equal(f.journal.get(job.id, "repo").state, "waiting");
   f.worker.tick();
   assert.equal(f.count(), 1, "must not endlessly retry failed gates");
+});
+
+test("missing job receipt fences gate for review and releases stalled slot", (t) => {
+  const f = fixture(t);
+  const missing = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.count(), 1);
+  f.jobs.delete("job-1");
+
+  f.worker.tick();
+  assert.equal(f.journal.get(missing.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(missing.id, "repo").lastReason,
+    "APPROVED_GATE_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+  f.worker.tick();
+  assert.equal(f.count(), 1, "never replay the missing approved gate");
+
+  f.p.gates.smoke = {
+    command: "node",
+    args: ["--version"],
+    timeoutMs: 1000,
+  };
+  f.p.autopilotGateWorker.gates.push("smoke");
+  const independent = f.enqueue(`auto-gate:smoke:${f.head}`, 2);
+  f.worker.tick();
+  assert.equal(f.count(), 2, "a separately approved gate can make progress");
+  assert.equal(f.journal.get(independent.id, "repo").state, "running");
+});
+
+test("runner lookup exception cannot crash the event-driven gate loop", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  f.runner.get = () => {
+    throw new Error("JOB_STORE_UNAVAILABLE");
+  };
+  assert.doesNotThrow(() => f.worker.tick());
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "APPROVED_GATE_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
+  assert.equal(f.count(), 1);
+});
+
+for (const terminal of ["timed_out", "interrupted"]) {
+  test(`terminal ${terminal} gate jobs release their active slot without retry`, (t) => {
+    const f = fixture(t);
+    const task = f.enqueue();
+    f.worker.tick();
+    f.jobs.get("job-1").state = terminal;
+    f.jobs.get("job-1").exitCode = null;
+    f.worker.tick();
+    assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+    assert.equal(
+      f.journal.get(task.id, "repo").lastReason,
+      "ADMIN_APPROVED_GATE_FAILED_REVIEW_REQUIRED",
+    );
+    assert.equal(f.worker.active.size, 0);
+    f.worker.tick();
+    assert.equal(f.count(), 1, "terminal job must not be re-executed");
+  });
+}
+
+test("malformed runner status fails closed instead of pinning slot forever", (t) => {
+  const f = fixture(t);
+  const task = f.enqueue();
+  f.worker.tick();
+  f.runner.get = () => ({ state: "UNKNOWN_UNTRUSTED_STATE" });
+  f.worker.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "APPROVED_GATE_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+  );
+  assert.equal(f.worker.active.size, 0);
 });
 
 test("unconfigured gate and malformed task never start an executable", (t) => {
