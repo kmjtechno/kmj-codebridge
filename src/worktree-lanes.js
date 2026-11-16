@@ -179,7 +179,7 @@ export class WorktreeLanes {
     const registered = new Set();
     try {
       const inventory = git(repo, ["worktree", "list", "--porcelain"]);
-      for (const line of inventory.split(/\\r?\\n/)) {
+      for (const line of inventory.split(/\r?\n/)) {
         if (!line.startsWith("worktree ")) continue;
         const candidate = path.resolve(line.slice("worktree ".length));
         const relative = path.relative(parent, candidate);
