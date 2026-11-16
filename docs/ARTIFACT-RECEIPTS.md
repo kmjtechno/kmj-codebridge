@@ -1,10 +1,28 @@
 # Artifact SHA-256 receipts (source-only building block)
 
-Status: **source-only, not wired, not proven on any device.** `src/artifact-receipt.js`
-exists and is unit tested on Linux CI (and Windows CI where the platform allows it). No
-tool, job or gateway code imports it (a test enforces that), so no CodeBridge job produces
-a receipt today. This closes none of the M1 "artifact SHA-256 receipts" gap by itself; it is
-the reviewed piece that a later, owner-approved change can wire into a build profile.
+Status: **opt-in in `JobRunner` only; no tool or command profile passes it yet, and nothing
+is proven on any device.** `src/artifact-receipt.js` is unit tested on CI. The only importer
+is `src/jobs.js` (a test enforces that). Because no preset or MCP tool supplies the new
+`artifacts` option, no CodeBridge job produces a receipt today. Declaring output paths per
+profile (schema bump) and exposing them through tools is a later, owner-reviewed change.
+
+## Job runner integration
+
+`JobRunner.run({ ..., artifacts: { include: [...] } })` (default `null` = unchanged):
+
+- Validated at submit time (1-64 string entries, else `INVALID_ARTIFACT_SPEC`). The list is
+  part of the idempotency fingerprint only when present, so existing jobs and keys are
+  unaffected.
+- Hashing happens only after a job ends `succeeded`, rooted at the job's `cwd`. Failed,
+  cancelled and timed-out jobs get no receipt.
+- Success stores a small summary on the job (`version`, `include`, `totalFiles`,
+  `totalBytes`, `receiptSha256`). It is verifiable by rebuilding the receipt from the same
+  include list and comparing `receiptSha256`; the per-file list is not stored, which keeps
+  the journal record under its 131072-byte cap.
+- A receipt failure is stored as `artifactReceiptError` (an `ARTIFACT_*` code) and never
+  changes the job state or exit code.
+- The durable archive record is fixed-shape, so the receipt is not kept once a job is
+  archived. Persisting it there needs a separate archive-format change.
 
 ## What it does
 
