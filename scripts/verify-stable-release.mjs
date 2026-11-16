@@ -10,6 +10,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 export const ORIGIN = "https://kmjtechno.com/codebridge/releases/stable";
 export const KEY_ID = "kmj-release-2026";
@@ -149,7 +150,7 @@ export function verifyStableRelease({ repo, revision, archiveOut }) {
 const isMain =
   process.argv[1] &&
   path.resolve(process.argv[1]) ===
-    path.resolve(new URL(import.meta.url).pathname);
+    path.resolve(fileURLToPath(import.meta.url));
 if (isMain) {
   const [revision, flag, out] = process.argv.slice(2);
   try {
