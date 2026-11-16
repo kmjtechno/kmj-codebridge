@@ -21,8 +21,8 @@ import time
 UNIT = "kmj-codebridge-gateway-stage.service"
 UNIT_PATH = pathlib.Path("/etc/systemd/system/kmj-codebridge-gateway-stage.service")
 DIR = pathlib.Path("/etc/systemd/system/kmj-codebridge-gateway-stage.service.d")
-OLD_CONF = DIR / "zzzzzzzzzzz-kmj-signed29.conf"
-NEW_CONF = DIR / "zzzzzzzzzzzz-kmj-signed30.conf"
+OLD_CONF = DIR / "zzzzzzzzzzzz-kmj-signed29.conf"
+NEW_CONF = DIR / "zzzzzzzzzzzzz-kmj-signed30.conf"
 PREVIOUS_SHA = "e8c353dc839a01a8418e01e7b9209d46bcedc779"
 OLD_DIR = pathlib.Path("/opt/kmj-codebridge-stable/releases/0.3.2-e8c353dc839a")
 NEW_DIR = pathlib.Path("/opt/kmj-codebridge-stable/releases/0.3.2-597037b07cac")

@@ -44,13 +44,13 @@ test("seq30 gateway script is structurally identical to the seq29 script that we
 });
 
 test("seq30 rollback side is the live signed29 override, new side is signed30", () => {
-  assert.match(seq30, /OLD_CONF = DIR \/ "zzzzzzzzzzz-kmj-signed29\.conf"/);
+  assert.match(seq30, /OLD_CONF = DIR \/ "zzzzzzzzzzzz-kmj-signed29\.conf"/);
   assert.match(
     seq30,
     /PREVIOUS_SHA = "e8c353dc839a01a8418e01e7b9209d46bcedc779"/,
   );
   assert.match(seq30, /0\.3\.2-e8c353dc839a"\)\nNEW_DIR/);
-  assert.match(seq30, /NEW_CONF = DIR \/ "zzzzzzzzzzzz-kmj-signed30\.conf"/);
+  assert.match(seq30, /NEW_CONF = DIR \/ "zzzzzzzzzzzzz-kmj-signed30\.conf"/);
   assert.match(seq30, /NEW_SHA = "597037b07cac08729290d549c023111d1ab7e7c0"/);
   assert.match(seq30, /0\.3\.2-e8c353dc839a"\)/);
   assert.match(seq30, /SIGNED29_OVERRIDE_DRIFT/);
@@ -96,10 +96,15 @@ test("seq30 override sorts after every live drop-in and is dry-run by default", 
     "zzzzz-kmj-source-commit.conf",
     "zzzzzzzzz-kmj-signed25.conf",
     "zzzzzzzzzz-kmj-signed27.conf",
-    "zzzzzzzzzzz-kmj-signed29.conf",
+    "zzzzzzzzzzz-kmj-signed28.conf",
+    "zzzzzzzzzzzz-kmj-signed29.conf",
   ];
-  const next = "zzzzzzzzzzzz-kmj-signed30.conf";
+  const next = "zzzzzzzzzzzzz-kmj-signed30.conf";
   assert.deepEqual([...live, next].sort().at(-1), next);
+  // The rollback override must be named exactly like the file live on KMJ-elite.
+  const old = seq30.match(/OLD_CONF = DIR \/ "([^"]+)"/)[1];
+  assert.ok(live.includes(old), old);
+  assert.equal(next, seq30.match(/NEW_CONF = DIR \/ "([^"]+)"/)[1]);
   assert.match(seq30, /SIGNED30_GATEWAY=DRY_RUN_UNCHANGED/);
   assert.match(seq30, /--confirm-no-active-jobs/);
 });
