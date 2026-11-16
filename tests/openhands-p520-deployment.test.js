@@ -74,3 +74,62 @@ test("PowerShell 5.1 syntax parse on Windows without executing launcher", () => 
   );
   assert.equal(child.status, 0, child.stderr || child.stdout);
 });
+
+test("PowerShell 5.1 mode validation handles two switches with StrictMode", () => {
+  if (process.platform !== "win32") return;
+  const path = fileURLToPath(
+    new URL(
+      "../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1",
+      import.meta.url,
+    ),
+  );
+  const child = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      path,
+      "-Start",
+      "-Status",
+    ],
+    { encoding: "utf8", timeout: 20000 },
+  );
+  const output = child.stdout + child.stderr;
+  assert.notEqual(child.status, 0);
+  assert.match(output, /OPENHANDS_ONE_MODE_ONLY/);
+  assert.doesNotMatch(output, /PropertyNotFoundStrict|property 'Count'/i);
+});
+
+test("PowerShell 5.1 singleton -Start reaches host guard, never Docker in CI", () => {
+  if (
+    process.platform !== "win32" ||
+    process.env.COMPUTERNAME === "DESKTOP-5FVJMET"
+  )
+    return;
+  const path = fileURLToPath(
+    new URL(
+      "../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1",
+      import.meta.url,
+    ),
+  );
+  const child = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-NonInteractive",
+      "-ExecutionPolicy",
+      "Bypass",
+      "-File",
+      path,
+      "-Start",
+    ],
+    { encoding: "utf8", timeout: 20000 },
+  );
+  const output = child.stdout + child.stderr;
+  assert.notEqual(child.status, 0);
+  assert.match(output, /OPENHANDS_WRONG_HOST_P520_ONLY/);
+  assert.doesNotMatch(output, /PropertyNotFoundStrict|property 'Count'/i);
+});
