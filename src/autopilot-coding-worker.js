@@ -256,7 +256,10 @@ export function codingRouteApproved(config) {
       typeof config.model === "string" &&
       /^auto:[A-Za-z0-9_-]{1,20}$/.test(config.model)
     );
-  if (config.inferenceRoute !== undefined && config.inferenceRoute !== "local-only")
+  if (
+    config.inferenceRoute !== undefined &&
+    config.inferenceRoute !== "local-only"
+  )
     return false;
   return (
     config.localProcessingApproved === true &&
@@ -297,8 +300,7 @@ export class LocalFirstCodingWorker {
   }) {
     this.projects = projects.filter(
       (project) =>
-        project.writable &&
-        codingRouteApproved(project.autopilotCodingWorker),
+        project.writable && codingRouteApproved(project.autopilotCodingWorker),
     );
     this.canStart = canStart;
     this.journal = journal;
