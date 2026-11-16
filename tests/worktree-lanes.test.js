@@ -337,7 +337,12 @@ test("read-only worktree doctor hides invalid private lane names and refuses cle
   const x = fixture(t);
   const lanes = new WorktreeLanes(x.state);
   lanes.prepare("project1", x.repo, "safe", x.head);
-  const invalid = path.join(x.state, "isolated-worktrees", "project1", "bad+name");
+  const invalid = path.join(
+    x.state,
+    "isolated-worktrees",
+    "project1",
+    "bad+name",
+  );
   fs.mkdirSync(invalid);
   const result = lanes.diagnose("project1", x.repo);
   assert.equal(result.status, "REVIEW_REQUIRED");
@@ -363,5 +368,8 @@ test("read-only worktree doctor does not mask over-limit private lane state", (t
   assert.equal(result.status, "LANE_LIMIT_EXCEEDED_REVIEW_REQUIRED");
   assert.deepEqual(result.lanes, []);
   assert.equal(result.mayPrepare, false);
-  assert.throws(() => lanes.status("project1", x.repo), /WORKTREE_LIMIT_EXCEEDED/);
+  assert.throws(
+    () => lanes.status("project1", x.repo),
+    /WORKTREE_LIMIT_EXCEEDED/,
+  );
 });
