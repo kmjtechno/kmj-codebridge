@@ -122,7 +122,9 @@ must all be independently observed before any release decision.
     failed, CTest exit 8. The same test failure and exit 8 recur on 2026-11-13.
     Several earlier configure attempts failed (exit 1) before the lane was set up.
   - Not proven: a fully green CineCore CTest run, any GUI/HIL step (needs user
-    consent), the CineCore failure's root cause, artifact SHA-256 receipts, and
+    consent), the CineCore failure's root cause, artifact SHA-256 receipts (a
+    source-only, unwired building block exists: see
+    [ARTIFACT-RECEIPTS.md](ARTIFACT-RECEIPTS.md)), and
     whether these jobs ran under the exact commands in section 4 on every date.
     M1 is therefore **partly evidenced, not complete**.
 - Verified in `src/jobs.js` (2026-11-15): captured job output is bounded at 32768
