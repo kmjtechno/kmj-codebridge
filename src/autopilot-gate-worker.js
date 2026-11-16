@@ -97,7 +97,10 @@ export class AutopilotGateWorker {
         } catch {
           result = null;
         }
-        if (!result || (!TERMINAL.has(result.state) && !ACTIVE.has(result.state))) {
+        if (
+          !result ||
+          (!TERMINAL.has(result.state) && !ACTIVE.has(result.state))
+        ) {
           // A lost/corrupt archived job receipt cannot remain an in-memory
           // active gate forever. Fence the leased task for human review and
           // NEVER retry its command automatically; an earlier job may still
