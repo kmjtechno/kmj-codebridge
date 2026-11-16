@@ -164,3 +164,74 @@ export function assertResolvedAddressesPublic(addresses) {
     fail("BROWSER_GRANT_ADDRESS_REJECTED");
   return true;
 }
+
+// Bounded, in-memory registry of active grants for one device process. A grant
+// that was never registered, was revoked, or has expired is denied, so a
+// forged or replayed grant object cannot pass. Nothing is persisted: a restart
+// drops every grant (fail closed), and the owner must issue a new one.
+export const BROWSER_GRANT_MAX_ACTIVE = 16;
+
+export class BrowserGrantRegistry {
+  #active = new Map();
+  #now;
+
+  constructor({ now = Date.now } = {}) {
+    if (typeof now !== "function") fail("BROWSER_GRANT_CLOCK_INVALID");
+    this.#now = now;
+  }
+
+  #prune() {
+    const at = this.#now();
+    for (const [id, grant] of this.#active)
+      if (at >= grant.expiresAt) this.#active.delete(id);
+  }
+
+  register(grant) {
+    this.#prune();
+    if (
+      !grant ||
+      typeof grant.id !== "string" ||
+      !Object.isFrozen(grant) ||
+      this.#active.has(grant.id)
+    )
+      fail("BROWSER_GRANT_REGISTER_REJECTED");
+    if (this.#active.size >= BROWSER_GRANT_MAX_ACTIVE)
+      fail("BROWSER_GRANT_CAPACITY_REACHED");
+    this.#active.set(grant.id, grant);
+    return grant.id;
+  }
+
+  revoke(id) {
+    return this.#active.delete(id);
+  }
+
+  revokeAll({ tenant, device, project } = {}) {
+    let revoked = 0;
+    for (const [id, grant] of this.#active)
+      if (
+        (tenant === undefined || grant.tenant === tenant) &&
+        (device === undefined || grant.device === device) &&
+        (project === undefined || grant.project === project)
+      ) {
+        this.#active.delete(id);
+        revoked++;
+      }
+    return revoked;
+  }
+
+  get size() {
+    this.#prune();
+    return this.#active.size;
+  }
+
+  // Authorize by grant id against the registered copy, never a caller object.
+  authorize(grantId, request, { consentedActionId = null } = {}) {
+    this.#prune();
+    const grant = this.#active.get(grantId);
+    if (!grant) fail("BROWSER_GRANT_UNKNOWN");
+    return authorizeBrowserAction(grant, request, {
+      now: this.#now,
+      consentedActionId,
+    });
+  }
+}
