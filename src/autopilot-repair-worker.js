@@ -13,6 +13,7 @@ const TERMINAL = new Set([
   "timed_out",
   "interrupted",
 ]);
+const ACTIVE = new Set(["queued", "running"]);
 const MAX_PATCH_BYTES = 96 * 1024;
 
 export function parseRepairTask(key, recipes) {
@@ -131,9 +132,30 @@ export class IsolatedRepairWorker {
     for (const project of this.projects) {
       const existing = this.active.get(project.id);
       if (existing) {
-        const job = this.runner.get(existing.jobId, project.id);
-        if (!job) continue;
-        if (!TERMINAL.has(job.state)) {
+        let job;
+        try {
+          job = this.runner.get(existing.jobId, project.id);
+        } catch {
+          job = null;
+        }
+        if (!job || (!TERMINAL.has(job.state) && !ACTIVE.has(job.state))) {
+          // An unknown outcome after a formatter/verification may have
+          // changed an isolated lane. Never replay or infer a valid patch.
+          // Fence the original lease before releasing the stale active slot.
+          try {
+            this.journal.wait(
+              existing.taskId,
+              project.id,
+              "ISOLATED_REPAIR_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+              existing.leaseToken,
+            );
+          } catch {
+            // Another claimant may own the lease; do not overwrite it.
+          }
+          this.active.delete(project.id);
+          continue;
+        }
+        if (ACTIVE.has(job.state)) {
           // Gate execution has a hard 300-second command cap, well under the
           // journal's standard 30-minute lease; refresh only near expiry.
           const task = this.journal.get(existing.taskId, project.id);
