@@ -27,11 +27,27 @@ export function createVerifiedFreeCloudCodingModel({
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
-      const models = Array.isArray(status?.approvedFreeChains)
+      const candidates = Array.isArray(status?.approvedFreeChains)
         ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
         : [];
+      // Proxy discovery alone is NOT a no-cost proof. Without trusted
+      // account+route verification do not even claim work or read source.
+      const models = [];
+      if (status?.available === true) {
+        for (const chain of candidates) {
+          try {
+            const proof = await getClient().checkZeroCostChain({ chain });
+            if (!approved())
+              return { available: false, activeRequest: false, models: [] };
+            if (proof?.admitted === true && proof.chain === chain)
+              models.push(chain);
+          } catch {
+            // No verifier or expired/free-quota evidence => fail closed.
+          }
+        }
+      }
       return {
-        available: status?.available === true && models.length > 0,
+        available: models.length > 0,
         activeRequest: false,
         models,
       };
