@@ -111,7 +111,10 @@ export function createFreeLlmApiClient({
       const observedAt = now();
       let proof;
       try {
-        proof = await verifyZeroCostChain({ chain, observedAtEpochMs: observedAt });
+        proof = await verifyZeroCostChain({
+          chain,
+          observedAtEpochMs: observedAt,
+        });
       } catch {
         fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
       }
