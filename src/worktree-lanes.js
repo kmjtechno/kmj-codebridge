@@ -191,13 +191,19 @@ export class WorktreeLanes {
       try {
         verifyLane(repo, target);
       } catch {
-        return { laneId: name, status: "LANE_GIT_LINK_INVALID_REVIEW_REQUIRED" };
+        return {
+          laneId: name,
+          status: "LANE_GIT_LINK_INVALID_REVIEW_REQUIRED",
+        };
       }
       let head;
       try {
         head = git(target, ["rev-parse", "--verify", "HEAD"]);
       } catch {
-        return { laneId: name, status: "LANE_HEAD_UNAVAILABLE_REVIEW_REQUIRED" };
+        return {
+          laneId: name,
+          status: "LANE_HEAD_UNAVAILABLE_REVIEW_REQUIRED",
+        };
       }
       if (!SHA.test(head))
         return { laneId: name, status: "LANE_HEAD_INVALID_REVIEW_REQUIRED" };
@@ -213,7 +219,11 @@ export class WorktreeLanes {
             `:(exclude)${BUILD_DIR}`,
           ]) !== "";
       } catch {
-        return { laneId: name, status: "LANE_STATUS_UNAVAILABLE_REVIEW_REQUIRED", head };
+        return {
+          laneId: name,
+          status: "LANE_STATUS_UNAVAILABLE_REVIEW_REQUIRED",
+          head,
+        };
       }
       return { laneId: name, status: "INSPECTED", head, dirty };
     });
