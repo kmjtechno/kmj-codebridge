@@ -247,7 +247,11 @@ test("missing job receipt fences gate for review and releases stalled slot", (t)
   f.worker.tick();
   assert.equal(f.count(), 1, "never replay the missing approved gate");
 
-  f.p.gates.smoke = { command: "node", args: ["--version"], timeoutMs: 1000 };
+  f.p.gates.smoke = {
+    command: "node",
+    args: ["--version"],
+    timeoutMs: 1000,
+  };
   f.p.autopilotGateWorker.gates.push("smoke");
   const independent = f.enqueue(`auto-gate:smoke:${f.head}`, 2);
   f.worker.tick();
