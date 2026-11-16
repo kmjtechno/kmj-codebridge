@@ -10,7 +10,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-if ((@($Start, $Status, $Stop) | Where-Object { $_ }).Count -gt 1) {
+if (([int][bool]$Start + [int][bool]$Status + [int][bool]$Stop) -gt 1) {
   throw 'OPENHANDS_ONE_MODE_ONLY'
 }
 if ($ReuseWorkspace -and -not $Start) {
