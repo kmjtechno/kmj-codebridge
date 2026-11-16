@@ -206,7 +206,10 @@ export class WorktreeLanes {
       if (!LANE.test(name))
         return { laneId: null, status: "INVALID_LANE_NAME_REVIEW_REQUIRED" };
       if (!present.has(name))
-        return { laneId: name, status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED" };
+        return {
+          laneId: name,
+          status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED",
+        };
       if (!registered.has(name))
         return { laneId: name, status: "LANE_NOT_REGISTERED_REVIEW_REQUIRED" };
       let target;
