@@ -751,12 +751,12 @@ export class JobRunner {
           await new Promise((done) => setTimeout(done, 600));
         clearTimeout(active.killTimer);
         j.exitCode = code;
-        j.state =
+        const finalState =
           active.reason ?? (!error && code === 0 ? "succeeded" : "failed");
-        j.endedAt = new Date().toISOString();
-        if (artifacts !== null && j.state === "succeeded") {
-          // Bounded, deny-by-default hashing; a failure is recorded as a code
-          // and never changes the job state or exit code.
+        if (artifacts !== null && finalState === "succeeded") {
+          // Bounded, deny-by-default hashing. Done BEFORE the terminal state is
+          // published so a poller never sees "succeeded" without its receipt.
+          // A failure is recorded as a code and never changes state or exit code.
           try {
             const r = await buildArtifactReceipt({
               root: path.resolve(cwd),
@@ -776,6 +776,8 @@ export class JobRunner {
                 : "ARTIFACT_RECEIPT_FAILED";
           }
         }
+        j.state = finalState;
+        j.endedAt = new Date().toISOString();
         this.persist(j);
         this.active.delete(j.id);
         this.drain();
