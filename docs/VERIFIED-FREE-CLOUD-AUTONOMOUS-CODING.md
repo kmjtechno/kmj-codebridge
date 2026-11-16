@@ -38,7 +38,7 @@ advertised `auto:<chain>` FreeLLMAPI routes and has no local or paid fallback.
 `createFreeLlmApiClient` defaults to `verifyZeroCostChain=null`.
 Consequently **generation is rejected before the HTTP POST**, even if a
 project enables cloud mode and the loopback proxy responds. An owner-approved
-chain name, advertised model or zero-cost *claim* is insufficient. Before
+chain name, advertised model or zero-cost _claim_ is insufficient. Before
 enabling, install a separate trusted, short-lived, account-specific verifier
 for actual upstream zero-price input/output, available free quota and
 immutable no-paid-fallback route binding. This verifier must live in
@@ -55,7 +55,7 @@ final provider invoice is independently known.
 
 The existing coding worker enforces task recipe + exact pinned Git HEAD,
 tracked regular source-only context, safe paths, explicit license, lease,
-a *fresh* isolated lane, diff validation, non-destructive isolated patch
+a _fresh_ isolated lane, diff validation, non-destructive isolated patch
 application and reviewed verification gate. A cloud response is untrusted;
 completed CI leaves a review candidate, **not a commit, merge or deploy**.
 Cloud consent is revalidated after model status and generation, and its
