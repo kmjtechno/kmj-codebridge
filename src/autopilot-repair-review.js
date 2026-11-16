@@ -146,7 +146,11 @@ export function reviewRepairCandidate({
     task: task.id,
     project: project.id,
     recipe: spec.recipe,
-    candidateType: repairSpec ? "deterministic-repair" : "local-first-code",
+    candidateType: repairSpec
+      ? "deterministic-repair"
+      : task.checkpoint?.modelUsage?.provider === "freellmapi-loopback"
+        ? "verified-free-cloud-code"
+        : "local-first-code",
     laneId: evidence.laneId,
     expectedHead: spec.expectedHead,
     files: patch.files,
