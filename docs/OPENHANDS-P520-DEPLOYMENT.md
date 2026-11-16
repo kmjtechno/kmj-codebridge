@@ -52,6 +52,22 @@ The launcher now checks Docker Desktop's standard per-user and system-wide CLI p
 
 The original P520 source checkout has unrelated untracked owner files. Do not use `git clean` or `git reset`; only the exact approved pilot script is updated through CodeBridge.
 
+## Docker Desktop installed, but Linux engine cannot start
+
+If `-Start` reports `OPENHANDS_LINUX_DOCKER_ENGINE_REQUIRED` and Docker CLI says `Docker Desktop is unable to start`, the Docker CLI is installed, but the **local Linux daemon is not ready**. This is not an OpenHands-specific error.
+
+Run the committed **read-only** doctor on P520, with no admin elevation:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows\P520-OPENHANDS-ENGINE-DOCTOR.ps1
+```
+
+The doctor prints categorized Win32 CPU virtualization/SLAT, Windows build, VirtualMachinePlatform and WSL feature state, hypervisor boot status, WSL command status, Docker Desktop service presence, and daemon availability. It does **not** install WSL, enable Windows features, start/stop VMs or services, update software, unregister distributions, reset Docker images/volumes, or reboot.
+
+If virtualization is disabled, review BIOS/UEFI settings with the owner. If Virtual Machine Platform or WSL features are disabled, Windows administrator approval and a reboot may be required to enable them. If the Windows boot hypervisor is off, owner-authorized admin action and reboot may be required. On a Windows VM, check nested virtualization; do not assume its presence.
+
+See [Docker's official startup troubleshooter](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics) and [Microsoft WSL troubleshooting](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting). Don't run `wsl --unregister`, `docker system prune`, factory reset, or overwrite existing Linux distributions to fix this.
+
 ## Authentication / free-only setup
 
 1. Open `http://127.0.0.1:8000/canvas` locally after startup. Upstream may require its session API key. Read it **locally** via:
