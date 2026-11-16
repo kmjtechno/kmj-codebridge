@@ -49,6 +49,7 @@ test("cloud coding uses only device-approved discovered chains and reports truth
         chains: ["auto:code", "auto:paid"],
         approvedFreeChains: ["auto:code"],
       }),
+      checkZeroCostChain: async ({ chain }) => ({ admitted: true, chain }),
       generate: async (args) => {
         sent.push(args);
         return receipt(args.chain);
@@ -170,7 +171,7 @@ test("no trusted zero-cost attestor means no upstream cloud POST, even with expl
         },
       }),
   });
-  assert.deepEqual((await model.status()).models, ["auto:code"]);
+  assert.deepEqual((await model.status()).models, []);
   await assert.rejects(
     model.generate({
       model: "auto:code",
