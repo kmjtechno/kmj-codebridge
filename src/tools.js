@@ -1715,11 +1715,24 @@ export const definitions = {
             p95LatencyMs: z.number().min(0).max(120000).optional(),
             freeTierVerified: z.boolean().optional(),
             costPerMillionTokensUsd: z.number().min(0).optional(),
+            // Owner-declared free-tier ceilings; the planner counts observed
+            // requests against them and demotes a model near its limit.
+            limits: z
+              .object({
+                perMinute: z.number().int().min(1).max(1_000_000).optional(),
+                perDay: z.number().int().min(1).max(1_000_000).optional(),
+              })
+              .strict()
+              .optional(),
           }),
         )
         .min(1)
         .max(64),
       task: z.object({
+        currentModelId: z
+          .string()
+          .regex(/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,95}$/)
+          .optional(),
         capability: z
           .string()
           .regex(/^[a-z][a-z0-9-]{0,31}$/)
@@ -1746,6 +1759,14 @@ export const definitions = {
             resetRequestsAt: z.number().int().min(0).nullable().optional(),
             resetTokensAt: z.number().int().min(0).nullable().optional(),
             cooldownUntil: z.number().int().min(0).optional(),
+            limitRequests: z.number().int().min(0).nullable().optional(),
+            dayKey: z
+              .string()
+              .regex(/^\d{4}-\d{2}-\d{2}$/)
+              .nullable()
+              .optional(),
+            dayCount: z.number().int().min(0).max(1_000_000).optional(),
+            hits: z.array(z.number().int().min(0)).max(1000).optional(),
           }),
         )
         .default({}),
