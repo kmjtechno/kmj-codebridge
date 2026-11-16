@@ -133,3 +133,14 @@ test("PowerShell 5.1 singleton -Start reaches host guard, never Docker in CI", (
   assert.match(output, /OPENHANDS_WRONG_HOST_P520_ONLY/);
   assert.doesNotMatch(output, /PropertyNotFoundStrict|property 'Count'/i);
 });
+
+test("finds per-user and machine Docker Desktop without weakening context policy", () => {
+  assert.match(source, /Programs\\DockerDesktop\\resources\\bin\\docker\.exe/);
+  assert.match(source, /Docker\\Docker\\resources\\bin\\docker\.exe/);
+  assert.match(source, /OPENHANDS_DOCKER_SETUP=winget install/);
+  assert.match(source, /OPENHANDS_DOCKER_HOST_OVERRIDE_DENIED/);
+  assert.match(source, /OPENHANDS_DOCKER_CONTEXT_OVERRIDE_DENIED/);
+  assert.match(source, /OPENHANDS_REMOTE_DOCKER_CONTEXT_DENIED/);
+  assert.match(source, /npipe:\/\/\/\/\.\/pipe\/dockerDesktopLinuxEngine/);
+  assert.doesNotMatch(executableSource, /--context\s+https?:|--host\s+https?:/);
+});
