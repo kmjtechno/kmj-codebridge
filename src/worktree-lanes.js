@@ -141,6 +141,132 @@ export class WorktreeLanes {
       noAdditionalExecutionSlots: true,
     };
   }
+  // Read-only recovery inventory for a broken individual lane. Unlike the
+  // mutating prepare/cleanup admission path, this deliberately does NOT use
+  // folder() (which creates directories) or entries() (which aborts on the
+  // first broken worktree). Every error is categorical and path-free. A
+  // diagnostic is NEVER authorization to force-prune or delete a lane.
+  diagnose(project, root) {
+    if (!PROJECT.test(project)) fail("WORKTREE_PROJECT_INVALID");
+    const result = (status, lanes = []) => ({
+      status,
+      lanes,
+      limit: MAX_LANES,
+      mayPrepare: false,
+      cleanupPerformed: false,
+      productionMutation: false,
+    });
+    let repo;
+    try {
+      repo = source(root);
+    } catch {
+      return result("SOURCE_UNAVAILABLE_REVIEW_REQUIRED");
+    }
+    const parent = path.join(this.base, project);
+    let names = [];
+    try {
+      if (exists(this.base) && exists(parent)) {
+        directory(this.base);
+        directory(parent);
+        names = fs.readdirSync(parent);
+      }
+    } catch {
+      return result("PRIVATE_LANE_ROOT_UNSAFE_REVIEW_REQUIRED");
+    }
+    // A failed git worktree remove can leave a stale registration while the
+    // directory is already gone. Read Git's own registry, never prune it.
+    // Compare only direct children under the private project lane root.
+    // Git for Windows and Windows Node may represent the same worktree using
+    // different drive spelling, slash direction or letter case. Match the
+    // exact private base/project suffix, then require ONE safe lane component.
+    // Ambiguity only blocks recovery; it never grants filesystem access.
+    const fold = (value) =>
+      process.platform === "win32" ? value.toLowerCase() : value;
+    const marker = `/${path.basename(this.base)}/${project}/`;
+    const present = new Map(names.map((name) => [fold(name), name]));
+    const registered = new Map();
+    try {
+      const inventory = git(repo, ["worktree", "list", "--porcelain"]);
+      for (const line of inventory.split(/\r?\n/)) {
+        if (!line.startsWith("worktree ")) continue;
+        const printed = line.slice("worktree ".length).replaceAll("\\", "/");
+        const at = fold(printed).lastIndexOf(fold(marker));
+        if (at < 0) continue;
+        const relative = printed.slice(at + marker.length);
+        if (!LANE.test(relative))
+          return result("REGISTERED_LANE_NAME_UNSAFE_REVIEW_REQUIRED");
+        registered.set(fold(relative), relative);
+      }
+    } catch {
+      return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
+    }
+    const keys = [...new Set([...present.keys(), ...registered.keys()])].sort();
+    if (keys.length > MAX_LANES)
+      return result("LANE_LIMIT_EXCEEDED_REVIEW_REQUIRED");
+    if (keys.length === 0) return result("NO_PRIVATE_LANES");
+    const lanes = keys.map((key) => {
+      const name = present.get(key) ?? registered.get(key);
+      if (!LANE.test(name))
+        return { laneId: null, status: "INVALID_LANE_NAME_REVIEW_REQUIRED" };
+      if (!present.has(key))
+        return {
+          laneId: name,
+          status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED",
+        };
+      if (!registered.has(key))
+        return { laneId: name, status: "LANE_NOT_REGISTERED_REVIEW_REQUIRED" };
+      let target;
+      try {
+        target = directory(path.join(parent, name));
+      } catch {
+        return { laneId: name, status: "LANE_PATH_UNSAFE_REVIEW_REQUIRED" };
+      }
+      try {
+        verifyLane(repo, target);
+      } catch {
+        return {
+          laneId: name,
+          status: "LANE_GIT_LINK_INVALID_REVIEW_REQUIRED",
+        };
+      }
+      let head;
+      try {
+        head = git(target, ["rev-parse", "--verify", "HEAD"]);
+      } catch {
+        return {
+          laneId: name,
+          status: "LANE_HEAD_UNAVAILABLE_REVIEW_REQUIRED",
+        };
+      }
+      if (!SHA.test(head))
+        return { laneId: name, status: "LANE_HEAD_INVALID_REVIEW_REQUIRED" };
+      let dirty;
+      try {
+        dirty =
+          git(target, [
+            "status",
+            "--porcelain",
+            "--untracked-files=all",
+            "--",
+            ".",
+            `:(exclude)${BUILD_DIR}`,
+          ]) !== "";
+      } catch {
+        return {
+          laneId: name,
+          status: "LANE_STATUS_UNAVAILABLE_REVIEW_REQUIRED",
+          head,
+        };
+      }
+      return { laneId: name, status: "INSPECTED", head, dirty };
+    });
+    return result(
+      lanes.some((entry) => entry.status !== "INSPECTED")
+        ? "REVIEW_REQUIRED"
+        : "READ_ONLY_INVENTORY",
+      lanes,
+    );
+  }
   // Single-call fixed CI commands may use the current checkout HEAD without
   // exposing a shell, a caller-controlled ref, or a path. The immutable SHA is
   // captured and rechecked by prepare(); the shared worktree is never checked out.

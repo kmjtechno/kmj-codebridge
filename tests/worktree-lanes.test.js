@@ -287,3 +287,114 @@ test("generated cmake build directory does not make a lane dirty and is removed 
   );
   assert.equal(fs.existsSync(lane.path), false);
 });
+
+test("read-only worktree doctor reports empty state without creating a lane folder", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  const privateRoot = path.join(x.state, "isolated-worktrees");
+  assert.equal(fs.existsSync(privateRoot), false);
+  const result = lanes.diagnose("project1", x.repo);
+  assert.equal(result.status, "NO_PRIVATE_LANES");
+  assert.deepEqual(result.lanes, []);
+  assert.equal(result.cleanupPerformed, false);
+  assert.equal(result.mayPrepare, false);
+  assert.equal(fs.existsSync(privateRoot), false);
+  assert.equal(definitions.worktree_lane_diagnose.access, "read");
+});
+
+test("read-only worktree doctor isolates a broken git link without hiding other dirty lanes", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  const good = lanes.prepare("project1", x.repo, "dirtyOwner", x.head);
+  const broken = lanes.prepare("project1", x.repo, "receipt", x.head);
+  const ownerFile = path.join(good.path, "owner-untracked.txt");
+  fs.writeFileSync(ownerFile, "KEEP OWNER WORK\n");
+  const marker = path.join(broken.path, ".git");
+  const disabled = path.join(broken.path, ".git.disabled");
+  // Corruption is deliberately confined to a disposable test worktree.
+  fs.renameSync(marker, disabled);
+  assert.throws(() => lanes.status("project1", x.repo), /WORKTREE_GIT_FAILED/);
+  const result = lanes.diagnose("project1", x.repo);
+  assert.equal(result.status, "REVIEW_REQUIRED");
+  assert.deepEqual(
+    result.lanes.map(({ laneId, status }) => [laneId, status]),
+    [
+      ["dirtyOwner", "INSPECTED"],
+      ["receipt", "LANE_GIT_LINK_INVALID_REVIEW_REQUIRED"],
+    ],
+  );
+  assert.equal(result.lanes[0].dirty, true);
+  assert.equal(result.lanes[0].head, x.head);
+  assert.equal(fs.readFileSync(ownerFile, "utf8"), "KEEP OWNER WORK\n");
+  assert.equal(fs.existsSync(disabled), true);
+  assert.equal(result.cleanupPerformed, false);
+  assert.equal(result.mayPrepare, false);
+  assert.equal(JSON.stringify(result).includes(x.repo), false);
+  assert.equal(JSON.stringify(result).includes(x.state), false);
+});
+
+test("read-only worktree doctor hides invalid private lane names and refuses cleanup", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  lanes.prepare("project1", x.repo, "safe", x.head);
+  const invalid = path.join(
+    x.state,
+    "isolated-worktrees",
+    "project1",
+    "bad+name",
+  );
+  fs.mkdirSync(invalid);
+  const result = lanes.diagnose("project1", x.repo);
+  assert.equal(result.status, "REVIEW_REQUIRED");
+  assert.equal(result.lanes.length, 2);
+  assert.equal(result.lanes[0].laneId, null);
+  assert.equal(result.lanes[0].status, "INVALID_LANE_NAME_REVIEW_REQUIRED");
+  assert.equal(result.lanes[1].laneId, "safe");
+  assert.equal(result.lanes[1].status, "INSPECTED");
+  assert.equal(JSON.stringify(result).includes("bad+name"), false);
+  assert.equal(result.mayPrepare, false);
+  assert.throws(() => lanes.status("project1", x.repo), /WORKTREE_PATH_UNSAFE/);
+  assert.equal(fs.existsSync(invalid), true);
+});
+
+test("read-only worktree doctor does not mask over-limit private lane state", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  lanes.prepare("project1", x.repo, "one", x.head);
+  const home = path.join(x.state, "isolated-worktrees", "project1");
+  for (const name of ["two", "three", "four", "five"])
+    fs.mkdirSync(path.join(home, name));
+  const result = lanes.diagnose("project1", x.repo);
+  assert.equal(result.status, "LANE_LIMIT_EXCEEDED_REVIEW_REQUIRED");
+  assert.deepEqual(result.lanes, []);
+  assert.equal(result.mayPrepare, false);
+  assert.throws(
+    () => lanes.status("project1", x.repo),
+    /WORKTREE_LIMIT_EXCEEDED/,
+  );
+});
+
+test("read-only worktree doctor detects registered lane whose private directory vanished", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  const missing = lanes.prepare("project1", x.repo, "vanished", x.head);
+  const relocated = path.join(x.state, "relocated-owned-worktree");
+  // Only disposable fixture data is moved. The Git registry deliberately
+  // continues referencing the old path after an interrupted removal.
+  fs.renameSync(missing.path, relocated);
+  const observed = lanes.diagnose("project1", x.repo);
+  assert.equal(observed.status, "REVIEW_REQUIRED");
+  assert.deepEqual(observed.lanes, [
+    {
+      laneId: "vanished",
+      status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED",
+    },
+  ]);
+  assert.equal(observed.cleanupPerformed, false);
+  assert.equal(observed.mayPrepare, false);
+  assert.equal(fs.existsSync(relocated), true);
+  assert.equal(
+    fs.readFileSync(path.join(relocated, "README.md"), "utf8"),
+    "original\n",
+  );
+});

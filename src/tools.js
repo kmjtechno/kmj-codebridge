@@ -1139,6 +1139,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  worktree_lane_diagnose: {
+    title: "Diagnose broken private coding worktrees (read-only)",
+    description:
+      "Inspect each bounded private lane independently with categorical path-free errors. No directory creation, git prune, cleanup, force, writes, restarts or secrets; diagnosis never authorizes a mutation.",
+    input: scoped,
+    access: "read",
+  },
   worktree_lane_prepare: {
     title: "Prepare isolated coding worktree",
     description:
@@ -2504,6 +2511,12 @@ export function createDispatcher(
         device: config.id,
         project: p.id,
         ...worktreeLanes().status(p.id, p.files.root),
+      };
+    if (name === "worktree_lane_diagnose")
+      return {
+        device: config.id,
+        project: p.id,
+        ...worktreeLanes().diagnose(p.id, p.files.root),
       };
     if (name === "worktree_lane_prepare") {
       if (!p.writable) fail("READ_ONLY_PROJECT");
