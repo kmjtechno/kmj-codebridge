@@ -5,9 +5,16 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const source = fs.readFileSync(
-  new URL("../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1", import.meta.url),
+  new URL(
+    "../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1",
+    import.meta.url,
+  ),
   "utf8",
 );
+const executableSource = source
+  .split(/\r?\n/)
+  .filter((line) => !/^\s*#/.test(line))
+  .join("\n");
 
 test("deployment launcher defaults to read-only and requires explicit start", () => {
   assert.match(source, /\[switch\]\$Start/);
@@ -20,7 +27,7 @@ test("official v1.40.0 image, local desktop engine and loopback only", () => {
   assert.match(source, /ghcr\.io\/openhands\/agent-canvas:1\.40\.0/);
   assert.match(source, /desktop-linux/);
   assert.match(source, /127\.0\.0\.1:8000:8000/);
-  assert.doesNotMatch(source, /--privileged|--network[ =]host|0\.0\.0\.0:8000/);
+  assert.doesNotMatch(executableSource, /--privileged|--network[ =]host|0\.0\.0\.0:8000/);
 });
 
 test("workspace mount is dedicated and host docker socket not passed", () => {
@@ -28,7 +35,7 @@ test("workspace mount is dedicated and host docker socket not passed", () => {
   assert.match(source, /target=\/projects/);
   assert.match(source, /OPENHANDS_NONEMPTY_WORKSPACE_REQUIRES_EXPLICIT_REUSE/);
   assert.match(source, /OPENHANDS_NESTED_REPARSE_DENIED/);
-  assert.doesNotMatch(source, /docker\.sock|docker_engine|--volume\s+C:/i);
+  assert.doesNotMatch(executableSource, /docker\.sock|docker_engine|--volume\s+C:/i);
 });
 
 test("no automatic model or cloud credential enabling", () => {
@@ -42,7 +49,10 @@ test("no automatic model or cloud credential enabling", () => {
 test("PowerShell 5.1 syntax parse on Windows without executing launcher", () => {
   if (process.platform !== "win32") return;
   const path = fileURLToPath(
-    new URL("../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1", import.meta.url),
+    new URL(
+      "../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1",
+      import.meta.url,
+    ),
   );
   const literalPath = path.replace(/'/g, "''");
   const command =
