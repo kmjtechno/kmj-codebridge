@@ -16,6 +16,8 @@ import { reviewRepairCandidate } from "../src/autopilot-repair-review.js";
 import { agentSchema } from "../src/config.js";
 import { canQueueAutopilotGate } from "../src/autopilot-gate-worker.js";
 import { cloudCodingReceipt } from "../src/model-attribution.js";
+import { createVerifiedFreeCloudCodingModel } from "../src/cloud-coding-model.js";
+import { createFreeLlmApiClient } from "../src/freellmapi-client.js";
 
 const PATCH = [
   "diff --git a/src/app.js b/src/app.js",
@@ -1046,4 +1048,50 @@ test("missing and revoked cloud coding grants fail closed before claiming tasks"
   assert.equal(f.journal.get(task.id, "repo").state, "queued");
   assert.equal(f.starts.length, 0);
   assert.equal(allowed.projects.length, 1);
+});
+
+test("cloud worker cannot claim tasks or read source without verified zero-cost billing", async (t) => {
+  let proxyDiscovery = 0;
+  let outboundPrompts = 0;
+  const f = fixture(t, {
+    onStatus: () => {
+      throw new Error("LOCAL_MODEL_CONTACT_FORBIDDEN");
+    },
+  });
+  const config = f.project.autopilotCodingWorker;
+  config.inferenceRoute = "verified-free-cloud-only";
+  config.localProcessingApproved = false;
+  config.cloudProxyApproved = true;
+  config.cloudSourceTransferApproved = true;
+  config.model = "auto:code";
+  const cloudModel = createVerifiedFreeCloudCodingModel({
+    authorized: () => codingRouteApproved(config),
+    createClient: () =>
+      createFreeLlmApiClient({
+        apiKey: "test-verified-cloud-key",
+        approvedFreeChains: ["auto:code"],
+        request: async ({ method }) => {
+          if (method === "GET") {
+            proxyDiscovery++;
+            return { data: [{ id: "auto:code" }] };
+          }
+          outboundPrompts++;
+          throw new Error("FORBIDDEN_UNATTESTED_POST");
+        },
+      }),
+  });
+  const worker = f.makeWorker();
+  worker.cloudModel = () => cloudModel;
+  const task = f.enqueue();
+  await worker.tick();
+  assert.equal(proxyDiscovery, 1);
+  assert.equal(outboundPrompts, 0);
+  assert.equal(f.generated(), 0);
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.starts.length, 0);
+  assert.deepEqual(f.lanes.status(f.project.id, f.root).lanes, []);
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    "export const value = 1;\\n",
+  );
 });
