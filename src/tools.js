@@ -40,6 +40,7 @@ import {
 } from "./harness-learning.js";
 import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
+import { createFreeLlmApiClient } from "./freellmapi-client.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
@@ -1102,6 +1103,32 @@ export const definitions = {
       laneId: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9_-]{0,47}$/),
       expectedRemoteHead: z.string().regex(/^[a-f0-9]{40}$/),
       approveLocalGitCheckout: z.literal(true),
+    },
+    access: "execute",
+  },
+  freellmapi_status: {
+    title: "Check the local FreeLLMAPI router",
+    description:
+      "Probe only this device's loopback FreeLLMAPI router and list its owner-defined auto:<chain> names. Never reveals the key and never starts a service.",
+    input: scoped,
+    access: "read",
+  },
+  freellmapi_generate: {
+    title: "Generate through the local FreeLLMAPI router",
+    description:
+      "Opt-in bounded prompt to FreeLLMAPI on this device's loopback. Its upstream MAY be cloud or paid. Requires explicit remote-cloud consent and owner-approved free-chain allowlist; actual cost/provider remains unverified. Output is untrusted.",
+    input: {
+      ...scoped,
+      prompt: z.string().min(1).max(4096),
+      task: z.enum(["code", "fast", "reasoning", "general"]).default("general"),
+      chain: z
+        .string()
+        .regex(/^auto:[A-Za-z0-9_-]{1,20}$/)
+        .optional(),
+      maxTokens: z.number().int().min(16).max(512).default(192),
+      timeoutSeconds: z.number().int().min(5).max(90).default(45),
+      localProcessingApproved: z.literal(true),
+      upstreamCloudApproved: z.literal(true),
     },
     access: "execute",
   },
@@ -2255,6 +2282,7 @@ export function createDispatcher(
   localModelFactory = createLocalModelClient,
   workerRuntimeSource = null,
   toolGuardHost = null,
+  freeLlmApiFactory = createFreeLlmApiClient,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
@@ -2262,6 +2290,8 @@ export function createDispatcher(
       { ...p, files: new ProjectFiles(p.root) },
     ]),
   );
+  let freeLlmApi;
+  const freeRouter = () => (freeLlmApi ??= freeLlmApiFactory());
   let localModel;
   const offlineModel = () => (localModel ??= localModelFactory());
   // In-memory per-device/project observation only, never a ChatGPT/Claude
@@ -2526,6 +2556,26 @@ export function createDispatcher(
         device: config.id,
         project: p.id,
         ...(await offlineModel().status()),
+      };
+    if (name === "freellmapi_status")
+      return {
+        device: config.id,
+        project: p.id,
+        ...(await freeRouter().status()),
+      };
+    if (name === "freellmapi_generate")
+      return {
+        device: config.id,
+        project: p.id,
+        ...(await freeRouter().generateRouted({
+          prompt: a.prompt,
+          task: a.task,
+          chain: a.chain,
+          maxTokens: a.maxTokens,
+          timeoutSeconds: a.timeoutSeconds,
+          localProcessingApproved: a.localProcessingApproved,
+          upstreamCloudApproved: a.upstreamCloudApproved,
+        })),
       };
     if (name === "local_model_generate") {
       const response = await offlineModel().generate({
