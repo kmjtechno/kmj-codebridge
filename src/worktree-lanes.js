@@ -163,25 +163,52 @@ export class WorktreeLanes {
       return result("SOURCE_UNAVAILABLE_REVIEW_REQUIRED");
     }
     const parent = path.join(this.base, project);
+    let names = [];
     try {
-      if (!exists(this.base) || !exists(parent))
-        return result("NO_PRIVATE_LANES");
-      directory(this.base);
-      directory(parent);
+      if (exists(this.base) && exists(parent)) {
+        directory(this.base);
+        directory(parent);
+        names = fs.readdirSync(parent);
+      }
     } catch {
       return result("PRIVATE_LANE_ROOT_UNSAFE_REVIEW_REQUIRED");
     }
-    let names;
+    // A failed git worktree remove can leave a stale registration while the
+    // directory is already gone. Read Git's own registry, never prune it.
+    // Compare only direct children under the private project lane root.
+    const registered = new Set();
     try {
-      names = fs.readdirSync(parent);
+      const inventory = git(repo, ["worktree", "list", "--porcelain"]);
+      for (const line of inventory.split(/\\r?\\n/)) {
+        if (!line.startsWith("worktree ")) continue;
+        const candidate = path.resolve(line.slice("worktree ".length));
+        const relative = path.relative(parent, candidate);
+        if (
+          !relative ||
+          relative === ".." ||
+          relative.startsWith(".." + path.sep) ||
+          path.isAbsolute(relative)
+        )
+          continue;
+        if (!LANE.test(relative))
+          return result("REGISTERED_LANE_NAME_UNSAFE_REVIEW_REQUIRED");
+        registered.add(relative);
+      }
     } catch {
-      return result("PRIVATE_LANE_ROOT_UNREADABLE_REVIEW_REQUIRED");
+      return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
     }
-    if (names.length > MAX_LANES)
+    const observed = [...new Set([...names, ...registered])].sort();
+    if (observed.length > MAX_LANES)
       return result("LANE_LIMIT_EXCEEDED_REVIEW_REQUIRED");
-    const lanes = names.sort().map((name) => {
+    if (observed.length === 0) return result("NO_PRIVATE_LANES");
+    const present = new Set(names);
+    const lanes = observed.map((name) => {
       if (!LANE.test(name))
         return { laneId: null, status: "INVALID_LANE_NAME_REVIEW_REQUIRED" };
+      if (!present.has(name))
+        return { laneId: name, status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED" };
+      if (!registered.has(name))
+        return { laneId: name, status: "LANE_NOT_REGISTERED_REVIEW_REQUIRED" };
       let target;
       try {
         target = directory(path.join(parent, name));
