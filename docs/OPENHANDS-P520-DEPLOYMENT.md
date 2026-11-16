@@ -33,6 +33,25 @@ If the container is stopped and the dedicated workspace is nonempty, restarting 
 
 **Important:** `-ExecutionPolicy Bypass` applies only to that process; inspect the script and verify its exact GitHub commit before running. Do not launch unknown downloaded scripts. This is not a request to bypass CodeBridge's host approval.
 
+## Docker Desktop missing on P520
+
+If `-Start` reports `OPENHANDS_DOCKER_DESKTOP_MISSING`, it means Docker CLI is not in PATH or the expected local installation directories. This is a dependency failure, **not evidence that Agent Canvas started**.
+
+The launcher now checks Docker Desktop's standard per-user and system-wide CLI paths before returning this error, and rejects a Docker context that points to a remote endpoint.
+
+1. Check Docker Desktop usage terms: free for personal use, education, non-commercial OSS or eligible small businesses (fewer than 250 employees **and** under US$10 million annual revenue). A larger commercial organization needs a paid Docker subscription; **do not install under the zero-cost mandate if not eligible**. Official policy: https://docs.docker.com/desktop/setup/install/windows-install/
+2. In the normal P520 PowerShell session, run the official package manager interactively (no silent license acceptance):
+
+   ```powershell
+   winget install --id Docker.DockerDesktop --exact --source winget
+   ```
+
+3. Launch Docker Desktop from Start Menu, accept the license only if eligible, select Linux containers / WSL 2, and complete any requested Windows feature setup/restart. Do not install an additional Docker Engine/VM automatically.
+4. Verify `docker context show` reports `desktop-linux` and `docker info --format '{{.OSType}}'` reports `linux`. If the context is not selected, switch only after confirming it refers to the **local** Docker Desktop Linux engine; never use a remote `DOCKER_HOST`.
+5. Re-run `-Start`. If Docker Desktop was already installed but not in PATH, the launcher can now find its local `docker.exe` directly.
+
+The original P520 source checkout has unrelated untracked owner files. Do not use `git clean` or `git reset`; only the exact approved pilot script is updated through CodeBridge.
+
 ## Authentication / free-only setup
 
 1. Open `http://127.0.0.1:8000/canvas` locally after startup. Upstream may require its session API key. Read it **locally** via:
