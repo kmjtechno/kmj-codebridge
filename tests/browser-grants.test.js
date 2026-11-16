@@ -292,3 +292,90 @@ test("grants are immutable", () => {
     grant.scopes.push("type");
   }, TypeError);
 });
+
+import {
+  BrowserGrantRegistry,
+  BROWSER_GRANT_MAX_ACTIVE,
+} from "../src/browser-grants.js";
+
+const mk = (id, over = {}) =>
+  createBrowserGrant(
+    {
+      ...subject,
+      origin: "https://app.example.com",
+      scopes: ["read"],
+      ttlMs: 60_000,
+      ...over,
+    },
+    { now: () => T0, idFactory: () => id },
+  );
+
+test("registry authorizes only registered grants and revocation is immediate", () => {
+  let clock = T0;
+  const reg = new BrowserGrantRegistry({ now: () => clock });
+  const grant = mk("g1");
+  assert.throws(() => reg.authorize("g1", act()), /GRANT_UNKNOWN/);
+  reg.register(grant);
+  clock = T0 + 1;
+  assert.equal(reg.authorize("g1", act()), true);
+  assert.equal(reg.revoke("g1"), true);
+  assert.throws(() => reg.authorize("g1", act()), /GRANT_UNKNOWN/);
+  assert.equal(reg.revoke("g1"), false);
+});
+
+test("registry rejects forged, unfrozen and duplicate grants and never trusts a caller copy", () => {
+  const reg = new BrowserGrantRegistry({ now: () => T0 + 1 });
+  assert.throws(() => reg.register({ ...mk("x") }), /REGISTER_REJECTED/);
+  assert.throws(() => reg.register(null), /REGISTER_REJECTED/);
+  reg.register(mk("g1"));
+  assert.throws(() => reg.register(mk("g1")), /REGISTER_REJECTED/);
+  // A caller-built grant with a longer ttl or wider origin has no effect: only the registered copy counts.
+  assert.throws(() => reg.authorize("forged", act()), /GRANT_UNKNOWN/);
+  assert.throws(
+    () => reg.authorize("g1", act({ url: "https://evil.example.com/" })),
+    /ORIGIN_MISMATCH/,
+  );
+});
+
+test("registry drops expired grants and is bounded", () => {
+  let clock = T0;
+  const reg = new BrowserGrantRegistry({ now: () => clock });
+  for (let i = 0; i < BROWSER_GRANT_MAX_ACTIVE; i++) reg.register(mk(`g${i}`));
+  assert.throws(() => reg.register(mk("overflow")), /CAPACITY_REACHED/);
+  assert.equal(reg.size, BROWSER_GRANT_MAX_ACTIVE);
+  clock = T0 + 60_000;
+  assert.equal(reg.size, 0, "expired grants are pruned");
+  assert.throws(() => reg.authorize("g0", act()), /GRANT_UNKNOWN/);
+  assert.equal(reg.register(mk("fresh", {})), "fresh");
+});
+
+test("revokeAll is scoped by tenant, device and project", () => {
+  const reg = new BrowserGrantRegistry({ now: () => T0 + 1 });
+  reg.register(mk("a"));
+  reg.register(mk("b", { tenant: "t2" }));
+  reg.register(mk("c", { project: "proj2" }));
+  assert.equal(reg.revokeAll({ tenant: "t1", project: "proj1" }), 1);
+  assert.equal(reg.size, 2);
+  assert.throws(() => reg.authorize("a", act()), /GRANT_UNKNOWN/);
+  assert.equal(
+    reg.revokeAll({}),
+    2,
+    "an empty scope revokes everything, by design for panic revoke",
+  );
+  assert.equal(reg.size, 0);
+});
+
+test("registry keeps tenants separate: a grant for tenant 1 cannot authorize tenant 2", () => {
+  const reg = new BrowserGrantRegistry({ now: () => T0 + 1 });
+  reg.register(mk("a"));
+  reg.register(mk("b", { tenant: "t2" }));
+  assert.throws(
+    () => reg.authorize("a", act({ tenant: "t2" })),
+    /SUBJECT_MISMATCH/,
+  );
+  assert.equal(reg.authorize("b", act({ tenant: "t2" })), true);
+});
+
+test("registry requires a valid clock function", () => {
+  assert.throws(() => new BrowserGrantRegistry({ now: 5 }), /CLOCK_INVALID/);
+});

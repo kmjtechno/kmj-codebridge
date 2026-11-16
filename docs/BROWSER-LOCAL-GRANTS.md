@@ -1,4 +1,4 @@
-# Browser local grants (issue #575, slice 1) — SOURCE ONLY
+# Browser local grants (issue #575, slices 1-2) — SOURCE ONLY
 
 Status: **source-only data validator.** `src/browser-grants.js` is not imported by
 any MCP tool, gateway route or agent. It launches no browser, opens no socket and
@@ -26,9 +26,19 @@ possible.
   public IPv4 (private, loopback, link-local/metadata, CGNAT, IPv6 and mixed
   answers rejected). It reuses `isPublicReleaseAddress`.
 
+## Slice 2: bounded in-memory registry
+
+`BrowserGrantRegistry` authorizes by grant **id** against the copy it registered,
+never a caller-supplied object, so a forged or replayed grant is `GRANT_UNKNOWN`.
+Only frozen grants made by `createBrowserGrant` register; duplicates are refused;
+at most 16 are active; expired grants are pruned on every call; `revoke` and
+scoped `revokeAll` (tenant/device/project, empty scope = revoke everything) take
+effect on the next call. Nothing is persisted: a process restart drops all grants,
+which fails closed. Tests cover six mutations of these checks.
+
 ## Not done (still pending for #575)
 
-Grant issuance from the Main Platform, device-side storage and revocation, the
+Grant issuance from the Main Platform, any durable or cross-process revocation, the
 Playwright launcher on ephemeral profiles, enforcing the origin and address checks
 inside a real browser (a Playwright `--allowed-origins` flag is not a security
 boundary), receipts, a real Windows/Linux/macOS smoke test, and any benchmark.
