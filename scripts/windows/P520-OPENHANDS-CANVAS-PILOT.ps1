@@ -68,10 +68,22 @@ if (-not $dockerExe) {
   throw 'OPENHANDS_DOCKER_DESKTOP_MISSING'
 }
 
+if (-not [string]::IsNullOrWhiteSpace($env:DOCKER_HOST)) {
+  throw 'OPENHANDS_DOCKER_HOST_OVERRIDE_DENIED'
+}
+if (-not [string]::IsNullOrWhiteSpace($env:DOCKER_CONTEXT) -and
+    $env:DOCKER_CONTEXT -ne 'desktop-linux') {
+  throw 'OPENHANDS_DOCKER_CONTEXT_OVERRIDE_DENIED'
+}
 $context = & $dockerExe context show
 if ($LASTEXITCODE -ne 0 -or @($context).Count -ne 1 -or
     ([string]$context).Trim() -ne 'desktop-linux') {
   throw 'OPENHANDS_LOCAL_DOCKER_DESKTOP_CONTEXT_REQUIRED'
+}
+$endpoint = & $dockerExe context inspect desktop-linux --format '{{(index .Endpoints "docker").Host}}'
+if ($LASTEXITCODE -ne 0 -or
+    ([string]$endpoint).Trim() -ne 'npipe:////./pipe/dockerDesktopLinuxEngine') {
+  throw 'OPENHANDS_REMOTE_DOCKER_CONTEXT_DENIED'
 }
 $osType = & $dockerExe info --format '{{.OSType}}'
 if ($LASTEXITCODE -ne 0 -or ([string]$osType).Trim() -ne 'linux') {
