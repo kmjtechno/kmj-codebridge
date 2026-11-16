@@ -344,7 +344,8 @@ test("without independent zero-charge route proof no prompt is sent", async () =
     apiKey: KEY,
     approvedFreeChains: ["auto:default"],
     request: async (request) => {
-      if (request.path === "/v1/models") return { data: [{ id: "auto:default" }] };
+      if (request.path === "/v1/models")
+        return { data: [{ id: "auto:default" }] };
       sent.push(request.body);
       return { choices: [{ message: { content: "not allowed" } }] };
     },
