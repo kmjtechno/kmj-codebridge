@@ -173,7 +173,7 @@ test("large untracked trees stay dirty but cannot block approved gate preflight"
       dir,
       String(i).padStart(4, "0") + "-" + "x".repeat(75) + ".txt",
     );
-    fs.writeFileSync(file, "preserve owner data\\n");
+    fs.writeFileSync(file, "preserve owner data\n");
   }
 
   // The former --all scan exceeded the strict 64 KiB Git output limit.
@@ -193,7 +193,7 @@ test("large untracked trees stay dirty but cannot block approved gate preflight"
     f.journal.get(task.id, "repo").lastReason,
     "GIT_HEAD_CHANGED_OR_WORKTREE_DIRTY",
   );
-  assert.equal(fs.readFileSync(keep, "utf8"), "preserve owner data\\n");
+  assert.equal(fs.readFileSync(keep, "utf8"), "preserve owner data\n");
 });
 
 test("different head can never use stale gate task", (t) => {
