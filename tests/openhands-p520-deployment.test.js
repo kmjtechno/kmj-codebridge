@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const source = fs.readFileSync(
@@ -40,18 +41,19 @@ test("no automatic model or cloud credential enabling", () => {
 
 test("PowerShell 5.1 syntax parse on Windows without executing launcher", () => {
   if (process.platform !== "win32") return;
-  const path = new URL(
-    "../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1",
-    import.meta.url,
-  ).pathname;
+  const path = fileURLToPath(
+    new URL("../scripts/windows/P520-OPENHANDS-CANVAS-PILOT.ps1", import.meta.url),
+  );
+  const literalPath = path.replace(/'/g, "''");
   const command =
     "$tokens=$null; $errors=$null; " +
-    "[void][System.Management.Automation.Language.Parser]::ParseFile(" +
-    "$args[0],[ref]$tokens,[ref]$errors); if ($errors.Count) { " +
+    "[void][System.Management.Automation.Language.Parser]::ParseFile('" +
+    literalPath +
+    "',[ref]$tokens,[ref]$errors); if ($errors.Count) { " +
     "$errors | Out-String | Write-Error; exit 1 }";
   const child = spawnSync(
     "powershell.exe",
-    ["-NoProfile", "-NonInteractive", "-Command", command, "--", path],
+    ["-NoProfile", "-NonInteractive", "-Command", command],
     { encoding: "utf8", timeout: 20000 },
   );
   assert.equal(child.status, 0, child.stderr || child.stdout);

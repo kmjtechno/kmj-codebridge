@@ -70,8 +70,11 @@ if ($Status -or $Stop) {
     Write-Output 'OPENHANDS_PILOT_CONTAINER=ABSENT'
     return
   }
-  $actualLabel = & docker.exe inspect --format '{{index .Config.Labels "com.kmjtechno.integration"}}' $container
-  if ($LASTEXITCODE -ne 0 -or ([string]$actualLabel).Trim() -ne 'openhands-pilot') {
+  $rawLabels = & docker.exe inspect --format '{{json .Config.Labels}}' $container
+  if ($LASTEXITCODE -ne 0) { throw 'OPENHANDS_INSPECT_FAILED' }
+  $parsedLabels = ConvertFrom-Json -InputObject ([string]$rawLabels)
+  $ownerLabel = $parsedLabels.PSObject.Properties['com.kmjtechno.integration']
+  if ($null -eq $ownerLabel -or $ownerLabel.Value -ne 'openhands-pilot') {
     throw 'OPENHANDS_UNOWNED_CONTAINER_DENIED'
   }
   if ($Stop) {
