@@ -13,6 +13,7 @@ const TERMINAL = new Set([
   "timed_out",
   "interrupted",
 ]);
+const ACTIVE = new Set(["queued", "running"]);
 const MAX_PATCH_BYTES = 96 * 1024;
 const MAX_CONTEXT_FILES = 12;
 const MAX_CONTEXT_FILE_BYTES = 8 * 1024;
@@ -334,7 +335,7 @@ export class LocalFirstCodingWorker {
             } catch {
               job = null;
             }
-            if (!job) {
+            if (!job || (!TERMINAL.has(job.state) && !ACTIVE.has(job.state))) {
               this.active.delete(project.id);
               this.journal.wait(
                 existing.taskId,
@@ -344,7 +345,7 @@ export class LocalFirstCodingWorker {
               );
               continue;
             }
-            if (!TERMINAL.has(job.state)) {
+            if (ACTIVE.has(job.state)) {
               const task = this.journal.get(existing.taskId, project.id);
               if (
                 task.lease &&
