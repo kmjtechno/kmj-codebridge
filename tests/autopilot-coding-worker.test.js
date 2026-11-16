@@ -7,6 +7,7 @@ import { test } from "node:test";
 import { AutopilotJournal } from "../src/autopilot.js";
 import {
   LocalFirstCodingWorker,
+  codingRouteApproved,
   parseCodingTask,
   validateCodingPatch,
 } from "../src/autopilot-coding-worker.js";
@@ -14,6 +15,9 @@ import { WorktreeLanes } from "../src/worktree-lanes.js";
 import { reviewRepairCandidate } from "../src/autopilot-repair-review.js";
 import { agentSchema } from "../src/config.js";
 import { canQueueAutopilotGate } from "../src/autopilot-gate-worker.js";
+import { cloudCodingReceipt } from "../src/model-attribution.js";
+import { createVerifiedFreeCloudCodingModel } from "../src/cloud-coding-model.js";
+import { createFreeLlmApiClient } from "../src/freellmapi-client.js";
 
 const PATCH = [
   "diff --git a/src/app.js b/src/app.js",
@@ -151,6 +155,7 @@ function fixture(t, overrides = {}) {
       runner,
       licenseProvider,
       localModel: () => model,
+      cloudModel: overrides.cloudModel,
     });
   const enqueue = (key = "auto-code:feature:" + head) =>
     journal.enqueue({
@@ -910,4 +915,183 @@ test("config requires explicit consent and keeps context files within the edit a
   const missingRecipes = structuredClone(base);
   delete missingRecipes.projects[0].autopilotCodingWorker.recipes;
   assert.equal(agentSchema.safeParse(missingRecipes).success, false);
+
+  const cloud = structuredClone(base);
+  const config = cloud.projects[0].autopilotCodingWorker;
+  config.inferenceRoute = "verified-free-cloud-only";
+  config.localProcessingApproved = false;
+  config.cloudProxyApproved = true;
+  config.cloudSourceTransferApproved = true;
+  config.model = "auto:code";
+  assert.equal(agentSchema.safeParse(cloud).success, true);
+  for (const mutate of [
+    (c) => (c.localProcessingApproved = true),
+    (c) => (c.cloudProxyApproved = false),
+    (c) => (c.cloudSourceTransferApproved = false),
+    (c) => (c.model = "qwen3:4b"),
+    (c) => (c.model = "auto:paid/elsewhere"),
+  ]) {
+    const bad = structuredClone(cloud);
+    mutate(bad.projects[0].autopilotCodingWorker);
+    assert.equal(agentSchema.safeParse(bad).success, false);
+  }
+  const mixed = structuredClone(base);
+  mixed.projects[0].autopilotCodingWorker.cloudSourceTransferApproved = true;
+  assert.equal(agentSchema.safeParse(mixed).success, false);
+});
+
+test("cloud-only coding never contacts a local LLM and labels the reviewed patch accurately", async (t) => {
+  let cloudStatus = 0;
+  let cloudGeneration = 0;
+  const f = fixture(t, {
+    onStatus: () => {
+      throw new Error("LOCAL_LLM_CONTACT_FORBIDDEN");
+    },
+    cloudModel: () => ({
+      status: async () => {
+        cloudStatus++;
+        return { available: true, activeRequest: false, models: ["auto:code"] };
+      },
+      generate: async () => {
+        cloudGeneration++;
+        return {
+          response: PATCH,
+          truncated: false,
+          hitTokenLimit: false,
+          modelUsage: cloudCodingReceipt("auto:code"),
+        };
+      },
+    }),
+  });
+  const config = f.project.autopilotCodingWorker;
+  config.inferenceRoute = "verified-free-cloud-only";
+  config.localProcessingApproved = false;
+  config.cloudProxyApproved = true;
+  config.cloudSourceTransferApproved = true;
+  config.model = "auto:code";
+  const worker = f.makeWorker();
+  assert.equal(codingRouteApproved(config), true);
+  const task = f.enqueue();
+  await worker.tick();
+  assert.equal(cloudStatus, 1);
+  assert.equal(cloudGeneration, 1);
+  assert.equal(f.generated(), 0);
+  assert.equal(f.starts.length, 1);
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.modelUsage.provider,
+    "freellmapi-loopback",
+  );
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.modelUsage.paidInference,
+    null,
+  );
+  f.jobs.get("job-1").state = "succeeded";
+  f.jobs.get("job-1").exitCode = 0;
+  await worker.tick();
+  const review = reviewRepairCandidate({
+    project: f.project,
+    journal: f.journal,
+    lanes: f.lanes,
+    taskId: task.id,
+    includePatch: false,
+  });
+  assert.equal(review.candidateType, "verified-free-cloud-code");
+  assert.equal(review.publishStatus, "NOT_PUBLISHED");
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    "export const value = 1;\n",
+  );
+});
+
+test("missing and revoked cloud coding grants fail closed before claiming tasks", async (t) => {
+  const f = fixture(t, {
+    onStatus: () => {
+      throw new Error("LOCAL_MODEL_MUST_NOT_RUN");
+    },
+    cloudModel: () => ({
+      status: async () => ({
+        available: true,
+        activeRequest: false,
+        models: ["auto:code"],
+      }),
+      generate: async () => {
+        throw new Error("CLOUD_PROMPT_MUST_NOT_BE_SENT");
+      },
+    }),
+  });
+  const config = f.project.autopilotCodingWorker;
+  config.inferenceRoute = "verified-free-cloud-only";
+  config.localProcessingApproved = false;
+  config.cloudProxyApproved = true;
+  config.cloudSourceTransferApproved = false;
+  config.model = "auto:code";
+  assert.equal(codingRouteApproved(config), false);
+  const disabled = f.makeWorker();
+  assert.deepEqual(disabled.projects, []);
+  const task = f.enqueue();
+  await disabled.tick();
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  config.cloudSourceTransferApproved = true;
+  const allowed = f.makeWorker();
+  const original = config.cloudSourceTransferApproved;
+  const hostile = f.project.autopilotCodingWorker;
+  const model = f.makeWorker();
+  // Mutation while waiting on provider status must not claim task.
+  model.cloudModel = () => ({
+    status: async () => {
+      hostile.cloudSourceTransferApproved = false;
+      return { available: true, activeRequest: false, models: ["auto:code"] };
+    },
+  });
+  await model.tick();
+  assert.equal(original, true);
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.starts.length, 0);
+  assert.equal(allowed.projects.length, 1);
+});
+
+test("cloud worker cannot claim tasks or read source without verified zero-cost billing", async (t) => {
+  let proxyDiscovery = 0;
+  let outboundPrompts = 0;
+  const f = fixture(t, {
+    onStatus: () => {
+      throw new Error("LOCAL_MODEL_CONTACT_FORBIDDEN");
+    },
+  });
+  const config = f.project.autopilotCodingWorker;
+  config.inferenceRoute = "verified-free-cloud-only";
+  config.localProcessingApproved = false;
+  config.cloudProxyApproved = true;
+  config.cloudSourceTransferApproved = true;
+  config.model = "auto:code";
+  const cloudModel = createVerifiedFreeCloudCodingModel({
+    authorized: () => codingRouteApproved(config),
+    createClient: () =>
+      createFreeLlmApiClient({
+        apiKey: "test-verified-cloud-key",
+        approvedFreeChains: ["auto:code"],
+        request: async ({ method }) => {
+          if (method === "GET") {
+            proxyDiscovery++;
+            return { data: [{ id: "auto:code" }] };
+          }
+          outboundPrompts++;
+          throw new Error("FORBIDDEN_UNATTESTED_POST");
+        },
+      }),
+  });
+  const worker = f.makeWorker();
+  worker.cloudModel = () => cloudModel;
+  const task = f.enqueue();
+  await worker.tick();
+  assert.equal(proxyDiscovery, 1);
+  assert.equal(outboundPrompts, 0);
+  assert.equal(f.generated(), 0);
+  assert.equal(f.journal.get(task.id, "repo").state, "queued");
+  assert.equal(f.starts.length, 0);
+  assert.deepEqual(f.lanes.status(f.project.id, f.root).lanes, []);
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    "export const value = 1;\n",
+  );
 });

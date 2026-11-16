@@ -7,6 +7,7 @@ import { JobRunner } from "../src/jobs.js";
 import { createDispatcher } from "../src/tools.js";
 import {
   localModelReceipt,
+  cloudCodingReceipt,
   normalizeModelReceipt,
   unknownModelReceipt,
 } from "../src/model-attribution.js";
@@ -164,4 +165,30 @@ test("connection doctor shows only observed project-scoped CodeBridge usage", as
     ["read"],
   );
   assert.equal(other.modelUsageStatus.lastVerifiedInvocation, null);
+});
+
+test("cloud coding receipt is truthful, scoped and never claims actual upstream billing", () => {
+  const trusted = cloudCodingReceipt("auto:code");
+  assert.equal(trusted.provider, "freellmapi-loopback");
+  assert.equal(trusted.routing, "verified-free-cloud-only");
+  assert.equal(trusted.paidInference, null);
+  assert.equal(trusted.cloudFallback, null);
+  assert.deepEqual(normalizeModelReceipt(trusted), trusted);
+  for (const bad of [
+    { ...trusted, paidInference: false },
+    { ...trusted, routing: "local-only" },
+    { ...trusted, model: "vendor:paid" },
+    { ...trusted, provider: "openrouter" },
+    { ...trusted, apiKey: "private" },
+    { ...trusted, execution: "billing_verified" },
+  ]) {
+    assert.throws(
+      () => normalizeModelReceipt(bad),
+      /INVALID_MODEL_ATTRIBUTION/,
+    );
+  }
+  assert.throws(
+    () => cloudCodingReceipt("local:qwen"),
+    /INVALID_MODEL_ATTRIBUTION/,
+  );
 });

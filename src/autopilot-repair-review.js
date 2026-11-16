@@ -7,7 +7,10 @@ import {
   parseRepairTask,
   verifyRepairCandidate,
 } from "./autopilot-repair-worker.js";
-import { parseCodingTask } from "./autopilot-coding-worker.js";
+import {
+  parseCodingTask,
+  codingRouteApproved,
+} from "./autopilot-coding-worker.js";
 
 const MAX_PREVIEW_CHARS = 24000;
 
@@ -22,11 +25,9 @@ export function reviewRepairCandidate({
 }) {
   const repairRecipes = project?.autopilotRepairWorker?.recipes;
   const codingConfig = project?.autopilotCodingWorker;
-  const codingRecipes =
-    codingConfig?.enabled === true &&
-    codingConfig?.localProcessingApproved === true
-      ? codingConfig.recipes
-      : null;
+  const codingRecipes = codingRouteApproved(codingConfig)
+    ? codingConfig.recipes
+    : null;
   if (!project?.writable || (!repairRecipes && !codingRecipes))
     fail("AUTOPILOT_REPAIR_NOT_CONFIGURED");
   const task = journal.get(taskId, project.id);
@@ -146,7 +147,11 @@ export function reviewRepairCandidate({
     task: task.id,
     project: project.id,
     recipe: spec.recipe,
-    candidateType: repairSpec ? "deterministic-repair" : "local-first-code",
+    candidateType: repairSpec
+      ? "deterministic-repair"
+      : task.checkpoint?.modelUsage?.provider === "freellmapi-loopback"
+        ? "verified-free-cloud-code"
+        : "local-first-code",
     laneId: evidence.laneId,
     expectedHead: spec.expectedHead,
     files: patch.files,

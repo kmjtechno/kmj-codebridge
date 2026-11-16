@@ -15,7 +15,11 @@ import { startIsolatedRepairWorker } from "./autopilot-repair-worker.js";
 import { startGitHubCiWatchWorker } from "./autopilot-ci-watch-worker.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { startLocalAutopilotDraftWorker } from "./autopilot-local-worker.js";
-import { startLocalFirstCodingWorker } from "./autopilot-coding-worker.js";
+import {
+  startLocalFirstCodingWorker,
+  codingRouteApproved,
+} from "./autopilot-coding-worker.js";
+import { createVerifiedFreeCloudCodingModel } from "./cloud-coding-model.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
 import {
@@ -251,6 +255,16 @@ export async function startAgent(
     runner,
     licenseProvider,
     localModel,
+    cloudModel: (project) => {
+      const approvedConfig = project.autopilotCodingWorker;
+      return createVerifiedFreeCloudCodingModel({
+        authorized: () =>
+          project.writable === true &&
+          project.autopilotCodingWorker === approvedConfig &&
+          approvedConfig?.inferenceRoute === "verified-free-cloud-only" &&
+          codingRouteApproved(approvedConfig),
+      });
+    },
     lanes: new WorktreeLanes(state, laneBase),
   });
   // Opt-in Main Platform workspace tool queue. Uses ONLY the device's existing signed-license
