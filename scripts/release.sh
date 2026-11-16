@@ -158,8 +158,8 @@ BODY="Owner-signed stable sequence **$SEQ** for \`$SOURCE\` (v$VERSION).
 
 The **Publish owner-signed CodeBridge stable release** check rebuilds the archive from Git and must PASS. Merging creates the GitHub release automatically. Origin publication, latest-feed roll and gateway promotion stay owner-run."
 if [[ "$HAVE_GH" == yes ]]; then
-  URL="$(gh pr create --repo "$SLUG" --base main --head "$BRANCH" \
-    --title "release: owner-signed stable sequence $SEQ" --body "$BODY")"
+  URL="$(gh api "repos/$SLUG/pulls" -f base=main -f head="$BRANCH" \
+    -f title="release: owner-signed stable sequence $SEQ" -f body="$BODY" --jq .html_url </dev/null)"
 else
   URL="https://github.com/$SLUG/compare/main...$BRANCH?expand=1"
 fi
