@@ -7,6 +7,10 @@ import { fail } from "./errors.js";
 import { hash } from "./policy.js";
 import { DurableJobArchive } from "./job-archive.js";
 import { resolveWindowsNpm } from "./windows-command.js";
+import {
+  buildArtifactReceipt,
+  ArtifactReceiptError,
+} from "./artifact-receipt.js";
 export function redact(text) {
   return text
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, "$1[REDACTED]")
@@ -475,12 +479,39 @@ export class JobRunner {
     args = [],
     timeoutMs = 30000,
     beforeStart,
+    artifacts = null,
   }) {
     if (this.closed) fail("JOB_RUNNER_CLOSED");
+    // Optional, opt-in: after a successful run, record a SHA-256 receipt of the
+    // listed output paths under cwd. Validated here; hashed in the close handler.
+    if (
+      artifacts !== null &&
+      !(
+        artifacts &&
+        typeof artifacts === "object" &&
+        Array.isArray(artifacts.include) &&
+        artifacts.include.length >= 1 &&
+        artifacts.include.length <= 64 &&
+        artifacts.include.every((e) => typeof e === "string")
+      )
+    )
+      fail("INVALID_ARTIFACT_SPEC");
     if (typeof key !== "string" || key.length < 1 || key.length > 128)
       fail("INVALID_IDEMPOTENCY_KEY");
     const fingerprint = hash(
-      JSON.stringify({ project, gate, cwd, command, args, timeoutMs }),
+      JSON.stringify(
+        artifacts === null
+          ? { project, gate, cwd, command, args, timeoutMs }
+          : {
+              project,
+              gate,
+              cwd,
+              command,
+              args,
+              timeoutMs,
+              artifacts: artifacts.include,
+            },
+      ),
     );
     const existing = [...this.jobs.values()].find(
       (j) => j.project === project && j.key === key,
@@ -514,7 +545,14 @@ export class JobRunner {
       truncated: false,
     };
     this.jobs.set(j.id, j);
-    this.pending.set(j.id, { cwd, command, args, timeoutMs, beforeStart });
+    this.pending.set(j.id, {
+      cwd,
+      command,
+      args,
+      timeoutMs,
+      beforeStart,
+      artifacts,
+    });
     this.persist(j);
     this.drain();
     return this.public(j);
@@ -561,7 +599,7 @@ export class JobRunner {
     else this.clearRecheck();
   }
 
-  start(j, { cwd, command, args, timeoutMs, beforeStart }) {
+  start(j, { cwd, command, args, timeoutMs, beforeStart, artifacts = null }) {
     try {
       beforeStart?.();
     } catch {
@@ -713,8 +751,32 @@ export class JobRunner {
           await new Promise((done) => setTimeout(done, 600));
         clearTimeout(active.killTimer);
         j.exitCode = code;
-        j.state =
+        const finalState =
           active.reason ?? (!error && code === 0 ? "succeeded" : "failed");
+        if (artifacts !== null && finalState === "succeeded") {
+          // Bounded, deny-by-default hashing. Done BEFORE the terminal state is
+          // published so a poller never sees "succeeded" without its receipt.
+          // A failure is recorded as a code and never changes state or exit code.
+          try {
+            const r = await buildArtifactReceipt({
+              root: path.resolve(cwd),
+              include: artifacts.include,
+            });
+            j.artifactReceipt = {
+              version: r.version,
+              include: r.include,
+              totalFiles: r.totalFiles,
+              totalBytes: r.totalBytes,
+              receiptSha256: r.receiptSha256,
+            };
+          } catch (error) {
+            j.artifactReceiptError =
+              error instanceof ArtifactReceiptError
+                ? error.code
+                : "ARTIFACT_RECEIPT_FAILED";
+          }
+        }
+        j.state = finalState;
         j.endedAt = new Date().toISOString();
         this.persist(j);
         this.active.delete(j.id);

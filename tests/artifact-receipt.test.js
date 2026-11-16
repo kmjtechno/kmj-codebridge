@@ -362,12 +362,12 @@ test("verify rejects malformed or self-tampered receipts and reports unsafe tree
   );
 });
 
-test("the module is source-only: nothing in src imports it yet", () => {
+test("only the job runner imports the module", () => {
   const importers = fs
     .readdirSync("src")
     .filter((f) => f.endsWith(".js") && f !== "artifact-receipt.js")
     .filter((f) =>
       /artifact-receipt/.test(fs.readFileSync(path.join("src", f), "utf8")),
     );
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers, ["jobs.js"]);
 });
