@@ -432,3 +432,27 @@ test("read-only no-charge route admission never sends prompt and requires exact 
   });
   assert.equal(network, 0);
 });
+
+test("clock rollback after successful zero-cost admission blocks cloud POST", async () => {
+  const ticks = [1000000, 1000001, 999999];
+  let sent = 0;
+  const client = createFreeLlmApiClient({
+    apiKey: KEY,
+    approvedFreeChains: ["auto:default"],
+    now: () => ticks.shift() ?? 999999,
+    verifyZeroCostChain: verifiedProof,
+    request: async () => {
+      sent++;
+      throw new Error("UNEXPECTED_CLOUD_POST");
+    },
+  });
+  await assert.rejects(
+    client.generate({
+      prompt: "PRIVATE_SOURCE_SENTINEL",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
+  );
+  assert.equal(sent, 0);
+});
