@@ -33,6 +33,16 @@ LOCK = pathlib.Path("/run/lock/kmj-codebridge-gateway-signed29.lock")
 COMMIT_CONF = DIR / "zzzzz-kmj-source-commit.conf"
 COMMIT_CONF_SHA = "a6765def2981eec965e3de72bf3ad20824b3f466ea99d1e99c4119cebdb54123"
 PUBLIC_HOST = "kmjtechno.com"
+# Tools the CURRENT (signed28) gateway must already expose: used for the
+# baseline and for the rollback health probe. The cutover target (signed29)
+# must additionally expose the tools added since, see REQUIRED below.
+REQUIRED_OLD = frozenset([
+    "autopilot_local_draft", "chat_lane_release", "chat_lane_reserve",
+    "chat_lane_status", "chat_workspace_open", "compact_work_brief",
+    "fleet_overview", "local_model_generate", "local_model_status",
+    "project_progress", "render_codebridge_status", "worktree_lane_cleanup",
+    "worktree_lane_prepare", "worktree_lane_status",
+])
 REQUIRED = frozenset([
     "autopilot_local_draft", "chat_lane_release", "chat_lane_reserve",
     "chat_lane_status", "chat_workspace_open", "compact_work_brief",
@@ -207,7 +217,8 @@ def rpc_messages(text):
         except (ValueError,TypeError): pass
     return result
 
-def origin_probe(origin,port):
+def origin_probe(origin,port,required=None):
+    required=REQUIRED if required is None else required
     if origin=="DIRECT":
         url=f"http://127.0.0.1:{port}/mcp";extra=[]
     else:
@@ -235,7 +246,7 @@ def origin_probe(origin,port):
     need(tools is not None and len(tools)>=100,origin+"_CATALOG_SMALL")
     names=[x.get("name") for x in tools if isinstance(x,dict)]
     need(len(names)==len(tools) and len(set(names))==len(names)
-         and REQUIRED.issubset(names),origin+"_REQUIRED_TOOLS_MISSING")
+         and required.issubset(names),origin+"_REQUIRED_TOOLS_MISSING")
     lookup={x["name"]:x for x in tools}
     for tool,fields in CRITICAL.items():
         shape=lookup.get(tool,{}).get("inputSchema",{})
@@ -313,7 +324,7 @@ def rollback(data,port,old_count,was_restarted):
     pid=int(show("MainPID"))
     need(pid>1 and pathlib.Path(f"/proc/{pid}/cwd").resolve()==OLD_DIR,
          "ROLLBACK_RUNTIME_NOT_OLD")
-    observed=origin_probe("DIRECT",port)
+    observed=origin_probe("DIRECT",port,REQUIRED_OLD)
     need(observed["count"]>=old_count,"ROLLBACK_CATALOG_NOT_HEALTHY")
     print("GATEWAY_ROLLBACK=PASS")
 
@@ -326,7 +337,7 @@ def run():
     validate_runtime()
     oldpid=validate_service()
     port=gateway_port(config)
-    old=origin_probe("DIRECT",port)
+    old=origin_probe("DIRECT",port,REQUIRED_OLD)
     need(old["count"]>=100,"GATEWAY_BASELINE_UNVERIFIED")
     print("SIGNED29_GATEWAY_PREFLIGHT=PASS")
     print("BASELINE_TOOL_COUNT="+str(old["count"]))
