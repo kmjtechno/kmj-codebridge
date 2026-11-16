@@ -163,6 +163,39 @@ test("dirty checkout pauses gate and preserves all user changes", (t) => {
   assert.equal(fs.readFileSync(touched, "utf8"), "do not touch");
 });
 
+test("large untracked trees stay dirty but cannot block approved gate preflight", (t) => {
+  const f = fixture(t);
+  const dir = path.join(f.root, "untracked-generated");
+  fs.mkdirSync(dir);
+  const keep = path.join(dir, "0000-" + "x".repeat(75) + ".txt");
+  for (let i = 0; i < 900; i += 1) {
+    const file = path.join(
+      dir,
+      String(i).padStart(4, "0") + "-" + "x".repeat(75) + ".txt",
+    );
+    fs.writeFileSync(file, "preserve owner data\n");
+  }
+
+  // The former --all scan exceeded the strict 64 KiB Git output limit.
+  const exhaustive = execFileSync(
+    "git",
+    ["status", "--porcelain", "--untracked-files=all"],
+    { cwd: f.root, encoding: "utf8", maxBuffer: 262144 },
+  );
+  assert.ok(exhaustive.length > 65536);
+  assert.equal(verifyCleanGateCheckout(f.root, f.head), false);
+
+  const task = f.enqueue();
+  f.worker.tick();
+  assert.equal(f.count(), 0);
+  assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+  assert.equal(
+    f.journal.get(task.id, "repo").lastReason,
+    "GIT_HEAD_CHANGED_OR_WORKTREE_DIRTY",
+  );
+  assert.equal(fs.readFileSync(keep, "utf8"), "preserve owner data\n");
+});
+
 test("different head can never use stale gate task", (t) => {
   const f = fixture(t);
   const job = f.enqueue("auto-gate:fast:" + "f".repeat(40));

@@ -48,7 +48,9 @@ export function verifyCleanGateCheckout(root, expectedHead) {
   if (head !== expectedHead) return false;
   const status = execFileSync(
     "git",
-    [...args, "status", "--porcelain", "--untracked-files=all"],
+    // Every untracked directory still marks checkout dirty, but a bounded
+    // scan must not enumerate thousands of nested generated files.
+    [...args, "status", "--porcelain", "--untracked-files=normal"],
     options,
   ).trim();
   return status === "";
