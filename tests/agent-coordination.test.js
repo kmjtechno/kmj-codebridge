@@ -342,3 +342,110 @@ test("a full archive stops eviction and posting fails closed", (t) => {
     COORDINATION_MAX_MESSAGES,
   );
 });
+
+test("boundary: 255 notes accept one more without eviction, 256 fresh notes fail closed", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES - 1; i++) {
+    clock = now + i;
+    box.post("project1", sample({ requestKey: `b-${i}`, note: `Note ${i}` }));
+  }
+  clock = now + COORDINATION_MAX_MESSAGES;
+  const last = box.post("project1", sample({ requestKey: "b-last" }));
+  assert.equal(last.stored, true);
+  assert.equal(last.evicted, undefined, "no eviction below capacity");
+  assert.equal(
+    box.list("project1", { limit: 1 }).totalStored,
+    COORDINATION_MAX_MESSAGES,
+  );
+  assert.throws(
+    () => box.post("project1", sample({ requestKey: "b-over" })),
+    /COORDINATION_CAPACITY_REACHED/,
+  );
+  const archiveDir = path.join(dir, "agent-coordination-archive", "project1");
+  assert.deepEqual(
+    fs.existsSync(archiveDir) ? fs.readdirSync(archiveDir) : [],
+    [],
+    "nothing is archived while every note is fresh",
+  );
+});
+
+test("restart and a stale second writer: no loss, idempotent retry, archived cursor fails closed", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const writerA = new AgentCoordination(dir, { now: () => clock });
+  for (let i = 0; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = now + i;
+    writerA.post(
+      "project1",
+      sample({ requestKey: `r-${i}`, note: `Note ${i}` }),
+    );
+  }
+  clock = now + COORDINATION_MIN_RETENTION_MS + COORDINATION_MAX_MESSAGES;
+  // A new instance models a gateway restart over the same state directory.
+  const writerB = new AgentCoordination(dir, { now: () => clock });
+  const body = sample({ requestKey: "after-restart", note: "From B" });
+  const first = writerB.post("project1", body);
+  assert.equal(
+    first.evicted,
+    COORDINATION_MAX_MESSAGES - COORDINATION_LOW_WATER,
+  );
+  // The pre-restart writer retries the same request: reused, not duplicated.
+  const retry = writerA.post("project1", body);
+  assert.equal(retry.reused, true);
+  assert.equal(retry.id, first.id);
+  assert.throws(
+    () => writerA.post("project1", { ...body, note: "Changed" }),
+    /COORDINATION_IDEMPOTENCY_CONFLICT/,
+  );
+  const live = fs.readdirSync(path.join(dir, "agent-coordination", "project1"));
+  const archive = path.join(dir, "agent-coordination-archive", "project1");
+  const archived = fs.readdirSync(archive);
+  assert.equal(live.length + archived.length, COORDINATION_MAX_MESSAGES + 1);
+  // A surviving note is a valid cursor for both instances.
+  const page = writerA.list("project1", { limit: 50 });
+  assert.ok(page.messages.length > 1);
+  assert.equal(
+    writerB.list("project1", { limit: 5, after: page.messages[0].id }).messages
+      .length,
+    5,
+  );
+  // An archived note is no longer a cursor: fail closed, never skip silently.
+  assert.throws(
+    () => writerB.list("project1", { after: archived[0].slice(0, 64) }),
+    /COORDINATION_CURSOR_UNKNOWN/,
+  );
+});
+
+test("a request key whose note was archived can be reposted without touching the archived copy", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock });
+  const original = sample({ requestKey: "k-0", note: "Note 0" });
+  const firstId = box.post("project1", original).id;
+  for (let i = 1; i < COORDINATION_MAX_MESSAGES; i++) {
+    clock = now + i;
+    box.post("project1", sample({ requestKey: `k-${i}`, note: `Note ${i}` }));
+  }
+  clock = now + COORDINATION_MIN_RETENTION_MS + COORDINATION_MAX_MESSAGES;
+  box.post("project1", sample({ requestKey: "trigger", note: "Trigger" }));
+  const archive = path.join(dir, "agent-coordination-archive", "project1");
+  const copy = fs
+    .readdirSync(archive)
+    .find((name) => name.startsWith(firstId + "."));
+  assert.ok(copy, "oldest note was archived");
+  const archivedBytes = fs.readFileSync(path.join(archive, copy));
+  clock += 1;
+  const again = box.post("project1", original);
+  assert.equal(again.id, firstId);
+  assert.equal(again.reused, false, "archived notes do not block a repost");
+  assert.deepEqual(
+    fs.readFileSync(path.join(archive, copy)),
+    archivedBytes,
+    "archived copy is never overwritten",
+  );
+});
