@@ -20,15 +20,19 @@ export function createOpenHandsCanvasHandoff({
   ownerApproved = false,
   enableProductionWrites = false,
 } = {}) {
-  if (endpoint !== KMJ_CODEBRIDGE_MCP_URL)
-    invalid("UNAPPROVED_MCP_ENDPOINT");
+  if (endpoint !== KMJ_CODEBRIDGE_MCP_URL) invalid("UNAPPROVED_MCP_ENDPOINT");
   if (runtime !== "isolated-docker") invalid("UNSAFE_RUNTIME");
-  if (!["review", "implementation"].includes(task))
-    invalid("UNAPPROVED_TASK");
+  if (!["review", "implementation"].includes(task)) invalid("UNAPPROVED_TASK");
   if (
-    [sandboxVerified, oauthVerified, freeModelRouteVerified, ownerApproved, enableProductionWrites]
-      .some((value) => typeof value !== "boolean")
-  ) invalid("INVALID_APPROVAL_FLAGS");
+    [
+      sandboxVerified,
+      oauthVerified,
+      freeModelRouteVerified,
+      ownerApproved,
+      enableProductionWrites,
+    ].some((value) => typeof value !== "boolean")
+  )
+    invalid("INVALID_APPROVAL_FLAGS");
   if (enableProductionWrites) invalid("PRODUCTION_WRITE_DENIED");
 
   const blockers = [];
