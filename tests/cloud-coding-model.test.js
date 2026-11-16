@@ -70,7 +70,10 @@ test("cloud coding uses only device-approved discovered chains and reports truth
   assert.deepEqual(normalizeModelReceipt(output.modelUsage), output.modelUsage);
   assert.equal(output.modelUsage.paidInference, null);
   assert.equal(output.modelUsage.provider, "freellmapi-loopback");
-  assert.equal(JSON.stringify(output.modelUsage).includes("private source"), false);
+  assert.equal(
+    JSON.stringify(output.modelUsage).includes("private source"),
+    false,
+  );
   authorized = false;
   await assert.rejects(
     model.generate({ model: "auto:code", prompt: "private source" }),
