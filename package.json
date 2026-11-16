@@ -25,6 +25,8 @@
     "start": "node src/hosted-cli.js",
     "package:runtime": "node scripts/package-runtime.js",
     "sign:runtime": "node scripts/sign-runtime-manifest.js",
+    "release": "bash scripts/release.sh",
+    "release:check": "node scripts/verify-stable-release.mjs",
     "test:interop": "node --test --test-concurrency=1 tests/interop.test.js",
     "test:clients": "node --test --test-concurrency=1 tests/client-packages.test.js",
     "scan:secrets": "node scripts/scan-secrets.js",

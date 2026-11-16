@@ -1,0 +1,99 @@
+name: Publish owner-signed CodeBridge stable release (any sequence)
+# One workflow for every future release. It replaces copying a new
+# publish-signed-stableNN.yml with hand-pinned hashes for each sequence.
+# Pull request: verify only. Merge to main: verify, then create the
+# immutable GitHub release. It never deploys, promotes or restarts anything.
+on:
+  pull_request:
+    paths:
+      - releases/stable/**
+  push:
+    branches: [main]
+    paths:
+      - releases/stable/**
+  workflow_dispatch:
+    inputs:
+      revision:
+        description: Release folder (full 40-hex revision) to publish again
+        required: true
+permissions:
+  contents: read
+concurrency:
+  group: publish-signed-stable-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  signed_release:
+    if: github.repository == 'kmjtechno/kmj-codebridge'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find the newly added release folder
+        id: find
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          INPUT_REVISION: ${{ inputs.revision }}
+        run: |
+          set -Eeuo pipefail
+          case "$EVENT" in
+            workflow_dispatch) added="$INPUT_REVISION" ;;
+            pull_request) base="$PR_BASE" ;;
+            push) base="$BEFORE" ;;
+          esac
+          if [[ "$EVENT" != workflow_dispatch ]]; then
+            added=$(git diff --name-only --diff-filter=A "$base" HEAD -- 'releases/stable/*/release-manifest.json' \
+              | cut -d/ -f3 | sort -u)
+          fi
+          count=$(printf '%s' "$added" | grep -c . || true)
+          if [[ "$count" == 0 ]]; then
+            echo 'NEW_RELEASE_FOLDER=NONE'; echo "revision=" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          [[ "$count" == 1 ]] || { echo 'ONE_RELEASE_PER_CHANGE_REQUIRED' >&2; exit 2; }
+          [[ "$added" =~ ^[a-f0-9]{40}$ ]] || { echo 'REVISION_NOT_FULL_SHA' >&2; exit 2; }
+          echo "revision=$added" >> "$GITHUB_OUTPUT"
+      - name: Verify signed metadata and rebuild exact archive
+        id: verify
+        if: steps.find.outputs.revision != ''
+        shell: bash
+        env:
+          REVISION: ${{ steps.find.outputs.revision }}
+        run: |
+          set -Eeuo pipefail
+          node scripts/verify-stable-release.mjs "$REVISION" --archive-out "$RUNNER_TEMP/release" | tee "$RUNNER_TEMP/check.txt"
+          {
+            echo '### Signed stable release check: PASS'
+            echo 'Compare MANIFEST_SHA256 with your own `Get-FileHash` / `sha256sum` before merging.'
+            echo '```'; cat "$RUNNER_TEMP/check.txt"; echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Publish immutable GitHub release (never overwrites)
+        if: steps.find.outputs.revision != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REVISION: ${{ steps.find.outputs.revision }}
+        run: |
+          set -Eeuo pipefail
+          tag=$(sed -n 's/^TAG=//p' "$RUNNER_TEMP/check.txt")
+          seq=$(sed -n 's/^SEQUENCE=//p' "$RUNNER_TEMP/check.txt")
+          archive=$(sed -n 's/^ARCHIVE_PATH=//p' "$RUNNER_TEMP/check.txt")
+          folder="releases/stable/$REVISION"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo 'EXISTING_RELEASE_REVIEW_REQUIRED' >&2
+            exit 2
+          fi
+          gh release create "$tag" \
+            "$archive" \
+            "$folder/release-manifest.json" \
+            "$folder/release-manifest.sig" \
+            --target "$REVISION" \
+            --title "KMJ CodeBridge stable sequence $seq - owner-signed assets" \
+            --notes 'Owner-signed public metadata and exact CI-source runtime. Deployment remains pending independent KMJ-elite key verification, trusted HTTPS origin publication, protected systemd release promotion, direct/local/public Gateway QA and rollback receipt. Do not claim LIVE solely from this release.'
+          echo 'GITHUB_RELEASE_PUBLISHED=PASS'
