@@ -416,10 +416,9 @@ test("read-only no-charge route admission never sends prompt and requires exact 
     chain: "auto:code",
   });
   assert.equal(network, 0);
-  await assert.rejects(
-    ready.checkZeroCostChain({ chain: "auto:unapproved" }),
-    { message: "FREELLMAPI_CHAIN_NOT_APPROVED" },
-  );
+  await assert.rejects(ready.checkZeroCostChain({ chain: "auto:unapproved" }), {
+    message: "FREELLMAPI_CHAIN_NOT_APPROVED",
+  });
   const closed = createFreeLlmApiClient({
     apiKey: KEY,
     approvedFreeChains: ["auto:code"],
@@ -428,9 +427,8 @@ test("read-only no-charge route admission never sends prompt and requires exact 
       throw new Error("UNEXPECTED_PROVIDER_REQUEST");
     },
   });
-  await assert.rejects(
-    closed.checkZeroCostChain({ chain: "auto:code" }),
-    { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
-  );
+  await assert.rejects(closed.checkZeroCostChain({ chain: "auto:code" }), {
+    message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED",
+  });
   assert.equal(network, 0);
 });
