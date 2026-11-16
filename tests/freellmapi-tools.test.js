@@ -72,7 +72,7 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
   assert.equal(definitions.freellmapi_status.access, "read");
   await assert.rejects(
     dispatch("freellmapi_generate", { ...scope, prompt: "x" }, ["execute"]),
-    /invalid_literal|Invalid literal value|invalid_type/i,
+    /invalid_literal|Invalid literal value|invalid_type|invalid_value|Invalid input: expected true/i,
   );
   await assert.rejects(
     dispatch(
