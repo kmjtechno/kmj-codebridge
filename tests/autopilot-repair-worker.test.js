@@ -323,10 +323,7 @@ test("lost verification result never publishes an unverified patch", (t) => {
   const task = f.enqueue();
   f.worker.tick();
   const lane = f.starts[0].cwd;
-  fs.writeFileSync(
-    path.join(lane, "src", "format.js"),
-    "const x = 1;\n",
-  );
+  fs.writeFileSync(path.join(lane, "src", "format.js"), "const x = 1;\n");
   f.jobs.get("job-1").state = "succeeded";
   f.jobs.get("job-1").exitCode = 0;
   f.worker.tick();
