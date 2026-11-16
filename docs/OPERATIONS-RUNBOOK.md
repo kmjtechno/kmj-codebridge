@@ -145,14 +145,57 @@ ignores it since #922.
 All three are root-only on KMJ-elite, pinned by SHA-256 before running, and print
 fixed tokens only. A merge does not run them.
 
-| Script (`scripts/production/`)                        | Changes                                                                                                                                                                                                                                                                                                           | Default                                                                            |
-| ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| `owner_check_signed27_rollback_readiness_20261115.py` | Nothing. Checks that a gateway rollback to signed25 would start: override bytes, release tree, config owner/mode, and the signed25 schema against the live config.                                                                                                                                                | read-only, no arguments                                                            |
-| `owner_switch_supervisor_signed27_20261115.py`        | One later Supervisor `ExecStart` drop-in; no restart. Needed because the gateway cutover and the updater do not move the Supervisor unit.                                                                                                                                                                         | dry-run; `--apply`, `--rollback`                                                   |
-| `owner_enable_gateway_signin_scopes_all_20261115.py`  | One key, `oauth.signInScopes: "all"`, in the gateway config, then one gateway restart; restores the previous bytes if the expected sign-in challenge does not appear. See [OAUTH.md](OAUTH.md).                                                                                                                   | dry-run; `--apply --confirm-no-active-jobs`, `--rollback --confirm-no-active-jobs` |
-| `owner_activate_signed28_gateway_20261115.py`         | One later gateway drop-in (signed28); one gateway restart; rolls back to the signed27 override on any failed check. Done on 2026-11-15.                                                                                                                                                                           | dry-run; `--apply --confirm-no-active-jobs`                                        |
-| `owner_config_root_group_20261115.py`                 | Gateway config file to `root:kmjcode` 0640 (and the directory to 0750 if it is not already) so `supervisor_config_validate` stops reporting `CONFIG_TRUST_INVALID`. No restart. Proves the shape with a dummy file first; restores the original owner on failure. **Not applied; needs the owner's separate go.** | dry-run; `--apply`, `--rollback` with `--confirm-root-group-config-owner-go`       |
+| Script (`scripts/production/`)                        | Changes                                                                                                                                                                                                                                                                                                                                 | Default                                                                            |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `owner_check_signed27_rollback_readiness_20261115.py` | Nothing. Checks that a gateway rollback to signed25 would start: override bytes, release tree, config owner/mode, and the signed25 schema against the live config.                                                                                                                                                                      | read-only, no arguments                                                            |
+| `owner_switch_supervisor_signed27_20261115.py`        | One later Supervisor `ExecStart` drop-in; no restart. Needed because the gateway cutover and the updater do not move the Supervisor unit.                                                                                                                                                                                               | dry-run; `--apply`, `--rollback`                                                   |
+| `owner_enable_gateway_signin_scopes_all_20261115.py`  | One key, `oauth.signInScopes: "all"`, in the gateway config, then one gateway restart; restores the previous bytes if the expected sign-in challenge does not appear. See [OAUTH.md](OAUTH.md).                                                                                                                                         | dry-run; `--apply --confirm-no-active-jobs`, `--rollback --confirm-no-active-jobs` |
+| `owner_activate_signed28_gateway_20261115.py`         | One later gateway drop-in (signed28); one gateway restart; rolls back to the signed27 override on any failed check. Done on 2026-11-15.                                                                                                                                                                                                 | dry-run; `--apply --confirm-no-active-jobs`                                        |
+| `owner_config_root_group_20261115.py`                 | Gateway config file to `root:kmjcode` 0640 (and the directory to 0750 if it is not already) so `supervisor_config_validate` stops reporting `CONFIG_TRUST_INVALID`. No restart. Proves the shape with a dummy file first; restores the original owner on failure. **Applied by the owner; the live config is now `root:kmjcode` 0640.** | dry-run; `--apply`, `--rollback` with `--confirm-root-group-config-owner-go`       |
 
 Run the readiness check before and after the sign-in scopes change. After that change a
 client that was read-only has to sign in again in the browser to be offered the wider
 consent; the gateway restart drops agent connections for a few seconds.
+
+## 8. Signed release procedure (proven live for seq29 on 2026-11-16)
+
+Every step that needs root or the signing key is owner-run; Claude and CI only prepare and
+verify. Each owner script is pinned by SHA-256, dry-run by default, and writes its result
+to `work/qa/` so it can be read through CodeBridge instead of pasted into chat.
+
+1. **Choose the source.** A reviewed `main` commit whose `CodeBridge CI` run is green and has
+   the unsigned candidate artifacts. Ask other agents not to merge before signing.
+2. **Sign (key host only).** `scripts/production/owner-sign-stable-20261116.sh` builds the exact
+   `git archive` and signs with the repo signer. Needs `SEQ` >= 29, a per-commit
+   `CONFIRM_SIGN` string, a clean checkout at the source commit with `npm ci --omit=dev`, and
+   the key file outside the repo. On the Windows key PC run it through Git's `bash.exe`
+   from PowerShell and give the key path with forward slashes. It publishes and deploys nothing.
+3. **Compare hashes.** The owner's `Get-FileHash` of the signed manifest and signature must
+   equal the bytes rebuilt in the metadata PR. That match is the release approval.
+4. **Metadata PR.** `releases/stable/<sha>/release-manifest.json` (512 bytes) and `.sig`
+   (87 bytes), `publish-signed-stableNN.yml`, and the expected sequence in
+   `tests/latest-signed-release.test.js`. When the workflow is copied from the previous
+   sequence, the manifest hash, archive hash and byte size inside it must be replaced too;
+   seq29 failed once on exactly that. The publish run rebuilds the archive with `git archive`
+   and must match before it creates the GitHub release.
+5. **Static origin (root).** `owner_publish_seq29_static_origin_20261116.py`: dry-run, then
+   `--apply`. Creates only the immutable `stable/<sha>/` directory under
+   `/var/lib/kmj-codebridge-releases/stable` and re-reads it over public HTTPS.
+6. **Feed rollover (root).** `owner_roll_signed_latest_feed_20261115.py`: `--inspect`, then
+   `--apply --confirm-owner-signed-rolling-feed`. The updater config points at
+   `stable/latest/`, so no config promotion is needed (`owner_promote_signed29_stable_config_20261116.py`
+   exists but must not be used while the config reads `latest`; it stops with
+   `UPDATE_CONFIG_URL_DRIFT`).
+7. **Agent update (automatic).** The enabled signed updater timer installs the release within
+   about five minutes. Confirm with `supervisor_release_history` (`current` equals the new release).
+8. **Gateway cutover (root).** `owner_activate_signed29_gateway_20261116.py`: dry-run, then
+   `--apply --confirm-no-active-jobs` once `execution_capacity` shows no active or queued job.
+   The gateway restarts, so connections drop for a few seconds. Rollback authority is the
+   previous override.
+9. **Verify.** Run `VPS Deployment Smoke` (`workflow_dispatch`); it expects the newest
+   verified signed release on `main`, so the metadata PR has to be merged first. Post the
+   result to the coordination mailbox.
+
+Lessons that cost a dry-run each: the gateway script must accept the `root:kmjcode` 0640
+config (same rule as `src/config-file-mode.js`), and its baseline and rollback probes must
+use the tool set of the gateway that is currently running, not the one being installed.
