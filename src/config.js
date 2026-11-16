@@ -391,7 +391,8 @@ export const agentSchema = z.object({
                     ctx.addIssue({
                       code: z.ZodIssueCode.custom,
                       path: ["inferenceRoute"],
-                      message: "Cloud coding needs explicit proxy and source-transfer grants, an approved auto: chain, and no local model consent",
+                      message:
+                        "Cloud coding needs explicit proxy and source-transfer grants, an approved auto: chain, and no local model consent",
                     });
                   }
                 } else if (
@@ -402,7 +403,8 @@ export const agentSchema = z.object({
                   ctx.addIssue({
                     code: z.ZodIssueCode.custom,
                     path: ["localProcessingApproved"],
-                    message: "Local coding requires local consent with no cloud grants",
+                    message:
+                      "Local coding requires local consent with no cloud grants",
                   });
                 }
               }
