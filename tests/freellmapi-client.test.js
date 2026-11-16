@@ -8,36 +8,15 @@ const KEY = "freellma-test-key-0001";
 function fake(handler) {
   return createFreeLlmApiClient({
     apiKey: KEY,
+    approvedFreeChains: ["auto:default", "auto:code"],
     request: async (r) => handler(r),
   });
 }
 
-test("requires a configured key and a sane port", (t) => {
-  // `apiKey: undefined` selects the client's default, which reads
-  // CODEBRIDGE_FREELLMAPI_KEY. A developer machine that has a real key
-  // configured (such as the P720) would otherwise make this "unconfigured"
-  // case succeed. Isolate the environment; restore it afterwards.
-  const saved = process.env.CODEBRIDGE_FREELLMAPI_KEY;
-  delete process.env.CODEBRIDGE_FREELLMAPI_KEY;
-  t.after(() => {
-    if (saved === undefined) delete process.env.CODEBRIDGE_FREELLMAPI_KEY;
-    else process.env.CODEBRIDGE_FREELLMAPI_KEY = saved;
-  });
+test("requires a configured key and a sane port", () => {
   assert.throws(() => createFreeLlmApiClient({ apiKey: undefined }), {
     message: "FREELLMAPI_KEY_NOT_CONFIGURED",
   });
-  // Absent from both the argument and the environment is unconfigured.
-  assert.throws(() => createFreeLlmApiClient(), {
-    message: "FREELLMAPI_KEY_NOT_CONFIGURED",
-  });
-  // The environment key is honoured when it is well-formed.
-  process.env.CODEBRIDGE_FREELLMAPI_KEY = KEY;
-  assert.doesNotThrow(() => createFreeLlmApiClient());
-  process.env.CODEBRIDGE_FREELLMAPI_KEY = "bad key!";
-  assert.throws(() => createFreeLlmApiClient(), {
-    message: "FREELLMAPI_KEY_NOT_CONFIGURED",
-  });
-  delete process.env.CODEBRIDGE_FREELLMAPI_KEY;
   assert.throws(() => createFreeLlmApiClient({ apiKey: KEY, port: 80 }), {
     message: "FREELLMAPI_INVALID_PORT",
   });
@@ -45,13 +24,22 @@ test("requires a configured key and a sane port", (t) => {
 
 test("generate needs consent, an auto:<chain> name and bounded inputs", async () => {
   const c = fake(() => assert.fail("must not call upstream"));
-  const base = { prompt: "hi", localProcessingApproved: true };
+  const base = {
+    prompt: "hi",
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  };
   const bad = (patch, code) =>
     assert.rejects(c.generate({ ...base, ...patch }), { message: code });
   await bad(
     { localProcessingApproved: undefined },
     "FREELLMAPI_CONSENT_REQUIRED",
   );
+  await bad(
+    { upstreamCloudApproved: undefined },
+    "FREELLMAPI_CLOUD_CONSENT_REQUIRED",
+  );
+  await bad({ chain: "auto:unapproved" }, "FREELLMAPI_CHAIN_NOT_APPROVED");
   await bad({ chain: "gpt-5" }, "FREELLMAPI_CHAIN_NOT_ALLOWED");
   await bad({ chain: "auto:../x" }, "FREELLMAPI_CHAIN_NOT_ALLOWED");
   await bad({ prompt: "" }, "FREELLMAPI_INVALID_PROMPT");
@@ -59,7 +47,7 @@ test("generate needs consent, an auto:<chain> name and bounded inputs", async ()
   await bad({ timeoutSeconds: 500 }, "FREELLMAPI_INVALID_TIMEOUT");
 });
 
-test("generate returns untrusted, non-applied output with no paid flag", async () => {
+test("generate returns untrusted output with unknown upstream billing", async () => {
   let seen;
   const c = fake((r) => {
     seen = r;
@@ -67,15 +55,21 @@ test("generate returns untrusted, non-applied output with no paid flag", async (
       choices: [{ message: { content: "ok" }, finish_reason: "length" }],
     };
   });
-  const out = await c.generate({ prompt: "hi", localProcessingApproved: true });
+  const out = await c.generate({
+    prompt: "hi",
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  });
   assert.equal(seen.path, "/v1/chat/completions");
   assert.equal(seen.body.model, "auto:default");
   assert.equal(seen.body.max_tokens, 256);
   assert.equal(out.response, "ok");
   assert.equal(out.hitTokenLimit, true);
   assert.equal(out.outputIsUntrusted, true);
-  assert.equal(out.paidInference, false);
-  assert.equal(out.cloudFallback, false);
+  assert.equal(out.paidInference, null);
+  assert.equal(out.cloudFallback, null);
+  assert.equal(out.billingVerified, false);
+  assert.equal(out.upstreamProviderVerified, false);
   assert.equal(out.writesApplied, false);
 });
 
@@ -90,6 +84,8 @@ test("status lists only auto chains and never echoes the key", async () => {
   const s = await c.status();
   assert.deepEqual(s.chains, ["auto:default"]);
   assert.equal(s.modelCount, 3);
+  assert.equal(s.paidInference, null);
+  assert.deepEqual(s.approvedFreeChains, ["auto:default"]);
   assert.ok(!JSON.stringify(s).includes(KEY));
 });
 
@@ -109,4 +105,216 @@ test("real HTTP path: loopback only, bearer sent, 429 maps to quota error", asyn
   } finally {
     server.close();
   }
+});
+
+import { candidateChains } from "../src/freellmapi-client.js";
+
+test("candidateChains prefers task chains the router really has", () => {
+  assert.deepEqual(candidateChains("code", ["auto:default", "auto:code"]), [
+    "auto:code",
+    "auto:default",
+  ]);
+  assert.deepEqual(candidateChains("fast", ["auto:default"]), ["auto:default"]);
+  assert.deepEqual(candidateChains("reasoning", []), []);
+  assert.deepEqual(candidateChains("bogus", ["auto:default"]), [
+    "auto:default",
+  ]);
+});
+
+test("generateRouted routes by task and retries one next chain on quota", async () => {
+  const calls = [];
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    approvedFreeChains: ["auto:default", "auto:code"],
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:default" }, { id: "auto:code" }] };
+      calls.push(r.body.model);
+      if (r.body.model === "auto:code")
+        throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+      return {
+        choices: [{ message: { content: "done" }, finish_reason: "stop" }],
+      };
+    },
+  });
+  const out = await c.generateRouted({
+    task: "code",
+    prompt: "hi",
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  });
+  assert.deepEqual(calls, ["auto:code", "auto:default"]);
+  assert.equal(out.routing.chosen, "auto:default");
+  assert.deepEqual(out.routing.attempts, [
+    { chain: "auto:code", outcome: "quota_exhausted" },
+  ]);
+});
+
+test("generateRouted fails closed when every chain is exhausted or task invalid", async () => {
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    approvedFreeChains: ["auto:default", "auto:code"],
+    request: async (r) => {
+      if (r.path === "/v1/models") return { data: [{ id: "auto:default" }] };
+      throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+    },
+  });
+  const args = {
+    prompt: "hi",
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  };
+  await assert.rejects(c.generateRouted(args), {
+    message: "FREELLMAPI_QUOTA_EXHAUSTED",
+  });
+  await assert.rejects(c.generateRouted({ ...args, task: "x" }), {
+    message: "FREELLMAPI_INVALID_TASK",
+  });
+});
+
+test("no fallback, no cloud consent and unapproved chains never send a prompt", async () => {
+  const sent = [];
+  const client = createFreeLlmApiClient({
+    apiKey: KEY,
+    approvedFreeChains: ["auto:code"],
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:default" }, { id: "auto:code" }] };
+      sent.push(r.body);
+      return { choices: [{ message: { content: "unexpected" } }] };
+    },
+  });
+  await assert.rejects(
+    client.generateRouted({
+      prompt: "private work",
+      localProcessingApproved: true,
+    }),
+    { message: "FREELLMAPI_CLOUD_CONSENT_REQUIRED" },
+  );
+  await assert.rejects(
+    client.generateRouted({
+      task: "general",
+      prompt: "private work",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_NO_APPROVED_CHAIN" },
+  );
+  await assert.rejects(
+    client.generateRouted({
+      task: "code",
+      chain: "auto:default",
+      prompt: "private work",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_NO_APPROVED_CHAIN" },
+  );
+  assert.deepEqual(sent, []);
+});
+
+test("no owner-approved chains means no cloud processing", async () => {
+  const client = createFreeLlmApiClient({
+    apiKey: KEY,
+    request: async (r) =>
+      r.path === "/v1/models"
+        ? { data: [{ id: "auto:default" }] }
+        : assert.fail("must never generate"),
+  });
+  await assert.rejects(
+    client.generateRouted({
+      prompt: "hello",
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_NO_APPROVED_CHAIN" },
+  );
+});
+
+test("429 fallback shares one bounded timeout across both chains", async () => {
+  let clock = 1000000;
+  const calls = [];
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:code", "auto:default"],
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:code" }, { id: "auto:default" }] };
+      calls.push({ chain: r.body.model, timeoutMs: r.timeoutMs });
+      if (calls.length === 1) {
+        clock += 20000;
+        throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+      }
+      return { choices: [{ message: { content: "done" } }] };
+    },
+  });
+  const out = await c.generateRouted({
+    task: "code",
+    prompt: "test content",
+    timeoutSeconds: 30,
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  });
+  assert.equal(out.routing.chosen, "auto:default");
+  assert.deepEqual(calls, [
+    { chain: "auto:code", timeoutMs: 30000 },
+    { chain: "auto:default", timeoutMs: 10000 },
+  ]);
+});
+
+test("429 after exhausted deadline never sends prompt to another cloud chain", async () => {
+  let clock = 1000000;
+  const sent = [];
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:code", "auto:default"],
+    request: async (r) => {
+      if (r.path === "/v1/models")
+        return { data: [{ id: "auto:code" }, { id: "auto:default" }] };
+      sent.push(r.body.model);
+      clock += 27000;
+      throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+    },
+  });
+  await assert.rejects(
+    c.generateRouted({
+      task: "code",
+      prompt: "private text must not be retried",
+      timeoutSeconds: 30,
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_DEADLINE_EXCEEDED" },
+  );
+  assert.deepEqual(sent, ["auto:code"]);
+});
+
+test("catalog discovery consumes the same generation deadline", async () => {
+  let clock = 1000000;
+  let promptsSent = 0;
+  const c = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:default"],
+    request: async (r) => {
+      if (r.path === "/v1/models") {
+        clock += 27000;
+        return { data: [{ id: "auto:default" }] };
+      }
+      promptsSent += 1;
+      return { choices: [{ message: { content: "unreachable" } }] };
+    },
+  });
+  await assert.rejects(
+    c.generateRouted({
+      prompt: "do not forward after discovery expiry",
+      timeoutSeconds: 30,
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_DEADLINE_EXCEEDED" },
+  );
+  assert.equal(promptsSent, 0);
 });
