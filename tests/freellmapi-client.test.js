@@ -404,3 +404,33 @@ test("stale, mismatched or paid route proofs cannot authorize code transmission"
     assert.equal(sent, false);
   }
 });
+
+test("read-only no-charge route admission never sends prompt and requires exact trusted proof", async () => {
+  let network = 0;
+  const ready = fake(() => {
+    network++;
+    throw new Error("UNEXPECTED_PROVIDER_REQUEST");
+  });
+  assert.deepEqual(await ready.checkZeroCostChain({ chain: "auto:code" }), {
+    admitted: true,
+    chain: "auto:code",
+  });
+  assert.equal(network, 0);
+  await assert.rejects(
+    ready.checkZeroCostChain({ chain: "auto:unapproved" }),
+    { message: "FREELLMAPI_CHAIN_NOT_APPROVED" },
+  );
+  const closed = createFreeLlmApiClient({
+    apiKey: KEY,
+    approvedFreeChains: ["auto:code"],
+    request: async () => {
+      network++;
+      throw new Error("UNEXPECTED_PROVIDER_REQUEST");
+    },
+  });
+  await assert.rejects(
+    closed.checkZeroCostChain({ chain: "auto:code" }),
+    { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
+  );
+  assert.equal(network, 0);
+});
