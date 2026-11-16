@@ -639,8 +639,8 @@ test("restart/resume with an existing coding checkpoint never replays model gene
   );
 });
 
-test("missing or unreadable verification job fails closed without replaying inference", async (t) => {
-  for (const mode of ["missing", "lookup-error"]) {
+test("missing or malformed verification job fails closed without replaying inference", async (t) => {
+  for (const mode of ["missing", "lookup-error", "malformed-state"]) {
     const f = fixture(t);
     const task = f.enqueue();
     await f.worker.tick();
@@ -649,6 +649,7 @@ test("missing or unreadable verification job fails closed without replaying infe
 
     f.runner.get = () => {
       if (mode === "lookup-error") throw new Error("runner state unavailable");
+      if (mode === "malformed-state") return { state: "UNTRUSTED_STATE" };
       return undefined;
     };
     await f.worker.tick();
