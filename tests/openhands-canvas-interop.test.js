@@ -50,13 +50,14 @@ test("refuses host runtime, elevated execution and unknown tasks", () => {
 
 test("refuses production writes under any approval combination", () => {
   assert.throws(
-    () => createOpenHandsCanvasHandoff({
-      sandboxVerified: true,
-      oauthVerified: true,
-      freeModelRouteVerified: true,
-      ownerApproved: true,
-      enableProductionWrites: true,
-    }),
+    () =>
+      createOpenHandsCanvasHandoff({
+        sandboxVerified: true,
+        oauthVerified: true,
+        freeModelRouteVerified: true,
+        ownerApproved: true,
+        enableProductionWrites: true,
+      }),
     /OPENHANDS_PRODUCTION_WRITE_DENIED/,
   );
 });
@@ -103,7 +104,10 @@ test("all externally verified flags unlock only a manual isolated pilot", () => 
   assert.equal(plan.status, "READY_FOR_MANUAL_PILOT");
   assert.deepEqual(plan.blockers, []);
   assert.equal(plan.agentCanvas.runtime, "isolated-docker");
-  assert.equal(plan.agentCanvas.approval, "manual per task and privileged operation");
+  assert.equal(
+    plan.agentCanvas.approval,
+    "manual per task and privileged operation",
+  );
   assert.equal(plan.productionMutation, false);
   assert.equal(plan.executionAttempted, false);
 });
