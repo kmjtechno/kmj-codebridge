@@ -33,7 +33,10 @@ export function localModelReceipt(model, operation) {
 // chain. The proxy's actual upstream model, final bill and provider are NOT
 // independently observable; never claim paidInference=false or known model.
 const CLOUD_CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
-export function cloudCodingReceipt(chain, operation = "autopilot_coding_worker") {
+export function cloudCodingReceipt(
+  chain,
+  operation = "autopilot_coding_worker",
+) {
   if (
     typeof chain !== "string" ||
     !CLOUD_CHAIN.test(chain) ||
