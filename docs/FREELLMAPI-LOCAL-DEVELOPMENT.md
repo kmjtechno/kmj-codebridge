@@ -2,6 +2,8 @@
 
 CodeBridge can connect to the **loopback** FreeLLMAPI gateway when installed on the **same device** (`127.0.0.1:31415` by default).
 
+**Zero-cost admission (fail-closed by default):** Even an owner-approved FreeLLMAPI `auto:<chain>` name and consent do not prove that its upstream is free. The adapter now **refuses to send any prompt** with `FREELLMAPI_ZERO_COST_NOT_ATTESTED` unless trusted device-side code injects a fresh `verifyZeroCostChain` verifier returning authenticated provider account price, remaining quota and immutable no-paid-fallback route-binding evidence for that exact chain. Chat/MCP arguments and environment flags cannot supply this proof. No such provider/account attestor is installed as part of this source PR, so generation remains **disabled in production**; read-only router model discovery can work without it. Tests use a synthetic verifier and are not provider-cost evidence. Do not turn on any generation tool until independent billing and route-binding verification is implemented and tested for the actual account.
+
 **This is not a production inference SLA or an enterprise free-inference guarantee.** Upstream FreeLLMAPI documents that it is intended for single-user experimentation. Its local proxy can forward prompts or repository text to enabled cloud providers and custom endpoints, which may charge the account owner. Do not expose this router publicly or send customer/private code without approval and a provider-specific data handling review.
 
 ## Safe operator configuration
