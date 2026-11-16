@@ -81,7 +81,12 @@ export function createFreeLlmApiClient({
     } catch {
       fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     }
+    // Never accept an attestation after the wall clock rolls back during
+    // asynchronous billing verification; a stale proof must fail closed.
+    const checkedAt = now();
     const ready =
+      Number.isSafeInteger(checkedAt) &&
+      checkedAt >= observedAt &&
       proof?.source === "authenticated_provider_billing_and_route_binding" &&
       proof.chain === chain &&
       proof.routeBindingVerified === true &&
@@ -95,7 +100,7 @@ export function createFreeLlmApiClient({
       proof.observedAtEpochMs <= observedAt &&
       proof.observedAtEpochMs > observedAt - 60000 &&
       Number.isSafeInteger(proof.expiresAtEpochMs) &&
-      proof.expiresAtEpochMs > now() &&
+      proof.expiresAtEpochMs > checkedAt &&
       proof.expiresAtEpochMs <= observedAt + 60000;
     if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     return true;
