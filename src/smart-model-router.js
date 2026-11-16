@@ -118,6 +118,11 @@ export function planSmartModelRoute({
     task.inputTokens < 0 ||
     task.maxOutputTokens < 1 ||
     !SHA.test(task.capability ?? "coding") ||
+    (task.currentModelId !== undefined &&
+      !(
+        typeof task.currentModelId === "string" &&
+        /^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$/.test(task.currentModelId)
+      )) ||
     !state ||
     typeof state !== "object" ||
     Array.isArray(state)
@@ -167,6 +172,7 @@ export function planSmartModelRoute({
             task.inputTokens + task.maxOutputTokens,
           ) * 100,
         ) / 100,
+      lowHeadroom: selection.headroom === "low",
       latencyEstimateMs: hint.latency,
       qualityEstimate: hint.quality,
       reliabilityEstimatePct: hint.reliability,
@@ -177,8 +183,15 @@ export function planSmartModelRoute({
       return a.kind === "local" ? -1 : 1;
     if (strategy === "approved-free-cloud-first" && a.kind !== b.kind)
       return a.kind === "cloud" ? -1 : 1;
+    // A model near its free limit goes after every healthy one, so the
+    // caller moves on before a 429 instead of after it.
+    if (a.lowHeadroom !== b.lowHeadroom) return a.lowHeadroom ? 1 : -1;
     return b.rankScore - a.rankScore || a.modelId.localeCompare(b.modelId);
   });
+  const current =
+    typeof task.currentModelId === "string"
+      ? options.find((o) => o.modelId === task.currentModelId)
+      : undefined;
   const ranked = options.slice(0, MAX_ROUTE).map((option, index) => ({
     ...option,
     order: index + 1,
@@ -187,6 +200,12 @@ export function planSmartModelRoute({
     selected: ranked[0] ?? null,
     fallbacks: ranked.slice(1),
     eligibleCount: options.length,
+    // For a task already running on task.currentModelId: true when that
+    // model is nearly out of free quota and a healthy alternative exists, so
+    // the caller should rotate now at a safe boundary, not after a 429.
+    rotateAdvised: Boolean(
+      current?.lowHeadroom && ranked.some((o) => !o.lowHeadroom),
+    ),
     strategy,
     capability: task.capability ?? "coding",
     requiredContextTokens: task.inputTokens + task.maxOutputTokens,

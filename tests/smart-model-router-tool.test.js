@@ -146,3 +146,79 @@ test("MCP model_route_plan exposes cloud-only and cannot fall back to local", as
   assert.equal(blocked.localFallbackAllowed, false);
   assert.equal(blocked.promptOrConversationTransferred, false);
 });
+
+test("MCP model_route_plan accepts declared limits and rotates away from a nearly exhausted free model", async (t) => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-headroom-"));
+  const root = path.join(base, "project");
+  fs.mkdirSync(root);
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const dispatch = createDispatcher(
+    {
+      id: "d1",
+      stateDir: path.join(base, "state"),
+      projects: [{ id: "p1", root, writable: false, gates: {}, commands: {} }],
+    },
+    { maxConcurrent: 1 },
+    () => ({ features: ["read"], limits: { concurrent_jobs: 1 } }),
+  );
+  const nowMs = Date.now();
+  const cloud = (id, provider, extra = {}) => ({
+    id,
+    provider,
+    kind: "cloud",
+    free: true,
+    privateCodeAllowed: true,
+    contextWindow: 65536,
+    capabilities: ["coding"],
+    enabled: true,
+    health: "ok",
+    modelsDiscoveredAtMs: nowMs - 1000,
+    freeTierVerified: true,
+    costPerMillionTokensUsd: 0,
+    ...extra,
+  });
+  const models = [
+    cloud("vendor/m:free", "openrouter", { limits: { perDay: 50 } }),
+    cloud("llama-x", "groq"),
+  ];
+  const task = {
+    capability: "coding",
+    inputTokens: 100,
+    maxOutputTokens: 100,
+    strategy: "verified-free-cloud-only",
+    cloudApproved: true,
+    privateCode: true,
+    currentModelId: "vendor/m:free",
+  };
+  const args = { device: "d1", project: "p1", models, task };
+  const fresh = await dispatch("model_route_plan", args, ["read"]);
+  assert.equal(fresh.rotateAdvised, false);
+  const near = await dispatch(
+    "model_route_plan",
+    {
+      ...args,
+      quotaState: {
+        "vendor/m:free": {
+          dayKey: new Date(nowMs).toISOString().slice(0, 10),
+          dayCount: 46,
+        },
+      },
+    },
+    ["read"],
+  );
+  assert.equal(near.selected.modelId, "llama-x");
+  assert.equal(near.rotateAdvised, true);
+  assert.equal(near.localFallbackAllowed, false);
+  await assert.rejects(
+    () =>
+      dispatch(
+        "model_route_plan",
+        {
+          ...args,
+          models: [{ ...models[0], limits: { perHour: 1 } }, models[1]],
+        },
+        ["read"],
+      ),
+    /./,
+  );
+});

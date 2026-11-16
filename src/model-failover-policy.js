@@ -56,6 +56,24 @@ function quotaHeader(headers, key) {
     : null;
 }
 
+// Optional owner-declared free-tier ceilings for providers that report no
+// rate-limit headers (e.g. OpenRouter :free = 20/min, 50/day). They let the
+// policy count its own observed requests and move away BEFORE a 429.
+function validLimits(limits) {
+  if (limits === undefined) return true;
+  if (!limits || typeof limits !== "object" || Array.isArray(limits))
+    return false;
+  if (Object.keys(limits).some((k) => k !== "perMinute" && k !== "perDay"))
+    return false;
+  return ["perMinute", "perDay"].every(
+    (k) =>
+      limits[k] === undefined ||
+      (Number.isSafeInteger(limits[k]) &&
+        limits[k] >= 1 &&
+        limits[k] <= 1_000_000),
+  );
+}
+
 function validateModel(model) {
   if (
     !model ||
@@ -67,6 +85,7 @@ function validateModel(model) {
     !["local", "cloud"].includes(model.kind) ||
     typeof model.free !== "boolean" ||
     typeof model.privateCodeAllowed !== "boolean" ||
+    !validLimits(model.limits) ||
     !Number.isSafeInteger(model.contextWindow) ||
     model.contextWindow < 1 ||
     !Array.isArray(model.capabilities) ||
@@ -81,14 +100,19 @@ function validateModel(model) {
 }
 
 export class ModelFailoverPolicy {
-  constructor(models, { now = Date.now, state = {} } = {}) {
+  constructor(models, { now = Date.now, state = {}, headroom = 0.15 } = {}) {
     if (
       !Array.isArray(models) ||
       models.length < 1 ||
       models.length > MAX_MODELS ||
-      typeof now !== "function"
+      typeof now !== "function" ||
+      typeof headroom !== "number" ||
+      !(headroom >= 0 && headroom < 1)
     )
       throw new Error("MODEL_POLICY_INVALID_CONFIG");
+    // Fraction of a known limit that must stay free; at or below it a model
+    // is "low" and is used only after every healthy alternative.
+    this.headroom = headroom;
     this.models = models.map(validateModel);
     if (new Set(this.models.map((m) => m.id)).size !== this.models.length)
       throw new Error("MODEL_POLICY_DUPLICATE_ID");
@@ -102,6 +126,21 @@ export class ModelFailoverPolicy {
         remainingTokens: safeCount(prior.remainingTokens),
         resetRequestsAt: safeCount(prior.resetRequestsAt),
         resetTokensAt: safeCount(prior.resetTokensAt),
+        limitRequests: safeCount(prior.limitRequests),
+        dayKey:
+          typeof prior.dayKey === "string" &&
+          /^\d{4}-\d{2}-\d{2}$/.test(prior.dayKey)
+            ? prior.dayKey
+            : null,
+        dayCount: safeCount(prior.dayCount) ?? 0,
+        hits: Array.isArray(prior.hits)
+          ? prior.hits
+              .filter(
+                (t) =>
+                  Number.isSafeInteger(t) && t > nowMs - 60_000 && t <= nowMs,
+              )
+              .slice(-1000)
+          : [],
         cooldownUntil:
           Number.isSafeInteger(prior.cooldownUntil) &&
           prior.cooldownUntil > nowMs &&
@@ -110,6 +149,45 @@ export class ModelFailoverPolicy {
             : 0,
       });
     }
+  }
+
+  // Combines declared limits, own request counters and provider headers.
+  capacity(m, status) {
+    const nowMs = this.now();
+    const today = new Date(nowMs).toISOString().slice(0, 10);
+    if (status.dayKey !== today) {
+      status.dayKey = today;
+      status.dayCount = 0;
+    }
+    status.hits = status.hits.filter((t) => t > nowMs - 60_000);
+    const parts = [];
+    if (m.limits?.perDay)
+      parts.push({
+        left: m.limits.perDay - status.dayCount,
+        limit: m.limits.perDay,
+      });
+    if (m.limits?.perMinute)
+      parts.push({
+        left: m.limits.perMinute - status.hits.length,
+        limit: m.limits.perMinute,
+      });
+    if (status.remainingRequests !== null)
+      parts.push({
+        left: status.remainingRequests,
+        limit: status.limitRequests,
+      });
+    const exhausted = parts.some((x) => x.left < 1);
+    const low = parts.some((x) =>
+      x.limit ? x.left / x.limit <= this.headroom : x.left <= 2,
+    );
+    const ratios = parts
+      .filter((x) => x.limit)
+      .map((x) => Math.max(0, x.left) / x.limit);
+    return {
+      exhausted,
+      low: low && !exhausted,
+      score: ratios.length ? Math.min(...ratios) : 0.5,
+    };
   }
 
   // Caller must preserve the exact conversation/checkpoint. Never silently
@@ -162,6 +240,7 @@ export class ModelFailoverPolicy {
         if (status.cooldownUntil > this.now()) return false;
         if (status.remainingRequests !== null && status.remainingRequests < 1)
           return false;
+        if (this.capacity(m, status).exhausted) return false;
         // Reserve capacity for the full bounded request.
         if (
           status.remainingTokens !== null &&
@@ -173,9 +252,15 @@ export class ModelFailoverPolicy {
       .sort((a, b) => {
         // Local-first even when cloud quota/latency would look more attractive.
         if (a.kind !== b.kind) return a.kind === "local" ? -1 : 1;
+        const ac = this.capacity(a, this.runtime.get(a.id));
+        const bc = this.capacity(b, this.runtime.get(b.id));
+        // Healthy before low-headroom: switch away before the limit is hit.
+        if (ac.low !== bc.low) return ac.low ? 1 : -1;
         const aq = this.runtime.get(a.id).remainingRequests !== null;
         const bq = this.runtime.get(b.id).remainingRequests !== null;
         if (aq !== bq) return aq ? -1 : 1;
+        // More remaining headroom first spreads load across providers.
+        if (Math.abs(ac.score - bc.score) > 0.05) return bc.score - ac.score;
         return a.id.localeCompare(b.id);
       });
     return eligible.length
@@ -183,6 +268,10 @@ export class ModelFailoverPolicy {
           modelId: eligible[0].id,
           provider: eligible[0].provider,
           kind: eligible[0].kind,
+          headroom: this.capacity(eligible[0], this.runtime.get(eligible[0].id))
+            .low
+            ? "low"
+            : "ok",
         }
       : { modelId: null, reason: "NO_FREE_AUTHORIZED_CAPABLE_MODEL" };
   }
@@ -197,6 +286,20 @@ export class ModelFailoverPolicy {
       quotaHeader(headers, "x-ratelimit-remaining-requests") ??
       quotaHeader(headers, "x-ratelimit-remaining");
     const tokenRemaining = quotaHeader(headers, "x-ratelimit-remaining-tokens");
+    const requestLimit =
+      quotaHeader(headers, "x-ratelimit-limit-requests") ??
+      quotaHeader(headers, "x-ratelimit-limit");
+    if (requestLimit !== null && requestLimit > 0)
+      state.limitRequests = requestLimit;
+    // Every provider response (including 429) consumed one request.
+    this.capacity(
+      this.models.find((x) => x.id === modelId),
+      state,
+    );
+    state.dayCount += 1;
+    state.hits.push(this.now());
+    if (state.hits.length > 1000)
+      state.hits.splice(0, state.hits.length - 1000);
     if (requestRemaining !== null) state.remainingRequests = requestRemaining;
     if (tokenRemaining !== null) state.remainingTokens = tokenRemaining;
     const requestReset = quotaResetMs(
@@ -234,7 +337,12 @@ export class ModelFailoverPolicy {
       free: m.free,
       remainingRequests: s.remainingRequests,
       remainingTokens: s.remainingTokens,
-      quotaKnown: s.remainingRequests !== null || s.remainingTokens !== null,
+      quotaKnown:
+        s.remainingRequests !== null ||
+        s.remainingTokens !== null ||
+        Boolean(m.limits),
+      headroom: this.capacity(m, s).low ? "low" : "ok",
+      requestsUsedToday: s.dayCount,
       cooldownUntil: s.cooldownUntil > this.now() ? s.cooldownUntil : null,
     };
   }

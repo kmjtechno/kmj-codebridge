@@ -61,3 +61,33 @@ upstream pricing when the owner chain is unverified.
 No P520 local model, driver, service, GGUF file, paid subscription, environment
 secret, production release, gateway or CodeBridge agent was changed by this
 source-only planner PR.
+
+## Quota-aware routing (advisory, source-only)
+
+`model_route_plan` now plans **before** a free limit is hit, not only after a 429:
+
+- **Declared limits.** A model may carry `limits: { perMinute, perDay }` (owner-declared free-tier
+  ceilings, e.g. OpenRouter `:free` is 20/min and 50/day for accounts with under $10 of lifetime
+  credits). The policy counts requests it is told about (`observe`) against them: a sliding
+  60 s window and a UTC-day counter.
+- **Headroom.** A model at or below 15% of a known limit (or with 2 or fewer requests left when no
+  limit is known) is `lowHeadroom`. Healthy models always rank first; a low model is used only
+  when nothing healthy qualifies. Exhausted models are not eligible at all.
+- **Spread.** Between healthy models, the one with more remaining headroom is preferred, so load
+  is spread across providers instead of draining one.
+- **Rotate advice.** Pass `task.currentModelId` for a task already running: `rotateAdvised` is
+  true when that model is low and a healthy alternative exists. Rotate at a safe boundary (between
+  requests, with the checkpoint preserved), never mid-request.
+- **Headers still win.** `x-ratelimit-remaining-requests` and `x-ratelimit-limit-requests`
+  headers, 429 `Retry-After` cooldowns and 401/403 backoff behave as before.
+- **State.** Counters live in the `quotaState` snapshot the host persists. If the host does not
+  persist it, counters restart empty after a restart and the policy falls back to headers and
+  429 cooldowns, which is less proactive but still fail-closed.
+
+Limits are not discovered automatically. They change over time and must be entered from the
+provider's current documentation or dashboard. A wrong, too-high limit only delays the switch;
+it never makes a non-free or unverified model eligible: every earlier gate (free tier verified,
+zero price, fresh health, private-code permission, no local fallback) still applies first.
+
+This changes planning only. It does not call a provider, hold a key, enable `freellmapi_generate`
+or switch the host chat model.
