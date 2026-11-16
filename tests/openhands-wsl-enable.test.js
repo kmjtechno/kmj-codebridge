@@ -25,9 +25,15 @@ test("WSL repair is restricted to P520 and explicit apply", () => {
 test("WSL repair enables only the missing feature without reboot", () => {
   assert.match(source, /VirtualMachinePlatform/);
   assert.match(source, /KMJ_WSL_VIRTUAL_MACHINE_PLATFORM_NOT_ENABLED/);
-  assert.match(source, /\/enable-feature \/featurename:Microsoft-Windows-Subsystem-Linux \/all \/norestart/);
+  assert.match(
+    source,
+    /\/enable-feature \/featurename:Microsoft-Windows-Subsystem-Linux \/all \/norestart/,
+  );
   assert.match(source, /DISM_EXIT_CODE=/);
-  assert.match(source, /KMJ_WSL_REBOOT=OWNER_CONTROLLED_REQUIRED_BEFORE_VERIFICATION/);
+  assert.match(
+    source,
+    /KMJ_WSL_REBOOT=OWNER_CONTROLLED_REQUIRED_BEFORE_VERIFICATION/,
+  );
 });
 
 test("WSL repair cannot unregister, reset Docker, reboot or change BCD", () => {
@@ -35,7 +41,10 @@ test("WSL repair cannot unregister, reset Docker, reboot or change BCD", () => {
     executable,
     /\b(?:Restart-Computer|Stop-Computer|shutdown(?:\.exe)?\s+\/r|wsl(?:\.exe)?\s+--(?:unregister|shutdown|terminate|install)|docker(?:\.exe)?\s+(?:system|volume|rm|rmi|stop)|bcdedit(?:\.exe)?\s+\/set)\b/i,
   );
-  assert.doesNotMatch(executable, /\b(?:Start-Process|Remove-Item|Set-ItemProperty|Enable-WindowsOptionalFeature)\b/i);
+  assert.doesNotMatch(
+    executable,
+    /\b(?:Start-Process|Remove-Item|Set-ItemProperty|Enable-WindowsOptionalFeature)\b/i,
+  );
 });
 
 test("WSL repair parses under PowerShell 5.1 on Windows CI", () => {
