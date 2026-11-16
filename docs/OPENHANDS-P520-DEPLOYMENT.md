@@ -68,6 +68,33 @@ If virtualization is disabled, review BIOS/UEFI settings with the owner. If Virt
 
 See [Docker's official startup troubleshooter](https://docs.docker.com/desktop/troubleshoot-and-support/troubleshoot/topics) and [Microsoft WSL troubleshooting](https://learn.microsoft.com/en-us/windows/wsl/troubleshooting). Don't run `wsl --unregister`, `docker system prune`, factory reset, or overwrite existing Linux distributions to fix this.
 
+## Verified P520 WSL feature repair (2026-11-16)
+
+The read-only P520 doctor reported Windows 10 build 19045, `WINDOWS_FEATURE_Microsoft-Windows-Subsystem-Linux=DISABLED`, and `WINDOWS_FEATURE_VirtualMachinePlatform=ENABLED`. The Docker CLI was found but the Linux engine reported `Docker Desktop is unable to start`.
+
+Microsoft's documented repair is to enable the missing WSL Windows optional feature using DISM and **restart Windows afterward**. Use the guarded P520-only script committed with this PR; the owner must run it in an **elevated** PowerShell:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Users\KMJ TECHNO\KMJ\kmj-codebridge\scripts\windows\P520-OPENHANDS-ENABLE-WSL.ps1" -Apply
+```
+
+The script is read-only by default, validates P520 identity, Windows build and existing Virtual Machine Platform before any mutation, requires explicit `-Apply` and administrator privileges, and executes **only** `dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart`. It never automatically reboots, modifies BIOS/BCD, deletes WSL distributions or runs Docker.
+
+After `KMJ_WSL_FEATURE_ENABLE_COMMAND=PASS`, save ongoing work, restart Windows in an operator-controlled maintenance window, then run:
+
+```powershell
+wsl.exe --version
+wsl.exe --status
+wsl.exe --list --verbose
+docker info --format '{{.OSType}}'
+```
+
+Start Docker Desktop if needed, then rerun the existing `P520-OPENHANDS-CANVAS-PILOT.ps1 -Start` launcher **only after** WSL status and the Linux engine are healthy. If WSL reports missing kernel or Store runtime, investigate that specific error and follow Microsoft's supported update process. Do not unregister existing distributions or factory-reset Docker.
+
+The doctor's `BIOS_VIRTUALIZATION_ENABLED=False` and `CPU_SLAT=False` appear alongside `HYPERVISOR_PRESENT=True`; hardware capability reports can be unreliable when a hypervisor is active. Do not change BIOS without independent confirmation after enabling WSL.
+
+References: https://learn.microsoft.com/en-us/windows/wsl/install-manual and https://docs.docker.com/desktop/setup/install/windows-install/
+
 ## Authentication / free-only setup
 
 1. Open `http://127.0.0.1:8000/canvas` locally after startup. Upstream may require its session API key. Read it **locally** via:
