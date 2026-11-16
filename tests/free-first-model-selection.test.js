@@ -73,3 +73,59 @@ test("invalid local input or clock cannot silently enable cloud", () => {
   });
   assert.equal(v.route, "blocked");
 });
+
+test("owner cloud-only plan ignores a healthy local model", () => {
+  const v = selectFreeFirstModel({
+    now,
+    local,
+    cloud,
+    ownerCloudConsent: true,
+    strategy: "verified-free-cloud-only",
+  });
+  assert.equal(v.route, "free-cloud");
+  assert.equal(v.strategy, "verified-free-cloud-only");
+  assert.equal(v.localFallbackAllowed, false);
+  assert.equal(v.cloudRequestsAllowed, true);
+});
+
+test("cloud-only fails closed on missing consent, paid model, stale price or quota without selecting local", () => {
+  const bad = [
+    { ownerCloudConsent: false },
+    { cloud: { ...cloud, requestsRemaining: 0 } },
+    { cloud: { ...cloud, inputPriceUsdPerToken: 0.0001 } },
+    { cloud: { ...cloud, accountNoChargeVerified: false } },
+    { cloud: { ...cloud, model: "vendor/coder:paid" } },
+    { cloud: { ...cloud, observedAtEpochMs: now - 86400000 } },
+    { cloud: { ...cloud, noPaidFallback: false } },
+    { cloud: null },
+  ];
+  for (const scenario of bad) {
+    const v = selectFreeFirstModel({
+      now,
+      local,
+      cloud,
+      ownerCloudConsent: true,
+      strategy: "verified-free-cloud-only",
+      ...scenario,
+    });
+    assert.equal(v.route, "blocked");
+    assert.equal(v.localFallbackAllowed, false);
+    assert.equal(v.cloudRequestsAllowed, false);
+    assert.equal(v.model, null);
+    assert.equal(v.noPaidFallback, true);
+  }
+});
+
+test("unknown selection strategy rejects rather than activating any model", () => {
+  assert.throws(
+    () =>
+      selectFreeFirstModel({
+        now,
+        local,
+        cloud,
+        ownerCloudConsent: true,
+        strategy: "fastest",
+      }),
+    /MODEL_ROUTE_INVALID_STRATEGY/,
+  );
+});
