@@ -42,7 +42,36 @@ test("production OAuth still fails closed on discovery and scoped 401", () => {
     production,
     /for spec in 'list_devices:read' 'write_file:write'/,
   );
-  assert.match(production, /scope=\\\"codebridge:\$scope\\\"/);
+  // The required scope must be a whole token inside the challenge's scope
+  // attribute, so the wider list from oauth.signInScopes=all is accepted while
+  // a wrong or prefix-only scope is not.
+  const grep = production.match(
+    /grep -Eq "(scope=\\"\(\[\^\\"\]\* \)\?codebridge:\$\{scope\}\( \[\^\\"\]\*\)\?\\")" "\$headers"/,
+  );
+  assert.ok(grep, "scope token check is missing from the workflow");
+  const pattern = (scope) =>
+    new RegExp(grep[1].replaceAll('\\"', '"').replace("${scope}", scope));
+  const challenge = (value) =>
+    `www-authenticate: Bearer resource_metadata="https://x/", scope="${value}"`;
+  assert.ok(pattern("read").test(challenge("codebridge:read")));
+  assert.ok(
+    pattern("read").test(
+      challenge("codebridge:read codebridge:write codebridge:execute"),
+    ),
+  );
+  assert.ok(
+    pattern("write").test(
+      challenge("codebridge:read codebridge:write codebridge:execute"),
+    ),
+  );
+  assert.ok(!pattern("write").test(challenge("codebridge:read")));
+  assert.ok(!pattern("read").test(challenge("codebridge:readwrite")));
+  assert.ok(!pattern("read").test(challenge("xcodebridge:read")));
+  assert.ok(
+    !pattern("read").test(
+      `www-authenticate: Bearer resource_metadata="https://x/"`,
+    ),
+  );
   assert.match(production, /exit 1/);
 });
 

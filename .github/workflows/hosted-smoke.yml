@@ -99,7 +99,7 @@ jobs:
               challenge=present
             fi
             scope_status=missing
-            if grep -q "scope=\"codebridge:$scope\"" "$headers"; then
+            if grep -Eq "scope=\"([^\"]* )?codebridge:${scope}( [^\"]*)?\"" "$headers"; then
               scope_status=present
             fi
             denied_body=missing
