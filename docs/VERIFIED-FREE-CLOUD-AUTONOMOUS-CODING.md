@@ -43,8 +43,12 @@ enabling, install a separate trusted, short-lived, account-specific verifier
 for actual upstream zero-price input/output, available free quota and
 immutable no-paid-fallback route binding. This verifier must live in
 owner-protected device code, never MCP arguments, .env flags or GitHub files.
-It must be rechecked on every attempt/retry and on revocation. No verifier is
-included in this branch.
+It must be rechecked on every attempt/retry and on revocation. The worker
+now requires an independent read-only no-charge proof during model status
+**before claiming a task, preparing a lane or reading private source**, and
+rechecks immediately before the actual cloud POST. Without the protected
+verifier, status reports no eligible model. No verifier is included in this
+branch.
 
 Cloud attribution reports `provider=freellmapi-loopback`,
 `execution=verified_zero_cost_route_admission`, `paidInference=null` and
