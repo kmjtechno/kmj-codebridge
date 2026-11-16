@@ -249,8 +249,8 @@ test("owner-exported public PEM verifies real signed stable release", () => {
   assert.deepEqual(
     latestSignedRelease("releases/stable", { trustedPublicKeyPem }),
     {
-      sequence: 29,
-      revision: "e8c353dc839a01a8418e01e7b9209d46bcedc779",
+      sequence: 30,
+      revision: "597037b07cac08729290d549c023111d1ab7e7c0",
     },
   );
 });
