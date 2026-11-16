@@ -385,10 +385,16 @@ test("read-only worktree doctor detects registered lane whose private directory 
   const observed = lanes.diagnose("project1", x.repo);
   assert.equal(observed.status, "REVIEW_REQUIRED");
   assert.deepEqual(observed.lanes, [
-    { laneId: "vanished", status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED" },
+    {
+      laneId: "vanished",
+      status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED",
+    },
   ]);
   assert.equal(observed.cleanupPerformed, false);
   assert.equal(observed.mayPrepare, false);
   assert.equal(fs.existsSync(relocated), true);
-  assert.equal(fs.readFileSync(path.join(relocated, "README.md"), "utf8"), "original\n");
+  assert.equal(
+    fs.readFileSync(path.join(relocated, "README.md"), "utf8"),
+    "original\n",
+  );
 });
