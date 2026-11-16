@@ -338,7 +338,7 @@ export function commandRequiresIsolatedLane(commandId) {
 // Machine-readable version of the command-profile contract documented in
 // docs/COMMAND-PROFILE-SCHEMA.md. Informational only: it does not change which
 // commands may run. Bump it together with the document when a field is added.
-export const COMMAND_PROFILE_SCHEMA_VERSION = "1.2";
+export const COMMAND_PROFILE_SCHEMA_VERSION = "1.3";
 
 export const COMMAND_PRESET_IDS = Object.freeze(Object.keys(PRESETS));
 
