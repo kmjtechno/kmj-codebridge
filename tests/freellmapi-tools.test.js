@@ -22,6 +22,18 @@ test("freellmapi tools enforce consent and scopes and route through the factory"
     createFreeLlmApiClient({
       apiKey: "freellma-test-key-0001",
       approvedFreeChains: ["auto:default"],
+      verifyZeroCostChain: ({ chain, observedAtEpochMs }) => ({
+        source: "authenticated_provider_billing_and_route_binding",
+        chain,
+        routeBindingVerified: true,
+        accountNoChargeVerified: true,
+        noPaidFallback: true,
+        inputPriceUsdPerToken: 0,
+        outputPriceUsdPerToken: 0,
+        requestsRemaining: 1,
+        observedAtEpochMs,
+        expiresAtEpochMs: observedAtEpochMs + 30000,
+      }),
       request: async (r) => {
         if (r.path === "/v1/models") return { data: [{ id: "auto:default" }] };
         seen.push(r.body.model);
