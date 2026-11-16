@@ -16,6 +16,10 @@ const seq29 = fs.readFileSync(
 const normalise = (text) =>
   text
     .replace(/REQUIRED = frozenset\(\[[\s\S]*?\]\)\n/, "REQUIRED = SET\n")
+    .replace(
+      /def safe_gateway_config_bytes[\s\S]*?\ndef gateway_port/,
+      "def SAFECONFIG\ndef gateway_port",
+    )
     .replace(/z+-kmj-signed\d+\.conf/g, "ZCONF")
     .replace(/SIGNED\d+/g, "SIGNEDN")
     .replace(/signed\d+/g, "signedN")
@@ -99,4 +103,15 @@ test("seq29 requires the tools added since seq28 and still never edits config, u
     );
   }
   assert.doesNotMatch(seq29, /chown|os\.chmod\(|stable-update\.json/);
+});
+
+test("seq29 accepts exactly the config layouts the gateway runtime accepts (src/config-file-mode.js)", () => {
+  const runtime = fs.readFileSync("src/config-file-mode.js", "utf8");
+  assert.match(runtime, /\(stat\.mode & 0o137\) === 0/);
+  assert.match(runtime, /stat\.uid === 0/);
+  assert.match(seq29, /\(st\.st_mode & 0o137\) == 0/);
+  assert.match(seq29, /st\.st_uid == 0 and st\.st_gid == gid/);
+  assert.match(seq29, /\(st\.st_mode & 0o077\) == 0 and st\.st_uid == uid/);
+  assert.match(seq29, /grp\.getgrnam\("kmjcode"\)/);
+  assert.match(seq29, /GATEWAY_CONFIG_NOT_STARTABLE_MODE_OR_OWNER/);
 });
