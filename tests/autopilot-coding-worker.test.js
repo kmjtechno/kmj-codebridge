@@ -975,8 +975,14 @@ test("cloud-only coding never contacts a local LLM and labels the reviewed patch
   assert.equal(cloudGeneration, 1);
   assert.equal(f.generated(), 0);
   assert.equal(f.starts.length, 1);
-  assert.equal(f.journal.get(task.id, "repo").checkpoint.modelUsage.provider, "freellmapi-loopback");
-  assert.equal(f.journal.get(task.id, "repo").checkpoint.modelUsage.paidInference, null);
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.modelUsage.provider,
+    "freellmapi-loopback",
+  );
+  assert.equal(
+    f.journal.get(task.id, "repo").checkpoint.modelUsage.paidInference,
+    null,
+  );
   f.jobs.get("job-1").state = "succeeded";
   f.jobs.get("job-1").exitCode = 0;
   await worker.tick();
