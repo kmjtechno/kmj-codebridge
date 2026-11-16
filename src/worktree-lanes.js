@@ -176,41 +176,44 @@ export class WorktreeLanes {
     // A failed git worktree remove can leave a stale registration while the
     // directory is already gone. Read Git's own registry, never prune it.
     // Compare only direct children under the private project lane root.
-    const registered = new Set();
+    // Git for Windows and Windows Node may represent the same worktree using
+    // different drive spelling, slash direction or letter case. Match the
+    // exact private base/project suffix, then require ONE safe lane component.
+    // Ambiguity only blocks recovery; it never grants filesystem access.
+    const fold = (value) =>
+      process.platform === "win32" ? value.toLowerCase() : value;
+    const marker = `/${path.basename(this.base)}/${project}/`;
+    const present = new Map(names.map((name) => [fold(name), name]));
+    const registered = new Map();
     try {
       const inventory = git(repo, ["worktree", "list", "--porcelain"]);
       for (const line of inventory.split(/\r?\n/)) {
         if (!line.startsWith("worktree ")) continue;
-        const candidate = path.resolve(line.slice("worktree ".length));
-        const relative = path.relative(parent, candidate);
-        if (
-          !relative ||
-          relative === ".." ||
-          relative.startsWith(".." + path.sep) ||
-          path.isAbsolute(relative)
-        )
-          continue;
+        const printed = line.slice("worktree ".length).replaceAll("\\", "/");
+        const at = fold(printed).lastIndexOf(fold(marker));
+        if (at < 0) continue;
+        const relative = printed.slice(at + marker.length);
         if (!LANE.test(relative))
           return result("REGISTERED_LANE_NAME_UNSAFE_REVIEW_REQUIRED");
-        registered.add(relative);
+        registered.set(fold(relative), relative);
       }
     } catch {
       return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
     }
-    const observed = [...new Set([...names, ...registered])].sort();
-    if (observed.length > MAX_LANES)
+    const keys = [...new Set([...present.keys(), ...registered.keys()])].sort();
+    if (keys.length > MAX_LANES)
       return result("LANE_LIMIT_EXCEEDED_REVIEW_REQUIRED");
-    if (observed.length === 0) return result("NO_PRIVATE_LANES");
-    const present = new Set(names);
-    const lanes = observed.map((name) => {
+    if (keys.length === 0) return result("NO_PRIVATE_LANES");
+    const lanes = keys.map((key) => {
+      const name = present.get(key) ?? registered.get(key);
       if (!LANE.test(name))
         return { laneId: null, status: "INVALID_LANE_NAME_REVIEW_REQUIRED" };
-      if (!present.has(name))
+      if (!present.has(key))
         return {
           laneId: name,
           status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED",
         };
-      if (!registered.has(name))
+      if (!registered.has(key))
         return { laneId: name, status: "LANE_NOT_REGISTERED_REVIEW_REQUIRED" };
       let target;
       try {
