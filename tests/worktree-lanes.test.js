@@ -373,3 +373,22 @@ test("read-only worktree doctor does not mask over-limit private lane state", (t
     /WORKTREE_LIMIT_EXCEEDED/,
   );
 });
+
+test("read-only worktree doctor detects registered lane whose private directory vanished", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  const missing = lanes.prepare("project1", x.repo, "vanished", x.head);
+  const relocated = path.join(x.state, "relocated-owned-worktree");
+  // Only disposable fixture data is moved. The Git registry deliberately
+  // continues referencing the old path after an interrupted removal.
+  fs.renameSync(missing.path, relocated);
+  const observed = lanes.diagnose("project1", x.repo);
+  assert.equal(observed.status, "REVIEW_REQUIRED");
+  assert.deepEqual(observed.lanes, [
+    { laneId: "vanished", status: "REGISTERED_LANE_PATH_MISSING_REVIEW_REQUIRED" },
+  ]);
+  assert.equal(observed.cleanupPerformed, false);
+  assert.equal(observed.mayPrepare, false);
+  assert.equal(fs.existsSync(relocated), true);
+  assert.equal(fs.readFileSync(path.join(relocated, "README.md"), "utf8"), "original\n");
+});
