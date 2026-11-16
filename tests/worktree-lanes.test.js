@@ -408,14 +408,24 @@ test("deep untracked owner work stays dirty without overflowing lane scans", (t)
   for (let i = 0; i < 320; i += 1) {
     fs.writeFileSync(
       path.join(dir, `${String(i).padStart(4, "0")}.txt`),
-      "PRESERVE OWNER WORK\\n",
+      "PRESERVE OWNER WORK\n",
     );
   }
 
   // --all enumerates every deep file; --normal retains the dirty signal
   // with a single untracked directory entry. Neither command changes files.
-  const detailed = git(lane.path, "status", "--porcelain", "--untracked-files=all");
-  const condensed = git(lane.path, "status", "--porcelain", "--untracked-files=normal");
+  const detailed = git(
+    lane.path,
+    "status",
+    "--porcelain",
+    "--untracked-files=all",
+  );
+  const condensed = git(
+    lane.path,
+    "status",
+    "--porcelain",
+    "--untracked-files=normal",
+  );
   assert.ok(detailed.length > 8192);
   assert.ok(condensed.length < 256);
   assert.equal(lanes.status("project1", x.repo).lanes[0].dirty, true);
@@ -428,6 +438,6 @@ test("deep untracked owner work stays dirty without overflowing lane scans", (t)
   );
   assert.equal(
     fs.readFileSync(path.join(dir, "0000.txt"), "utf8"),
-    "PRESERVE OWNER WORK\\n",
+    "PRESERVE OWNER WORK\n",
   );
 });
