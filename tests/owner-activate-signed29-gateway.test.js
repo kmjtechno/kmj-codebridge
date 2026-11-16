@@ -15,7 +15,18 @@ const seq29 = fs.readFileSync(
 // Normalise every release-specific identifier so only structure is compared.
 const normalise = (text) =>
   text
+    .replace(
+      /# Tools the CURRENT[\s\S]*?REQUIRED_OLD = frozenset\(\[[\s\S]*?\]\)\n/,
+      "",
+    )
     .replace(/REQUIRED = frozenset\(\[[\s\S]*?\]\)\n/, "REQUIRED = SET\n")
+    .replace(
+      "origin_probe(origin,port,required=None)",
+      "origin_probe(origin,port)",
+    )
+    .replace("    required=REQUIRED if required is None else required\n", "")
+    .replace("required.issubset", "REQUIRED.issubset")
+    .replace(/,REQUIRED_OLD\)/g, ")")
     .replace(
       /def safe_gateway_config_bytes[\s\S]*?\ndef gateway_port/,
       "def SAFECONFIG\ndef gateway_port",
@@ -114,4 +125,28 @@ test("seq29 accepts exactly the config layouts the gateway runtime accepts (src/
   assert.match(seq29, /\(st\.st_mode & 0o077\) == 0 and st\.st_uid == uid/);
   assert.match(seq29, /grp\.getgrnam\("kmjcode"\)/);
   assert.match(seq29, /GATEWAY_CONFIG_NOT_STARTABLE_MODE_OR_OWNER/);
+});
+
+test("seq29 baseline and rollback probes require only the tools the live signed28 gateway has, the cutover target requires the new ones", () => {
+  const old = seq29.match(/REQUIRED_OLD = frozenset\(\[([\s\S]*?)\]\)/)[1];
+  const neu = seq29.match(/\nREQUIRED = frozenset\(\[([\s\S]*?)\]\)/)[1];
+  const names = (x) => [...x.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]);
+  const seq28Set = names(
+    seq28.match(/REQUIRED = frozenset\(\[([\s\S]*?)\]\)/)[1],
+  );
+  assert.deepEqual(names(old).sort(), seq28Set.sort());
+  for (const tool of names(old)) assert.ok(names(neu).includes(tool));
+  for (const tool of [
+    "freellmapi_status",
+    "freellmapi_generate",
+    "worktree_lane_diagnose",
+  ]) {
+    assert.ok(!names(old).includes(tool), tool);
+    assert.ok(names(neu).includes(tool), tool);
+  }
+  assert.match(seq29, /old=origin_probe\("DIRECT",port,REQUIRED_OLD\)/);
+  assert.match(seq29, /observed=origin_probe\("DIRECT",port,REQUIRED_OLD\)/);
+  // Post-cutover probes use the default (new) set.
+  assert.match(seq29, /seen=origin_probe\(origin,port\)/);
+  assert.match(seq29, /seen=origin_probe\("PUBLIC",port\)/);
 });
