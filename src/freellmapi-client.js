@@ -62,7 +62,49 @@ export function createFreeLlmApiClient({
   let cached = null;
   const call = (method, path, body, timeoutMs) =>
     request({ port, method, path, apiKey, body, timeoutMs });
+  // Read-only proof can be checked BEFORE claiming a coding task or reading
+  // private project source. A second check ALWAYS runs before each POST.
+  const verifyChainAdmission = async (chain) => {
+    if (!CHAIN.test(chain) || !approved.has(chain))
+      fail("FREELLMAPI_CHAIN_NOT_APPROVED");
+    // An owner-allowed chain is NOT proof of free provider billing.
+    // Require independent account + immutable route binding attestation
+    // again immediately before every generation or 429 fallback attempt.
+    if (!verifyZeroCostChain) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
+    const observedAt = now();
+    let proof;
+    try {
+      proof = await verifyZeroCostChain({
+        chain,
+        observedAtEpochMs: observedAt,
+      });
+    } catch {
+      fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
+    }
+    const ready =
+      proof?.source === "authenticated_provider_billing_and_route_binding" &&
+      proof.chain === chain &&
+      proof.routeBindingVerified === true &&
+      proof.accountNoChargeVerified === true &&
+      proof.noPaidFallback === true &&
+      proof.inputPriceUsdPerToken === 0 &&
+      proof.outputPriceUsdPerToken === 0 &&
+      Number.isSafeInteger(proof.requestsRemaining) &&
+      proof.requestsRemaining > 0 &&
+      Number.isSafeInteger(proof.observedAtEpochMs) &&
+      proof.observedAtEpochMs <= observedAt &&
+      proof.observedAtEpochMs > observedAt - 60000 &&
+      Number.isSafeInteger(proof.expiresAtEpochMs) &&
+      proof.expiresAtEpochMs > now() &&
+      proof.expiresAtEpochMs <= observedAt + 60000;
+    if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
+    return true;
+  };
   const client = {
+    async checkZeroCostChain({ chain }) {
+      await verifyChainAdmission(chain);
+      return { admitted: true, chain };
+    },
     async status() {
       const res = await call("GET", "/v1/models", undefined, 5000);
       const ids = (res?.data ?? [])
@@ -104,37 +146,7 @@ export function createFreeLlmApiClient({
         timeoutSeconds > 90
       )
         fail("FREELLMAPI_INVALID_TIMEOUT");
-      // An owner-allowed chain is NOT proof of free provider billing.
-      // Require independent account + immutable route binding attestation
-      // again immediately before every generation or 429 fallback attempt.
-      if (!verifyZeroCostChain) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
-      const observedAt = now();
-      let proof;
-      try {
-        proof = await verifyZeroCostChain({
-          chain,
-          observedAtEpochMs: observedAt,
-        });
-      } catch {
-        fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
-      }
-      const ready =
-        proof?.source === "authenticated_provider_billing_and_route_binding" &&
-        proof.chain === chain &&
-        proof.routeBindingVerified === true &&
-        proof.accountNoChargeVerified === true &&
-        proof.noPaidFallback === true &&
-        proof.inputPriceUsdPerToken === 0 &&
-        proof.outputPriceUsdPerToken === 0 &&
-        Number.isSafeInteger(proof.requestsRemaining) &&
-        proof.requestsRemaining > 0 &&
-        Number.isSafeInteger(proof.observedAtEpochMs) &&
-        proof.observedAtEpochMs <= observedAt &&
-        proof.observedAtEpochMs > observedAt - 60000 &&
-        Number.isSafeInteger(proof.expiresAtEpochMs) &&
-        proof.expiresAtEpochMs > now() &&
-        proof.expiresAtEpochMs <= observedAt + 60000;
-      if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
+      await verifyChainAdmission(chain);
       const res = await call(
         "POST",
         "/v1/chat/completions",
