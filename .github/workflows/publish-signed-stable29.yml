@@ -29,22 +29,22 @@ jobs:
           folder = pathlib.Path(sys.argv[1]); pin = sys.argv[2]
           manifest = (folder / 'release-manifest.json').read_bytes()
           signature = (folder / 'release-manifest.sig').read_bytes()
-          assert hashlib.sha256(manifest).hexdigest() == 'eb47eece1157fb2f3549a6daedb7723bb44a16f86ed12b4a849755bd00a7b6b7', 'manifest SHA'
+          assert hashlib.sha256(manifest).hexdigest() == '0c0b738fb59fd156bcd43813653e83520abff267f8369ed90251a3367dfa2752', 'manifest SHA'
           data = json.loads(manifest)
           assert data['schema'] == 1 and data['product'] == 'KMJ CodeBridge'
           assert data['sequence'] == 29 and data['revision'] == pin
           assert data['channel'] == 'stable' and data['keyId'] == 'kmj-release-2026'
           assert data['archive'] == f'https://kmjtechno.com/codebridge/releases/stable/{pin}/kmj-codebridge-0.3.2-e8c353dc839a.tar.gz'
-          assert data['sha256'] == 'dc2d60000fc66f2b8a473e34bad63ce5371866ae2ed0dd50a1aad8e95bbebb9d'
-          assert data['bytes'] == 2236496 and data['nodeMajor'] == 24
+          assert data['sha256'] == 'e1c7262504dc5a21cd89aab26506055238d25f3ccace40c32b5a0a19d4eac35b'
+          assert data['bytes'] == 2283307 and data['nodeMajor'] == 24
           assert len(base64.urlsafe_b64decode(signature.strip() + b'==')) == 64
           print('PUBLIC_METADATA_INTEGRITY=PASS')
           print('SIGNATURE_TRUST=OWNER_HOST_VERIFICATION_REQUIRED')
           PY
           git cat-file -e "$pin^{commit}"
           git archive --format=tar.gz --prefix="kmj-codebridge-0.3.2-e8c353dc839a/" --output="$dest" "$pin"
-          printf '%s  %s\n' dc2d60000fc66f2b8a473e34bad63ce5371866ae2ed0dd50a1aad8e95bbebb9d "$dest" | sha256sum --check --status
-          test "$(stat -c %s "$dest")" -eq 2236496
+          printf '%s  %s\n' e1c7262504dc5a21cd89aab26506055238d25f3ccace40c32b5a0a19d4eac35b "$dest" | sha256sum --check --status
+          test "$(stat -c %s "$dest")" -eq 2283307
           echo 'IMMUTABLE_ARCHIVE_SHA_SIZE=PASS'
       - name: Publish immutable public assets without overwriting any release
         shell: bash
