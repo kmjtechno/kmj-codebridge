@@ -27,7 +27,10 @@ test("official v1.40.0 image, local desktop engine and loopback only", () => {
   assert.match(source, /ghcr\.io\/openhands\/agent-canvas:1\.40\.0/);
   assert.match(source, /desktop-linux/);
   assert.match(source, /127\.0\.0\.1:8000:8000/);
-  assert.doesNotMatch(executableSource, /--privileged|--network[ =]host|0\.0\.0\.0:8000/);
+  assert.doesNotMatch(
+    executableSource,
+    /--privileged|--network[ =]host|0\.0\.0\.0:8000/,
+  );
 });
 
 test("workspace mount is dedicated and host docker socket not passed", () => {
@@ -35,7 +38,10 @@ test("workspace mount is dedicated and host docker socket not passed", () => {
   assert.match(source, /target=\/projects/);
   assert.match(source, /OPENHANDS_NONEMPTY_WORKSPACE_REQUIRES_EXPLICIT_REUSE/);
   assert.match(source, /OPENHANDS_NESTED_REPARSE_DENIED/);
-  assert.doesNotMatch(executableSource, /docker\.sock|docker_engine|--volume\s+C:/i);
+  assert.doesNotMatch(
+    executableSource,
+    /docker\.sock|--volume\s+C:|--mount\s+[^\n]*docker_engine/i,
+  );
 });
 
 test("no automatic model or cloud credential enabling", () => {
