@@ -103,6 +103,8 @@ try {
 }
 $osType = & $dockerExe info --format '{{.OSType}}'
 if ($LASTEXITCODE -ne 0 -or ([string]$osType).Trim() -ne 'linux') {
+  Write-Output 'OPENHANDS_NEXT=RUN_P520_OPENHANDS_ENGINE_DOCTOR_READ_ONLY'
+  Write-Output 'OPENHANDS_DOCTOR_FILE=scripts/windows/P520-OPENHANDS-ENGINE-DOCTOR.ps1'
   throw 'OPENHANDS_LINUX_DOCKER_ENGINE_REQUIRED'
 }
 
