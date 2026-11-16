@@ -315,6 +315,13 @@ export const agentSchema = z.object({
               // Explicit administrator consent is mandatory before local source
               // files can be sent to the already-running loopback model.
               localProcessingApproved: z.boolean().default(false),
+              inferenceRoute: z
+                .enum(["local-only", "verified-free-cloud-only"])
+                .default("local-only"),
+              // Separate owner consent for local proxy contact and transfer
+              // of scoped repository source to remote cloud models.
+              cloudProxyApproved: z.boolean().default(false),
+              cloudSourceTransferApproved: z.boolean().default(false),
               model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
               maxTokens: z.number().int().min(64).max(512).default(384),
               timeoutSeconds: z.number().int().min(5).max(90).default(45),
@@ -373,13 +380,31 @@ export const agentSchema = z.object({
             })
             .strict()
             .superRefine((worker, ctx) => {
-              if (worker.enabled && worker.localProcessingApproved !== true) {
-                ctx.addIssue({
-                  code: z.ZodIssueCode.custom,
-                  path: ["localProcessingApproved"],
-                  message:
-                    "Local code generation requires explicit administrator consent",
-                });
+              if (worker.enabled) {
+                if (worker.inferenceRoute === "verified-free-cloud-only") {
+                  if (
+                    worker.localProcessingApproved === true ||
+                    worker.cloudProxyApproved !== true ||
+                    worker.cloudSourceTransferApproved !== true ||
+                    !/^auto:[A-Za-z0-9_-]{1,20}$/.test(worker.model)
+                  ) {
+                    ctx.addIssue({
+                      code: z.ZodIssueCode.custom,
+                      path: ["inferenceRoute"],
+                      message: "Cloud coding needs explicit proxy and source-transfer grants, an approved auto: chain, and no local model consent",
+                    });
+                  }
+                } else if (
+                  worker.localProcessingApproved !== true ||
+                  worker.cloudProxyApproved === true ||
+                  worker.cloudSourceTransferApproved === true
+                ) {
+                  ctx.addIssue({
+                    code: z.ZodIssueCode.custom,
+                    path: ["localProcessingApproved"],
+                    message: "Local coding requires local consent with no cloud grants",
+                  });
+                }
               }
               for (const [name, recipe] of Object.entries(
                 worker.recipes ?? {},
