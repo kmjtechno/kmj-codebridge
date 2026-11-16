@@ -84,8 +84,31 @@ export class AutopilotGateWorker {
     for (const project of this.projects) {
       const current = this.active.get(project.id);
       if (current) {
-        const result = this.runner.get(current.jobId, project.id);
-        if (result && TERMINAL.has(result.state)) {
+        let result;
+        try {
+          result = this.runner.get(current.jobId, project.id);
+        } catch {
+          result = null;
+        }
+        if (!result) {
+          // A lost/corrupt archived job receipt cannot remain an in-memory
+          // active gate forever. Fence the leased task for human review and
+          // NEVER retry its command automatically; an earlier job may still
+          // have executed. A stale lease must not clobber a new task owner.
+          try {
+            this.journal.wait(
+              current.taskId,
+              project.id,
+              "APPROVED_GATE_JOB_RESULT_UNAVAILABLE_REVIEW_REQUIRED",
+              current.leaseToken,
+            );
+          } catch {
+            // The journal owns durable lease recovery and fencing.
+          }
+          this.active.delete(project.id);
+          continue;
+        }
+        if (TERMINAL.has(result.state)) {
           if (result.state === "succeeded" && result.exitCode === 0) {
             this.journal.complete(current.taskId, project.id, {
               state: "succeeded",
