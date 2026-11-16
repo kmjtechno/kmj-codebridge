@@ -214,7 +214,11 @@ test("signable release artifact only uploads on main push with exact source comm
     "        uses: actions/upload-artifact@v7.0.2",
   ].join("\n");
   assert.ok(workflow.includes(exactUpload));
-  assert.ok(workflow.includes("Verify exact main SHA before release-candidate publication"));
+  assert.ok(
+    workflow.includes(
+      "Verify exact main SHA before release-candidate publication",
+    ),
+  );
   assert.ok(workflow.includes("EXPECTED_SHA: " + "$" + "{{ github.sha }}"));
   assert.ok(workflow.includes("runtime.revision !== process.env.EXPECTED_SHA"));
   assert.ok(workflow.includes("request.revision !== process.env.EXPECTED_SHA"));
