@@ -25,10 +25,9 @@ export function reviewRepairCandidate({
 }) {
   const repairRecipes = project?.autopilotRepairWorker?.recipes;
   const codingConfig = project?.autopilotCodingWorker;
-  const codingRecipes =
-    codingRouteApproved(codingConfig)
-      ? codingConfig.recipes
-      : null;
+  const codingRecipes = codingRouteApproved(codingConfig)
+    ? codingConfig.recipes
+    : null;
   if (!project?.writable || (!repairRecipes && !codingRecipes))
     fail("AUTOPILOT_REPAIR_NOT_CONFIGURED");
   const task = journal.get(taskId, project.id);
