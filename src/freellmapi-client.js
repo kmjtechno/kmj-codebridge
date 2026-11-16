@@ -194,7 +194,11 @@ export function createFreeLlmApiClient({
       const startedAt = now();
       const deadline = startedAt + totalSeconds * 1000;
       // Even explicit chains must be advertised, approved and discovered.
-      if (!cached || startedAt < cached.at || startedAt - cached.at > STATUS_TTL_MS)
+      if (
+        !cached ||
+        startedAt < cached.at ||
+        startedAt - cached.at > STATUS_TTL_MS
+      )
         cached = { at: startedAt, chains: (await client.status()).chains };
       const candidates = (
         chain === undefined
