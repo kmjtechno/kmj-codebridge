@@ -28,6 +28,7 @@ import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
+import { buildRoutingInventory } from "./model-inventory.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { planLargePrompt } from "./large-prompt-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
@@ -1693,7 +1694,7 @@ export const definitions = {
   model_route_plan: {
     title: "Intelligent zero-cost model route plan",
     description:
-      "Read-only zero-cost AI-chat route planning. Choose verified-free-cloud-only to forbid local fallback; every cloud requires owner approval, fresh healthy zero-price metadata, exact OpenRouter :free ID if applicable, private-code permission and quota. Caller metadata is NOT trusted billing proof; host must reverify before any real request. No model invocation or host-chat switching.",
+      "Read-only zero-cost AI-chat route planning. Choose verified-free-cloud-only to forbid local fallback; every cloud requires owner approval, fresh healthy zero-price metadata, exact OpenRouter :free ID if applicable, private-code permission and quota. Caller metadata is NOT trusted billing proof; host must reverify before any real request. Optional liveRouterOverlay demotes models (ids must equal FreeLLMAPI catalog ids) that the local router does not report ready. No model invocation or host-chat switching.",
     input: {
       ...scoped,
       models: z
@@ -1751,6 +1752,10 @@ export const definitions = {
         cloudApproved: z.boolean().default(false),
         privateCode: z.boolean().default(true),
       }),
+      // Opt-in: overlay the LIVE FreeLLMAPI router catalog on `models`. A model
+      // whose id is not positively ready in that catalog is demoted out of
+      // routing (deny by default). Planning only: no generation, no cost proof.
+      liveRouterOverlay: z.boolean().default(false),
       quotaState: z
         .record(
           z.object({
@@ -3332,12 +3337,31 @@ export function createDispatcher(
         matches: r.matches.map((m) => ({ ...m, text: redact(m.text) })),
       };
     }
-    if (name === "model_route_plan")
-      return planSmartModelRoute({
-        models: a.models,
-        task: a.task,
-        state: a.quotaState,
-      });
+    if (name === "model_route_plan") {
+      let models = a.models;
+      let inventory = { liveOverlay: false };
+      if (a.liveRouterOverlay === true) {
+        // A requested overlay that cannot be read must fail, never silently
+        // fall back to unverified caller metadata.
+        const built = buildRoutingInventory({
+          ownerRegistry: a.models,
+          catalog: await freeRouter().catalog(),
+          nowMs: Date.now(),
+        });
+        models = built.models;
+        inventory = {
+          liveOverlay: true,
+          rejected: built.rejected,
+          demoted: built.models
+            .filter((m) => m.available === false)
+            .map((m) => m.id),
+        };
+      }
+      return {
+        ...planSmartModelRoute({ models, task: a.task, state: a.quotaState }),
+        inventory,
+      };
+    }
     if (name === "skill_recommendations")
       return {
         skills: selectSkillPacks({

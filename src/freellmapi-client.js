@@ -103,27 +103,36 @@ export function createFreeLlmApiClient({
     if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     return true;
   };
+  // An incomplete or malformed catalog cannot prove a chain exists.
+  // Do not treat HTTP 200 without a strict model array as an empty,
+  // apparently healthy catalog, nor keep valid entries beside corrupt ones.
+  const readCatalogRows = async () => {
+    const res = await call("GET", "/v1/models", undefined, 5000);
+    if (
+      !Array.isArray(res?.data) ||
+      res.data.some(
+        (m) =>
+          !m ||
+          typeof m !== "object" ||
+          Array.isArray(m) ||
+          typeof m.id !== "string",
+      )
+    )
+      fail("FREELLMAPI_BAD_RESPONSE");
+    return res;
+  };
   const client = {
+    // Read-only live catalog rows (id, availability, execution status) for
+    // planning only. It proves neither zero cost nor a working generation.
+    async catalog() {
+      return readCatalogRows();
+    },
     async checkZeroCostChain({ chain }) {
       await verifyChainAdmission(chain);
       return { admitted: true, chain };
     },
     async status() {
-      const res = await call("GET", "/v1/models", undefined, 5000);
-      // An incomplete or malformed catalog cannot prove a chain exists.
-      // Do not treat HTTP 200 without a strict model array as an empty,
-      // apparently healthy catalog, nor keep valid entries beside corrupt ones.
-      if (
-        !Array.isArray(res?.data) ||
-        res.data.some(
-          (m) =>
-            !m ||
-            typeof m !== "object" ||
-            Array.isArray(m) ||
-            typeof m.id !== "string",
-        )
-      )
-        fail("FREELLMAPI_BAD_RESPONSE");
+      const res = await readCatalogRows();
       const ids = res.data.map((m) => m.id);
       return {
         available: true,

@@ -222,3 +222,138 @@ test("MCP model_route_plan accepts declared limits and rotates away from a nearl
     /./,
   );
 });
+
+function overlayDispatcher(t, catalog) {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-overlay-"));
+  const root = path.join(base, "project");
+  fs.mkdirSync(root);
+  t.after(() => fs.rmSync(base, { recursive: true, force: true }));
+  const calls = [];
+  const dispatch = createDispatcher(
+    {
+      id: "d1",
+      stateDir: path.join(base, "state"),
+      projects: [{ id: "p1", root, writable: false, gates: {}, commands: {} }],
+    },
+    { maxConcurrent: 1 },
+    () => ({ features: ["read"], limits: { concurrent_jobs: 1 } }),
+    null,
+    null,
+    null,
+    undefined,
+    null,
+    null,
+    () => ({
+      async catalog() {
+        calls.push("catalog");
+        if (catalog instanceof Error) throw catalog;
+        return catalog;
+      },
+    }),
+  );
+  return { dispatch, calls };
+}
+
+const cloud = (id, extra = {}) => ({
+  id,
+  provider: "openrouter",
+  kind: "cloud",
+  free: true,
+  privateCodeAllowed: false,
+  contextWindow: 65536,
+  capabilities: ["coding"],
+  enabled: true,
+  health: "ok",
+  modelsDiscoveredAtMs: Date.now(),
+  freeTierVerified: true,
+  costPerMillionTokensUsd: 0,
+  ...extra,
+});
+const task = {
+  capability: "coding",
+  inputTokens: 1000,
+  maxOutputTokens: 200,
+  strategy: "verified-free-cloud-only",
+  cloudApproved: true,
+  privateCode: false,
+};
+
+test("model_route_plan liveRouterOverlay is off by default and never reads the router", async (t) => {
+  const { dispatch, calls } = overlayDispatcher(t, { data: [] });
+  const r = await dispatch(
+    "model_route_plan",
+    {
+      device: "d1",
+      project: "p1",
+      models: [cloud("vendor/a:free")],
+      task,
+    },
+    ["read"],
+  );
+  assert.equal(r.selected.modelId, "vendor/a:free");
+  assert.deepEqual(r.inventory, { liveOverlay: false });
+  assert.deepEqual(calls, []);
+});
+
+test("model_route_plan liveRouterOverlay demotes models the router does not report ready", async (t) => {
+  const { dispatch, calls } = overlayDispatcher(t, {
+    data: [
+      {
+        id: "vendor/a:free",
+        available: false,
+        execution_status: "exhausted",
+        context_window: 65536,
+      },
+      {
+        id: "vendor/b:free",
+        available: true,
+        execution_status: "ready",
+        context_window: 32768,
+      },
+    ],
+  });
+  const r = await dispatch(
+    "model_route_plan",
+    {
+      device: "d1",
+      project: "p1",
+      models: [
+        cloud("vendor/a:free", { qualityScore: 99 }),
+        cloud("vendor/b:free"),
+        cloud("vendor/unlisted:free", { qualityScore: 100 }),
+      ],
+      task,
+      liveRouterOverlay: true,
+    },
+    ["read"],
+  );
+  assert.deepEqual(calls, ["catalog"]);
+  assert.equal(r.selected.modelId, "vendor/b:free");
+  assert.equal(r.inventory.liveOverlay, true);
+  assert.deepEqual(r.inventory.demoted.sort(), [
+    "vendor/a:free",
+    "vendor/unlisted:free",
+  ]);
+  assert.equal(r.modelExecution, "NOT_EXECUTED");
+});
+
+test("model_route_plan liveRouterOverlay fails instead of trusting caller metadata when the catalog cannot be read", async (t) => {
+  const { dispatch } = overlayDispatcher(
+    t,
+    Object.assign(new Error("FREELLMAPI_BAD_RESPONSE"), {}),
+  );
+  await assert.rejects(
+    dispatch(
+      "model_route_plan",
+      {
+        device: "d1",
+        project: "p1",
+        models: [cloud("vendor/a:free")],
+        task,
+        liveRouterOverlay: true,
+      },
+      ["read"],
+    ),
+    /FREELLMAPI_BAD_RESPONSE|INTERNAL/,
+  );
+});

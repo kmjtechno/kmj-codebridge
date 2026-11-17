@@ -31,3 +31,17 @@ The agent builds the zero-cost verifier **only** when all three device-owner env
 - `CODEBRIDGE_OPENROUTER_KEY`: the owner's OpenRouter key (device-local secret, sent only to openrouter.ai).
 
 Admission needs the pinned manifest, the live snapshot (exact same OpenRouter `vendor/model:free` members), zero recorded OpenRouter spend and zero published prices, all re-checked before every generation. A zero-balance dedicated OpenRouter account keeps the spend check meaningful. This is **not** proven against a real account until one `:free` call shows unchanged `/key` usage; do not report generation as working before that.
+
+## Live router overlay for `model_route_plan`
+
+`model_route_plan` accepts `liveRouterOverlay: true` (default `false`). The
+planner then reads the local FreeLLMAPI `/v1/models` catalog (read-only, loopback)
+and overlays it on the caller's `models` with `buildRoutingInventory`: a model whose
+`id` is not positively ready there (`available` and `execution_status: "ready"`) is
+demoted out of routing, and ids missing from the catalog are demoted too. If the
+catalog cannot be read the call fails; it never falls back to unverified caller
+metadata. The result adds `inventory: { liveOverlay, rejected, demoted }`.
+
+This is planning only: it does not prove zero cost, invoke a model or enable
+generation. Generation still needs the verifier wiring and a passing
+`freellmapi_generate` admission.

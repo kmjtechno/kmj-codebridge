@@ -453,3 +453,26 @@ test("failures carry the stable reason as .code so the MCP layer does not report
     (error) => error.code === "FREELLMAPI_QUOTA_EXHAUSTED",
   );
 });
+
+test("catalog() returns strictly validated live rows and rejects malformed catalogs", async () => {
+  const rows = [
+    { id: "auto" },
+    { id: "m1", available: true, execution_status: "ready" },
+  ];
+  const ok = fake(async (r) => {
+    assert.equal(r.method, "GET");
+    assert.equal(r.path, "/v1/models");
+    return { data: rows };
+  });
+  assert.deepEqual((await ok.catalog()).data, rows);
+  for (const bad of [
+    {},
+    { data: "x" },
+    { data: [null] },
+    { data: [{ id: 1 }] },
+  ])
+    await assert.rejects(
+      fake(async () => bad).catalog(),
+      /FREELLMAPI_BAD_RESPONSE/,
+    );
+});
