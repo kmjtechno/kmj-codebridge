@@ -110,9 +110,10 @@ export function createFreeLlmApiClient({
       // A malformed proxy catalog is not evidence of any usable cloud route.
       // Reject it before caching or selecting a provider chain.
       if (!Array.isArray(res?.data)) fail("FREELLMAPI_BAD_RESPONSE");
-      const ids = res.data
-        .map((m) => m?.id)
-        .filter((id) => typeof id === "string");
+      // A partially malformed catalog cannot establish trusted route discovery.
+      if (res.data.some((m) => !m || typeof m !== "object" || Array.isArray(m) || typeof m.id !== "string"))
+        fail("FREELLMAPI_BAD_RESPONSE");
+      const ids = res.data.map((m) => m.id);
       return {
         available: true,
         provider: "freellmapi-loopback",
