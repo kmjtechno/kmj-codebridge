@@ -20,13 +20,20 @@ test("P520 resume reuses exact release and refuses unsafe partial installations"
   assert.match(source, /PREPARED_NOT_ACTIVATED/);
   assert.match(source, /DRY_RUN_PASS_NO_CHANGES/);
   assert.match(source, /if\(-not \$Apply\)/);
-  assert.doesNotMatch(source, /git clone|checkout --detach|git reset|git clean/i);
+  assert.doesNotMatch(
+    source,
+    /git clone|checkout --detach|git reset|git clean/i,
+  );
   assert.doesNotMatch(
     source,
     /Start-ScheduledTask|Enable-ScheduledTask|Restart-Service|Start-Service|Invoke-Expression/,
   );
   assert.equal((source.match(/function Candidate-Identity/g) || []).length, 1);
-  assert.equal((source.match(/P520_RESUME_RESULT' 'PREPARED_NOT_ACTIVATED'/g) || []).length, 1);
+  assert.equal(
+    (source.match(/P520_RESUME_RESULT' 'PREPARED_NOT_ACTIVATED'/g) || [])
+      .length,
+    1,
+  );
 });
 
 test(
