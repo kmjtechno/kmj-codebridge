@@ -20,5 +20,8 @@ test("P520 isolated HMAC smoke fail-closes and does not enable tasks", () => {
     smoke,
     /Start-ScheduledTask|Enable-ScheduledTask|Restart-Service|Restart-Computer|child_process|execFile|spawn\(/,
   );
-  assert.doesNotMatch(smoke, /agent\.json\.proposed|writeFile|rmSync|unlinkSync/);
+  assert.doesNotMatch(
+    smoke,
+    /agent\.json\.proposed|writeFile|rmSync|unlinkSync/,
+  );
 });
