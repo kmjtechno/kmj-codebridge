@@ -81,7 +81,8 @@ if [[ -z "$project_id" ]]; then
   fi
 fi
 [[ "$project_id" =~ ^[a-z0-9_-]{1,48}$ ]] || fail PROJECT_ID_INVALID
-host="$(hostname -s | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | cut -c1-40)"
+raw_host="$(hostname -s)" || fail HOSTNAME_UNAVAILABLE
+host="$(printf '%s' "$raw_host" | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9_-' '-' | cut -c1-40)"
 [[ "$host" =~ ^[a-z0-9_-]{1,40}$ ]] || fail HOSTNAME_INVALID
 device="$(device_id "$project_id" "$host")" || fail DEVICE_ID_INVALID
 if [[ -z "$service_user" ]]; then
@@ -93,6 +94,7 @@ if (( EUID != 0 )); then
 fi
 command -v systemctl >/dev/null || fail SYSTEMD_REQUIRED
 [[ -d /run/systemd/system ]] || fail SYSTEMD_NOT_RUNNING
+command -v python3 >/dev/null || fail PYTHON_REQUIRED_FOR_LINUX_PROOF
 cfg="/etc/kmj-codebridge/agent.json"
 unit="kmj-codebridge-agent.service"
 [[ ! -L "$cfg" ]] || fail CONFIG_LINKED
