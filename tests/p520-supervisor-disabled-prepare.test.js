@@ -42,6 +42,9 @@ test("disabled P520 preparation demands pinned agent, Git release, tools, instal
   assert.match(source, /P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'/);
   assert.match(source, /KMJ-CodeBridge-Supervisor-P520/);
   assert.match(source, /RUNTIME_GIT_SHA_PIN_INVALID/);
+  assert.match(source, /gateway -cnotin @/);
+  assert.match(source, /'https:\/\/kmjtechno\.com\/'/);
+  assert.doesNotMatch(source, /\$agent\.gateway -cne 'https:\/\/kmjtechno\.com\/mcp'/);
   assert.equal(
     (source.match(/P520_LOCAL_AI_ACTIVATION' 'NOT_ATTEMPTED'/g) ?? []).length,
     1,
