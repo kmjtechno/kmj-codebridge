@@ -86,7 +86,10 @@ test("valid empty catalog reports zero models but cannot choose a route", async 
     }),
     { code: "FREELLMAPI_NO_APPROVED_CHAIN" },
   );
-  assert.equal(requests.some((r) => r.method === "POST"), false);
+  assert.equal(
+    requests.some((r) => r.method === "POST"),
+    false,
+  );
 });
 
 test("malformed completions are not reported as successful inference", async () => {
@@ -101,7 +104,11 @@ test("malformed completions are not reported as successful inference", async () 
     { choices: [{ message: { content: 42 }, finish_reason: "stop" }] },
     { choices: [{ message: { content: "" }, finish_reason: "stop" }] },
     { choices: [{ message: { content: "ok" } }] },
-    { choices: [{ message: { content: "ok" }, finish_reason: "content_filter" }] },
+    {
+      choices: [
+        { message: { content: "ok" }, finish_reason: "content_filter" },
+      ],
+    },
   ];
   for (const completion of invalid) {
     const { client, requests } = clientWith(
