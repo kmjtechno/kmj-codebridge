@@ -151,6 +151,30 @@ test("project-required client tool names are fixed and cannot request arbitrary 
       }),
     /INVALID_FIXED_CLIENT_TOOL_POLICY/,
   );
+  const withExit3 = inspectBlockers({
+    fixedProjectRequiredTools: [
+      "supervisor_main_platform_offsite_diagnostic",
+      "supervisor_main_platform_offsite_exit3_diagnostic",
+    ],
+  });
+  assert.equal(withExit3.clientModelToolsMissing, null);
+  for (const wrong of [
+    ["supervisor_main_platform_offsite_exit3_diagnostic"],
+    [
+      "supervisor_main_platform_offsite_exit3_diagnostic",
+      "supervisor_main_platform_offsite_diagnostic",
+    ],
+    [
+      "supervisor_main_platform_offsite_diagnostic",
+      "supervisor_main_platform_offsite_exit3_diagnostic",
+      "supervisor_main_platform_production_activate",
+    ],
+  ]) {
+    assert.throws(
+      () => inspectBlockers({ fixedProjectRequiredTools: wrong }),
+      /INVALID_FIXED_CLIENT_TOOL_POLICY/,
+    );
+  }
   const withoutCapture = inspectBlockers({
     fixedProjectRequiredTools: ["supervisor_main_platform_offsite_diagnostic"],
   });
