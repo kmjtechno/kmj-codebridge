@@ -144,6 +144,10 @@ fi
 [[ "$service_user" != root && "$service_user" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] ||
   fail SERVICE_USER_NOT_APPROVED
 id "$service_user" >/dev/null 2>&1 || fail SERVICE_USER_MISSING
+command -v pgrep >/dev/null || fail PROCESS_INVENTORY_REQUIRED
+if pgrep -f -- 'src/cli[.]js[[:space:]]+agent[[:space:]]' >/dev/null; then
+  fail EXISTING_UNMANAGED_AGENT_REVIEW_REQUIRED
+fi
 mark KMJ_UNIVERSAL_LINUX_MODE NEW_OWNER_BROWSER_PAIRING
 # Lock new installation to this reviewed and clean git commit; do not fetch floating main.
 env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root USER=root LANG=C.UTF-8 \
