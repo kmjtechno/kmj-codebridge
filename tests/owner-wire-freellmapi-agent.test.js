@@ -5,7 +5,8 @@ import { spawnSync } from "node:child_process";
 
 const file = "scripts/production/owner_wire_freellmapi_agent_20261117.py";
 const script = fs.readFileSync(file, "utf8");
-const code = script.slice(script.indexOf('"""', 10) + 3); // skip docstring
+const open3 = script.indexOf('"""');
+const code = script.slice(script.indexOf('"""', open3 + 3) + 3); // skip docstring
 
 test("script compiles", () => {
   const result = spawnSync("python3", [
