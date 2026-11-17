@@ -230,6 +230,9 @@ export function createFreeLlmApiClient({
         fail("FREELLMAPI_INVALID_TIMEOUT");
       const startedAt = now();
       const deadline = startedAt + totalSeconds * 1000;
+      // A safe start time can still overflow the exact integer range when
+      // adding the request budget; reject before discovery or cloud POST.
+      if (!Number.isSafeInteger(deadline)) fail("FREELLMAPI_INVALID_CLOCK");
       // Even explicit chains must be advertised, approved and discovered.
       // A non-monotonic clock must not extend the lifetime of a previously
       // discovered route catalog. Fail closed on invalid timestamps and
