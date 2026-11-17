@@ -102,14 +102,22 @@ unit="kmj-codebridge-agent.service"
 config_matches() {
   python3 - "$cfg" "$project" "$project_id" <<'PY'
 import json,os,stat,sys
+from urllib.parse import urlsplit
 file,root,project=sys.argv[1:]
 s=os.stat(file)
 if not stat.S_ISREG(s.st_mode) or s.st_mode & 0o077: raise SystemExit(2)
 with open(file,encoding="utf-8") as fh: c=json.load(fh)
 if not isinstance(c,dict) or not isinstance(c.get("id"),str) or not isinstance(c.get("tenant"),str):
     raise SystemExit(2)
-if c.get("gateway") not in ("https://kmjtechno.com","https://kmjtechno.com/"):
-    raise SystemExit(2)
+gateway=c.get("gateway")
+if gateway not in ("https://kmjtechno.com","https://kmjtechno.com/"):
+    try:
+        u=urlsplit(gateway)
+        safe=(u.scheme=="http" and u.hostname in ("127.0.0.1","localhost","::1") and
+              u.port is not None and 1024<=u.port<=65535 and
+              u.path in ("","/") and not (u.username or u.password or u.query or u.fragment))
+    except (TypeError,ValueError): safe=False
+    if not safe: raise SystemExit(2)
 if not isinstance(c.get("token"),str) or len(c["token"]) < 32: raise SystemExit(2)
 projects=c.get("projects")
 if not isinstance(projects,list) or not any(
