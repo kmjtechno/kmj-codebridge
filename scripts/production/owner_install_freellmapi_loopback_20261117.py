@@ -18,6 +18,7 @@ import pathlib
 import pwd
 import re
 import secrets
+import stat
 import shutil
 import subprocess
 import sys
@@ -34,6 +35,7 @@ UNIT = pathlib.Path("/etc/systemd/system/kmj-freellmapi.service")
 HOST = "127.0.0.1"
 PORT = 31415
 NODE_MIN, NODE_MAX = (20, 18), (25, 0)  # upstream engines: >=20.18 <25
+UNIT_IDENTITY = None  # Only this process may roll back a unit it created.
 
 UNIT_TEXT = f"""[Unit]
 Description=FreeLLMAPI (loopback only, KMJ CodeBridge adapter target)
@@ -95,14 +97,24 @@ def listeners():
     return [ln.split()[3] for ln in out.splitlines() if len(ln.split()) > 3]
 
 
+def create_exclusive_file(target, content, mode):
+    """Create a new file atomically; never follow or replace a symlink."""
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+    fd = os.open(target, flags, mode)
+    with os.fdopen(fd, "w", encoding="utf-8") as out:
+        out.write(content)
+    return target.lstat()
+
+
 def preflight():
     guard(os.geteuid() == 0, "ROOT_REQUIRED")
     for tool in ("git", "npm", "node", "systemctl", "ss", "runuser", "curl"):
         guard(shutil.which(tool), f"MISSING_TOOL_{tool.upper()}")
     guard(NODE_MIN <= node_version() < NODE_MAX, "NODE_OUT_OF_UPSTREAM_RANGE")
-    guard(not UNIT.exists(), "UNIT_ALREADY_EXISTS")
-    guard(not BASE.exists(), "INSTALL_DIR_ALREADY_EXISTS")
-    guard(not ENV_DIR.exists(), "ENV_DIR_ALREADY_EXISTS")
+    # Path.exists() follows links: a dangling link would otherwise pass.
+    guard(not os.path.lexists(UNIT), "UNIT_ALREADY_EXISTS")
+    guard(not os.path.lexists(BASE), "INSTALL_DIR_ALREADY_EXISTS")
+    guard(not os.path.lexists(ENV_DIR), "ENV_DIR_ALREADY_EXISTS")
     guard(not any(a.endswith(f":{PORT}") for a in listeners()), "PORT_IN_USE")
     try:
         pwd.getpwnam(USER)
@@ -112,8 +124,28 @@ def preflight():
 
 
 def rollback():
+    if UNIT_IDENTITY is None:
+        # Failed before creating our own unit: never delete an unknown path
+        # inserted after preflight by another operator or process.
+        return
+    try:
+        current = UNIT.lstat()
+    except FileNotFoundError:
+        return
+    guard(
+        stat.S_ISREG(current.st_mode)
+        and (current.st_dev, current.st_ino) == UNIT_IDENTITY
+        and UNIT.read_text(encoding="utf-8") == UNIT_TEXT,
+        "UNIT_CHANGED_PRESERVED",
+    )
     run(["systemctl", "disable", "--now", "kmj-freellmapi.service"], check=False)
-    UNIT.unlink(missing_ok=True)
+    current = UNIT.lstat()
+    guard(
+        stat.S_ISREG(current.st_mode)
+        and (current.st_dev, current.st_ino) == UNIT_IDENTITY,
+        "UNIT_CHANGED_PRESERVED",
+    )
+    UNIT.unlink()
     run(["systemctl", "daemon-reload"], check=False)
 
 
@@ -134,9 +166,11 @@ def apply():
     as_user(["npm", "run", "build"], SRC)
     as_user(["npm", "prune", "--omit=dev"], SRC)
     ENV_DIR.mkdir(mode=0o700)
-    ENV_FILE.write_text(f"ENCRYPTION_KEY={secrets.token_hex(32)}\n")
+    create_exclusive_file(ENV_FILE, f"ENCRYPTION_KEY={secrets.token_hex(32)}\n", 0o600)
     ENV_FILE.chmod(0o600)  # root-owned; systemd reads it, the service user cannot
-    UNIT.write_text(UNIT_TEXT)
+    global UNIT_IDENTITY
+    created = create_exclusive_file(UNIT, UNIT_TEXT, 0o644)
+    UNIT_IDENTITY = (created.st_dev, created.st_ino)
     UNIT.chmod(0o644)
     run(["systemctl", "daemon-reload"])
     run(["systemctl", "enable", "--now", "kmj-freellmapi.service"])
