@@ -97,7 +97,10 @@ test(
     assert.match(block[1], /not isinstance\(c\.get\("token"\),str\)/);
     const checked = spawnSync(
       "python3",
-      ["-c", "import sys; compile(sys.stdin.read(), '<config-verifier>', 'exec')"],
+      [
+        "-c",
+        "import sys; compile(sys.stdin.read(), '<config-verifier>', 'exec')",
+      ],
       { input: block[1], encoding: "utf8" },
     );
     assert.equal(checked.status, 0, checked.stderr);
