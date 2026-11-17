@@ -1,4 +1,5 @@
 import test from "node:test";
+import { createSupervisorHandler } from "../src/supervisor.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -112,4 +113,53 @@ test("child failure suppresses raw stderr and does not assert restore", () => {
     assert.doesNotMatch(String(err.message), /root|ssh|secret|key/i);
     return true;
   });
+});
+
+test("supervisor handler refuses caller parameters and requires pinned exact confirmation", async () => {
+  const calls = [];
+  const handle = createSupervisorHandler({
+    run: (...args) => { calls.push(args); return GOOD; },
+    lstat: (p) => p === EXIT3_DIAGNOSTIC_PATH ? file() : dir(),
+    readFile: () => SCRIPT,
+  });
+  for (const req of [
+    { op: "main_platform_offsite_exit3_diagnostic" },
+    { op: "main_platform_offsite_exit3_diagnostic", confirmation: "yes" },
+    { op: "main_platform_offsite_exit3_diagnostic", confirmation: EXIT3_DIAGNOSTIC_CONFIRMATION, unit: "ssh.service" },
+    { op: "main_platform_offsite_exit3_diagnostic", confirmation: EXIT3_DIAGNOSTIC_CONFIRMATION, argv: ["-c", "print(1)"] },
+    { op: "main_platform_offsite_exit3_diagnostic", confirmation: EXIT3_DIAGNOSTIC_CONFIRMATION, env: { PATH: "/tmp" } },
+  ]) await assert.rejects(handle(req), /INVALID_SUPERVISOR_REQUEST/);
+  assert.equal(calls.length, 0);
+  const { response } = await handle({
+    op: "main_platform_offsite_exit3_diagnostic",
+    confirmation: EXIT3_DIAGNOSTIC_CONFIRMATION,
+  });
+  assert.equal(response.mode, "READ_ONLY_FIXED_EXIT3_DIAGNOSTIC");
+  assert.equal(response.scope, "kmj-main-platform");
+  assert.equal(response.diagnostic.failureClass, "REMOTE_NETWORK_OR_DNS");
+  assert.equal(response.diagnostic.execMainStatus, "3");
+  assert.equal(response.mutations, "NONE");
+  assert.equal(response.rawJournalExposed, false);
+  assert.equal(response.recentBackupVerified, false);
+  assert.equal(response.restoreVerified, false);
+  assert.equal(response.productionReleaseApprovedByThisCheck, false);
+  assert.equal(calls.length, 1);
+});
+test("supervisor exit3 gate refuses absent or modified operator-installed script", async () => {
+  for (const variant of [
+    { lstat: () => { throw Error("ENOENT"); }, readFile: () => SCRIPT },
+    { lstat: (p) => p === EXIT3_DIAGNOSTIC_PATH ? file({uid:1001}) : dir(), readFile: () => SCRIPT },
+    { lstat: (p) => p === EXIT3_DIAGNOSTIC_PATH ? file() : dir(), readFile: () => "UNPINNED" },
+  ]) {
+    let executed = false;
+    const handle = createSupervisorHandler({
+      ...variant,
+      run: () => { executed = true; return GOOD; },
+    });
+    await assert.rejects(handle({
+      op: "main_platform_offsite_exit3_diagnostic",
+      confirmation: EXIT3_DIAGNOSTIC_CONFIRMATION,
+    }), /SUPERVISOR_EXIT3_DIAGNOSTIC_NOT_READY/);
+    assert.equal(executed, false);
+  }
 });
