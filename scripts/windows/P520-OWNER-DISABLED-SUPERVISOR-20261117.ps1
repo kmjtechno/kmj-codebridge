@@ -278,7 +278,7 @@ try {
     & $npm --prefix $release ci --omit=dev --ignore-scripts --no-audit --no-fund *> $null
     if($LASTEXITCODE -ne 0){throw 'PINNED_DEPENDENCIES_FAILED'}
     $conf=Join-Path $root 'supervisor.json'
-    $token=[REDACTED] $root 'supervisor.token'
+    $token=Join-Path $root 'supervisor.token'
     $c=[ordered]@{
       pipeName='kmj-codebridge-supervisor-p520'
       tokenFile=$token
