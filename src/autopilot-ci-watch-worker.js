@@ -136,7 +136,13 @@ export class GitHubCiWatchWorker {
       for (const project of this.projects) {
         const config = project.autopilotCiWatch;
         const observedNow = this.now();
-        if (!Number.isFinite(observedNow)) continue;
+        if (!Number.isSafeInteger(observedNow) || observedNow < 0) continue;
+        const interval = config.intervalSeconds * 1000;
+        if (
+          !Number.isSafeInteger(interval) ||
+          interval < 1000 ||
+          !Number.isSafeInteger(observedNow + interval)
+        ) continue;
         const previousNow = this.lastObservedTime.get(project.id);
         this.lastObservedTime.set(project.id, observedNow);
         if (previousNow !== undefined && observedNow < previousNow) {
@@ -145,7 +151,7 @@ export class GitHubCiWatchWorker {
           // cooldown and require one full interval before contacting GitHub.
           this.nextCheck.set(
             project.id,
-            observedNow + config.intervalSeconds * 1000,
+            observedNow + interval,
           );
           continue;
         }
@@ -154,7 +160,7 @@ export class GitHubCiWatchWorker {
         // Never rotate keys, retry in a hot loop or call paid inference.
         this.nextCheck.set(
           project.id,
-          observedNow + config.intervalSeconds * 1000,
+          observedNow + interval,
         );
         try {
           const entitlement = this.licenseProvider();
