@@ -54,8 +54,9 @@ case "$origin" in
 esac
 head="$(git -C "$root" rev-parse HEAD 2>/dev/null)" || fail SOURCE_SHA_MISSING
 [[ "$head" =~ ^[0-9a-f]{40}$ ]] || fail SOURCE_SHA_UNTRUSTED
-[[ -z "$(git -C "$root" --no-optional-locks status --porcelain=v1 --untracked-files=no)" ]] ||
-  fail SOURCE_TRACKED_CHANGES
+clean="$(git -C "$root" --no-optional-locks status --porcelain=v1 --untracked-files=no)" ||
+  fail SOURCE_GIT_STATUS_FAILED
+[[ -z "$clean" ]] || fail SOURCE_TRACKED_CHANGES
 git -C "$root" ls-files --error-unmatch -- scripts/one-click-linux-device.sh scripts/install-vps.sh scripts/enroll-device.js src/cli.js >/dev/null 2>&1 ||
   fail SOURCE_FILES_UNTRACKED
 [[ -f "$root/scripts/install-vps.sh" && ! -L "$root/scripts/install-vps.sh" ]] ||
@@ -86,9 +87,6 @@ device="$(device_id "$project_id" "$host")" || fail DEVICE_ID_INVALID
 if [[ -z "$service_user" ]]; then
   service_user="${SUDO_USER:-$(stat -c '%U' -- "$project")}"
 fi
-[[ "$service_user" != root && "$service_user" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] ||
-  fail SERVICE_USER_NOT_APPROVED
-id "$service_user" >/dev/null 2>&1 || fail SERVICE_USER_MISSING
 if (( EUID != 0 )); then
   command -v sudo >/dev/null || fail SUDO_NOT_AVAILABLE
   exec sudo -- bash "$self" --project "$project" --project-id "$project_id" --service-user "$service_user"
@@ -133,6 +131,9 @@ fi
 if systemctl list-unit-files "$unit" --no-legend --no-pager 2>/dev/null | grep -q "^$unit"; then
   fail PREEXISTING_SERVICE_WITHOUT_CONFIG
 fi
+[[ "$service_user" != root && "$service_user" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]] ||
+  fail SERVICE_USER_NOT_APPROVED
+id "$service_user" >/dev/null 2>&1 || fail SERVICE_USER_MISSING
 mark KMJ_UNIVERSAL_LINUX_MODE NEW_OWNER_BROWSER_PAIRING
 # Lock new installation to this reviewed and clean git commit; do not fetch floating main.
 bash "$root/scripts/install-vps.sh" \
