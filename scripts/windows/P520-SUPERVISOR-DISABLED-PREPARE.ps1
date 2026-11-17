@@ -225,7 +225,9 @@ try {
 
   $agent=Get-Content -LiteralPath $AgentConfig -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
   if([string]$agent.id -cne $expectedDevice) { throw 'WRONG_AGENT_ID' }
-  if([string]$agent.gateway -cne 'https://kmjtechno.com/mcp') { throw 'WRONG_GATEWAY' }
+  # The outbound agent rejects non-root URL paths; /mcp is a client route.
+  # Keep the existing enrolled agent unchanged and fail closed on all other URLs.
+  if([string]$agent.gateway -cnotin @('https://kmjtechno.com','https://kmjtechno.com/')) { throw 'WRONG_GATEWAY' }
   if(@($agent.projects | Where-Object { [string]$_.id -ceq 'kmj-codebridge' }).Count -ne 1) {
     throw 'PROJECT_IDENTITY_AMBIGUOUS'
   }
