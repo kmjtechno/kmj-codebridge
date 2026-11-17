@@ -18,7 +18,10 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /P520_INSTALL_ACTION' 'NONE'/);
   assert.match(source, /P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'/);
   assert.match(source, /ONE_UNATTESTED_CANDIDATE/);
-  assert.match(source, /gateway -cne 'https:\/\/kmjtechno\.com\/mcp'/);
+  assert.match(source, /gateway -cnotin @\('https:\/\/kmjtechno\.com','https:\/\/kmjtechno\.com\/'\)/);
+  assert.match(source, /Candidate-Identity \$withoutSlash/);
+  assert.match(source, /gateway='https:\/\/kmjtechno\.com\/mcp'/);
+  assert.doesNotMatch(source, /gateway -cne 'https:\/\/kmjtechno\.com\/mcp'/);
   assert.match(source, /Candidate-Identity \$wrongGateway/);
   assert.match(source, /Candidate-Identity \$missingFields/);
   assert.match(source, /Candidate-Identity \$malformedProjects/);
