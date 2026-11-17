@@ -26,3 +26,35 @@ for (const data of [undefined, null, {}, "auto:default", 42]) {
     assert.equal(posts, 0);
   });
 }
+
+for (const data of [
+  [null],
+  [42],
+  ["auto:default"],
+  [{ id: 42 }],
+  [{ id: "auto:default" }, null],
+  [{ id: "auto:default" }, { id: 42 }],
+]) {
+  test("partially malformed FreeLLMAPI catalog rejects every route before POST", async () => {
+    let posts = 0;
+    const client = createFreeLlmApiClient({
+      apiKey: "test-key-not-secret",
+      approvedFreeChains: ["auto:default"],
+      request: async ({ method }) => {
+        if (method === "POST") posts += 1;
+        return { data };
+      },
+    });
+    await assert.rejects(client.status(), { message: "FREELLMAPI_BAD_RESPONSE" });
+    await assert.rejects(
+      client.generateRouted({
+        task: "general",
+        prompt: "synthetic nonprivate prompt",
+        localProcessingApproved: true,
+        upstreamCloudApproved: true,
+      }),
+      { message: "FREELLMAPI_BAD_RESPONSE" },
+    );
+    assert.equal(posts, 0);
+  });
+}
