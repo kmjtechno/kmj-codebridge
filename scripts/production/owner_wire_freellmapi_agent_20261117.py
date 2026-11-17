@@ -5,7 +5,7 @@ Reads the FreeLLMAPI unified API key from a HIDDEN prompt (never argv, never a
 file argument, never printed), validates it against 127.0.0.1:31415, lets the
 owner pick which advertised `auto:*` chains are approved, then writes:
   /etc/kmj-freellmapi/codebridge.env  (root:root 0600)
-  a systemd drop-in on kmj-codebridge-agent.service adding only EnvironmentFile
+  a systemd drop-in on kmj-codebridge-kmj-main-platform.service adding only EnvironmentFile
 and restarts the agent once. Auto-rollback (drop-in removed, agent restarted)
 on failure. Touches nothing else: no gateway, updater, key, nginx or source.
 
@@ -27,7 +27,7 @@ import time
 import urllib.error
 import urllib.request
 
-UNIT = "kmj-codebridge-agent.service"
+UNIT = "kmj-codebridge-kmj-main-platform.service"  # live elite project agent (verified by owner unit list)
 DROPIN_DIR = pathlib.Path(f"/etc/systemd/system/{UNIT}.d")
 DROPIN = DROPIN_DIR / "kmj-freellmapi-env.conf"
 ENV_FILE = pathlib.Path("/etc/kmj-freellmapi/codebridge.env")
