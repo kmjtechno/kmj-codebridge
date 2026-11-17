@@ -15,8 +15,8 @@ function Directory([string]$p){
   if(-not(Test-Path -LiteralPath $p -PathType Container)){return $false}
   return (((Get-Item -LiteralPath $p -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0)
 }
-function GitValue([string]$git,[string]$root,[string[]]$args){
-  $value=@(& $git -C $root @args 2>$null)
+function GitValue([string]$git,[string]$root,[string[]]$gitArgs){
+  $value=@(& $git -C $root @gitArgs 2>$null)
   Require ($LASTEXITCODE -eq 0 -and $value.Count -eq 1) 'GIT_QUERY_FAILED'
   return ([string]$value[0]).Trim()
 }
