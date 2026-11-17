@@ -75,6 +75,7 @@ export function createFreeLlmApiClient({
     // again immediately before every generation or 429 fallback attempt.
     if (!verifyZeroCostChain) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     const observedAt = now();
+    if (!Number.isSafeInteger(observedAt)) fail("FREELLMAPI_INVALID_CLOCK");
     let proof;
     try {
       proof = await verifyZeroCostChain({
@@ -84,6 +85,9 @@ export function createFreeLlmApiClient({
     } catch {
       fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     }
+    const checkedAt = now();
+    if (!Number.isSafeInteger(checkedAt) || checkedAt < observedAt)
+      fail("FREELLMAPI_INVALID_CLOCK");
     const ready =
       proof?.source === "authenticated_provider_billing_and_route_binding" &&
       proof.chain === chain &&
@@ -98,7 +102,7 @@ export function createFreeLlmApiClient({
       proof.observedAtEpochMs <= observedAt &&
       proof.observedAtEpochMs > observedAt - 60000 &&
       Number.isSafeInteger(proof.expiresAtEpochMs) &&
-      proof.expiresAtEpochMs > now() &&
+      proof.expiresAtEpochMs > checkedAt &&
       proof.expiresAtEpochMs <= observedAt + 60000;
     if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     return true;
