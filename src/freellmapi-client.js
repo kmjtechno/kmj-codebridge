@@ -26,8 +26,11 @@ export function candidateChains(task, available) {
   return found;
 }
 
+// Carry the stable reason as `.code` too: the MCP layer only reports string
+// `.code` values, everything else collapses into a useless INTERNAL_ERROR.
+const codedError = (code) => Object.assign(new Error(code), { code });
 const fail = (code) => {
-  throw new Error(code);
+  throw codedError(code);
 };
 
 export function createFreeLlmApiClient({
@@ -261,24 +264,24 @@ function httpRequest({ port, method, path, apiKey, body, timeoutMs }) {
         res.on("data", (c) => {
           size += c.length;
           if (size > MAX_RESPONSE_BYTES)
-            req.destroy(new Error("FREELLMAPI_TOO_LARGE"));
+            req.destroy(codedError("FREELLMAPI_TOO_LARGE"));
           else chunks.push(c);
         });
         res.on("end", () => {
           if (res.statusCode === 429)
-            return reject(new Error("FREELLMAPI_QUOTA_EXHAUSTED"));
+            return reject(codedError("FREELLMAPI_QUOTA_EXHAUSTED"));
           if (res.statusCode < 200 || res.statusCode > 299)
-            return reject(new Error(`FREELLMAPI_HTTP_${res.statusCode}`));
+            return reject(codedError(`FREELLMAPI_HTTP_${res.statusCode}`));
           try {
             resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
           } catch {
-            reject(new Error("FREELLMAPI_BAD_RESPONSE"));
+            reject(codedError("FREELLMAPI_BAD_RESPONSE"));
           }
         });
         res.on("error", reject);
       },
     );
-    req.on("timeout", () => req.destroy(new Error("FREELLMAPI_TIMEOUT")));
+    req.on("timeout", () => req.destroy(codedError("FREELLMAPI_TIMEOUT")));
     req.on("error", reject);
     req.end(payload);
   });
