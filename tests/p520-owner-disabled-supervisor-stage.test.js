@@ -46,7 +46,7 @@ test(
       "$tokens=$null;$parseErrors=$null;",
       "[System.Management.Automation.Language.Parser]::ParseFile(",
       "'" + filename + "',[ref]$tokens,[ref]$parseErrors)|Out-Null;",
-      "if($parseErrors.Count -ne 0){throw 'P520_SCRIPT_PARSER_FAILED'}",
+      "if($parseErrors.Count -ne 0){$summary=@($parseErrors | Select-Object -First 6 | ForEach-Object { $_.ErrorId + ':' + $_.Extent.StartLineNumber + ':' + $_.Extent.StartColumnNumber }) -join ','; throw ('P520_SCRIPT_PARSER_FAILED:'+$summary)}",
     ].join(" ");
     execFileSync(
       "powershell.exe",
