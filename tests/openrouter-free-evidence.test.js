@@ -171,7 +171,7 @@ test("a built proof satisfies the FreeLLMAPI admission gate, and nothing else do
   );
 });
 
-test("the module is pure and not imported by any source file", () => {
+test("the module is pure and only the unwired zero-cost verifier imports it", () => {
   const text = fs.readFileSync("src/openrouter-free-evidence.js", "utf8");
   assert.ok(
     !/\b(fetch|http|https|node:net|process\.env|child_process|readFile)\b/.test(
@@ -186,5 +186,5 @@ test("the module is pure and not imported by any source file", () => {
         fs.readFileSync(path.join("src", f), "utf8"),
       ),
     );
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers, ["freellmapi-zero-cost-verifier.js"]);
 });
