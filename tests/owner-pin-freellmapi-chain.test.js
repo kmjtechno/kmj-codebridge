@@ -79,7 +79,7 @@ test("all-OpenRouter :free chain: dry run writes nothing, apply writes a digest-
   assert.equal(m.sha256, manifestDigest(ids));
   assert.deepEqual(m.models, [...ids].sort());
   if (process.platform !== "win32")
-    assert.equal(fs.statSync(out).mode & 0o777, 0o600);
+    assert.equal(fs.statSync(out).mode & 0o777, 0o644);
   const again = py([
     "auto:free-code",
     "--db",

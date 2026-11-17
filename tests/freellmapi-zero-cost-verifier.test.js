@@ -138,7 +138,7 @@ test("the adapter admits a chain only through this verifier", async () => {
   );
 });
 
-test("module is pure and imported by no other source file (not wired)", () => {
+test("module is pure and imported only by the opt-in runtime assembly", () => {
   const text = fs
     .readFileSync("src/freellmapi-zero-cost-verifier.js", "utf8")
     .replace(/\/\/.*$/gm, "");
@@ -157,5 +157,5 @@ test("module is pure and imported by no other source file (not wired)", () => {
         fs.readFileSync(path.join("src", f), "utf8"),
       ),
     );
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers, ["freellmapi-runtime.js"]);
 });

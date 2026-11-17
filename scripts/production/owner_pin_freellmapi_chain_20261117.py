@@ -18,7 +18,7 @@ import sqlite3
 import sys
 
 DEFAULT_DB = "/opt/kmj-freellmapi/data/freeapi.db"
-OUT_DIR = pathlib.Path("/etc/kmj-freellmapi")
+OUT_DIR = pathlib.Path("/etc/kmj-freellmapi-pins")  # root-owned, agent-readable, non-secret
 CHAIN = re.compile(r"^auto:[A-Za-z0-9._-]{1,48}$")
 MODEL = re.compile(r"^[a-z0-9][a-z0-9._-]{0,63}/[A-Za-z0-9][A-Za-z0-9._-]{0,95}:free$")
 MAX_MODELS = 50
@@ -104,8 +104,8 @@ def main(argv):
         return
     target = out or OUT_DIR / f"route-binding-{chain.split(':', 1)[1]}.json"
     guard(not target.exists(), "MANIFEST_ALREADY_EXISTS")
-    target.parent.mkdir(mode=0o700, exist_ok=True)
-    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    target.parent.mkdir(mode=0o755, exist_ok=True)
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
     with os.fdopen(fd, "w") as fh:
         json.dump({"version": 1, "chain": chain, "models": sorted(ids),
                    "sha256": digest(ids)}, fh)

@@ -40,7 +40,7 @@ import {
 } from "./harness-learning.js";
 import { AgentCoordination } from "./agent-coordination.js";
 import { createLocalModelClient } from "./local-model.js";
-import { createFreeLlmApiClient } from "./freellmapi-client.js";
+import { createConfiguredFreeLlmApiClient } from "./freellmapi-runtime.js";
 import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
@@ -2310,7 +2310,7 @@ export function createDispatcher(
   localModelFactory = createLocalModelClient,
   workerRuntimeSource = null,
   toolGuardHost = null,
-  freeLlmApiFactory = createFreeLlmApiClient,
+  freeLlmApiFactory = createConfiguredFreeLlmApiClient,
 ) {
   const projects = new Map(
     config.projects.map((p) => [
