@@ -34,6 +34,17 @@ function Assert-Absolute([string]$Path, [string]$Name) {
 function Get-Sha256([string]$Path) {
   (Get-FileHash -Algorithm SHA256 -LiteralPath $Path).Hash.ToLowerInvariant()
 }
+# Windows Task Scheduler task names can collide in a different TaskPath.
+# Get-ScheduledTask -TaskName/-TaskPath with SilentlyContinue also confuses a
+# denied/incomplete query with proof of absence. Enumerate the complete task
+# catalog with a hard failure on access errors, and compare ALL TaskPaths.
+function Assert-NoSupervisorTaskCollision {
+  $all = @(Get-ScheduledTask -ErrorAction Stop)
+  if(@($all | Where-Object { $null -ne $_ -and [string]$_.TaskName -ieq $TaskName }).Count -gt 0) {
+    throw 'TASK_ALREADY_EXISTS'
+  }
+}
+
 function Write-Manifest([string]$Path, [object]$Value) {
   # Windows PowerShell 5.1's -Encoding UTF8 prepends EF BB BF. The
   # Node.js verifier uses JSON.parse on this file, which rejects a BOM.
@@ -75,9 +86,7 @@ if (-not $Apply) { Write-Output 'Re-run with -Apply to make these changes. Nothi
 
 # Never replace a pre-existing task or proposed configuration. A backup alone
 # is not a rollback guarantee for a Windows Scheduled Task.
-if (Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction SilentlyContinue) {
-  throw "TASK_ALREADY_EXISTS: $TaskName; refusing to overwrite an existing task."
-}
+Assert-NoSupervisorTaskCollision
 if (Test-Path -LiteralPath "$AgentConfig.proposed") {
   throw 'PROPOSED_AGENT_CONFIG_EXISTS: refusing to overwrite operator work.'
 }
