@@ -129,6 +129,15 @@ def verifier_env():
     return values
 
 
+def runuser_path():
+    # Absolute path: the child env deliberately has a minimal PATH, and
+    # runuser lives in /usr/sbin on Debian/Ubuntu.
+    for candidate in ("/usr/sbin/runuser", "/sbin/runuser", "/usr/bin/runuser"):
+        if os.path.isfile(candidate):
+            return candidate
+    raise ValueError("RUNUSER_NOT_FOUND")
+
+
 def main():
     guard(os.geteuid() == 0, "ROOT_REQUIRED")
     guard(len(sys.argv) == 2 and CHAIN_RE.match(sys.argv[1]), "USAGE_<chain>")
@@ -140,7 +149,7 @@ def main():
            **verifier_env()}
     print(f"AGENT_USER={user}")
     result = subprocess.run(
-        ["runuser", "-u", user, "--", NODE, "--input-type=module", "-e", STAGE_JS],
+        [runuser_path(), "-u", user, "--", NODE, "--input-type=module", "-e", STAGE_JS],
         env=env, capture_output=True, text=True, timeout=90, check=False)
     print(result.stdout.rstrip())
     if result.returncode:

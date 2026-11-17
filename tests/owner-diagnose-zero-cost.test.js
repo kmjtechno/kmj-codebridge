@@ -31,7 +31,8 @@ test("embedded stage program is valid ESM", () => {
 
 test("read-only: root required, runs as the agent user, writes and restarts nothing", () => {
   assert.match(script, /ROOT_REQUIRED/);
-  assert.match(script, /"runuser", "-u", user/);
+  assert.match(script, /runuser_path\(\), "-u", user/);
+  assert.match(script, /\/usr\/sbin\/runuser/);
   const py = script.slice(script.indexOf("STAGE_JS") + 10);
   for (const bad of [
     "write_text",
