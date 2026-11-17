@@ -68,7 +68,7 @@ function matchesFailedJob(data, name, head) {
     !data ||
     !Array.isArray(data.jobs) ||
     !Number.isInteger(data.total_count) ||
-    data.total_count < 0 ||
+    data.total_count < data.jobs.length ||
     data.jobs.length > MAX_JOBS
   )
     return null;
