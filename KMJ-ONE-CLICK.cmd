@@ -9,7 +9,13 @@ echo.
 if /I not "%OS%"=="Windows_NT" goto :blocked
 set "CONNECT=%~dp0scripts\windows\CONNECT-ANY-DEVICE.cmd"
 if not exist "%CONNECT%" goto :blocked
-call "%CONNECT%" %*
+if not "%~2"=="" goto :blocked_args
+if "%~1"=="" (
+  call "%CONNECT%"
+) else (
+  if not exist "%~f1\\*" goto :blocked_args
+  call "%CONNECT%" "%~f1"
+)
 set "RC=%ERRORLEVEL%"
 if "%RC%"=="0" (
   echo KMJ_DEVICE_ONE_CLICK=LOCAL_FLOW_COMPLETED
@@ -20,5 +26,10 @@ if "%RC%"=="0" (
 exit /b %RC%
 :blocked
 echo KMJ_DEVICE_ONE_CLICK=BLOCKED_WINDOWS_ENTRY_MISSING
+pause
+exit /b 2
+
+:blocked_args
+echo KMJ_DEVICE_ONE_CLICK=BLOCKED_UNSUPPORTED_ARGUMENT
 pause
 exit /b 2
