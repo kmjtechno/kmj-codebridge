@@ -38,18 +38,31 @@ const FIELDS = Object.freeze({
 });
 function rootOnlyDirectory(lstat, dir) {
   const s = lstat(dir);
-  return s.isDirectory() && !s.isSymbolicLink() &&
-    s.uid === 0 && (s.mode & 0o7022) === 0;
+  return (
+    s.isDirectory() &&
+    !s.isSymbolicLink() &&
+    s.uid === 0 &&
+    (s.mode & 0o7022) === 0
+  );
 }
 function rootOnlyFile(lstat, path) {
   const s = lstat(path);
-  return s.isFile() && !s.isSymbolicLink() && s.uid === 0 &&
-    s.nlink === 1 && (s.mode & 0o7022) === 0 &&
-    s.size > 0 && s.size <= MAX_SCRIPT_BYTES;
+  return (
+    s.isFile() &&
+    !s.isSymbolicLink() &&
+    s.uid === 0 &&
+    s.nlink === 1 &&
+    (s.mode & 0o7022) === 0 &&
+    s.size > 0 &&
+    s.size <= MAX_SCRIPT_BYTES
+  );
 }
 function hashScript(readFile) {
   const contents = readFile(EXIT3_DIAGNOSTIC_PATH);
-  if (typeof contents !== "string" || Buffer.byteLength(contents) > MAX_SCRIPT_BYTES)
+  if (
+    typeof contents !== "string" ||
+    Buffer.byteLength(contents) > MAX_SCRIPT_BYTES
+  )
     fail("SUPERVISOR_EXIT3_DIAGNOSTIC_NOT_READY");
   return createHash("sha256").update(contents).digest("hex");
 }
@@ -65,8 +78,11 @@ export function parseExit3Diagnostic(raw) {
     if (separator < 1) fail("SUPERVISOR_EXIT3_DIAGNOSTIC_UNSAFE_OUTPUT");
     const key = line.slice(0, separator);
     const value = line.slice(separator + 1);
-    if (!Object.hasOwn(FIELDS, key) || Object.hasOwn(record, key) ||
-        !FIELDS[key](value))
+    if (
+      !Object.hasOwn(FIELDS, key) ||
+      Object.hasOwn(record, key) ||
+      !FIELDS[key](value)
+    )
       fail("SUPERVISOR_EXIT3_DIAGNOSTIC_UNSAFE_OUTPUT");
     record[key] = value;
   }
@@ -78,10 +94,13 @@ export function parseExit3Diagnostic(raw) {
 }
 export function runExit3Diagnostic({ run, lstat, readFile }) {
   try {
-    if (!["/", "/usr", "/usr/local", "/usr/local/libexec"].every(
-      (dir) => rootOnlyDirectory(lstat, dir)
-    ) || !rootOnlyFile(lstat, EXIT3_DIAGNOSTIC_PATH) ||
-      hashScript(readFile) !== EXIT3_DIAGNOSTIC_SHA256)
+    if (
+      !["/", "/usr", "/usr/local", "/usr/local/libexec"].every((dir) =>
+        rootOnlyDirectory(lstat, dir),
+      ) ||
+      !rootOnlyFile(lstat, EXIT3_DIAGNOSTIC_PATH) ||
+      hashScript(readFile) !== EXIT3_DIAGNOSTIC_SHA256
+    )
       fail("SUPERVISOR_EXIT3_DIAGNOSTIC_NOT_READY");
   } catch {
     fail("SUPERVISOR_EXIT3_DIAGNOSTIC_NOT_READY");
@@ -89,9 +108,11 @@ export function runExit3Diagnostic({ run, lstat, readFile }) {
   let output;
   try {
     // No mutable Python search path, arbitrary executable or caller arguments.
-    output = run("/usr/bin/python3",
+    output = run(
+      "/usr/bin/python3",
       ["-I", "-B", EXIT3_DIAGNOSTIC_PATH, "--inspect"],
-      { timeout: 25000, maxBuffer: MAX_OUTPUT_BYTES * 2, cwd: "/" });
+      { timeout: 25000, maxBuffer: MAX_OUTPUT_BYTES * 2, cwd: "/" },
+    );
   } catch {
     // Never show raw journal, stderr, command line or private paths.
     fail("SUPERVISOR_EXIT3_DIAGNOSTIC_FAILED");
