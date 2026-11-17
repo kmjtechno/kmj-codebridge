@@ -344,3 +344,21 @@ test("watch worker disabled entirely creates no timers", async () => {
   assert.deepEqual(noOp.enabledProjects, []);
   await noOp.close();
 });
+
+test("unsafe clock and cooldown overflow fail closed without GitHub calls", async (t) => {
+  for (const clock of [-1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity]) {
+    const f = fixture(t);
+    f.setClock(clock);
+    await f.worker.tick();
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.journal.state.tasks.length, 0);
+  }
+  const overflow = fixture(t);
+  overflow.setClock(Number.MAX_SAFE_INTEGER - 100);
+  await overflow.worker.tick();
+  assert.equal(overflow.calls.length, 0);
+  assert.equal(overflow.journal.state.tasks.length, 0);
+  overflow.setClock(1000000);
+  await overflow.worker.tick();
+  assert.equal(overflow.calls.length, 2, "safe clock resumes polling");
+});
