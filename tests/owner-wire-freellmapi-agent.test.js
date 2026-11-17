@@ -31,7 +31,8 @@ test("key comes only from a hidden prompt and is never printed or logged", () =>
   assert.match(script, /getpass\.getpass\(/);
   assert.doesNotMatch(script, /sys\.argv\[[^\]]*\]\s*\)?\s*#?.*key/i);
   assert.doesNotMatch(script, /print\([^)]*\bkey\b/);
-  assert.match(script, /os\.O_EXCL, 0o600/);
+  assert.match(script, /os\\.O_CREAT \\| os\\.O_EXCL \\| os\\.O_NOFOLLOW/);
+  assert.match(script, /write_new_file\\(\\s*ENV_FILE,[\\s\\S]*?0o600/);
 });
 
 test("only an EnvironmentFile drop-in on the agent; nothing else is touched", () => {
@@ -74,7 +75,9 @@ function isolatedPythonCase(t, code) {
 }
 
 test("dangling agent env, dropin, and directory symlinks fail before writes", (t) => {
-  isolatedPythonCase(t, String.raw`
+  isolatedPythonCase(
+    t,
+    String.raw`
 import importlib.util, pathlib, tempfile, types, sys
 spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
@@ -103,11 +106,14 @@ with tempfile.TemporaryDirectory() as temp:
         else:
             raise AssertionError("DANGLING_LINK_ALLOWED_" + field)
         assert link.is_symlink() and not outside.exists()
-`);
+`,
+  );
 });
 
 test("exclusive file creation refuses symlinks and existing files", (t) => {
-  isolatedPythonCase(t, String.raw`
+  isolatedPythonCase(
+    t,
+    String.raw`
 import importlib.util, pathlib, stat, tempfile, sys
 spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
@@ -135,11 +141,14 @@ with tempfile.TemporaryDirectory() as temp:
     created = root / "created"
     m.write_new_file(created, "SYNTHETIC_TEST_ONLY", 0o600)
     assert stat.S_IMODE(created.stat().st_mode) & 0o077 == 0
-`);
+`,
+  );
 });
 
 test("rollback never removes foreign or modified files or restarts agent before write", (t) => {
-  isolatedPythonCase(t, String.raw`
+  isolatedPythonCase(
+    t,
+    String.raw`
 import importlib.util, pathlib, tempfile, sys
 spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
 m = importlib.util.module_from_spec(spec)
@@ -176,5 +185,6 @@ with tempfile.TemporaryDirectory() as temp:
     m.rollback()
     assert not m.DROPIN.exists()
     assert calls == [("systemctl", "daemon-reload"), ("systemctl", "restart", m.UNIT)]
-`);
+`,
+  );
 });
