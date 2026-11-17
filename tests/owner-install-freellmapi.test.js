@@ -66,11 +66,14 @@ test("runs unprivileged, hardened, and never prints or stores secrets elsewhere"
   assert.doesNotMatch(script, /SELF_UPDATE|WATCHTOWER/);
 });
 
-test("non-root run is blocked before any change", () => {
+test("non-root run is blocked before any change", (t) => {
+  if (process.platform !== "linux" || process.getuid() === 0) {
+    t.skip("needs a non-root Linux user");
+    return;
+  }
   const result = spawnSync("python3", ["-I", "-B", file], {
     encoding: "utf8",
   });
-  if (process.getuid && process.getuid() === 0) return; // sandbox is root
   assert.equal(result.status, 2);
   assert.match(result.stdout, /BLOCKED=ROOT_REQUIRED/);
 });
