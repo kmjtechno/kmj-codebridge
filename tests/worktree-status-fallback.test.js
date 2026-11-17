@@ -37,7 +37,9 @@ function fixture(t) {
     {
       id: "device1",
       stateDir: state,
-      projects: [{ id: "project1", root, writable: true, gates: {}, commands: {} }],
+      projects: [
+        { id: "project1", root, writable: true, gates: {}, commands: {} },
+      ],
     },
     runner,
     () => ({ features: ["read", "execute"], limits: { concurrent_jobs: 1 } }),
@@ -58,10 +60,16 @@ test("healthy worktree status keeps normal contract, no fallback marker", async 
   const status = await f.dispatch("worktree_lane_status", f.scope, ["read"]);
   assert.equal(status.noAdditionalExecutionSlots, true);
   assert.equal(status.diagnosticOnly, undefined);
-  assert.deepEqual(status.lanes.map((item) => item.laneId), ["healthy"]);
+  assert.deepEqual(
+    status.lanes.map((item) => item.laneId),
+    ["healthy"],
+  );
   assert.equal(status.lanes[0].dirty, false);
   assert.equal(status.lanes[0].head, f.head);
-  assert.equal(fs.readFileSync(path.join(lane.path, "README.md"), "utf8"), "synthetic fixture\n");
+  assert.equal(
+    fs.readFileSync(path.join(lane.path, "README.md"), "utf8"),
+    "synthetic fixture\n",
+  );
 });
 
 test("broken lane status fails closed into read-only per-lane inventory", async (t) => {
@@ -70,7 +78,10 @@ test("broken lane status fails closed into read-only per-lane inventory", async 
   const damaged = f.lanes.prepare("project1", f.root, "damaged", f.head);
   const ownerFile = path.join(dirty.path, "PRESERVE.txt");
   fs.writeFileSync(ownerFile, "KEEP OWNER FILE");
-  fs.renameSync(path.join(damaged.path, ".git"), path.join(damaged.path, ".git.disabled"));
+  fs.renameSync(
+    path.join(damaged.path, ".git"),
+    path.join(damaged.path, ".git.disabled"),
+  );
   const status = await f.dispatch("worktree_lane_status", f.scope, ["read"]);
   assert.equal(status.statusError, "WORKTREE_GIT_FAILED");
   assert.equal(status.status, "REVIEW_REQUIRED");
@@ -79,10 +90,13 @@ test("broken lane status fails closed into read-only per-lane inventory", async 
   assert.equal(status.cleanupPerformed, false);
   assert.equal(status.productionMutation, false);
   assert.equal(status.noAdditionalExecutionSlots, true);
-  assert.deepEqual(status.lanes.map(({ laneId, status: code }) => [laneId, code]), [
-    ["damaged", "LANE_GIT_LINK_INVALID_REVIEW_REQUIRED"],
-    ["dirtyOwner", "INSPECTED"],
-  ]);
+  assert.deepEqual(
+    status.lanes.map(({ laneId, status: code }) => [laneId, code]),
+    [
+      ["damaged", "LANE_GIT_LINK_INVALID_REVIEW_REQUIRED"],
+      ["dirtyOwner", "INSPECTED"],
+    ],
+  );
   assert.equal(status.lanes[1].dirty, true);
   assert.equal(fs.readFileSync(ownerFile, "utf8"), "KEEP OWNER FILE");
   assert.equal(fs.existsSync(path.join(damaged.path, ".git.disabled")), true);
@@ -93,14 +107,23 @@ test("broken lane status fails closed into read-only per-lane inventory", async 
 test("unsafe private lane name yields a categorical review result without cleanup", async (t) => {
   const f = fixture(t);
   f.lanes.prepare("project1", f.root, "known", f.head);
-  const unsafe = path.join(f.state, "isolated-worktrees", "project1", "invalid+name");
+  const unsafe = path.join(
+    f.state,
+    "isolated-worktrees",
+    "project1",
+    "invalid+name",
+  );
   fs.mkdirSync(unsafe);
   const status = await f.dispatch("worktree_lane_status", f.scope, ["read"]);
   assert.equal(status.statusError, "WORKTREE_PATH_UNSAFE");
   assert.equal(status.status, "REVIEW_REQUIRED");
   assert.equal(status.mayPrepare, false);
   assert.equal(status.cleanupPerformed, false);
-  assert.ok(status.lanes.some((item) => item.status === "INVALID_LANE_NAME_REVIEW_REQUIRED"));
+  assert.ok(
+    status.lanes.some(
+      (item) => item.status === "INVALID_LANE_NAME_REVIEW_REQUIRED",
+    ),
+  );
   assert.equal(fs.existsSync(unsafe), true);
   assert.equal(JSON.stringify(status).includes("invalid+name"), false);
 });
