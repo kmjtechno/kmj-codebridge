@@ -179,6 +179,7 @@ export function createFreeLlmApiClient({
       // successful coding or discarding a provider-side error as empty text.
       if (
         !Array.isArray(res?.choices) ||
+        res.choices.length !== 1 ||
         !choice ||
         typeof choice !== "object" ||
         Array.isArray(choice) ||
