@@ -16,6 +16,13 @@ Touches nothing else: no gateway, updater, nginx, unit file or source.
 
 Dry-run by default (checks only, no prompt). Writing needs:
   <chain> --apply --confirm-no-active-jobs
+Replacing only the OpenRouter key later (the other variables must already be
+set for that chain) needs:
+  <chain> --rotate-key --confirm-no-active-jobs
+A key whose credit limit or budget is exhausted/zero, or that shows any
+recorded spend, is refused before anything is written: the verifier would
+reject it anyway. Create the evidence key WITHOUT a credit limit and keep the
+account balance at zero.
 Generation stays blocked until the running agent build contains the verifier
 wiring AND a real-account proof exists; this script proves neither.
 """
@@ -120,6 +127,28 @@ def openrouter_accepts(key):
         raise ValueError("OPENROUTER_UNREACHABLE") from None
     guard(isinstance(body, dict) and isinstance(body.get("data"), dict),
           "OPENROUTER_KEY_NOT_ACCEPTED")
+    reasons = key_blockers(body["data"])
+    guard(not reasons, "OPENROUTER_KEY_WOULD_BE_REJECTED:" + ",".join(reasons))
+
+
+def key_blockers(d):
+    """Same blocking rules as src/openrouter-free-evidence.js, categories only."""
+    reasons = []
+    for field in ("usage", "usage_daily", "usage_weekly", "usage_monthly",
+                  "byok_usage"):
+        v = d.get(field)
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != 0:
+            reasons.append("SPEND_NOT_ZERO_" + field)
+    budget = d.get("effective_budget")
+    if budget is not None:
+        r = budget.get("remaining_usd") if isinstance(budget, dict) else None
+        if isinstance(r, bool) or not isinstance(r, (int, float)) or r <= 0:
+            reasons.append("BUDGET_BLOCKING")
+    left = d.get("limit_remaining")
+    if left is not None and (isinstance(left, bool)
+                             or not isinstance(left, (int, float)) or left <= 0):
+        reasons.append("KEY_LIMIT_EXHAUSTED_SET_NO_CREDIT_LIMIT")
+    return reasons
 
 
 def env_lines():
@@ -141,6 +170,21 @@ def build_env(lines, key, chain):
         f"CODEBRIDGE_FREELLMAPI_PINS_DIR={PINS_DIR}",
         f"CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR={SNAPSHOT_DIR}",
     ]
+    return ("\n".join(out) + "\n").encode("utf-8")
+
+
+def rotate_env(lines, key, chain):
+    """Replace only the OpenRouter key line; everything else stays identical."""
+    index = [i for i, ln in enumerate(lines)
+             if ln.startswith("CODEBRIDGE_OPENROUTER_KEY=")]
+    guard(len(index) == 1, "ENV_HAS_NO_SINGLE_OPENROUTER_KEY_LINE")
+    present = {ln.split("=", 1)[0]: ln.split("=", 1)[1]
+               for ln in lines if "=" in ln}
+    guard(present.get("CODEBRIDGE_FREELLMAPI_PINS_DIR") == str(PINS_DIR)
+          and present.get("CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR") == str(SNAPSHOT_DIR)
+          and present.get(APPROVED_KEY) == chain, "ENV_NOT_ENABLED_FOR_CHAIN")
+    out = list(lines)
+    out[index[0]] = f"CODEBRIDGE_OPENROUTER_KEY={key}"
     return ("\n".join(out) + "\n").encode("utf-8")
 
 
@@ -170,7 +214,7 @@ def restart_and_wait():
     raise ValueError("AGENT_NOT_ACTIVE_AFTER_RESTART")
 
 
-def preflight(chain):
+def preflight(chain, rotate=False):
     guard(os.geteuid() == 0, "ROOT_REQUIRED")
     guard(cmd("systemctl", "is-active", UNIT, check=False).stdout.strip() == "active",
           "AGENT_NOT_ACTIVE")
@@ -178,26 +222,35 @@ def preflight(chain):
           "PIN_OR_SNAPSHOT_PARENT_UNSAFE")
     models = chain_models(chain, int(time.time() * 1000))
     original, lines = env_lines()
-    build_env(lines, "x" * 16, chain)  # structure check only; dummy value
+    if rotate:
+        rotate_env(lines, "x" * 16, chain)  # structure check only; dummy value
+    else:
+        build_env(lines, "x" * 16, chain)  # structure check only; dummy value
     return models, original, lines
 
 
 def main():
     args = sys.argv[1:]
+    modes = {"--apply": "apply", "--rotate-key": "rotate"}
     guard(len(args) in (1, 3) and CHAIN_RE.match(args[0])
-          and (len(args) == 1 or args[1:] == ["--apply", "--confirm-no-active-jobs"]),
-          "USAGE_<chain>_[--apply_--confirm-no-active-jobs]")
+          and (len(args) == 1
+               or (args[1] in modes and args[2] == "--confirm-no-active-jobs")),
+          "USAGE_<chain>_[--apply|--rotate-key]_--confirm-no-active-jobs")
     chain = args[0]
-    models, original, lines = preflight(chain)
-    print(f"PREFLIGHT=OK CHAIN={chain} MODELS={len(models)} ALL_OPENROUTER_FREE=yes")
-    if len(args) == 1:
+    mode = modes[args[1]] if len(args) == 3 else "dry"
+    rotate = mode == "rotate"
+    models, original, lines = preflight(chain, rotate)
+    print(f"PREFLIGHT=OK CHAIN={chain} MODELS={len(models)} ALL_OPENROUTER_FREE=yes"
+          + (" MODE=rotate_key" if rotate else ""))
+    if mode == "dry":
         print("ENV=DRY_RUN_UNCHANGED")
         return
     key = getpass.getpass("OpenRouter API key (hidden, not echoed): ").strip()
     guard(KEY_RE.match(key), "OPENROUTER_KEY_FORMAT_REJECTED")
     openrouter_accepts(key)
     print("OPENROUTER_KEY=ACCEPTED")
-    replace_env(build_env(lines, key, chain))
+    replace_env(rotate_env(lines, key, chain) if rotate
+                else build_env(lines, key, chain))
     try:
         restart_and_wait()
     except BaseException:
@@ -205,7 +258,8 @@ def main():
         cmd("systemctl", "restart", UNIT, check=False)
         print("ENV=FAILED_RESTORED")
         raise
-    print(f"ENV=OK approved_chains=1 agent=active chain={chain}")
+    print(f"ENV=OK approved_chains=1 agent=active chain={chain}"
+          + (" rotated=yes" if rotate else ""))
 
 
 if __name__ == "__main__":
