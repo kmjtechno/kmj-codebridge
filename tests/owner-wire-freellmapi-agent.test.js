@@ -31,8 +31,8 @@ test("key comes only from a hidden prompt and is never printed or logged", () =>
   assert.match(script, /getpass\.getpass\(/);
   assert.doesNotMatch(script, /sys\.argv\[[^\]]*\]\s*\)?\s*#?.*key/i);
   assert.doesNotMatch(script, /print\([^)]*\bkey\b/);
-  assert.match(script, /os\\.O_CREAT \\| os\\.O_EXCL \\| os\\.O_NOFOLLOW/);
-  assert.match(script, /write_new_file\\(\\s*ENV_FILE,[\\s\\S]*?0o600/);
+  assert.match(script, /os\.O_CREAT \| os\.O_EXCL \| os\.O_NOFOLLOW/);
+  assert.match(script, /write_new_file\(\s*ENV_FILE,[\s\S]*?0o600/);
 });
 
 test("only an EnvironmentFile drop-in on the agent; nothing else is touched", () => {
