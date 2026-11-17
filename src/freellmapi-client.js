@@ -81,7 +81,12 @@ export function createFreeLlmApiClient({
     } catch {
       fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     }
+    // Never accept an attestation after the wall clock rolls back during
+    // asynchronous billing verification; a stale proof must fail closed.
+    const checkedAt = now();
     const ready =
+      Number.isSafeInteger(checkedAt) &&
+      checkedAt >= observedAt &&
       proof?.source === "authenticated_provider_billing_and_route_binding" &&
       proof.chain === chain &&
       proof.routeBindingVerified === true &&
@@ -95,10 +100,10 @@ export function createFreeLlmApiClient({
       proof.observedAtEpochMs <= observedAt &&
       proof.observedAtEpochMs > observedAt - 60000 &&
       Number.isSafeInteger(proof.expiresAtEpochMs) &&
-      proof.expiresAtEpochMs > now() &&
+      proof.expiresAtEpochMs > checkedAt &&
       proof.expiresAtEpochMs <= observedAt + 60000;
     if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
-    return true;
+    return checkedAt;
   };
   const client = {
     async checkZeroCostChain({ chain }) {
@@ -146,7 +151,12 @@ export function createFreeLlmApiClient({
         timeoutSeconds > 90
       )
         fail("FREELLMAPI_INVALID_TIMEOUT");
-      await verifyChainAdmission(chain);
+      const admittedAt = await verifyChainAdmission(chain);
+      // A second clock read closes the gap between asynchronous proof and POST.
+      // Fail closed if the device clock moved backwards after admission.
+      const beforePostAt = now();
+      if (!Number.isSafeInteger(beforePostAt) || beforePostAt < admittedAt)
+        fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
       const res = await call(
         "POST",
         "/v1/chat/completions",
@@ -194,7 +204,11 @@ export function createFreeLlmApiClient({
       const startedAt = now();
       const deadline = startedAt + totalSeconds * 1000;
       // Even explicit chains must be advertised, approved and discovered.
-      if (!cached || startedAt - cached.at > STATUS_TTL_MS)
+      if (
+        !cached ||
+        startedAt < cached.at ||
+        startedAt - cached.at > STATUS_TTL_MS
+      )
         cached = { at: startedAt, chains: (await client.status()).chains };
       const candidates = (
         chain === undefined
@@ -206,7 +220,10 @@ export function createFreeLlmApiClient({
       if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
       const attempts = [];
       for (const candidate of candidates.slice(0, 2)) {
-        const remainingMs = deadline - now();
+        const currentAt = now();
+        // A wall-clock rollback must not extend a cloud request budget.
+        if (currentAt < startedAt) fail("FREELLMAPI_DEADLINE_EXCEEDED");
+        const remainingMs = deadline - currentAt;
         // Reserve enough for one meaningful request; do not begin a second
         // cloud request with only milliseconds remaining after a 429.
         if (remainingMs < 4500) fail("FREELLMAPI_DEADLINE_EXCEEDED");
