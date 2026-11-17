@@ -25,7 +25,9 @@ function Candidate-Identity($cfg) {
   if($projectMatches.Count -ne 1) { return 'UNRELATED' }
   if($names -contains 'supervisorSocket' -or $names -contains 'supervisorPipe' -or
      $names -contains 'supervisorTokenFile') { return 'ALREADY_CONFIGURED' }
-  if([string]$cfg.gateway -cne 'https://kmjtechno.com/mcp') { return 'UNTRUSTED_GATEWAY' }
+  # The enrolled agent runtime requires the HTTPS origin root; /mcp is a
+  # client endpoint, not a valid CodeBridge outbound agent gateway.
+  if([string]$cfg.gateway -cnotin @('https://kmjtechno.com','https://kmjtechno.com/')) { return 'UNTRUSTED_GATEWAY' }
   return 'MATCH'
 }
 function Safe-Candidate-Path([string]$root,[string]$candidate) {
@@ -57,15 +59,17 @@ function Task-Status([object[]]$tasks) {
   return 'ABSENT'
 }
 if($SelfTest) {
-  $good=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp'}
-  $other=[pscustomobject]@{id='kmj-kmj-omnidesk-desktop-5fvjmet';projects=@([pscustomobject]@{id='kmj-omnidesk'});gateway='https://kmjtechno.com/mcp'}
-  $configured=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp';supervisorPipe='something'}
-  $wrongGateway=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/not-mcp'}
+  $good=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/'}
+  $withoutSlash=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com'}
+  $other=[pscustomobject]@{id='kmj-kmj-omnidesk-desktop-5fvjmet';projects=@([pscustomobject]@{id='kmj-omnidesk'});gateway='https://kmjtechno.com/'}
+  $configured=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/';supervisorPipe='something'}
+  $wrongGateway=[pscustomobject]@{id=$expectedDevice;projects=@([pscustomobject]@{id='kmj-codebridge'});gateway='https://kmjtechno.com/mcp'}
   $missingFields=[pscustomobject]@{id=$expectedDevice}
-  $malformedProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/mcp';projects=@('kmj-codebridge')}
-  $duplicateProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/mcp';projects=@([pscustomobject]@{id='kmj-codebridge'},[pscustomobject]@{id='kmj-codebridge'})}
+  $malformedProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/';projects=@('kmj-codebridge')}
+  $duplicateProjects=[pscustomobject]@{id=$expectedDevice;gateway='https://kmjtechno.com/';projects=@([pscustomobject]@{id='kmj-codebridge'},[pscustomobject]@{id='kmj-codebridge'})}
   $collision=[pscustomobject]@{TaskName=$taskName;TaskPath='\Other\'}
   if((Candidate-Identity $good) -cne 'MATCH' -or
+     (Candidate-Identity $withoutSlash) -cne 'MATCH' -or
      (Candidate-Identity $other) -cne 'UNRELATED' -or
      (Candidate-Identity $configured) -cne 'ALREADY_CONFIGURED' -or
      (Candidate-Identity $wrongGateway) -cne 'UNTRUSTED_GATEWAY' -or
