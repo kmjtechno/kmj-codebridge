@@ -62,10 +62,10 @@ test(
       );
     } catch (error) {
       // Avoid dumping an encoded command or environment in CI diagnostics.
-      const stderr = String(error?.stderr ?? "")
-        .replace(/\s+/g, " ")
-        .slice(0, 300);
-      throw new Error("WINDOWS_TASK_COLLISION_NATIVE_TEST_FAILED: " + stderr);
+      const receipt = [error?.status, error?.stdout, error?.stderr]
+        .map((value) => String(value ?? "").replace(/\s+/g, " ").slice(0, 450))
+        .join(" | ");
+      throw new Error("WINDOWS_TASK_COLLISION_NATIVE_TEST_FAILED: " + receipt);
     }
   },
 );
