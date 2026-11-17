@@ -456,3 +456,29 @@ test("clock rollback after successful zero-cost admission blocks cloud POST", as
   );
   assert.equal(sent, 0);
 });
+
+test("invalid post-admission clock never sends private source to cloud", async () => {
+  for (const invalidTick of [NaN, Infinity, -Infinity, undefined]) {
+    const ticks = [1000000, 1000001, invalidTick];
+    let sent = 0;
+    const client = createFreeLlmApiClient({
+      apiKey: KEY,
+      approvedFreeChains: ["auto:default"],
+      now: () => ticks.shift(),
+      verifyZeroCostChain: verifiedProof,
+      request: async () => {
+        sent++;
+        throw new Error("UNEXPECTED_CLOUD_POST");
+      },
+    });
+    await assert.rejects(
+      client.generate({
+        prompt: "PRIVATE_SOURCE_SENTINEL",
+        localProcessingApproved: true,
+        upstreamCloudApproved: true,
+      }),
+      { message: "FREELLMAPI_ZERO_COST_NOT_ATTESTED" },
+    );
+    assert.equal(sent, 0);
+  }
+});
