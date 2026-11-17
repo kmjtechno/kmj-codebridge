@@ -161,7 +161,16 @@ export function createFreeLlmApiClient({
         },
         timeoutSeconds * 1000,
       );
+      // A successful HTTP status is not evidence of a valid model response.
+      // Never report zero-cost admission success with an empty/malformed result.
       const choice = res?.choices?.[0];
+      if (
+        !Array.isArray(res?.choices) ||
+        !choice ||
+        typeof choice.message?.content !== "string" ||
+        choice.message.content.length === 0 ||
+        typeof choice.finish_reason !== "string"
+      ) fail("FREELLMAPI_BAD_COMPLETION");
       return {
         provider: "freellmapi-loopback",
         chain,
