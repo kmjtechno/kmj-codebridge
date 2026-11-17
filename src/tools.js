@@ -2527,12 +2527,36 @@ export function createDispatcher(
           : {}),
       };
     }
-    if (name === "worktree_lane_status")
-      return {
-        device: config.id,
-        project: p.id,
-        ...worktreeLanes().status(p.id, p.files.root),
-      };
+    if (name === "worktree_lane_status") {
+      try {
+        return {
+          device: config.id,
+          project: p.id,
+          ...worktreeLanes().status(p.id, p.files.root),
+        };
+      } catch (error) {
+        // Older clients may expose only the status tool. A broken private
+        // worktree must not make read-only diagnosis inaccessible. Do not
+        // infer that the lane is reusable or silently prune owner work.
+        if (
+          ![
+            "WORKTREE_GIT_FAILED",
+            "WORKTREE_PATH_UNSAFE",
+            "WORKTREE_LIMIT_EXCEEDED",
+            "WORKTREE_SOURCE_INVALID",
+          ].includes(error?.code)
+        )
+          throw error;
+        return {
+          device: config.id,
+          project: p.id,
+          ...worktreeLanes().diagnose(p.id, p.files.root),
+          statusError: error.code,
+          diagnosticOnly: true,
+          noAdditionalExecutionSlots: true,
+        };
+      }
+    }
     if (name === "worktree_lane_diagnose")
       return {
         device: config.id,
