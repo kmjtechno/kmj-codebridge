@@ -29,7 +29,10 @@ test("P520 stage is fixed SHA and never takes over a running agent", () => {
   assert.doesNotMatch(source, /(?:llama|local-model)-server/i);
   assert.equal((source.match(/if\(\$Apply\) \{/g) || []).length, 1);
   assert.equal(
-    (source.match(/Mark 'P520_INSTALL_PREFLIGHT' 'BLOCKED_NOT_ATTESTED'/g) || []).length,
+    (
+      source.match(/Mark 'P520_INSTALL_PREFLIGHT' 'BLOCKED_NOT_ATTESTED'/g) ||
+      []
+    ).length,
     1,
   );
 });
@@ -45,16 +48,31 @@ test(
       "'" + filename + "',[ref]$tokens,[ref]$parseErrors)|Out-Null;",
       "if($parseErrors.Count -ne 0){throw 'P520_SCRIPT_PARSER_FAILED'}",
     ].join(" ");
-    execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", parser], {
-      timeout: 20000,
-      stdio: "pipe",
-    });
+    execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", parser],
+      {
+        timeout: 20000,
+        stdio: "pipe",
+      },
+    );
     const result = execFileSync(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-File", filename, "-SelfTest"],
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        filename,
+        "-SelfTest",
+      ],
       { timeout: 20000, encoding: "utf8", stdio: "pipe" },
     );
     assert.match(result, /P520_INSTALL_PREFLIGHT_SELFTEST=PASS/);
-    assert.doesNotMatch(result, /P520_STAGE_PROTECTED_ROOT|P520_STAGE_TASK=DISABLED/);
+    assert.doesNotMatch(
+      result,
+      /P520_STAGE_PROTECTED_ROOT|P520_STAGE_TASK=DISABLED/,
+    );
   },
 );
