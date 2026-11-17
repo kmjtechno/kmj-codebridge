@@ -37,12 +37,16 @@ test(
       "if($errors.Count){throw ('PARSER:'+",
       "$errors[0].ErrorId+':'+$errors[0].Extent.StartLineNumber)}",
     ].join(" ");
-    execFileSync("powershell.exe", [
-      "-NoProfile",
-      "-NonInteractive",
-      "-EncodedCommand",
-      Buffer.from(checker, "utf16le").toString("base64"),
-    ], { timeout: 20000 });
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-EncodedCommand",
+        Buffer.from(checker, "utf16le").toString("base64"),
+      ],
+      { timeout: 20000 },
+    );
     const output = execFileSync(
       "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-File", file, "-SelfTest"],
