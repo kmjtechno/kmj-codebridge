@@ -169,10 +169,26 @@ test("incomplete, successful, unrelated, stale or non-push runs are never execut
     { event: "pull_request" },
     { jobSha: "b".repeat(40) },
     { jobConclusion: "success" },
-    { runCount: 11 },
   ]) {
     const f = fixture(t, options);
     await f.worker.tick();
+    assert.equal(f.journal.state.tasks.length, 0);
+  }
+});
+
+test("first runs page remains valid when GitHub reports more historical runs", async (t) => {
+  const f = fixture(t, { runCount: 11 });
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 1);
+  assert.equal(f.journal.state.tasks[0].key, "auto-repair:format:" + HEAD);
+});
+
+test("negative and inconsistent runs totals fail closed", async (t) => {
+  for (const runCount of [-1, 0]) {
+    const f = fixture(t, { runCount });
+    await f.worker.tick();
+    assert.equal(f.calls.length, 1);
     assert.equal(f.journal.state.tasks.length, 0);
   }
 });
