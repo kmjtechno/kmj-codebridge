@@ -110,9 +110,21 @@ export function createFreeLlmApiClient({
     },
     async status() {
       const res = await call("GET", "/v1/models", undefined, 5000);
-      const ids = (res?.data ?? [])
-        .map((m) => m?.id)
-        .filter((id) => typeof id === "string");
+      // An incomplete or malformed catalog cannot prove a chain exists.
+      // Do not treat HTTP 200 without a strict model array as an empty,
+      // apparently healthy catalog, nor keep valid entries beside corrupt ones.
+      if (
+        !Array.isArray(res?.data) ||
+        res.data.some(
+          (m) =>
+            !m ||
+            typeof m !== "object" ||
+            Array.isArray(m) ||
+            typeof m.id !== "string",
+        )
+      )
+        fail("FREELLMAPI_BAD_RESPONSE");
+      const ids = res.data.map((m) => m.id);
       return {
         available: true,
         provider: "freellmapi-loopback",
@@ -162,11 +174,24 @@ export function createFreeLlmApiClient({
         timeoutSeconds * 1000,
       );
       const choice = res?.choices?.[0];
+      // A successful HTTP status is not proof of a valid completion.
+      // Reject ambiguous/malformed bodies rather than reporting false
+      // successful coding or discarding a provider-side error as empty text.
+      if (
+        !Array.isArray(res?.choices) ||
+        !choice ||
+        typeof choice !== "object" ||
+        Array.isArray(choice) ||
+        typeof choice.message?.content !== "string" ||
+        choice.message.content.length === 0 ||
+        !["stop", "length"].includes(choice.finish_reason)
+      )
+        fail("FREELLMAPI_BAD_COMPLETION");
       return {
         provider: "freellmapi-loopback",
         chain,
-        response: String(choice?.message?.content ?? "").slice(0, 65536),
-        hitTokenLimit: choice?.finish_reason === "length",
+        response: choice.message.content.slice(0, 65536),
+        hitTokenLimit: choice.finish_reason === "length",
         outputIsUntrusted: true,
         cloudFallback: null,
         paidInference: null,

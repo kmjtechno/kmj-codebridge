@@ -263,7 +263,9 @@ test("429 fallback shares one bounded timeout across both chains", async () => {
         clock += 20000;
         throw new Error("FREELLMAPI_QUOTA_EXHAUSTED");
       }
-      return { choices: [{ message: { content: "done" } }] };
+      return {
+        choices: [{ message: { content: "done" }, finish_reason: "stop" }],
+      };
     },
   });
   const out = await c.generateRouted({
