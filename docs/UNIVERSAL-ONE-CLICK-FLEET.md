@@ -30,7 +30,7 @@ matching private config and active CodeBridge systemd agent it performs **no
 installation, restart or token rotation**. A mismatched or inactive previous
 enrollment blocks and requires separate repair review. On a fresh device
 without a service/config, it invokes the existing guarded official Linux
-installer pinned to the *current reviewed checkout SHA*, deriving device
+installer pinned to the _current reviewed checkout SHA_, deriving device
 identity from Git project ID and current host. Owner must approve the
 short-lived pairing code in the official browser. A successful local service
 reports KMJ_DEVICE_ONE_CLICK=PASS, but is not account-level READY proof.
