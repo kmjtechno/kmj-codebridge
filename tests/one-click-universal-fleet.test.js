@@ -66,6 +66,25 @@ test(
 );
 
 test(
+  "Linux existing-agent scope checker compiles and restricts gateways to HTTPS or loopback",
+  { skip: process.platform === "win32" },
+  () => {
+    const block = linux.match(
+      /python3 - "\$cfg" "\$project" "\$project_id" <<'PY'\n([\s\S]*?)\nPY/,
+    );
+    assert.ok(block, "missing embedded config scope verifier");
+    assert.match(block[1], /127\.0\.0\.1/);
+    assert.match(block[1], /not isinstance\(c\.get\("token"\),str\)/);
+    const checked = spawnSync(
+      "python3",
+      ["-c", "import sys; compile(sys.stdin.read(), '<config-verifier>', 'exec')"],
+      { input: block[1], encoding: "utf8" },
+    );
+    assert.equal(checked.status, 0, checked.stderr);
+  },
+);
+
+test(
   "Windows universal pairing native selftest passes before any owner enrollment",
   { skip: process.platform !== "win32" },
   () => {
