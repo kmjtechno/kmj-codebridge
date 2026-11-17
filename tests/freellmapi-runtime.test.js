@@ -15,14 +15,16 @@ const ENV = {
   CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR: "/snaps",
   CODEBRIDGE_OPENROUTER_KEY: "sk-or-v1-" + "a".repeat(24),
 };
+const PIN_FILE = path.join("/pins", "route-binding-or-free.json");
+const SNAP_FILE = path.join("/snaps", "or-free.json");
 const files = (over = {}) => ({
-  "/pins/route-binding-or-free.json": JSON.stringify({
+  [PIN_FILE]: JSON.stringify({
     version: 1,
     chain: "auto:or-free",
     models: IDS,
     sha256: manifestDigest(IDS),
   }),
-  "/snaps/or-free.json": JSON.stringify({
+  [SNAP_FILE]: JSON.stringify({
     version: 1,
     chain: "auto:or-free",
     observedAtEpochMs: Date.now(),
@@ -85,13 +87,13 @@ test("configured: the injected verifier admits only when manifest, snapshot and 
   });
   assert.equal(proof.routeBindingVerified, true);
   await assert.rejects(
-    make(files({ "/pins/route-binding-or-free.json": "{}" }))({
+    make(files({ [PIN_FILE]: "{}" }))({
       chain: "auto:or-free",
       observedAtEpochMs: NOW,
     }),
   );
   await assert.rejects(
-    make(files({ "/snaps/or-free.json": "x" }))({
+    make(files({ [SNAP_FILE]: "x" }))({
       chain: "auto:or-free",
       observedAtEpochMs: NOW,
     }),
