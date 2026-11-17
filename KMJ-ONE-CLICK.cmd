@@ -4,17 +4,19 @@ title KMJ TECHNO - Universal One Click Device Connect
 echo KMJ TECHNO ^| UNIVERSAL ONE CLICK
 echo Existing approved device: safe reconnect.
 echo New device: owner-browser pairing and scoped agent startup.
-echo Never share the agent credential or use another device's enrollment.
+echo Uses an isolated verified runtime: does not clean or reset your project.
 echo.
 if /I not "%OS%"=="Windows_NT" goto :blocked
-set "CONNECT=%~dp0scripts\windows\CONNECT-ANY-DEVICE.cmd"
-if not exist "%CONNECT%" goto :blocked
+where powershell.exe >nul 2>&1
+if errorlevel 1 goto :blocked
+set "STAGER=%~dp0scripts\windows\ONE-CLICK-ISOLATED-DEVICE.ps1"
+if not exist "%STAGER%" goto :blocked
 if not "%~2"=="" goto :blocked_args
 if "%~1"=="" (
-  call "%CONNECT%"
+  powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy RemoteSigned -File "%STAGER%"
 ) else (
-  if not exist "%~f1\\*" goto :blocked_args
-  call "%CONNECT%" "%~f1"
+  if not exist "%~f1\*" goto :blocked_args
+  powershell.exe -NoLogo -NoProfile -STA -ExecutionPolicy RemoteSigned -File "%STAGER%" -ProjectRoot "%~f1"
 )
 set "RC=%ERRORLEVEL%"
 if "%RC%"=="0" (
@@ -23,12 +25,13 @@ if "%RC%"=="0" (
 ) else (
   echo KMJ_DEVICE_ONE_CLICK=BLOCKED
 )
+echo.
+pause
 exit /b %RC%
 :blocked
 echo KMJ_DEVICE_ONE_CLICK=BLOCKED_WINDOWS_ENTRY_MISSING
 pause
 exit /b 2
-
 :blocked_args
 echo KMJ_DEVICE_ONE_CLICK=BLOCKED_UNSUPPORTED_ARGUMENT
 pause
