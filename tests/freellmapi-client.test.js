@@ -432,3 +432,22 @@ test("read-only no-charge route admission never sends prompt and requires exact 
   });
   assert.equal(network, 0);
 });
+
+test("failures carry the stable reason as .code so the MCP layer does not report INTERNAL_ERROR", async () => {
+  assert.throws(
+    () => createFreeLlmApiClient({ apiKey: "short" }),
+    (error) => error.code === "FREELLMAPI_KEY_NOT_CONFIGURED",
+  );
+  const client = createFreeLlmApiClient({
+    apiKey: "abcdefgh12345",
+    request: async () => {
+      const error = new Error("FREELLMAPI_QUOTA_EXHAUSTED");
+      error.code = "FREELLMAPI_QUOTA_EXHAUSTED";
+      throw error;
+    },
+  });
+  await assert.rejects(
+    () => client.status(),
+    (error) => error.code === "FREELLMAPI_QUOTA_EXHAUSTED",
+  );
+});
