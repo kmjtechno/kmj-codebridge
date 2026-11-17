@@ -77,3 +77,117 @@ test("non-root run is blocked before any change", (t) => {
   assert.equal(result.status, 2);
   assert.match(result.stdout, /BLOCKED=ROOT_REQUIRED/);
 });
+
+function runIsolatedSecurityCase(t, code) {
+  if (process.platform !== "linux") {
+    t.skip("needs Linux filesystem symlink semantics");
+    return;
+  }
+  const result = spawnSync("python3", ["-I", "-B", "-c", code, file], {
+    encoding: "utf8",
+    timeout: 10000,
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+}
+
+test("preflight refuses dangling unit, install and environment symlinks", (t) => {
+  runIsolatedSecurityCase(
+    t,
+    String.raw`
+import importlib.util, pathlib, tempfile, sys
+spec = importlib.util.spec_from_file_location("kmj_installer", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+m.os.geteuid = lambda: 0
+m.shutil.which = lambda _: "/synthetic/tool"
+m.node_version = lambda: (22, 0)
+m.listeners = lambda: []
+m.pwd.getpwnam = lambda _: (_ for _ in ()).throw(KeyError())
+with tempfile.TemporaryDirectory() as tmp:
+    root = pathlib.Path(tmp)
+    for attr, expected in (("UNIT", "UNIT_ALREADY_EXISTS"),
+                           ("BASE", "INSTALL_DIR_ALREADY_EXISTS"),
+                           ("ENV_DIR", "ENV_DIR_ALREADY_EXISTS")):
+        m.UNIT = root / "unused-unit"
+        m.BASE = root / "unused-base"
+        m.ENV_DIR = root / "unused-env"
+        link = root / ("dangling-" + attr)
+        missing = root / ("missing-" + attr)
+        link.symlink_to(missing)
+        setattr(m, attr, link)
+        assert not link.exists() and link.is_symlink()
+        try:
+            m.preflight()
+        except ValueError as exc:
+            assert str(exc) == expected, str(exc)
+        else:
+            raise AssertionError("DANGLING_LINK_NOT_REJECTED")
+        assert link.is_symlink() and not missing.exists()
+`,
+  );
+});
+
+test("exclusive privileged write cannot follow a dangling link or overwrite a file", (t) => {
+  runIsolatedSecurityCase(
+    t,
+    String.raw`
+import importlib.util, pathlib, tempfile, stat, sys
+spec = importlib.util.spec_from_file_location("kmj_installer", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+with tempfile.TemporaryDirectory() as tmp:
+    root = pathlib.Path(tmp)
+    link, outside = root / "unit", root / "outside"
+    link.symlink_to(outside)
+    try:
+        m.create_exclusive_file(link, "unit", 0o644)
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("DANGLING_LINK_OVERWRITTEN")
+    assert link.is_symlink() and not outside.exists()
+    existing = root / "existing"
+    existing.write_text("owner-data")
+    try:
+        m.create_exclusive_file(existing, "bad", 0o644)
+    except FileExistsError:
+        pass
+    else:
+        raise AssertionError("EXISTING_FILE_OVERWRITTEN")
+    assert existing.read_text() == "owner-data"
+    secret = root / "secret"
+    m.create_exclusive_file(secret, "SYNTHETIC_TEST_ONLY", 0o600)
+    assert stat.S_IMODE(secret.stat().st_mode) & 0o077 == 0
+`,
+  );
+});
+
+test("rollback preserves unrecognized and modified unit identities", (t) => {
+  runIsolatedSecurityCase(
+    t,
+    String.raw`
+import importlib.util, pathlib, tempfile, sys
+spec = importlib.util.spec_from_file_location("kmj_installer", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+with tempfile.TemporaryDirectory() as tmp:
+    root = pathlib.Path(tmp)
+    m.UNIT = root / "owner-unit"
+    m.UNIT.write_text("owner-data")
+    m.rollback()
+    assert m.UNIT.read_text() == "owner-data"
+    m.UNIT.unlink()
+    m.UNIT_IDENTITY = None
+    created = m.create_exclusive_file(m.UNIT, m.UNIT_TEXT, 0o644)
+    m.UNIT_IDENTITY = (created.st_dev, created.st_ino)
+    m.UNIT.write_text("modified-after-create")
+    try:
+        m.rollback()
+    except ValueError as exc:
+        assert str(exc) == "UNIT_CHANGED_PRESERVED", str(exc)
+    else:
+        raise AssertionError("FOREIGN_UNIT_ROLLBACK_ALLOWED")
+    assert m.UNIT.read_text() == "modified-after-create"
+`,
+  );
+});
