@@ -107,7 +107,10 @@ export function createFreeLlmApiClient({
     },
     async status() {
       const res = await call("GET", "/v1/models", undefined, 5000);
-      const ids = (res?.data ?? [])
+      // A malformed proxy catalog is not evidence of any usable cloud route.
+      // Reject it before caching or selecting a provider chain.
+      if (!Array.isArray(res?.data)) fail("FREELLMAPI_BAD_RESPONSE");
+      const ids = res.data
         .map((m) => m?.id)
         .filter((id) => typeof id === "string");
       return {
