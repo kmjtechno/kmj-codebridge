@@ -41,7 +41,7 @@ function TaskState([object[]]$tasks) {
   if([string]$matched[0].State -cne 'Disabled') { return 'TASK_NOT_DISABLED' }
   return 'DISABLED'
 }
-function ScopedAgent([string]$configPath) {
+function ScopedAgent([string]$configPath,[bool]$allowSupervisor=$false) {
   $nodes=@(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction Stop)
   Require ($nodes.Count -le 64) 'PROCESS_INVENTORY_UNBOUNDED'
   $agents=@($nodes|Where-Object {
@@ -55,7 +55,11 @@ function ScopedAgent([string]$configPath) {
     $line -match 'src[\\/]cli\.js["'']?\s+windows-supervisor\s+' -and
     $line.IndexOf($SupervisorConfig,[StringComparison]::OrdinalIgnoreCase) -ge 0
   })
-  Require ($supervisors.Count -eq 0) 'PREEXISTING_SUPERVISOR_PROCESS'
+  if($allowSupervisor) {
+    Require ($supervisors.Count -eq 1) 'PERSISTENT_SUPERVISOR_NOT_UNIQUE'
+  } else {
+    Require ($supervisors.Count -eq 0) 'PREEXISTING_SUPERVISOR_PROCESS'
+  }
   return $agents[0]
 }
 function PrivateToken([string]$principalSid) {
@@ -195,7 +199,7 @@ try {
   Require $healthy 'PERSISTENT_HMAC_NOT_READY'
   $now=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   Require ([string]$now.State -ceq 'Running') 'TASK_NOT_RUNNING'
-  $after=ScopedAgent $agentConfig
+  $after=ScopedAgent $agentConfig $true
   Require ([int]$after.ProcessId -eq [int]$activeAgent.ProcessId) 'AGENT_CHANGED_DURING_ACTIVATION'
   Mark 'P520_ONE_CLICK_HMAC' 'PASS'
   Mark 'P520_ONE_CLICK_TASK' 'RUNNING'
