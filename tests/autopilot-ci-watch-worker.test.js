@@ -78,7 +78,7 @@ function fixture(t, overrides = {}) {
       });
     if (String(url).includes("/actions/runs/101/jobs?"))
       return Response.json({
-        total_count: 1,
+        total_count: overrides.jobCount ?? 1,
         jobs: [
           {
             id: 202,
@@ -175,6 +175,21 @@ test("incomplete, successful, unrelated, stale or non-push runs are never execut
     await f.worker.tick();
     assert.equal(f.journal.state.tasks.length, 0);
   }
+});
+
+test("first jobs page remains valid when GitHub reports more historical jobs", async (t) => {
+  const f = fixture(t, { jobCount: 51 });
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 1);
+  assert.equal(f.journal.state.tasks[0].key, "auto-repair:format:" + HEAD);
+});
+
+test("invalid negative job total fails closed", async (t) => {
+  const f = fixture(t, { jobCount: -1 });
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 0);
 });
 
 test("local branch or HEAD mismatch prevents all network requests", async (t) => {
