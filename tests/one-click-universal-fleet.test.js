@@ -6,6 +6,10 @@ import test from "node:test";
 const linux = fs.readFileSync("scripts/one-click-linux-device.sh", "utf8");
 const linuxEntry = fs.readFileSync("KMJ-ONE-CLICK.sh", "utf8");
 const windows = fs.readFileSync("KMJ-ONE-CLICK.cmd", "utf8");
+const windowsStage = fs.readFileSync(
+  "scripts/windows/ONE-CLICK-ISOLATED-DEVICE.ps1",
+  "utf8",
+);
 const windowsEntry = fs.readFileSync(
   "scripts/windows/CONNECT-ANY-DEVICE.cmd",
   "utf8",
@@ -16,7 +20,7 @@ const windowsWizard = fs.readFileSync(
 );
 
 test("universal device entry reuses approved browser pairing rather than a P520-only installer", () => {
-  assert.match(windows, /scripts\\windows\\CONNECT-ANY-DEVICE\.cmd/);
+  assert.match(windows, /scripts\\windows\\ONE-CLICK-ISOLATED-DEVICE\.ps1/);
   assert.match(windowsEntry, /ONE-CLICK-ANY-DEVICE\.ps1/);
   assert.match(windowsWizard, /OWNER_BROWSER_APPROVAL_REQUIRED/);
   assert.match(windowsWizard, /EXISTING_PROJECT_AGENT_AUTO_SELECTED/);
@@ -26,6 +30,22 @@ test("universal device entry reuses approved browser pairing rather than a P520-
   assert.doesNotMatch(
     windows,
     /P520-OWNER-DISABLED-RESUME|ONE-CLICK-P520-ACTIVATE|Enable-ScheduledTask|sc\.exe|schtasks|git reset|git clean/i,
+  );
+});
+
+test("Windows clean runtime staging is exact-head, isolated and non-destructive", () => {
+  assert.match(windowsStage, /SOURCE_ORIGIN_INVALID/);
+  assert.match(windowsStage, /ENTRY_SOURCE_MODIFIED/);
+  assert.match(windowsStage, /STAGED_SHA_MISMATCH/);
+  assert.match(windowsStage, /STAGED_RUNTIME_DIRTY/);
+  assert.match(windowsStage, /hash-object/);
+  assert.match(windowsStage, /--no-checkout --quiet/);
+  assert.match(windowsStage, /checkout --quiet --detach \$sha/);
+  assert.match(windowsStage, /ci --omit=dev --ignore-scripts/);
+  assert.match(windowsStage, /ONE-CLICK-ANY-DEVICE\.ps1/);
+  assert.doesNotMatch(
+    windowsStage,
+    /git\s+reset|git\s+clean|Stop-Process|Enable-ScheduledTask|Start-ScheduledTask|Set-Content|agent\.json\.proposed/,
   );
 });
 
@@ -103,5 +123,20 @@ test(
     );
     assert.equal(check.status, 0, check.stderr || check.stdout);
     assert.match(check.stdout, /KMJ_UNIVERSAL_SELFTEST=PASS/);
+    const stage = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        "scripts/windows/ONE-CLICK-ISOLATED-DEVICE.ps1",
+        "-SelfTest",
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(stage.status, 0, stage.stderr || stage.stdout);
+    assert.match(stage.stdout, /KMJ_UNIVERSAL_WINDOWS_STAGE_SELFTEST=PASS/);
   },
 );
