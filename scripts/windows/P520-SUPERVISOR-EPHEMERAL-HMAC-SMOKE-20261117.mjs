@@ -86,7 +86,10 @@ async function main() {
   if (process.platform !== "win32") fail("WINDOWS_ONLY");
   const release = process.argv[2];
   const configFile = process.argv[3];
-  if (!samePath(release, expectedRelease) || !samePath(configFile, expectedConfig)) {
+  if (
+    !samePath(release, expectedRelease) ||
+    !samePath(configFile, expectedConfig)
+  ) {
     fail("UNEXPECTED_PATHS");
   }
   const config = JSON.parse(fs.readFileSync(configFile, "utf8"));
@@ -103,7 +106,8 @@ async function main() {
     fail("UNEXPECTED_SUPERVISOR_CAPABILITIES");
   }
   const { runWindowsSupervisorCli } = await import(
-    pathToFileURL(path.win32.join(release, "src", "windows-supervisor-cli.js")).href
+    pathToFileURL(path.win32.join(release, "src", "windows-supervisor-cli.js"))
+      .href
   );
   // runWindowsSupervisorCli revalidates schema and token ACL before binding.
   // Its server uses the production nonce/HMAC verifier; not a mock listener.
@@ -118,7 +122,10 @@ async function main() {
       { op: "status", service: "agent" },
       false,
     );
-    if (invalid.ok !== false || invalid.error !== "SUPERVISOR_UNAUTHENTICATED") {
+    if (
+      invalid.ok !== false ||
+      invalid.error !== "SUPERVISOR_UNAUTHENTICATED"
+    ) {
       fail("NEGATIVE_HMAC_CHECK_FAILED");
     }
     console.log("P520_HMAC_REJECTS_BAD_MAC=PASS");
@@ -156,7 +163,9 @@ try {
   await main();
 } catch (error) {
   const reason = String(error?.message ?? "");
-  const safe = /^[A-Z][A-Z0-9_]{3,90}$/.test(reason) ? reason : "REVIEW_REQUIRED";
+  const safe = /^[A-Z][A-Z0-9_]{3,90}$/.test(reason)
+    ? reason
+    : "REVIEW_REQUIRED";
   console.error("P520_EPHEMERAL_PROBE=BLOCKED_" + safe);
   process.exitCode = 2;
 }
