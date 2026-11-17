@@ -11,6 +11,8 @@ export const REQUIRED_LOCAL_TOOLS = Object.freeze([
 // for an exact, enrolled project. Client-supplied tool lists remain advisory.
 export const MAIN_PLATFORM_CLIENT_TOOL =
   "supervisor_main_platform_offsite_diagnostic";
+export const MAIN_PLATFORM_EXIT3_CLIENT_TOOL =
+  "supervisor_main_platform_offsite_exit3_diagnostic";
 
 const SAFE_ACTIONS = Object.freeze({
   CLIENT_TOOL_NOT_ADVERTISED: {
@@ -140,11 +142,17 @@ export function inspectBlockers({
       ))
   )
     throw new TypeError("INVALID_CLIENT_TOOL_OBSERVATION");
+  // Only these trusted dispatcher-supplied exact sequences are valid; never
+  // accept an arbitrary list of privileged tools from a client observation.
   if (
     !Array.isArray(fixedProjectRequiredTools) ||
-    fixedProjectRequiredTools.length > 1 ||
-    !fixedProjectRequiredTools.every(
-      (name) => name === MAIN_PLATFORM_CLIENT_TOOL,
+    !(
+      fixedProjectRequiredTools.length === 0 ||
+      (fixedProjectRequiredTools.length === 1 &&
+        fixedProjectRequiredTools[0] === MAIN_PLATFORM_CLIENT_TOOL) ||
+      (fixedProjectRequiredTools.length === 2 &&
+        fixedProjectRequiredTools[0] === MAIN_PLATFORM_CLIENT_TOOL &&
+        fixedProjectRequiredTools[1] === MAIN_PLATFORM_EXIT3_CLIENT_TOOL)
     )
   )
     throw new TypeError("INVALID_FIXED_CLIENT_TOOL_POLICY");
