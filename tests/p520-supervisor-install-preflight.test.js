@@ -22,6 +22,11 @@ test("P520 supervisor install discovery is read-only and secret-redacted", () =>
   assert.match(source, /Candidate-Identity \$withoutSlash/);
   assert.match(source, /gateway='https:\/\/kmjtechno\.com\/mcp'/);
   assert.doesNotMatch(source, /gateway -cne 'https:\/\/kmjtechno\.com\/mcp'/);
+  const agentSource = fs.readFileSync(
+    fileURLToPath(new URL("../src/agent.js", import.meta.url)),
+    "utf8",
+  );
+  assert.match(agentSource, /url\.pathname !== "\/"/);
   assert.match(source, /Candidate-Identity \$wrongGateway/);
   assert.match(source, /Candidate-Identity \$missingFields/);
   assert.match(source, /Candidate-Identity \$malformedProjects/);
