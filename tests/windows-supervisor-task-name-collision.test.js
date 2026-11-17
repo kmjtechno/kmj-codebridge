@@ -10,14 +10,14 @@ const source = fs.readFileSync(
 
 test("supervisor installer must inventory every task namespace without masking lookup failures", () => {
   assert.match(source, /function Assert-NoSupervisorTaskCollision/);
-  assert.match(source, /Get-ScheduledTask -ErrorAction Stop/);
+  assert.match(source, /\$allSupervisorTaskNamespaces = @\(Get-ScheduledTask -ErrorAction Stop\)/);
   assert.match(source, /\[string\]\$_\.TaskName -ieq \$TaskName/);
   assert.match(source, /throw 'TASK_ALREADY_EXISTS'/);
   assert.doesNotMatch(
     source,
     /Get-ScheduledTask -TaskName \$TaskName -TaskPath '\\' -ErrorAction SilentlyContinue/,
   );
-  const before = source.indexOf("Assert-NoSupervisorTaskCollision\n");
+  const before = source.indexOf("Assert-NoSupervisorTaskCollision -Tasks $allSupervisorTaskNamespaces");
   const register = source.indexOf("Register-ScheduledTask -TaskName");
   assert.ok(before > 0 && before < register);
   // Installation is preparation only: no task start, agent restart, or task replacement.
@@ -40,17 +40,19 @@ test(
       "$ErrorActionPreference='Stop';",
       "$TaskName='KMJ-CodeBridge-Supervisor-P520';",
       helper,
-      "function Get-ScheduledTask { [CmdletBinding()] param() return @() }",
-      "Assert-NoSupervisorTaskCollision;",
-      "function Get-ScheduledTask { [CmdletBinding()] param() return @([pscustomobject]@{TaskName=$TaskName; TaskPath='\\Other\\'}) }",
-      "try { Assert-NoSupervisorTaskCollision; throw 'COLLISION_ACCEPTED' } catch { if($_.Exception.Message -cne 'TASK_ALREADY_EXISTS'){throw} }",
-      "function Get-ScheduledTask { [CmdletBinding()] param() return @([pscustomobject]@{TaskName=$TaskName; TaskPath='\\'}) }",
-      "try { Assert-NoSupervisorTaskCollision; throw 'COLLISION_ACCEPTED' } catch { if($_.Exception.Message -cne 'TASK_ALREADY_EXISTS'){throw} }",
-      "function Get-ScheduledTask { [CmdletBinding()] param() throw 'INVENTORY_DENIED' }",
-      "try { Assert-NoSupervisorTaskCollision; throw 'DENIED_AS_ABSENT' } catch { if($_.Exception.Message -cne 'INVENTORY_DENIED'){throw} }",
+      "Assert-NoSupervisorTaskCollision -Tasks @();",
+      "$foreign=[pscustomobject]@{TaskName=$TaskName;TaskPath='\\Other\\'};",
+      "$root=[pscustomobject]@{TaskName=$TaskName;TaskPath='\\'};",
+      "$unrelated=[pscustomobject]@{TaskName='Different';TaskPath='\\'};",
+      "foreach($task in @($foreign,$root)){",
+      "  try { Assert-NoSupervisorTaskCollision -Tasks @($task); throw 'COLLISION_ACCEPTED' }",
+      "  catch { if($_.Exception.Message -cne 'TASK_ALREADY_EXISTS'){throw} }",
+      "}",
+      "Assert-NoSupervisorTaskCollision -Tasks @($unrelated);",
+      "Write-Output 'ALL_COLLISION_CASES_PASS';",
     ].join("\n");
     try {
-      execFileSync(
+      const result = execFileSync(
         "powershell.exe",
         [
           "-NoProfile",
@@ -58,8 +60,9 @@ test(
           "-EncodedCommand",
           Buffer.from(script, "utf16le").toString("base64"),
         ],
-        { timeout: 20000, stdio: "pipe" },
+        { timeout: 20000, stdio: "pipe", encoding: "utf8" },
       );
+      assert.match(result, /ALL_COLLISION_CASES_PASS/);
     } catch (error) {
       // Avoid dumping an encoded command or environment in CI diagnostics.
       const receipt = [error?.status, error?.stdout, error?.stderr]
