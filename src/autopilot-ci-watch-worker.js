@@ -39,7 +39,7 @@ function matchesFailedRun(data, config, identity) {
     !data ||
     !Array.isArray(data.workflow_runs) ||
     !Number.isInteger(data.total_count) ||
-    data.total_count > MAX_RUNS ||
+    data.total_count < data.workflow_runs.length ||
     data.workflow_runs.length > MAX_RUNS
   )
     return null;
