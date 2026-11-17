@@ -21,6 +21,7 @@ import {
   OFFSITE_DIAGNOSTIC_CONFIRMATION,
   FAILURE_CLASSES,
 } from "./offsite-diagnostic-policy.js";
+import { EXIT3_DIAGNOSTIC_CONFIRMATION } from "./offsite-exit3-diagnostic-policy.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
@@ -596,7 +597,8 @@ function toolRisk(name, definition) {
     return "DEPLOY";
   if (
     name === "supervisor_development_ci_start" ||
-    name === "supervisor_main_platform_offsite_diagnostic"
+    name === "supervisor_main_platform_offsite_diagnostic" ||
+    name === "supervisor_main_platform_offsite_exit3_diagnostic"
   )
     return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
@@ -2062,6 +2064,16 @@ export const definitions = {
     },
     access: "execute",
   },
+  supervisor_main_platform_offsite_exit3_diagnostic: {
+    title: "Classify fixed Main Platform offsite exit3 failure (read-only)",
+    description:
+      "Run only the separately installed root-owned, SHA-attested exact-invocation exit3 classifier. Returns an allowlisted category, never raw journal/credentials, and never starts backup, modifies services, grants production approval or proves restoration. Exact confirmation and execute grant required.",
+    input: {
+      ...scoped,
+      confirmation: z.literal(EXIT3_DIAGNOSTIC_CONFIRMATION),
+    },
+    access: "execute",
+  },
   supervisor_development_privilege_status: {
     title: "Guarded VPS development privilege readiness",
     description:
@@ -2479,7 +2491,10 @@ export function createDispatcher(
                 fixedProjectRequiredTools:
                   config.id === "kmj-elite-main-platform" &&
                   p.id === "kmj-main-platform"
-                    ? ["supervisor_main_platform_offsite_diagnostic"]
+                    ? [
+                        "supervisor_main_platform_offsite_diagnostic",
+                        "supervisor_main_platform_offsite_exit3_diagnostic",
+                      ]
                     : [],
                 // Only a successful trusted bounded Supervisor status RPC
                 // upgrades the filesystem observation into live health.
@@ -3666,6 +3681,19 @@ export function createDispatcher(
         fail("ACCESS_DENIED");
       return await supervisor.request({
         op: "main_platform_offsite_diagnostic",
+        confirmation: a.confirmation,
+      });
+    }
+    if (name === "supervisor_main_platform_offsite_exit3_diagnostic") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform" ||
+        !p.writable
+      )
+        fail("ACCESS_DENIED");
+      if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+      return await supervisor.request({
+        op: "main_platform_offsite_exit3_diagnostic",
         confirmation: a.confirmation,
       });
     }
