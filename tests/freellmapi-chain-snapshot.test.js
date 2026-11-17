@@ -100,7 +100,7 @@ c.commit()`;
   assert.ok(Math.abs(body.observedAtEpochMs - Date.now()) < 60000);
 });
 
-test("installer is dry-run by default, runs as the router user, and the reader is unwired", () => {
+test("installer is dry-run by default, runs as the router user, and the reader is only used by the opt-in runtime", () => {
   const text = fs.readFileSync(
     "scripts/production/owner_install_freellmapi_chain_snapshot_20261117.py",
     "utf8",
@@ -117,7 +117,7 @@ test("installer is dry-run by default, runs as the router user, and the reader i
         fs.readFileSync(path.join("src", f), "utf8"),
       ),
     );
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers, ["freellmapi-runtime.js"]);
   const src = fs
     .readFileSync("src/freellmapi-chain-snapshot.js", "utf8")
     .replace(/\/\/.*$/gm, "");

@@ -21,3 +21,13 @@ Do not deploy this adapter as a paid commercial service based only on the router
 ## Prompt persistence boundary
 
 The agent's MCP audit ledger records only bounded operation metadata (name/access/risk/outcome/correlation ID), not the prompt. The FreeLLMAPI tool does not create a JobRunner job. Gateway forwarding queues keep prompt arguments **in process memory** while a request is pending and send them to the authorized device; the remote provider may also retain them. The CodeBridge test checks that no prompt sentinel is written to the local audit/job journals. This is **not** a guarantee that host-level proxies, upstream FreeLLMAPI processes, external LLM providers, crash dumps or separately configured loggers never retain requests. Avoid secrets and customer code without explicit data-transfer approval.
+
+## Opt-in zero-cost verifier wiring (OpenRouter `:free`-only chains)
+
+The agent builds the zero-cost verifier **only** when all three device-owner environment variables are set; otherwise generation stays blocked exactly as before:
+
+- `CODEBRIDGE_FREELLMAPI_PINS_DIR`: absolute, root-owned directory with `route-binding-<chain>.json` written by `owner_pin_freellmapi_chain_20261117.py` (default `/etc/kmj-freellmapi-pins`).
+- `CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR`: absolute directory with the fresh (<= 120 s) chain snapshot from `owner_install_freellmapi_chain_snapshot_20261117.py` (`/var/lib/kmj-freellmapi-chain`).
+- `CODEBRIDGE_OPENROUTER_KEY`: the owner's OpenRouter key (device-local secret, sent only to openrouter.ai).
+
+Admission needs the pinned manifest, the live snapshot (exact same OpenRouter `vendor/model:free` members), zero recorded OpenRouter spend and zero published prices, all re-checked before every generation. A zero-balance dedicated OpenRouter account keeps the spend check meaningful. This is **not** proven against a real account until one `:free` call shows unchanged `/key` usage; do not report generation as working before that.

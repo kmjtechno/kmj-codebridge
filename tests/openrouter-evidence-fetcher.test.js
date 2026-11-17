@@ -54,7 +54,7 @@ test("request errors pass through as stable codes, never containing the key", as
   });
 });
 
-test("module is hard-pinned to openrouter.ai, reads no env/files, follows no redirects, and is unwired", () => {
+test("module is hard-pinned to openrouter.ai, reads no env/files, follows no redirects, and is only imported by the opt-in runtime", () => {
   const text = fs
     .readFileSync("src/openrouter-evidence-fetcher.js", "utf8")
     .replace(/\/\/.*$/gm, "");
@@ -69,5 +69,5 @@ test("module is hard-pinned to openrouter.ai, reads no env/files, follows no red
         fs.readFileSync(path.join("src", f), "utf8"),
       ),
     );
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers, ["freellmapi-runtime.js"]);
 });
