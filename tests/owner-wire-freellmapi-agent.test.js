@@ -58,6 +58,11 @@ test("validates before writing and rolls back only after a write", () => {
   assert.match(script, /WIRING=FAILED_ROLLED_BACK/);
 });
 
+test("targets the live elite Main Platform project agent unit", () => {
+  assert.match(script, /UNIT = "kmj-codebridge-kmj-main-platform\.service"/);
+  assert.ok(!script.includes("kmj-codebridge-agent.service"));
+});
+
 test("never claims generation is enabled", () => {
   assert.match(script, /FREELLMAPI_ZERO_COST_NOT_ATTESTED/);
 });
