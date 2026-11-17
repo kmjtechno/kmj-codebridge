@@ -19,7 +19,7 @@ test("P520 stage is fixed SHA and never takes over a running agent", () => {
   assert.match(source, /TaskName=\$taskName/);
   assert.match(source, /PREPARED_NOT_ACTIVATED/);
   assert.match(source, /-cne 'Disabled'/);
-  assert.match(source, /if\(-not \$Apply\)/);
+  assert.match(source, /Mark 'P520_INSTALL_ACTION' 'NONE'/);
   assert.match(source, /if\(\$Apply\)/);
   assert.match(source, /-not \$rootAcl.AreAccessRulesProtected/);
   assert.doesNotMatch(
