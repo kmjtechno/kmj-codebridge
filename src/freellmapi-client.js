@@ -154,7 +154,9 @@ export function createFreeLlmApiClient({
       const admittedAt = await verifyChainAdmission(chain);
       // A second clock read closes the gap between asynchronous proof and POST.
       // Fail closed if the device clock moved backwards after admission.
-      if (now() < admittedAt) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
+      const beforePostAt = now();
+      if (!Number.isSafeInteger(beforePostAt) || beforePostAt < admittedAt)
+        fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
       const res = await call(
         "POST",
         "/v1/chat/completions",
