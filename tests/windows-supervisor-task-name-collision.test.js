@@ -22,7 +22,10 @@ test("supervisor installer must inventory every task namespace without masking l
   assert.ok(before > 0 && before < register);
   // Installation is preparation only: no task start, agent restart, or task replacement.
   assert.doesNotMatch(source, /-Force\s+.*Register-ScheduledTask/);
-  assert.doesNotMatch(source, /Start-ScheduledTask|Enable-ScheduledTask|Restart-Service/);
+  assert.doesNotMatch(
+    source,
+    /Start-ScheduledTask|Enable-ScheduledTask|Restart-Service/,
+  );
 });
 
 test(
@@ -46,9 +49,13 @@ test(
       "function Get-ScheduledTask { param($ErrorAction) throw 'INVENTORY_DENIED' }",
       "try { Assert-NoSupervisorTaskCollision; throw 'DENIED_AS_ABSENT' } catch { if($_.Exception.Message -cne 'INVENTORY_DENIED'){throw} }",
     ].join("\n");
-    execFileSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], {
-      timeout: 20000,
-      stdio: "pipe",
-    });
+    execFileSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      {
+        timeout: 20000,
+        stdio: "pipe",
+      },
+    );
   },
 );
