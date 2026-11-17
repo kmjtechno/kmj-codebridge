@@ -10,14 +10,19 @@ const source = fs.readFileSync(
 
 test("supervisor installer must inventory every task namespace without masking lookup failures", () => {
   assert.match(source, /function Assert-NoSupervisorTaskCollision/);
-  assert.match(source, /\$allSupervisorTaskNamespaces = @\(Get-ScheduledTask -ErrorAction Stop\)/);
+  assert.match(
+    source,
+    /\$allSupervisorTaskNamespaces = @\(Get-ScheduledTask -ErrorAction Stop\)/,
+  );
   assert.match(source, /\[string\]\$_\.TaskName -ieq \$TaskName/);
   assert.match(source, /throw 'TASK_ALREADY_EXISTS'/);
   assert.doesNotMatch(
     source,
     /Get-ScheduledTask -TaskName \$TaskName -TaskPath '\\' -ErrorAction SilentlyContinue/,
   );
-  const before = source.indexOf("Assert-NoSupervisorTaskCollision -Tasks $allSupervisorTaskNamespaces");
+  const before = source.indexOf(
+    "Assert-NoSupervisorTaskCollision -Tasks $allSupervisorTaskNamespaces",
+  );
   const register = source.indexOf("Register-ScheduledTask -TaskName");
   assert.ok(before > 0 && before < register);
   // Installation is preparation only: no task start, agent restart, or task replacement.
@@ -29,7 +34,7 @@ test("supervisor installer must inventory every task namespace without masking l
 });
 
 test(
-  "real Windows PowerShell refuses foreign-path and root task names, as well as denied inventory",
+  "real Windows PowerShell refuses matching tasks in root and foreign folders",
   { skip: process.platform !== "win32" },
   () => {
     const start = source.indexOf("function Assert-NoSupervisorTaskCollision");
@@ -66,7 +71,11 @@ test(
     } catch (error) {
       // Avoid dumping an encoded command or environment in CI diagnostics.
       const receipt = [error?.status, error?.stdout, error?.stderr]
-        .map((value) => String(value ?? "").replace(/\s+/g, " ").slice(0, 450))
+        .map((value) =>
+          String(value ?? "")
+            .replace(/\s+/g, " ")
+            .slice(0, 450),
+        )
         .join(" | ");
       throw new Error("WINDOWS_TASK_COLLISION_NATIVE_TEST_FAILED: " + receipt);
     }
