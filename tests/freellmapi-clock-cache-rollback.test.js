@@ -30,7 +30,9 @@ test("clock rollback invalidates discovered chains before another prompt", async
         return { data: discoveries === 1 ? [{ id: "auto:code" }] : [] };
       }
       posted.push(body);
-      return { choices: [{ message: { content: "ok" }, finish_reason: "stop" }] };
+      return {
+        choices: [{ message: { content: "ok" }, finish_reason: "stop" }],
+      };
     },
   });
   const args = {
@@ -57,14 +59,20 @@ test("invalid routed clocks reject before catalog discovery or cloud POST", asyn
       approvedFreeChains: ["auto:code"],
       now: () => invalid,
       verifyZeroCostChain: proof,
-      request: async () => { calls++; return { data: [{ id: "auto:code" }] }; },
+      request: async () => {
+        calls++;
+        return { data: [{ id: "auto:code" }] };
+      },
     });
-    await assert.rejects(client.generateRouted({
-      task: "code",
-      prompt: "synthetic private sentinel",
-      localProcessingApproved: true,
-      upstreamCloudApproved: true,
-    }), { message: "FREELLMAPI_INVALID_CLOCK" });
+    await assert.rejects(
+      client.generateRouted({
+        task: "code",
+        prompt: "synthetic private sentinel",
+        localProcessingApproved: true,
+        upstreamCloudApproved: true,
+      }),
+      { message: "FREELLMAPI_INVALID_CLOCK" },
+    );
     assert.equal(calls, 0);
   }
 });
