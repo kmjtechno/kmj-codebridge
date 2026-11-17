@@ -15,10 +15,12 @@ It enables read-only `freellmapi_status`. Generation stays blocked by the
 adapter (FREELLMAPI_ZERO_COST_NOT_ATTESTED) until a zero-cost verifier exists.
 """
 import getpass
+import hashlib
 import json
 import os
 import pathlib
 import re
+import stat
 import subprocess
 import sys
 import time
@@ -33,6 +35,7 @@ BASE = "http://127.0.0.1:31415"
 KEY_RE = re.compile(r"^[A-Za-z0-9._~+/=-]{16,200}$")
 CHAIN_RE = re.compile(r"^auto:[A-Za-z0-9._-]{1,48}$")
 DROPIN_TEXT = f"[Service]\nEnvironmentFile={ENV_FILE}\n"
+CREATED = {}  # Only this process-created regular files may be rolled back.
 
 
 def guard(ok, code):
@@ -63,21 +66,70 @@ def chain_names(payload):
     return sorted({i for i in ids if CHAIN_RE.match(i)})
 
 
+def exists_including_dangling(path):
+    return os.path.lexists(path)
+
+
+def protected_parent(path):
+    """Never open an agent secret or unit under a writable/link directory."""
+    try:
+        st = path.lstat()
+    except OSError:
+        return False
+    return stat.S_ISDIR(st.st_mode) and st.st_uid == 0 and not (st.st_mode & 0o022)
+
+
+def write_new_file(target, contents, mode):
+    """Exclusive no-follow create; no overwrite even after preflight races."""
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode)
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        identity = os.fstat(fh.fileno())
+        fh.write(contents)
+    CREATED[target] = (
+        identity.st_dev,
+        identity.st_ino,
+        hashlib.sha256(contents.encode("utf-8")).digest(),
+    )
+
+
 def preflight():
     guard(os.geteuid() == 0, "ROOT_REQUIRED")
     guard(cmd("systemctl", "is-active", "kmj-freellmapi.service",
               check=False).stdout.strip() == "active", "FREELLMAPI_NOT_ACTIVE")
     guard(cmd("systemctl", "cat", UNIT, check=False).returncode == 0,
           "AGENT_UNIT_MISSING")
-    guard(not DROPIN.exists(), "DROPIN_ALREADY_EXISTS")
-    guard(not ENV_FILE.exists(), "ENV_FILE_ALREADY_EXISTS")
+    guard(not exists_including_dangling(DROPIN), "DROPIN_ALREADY_EXISTS")
+    guard(not exists_including_dangling(ENV_FILE), "ENV_FILE_ALREADY_EXISTS")
+    guard(protected_parent(ENV_FILE.parent), "ENV_PARENT_UNSAFE")
+    if exists_including_dangling(DROPIN_DIR):
+        guard(protected_parent(DROPIN_DIR), "DROPIN_DIR_UNSAFE")
 
 
 def rollback():
-    DROPIN.unlink(missing_ok=True)
-    ENV_FILE.unlink(missing_ok=True)
-    cmd("systemctl", "daemon-reload", check=False)
-    cmd("systemctl", "restart", UNIT, check=False)
+    # A failure before our first write must never touch an owner-owned unit.
+    if not CREATED:
+        return
+    # Validate every owned file BEFORE unlinking any; never remove a changed
+    # or foreign path, and never disclose the private environment contents.
+    for target, identity in CREATED.items():
+        try:
+            st = target.lstat()
+            digest = hashlib.sha256(target.read_bytes()).digest()
+        except OSError:
+            raise ValueError("OWNED_FILE_CHANGED_PRESERVED") from None
+        guard(
+            stat.S_ISREG(st.st_mode)
+            and (st.st_dev, st.st_ino, digest) == identity,
+            "OWNED_FILE_CHANGED_PRESERVED",
+        )
+    had_dropin = DROPIN in CREATED
+    for target in (DROPIN, ENV_FILE):
+        if target in CREATED:
+            target.unlink()
+    CREATED.clear()
+    if had_dropin:
+        cmd("systemctl", "daemon-reload", check=False)
+        cmd("systemctl", "restart", UNIT, check=False)
 
 
 def collect():
@@ -95,14 +147,20 @@ def collect():
 
 
 def write_and_restart(key, chosen):
-    ENV_FILE.parent.mkdir(mode=0o700, exist_ok=True)
-    fd = os.open(ENV_FILE, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w") as fh:
-        fh.write(f"CODEBRIDGE_FREELLMAPI_KEY={key}\n")
-        fh.write(f"CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS={','.join(chosen)}\n")
-    DROPIN_DIR.mkdir(exist_ok=True)
-    DROPIN.write_text(DROPIN_TEXT)
-    DROPIN.chmod(0o644)
+    guard(protected_parent(ENV_FILE.parent), "ENV_PARENT_UNSAFE")
+    if exists_including_dangling(DROPIN_DIR):
+        guard(protected_parent(DROPIN_DIR), "DROPIN_DIR_UNSAFE")
+    else:
+        guard(protected_parent(DROPIN_DIR.parent), "DROPIN_PARENT_UNSAFE")
+        DROPIN_DIR.mkdir(mode=0o755)
+        guard(protected_parent(DROPIN_DIR), "DROPIN_DIR_UNSAFE")
+    write_new_file(
+        ENV_FILE,
+        f"CODEBRIDGE_FREELLMAPI_KEY={key}\n"
+        f"CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS={','.join(chosen)}\n",
+        0o600,
+    )
+    write_new_file(DROPIN, DROPIN_TEXT, 0o644)
     cmd("systemctl", "daemon-reload")
     cmd("systemctl", "restart", UNIT)
     for _ in range(20):
