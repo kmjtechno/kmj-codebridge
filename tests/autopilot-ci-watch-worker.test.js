@@ -192,6 +192,13 @@ test("invalid negative job total fails closed", async (t) => {
   assert.equal(f.journal.state.tasks.length, 0);
 });
 
+test("inconsistent jobs count smaller than returned page fails closed", async (t) => {
+  const f = fixture(t, { jobCount: 0 });
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 0);
+});
+
 test("local branch or HEAD mismatch prevents all network requests", async (t) => {
   for (const o of [
     { localBranch: "feature" },
