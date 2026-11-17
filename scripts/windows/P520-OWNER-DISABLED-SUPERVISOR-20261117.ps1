@@ -1,6 +1,6 @@
-# KMJ P520 protected Supervisor; read-only unless explicit -Apply.
-# -Apply prepares disabled task only. No agent or OmniDesk restart.
-# Never prints private configuration paths or credentials.
+# KMJ P520 guarded disabled-only Supervisor preparation. Read-only by default.
+# -Apply creates disabled task in a separate protected runtime. No agent restart.
+# Never prints private config paths, raw process commands or credentials.
 [CmdletBinding()]
 param([switch]$SelfTest,[switch]$Apply)
 Set-StrictMode -Version Latest
@@ -220,7 +220,96 @@ try {
     $git=(Get-Command git.exe -ErrorAction Stop).Source
     $principal=$self.Name
     if($principal.Length -gt 64 -or
-       $principal -cnotmatch '^[A-Za-z0-9_.\\-]+(?: [A-Za-z0-9_.\\-]+)*
+       $principal -cnotmatch '^[A-Za-z0-9_.\\-]+(?: [A-Za-z0-9_.\\-]+)*$') {
+      throw 'TASK_PRINCIPAL_INVALID'
+    }
+    $sha='b652b29beafb9b14e42b0078bfb9571fef5b3271'
+    $origin='https://github.com/kmjtechno/kmj-codebridge.git'
+    $parent=Join-Path $env:ProgramData 'KMJ-CodeBridge'
+    $root=Join-Path $parent 'P520'
+    if(Test-Path -LiteralPath $root){ throw 'STAGE_ALREADY_EXISTS' }
+    if(Test-Path -LiteralPath $parent){
+      $existingParent=Get-Item -LiteralPath $parent -Force
+      if(($existingParent.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){
+        throw 'STAGE_PARENT_REPARSE'
+      }
+      $aclParent=Get-Acl -LiteralPath $parent
+      if(-not $aclParent.AreAccessRulesProtected){throw 'STAGE_PARENT_UNPROTECTED'}
+      foreach($ace in $aclParent.Access){
+        $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+        if($sid -notin @('S-1-5-18','S-1-5-32-544',$self.User.Value)){
+          throw 'STAGE_PARENT_UNTRUSTED_ACL'
+        }
+      }
+    } else {
+      New-Item -ItemType Directory -Path $parent -ErrorAction Stop | Out-Null
+      & icacls.exe $parent /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' ($principal+':(OI)(CI)RX') *> $null
+      if($LASTEXITCODE -ne 0){throw 'STAGE_PARENT_ACL_FAILED'}
+    }
+    New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
+    & icacls.exe $root /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' ($principal+':(OI)(CI)RX') *> $null
+    if($LASTEXITCODE -ne 0){throw 'STAGE_ROOT_ACL_FAILED'}
+    $rootAcl=Get-Acl -LiteralPath $root
+    if(-not $rootAcl.AreAccessRulesProtected){throw 'STAGE_ROOT_ACL_UNVERIFIED'}
+    foreach($ace in $rootAcl.Access){
+      $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
+      if($sid -notin @('S-1-5-18','S-1-5-32-544',$self.User.Value)){
+        throw 'STAGE_ROOT_UNTRUSTED_ACL'
+      }
+    }
+    $release=Join-Path $root ('releases\'+$sha)
+    $backups=Join-Path $root 'backups'
+    New-Item -ItemType Directory -Path (Join-Path $root 'releases') -ErrorAction Stop | Out-Null
+    New-Item -ItemType Directory -Path $backups -ErrorAction Stop | Out-Null
+    Mark 'P520_STAGE_PROTECTED_ROOT' 'PASS'
+    & $git -c core.hooksPath=NUL clone --no-checkout --filter=blob:none $origin $release *> $null
+    if($LASTEXITCODE -ne 0){throw 'PINNED_CLONE_FAILED'}
+    & $git -C $release -c core.hooksPath=NUL checkout --detach $sha *> $null
+    if($LASTEXITCODE -ne 0){throw 'PINNED_CHECKOUT_FAILED'}
+    $actual=[string](& $git -C $release rev-parse HEAD)
+    $remote=[string](& $git -C $release remote get-url origin)
+    if($actual.Trim() -cne $sha -or $remote.Trim() -cne $origin){
+      throw 'PINNED_RELEASE_PROVENANCE_FAILED'
+    }
+    $dirty=@(& $git -C $release status --porcelain=v1 --untracked-files=all)
+    if($LASTEXITCODE -ne 0 -or $dirty.Count -gt 0){throw 'PINNED_RELEASE_DIRTY'}
+    Mark 'P520_STAGE_RELEASE_SHA' $sha
+    $env:PATH=(Split-Path -Parent $node)+';'+$env:PATH
+    & $npm --prefix $release ci --omit=dev --ignore-scripts --no-audit --no-fund *> $null
+    if($LASTEXITCODE -ne 0){throw 'PINNED_DEPENDENCIES_FAILED'}
+    $conf=Join-Path $root 'supervisor.json'
+    $token=[REDACTED] $root 'supervisor.token'
+    $c=[ordered]@{
+      pipeName='kmj-codebridge-supervisor-p520'
+      tokenFile=$token
+      agent=[ordered]@{installDir=$release;configPath=$only}
+      projects=@()
+      readOnlyProjects=@()
+    }
+    [IO.File]::WriteAllText($conf,($c | ConvertTo-Json -Depth 8),([Text.UTF8Encoding]::new($false)))
+    $installer=Join-Path $release 'scripts\windows\install-windows-supervisor.ps1'
+    if(-not(Test-Path -LiteralPath $installer -PathType Leaf)){throw 'PINNED_INSTALLER_MISSING'}
+    $source=Get-Content -LiteralPath $installer -Raw -ErrorAction Stop
+    if(-not $source.Contains('Assert-NoSupervisorTaskCollision') -or
+       -not $source.Contains('Get-ScheduledTask -ErrorAction Stop')){
+      throw 'PINNED_INSTALLER_GUARD_MISSING'
+    }
+    $params=@{
+      SupervisorConfig=$conf;AgentConfig=$only;RuntimeDir=$release
+      BackupRoot=$backups;ServiceAccount=$principal;TaskName=$taskName;Apply=$true
+    }
+    & $installer @params *> $null
+    if(-not $?){throw 'DISABLED_INSTALLER_FAILED'}
+    $staged=Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
+    if(@($staged).Count -ne 1 -or [string]$staged.State -cne 'Disabled'){
+      throw 'TASK_NOT_DISABLED'
+    }
+    Mark 'P520_STAGE_TASK' 'DISABLED'
+    Mark 'P520_STAGE_RESULT' 'PREPARED_NOT_ACTIVATED'
+    Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
+    exit 0
+  }
+  # A matching config is NOT evidence that this is the live process's config.
   Mark 'P520_INSTALL_OWNER_SIGNATURE' 'NOT_VERIFIED'
   Mark 'P520_INSTALL_TOKEN_ACL' 'NOT_VERIFIED'
   Mark 'P520_INSTALL_RUNTIME_BINDING' 'NOT_VERIFIED'
@@ -230,216 +319,8 @@ try {
   Mark 'P520_INSTALL_PREFLIGHT' 'READ_ONLY_COMPLETE'
 } catch {
   $reason=[string]$_.Exception.Message
-  if($reason -notmatch '^[A-Z][A-Z0-9_]{3,90}
-  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-  exit 2
-}
-) {
-      throw 'TASK_PRINCIPAL_INVALID'
-    }
-    $sha='b652b29beafb9b14e42b0078bfb9571fef5b3271'
-    $origin='https://github.com/kmjtechno/kmj-codebridge.git'
-    $parent=Join-Path $env:ProgramData 'KMJ-CodeBridge'
-    $root=Join-Path $parent 'P520'
-    if(Test-Path -LiteralPath $root){ throw 'STAGE_ALREADY_EXISTS' }
-    if(Test-Path -LiteralPath $parent){
-      $existingParent=Get-Item -LiteralPath $parent -Force
-      if(($existingParent.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){
-        throw 'STAGE_PARENT_REPARSE'
-      }
-      $aclParent=Get-Acl -LiteralPath $parent
-      if(-not $aclParent.AreAccessRulesProtected){throw 'STAGE_PARENT_UNPROTECTED'}
-      foreach($ace in $aclParent.Access){
-        $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
-        if($sid -notin @('S-1-5-18','S-1-5-32-544',$self.User.Value)){
-          throw 'STAGE_PARENT_UNTRUSTED_ACL'
-        }
-      }
-    } else {
-      New-Item -ItemType Directory -Path $parent -ErrorAction Stop | Out-Null
-      & icacls.exe $parent /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' ($principal+':(OI)(CI)RX') *> $null
-      if($LASTEXITCODE -ne 0){throw 'STAGE_PARENT_ACL_FAILED'}
-    }
-    New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
-    & icacls.exe $root /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' ($principal+':(OI)(CI)RX') *> $null
-    if($LASTEXITCODE -ne 0){throw 'STAGE_ROOT_ACL_FAILED'}
-    $rootAcl=Get-Acl -LiteralPath $root
-    if(-not $rootAcl.AreAccessRulesProtected){throw 'STAGE_ROOT_ACL_UNVERIFIED'}
-    foreach($ace in $rootAcl.Access){
-      $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
-      if($sid -notin @('S-1-5-18','S-1-5-32-544',$self.User.Value)){
-        throw 'STAGE_ROOT_UNTRUSTED_ACL'
-      }
-    }
-    $release=Join-Path $root ('releases\'+$sha)
-    $backups=Join-Path $root 'backups'
-    New-Item -ItemType Directory -Path (Join-Path $root 'releases') -ErrorAction Stop | Out-Null
-    New-Item -ItemType Directory -Path $backups -ErrorAction Stop | Out-Null
-    Mark 'P520_STAGE_PROTECTED_ROOT' 'PASS'
-    & $git -c core.hooksPath=NUL clone --no-checkout --filter=blob:none $origin $release *> $null
-    if($LASTEXITCODE -ne 0){throw 'PINNED_CLONE_FAILED'}
-    & $git -C $release -c core.hooksPath=NUL checkout --detach $sha *> $null
-    if($LASTEXITCODE -ne 0){throw 'PINNED_CHECKOUT_FAILED'}
-    $actual=[string](& $git -C $release rev-parse HEAD)
-    $remote=[string](& $git -C $release remote get-url origin)
-    if($actual.Trim() -cne $sha -or $remote.Trim() -cne $origin){
-      throw 'PINNED_RELEASE_PROVENANCE_FAILED'
-    }
-    $dirty=@(& $git -C $release status --porcelain=v1 --untracked-files=all)
-    if($LASTEXITCODE -ne 0 -or $dirty.Count -gt 0){throw 'PINNED_RELEASE_DIRTY'}
-    Mark 'P520_STAGE_RELEASE_SHA' $sha
-    $env:PATH=(Split-Path -Parent $node)+';'+$env:PATH
-    & $npm --prefix $release ci --omit=dev --ignore-scripts --no-audit --no-fund *> $null
-    if($LASTEXITCODE -ne 0){throw 'PINNED_DEPENDENCIES_FAILED'}
-    $conf=Join-Path $root 'supervisor.json'
-    $token=[REDACTED] $root 'supervisor.token'
-    $c=[ordered]@{
-      pipeName='kmj-codebridge-supervisor-p520'
-      tokenFile=$token
-      agent=[ordered]@{installDir=$release;configPath=$only}
-      projects=@()
-      readOnlyProjects=@()
-    }
-    [IO.File]::WriteAllText($conf,($c | ConvertTo-Json -Depth 8),([Text.UTF8Encoding]::new($false)))
-    $installer=Join-Path $release 'scripts\windows\install-windows-supervisor.ps1'
-    if(-not(Test-Path -LiteralPath $installer -PathType Leaf)){throw 'PINNED_INSTALLER_MISSING'}
-    $source=Get-Content -LiteralPath $installer -Raw -ErrorAction Stop
-    if(-not $source.Contains('Assert-NoSupervisorTaskCollision') -or
-       -not $source.Contains('Get-ScheduledTask -ErrorAction Stop')){
-      throw 'PINNED_INSTALLER_GUARD_MISSING'
-    }
-    $params=@{
-      SupervisorConfig=$conf;AgentConfig=$only;RuntimeDir=$release
-      BackupRoot=$backups;ServiceAccount=$principal;TaskName=$taskName;Apply=$true
-    }
-    & $installer @params *> $null
-    if(-not $?){throw 'DISABLED_INSTALLER_FAILED'}
-    $staged=Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
-    if(@($staged).Count -ne 1 -or [string]$staged.State -cne 'Disabled'){
-      throw 'TASK_NOT_DISABLED'
-    }
-    Mark 'P520_STAGE_TASK' 'DISABLED'
-    Mark 'P520_STAGE_RESULT' 'PREPARED_NOT_ACTIVATED'
-    Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-    exit 0
-  }
-  # A matching config is NOT evidence that this is the live process's config.
-  Mark 'P520_INSTALL_OWNER_SIGNATURE' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_TOKEN_ACL' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_RUNTIME_BINDING' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_ACTION' 'NONE'
-  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-  Mark 'P520_INSTALL_PREFLIGHT' 'READ_ONLY_COMPLETE'
-} catch {
-  Mark 'P520_INSTALL_PREFLIGHT' 'BLOCKED_NOT_ATTESTED'
-  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-  exit 2
-}
-){$reason='REVIEW_REQUIRED'}
+  if($reason -notmatch '^[A-Z][A-Z0-9_]{3,90}$'){$reason='REVIEW_REQUIRED'}
   Mark 'P520_STAGE_RESULT' ('BLOCKED_'+$reason)
-  Mark 'P520_INSTALL_PREFLIGHT' 'BLOCKED_NOT_ATTESTED'
-  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-  exit 2
-}
-) {
-      throw 'TASK_PRINCIPAL_INVALID'
-    }
-    $sha='b652b29beafb9b14e42b0078bfb9571fef5b3271'
-    $origin='https://github.com/kmjtechno/kmj-codebridge.git'
-    $parent=Join-Path $env:ProgramData 'KMJ-CodeBridge'
-    $root=Join-Path $parent 'P520'
-    if(Test-Path -LiteralPath $root){ throw 'STAGE_ALREADY_EXISTS' }
-    if(Test-Path -LiteralPath $parent){
-      $existingParent=Get-Item -LiteralPath $parent -Force
-      if(($existingParent.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){
-        throw 'STAGE_PARENT_REPARSE'
-      }
-      $aclParent=Get-Acl -LiteralPath $parent
-      if(-not $aclParent.AreAccessRulesProtected){throw 'STAGE_PARENT_UNPROTECTED'}
-      foreach($ace in $aclParent.Access){
-        $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
-        if($sid -notin @('S-1-5-18','S-1-5-32-544',$self.User.Value)){
-          throw 'STAGE_PARENT_UNTRUSTED_ACL'
-        }
-      }
-    } else {
-      New-Item -ItemType Directory -Path $parent -ErrorAction Stop | Out-Null
-      & icacls.exe $parent /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' ($principal+':(OI)(CI)RX') *> $null
-      if($LASTEXITCODE -ne 0){throw 'STAGE_PARENT_ACL_FAILED'}
-    }
-    New-Item -ItemType Directory -Path $root -ErrorAction Stop | Out-Null
-    & icacls.exe $root /inheritance:r /grant:r 'NT AUTHORITY\SYSTEM:(OI)(CI)F' 'BUILTIN\Administrators:(OI)(CI)F' ($principal+':(OI)(CI)RX') *> $null
-    if($LASTEXITCODE -ne 0){throw 'STAGE_ROOT_ACL_FAILED'}
-    $rootAcl=Get-Acl -LiteralPath $root
-    if(-not $rootAcl.AreAccessRulesProtected){throw 'STAGE_ROOT_ACL_UNVERIFIED'}
-    foreach($ace in $rootAcl.Access){
-      $sid=$ace.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
-      if($sid -notin @('S-1-5-18','S-1-5-32-544',$self.User.Value)){
-        throw 'STAGE_ROOT_UNTRUSTED_ACL'
-      }
-    }
-    $release=Join-Path $root ('releases\'+$sha)
-    $backups=Join-Path $root 'backups'
-    New-Item -ItemType Directory -Path (Join-Path $root 'releases') -ErrorAction Stop | Out-Null
-    New-Item -ItemType Directory -Path $backups -ErrorAction Stop | Out-Null
-    Mark 'P520_STAGE_PROTECTED_ROOT' 'PASS'
-    & $git -c core.hooksPath=NUL clone --no-checkout --filter=blob:none $origin $release *> $null
-    if($LASTEXITCODE -ne 0){throw 'PINNED_CLONE_FAILED'}
-    & $git -C $release -c core.hooksPath=NUL checkout --detach $sha *> $null
-    if($LASTEXITCODE -ne 0){throw 'PINNED_CHECKOUT_FAILED'}
-    $actual=[string](& $git -C $release rev-parse HEAD)
-    $remote=[string](& $git -C $release remote get-url origin)
-    if($actual.Trim() -cne $sha -or $remote.Trim() -cne $origin){
-      throw 'PINNED_RELEASE_PROVENANCE_FAILED'
-    }
-    $dirty=@(& $git -C $release status --porcelain=v1 --untracked-files=all)
-    if($LASTEXITCODE -ne 0 -or $dirty.Count -gt 0){throw 'PINNED_RELEASE_DIRTY'}
-    Mark 'P520_STAGE_RELEASE_SHA' $sha
-    $env:PATH=(Split-Path -Parent $node)+';'+$env:PATH
-    & $npm --prefix $release ci --omit=dev --ignore-scripts --no-audit --no-fund *> $null
-    if($LASTEXITCODE -ne 0){throw 'PINNED_DEPENDENCIES_FAILED'}
-    $conf=Join-Path $root 'supervisor.json'
-    $token=[REDACTED] $root 'supervisor.token'
-    $c=[ordered]@{
-      pipeName='kmj-codebridge-supervisor-p520'
-      tokenFile=$token
-      agent=[ordered]@{installDir=$release;configPath=$only}
-      projects=@()
-      readOnlyProjects=@()
-    }
-    [IO.File]::WriteAllText($conf,($c | ConvertTo-Json -Depth 8),([Text.UTF8Encoding]::new($false)))
-    $installer=Join-Path $release 'scripts\windows\install-windows-supervisor.ps1'
-    if(-not(Test-Path -LiteralPath $installer -PathType Leaf)){throw 'PINNED_INSTALLER_MISSING'}
-    $source=Get-Content -LiteralPath $installer -Raw -ErrorAction Stop
-    if(-not $source.Contains('Assert-NoSupervisorTaskCollision') -or
-       -not $source.Contains('Get-ScheduledTask -ErrorAction Stop')){
-      throw 'PINNED_INSTALLER_GUARD_MISSING'
-    }
-    $params=@{
-      SupervisorConfig=$conf;AgentConfig=$only;RuntimeDir=$release
-      BackupRoot=$backups;ServiceAccount=$principal;TaskName=$taskName;Apply=$true
-    }
-    & $installer @params *> $null
-    if(-not $?){throw 'DISABLED_INSTALLER_FAILED'}
-    $staged=Get-ScheduledTask -TaskName $taskName -TaskPath '\' -ErrorAction Stop
-    if(@($staged).Count -ne 1 -or [string]$staged.State -cne 'Disabled'){
-      throw 'TASK_NOT_DISABLED'
-    }
-    Mark 'P520_STAGE_TASK' 'DISABLED'
-    Mark 'P520_STAGE_RESULT' 'PREPARED_NOT_ACTIVATED'
-    Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-    exit 0
-  }
-  # A matching config is NOT evidence that this is the live process's config.
-  Mark 'P520_INSTALL_OWNER_SIGNATURE' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_TOKEN_ACL' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_RUNTIME_BINDING' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_TASK_PROVENANCE' 'NOT_VERIFIED'
-  Mark 'P520_INSTALL_ACTION' 'NONE'
-  Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
-  Mark 'P520_INSTALL_PREFLIGHT' 'READ_ONLY_COMPLETE'
-} catch {
   Mark 'P520_INSTALL_PREFLIGHT' 'BLOCKED_NOT_ATTESTED'
   Mark 'P520_CODEBRIDGE_OMNIDESK' 'UNTOUCHED'
   exit 2
