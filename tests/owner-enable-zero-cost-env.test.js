@@ -28,7 +28,12 @@ test("dry run default; apply needs explicit flags; key only from hidden prompt",
 });
 
 test("touches only the agent env file and one restart; nothing else", () => {
-  for (const bad of ["gateway-stage", "stable-update", "nginx", "daemon-reload"]) {
+  for (const bad of [
+    "gateway-stage",
+    "stable-update",
+    "nginx",
+    "daemon-reload",
+  ]) {
     assert.ok(!code.includes(bad), bad);
   }
   assert.match(script, /UNIT = "kmj-codebridge-kmj-main-platform\.service"/);
