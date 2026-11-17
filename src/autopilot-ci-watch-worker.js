@@ -108,6 +108,7 @@ export class GitHubCiWatchWorker {
     this.identity = identity;
     this.now = now;
     this.nextCheck = new Map();
+    this.lastObservedTime = new Map();
     this.busy = false;
   }
 
@@ -134,12 +135,26 @@ export class GitHubCiWatchWorker {
     try {
       for (const project of this.projects) {
         const config = project.autopilotCiWatch;
-        if (this.now() < (this.nextCheck.get(project.id) ?? 0)) continue;
+        const observedNow = this.now();
+        if (!Number.isFinite(observedNow)) continue;
+        const previousNow = this.lastObservedTime.get(project.id);
+        this.lastObservedTime.set(project.id, observedNow);
+        if (previousNow !== undefined && observedNow < previousNow) {
+          // A host wall-clock rollback must not freeze polling until the old
+          // future deadline, or cause an immediate retry burst. Rebase the
+          // cooldown and require one full interval before contacting GitHub.
+          this.nextCheck.set(
+            project.id,
+            observedNow + config.intervalSeconds * 1000,
+          );
+          continue;
+        }
+        if (observedNow < (this.nextCheck.get(project.id) ?? 0)) continue;
         // Throttle BEFORE any network attempt, including 401, 429 or 5xx.
         // Never rotate keys, retry in a hot loop or call paid inference.
         this.nextCheck.set(
           project.id,
-          this.now() + config.intervalSeconds * 1000,
+          observedNow + config.intervalSeconds * 1000,
         );
         try {
           const entitlement = this.licenseProvider();
