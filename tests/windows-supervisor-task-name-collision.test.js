@@ -40,22 +40,32 @@ test(
       "$ErrorActionPreference='Stop';",
       "$TaskName='KMJ-CodeBridge-Supervisor-P520';",
       helper,
-      "function Get-ScheduledTask { param($ErrorAction) return @() }",
+      "function Get-ScheduledTask { [CmdletBinding()] param() return @() }",
       "Assert-NoSupervisorTaskCollision;",
-      "function Get-ScheduledTask { param($ErrorAction) return @([pscustomobject]@{TaskName=$TaskName; TaskPath='\\Other\\'}) }",
+      "function Get-ScheduledTask { [CmdletBinding()] param() return @([pscustomobject]@{TaskName=$TaskName; TaskPath='\\Other\\'}) }",
       "try { Assert-NoSupervisorTaskCollision; throw 'COLLISION_ACCEPTED' } catch { if($_.Exception.Message -cne 'TASK_ALREADY_EXISTS'){throw} }",
-      "function Get-ScheduledTask { param($ErrorAction) return @([pscustomobject]@{TaskName=$TaskName; TaskPath='\\'}) }",
+      "function Get-ScheduledTask { [CmdletBinding()] param() return @([pscustomobject]@{TaskName=$TaskName; TaskPath='\\'}) }",
       "try { Assert-NoSupervisorTaskCollision; throw 'COLLISION_ACCEPTED' } catch { if($_.Exception.Message -cne 'TASK_ALREADY_EXISTS'){throw} }",
-      "function Get-ScheduledTask { param($ErrorAction) throw 'INVENTORY_DENIED' }",
+      "function Get-ScheduledTask { [CmdletBinding()] param() throw 'INVENTORY_DENIED' }",
       "try { Assert-NoSupervisorTaskCollision; throw 'DENIED_AS_ABSENT' } catch { if($_.Exception.Message -cne 'INVENTORY_DENIED'){throw} }",
     ].join("\n");
-    execFileSync(
-      "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-Command", script],
-      {
-        timeout: 20000,
-        stdio: "pipe",
-      },
-    );
+    try {
+      execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-EncodedCommand",
+          Buffer.from(script, "utf16le").toString("base64"),
+        ],
+        { timeout: 20000, stdio: "pipe" },
+      );
+    } catch (error) {
+      // Avoid dumping an encoded command or environment in CI diagnostics.
+      const stderr = String(error?.stderr ?? "")
+        .replace(/\s+/g, " ")
+        .slice(0, 300);
+      throw new Error("WINDOWS_TASK_COLLISION_NATIVE_TEST_FAILED: " + stderr);
+    }
   },
 );
