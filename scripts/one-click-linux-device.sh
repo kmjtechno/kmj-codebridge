@@ -146,9 +146,13 @@ fi
 id "$service_user" >/dev/null 2>&1 || fail SERVICE_USER_MISSING
 mark KMJ_UNIVERSAL_LINUX_MODE NEW_OWNER_BROWSER_PAIRING
 # Lock new installation to this reviewed and clean git commit; do not fetch floating main.
-bash "$root/scripts/install-vps.sh" \
-  --project "$project" --project-id "$project_id" --device "$device" \
-  --service-user "$service_user" --ref "$head" || fail OFFICIAL_INSTALLER_FAILED
+env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root USER=root LANG=C.UTF-8 \
+  CODEBRIDGE_GATEWAY=https://kmjtechno.com \
+  CODEBRIDGE_ENROLLMENT_BASE=https://kmjtechno.com \
+  CODEBRIDGE_AUTO_UPDATE_MODE=off \
+  bash "$root/scripts/install-vps.sh" \
+    --project "$project" --project-id "$project_id" --device "$device" \
+    --service-user "$service_user" --ref "$head" || fail OFFICIAL_INSTALLER_FAILED
 [[ -f "$cfg" && ! -L "$cfg" ]] || fail POSTINSTALL_CONFIG_MISSING
 command -v python3 >/dev/null || fail POSTINSTALL_PYTHON_MISSING
 config_matches || fail POSTINSTALL_SCOPE_MISMATCH
