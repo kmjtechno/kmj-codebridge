@@ -19,9 +19,10 @@ test("script compiles", () => {
   assert.equal(result.status, 0);
 });
 
-test("dry run default; apply needs explicit flags; key only from hidden prompt", () => {
+test("dry run default; writes need an explicit mode plus the no-active-jobs flag; key only from hidden prompt", () => {
   assert.match(script, /ENV=DRY_RUN_UNCHANGED/);
-  assert.match(script, /\["--apply", "--confirm-no-active-jobs"\]/);
+  assert.match(script, /"--apply": "apply", "--rotate-key": "rotate"/);
+  assert.match(script, /args\[2\] == "--confirm-no-active-jobs"/);
   assert.match(script, /getpass\.getpass\(/);
   assert.doesNotMatch(script, /print\([^)]*\bkey\b/);
   assert.doesNotMatch(script, /sys\.argv\[[^\]]*\]\s*\)?.*key/i);
@@ -161,6 +162,50 @@ with tempfile.TemporaryDirectory() as temp:
     else:
         raise AssertionError("SYMLINK_TMP_FOLLOWED")
     assert not outside.exists() and m.ENV_FILE.read_text() == "new\n"
+`,
+  );
+});
+
+test("key_blockers refuses zero or exhausted limits, budgets and any spend", (t) => {
+  isolatedPythonCase(
+    t,
+    LOAD +
+      String.raw`
+ok = {"usage": 0, "usage_daily": 0, "usage_weekly": 0, "usage_monthly": 0, "byok_usage": 0}
+assert m.key_blockers(dict(ok, limit_remaining=None)) == []
+assert m.key_blockers(dict(ok)) == []
+assert m.key_blockers(dict(ok, limit_remaining=5.0, effective_budget={"remaining_usd": 2})) == []
+assert m.key_blockers(dict(ok, limit_remaining=0)) == ["KEY_LIMIT_EXHAUSTED_SET_NO_CREDIT_LIMIT"]
+assert m.key_blockers(dict(ok, effective_budget={"remaining_usd": 0})) == ["BUDGET_BLOCKING"]
+assert "SPEND_NOT_ZERO_usage" in m.key_blockers(dict(ok, usage=0.01))
+assert "SPEND_NOT_ZERO_byok_usage" in m.key_blockers({k: v for k, v in ok.items() if k != "byok_usage"})
+`,
+  );
+});
+
+test("rotate_env replaces only the OpenRouter key line and needs the enabled chain", (t) => {
+  isolatedPythonCase(
+    t,
+    LOAD +
+      String.raw`
+base = ["CODEBRIDGE_FREELLMAPI_KEY=SYNTHETIC_TEST_ONLY_AAAA",
+        "CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS=auto:c",
+        "CODEBRIDGE_OPENROUTER_KEY=OLD_SYNTHETIC",
+        "CODEBRIDGE_FREELLMAPI_PINS_DIR=/etc/kmj-freellmapi-pins",
+        "CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR=/var/lib/kmj-freellmapi-chain"]
+out = m.rotate_env(base, "NEW_SYNTHETIC_KEY_1234", "auto:c").decode().splitlines()
+assert out == [base[0], base[1], "CODEBRIDGE_OPENROUTER_KEY=NEW_SYNTHETIC_KEY_1234", base[3], base[4]]
+for bad, code in (
+    (base[:2] + base[3:], "ENV_HAS_NO_SINGLE_OPENROUTER_KEY_LINE"),
+    (base + ["CODEBRIDGE_OPENROUTER_KEY=DUP"], "ENV_HAS_NO_SINGLE_OPENROUTER_KEY_LINE"),
+    ([base[0], "CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS="] + base[2:], "ENV_NOT_ENABLED_FOR_CHAIN"),
+):
+    try:
+        m.rotate_env(bad, "NEW_SYNTHETIC_KEY_1234", "auto:c")
+    except ValueError as exc:
+        assert str(exc) == code, str(exc)
+    else:
+        raise AssertionError("ACCEPTED_" + code)
 `,
   );
 });
