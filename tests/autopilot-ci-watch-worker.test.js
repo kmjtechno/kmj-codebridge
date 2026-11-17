@@ -113,6 +113,12 @@ function fixture(t, overrides = {}) {
     advance: (ms = 900000) => {
       clock += ms;
     },
+    rewind: (ms) => {
+      clock -= ms;
+    },
+    setClock: (value) => {
+      clock = value;
+    },
   };
 }
 
@@ -206,6 +212,53 @@ test("rate limits and provider errors never cause a hot-loop retry", async (t) =
   await f.worker.tick();
   assert.equal(f.calls.length, 1);
   f.advance(1);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+});
+
+test("host clock rollback rebases CI watcher cooldown without a burst", async (t) => {
+  const f = fixture(t, { httpFailure: 429 });
+  await f.worker.tick();
+  assert.equal(f.calls.length, 1);
+
+  f.rewind(400000);
+  await f.worker.tick();
+  await f.worker.tick();
+  assert.equal(f.calls.length, 1, "rollback cannot immediately retry");
+
+  f.advance(899999);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 1, "full new cooldown is required");
+
+  f.advance(1);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2, "polling eventually resumes");
+  assert.equal(f.journal.state.tasks.length, 0);
+});
+
+test("clock rollback does not duplicate exact-SHA CI repair admission", async (t) => {
+  const f = fixture(t);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 1);
+
+  f.rewind(400000);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  f.advance();
+  await f.worker.tick();
+  assert.equal(f.calls.length, 4);
+  assert.equal(f.journal.state.tasks.length, 1);
+  assert.equal(f.journal.state.tasks[0].key, "auto-repair:format:" + HEAD);
+});
+
+test("invalid watcher clock never sends GitHub API requests", async (t) => {
+  const f = fixture(t);
+  f.setClock(Number.NaN);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 0);
+  assert.equal(f.journal.state.tasks.length, 0);
+  f.setClock(1000000);
   await f.worker.tick();
   assert.equal(f.calls.length, 2);
 });
