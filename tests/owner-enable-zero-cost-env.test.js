@@ -25,7 +25,7 @@ test("dry run default; writes need an explicit mode plus the no-active-jobs flag
   assert.match(script, /args\[2\] == "--confirm-no-active-jobs"/);
   assert.match(script, /getpass\.getpass\(/);
   assert.doesNotMatch(script, /print\([^)]*\bkey\b/);
-  assert.doesNotMatch(script, /sys\.argv\[[^\]]*\]\s*\)?.*key/i);
+  assert.doesNotMatch(script, /sys\.argv[^\n]*key/i);
 });
 
 test("touches only the agent env file and one restart; nothing else", () => {
