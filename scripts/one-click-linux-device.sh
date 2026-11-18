@@ -176,9 +176,12 @@ try:
                 if is_agent(fh.read(8192)):
                     matching+=1
                     if matching>1: raise SystemExit(2)
-        except (FileNotFoundError,ProcessLookupError,PermissionError):
-            # Root may race with an exiting process; no extra process counted.
+        except (FileNotFoundError,ProcessLookupError):
+            # A vanished PID is a race, not proof of an extra agent.
             continue
+        except PermissionError:
+            # Unreadable PIDs make global uniqueness unverifiable.
+            raise SystemExit(2)
     if matching!=1: raise SystemExit(2)
 except (OSError,ValueError):
     raise SystemExit(2)
