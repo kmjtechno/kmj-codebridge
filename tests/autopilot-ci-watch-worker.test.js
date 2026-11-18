@@ -174,8 +174,8 @@ test("incomplete, successful, unrelated, stale or non-push runs are never execut
     const f = fixture(t, options);
     await f.worker.tick();
     assert.equal(f.journal.state.tasks.length, 0);
-  },
-);
+  }
+});
 
 test("local branch or HEAD mismatch prevents all network requests", async (t) => {
   for (const o of [
