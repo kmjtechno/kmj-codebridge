@@ -16,6 +16,8 @@ const receipt = (chain = "auto:code") => ({
   billingVerified: false,
   paidInference: null,
   actualUpstreamModel: null,
+  cloudFallback: null,
+  outputIsUntrusted: true,
 });
 
 test("cloud coding stays offline and never initializes a client without explicit owner permission", async () => {
@@ -133,6 +135,8 @@ test("cloud adapter refuses false provider, route, billing and model claims", as
     { paidInference: false },
     { billingVerified: true },
     { actualUpstreamModel: "hidden-vendor" },
+    { cloudFallback: "paid-backup" },
+    { outputIsUntrusted: false },
     { response: "" },
     { response: "   " },
     { response: null },
