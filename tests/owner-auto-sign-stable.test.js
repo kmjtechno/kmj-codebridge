@@ -204,6 +204,10 @@ test("signer never executes source script or exports private keys into GitHub", 
   );
   assert.match(source, /EXACT_HEAD_CI_NOT_GREEN/);
   assert.match(source, /PROTECTED_MAIN_REVIEWS_MISSING/);
+  assert.match(source, /GITHUB_REPOSITORY_AUTO_MERGE_DISABLED/);
+  assert.match(source, /PR_AUTO_MERGE_QUEUED/);
+  assert.match(source, /"pr", "merge", url, "--repo", REPO, "--auto", "--squash"/);
+  assert.doesNotMatch(source, /"--admin"|"--force"/);
   assert.match(source, /AUTOSIGN_PREKEY_RACE/);
   assert.match(source, /SIGNED_HISTORY_SIGNATURE_INVALID/);
   assert.match(source, /sourceChanged/);
