@@ -19,6 +19,7 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
     "OWNER_GH_AUTH_REQUIRED",
     "GITHUB_PROTECTED_MAIN_UNAVAILABLE",
     "GITHUB_MAIN_REVIEW_POLICY_BLOCKED",
+    "GITHUB_REPOSITORY_AUTO_MERGE_DISABLED",
     "ONE_TIME_OWNER_POLICY_MISSING",
     "AUTO_SIGN_REVIEWED_MAIN_ONLY",
     "OWNER_FILE_ACL_UNSAFE",
@@ -34,7 +35,7 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
     if (guard === "ONE_CLICK") continue;
     assert.ok(source.includes(guard), guard);
   }
-  assert.match(source, /6208d6f4b8d7fb322e3b3c74839487b808bc5ff3/);
+  assert.match(source, /49c2223247774f4811ffe6e62888f2d2ab259415/);
   assert.match(source, /897d9ff674ac6d007bae34084060a16b713ef2b6/);
   assert.match(source, /cdbcdea317ba8be0a18a28abdca18f6eca94cd19/);
   assert.match(source, /OWNER-AUTOSIGN-LOCAL-ENROLL-20261118\.ps1/);
