@@ -44,6 +44,16 @@ const iso = (s) =>
   /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?Z$/.test(s) &&
   Number.isFinite(Date.parse(s));
 
+export function withinSourceTree(repo, candidate, platform = process.platform) {
+  const win = platform === "win32";
+  const normalize = (v) =>
+    win ? path.win32.normalize(v).toLowerCase() : path.posix.normalize(v);
+  const root = normalize(repo);
+  const file = normalize(candidate);
+  const separator = win ? "\\" : "/";
+  return file === root || file.startsWith(root.endsWith(separator) ? root : root + separator);
+}
+
 export function assessOwnerAutoPolicy(p, now = Date.now()) {
   const fields = [
     "approvedAt",
@@ -88,11 +98,11 @@ export function assessOwnerAutoPolicy(p, now = Date.now()) {
   const key = path.resolve(p.keyFile);
   const pub = path.resolve(p.publicKeyFile);
   if (
-    key === repo ||
-    key.startsWith(repo + path.sep) ||
-    pub === repo ||
-    pub.startsWith(repo + path.sep) ||
-    key === pub
+    withinSourceTree(repo, key) ||
+    withinSourceTree(repo, pub) ||
+    (process.platform === "win32"
+      ? key.toLowerCase() === pub.toLowerCase()
+      : key === pub)
   )
     return "SIGNING_KEY_LOCATION_UNSAFE";
   return "PASS";
@@ -370,7 +380,8 @@ function runOnce() {
     root = fs.realpathSync(p.repoPath);
     requireGate(fs.lstatSync(root).isDirectory(), "SIGNER_REPO_INVALID");
     requireGate(
-      !fs.realpathSync(p.keyFile).startsWith(root + path.sep),
+      !withinSourceTree(root, fs.realpathSync(p.keyFile)) &&
+        !withinSourceTree(root, fs.realpathSync(p.publicKeyFile)),
       "SIGNER_KEY_INSIDE_SOURCE",
     );
     lockOnce();
