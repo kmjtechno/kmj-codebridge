@@ -1,0 +1,33 @@
+[Unit]
+Description=KMJ TECHNO - owner-signed stable/latest feed rollover (already-signed releases only)
+Documentation=https://github.com/kmjtechno/kmj-codebridge/blob/main/docs/OWNER-SIGNED-STABLE-ROLLING-FEED.md
+Wants=network-online.target
+After=network-online.target
+OnFailure=kmj-codebridge-signed-feed-roll-trip.service
+ConditionFileNotEmpty=/usr/local/libexec/kmj-codebridge/owner_roll_signed_latest_feed_20261115.py
+ConditionFileNotEmpty=/etc/kmj-codebridge-update/stable-update.json
+ConditionPathIsDirectory=/var/lib/kmj-codebridge-releases/stable
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/python3 -I -B /usr/local/libexec/kmj-codebridge/owner_roll_signed_latest_feed_20261115.py --apply --confirm-owner-signed-rolling-feed
+TimeoutStartSec=15min
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/kmj-codebridge-releases/stable
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
