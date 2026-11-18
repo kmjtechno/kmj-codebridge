@@ -47,6 +47,22 @@ try{
   Need ($env:OS -ceq 'Windows_NT' -and $env:COMPUTERNAME -ieq $HostName) 'WRONG_OWNER_HOST'
   $git=(Get-Command git.exe -ErrorAction Stop).Source
   $node=(Get-Command node.exe -ErrorAction Stop).Source
+  $gh=(Get-Command gh.exe -ErrorAction SilentlyContinue)
+  Need ($null -ne $gh) 'OWNER_GH_CLI_REQUIRED'
+  $gh=([string]$gh.Source)
+  & $gh auth status 1>$null 2>$null
+  Need ($LASTEXITCODE -eq 0) 'OWNER_GH_AUTH_REQUIRED'
+  # Checking GitHub before task enrollment avoids claiming ACTIVE when
+  # the unattended job would fail every hour without an authenticated owner.
+  $protectionText=(& $gh api repos/kmjtechno/kmj-codebridge/branches/main/protection 2>$null)
+  Need ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(
+    [string]($protectionText -join ''))) 'GITHUB_PROTECTED_MAIN_UNAVAILABLE'
+  $protection=($protectionText -join [Environment]::NewLine) |
+    ConvertFrom-Json -ErrorAction Stop
+  Need ($null -ne $protection.required_pull_request_reviews -and
+    [int]$protection.required_pull_request_reviews.required_approving_review_count -ge 1 -and
+    $protection.enforce_admins.enabled -eq $true -and
+    $protection.required_status_checks.strict -eq $true) 'GITHUB_MAIN_REVIEW_POLICY_BLOCKED'
   $major=([string](& $node --version)).TrimStart('v').Split('.')[0]
   Need ($LASTEXITCODE -eq 0 -and [int]$major -ge 24) 'NODE24_REQUIRED'
   foreach($pair in @(@($Source,$SignerBlob),@($SourceGate,$GateBlob),@($EnrollSource,$EnrollBlob))){
