@@ -73,8 +73,19 @@ jobs:
             echo 'Compare MANIFEST_SHA256 with your own `Get-FileHash` / `sha256sum` before merging.'
             echo '```'; cat "$RUNNER_TEMP/check.txt"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify actual Ed25519 owner signature against pinned public key
+        id: owner_signature
+        if: steps.find.outputs.revision != ''
+        shell: bash
+        env:
+          REVISION: ${{ steps.find.outputs.revision }}
+        run: |
+          set -Eeuo pipefail
+          # The PUBLIC key is the owner-proven, pinned-SPKI fixture.
+          # No signing key, token, mutable URL or secret is used.
+          node scripts/verify-signed-owner-release.mjs "$REVISION"
       - name: Publish immutable GitHub release (never overwrites)
-        if: steps.find.outputs.revision != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: steps.find.outputs.revision != '' && steps.owner_signature.outcome == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
