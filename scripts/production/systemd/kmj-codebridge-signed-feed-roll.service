@@ -3,6 +3,7 @@ Description=KMJ TECHNO - owner-signed stable/latest feed rollover (already-signe
 Documentation=https://github.com/kmjtechno/kmj-codebridge/blob/main/docs/OWNER-SIGNED-STABLE-ROLLING-FEED.md
 Wants=network-online.target
 After=network-online.target
+OnFailure=kmj-codebridge-signed-feed-roll-trip.service
 ConditionPathIsRegular=/usr/local/libexec/kmj-codebridge/owner_roll_signed_latest_feed_20261115.py
 ConditionPathIsRegular=/etc/kmj-codebridge-update/stable-update.json
 ConditionPathIsDirectory=/var/lib/kmj-codebridge-releases/stable
