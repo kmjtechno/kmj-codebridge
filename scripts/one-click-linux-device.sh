@@ -66,6 +66,10 @@ if [[ -z "$project" ]]; then project="$(pwd -P)"; fi
 [[ "$project" == /* && -d "$project" && ! -L "$project" ]] || fail PROJECT_INVALID
 project="$(readlink -f -- "$project")"
 [[ "$project" != "/" ]] || fail PROJECT_ROOT_REFUSED
+# The existing installer interpolates this project path into systemd units.
+# Reject whitespace, control chars and unit/property syntax before sudo.
+[[ "$project" =~ ^/[A-Za-z0-9._/-]+$ && "$project" != *"/../"* && "$project" != */.. ]] ||
+  fail PROJECT_PATH_NOT_SYSTEMD_SAFE
 git -C "$project" rev-parse --show-toplevel >/dev/null 2>&1 || fail PROJECT_NOT_GIT
 project_top="$(git -C "$project" rev-parse --show-toplevel)"
 [[ "$(readlink -f -- "$project_top")" == "$project" ]] || fail PROJECT_NOT_TOPLEVEL
