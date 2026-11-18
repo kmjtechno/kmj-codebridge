@@ -133,6 +133,10 @@ test("cloud adapter refuses false provider, route, billing and model claims", as
     { paidInference: false },
     { billingVerified: true },
     { actualUpstreamModel: "hidden-vendor" },
+    { response: "" },
+    { response: "   " },
+    { response: null },
+    { response: { patch: "not text" } },
   ];
   for (const patch of patches) {
     const model = createVerifiedFreeCloudCodingModel({
