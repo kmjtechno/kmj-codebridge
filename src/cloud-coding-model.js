@@ -27,8 +27,13 @@ export function createVerifiedFreeCloudCodingModel({
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
-      const candidates = Array.isArray(status?.approvedFreeChains)
-        ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
+      // Bound external verifier calls even if a compromised proxy advertises
+      // an enormous or duplicate list of supposedly free chains.
+      const advertised = status?.approvedFreeChains;
+      if (Array.isArray(advertised) && advertised.length > 16)
+        return { available: false, activeRequest: false, models: [] };
+      const candidates = Array.isArray(advertised)
+        ? [...new Set(advertised.filter((name) => typeof name === "string" && CHAIN.test(name)))]
         : [];
       // Proxy discovery alone is NOT a no-cost proof. Without trusted
       // account+route verification do not even claim work or read source.
