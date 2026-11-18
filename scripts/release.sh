@@ -53,15 +53,20 @@ KEY_FILE="${KEY_FILE/#\~/$HOME}"
 command -v git >/dev/null || fail GIT_MISSING
 command -v node >/dev/null || fail NODE_MISSING
 command -v npm >/dev/null || fail NPM_MISSING
-HAVE_GH=no
-if command -v gh >/dev/null && gh auth status >/dev/null 2>&1; then HAVE_GH=yes; fi
+# A missing or unauthenticated GitHub CLI must NEVER bypass CI.
+command -v gh >/dev/null || fail GH_CLI_REQUIRED
+gh auth status >/dev/null 2>&1 || fail GH_AUTH_REQUIRED
 
 REPO="$(git -C "$(dirname "$0")" rev-parse --show-toplevel)"
 cd "$REPO"
 REMOTE_URL="$(git remote get-url origin)"
-SLUG="${KMJ_RELEASE_REPO:-$(printf '%s' "$REMOTE_URL" | sed -nE 's#^.*github\.com[:/]([^/]+/[^/]+)$#\1#p' | sed 's/\.git$//')}"
-SLUG="${SLUG:-kmjtechno/kmj-codebridge}"
-[[ "$SLUG" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]] || fail REPO_NAME_INVALID
+case "$REMOTE_URL" in
+  https://github.com/kmjtechno/kmj-codebridge|https://github.com/kmjtechno/kmj-codebridge.git|git@github.com:kmjtechno/kmj-codebridge.git) ;;
+  *) fail CODEBRIDGE_REMOTE_NOT_TRUSTED ;;
+esac
+[[ -z "${KMJ_RELEASE_REPO:-}" || "$KMJ_RELEASE_REPO" == kmjtechno/kmj-codebridge ]] ||
+  fail REPO_OVERRIDE_UNTRUSTED
+SLUG=kmjtechno/kmj-codebridge
 
 # --- 1. source commit --------------------------------------------------------
 say "Fetching latest main"
@@ -73,24 +78,35 @@ git cat-file -e "origin/main:releases/stable/$SOURCE/release-manifest.json" 2>/d
   && fail SOURCE_ALREADY_RELEASED "This commit already has a signed release."
 
 # --- 2. exact-commit CI ------------------------------------------------------
-if [[ "$HAVE_GH" == yes ]]; then
-  say "Checking CI on ${SOURCE:0:12}"
-  ci="$(gh api "repos/$SLUG/commits/$SOURCE/check-runs?per_page=100" \
-    --jq '[.check_runs[] | select(.name != "signed_release")] as $r
-          | "\($r|length) \([$r[]|select(.status!="completed")]|length) \([$r[]|select(.status=="completed" and (.conclusion|IN("success","skipped","neutral")|not))]|length)"')"
-  read -r total pending failed <<<"$ci"
-  [[ "$total" -gt 0 ]] || fail CI_NOT_FOUND "No CI checks found for ${SOURCE:0:12} yet."
-  [[ "$pending" == 0 ]] || fail CI_STILL_RUNNING "$pending check(s) still running. Try again in a few minutes."
-  [[ "$failed" == 0 ]] || fail CI_FAILED "$failed check(s) failed on ${SOURCE:0:12}. Fix main first."
-  echo "CI: $total checks passed"
-else
-  echo "gh CLI not logged in: CI check and automatic PR are skipped (you will get a link instead)."
+say "Verifying five exact-head GitHub Actions checks on ${SOURCE:0:12}"
+if ! CI_RECEIPT="$(gh api "repos/$SLUG/commits/$SOURCE/check-runs?per_page=100" |
+  node scripts/release-ci-gate.mjs "$SOURCE")"; then
+  fail CI_NOT_INDEPENDENTLY_VERIFIED \
+    "Five required exact-SHA GitHub Actions jobs must be completed successfully."
 fi
+printf '%s\n' "$CI_RECEIPT"
 
 # --- 3. next sequence --------------------------------------------------------
-SEQ="$(git ls-tree --name-only origin/main releases/stable/ | while read -r d; do
-  git show "origin/main:$d/release-manifest.json" 2>/dev/null || true; echo; done \
-  | node -e 'let s=require("fs").readFileSync(0,"utf8"),m=0;for(const x of s.match(/"sequence"\s*:\s*\d+/g)||[])m=Math.max(m,+x.split(":")[1]);console.log(m+1)')"
+# Enumerate actual tracked manifests recursively, never just the tree root.
+MANIFEST_PATHS="$(git ls-tree -r --name-only origin/main -- releases/stable/ |
+  grep -E '^releases/stable/[a-f0-9]{40}/release-manifest\.json$' || true)"
+[[ -n "$MANIFEST_PATHS" ]] || fail SIGNED_HISTORY_NOT_FOUND
+SEQ="$(while IFS= read -r manifest; do
+  git show "origin/main:$manifest" | node -e '
+    let text=""; process.stdin.on("data",chunk=>text+=chunk);
+    process.stdin.on("end",()=>{const m=JSON.parse(text);
+    if(m.schema!==1||m.product!=="KMJ CodeBridge"||
+    m.channel!=="stable"||m.keyId!=="kmj-release-2026"||
+    !Number.isSafeInteger(m.sequence)||m.sequence<1)process.exit(2);
+    console.log(m.sequence);});
+  ' || exit 2
+done <<< "$MANIFEST_PATHS" | node -e '
+  let s=""; process.stdin.on("data",b=>s+=b);
+  process.stdin.on("end",()=>{const seqs=s.trim().split(/\\s+/).map(Number);
+  if(!seqs.length||seqs.some(n=>!Number.isSafeInteger(n)||n<1)||
+  new Set(seqs).size!==seqs.length)process.exit(2);
+  console.log(Math.max(...seqs)+1);});
+')"
 [[ "$SEQ" =~ ^[0-9]+$ ]] && (( SEQ >= 30 )) || fail SEQUENCE_UNKNOWN
 VERSION="$(git show "$SOURCE:package.json" | node -p 'JSON.parse(require("fs").readFileSync(0,"utf8")).version')"
 BRANCH="release/stable-seq$SEQ"
@@ -115,10 +131,14 @@ fi
 
 # --- 4. sign in a clean temporary checkout ----------------------------------
 WORK="$(mktemp -d "${TMPDIR:-/tmp}/kmj-release-XXXXXX")"
+CREATED_RELEASE_BRANCH=no
 cleanup() {
   git -C "$REPO" worktree remove --force "$WORK/src" >/dev/null 2>&1 || true
   git -C "$REPO" worktree remove --force "$WORK/pr" >/dev/null 2>&1 || true
-  [[ -n "${BRANCH:-}" ]] && git -C "$REPO" branch -q -D "$BRANCH" >/dev/null 2>&1 || true
+  # Only remove a disposable branch actually created by THIS process.
+  if [[ "$CREATED_RELEASE_BRANCH" == yes ]]; then
+    git -C "$REPO" branch -q -D "$BRANCH" >/dev/null 2>&1 || true
+  fi
   rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -139,6 +159,7 @@ ARCHIVE_SHA="$(sed -n 's/^ARCHIVE_SHA256=//p' "$WORK/sign.txt")"
 # --- 5. review PR with the two public files ---------------------------------
 say "Creating branch $BRANCH"
 git worktree add -q -b "$BRANCH" "$WORK/pr" origin/main
+CREATED_RELEASE_BRANCH=yes
 mkdir -p "$WORK/pr/releases/stable/$SOURCE"
 cp "$OUT/public/release-manifest.json" "$OUT/public/release-manifest.sig" "$WORK/pr/releases/stable/$SOURCE/"
 # Same check CI runs, locally, before anything is pushed.
@@ -157,12 +178,8 @@ BODY="Owner-signed stable sequence **$SEQ** for \`$SOURCE\` (v$VERSION).
 | archive | \`$ARCHIVE_SHA\` |
 
 The **Publish owner-signed CodeBridge stable release** check rebuilds the archive from Git and must PASS. Merging creates the GitHub release automatically. Origin publication, latest-feed roll and gateway promotion stay owner-run."
-if [[ "$HAVE_GH" == yes ]]; then
-  URL="$(gh api "repos/$SLUG/pulls" -f base=main -f head="$BRANCH" \
-    -f title="release: owner-signed stable sequence $SEQ" -f body="$BODY" --jq .html_url </dev/null)"
-else
-  URL="https://github.com/$SLUG/compare/main...$BRANCH?expand=1"
-fi
+URL="$(gh api "repos/$SLUG/pulls" -f base=main -f head="$BRANCH" \
+  -f title="release: owner-signed stable sequence $SEQ" -f body="$BODY" --jq .html_url </dev/null)"
 
 cat <<EOF
 
