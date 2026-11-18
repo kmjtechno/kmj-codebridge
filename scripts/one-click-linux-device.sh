@@ -104,14 +104,16 @@ unit="kmj-codebridge-agent.service"
 [[ ! -L "$cfg" ]] || fail CONFIG_LINKED
 
 config_matches() {
-  python3 - "$cfg" "$project" "$project_id" <<'PY'
+  python3 - "$cfg" "$project" "$project_id" "$host" <<'PY'
 import json,os,stat,sys
 from urllib.parse import urlsplit
-file,root,project=sys.argv[1:]
+file,root,project,host=sys.argv[1:]
 s=os.stat(file)
 if not stat.S_ISREG(s.st_mode) or s.st_mode & 0o077: raise SystemExit(2)
 with open(file,encoding="utf-8") as fh: c=json.load(fh)
 if not isinstance(c,dict) or not isinstance(c.get("id"),str) or not isinstance(c.get("tenant"),str):
+    raise SystemExit(2)
+if not (1<=len(c["id"])<=64 and c["id"].endswith("-"+host)):
     raise SystemExit(2)
 gateway=c.get("gateway")
 if gateway not in ("https://kmjtechno.com","https://kmjtechno.com/"):
