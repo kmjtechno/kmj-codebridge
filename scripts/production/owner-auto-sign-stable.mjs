@@ -396,7 +396,9 @@ function runOnce() {
     );
     let repoSettings;
     try {
-      repoSettings = JSON.parse(gh(["api", "--hostname", "github.com", "repos/" + REPO]));
+      repoSettings = JSON.parse(
+        gh(["api", "--hostname", "github.com", "repos/" + REPO]),
+      );
     } catch {
       throw new Blocked("AUTO_MERGE_REPOSITORY_SETTINGS_UNVERIFIED");
     }
