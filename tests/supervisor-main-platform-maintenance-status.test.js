@@ -32,6 +32,7 @@ function harness({ failOne = false } = {}) {
         "Result=" + result,
         "ExecMainStatus=" + (result === "success" ? 0 : 255),
         "ExecMainExitTimestamp=Sun 2026-10-18 09:00:00 UTC",
+        "UnitFileState=" + (args[1].endsWith(".timer") ? "enabled" : "static"),
       ].join("\n");
     },
     start: (unit) => started.push(unit),
@@ -61,6 +62,8 @@ test("pinned production maintenance inventory is read-only, categorical and not 
   assert.equal(response.services.dualLocalBackup.installed, true);
   assert.equal(response.services.dualLocalBackupTimer.installed, true);
   assert.equal(response.services.dualLocalBackupTimer.activeState, "inactive");
+  assert.equal(response.services.dualLocalBackupTimer.unitFileState, "enabled");
+  assert.equal(response.services.healthCheckTimer.unitFileState, undefined);
   assert.equal(response.restoreVerified, false);
   assert.equal(response.productionReleaseApprovedByThisCheck, false);
   assert.equal(calls.length, 6);
@@ -80,6 +83,7 @@ test("new dual-local timer is observed read-only without claiming first schedule
   );
   assert.ok(calls.every((c) => c.args[0] === "show"));
   assert.equal(response.services.dualLocalBackupTimer.installed, true);
+  assert.equal(response.services.dualLocalBackupTimer.unitFileState, "enabled");
   assert.equal(response.scheduledDualLocalBackupVerified, false);
   assert.equal(response.recentBackupVerified, false);
   assert.equal(response.restoreVerified, false);
