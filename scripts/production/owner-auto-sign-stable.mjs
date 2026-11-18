@@ -394,6 +394,17 @@ function runOnce() {
       protectedMain(api("branches/main/protection")),
       "PROTECTED_MAIN_REVIEWS_MISSING",
     );
+    let repoSettings;
+    try {
+      repoSettings = JSON.parse(gh(["api", "--hostname", "github.com", "repos/" + REPO]));
+    } catch {
+      throw new Blocked("AUTO_MERGE_REPOSITORY_SETTINGS_UNVERIFIED");
+    }
+    requireGate(
+      repoSettings.allow_auto_merge === true &&
+        repoSettings.allow_squash_merge === true,
+      "GITHUB_REPOSITORY_AUTO_MERGE_DISABLED",
+    );
     const origin = git(root, ["remote", "get-url", "origin"]);
     requireGate(
       [
@@ -544,7 +555,14 @@ function runOnce() {
       /^https:\/\/github\.com\/kmjtechno\/kmj-codebridge\/pull\/\d+$/.test(url),
       "PR_RECEIPT_NOT_VERIFIED",
     );
-    console.log("AUTO_SIGNED_RELEASE=PR_CREATED");
+    // Ask GitHub to merge only AFTER its own protected-main required
+    // independent review and CI. Never use --admin or an instant merge.
+    requireGate(
+      protectedMain(api("branches/main/protection")),
+      "PROTECTED_MAIN_REVIEWS_MISSING",
+    );
+    gh(["pr", "merge", url, "--repo", REPO, "--auto", "--squash"]);
+    console.log("AUTO_SIGNED_RELEASE=PR_AUTO_MERGE_QUEUED");
     console.log("AUTO_SIGNED_SEQUENCE=" + seq);
     console.log("AUTO_SIGNED_SHA=" + source);
     console.log("AUTO_SIGNED_PR=" + url);
