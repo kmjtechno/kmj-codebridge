@@ -18,7 +18,10 @@ const ciCheck = (name, options = {}) => ({
   ...options,
 });
 function good(extra = []) {
-  const check_runs = [...REQUIRED_RELEASE_CHECKS.map((name) => ciCheck(name)), ...extra];
+  const check_runs = [
+    ...REQUIRED_RELEASE_CHECKS.map((name) => ciCheck(name)),
+    ...extra,
+  ];
   return { total_count: check_runs.length, check_runs };
 }
 
@@ -30,7 +33,10 @@ test("exact head CI success is necessary and only a signing preflight", () => {
     checks: 5,
     revision: SHA,
   });
-  assert.equal(assessReleaseChecks(good([ciCheck("extra-security")]), SHA).ready, true);
+  assert.equal(
+    assessReleaseChecks(good([ciCheck("extra-security")]), SHA).ready,
+    true,
+  );
 });
 
 test("missing, duplicate and red mandatory checks block owner signing", () => {
@@ -66,7 +72,9 @@ test("wrong commit, forged app identity and truncation block signing", () => {
 });
 
 test("signed_release check never replaces mandatory CI evidence", () => {
-  const withSigned = good([ciCheck("signed_release", { conclusion: "failure" })]);
+  const withSigned = good([
+    ciCheck("signed_release", { conclusion: "failure" }),
+  ]);
   assert.equal(assessReleaseChecks(withSigned, SHA).ready, true);
   const subset = { total_count: 5, check_runs: withSigned.check_runs.slice(1) };
   assert.equal(assessReleaseChecks(subset, SHA).ready, false);
@@ -104,7 +112,10 @@ test("owner release shell never signs without exact GitHub checks or deletes uno
   assert.match(source, /CREATED_RELEASE_BRANCH=yes/);
   assert.match(source, /if \[\[ "\$CREATED_RELEASE_BRANCH" == yes \]\]/);
   assert.doesNotMatch(source, /gh CLI not logged in.*skipped|HAVE_GH/);
-  assert.doesNotMatch(source, /curl.*\|\s*(?:sudo\s+)?bash|git reset|git clean/);
+  assert.doesNotMatch(
+    source,
+    /curl.*\|\s*(?:sudo\s+)?bash|git reset|git clean/,
+  );
 });
 
 test("owner release bash syntax passes when bash is installed", (t) => {
