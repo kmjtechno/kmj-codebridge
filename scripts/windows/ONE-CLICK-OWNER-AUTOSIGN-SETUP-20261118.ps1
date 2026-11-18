@@ -9,11 +9,13 @@ $HostName='DESKTOP-5FVJMET'
 $Install=Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\OwnerSigner'
 $Source=Join-Path $PSScriptRoot '..\production\owner-auto-sign-stable.mjs'
 $SourceGate=Join-Path $PSScriptRoot '..\release-ci-gate.mjs'
+$EnrollSource=Join-Path $PSScriptRoot 'OWNER-AUTOSIGN-LOCAL-ENROLL-20261118.ps1'
 $Signer=Join-Path $Install 'scripts\production\owner-auto-sign-stable.mjs'
 $Gate=Join-Path $Install 'scripts\release-ci-gate.mjs'
 $Policy=Join-Path $HOME '.config\kmj-codebridge\auto-sign-policy.json'
 $SignerBlob='6208d6f4b8d7fb322e3b3c74839487b808bc5ff3'
 $GateBlob='897d9ff674ac6d007bae34084060a16b713ef2b6'
+$EnrollBlob='cdbcdea317ba8be0a18a28abdca18f6eca94cd19'
 function Mark([string]$n,[string]$v){Write-Output ($n+'='+$v)}
 function Need([bool]$ok,[string]$code){if(-not $ok){throw $code}}
 function FileSafe([string]$p){
@@ -47,10 +49,20 @@ try{
   $node=(Get-Command node.exe -ErrorAction Stop).Source
   $major=([string](& $node --version)).TrimStart('v').Split('.')[0]
   Need ($LASTEXITCODE -eq 0 -and [int]$major -ge 24) 'NODE24_REQUIRED'
-  foreach($pair in @(@($Source,$SignerBlob),@($SourceGate,$GateBlob))){
+  foreach($pair in @(@($Source,$SignerBlob),@($SourceGate,$GateBlob),@($EnrollSource,$EnrollBlob))){
     Need (FileSafe ([string]$pair[0])) 'REVIEWED_SOURCE_MISSING'
     $hash=([string](& $git hash-object -- ([string]$pair[0]))).Trim()
     Need ($LASTEXITCODE -eq 0 -and $hash -ceq [string]$pair[1]) 'SOURCE_BLOB_NOT_PINNED'
+  }
+  if(-not (FileSafe $Policy)){
+    Need (-not (Test-Path -LiteralPath $Policy)) 'OWNER_POLICY_UNSAFE_FILE'
+    # Only the explicitly requested Apply path can launch interactive owner
+    # consent. Source is hash-pinned above, private key never leaves P520.
+    Need $Apply 'ONE_TIME_OWNER_POLICY_MISSING'
+    $hostPowershell=(Join-Path $PSHOME 'powershell.exe')
+    Need (FileSafe $hostPowershell) 'WINDOWS_POWERSHELL_UNAVAILABLE'
+    & $hostPowershell -NoProfile -STA -ExecutionPolicy RemoteSigned -File $EnrollSource
+    Need ($LASTEXITCODE -eq 0) 'OWNER_AUTOSIGN_ENROLLMENT_NOT_APPROVED'
   }
   Need (FileSafe $Policy) 'ONE_TIME_OWNER_POLICY_MISSING'
   $p=Get-Content -LiteralPath $Policy -Raw -ErrorAction Stop|ConvertFrom-Json -ErrorAction Stop
