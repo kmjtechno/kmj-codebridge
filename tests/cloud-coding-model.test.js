@@ -137,6 +137,7 @@ test("cloud adapter refuses false provider, route, billing and model claims", as
     { response: "   " },
     { response: null },
     { response: { patch: "not text" } },
+    { response: "diff --git a/a b/b\0malformed" },
   ];
   for (const patch of patches) {
     const model = createVerifiedFreeCloudCodingModel({
