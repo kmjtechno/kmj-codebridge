@@ -346,7 +346,14 @@ test("watch worker disabled entirely creates no timers", async () => {
 });
 
 test("unsafe clock and cooldown overflow fail closed without GitHub calls", async (t) => {
-  for (const clock of [NaN, -Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER + 1, Infinity]) {
+  for (const clock of [
+    NaN,
+    -Infinity,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    Infinity,
+  ]) {
     const f = fixture(t);
     f.setClock(clock);
     await f.worker.tick();
