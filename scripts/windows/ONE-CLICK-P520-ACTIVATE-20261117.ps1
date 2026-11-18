@@ -107,6 +107,11 @@ try {
   foreach($file in @($SupervisorConfig,$TokenFile,$Verifier,(Join-Path $Release 'src\cli.js'),(Join-Path $Release 'src\supervisor-client.js'))) {
     Require (SafeFile $file) 'REQUIRED_FILE_MISSING_OR_LINKED'
   }
+  # The HMAC verifier is security-critical: an edited probe returning exit 0
+  # must never authorize a persistent Windows task.
+  $verifierBlob=([string](& $git hash-object -- $Verifier)).Trim()
+  Require ($LASTEXITCODE -eq 0 -and
+           $verifierBlob -ceq 'fe58effe8c0c0129922492dfa2c40dddd144ed46') 'HMAC_PROBE_SOURCE_MISMATCH'
   $cfg=Get-Content -LiteralPath $SupervisorConfig -Raw -ErrorAction Stop|ConvertFrom-Json -ErrorAction Stop
   Require ([string]$cfg.pipeName -ceq 'kmj-codebridge-supervisor-p520' -and
            (Same ([string]$cfg.tokenFile) $TokenFile) -and
