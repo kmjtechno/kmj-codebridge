@@ -34,6 +34,7 @@ function OwnerAcl([string]$p,[string]$owner){
   }
   Need $found 'OWNER_FILE_ACL_MISSING_OWNER'
 }
+$TaskOwned=$false
 if($SelfTest){
   $caught=$false
   try{Need $false 'SELFTEST_EXPECTED_BLOCK'}catch{
@@ -114,22 +115,46 @@ try{
   $action=New-ScheduledTaskAction -Execute $node -Argument ('"'+$Signer+'" --once') -WorkingDirectory $Install
   $trigger=New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(5) -RepetitionInterval (New-TimeSpan -Hours 1) -RepetitionDuration (New-TimeSpan -Days 3650)
   $principal=New-ScheduledTaskPrincipal -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) -LogonType Interactive -RunLevel Limited
-  $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -StartWhenAvailable
+  # The task must never become runnable before verifying the exact owner
+  # identity, fixed executable, arguments and working directory.
+  $settings=New-ScheduledTaskSettingsSet -Disable -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -StartWhenAvailable
   Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -ErrorAction Stop|Out-Null
+  $TaskOwned=$true
   $task=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   $actionReadback=@($task.Actions)
   $expectedArgument=('"'+$Signer+'" --once')
-  Need ([string]$task.State -in @('Ready','Running') -and
+  Need ([string]$task.State -ceq 'Disabled' -and
     [string]$task.Principal.RunLevel -ceq 'Limited' -and
     [string]$task.Principal.LogonType -ceq 'Interactive' -and
     $actionReadback.Count -eq 1 -and
     [string]$actionReadback[0].Execute -ieq $node -and
     [string]$actionReadback[0].Arguments -ceq $expectedArgument -and
     [string]$actionReadback[0].WorkingDirectory -ieq $Install) 'TASK_READBACK_UNVERIFIED'
+  Enable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop|Out-Null
+  $activated=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+  Need ([string]$activated.State -in @('Ready','Running') -and
+    [string]$activated.Principal.RunLevel -ceq 'Limited' -and
+    [string]$activated.Principal.LogonType -ceq 'Interactive' -and
+    @($activated.Actions).Count -eq 1 -and
+    [string]@($activated.Actions)[0].Execute -ieq $node -and
+    [string]@($activated.Actions)[0].Arguments -ceq $expectedArgument) 'ENABLED_TASK_READBACK_UNVERIFIED'
   Mark 'OWNER_AUTOSIGN_TASK' 'ENABLED_HOURLY'
   Mark 'OWNER_AUTOSIGN_SIGNER' 'OWNER_HOST_ONLY'
   Mark 'OWNER_AUTOSIGN_SETUP' 'PASS'
 }catch{
+  # A task created by this invocation is automatically disabled on any
+  # post-install error; do not let a failed or ambiguous readback silently
+  # leave owner-key signing runnable. Never mutate a pre-existing task.
+  if($TaskOwned){
+    try{
+      Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop|Out-Null
+      $rolledBack=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+      Need ([string]$rolledBack.State -ceq 'Disabled') 'TASK_ROLLBACK_READBACK_FAILED'
+      Mark 'OWNER_AUTOSIGN_TASK' 'DISABLED_ON_SETUP_FAILURE'
+    }catch{
+      Mark 'OWNER_AUTOSIGN_TASK' 'OWNER_REVIEW_REQUIRED'
+    }
+  }
   $reason=[string]$_.Exception.Message
   if($reason -cnotmatch '^[A-Z][A-Z0-9_]{3,90}$'){$reason='OWNER_REVIEW_REQUIRED'}
   Mark 'OWNER_AUTOSIGN_SETUP' ('BLOCKED:'+$reason)
