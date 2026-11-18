@@ -33,7 +33,11 @@ function OwnerAcl([string]$p,[string]$owner){
   Need $found 'OWNER_FILE_ACL_MISSING_OWNER'
 }
 if($SelfTest){
-  Need (-not(FileSafe '')) 'SELFTEST_MISSING_PATH'
+  $caught=$false
+  try{Need $false 'SELFTEST_EXPECTED_BLOCK'}catch{
+    $caught=([string]$_.Exception.Message -ceq 'SELFTEST_EXPECTED_BLOCK')
+  }
+  Need $caught 'SELFTEST_DENIAL_FAILED'
   Mark 'OWNER_AUTOSIGN_SETUP_SELFTEST' 'PASS'
   exit 0
 }
