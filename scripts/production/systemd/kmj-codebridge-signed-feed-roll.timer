@@ -1,0 +1,13 @@
+[Unit]
+Description=KMJ TECHNO - periodic signed stable/latest feed review
+Documentation=https://github.com/kmjtechno/kmj-codebridge/blob/main/docs/OWNER-SIGNED-STABLE-ROLLING-FEED.md
+
+[Timer]
+OnCalendar=hourly
+AccuracySec=1min
+RandomizedDelaySec=5min
+Persistent=true
+Unit=kmj-codebridge-signed-feed-roll.service
+
+[Install]
+WantedBy=timers.target

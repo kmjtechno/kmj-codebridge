@@ -1,0 +1,27 @@
+[Unit]
+Description=KMJ TECHNO - stop signed feed roll schedule after failed publisher
+Documentation=https://github.com/kmjtechno/kmj-codebridge/blob/main/docs/SIGNED-FEED-ROLLOVER-SCHEDULE.md
+After=kmj-codebridge-signed-feed-roll.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+ExecStart=/usr/bin/systemctl disable --now kmj-codebridge-signed-feed-roll.timer
+TimeoutStartSec=40s
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectKernelLogs=true
+RestrictSUIDSGID=true
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX
