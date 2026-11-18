@@ -57,7 +57,11 @@ test("Linux universal path preserves existing enrollment and never overwrites a 
   assert.match(linux, /UNTRUSTED_CODEBRIDGE_ORIGIN/);
   assert.match(linux, /SOURCE_TRACKED_CHANGES/);
   assert.match(linux, /PROJECT_PATH_NOT_SYSTEMD_SAFE/);
-  assert.ok(linux.indexOf('PROJECT_PATH_NOT_SYSTEMD_SAFE') < linux.indexOf('exec sudo -- bash'), 'unsafe project path must block before sudo');
+  assert.ok(
+    linux.indexOf("PROJECT_PATH_NOT_SYSTEMD_SAFE") <
+      linux.indexOf("exec sudo -- bash"),
+    "unsafe project path must block before sudo",
+  );
   assert.match(linux, /--ref "\$head"/);
   assert.match(linux, /CHECK_AUTHENTICATED_CONNECTION_OVERVIEW/);
   assert.doesNotMatch(
