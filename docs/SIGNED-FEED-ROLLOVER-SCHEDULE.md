@@ -27,6 +27,12 @@ oneshot and hourly timer; it does not sign, build or publish unsigned code.
   CodeBridge agents, production databases or unrelated files.
 - The timer runs hourly with five minutes of randomization, keeping host
   cost bounded. The agent's separate signed updater checks more often.
+- If the publisher exits with a failure, the fixed
+  `kmj-codebridge-signed-feed-roll-trip.service` is triggered through
+  `OnFailure`. It disables **only** the publisher timer using one fixed
+  systemctl action, preventing blind hourly repeats after an ambiguous
+  publication or rollback. It does not stop the agent update timer.
+  Re-enable the publisher timer only after owner reconciliation.
 - No GitHub CI result, Git push, green PR or unsigned metadata can publish a
   release: the **owner-signed immutable release** is a hard prerequisite.
 
@@ -34,7 +40,7 @@ oneshot and hourly timer; it does not sign, build or publish unsigned code.
 
 Only after exact-head CI, independent review, source hash pinning, authentic
 owner release-key attestation and an isolated dry run should an authorized
-owner install the fixed service and timer as root-owned, regular files under
+owner install all three fixed unit files as root-owned, regular files under
 `/etc/systemd/system`. The installed publisher helper must be protected
 at the exact fixed path in `/usr/local/libexec/kmj-codebridge` and verified
 against its reviewed SHA. After inspecting the effective unit with systemd,
