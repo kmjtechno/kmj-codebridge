@@ -56,7 +56,14 @@ Files require owner-only protected Windows ACLs or POSIX 0600 mode.
 
 After independent exact-head review, use the source-only owner launcher
 scripts/windows/ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118.cmd for the first
-P520 installation. It checks exact reviewed Git blob pins and private
+P520 installation. If the private policy does not exist, its **separately
+Git-blob-pinned local enrollment wizard** asks for one explicit YES, presents
+native file pickers for the existing owner private/public Ed25519 files, checks
+their private ACL and matching pinned key identity locally, and creates an
+owner-only JSON policy valid for 30 days. No private key bytes are printed,
+copied, sent to GitHub or saved in the policy. Existing, malformed or expired
+policies are never silently replaced; they require owner reconciliation.
+The launcher checks exact reviewed Git blob pins and private
 policy/key ACL, installs only the trusted signer programs in owner LocalAppData
 and registers an hourly, Limited-privilege, single-instance Interactive
 Scheduled Task. It neither starts a signing run immediately nor touches
