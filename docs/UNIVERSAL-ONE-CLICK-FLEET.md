@@ -31,7 +31,8 @@ bash KMJ-ONE-CLICK.sh --project /absolute/existing/git-project
 The launcher elevates through local sudo only if required. With an exact
 matching private config and active CodeBridge systemd agent it performs **no
 installation, restart or token rotation**. A mismatched or inactive previous
-enrollment blocks and requires separate repair review. On a fresh device
+enrollment blocks and requires separate repair review. Existing agent IDs
+must match the local hostname; foreign-device credentials are refused. On a fresh device
 without a service/config, it invokes the existing guarded official Linux
 installer pinned to the _current reviewed checkout SHA_, deriving device
 identity from Git project ID and current host. Owner must approve the
