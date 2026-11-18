@@ -17,6 +17,32 @@ release approval. File read is bounded to 256 KiB; symlinks are rejected.
 It performs no GitHub API requests, no model calls, no signing, no network
 mutations, and no automatic activation.
 
+## Owner release CLI admission
+
+The `npm run release` / `scripts/release.sh` signing workflow is a
+**separate production-facing operation** from this evidence-only diagnostic.
+It now requires an authenticated GitHub CLI session and a complete exact-commit
+GitHub Actions response **before** selecting a signed sequence, prompting the
+owner or accessing the private signing workflow. Offline, rate-limited,
+unauthenticated and ambiguous CI are blockers; the script does **not** fall
+back to signing without GitHub checks.
+
+`scripts/release-ci-gate.mjs` admits only all five completed/success official
+GitHub Actions job names at the requested 40-character source commit:
+`registry_manifest`, Linux/Ubuntu, Windows, `clients` and `distribution`.
+Additional checks must also be green. Duplicate mandatory names, wrong commit,
+untrusted check apps, skipped/neutral checks, hidden pagination and incomplete
+responses fail closed. This is a source-build gate, **not** a replacement for
+independent owner Ed25519 signature, public archive and canary/rollback proof.
+
+Release history is enumerated from actual recursively tracked signed
+`releases/stable/<SHA>/release-manifest.json` manifests, not a parent tree
+node. On failure, the helper may clean only its own disposable worktrees and
+a release branch created by **this** invocation; it must never remove an
+owner's pre-existing same-named branch. Release PR creation still requires
+authenticated GitHub permissions. No automatic merge, signer key export,
+gateway restart or production cutover follows from a CI PASS.
+
 ## Evidence shape
 
 ```json
