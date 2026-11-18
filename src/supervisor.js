@@ -2134,6 +2134,8 @@ export function createSupervisorHandler({
             "Result",
             "ExecMainStatus",
             "ExecMainExitTimestamp",
+            // Only the new timer needs this extra proof of enabled state.
+            ...(name === "dualLocalBackupTimer" ? ["UnitFileState"] : []),
           ]),
         ]),
       );
