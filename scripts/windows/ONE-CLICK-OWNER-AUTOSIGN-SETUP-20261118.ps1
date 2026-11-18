@@ -103,18 +103,65 @@ try{
   OwnerAcl ([string]$p.keyFile) $sid
   Need (FileSafe ([string]$p.publicKeyFile)) 'OWNER_PUBLIC_KEY_MISSING'
   OwnerAcl ([string]$p.publicKeyFile) $sid
-  Need (-not(Test-Path -LiteralPath $Install)) 'SIGNER_INSTALL_ALREADY_PRESENT'
+  # Recovery is only for a failed setup that stopped BEFORE task creation.
+  # Require the exact two-file layout and trusted owner-only installation root.
+  # Never overwrite an existing file or operate on an unexpected install tree.
+  $PartialInstall=Test-Path -LiteralPath $Install
+  $ScriptDir=Join-Path $Install 'scripts'
+  $ProductionDir=Join-Path $Install 'scripts\production'
+  if($PartialInstall){
+    $rootItem=Get-Item -LiteralPath $Install -Force -ErrorAction Stop
+    Need ($rootItem.PSIsContainer -and
+      ($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'PARTIAL_INSTALL_ROOT_UNTRUSTED'
+    Need ($rootItem.GetAccessControl().GetOwner(
+      [Security.Principal.SecurityIdentifier]).Value -ceq $sid) 'PARTIAL_INSTALL_OWNER_MISMATCH'
+    OwnerAcl $Install $sid
+    $expected=@($ScriptDir,$ProductionDir,$Signer,$Gate)
+    $existingItems=@(Get-ChildItem -LiteralPath $Install -Recurse -Force -ErrorAction Stop)
+    Need ($existingItems.Count -eq 4) 'PARTIAL_INSTALL_LAYOUT_UNTRUSTED'
+    foreach($item in $existingItems){
+      Need ($item.FullName -in $expected -and
+        ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'PARTIAL_INSTALL_LAYOUT_UNTRUSTED'
+      $isDir=($item.FullName -in @($ScriptDir,$ProductionDir))
+      Need ($item.PSIsContainer -eq $isDir) 'PARTIAL_INSTALL_TYPE_UNTRUSTED'
+    }
+  }
   $existing=@(Get-ScheduledTask -ErrorAction Stop|Where-Object{$_.TaskName -ieq $TaskName})
   Need ($existing.Count -eq 0) 'AUTOSIGN_TASK_ALREADY_PRESENT'
   Mark 'OWNER_AUTOSIGN_PREFLIGHT' 'PASS'
   Mark 'OWNER_AUTOSIGN_PRIVATE_KEY' 'LOCAL_ONLY'
   if(-not $Apply){Mark 'OWNER_AUTOSIGN_SETUP' 'DRY_RUN_PASS';exit 0}
-  New-Item -ItemType Directory -Path (Join-Path $Install 'scripts\production') -Force -ErrorAction Stop|Out-Null
-  Copy-Item -LiteralPath $Source -Destination $Signer -ErrorAction Stop
-  Copy-Item -LiteralPath $SourceGate -Destination $Gate -ErrorAction Stop
-  $aclArgs=@($Install,'/inheritance:r','/grant:r',('*'+$sid+':(OI)(CI)F'),'*S-1-5-18:(OI)(CI)F','*S-1-5-32-544:(OI)(CI)F','/T','/Q')
-  & icacls.exe @aclArgs 1>$null
-  Need ($LASTEXITCODE -eq 0) 'INSTALL_ACL_NOT_VERIFIED'
+  if(-not $PartialInstall){
+    New-Item -ItemType Directory -Path $ProductionDir -Force -ErrorAction Stop|Out-Null
+    Copy-Item -LiteralPath $Source -Destination $Signer -ErrorAction Stop
+    Copy-Item -LiteralPath $SourceGate -Destination $Gate -ErrorAction Stop
+  } else {
+    Mark 'OWNER_AUTOSIGN_PARTIAL' 'EXACT_LAYOUT_RECOVERY'
+  }
+  # Do NOT apply /inheritance:r recursively with /T: Windows can strip
+  # inherited access from leaf files without adding a direct file ACE.
+  # Each directory and file gets an explicit protected owner-only ACL.
+  foreach($dir in @($Install,$ScriptDir,$ProductionDir)){
+    $dirItem=Get-Item -LiteralPath $dir -Force -ErrorAction Stop
+    Need ($dirItem.PSIsContainer -and
+      ($dirItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'INSTALL_DIRECTORY_UNTRUSTED'
+    & icacls.exe $dir /inheritance:r /grant:r ('*'+$sid+':(OI)(CI)F') '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' 1>$null
+    Need ($LASTEXITCODE -eq 0) 'INSTALL_DIRECTORY_ACL_FAILED'
+    OwnerAcl $dir $sid
+  }
+  foreach($f in @($Signer,$Gate)){
+    # Directory enumeration reads the entry without requiring the leaf
+    # READ_DATA permission (which the defective prior install removed).
+    $leaf=@(Get-ChildItem -LiteralPath (Split-Path -Parent $f) -Force -ErrorAction Stop |
+      Where-Object { $_.FullName -ieq $f })
+    Need ($leaf.Count -eq 1 -and -not $leaf[0].PSIsContainer -and
+      ($leaf[0].Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'INSTALL_FILE_UNTRUSTED'
+    & icacls.exe $f /inheritance:r /grant:r ('*'+$sid+':F') '*S-1-5-18:F' '*S-1-5-32-544:F' 1>$null
+    Need ($LASTEXITCODE -eq 0) 'INSTALL_FILE_ACL_FAILED'
+    Need (FileSafe $f) 'INSTALL_FILE_ACL_READBACK_FAILED'
+    OwnerAcl $f $sid
+  }
+  Mark 'OWNER_AUTOSIGN_INSTALLED_FILE_ACL' 'PASS'
   foreach($pair in @(@($Signer,$SignerBlob),@($Gate,$GateBlob))){
     $hash=([string](& $git hash-object -- ([string]$pair[0]))).Trim()
     Need ($LASTEXITCODE -eq 0 -and $hash -ceq [string]$pair[1]) 'INSTALLED_SOURCE_HASH_DRIFT'
