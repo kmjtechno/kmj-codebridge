@@ -7,6 +7,8 @@ const SERVICE_NAMES = [
   "kmj-elite-health-check.service",
   "kmj-elite-offsite-backup.timer",
   "kmj-elite-health-check.timer",
+  "kmj-v3-dual-local-health.service",
+  "kmj-v3-dual-local-health.timer",
 ];
 
 function harness({ failOne = false } = {}) {
@@ -48,20 +50,69 @@ test("pinned production maintenance inventory is read-only, categorical and not 
     "healthCheck",
     "offsiteBackupTimer",
     "healthCheckTimer",
+    "dualLocalBackup",
+    "dualLocalBackupTimer",
   ]);
   assert.equal(response.services.offsiteBackup.result, "exit-code");
   assert.equal(response.services.offsiteBackup.execMainStatus, "255");
   assert.equal(response.services.healthCheck.result, "success");
   assert.equal(response.recentBackupVerified, false);
+  assert.equal(response.scheduledDualLocalBackupVerified, false);
+  assert.equal(response.services.dualLocalBackup.installed, true);
+  assert.equal(response.services.dualLocalBackupTimer.installed, true);
+  assert.equal(response.services.dualLocalBackupTimer.activeState, "inactive");
   assert.equal(response.restoreVerified, false);
   assert.equal(response.productionReleaseApprovedByThisCheck, false);
-  assert.equal(calls.length, 4);
+  assert.equal(calls.length, 6);
   assert.deepEqual(started, []);
   assert.doesNotMatch(
     JSON.stringify(response),
     /\/etc\/|\/root\/|\.env|privateKey|PASSWORD|token/i,
   );
 });
+
+test("new dual-local timer is observed read-only without claiming first scheduled backup", async () => {
+  const { handle, calls, started } = harness();
+  const { response } = await handle({ op: "main_platform_maintenance_status" });
+  assert.deepEqual(
+    calls.map((c) => c.args[1]),
+    SERVICE_NAMES,
+  );
+  assert.ok(calls.every((c) => c.args[0] === "show"));
+  assert.equal(response.services.dualLocalBackupTimer.installed, true);
+  assert.equal(response.scheduledDualLocalBackupVerified, false);
+  assert.equal(response.recentBackupVerified, false);
+  assert.equal(response.restoreVerified, false);
+  assert.deepEqual(started, []);
+});
+
+test("unavailable new timer is fail-closed without promoting a successful health receipt", async () => {
+  const { handle, started } = createTimerUnavailabilityHarness();
+  const { response } = await handle({ op: "main_platform_maintenance_status" });
+  assert.equal(response.services.dualLocalBackupTimer.installed, false);
+  assert.equal(response.services.dualLocalBackupTimer.result, "unknown");
+  assert.equal(response.scheduledDualLocalBackupVerified, false);
+  assert.equal(response.productionReleaseApprovedByThisCheck, false);
+  assert.deepEqual(started, []);
+});
+
+function createTimerUnavailabilityHarness() {
+  const started = [];
+  const handle = createSupervisorHandler({
+    run: (exe, args) => {
+      assert.equal(exe, "/usr/bin/systemctl");
+      assert.equal(args[0], "show");
+      assert.ok(SERVICE_NAMES.includes(args[1]));
+      if (args[1] === "kmj-v3-dual-local-health.timer") {
+        throw Error("timer not installed");
+      }
+      return "LoadState=loaded\nActiveState=inactive\nSubState=dead\nResult=success\nExecMainStatus=0";
+    },
+    start: (unit) => started.push(unit),
+    restart: (unit) => started.push(unit),
+  });
+  return { handle, started };
+}
 
 test("maintenance status rejects caller-supplied shell, path, unit, variants or approval", async () => {
   const { handle, calls, started } = harness();
