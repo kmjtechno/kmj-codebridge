@@ -183,3 +183,59 @@ test("no trusted zero-cost attestor means no upstream cloud POST, even with expl
   );
   assert.equal(posts, 0);
 });
+
+test("cloud status rejects mismatched and unverified zero-cost attestations", async () => {
+  const proofs = [
+    { admitted: false, chain: "auto:code" },
+    { admitted: true, chain: "auto:other" },
+    { admitted: "true", chain: "auto:code" },
+    null,
+  ];
+  for (const proof of proofs) {
+    let calls = 0;
+    const model = createVerifiedFreeCloudCodingModel({
+      authorized: () => true,
+      createClient: () => ({
+        status: async () => ({
+          available: true,
+          approvedFreeChains: ["auto:code"],
+        }),
+        checkZeroCostChain: async () => {
+          calls++;
+          return proof;
+        },
+        generate: async () => {
+          throw new Error("MUST_NOT_GENERATE");
+        },
+      }),
+    });
+    assert.deepEqual(await model.status(), {
+      available: false,
+      activeRequest: false,
+      models: [],
+    });
+    assert.equal(calls, 1);
+  }
+});
+
+test("cloud status fails closed when consent is revoked during zero-cost verification", async () => {
+  let consent = true;
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => consent,
+    createClient: () => ({
+      status: async () => ({
+        available: true,
+        approvedFreeChains: ["auto:code"],
+      }),
+      checkZeroCostChain: async ({ chain }) => {
+        consent = false;
+        return { admitted: true, chain };
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+});
