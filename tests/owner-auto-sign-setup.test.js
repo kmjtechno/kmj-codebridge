@@ -31,10 +31,22 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
   assert.match(source, /4382d2f4db1edf768cdfcfefde11e2ea6d95587b/);
   assert.match(source, /897d9ff674ac6d007bae34084060a16b713ef2b6/);
   assert.match(source, /Node24|NODE24_REQUIRED/);
-  assert.doesNotMatch(source, /Restart-Service|Stop-Process|git reset|git clean|taskkill|Set-Content.*keyFile/);
-  assert.doesNotMatch(source, /Start-ScheduledTask|Unregister-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask/);
-  assert.match(launcher, /ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118\.ps1" -Apply/);
-  assert.doesNotMatch(launcher, /EncodedCommand|curl|bitsadmin|certutil|taskkill/);
+  assert.doesNotMatch(
+    source,
+    /Restart-Service|Stop-Process|git reset|git clean|taskkill|Set-Content.*keyFile/,
+  );
+  assert.doesNotMatch(
+    source,
+    /Start-ScheduledTask|Unregister-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask/,
+  );
+  assert.match(
+    launcher,
+    /ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118\.ps1" -Apply/,
+  );
+  assert.doesNotMatch(
+    launcher,
+    /EncodedCommand|curl|bitsadmin|certutil|taskkill/,
+  );
 });
 
 test(
@@ -42,18 +54,22 @@ test(
   { skip: process.platform !== "win32" },
   () => {
     const full = path.resolve(ps);
-    const parsed = spawnSync("powershell.exe",
+    const parsed = spawnSync(
+      "powershell.exe",
       [
         "-NoProfile",
         "-NonInteractive",
         "-Command",
         "$t=$null;$e=$null;[System.Management.Automation.Language.Parser]::ParseFile($env:KMJ_CHECK_SCRIPT,[ref]$t,[ref]$e)|Out-Null;if($e.Count -gt 0){$e|ForEach-Object{Write-Error $_.Message};exit 2}",
       ],
-      { encoding: "utf8", env: { ...process.env, KMJ_CHECK_SCRIPT: full } });
+      { encoding: "utf8", env: { ...process.env, KMJ_CHECK_SCRIPT: full } },
+    );
     assert.equal(parsed.status, 0, parsed.stderr || parsed.stdout);
-    const checked = spawnSync("powershell.exe",
+    const checked = spawnSync(
+      "powershell.exe",
       ["-NoProfile", "-NonInteractive", "-File", full, "-SelfTest"],
-      { encoding: "utf8" });
+      { encoding: "utf8" },
+    );
     assert.equal(checked.status, 0, checked.stderr || checked.stdout);
     assert.match(checked.stdout, /OWNER_AUTOSIGN_SETUP_SELFTEST=PASS/);
   },
