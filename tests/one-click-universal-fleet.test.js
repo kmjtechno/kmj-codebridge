@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
 
@@ -96,7 +98,7 @@ test(
   { skip: process.platform === "win32" },
   () => {
     const block = linux.match(
-      /python3 - "\$cfg" "\$project" "\$project_id" <<'PY'\n([\s\S]*?)\nPY/,
+      /python3 - "\$cfg" "\$project" "\$project_id" "\$host" <<'PY'\n([\s\S]*?)\nPY/,
     );
     assert.ok(block, "missing embedded config scope verifier");
     assert.match(block[1], /127\.0\.0\.1/);
@@ -110,6 +112,47 @@ test(
       { input: block[1], encoding: "utf8" },
     );
     assert.equal(checked.status, 0, checked.stderr);
+  },
+);
+
+test(
+  "Linux config checker refuses foreign host credentials and broad private ACLs",
+  { skip: process.platform === "win32" },
+  () => {
+    const block = linux.match(
+      /python3 - "\$cfg" "\$project" "\$project_id" "\$host" <<'PY'\n([\s\S]*?)\nPY/,
+    );
+    assert.ok(block);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-device-scope-"));
+    const cfg = path.join(dir, "agent.json");
+    const original = {
+      id: "kmj-project-devbox",
+      tenant: "owner",
+      token: "x".repeat(40),
+      gateway: "https://kmjtechno.com/",
+      projects: [{ id: "project", root: dir }],
+    };
+    const check = (data, hostname, mode = 0o600) => {
+      fs.writeFileSync(cfg, JSON.stringify(data), { mode });
+      fs.chmodSync(cfg, mode);
+      return spawnSync(
+        "python3",
+        ["-c", block[1], cfg, dir, "project", hostname],
+        { encoding: "utf8" },
+      ).status;
+    };
+    try {
+      assert.equal(check(original, "devbox"), 0);
+      assert.notEqual(check(original, "foreignpc"), 0);
+      assert.notEqual(check({ ...original, id: "kmj-other-device" }, "devbox"), 0);
+      assert.notEqual(
+        check({ ...original, gateway: "https://attacker.example/" }, "devbox"),
+        0,
+      );
+      assert.notEqual(check(original, "devbox", 0o644), 0);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   },
 );
 
