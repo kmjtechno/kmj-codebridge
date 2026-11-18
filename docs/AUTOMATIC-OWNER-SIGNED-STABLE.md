@@ -31,7 +31,15 @@ PowerShell command for each release:
    can then safely publish/consume it when independently activated.
 
 **Signing and release PR creation are automatic; PR review/merge remains a
-separate security gate.** No unsigned source, green CI alone, arbitrary
+separate security gate.**
+
+**Key custody trade-off:** unattended signing needs the protected owner key
+to be accessible to the owner-host process during a scheduled run. A truly
+air-gapped/offline key CANNOT sign automatically. Do not use a cold-storage
+root key in the scheduled signer unless the owner explicitly approves
+converting it to an online signing key; prefer a separately controlled and
+reviewed dedicated signer key with its own trust/rotation process when
+available. No key is silently migrated by this PR. No unsigned source, green CI alone, arbitrary
 GitHub branch, or AI instruction can bypass these gates.
 
 ## One-time owner authorization
