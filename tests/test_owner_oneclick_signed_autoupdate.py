@@ -314,6 +314,83 @@ class SignedOneClickTests(unittest.TestCase):
         self.assertIn("sync_private_config_parent()", source)
         self.assertIn('read_root(BACKUP) == before', source)
 
+    def test_postrename_fsync_error_rolls_back_exact_new_bytes(self):
+        timer, service, dev = unit_fixtures()
+        original = json.dumps(config()).encode()
+        planned = mod.prepared_feed_config(config())
+        config_reads = iter((original, planned))
+        def read_root(path, *args, **kwargs):
+            return next(config_reads) if path == mod.CONFIG else b"source"
+        with patch.object(mod.os, "geteuid", return_value=0), \
+             patch.object(mod.socket, "gethostname", return_value="KMJ-elite"), \
+             patch.object(mod, "read_root", side_effect=read_root), \
+             patch.object(mod, "owner_approval"), \
+             patch.object(mod, "verify_feed", return_value=31), \
+             patch.object(mod, "atomic_replace_config",
+                          side_effect=OSError("simulated fsync failure")), \
+             patch.object(mod, "status",
+                          side_effect=[timer, service, dev, timer]), \
+             patch.object(mod, "rollback_config") as rollback, \
+             patch.object(mod, "command") as command:
+            with self.assertRaises(OSError):
+                mod.main(["--enable", mod.CONFIRM])
+            rollback.assert_called_once_with(original, planned)
+            command.assert_called_once_with(
+                mod.SYSTEMCTL, "disable", "--now", mod.SIGNED_TIMER,
+                timeout=25)
+
+    def test_postrename_unknown_bytes_or_failed_timer_stop_block_recovery(self):
+        timer, service, dev = unit_fixtures()
+        original = json.dumps(config()).encode()
+        for observed_timer, live in (
+            (timer, b"changed-by-someone-else"),
+            (dict(timer, ActiveState="active"), original),
+        ):
+            config_reads = iter((original, live))
+            def read_root(path, *args, **kwargs):
+                return next(config_reads) if path == mod.CONFIG else b"source"
+            with self.subTest(live=live), \
+                 patch.object(mod.os, "geteuid", return_value=0), \
+                 patch.object(mod.socket, "gethostname",
+                              return_value="KMJ-elite"), \
+                 patch.object(mod, "read_root", side_effect=read_root), \
+                 patch.object(mod, "owner_approval"), \
+                 patch.object(mod, "verify_feed", return_value=31), \
+                 patch.object(mod, "atomic_replace_config",
+                              side_effect=mod.Blocked("POST_RENAME_FAILURE")), \
+                 patch.object(mod, "status",
+                              side_effect=[timer, service, dev, observed_timer]), \
+                 patch.object(mod, "rollback_config") as rollback, \
+                 patch.object(mod, "command") as command:
+                with self.assertRaisesRegex(
+                    mod.Blocked, "AUTO_ENABLE_ROLLBACK_OWNER_REVIEW_REQUIRED"
+                ):
+                    mod.main(["--enable", mod.CONFIRM])
+                rollback.assert_not_called()
+                command.assert_called_once()
+
+    def test_enable_requires_exact_timer_identity_after_systemctl_success(self):
+        timer, service, dev = unit_fixtures()
+        original = json.dumps(config()).encode()
+        after = dict(timer, UnitFileState="enabled", ActiveState="active")
+        def read_root(path, *args, **kwargs):
+            return original if path == mod.CONFIG else b"source"
+        with patch.object(mod.os, "geteuid", return_value=0), \
+             patch.object(mod.socket, "gethostname", return_value="KMJ-elite"), \
+             patch.object(mod, "read_root", side_effect=read_root), \
+             patch.object(mod, "owner_approval"), \
+             patch.object(mod, "verify_feed", return_value=31), \
+             patch.object(mod, "atomic_replace_config",
+                          return_value=mod.prepared_feed_config(config())), \
+             patch.object(mod, "status",
+                          side_effect=[timer, service, dev, after]) as status, \
+             patch.object(mod, "command") as command:
+            mod.main(["--enable", mod.CONFIRM])
+            self.assertEqual(status.call_count, 4)
+            command.assert_called_once_with(
+                mod.SYSTEMCTL, "enable", "--now", mod.SIGNED_TIMER,
+                timeout=30)
+
     def test_declines_automatic_activation_of_unsigned_builds(self):
         source = SRC.read_text()
         self.assertIn("UNSIGNED_GITHUB_MERGE_AUTOPROMOTION=DENIED", source)
