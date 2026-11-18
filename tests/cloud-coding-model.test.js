@@ -183,3 +183,27 @@ test("no trusted zero-cost attestor means no upstream cloud POST, even with expl
   );
   assert.equal(posts, 0);
 });
+
+test("cloud status bounds untrusted verifier fanout and deduplicates chains", async () => {
+  let calls = 0;
+  let advertised = Array.from({ length: 17 }, () => "auto:code");
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => true,
+    createClient: () => ({
+      status: async () => ({ available: true, approvedFreeChains: advertised }),
+      checkZeroCostChain: async ({ chain }) => {
+        calls++;
+        return { admitted: true, chain };
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+  assert.equal(calls, 0);
+  advertised = ["auto:code", "auto:code", "auto:other", "auto:other"];
+  assert.deepEqual((await model.status()).models, ["auto:code", "auto:other"]);
+  assert.equal(calls, 2);
+});
