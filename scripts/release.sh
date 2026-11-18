@@ -102,7 +102,7 @@ SEQ="$(while IFS= read -r manifest; do
   ' || exit 2
 done <<< "$MANIFEST_PATHS" | node -e '
   let s=""; process.stdin.on("data",b=>s+=b);
-  process.stdin.on("end",()=>{const seqs=s.trim().split(/\\s+/).map(Number);
+  process.stdin.on("end",()=>{const seqs=s.trim().split(/\s+/).map(Number);
   if(!seqs.length||seqs.some(n=>!Number.isSafeInteger(n)||n<1)||
   new Set(seqs).size!==seqs.length)process.exit(2);
   console.log(Math.max(...seqs)+1);});
