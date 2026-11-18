@@ -12,7 +12,7 @@ $SourceGate=Join-Path $PSScriptRoot '..\release-ci-gate.mjs'
 $Signer=Join-Path $Install 'scripts\production\owner-auto-sign-stable.mjs'
 $Gate=Join-Path $Install 'scripts\release-ci-gate.mjs'
 $Policy=Join-Path $HOME '.config\kmj-codebridge\auto-sign-policy.json'
-$SignerBlob='878ad787d5d1fcdb3928a9c999ed0ceb7d1a8ca0'
+$SignerBlob='6208d6f4b8d7fb322e3b3c74839487b808bc5ff3'
 $GateBlob='897d9ff674ac6d007bae34084060a16b713ef2b6'
 function Mark([string]$n,[string]$v){Write-Output ($n+'='+$v)}
 function Need([bool]$ok,[string]$code){if(-not $ok){throw $code}}
