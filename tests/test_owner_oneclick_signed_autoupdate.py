@@ -216,6 +216,49 @@ class SignedOneClickTests(unittest.TestCase):
             mod.main([])
             command.assert_not_called()
 
+    def test_active_status_requires_signed_rolling_feed_before_enabled(self):
+        import contextlib
+        import io
+        timer, service, dev = unit_fixtures()
+        live = dict(timer, UnitFileState="enabled", ActiveState="active")
+        approved = dict(config(), manifestUrl=mod.FEED_MANIFEST,
+                        signatureUrl=mod.FEED_SIG)
+        with patch.object(mod.os, "geteuid", return_value=0), \
+             patch.object(mod.socket, "gethostname", return_value="KMJ-elite"), \
+             patch.object(mod, "read_root",
+                          return_value=json.dumps(approved).encode()), \
+             patch.object(mod, "status",
+                          side_effect=[live, service, dev]), \
+             patch.object(mod, "verify_feed", return_value=31) as signed, \
+             patch.object(mod, "command") as command:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                mod.main(["--status"])
+            self.assertIn("ONECLICK_AUTO_SIGNED=ENABLED", output.getvalue())
+            self.assertIn("SIGNED_RELEASE_FEED_SEQUENCE=31",
+                          output.getvalue())
+            signed.assert_called_once_with(approved)
+            command.assert_not_called()
+        for cfg, receipt, code in (
+            (config(), 31, "ACTIVE_TIMER_FEED_NOT_ROLLING"),
+            (approved, mod.Blocked("BAD_SIGNATURE"), "BAD_SIGNATURE"),
+        ):
+            with self.subTest(code=code), \
+                 patch.object(mod.os, "geteuid", return_value=0), \
+                 patch.object(mod.socket, "gethostname",
+                              return_value="KMJ-elite"), \
+                 patch.object(mod, "read_root",
+                              return_value=json.dumps(cfg).encode()), \
+                 patch.object(mod, "status",
+                              side_effect=[live, service, dev]), \
+                 patch.object(mod, "verify_feed") as signed:
+                if isinstance(receipt, Exception):
+                    signed.side_effect = receipt
+                else:
+                    signed.return_value = receipt
+                with self.assertRaisesRegex(mod.Blocked, code):
+                    mod.main(["--status"])
+
     def test_disable_rechecks_exact_timer_state_after_successful_systemctl(self):
         timer, service, dev = unit_fixtures()
         after = dict(timer, UnitFileState="disabled",
