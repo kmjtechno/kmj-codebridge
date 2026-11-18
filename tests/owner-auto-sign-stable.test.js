@@ -12,6 +12,7 @@ import { spawnSync } from "node:child_process";
 import test from "node:test";
 import {
   assessOwnerAutoPolicy,
+  withinSourceTree,
   protectedMain,
   sourceChanged,
   makeSignedRelease,
@@ -59,6 +60,19 @@ test("owner opt-in is exact, short lived and cannot point into source repository
     assessOwnerAutoPolicy(valid(), Date.parse("2026-12-01T00:00:00Z")),
     "PASS",
   );
+});
+
+test("Windows private signing key paths cannot alias source tree by case", () => {
+  assert.equal(
+    withinSourceTree("C:\\KMJ\\CodeBridge", "c:\\kmj\\codebridge\\secrets\\owner.pem", "win32"),
+    true,
+  );
+  assert.equal(
+    withinSourceTree("C:\\KMJ\\CodeBridge", "C:\\KMJ\\CodeBridge-archive\\owner.pem", "win32"),
+    false,
+  );
+  assert.equal(withinSourceTree("/trusted/repo", "/trusted/repo/secrets/key.pem", "linux"), true);
+  assert.equal(withinSourceTree("/trusted/repo", "/trusted/repo-other/key.pem", "linux"), false);
 });
 
 test("automatic signing requires real branch reviews, strict checks and admin enforcement", () => {
