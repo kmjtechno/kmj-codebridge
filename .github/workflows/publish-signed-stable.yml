@@ -54,10 +54,28 @@ jobs:
           fi
           count=$(printf '%s' "$added" | grep -c . || true)
           if [[ "$count" == 0 ]]; then
-            echo 'NEW_RELEASE_FOLDER=NONE'; echo "revision=" >> "$GITHUB_OUTPUT"; exit 0
+            echo 'RELEASE_CHANGE_WITHOUT_NEW_MANIFEST' >&2
+            exit 2
           fi
           [[ "$count" == 1 ]] || { echo 'ONE_RELEASE_PER_CHANGE_REQUIRED' >&2; exit 2; }
           [[ "$added" =~ ^[a-f0-9]{40}$ ]] || { echo 'REVISION_NOT_FULL_SHA' >&2; exit 2; }
+          if [[ "$EVENT" != workflow_dispatch ]]; then
+            # Release PRs are data-only. Never let a release metadata PR also
+            # modify the verifier, workflow, source or any other file.
+            one="releases/stable/$added/release-manifest.json"
+            two="releases/stable/$added/release-manifest.sig"
+            actual="$(git diff --name-only "$base" HEAD | sort)"
+            expected="$(printf '%s\n' "$one" "$two" | sort)"
+            [[ "$actual" == "$expected" ]] || {
+              echo 'RELEASE_ONLY_EXACT_MANIFEST_AND_SIGNATURE' >&2; exit 2;
+            }
+            for f in "$one" "$two"; do
+              action="$(git diff --name-status "$base" HEAD -- "$f" | cut -f1)"
+              [[ "$action" == A ]] || {
+                echo 'RELEASE_METADATA_MUST_BE_CREATE_ONLY' >&2; exit 2;
+              }
+            done
+          fi
           echo "revision=$added" >> "$GITHUB_OUTPUT"
       - name: Verify signed metadata and rebuild exact archive
         id: verify
@@ -68,13 +86,39 @@ jobs:
         run: |
           set -Eeuo pipefail
           node scripts/verify-stable-release.mjs "$REVISION" --archive-out "$RUNNER_TEMP/release" | tee "$RUNNER_TEMP/check.txt"
+          # A real owner signature alone must not publish source that never
+          # passed the protected main release train. Pull request checkouts
+          # may be a synthetic merge commit; use the authenticated base/main
+          # ref for ancestry, not the untrusted release PR branch.
+          if [[ "${{ github.event_name }}" == pull_request ]]; then
+            source_base="${{ github.event.pull_request.base.sha }}"
+          else
+            source_base="${{ github.sha }}"
+          fi
+          [[ "$source_base" =~ ^[a-f0-9]{40}$ ]] || {
+            echo 'PROTECTED_MAIN_BASE_NOT_PINNED' >&2; exit 2;
+          }
+          git merge-base --is-ancestor "$REVISION" "$source_base" || {
+            echo 'SIGNED_SOURCE_NOT_ON_PROTECTED_MAIN' >&2; exit 2;
+          }
           {
             echo '### Signed stable release check: PASS'
             echo 'Compare MANIFEST_SHA256 with your own `Get-FileHash` / `sha256sum` before merging.'
             echo '```'; cat "$RUNNER_TEMP/check.txt"; echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Verify actual Ed25519 owner signature against pinned public key
+        id: owner_signature
+        if: steps.find.outputs.revision != ''
+        shell: bash
+        env:
+          REVISION: ${{ steps.find.outputs.revision }}
+        run: |
+          set -Eeuo pipefail
+          # The PUBLIC key is the owner-proven, pinned-SPKI fixture.
+          # No signing key, token, mutable URL or secret is used.
+          node scripts/verify-signed-owner-release.mjs "$REVISION"
       - name: Publish immutable GitHub release (never overwrites)
-        if: steps.find.outputs.revision != '' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        if: steps.find.outputs.revision != '' && steps.owner_signature.outcome == 'success' && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
