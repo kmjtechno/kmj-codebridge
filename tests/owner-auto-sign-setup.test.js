@@ -15,6 +15,10 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
   for (const guard of [
     "DESKTOP-5FVJMET",
     "SOURCE_BLOB_NOT_PINNED",
+    "OWNER_GH_CLI_REQUIRED",
+    "OWNER_GH_AUTH_REQUIRED",
+    "GITHUB_PROTECTED_MAIN_UNAVAILABLE",
+    "GITHUB_MAIN_REVIEW_POLICY_BLOCKED",
     "ONE_TIME_OWNER_POLICY_MISSING",
     "AUTO_SIGN_REVIEWED_MAIN_ONLY",
     "OWNER_FILE_ACL_UNSAFE",
