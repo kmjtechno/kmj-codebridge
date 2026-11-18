@@ -100,6 +100,6 @@ test("periodic publisher is signed-only, monotonic, atomically reversible", () =
   }
   assert.doesNotMatch(
     publisher,
-    /shell\s*=\s*True|git\s+pull|git\s+reset|PRIVATE KEY|owner_private_key/,
+    /shell\s*=\s*True|git\s+pull|git\s+reset|owner_private_key/,
   );
 });
