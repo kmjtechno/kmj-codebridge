@@ -2120,6 +2120,10 @@ export function createSupervisorHandler({
         healthCheck: "kmj-elite-health-check.service",
         offsiteBackupTimer: "kmj-elite-offsite-backup.timer",
         healthCheckTimer: "kmj-elite-health-check.timer",
+        // Owner-installed 18 Nov 2026: distinct dual-local V3 timer and
+        // one-shot service; fixed names only, no caller-supplied unit.
+        dualLocalBackup: "kmj-v3-dual-local-health.service",
+        dualLocalBackupTimer: "kmj-v3-dual-local-health.timer",
       };
       const services = Object.fromEntries(
         Object.entries(targets).map(([name, unit]) => [
@@ -2139,6 +2143,8 @@ export function createSupervisorHandler({
           scope: "kmj-main-platform",
           services,
           recentBackupVerified: false,
+          // Status alone does not prove a scheduled first run or restore.
+          scheduledDualLocalBackupVerified: false,
           restoreVerified: false,
           productionReleaseApprovedByThisCheck: false,
         },
