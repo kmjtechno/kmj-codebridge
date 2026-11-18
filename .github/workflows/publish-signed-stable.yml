@@ -86,6 +86,21 @@ jobs:
         run: |
           set -Eeuo pipefail
           node scripts/verify-stable-release.mjs "$REVISION" --archive-out "$RUNNER_TEMP/release" | tee "$RUNNER_TEMP/check.txt"
+          # A real owner signature alone must not publish source that never
+          # passed the protected main release train. Pull request checkouts
+          # may be a synthetic merge commit; use the authenticated base/main
+          # ref for ancestry, not the untrusted release PR branch.
+          if [[ "${{ github.event_name }}" == pull_request ]]; then
+            source_base="${{ github.event.pull_request.base.sha }}"
+          else
+            source_base="${{ github.sha }}"
+          fi
+          [[ "$source_base" =~ ^[a-f0-9]{40}$ ]] || {
+            echo 'PROTECTED_MAIN_BASE_NOT_PINNED' >&2; exit 2;
+          }
+          git merge-base --is-ancestor "$REVISION" "$source_base" || {
+            echo 'SIGNED_SOURCE_NOT_ON_PROTECTED_MAIN' >&2; exit 2;
+          }
           {
             echo '### Signed stable release check: PASS'
             echo 'Compare MANIFEST_SHA256 with your own `Get-FileHash` / `sha256sum` before merging.'
