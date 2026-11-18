@@ -122,7 +122,9 @@ test(
       /python3 - "\$mainpid" "\$cfg" <<'PY'\n([\s\S]*?)\nPY/,
     );
     assert.ok(embedded, "missing exact native PID verifier");
-    const helpers = embedded[1].match(/def is_agent\(raw\):\n[\s\S]*?(?=\ntry:)/);
+    const helpers = embedded[1].match(
+      /def is_agent\(raw\):\n[\s\S]*?(?=\ntry:)/,
+    );
     assert.ok(helpers, "missing native command identity validator");
     const python = [
       "import os",
@@ -131,6 +133,7 @@ test(
       "node='/opt/kmj-codebridge-node/bin/node'",
       "entry='/opt/kmj-codebridge-agent/src/cli.js'",
       "cfg='/etc/kmj-codebridge/agent.json'",
+      "config=cfg",
       "assert is_agent(pack(node,entry,'agent',cfg))",
       "assert not is_agent(pack(node,entry,'gateway',cfg))",
       "assert not is_agent(pack(node,entry,'agent','/etc/foreign/agent.json'))",
