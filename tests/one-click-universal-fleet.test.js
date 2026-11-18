@@ -144,7 +144,10 @@ test(
     try {
       assert.equal(check(original, "devbox"), 0);
       assert.notEqual(check(original, "foreignpc"), 0);
-      assert.notEqual(check({ ...original, id: "kmj-other-device" }, "devbox"), 0);
+      assert.notEqual(
+        check({ ...original, id: "kmj-other-device" }, "devbox"),
+        0,
+      );
       assert.notEqual(
         check({ ...original, gateway: "https://attacker.example/" }, "devbox"),
         0,
