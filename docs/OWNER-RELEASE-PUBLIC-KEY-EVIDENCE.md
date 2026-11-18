@@ -61,6 +61,14 @@ key ID. It does not fetch a key or permit the newly proposed manifest to
 self-select its trust. Missing/tampered/invalid owner signatures now block
 the GitHub Release creation step, even if the archive rebuilt correctly.
 
+In addition, each release must name a source Git SHA that is an
+actual ancestor of the **protected main** base commit (on pull-request
+verification) or the exact push/dispatch SHA (when publishing). A separately
+signed but unmerged/off-branch source commit is not eligible for automatic
+stable publication. The workflow fails closed with
+`SIGNED_SOURCE_NOT_ON_PROTECTED_MAIN`, never using the untrusted PR head
+as its source ancestry authority.
+
 This is an **authenticity gate**, not a claim that an owner private key is
 available to GitHub, that the release passed live VPS signing-key custody
 review, or that agents safely installed it. Those production gates remain
