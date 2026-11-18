@@ -346,7 +346,7 @@ test("watch worker disabled entirely creates no timers", async () => {
 });
 
 test("403, 429 and 5xx responses preserve bounded retry cooldown without repair admission", async (t) => {
-  for (const status of [403, 429, 500, 503]) {
+  for (const status of [403, 429, 500, 502, 503, 504]) {
     const f = fixture(t, { httpFailure: status });
     await f.worker.tick();
     await f.worker.tick();
