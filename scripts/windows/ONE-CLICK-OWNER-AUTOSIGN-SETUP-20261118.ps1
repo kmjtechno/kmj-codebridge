@@ -50,11 +50,13 @@ try{
   $gh=(Get-Command gh.exe -ErrorAction SilentlyContinue)
   Need ($null -ne $gh) 'OWNER_GH_CLI_REQUIRED'
   $gh=([string]$gh.Source)
-  & $gh auth status 1>$null 2>$null
+  & $gh auth status --hostname github.com 1>$null 2>$null
   Need ($LASTEXITCODE -eq 0) 'OWNER_GH_AUTH_REQUIRED'
   # Checking GitHub before task enrollment avoids claiming ACTIVE when
   # the unattended job would fail every hour without an authenticated owner.
-  $protectionText=(& $gh api repos/kmjtechno/kmj-codebridge/branches/main/protection 2>$null)
+  $ownerLogin=([string](& $gh api --hostname github.com user --jq .login 2>$null)).Trim()
+  Need ($LASTEXITCODE -eq 0 -and $ownerLogin -ceq 'kmjtechno') 'OWNER_GH_ACCOUNT_NOT_MATCHED'
+  $protectionText=(& $gh api --hostname github.com repos/kmjtechno/kmj-codebridge/branches/main/protection 2>$null)
   Need ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(
     [string]($protectionText -join ''))) 'GITHUB_PROTECTED_MAIN_UNAVAILABLE'
   $protection=($protectionText -join [Environment]::NewLine) |
@@ -115,7 +117,15 @@ try{
   $settings=New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 10) -MultipleInstances IgnoreNew -StartWhenAvailable
   Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Trigger $trigger -Principal $principal -Settings $settings -ErrorAction Stop|Out-Null
   $task=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
-  Need ([string]$task.State -in @('Ready','Running') -and [string]$task.Principal.RunLevel -ceq 'Limited' -and [string]$task.Principal.LogonType -ceq 'Interactive' -and @($task.Actions).Count -eq 1) 'TASK_READBACK_UNVERIFIED'
+  $actionReadback=@($task.Actions)
+  $expectedArgument=('"'+$Signer+'" --once')
+  Need ([string]$task.State -in @('Ready','Running') -and
+    [string]$task.Principal.RunLevel -ceq 'Limited' -and
+    [string]$task.Principal.LogonType -ceq 'Interactive' -and
+    $actionReadback.Count -eq 1 -and
+    [string]$actionReadback[0].Execute -ieq $node -and
+    [string]$actionReadback[0].Arguments -ceq $expectedArgument -and
+    [string]$actionReadback[0].WorkingDirectory -ieq $Install) 'TASK_READBACK_UNVERIFIED'
   Mark 'OWNER_AUTOSIGN_TASK' 'ENABLED_HOURLY'
   Mark 'OWNER_AUTOSIGN_SIGNER' 'OWNER_HOST_ONLY'
   Mark 'OWNER_AUTOSIGN_SETUP' 'PASS'
