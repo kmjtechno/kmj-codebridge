@@ -27,7 +27,10 @@ test("P520 one-click is fixed device, pinned release and rollback-only task muta
   assert.match(source, /Start-ScheduledTask -TaskName \$TaskName/);
   assert.match(source, /Stop-ScheduledTask -TaskName \$TaskName/);
   assert.match(source, /Disable-ScheduledTask -TaskName \$TaskName/);
-  assert.match(source, /P520_ONE_CLICK_AGENT_WIRING' 'PENDING_SEPARATE_GUARDED_HANDOFF'/);
+  assert.match(
+    source,
+    /P520_ONE_CLICK_AGENT_WIRING' 'PENDING_SEPARATE_GUARDED_HANDOFF'/,
+  );
   assert.doesNotMatch(
     source,
     /Stop-Process|Restart-Service|Set-Content|Copy-Item|Move-Item|Remove-Item|Set-Acl|git\s+(reset|clean|checkout)|Invoke-WebRequest|Invoke-RestMethod/,
@@ -36,7 +39,10 @@ test("P520 one-click is fixed device, pinned release and rollback-only task muta
 
 test("P520 CMD runs only owner-reviewed one-click activation, never fresh installation", () => {
   assert.match(cmd, /fltmc >nul 2>&1/);
-  assert.match(cmd, /-File "%~dp0ONE-CLICK-P520-ACTIVATE-20261117\.ps1" -Apply/);
+  assert.match(
+    cmd,
+    /-File "%~dp0ONE-CLICK-P520-ACTIVATE-20261117\.ps1" -Apply/,
+  );
   assert.doesNotMatch(
     cmd,
     /install-windows-supervisor|P520-OWNER-DISABLED-RESUME|taskkill|schtasks|npm|git|curl|powershell.*-EncodedCommand/i,
@@ -76,7 +82,15 @@ test(
     assert.equal(parsed.status, 0, parsed.stderr || parsed.stdout);
     const checked = spawnSync(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "RemoteSigned", "-File", script, "-SelfTest"],
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "RemoteSigned",
+        "-File",
+        script,
+        "-SelfTest",
+      ],
       { encoding: "utf8" },
     );
     assert.equal(checked.status, 0, checked.stderr || checked.stdout);
