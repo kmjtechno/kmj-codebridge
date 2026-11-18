@@ -28,7 +28,9 @@ export function createVerifiedFreeCloudCodingModel({
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
       const candidates = Array.isArray(status?.approvedFreeChains)
-        ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
+        ? status.approvedFreeChains.filter(
+            (name) => typeof name === "string" && CHAIN.test(name),
+          )
         : [];
       // Proxy discovery alone is NOT a no-cost proof. Without trusted
       // account+route verification do not even claim work or read source.
