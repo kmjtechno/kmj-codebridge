@@ -35,7 +35,10 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
   assert.match(source, /cdbcdea317ba8be0a18a28abdca18f6eca94cd19/);
   assert.match(source, /OWNER-AUTOSIGN-LOCAL-ENROLL-20261118\.ps1/);
   assert.match(source, /Need \$Apply 'ONE_TIME_OWNER_POLICY_MISSING'/);
-  assert.match(source, /-STA -ExecutionPolicy RemoteSigned -File \$EnrollSource/);
+  assert.match(
+    source,
+    /-STA -ExecutionPolicy RemoteSigned -File \$EnrollSource/,
+  );
   assert.match(source, /Node24|NODE24_REQUIRED/);
   assert.doesNotMatch(
     source,
@@ -73,8 +76,14 @@ test("first-run enrollment is explicit, local-key only and fail closed", () => {
   ]) {
     assert.ok(enroll.includes(field), field);
   }
-  assert.doesNotMatch(enroll, /Start-ScheduledTask|Register-ScheduledTask|Stop-Process|Restart-Service/);
-  assert.doesNotMatch(enroll, /curl|Invoke-WebRequest|Copy-Item.*(private|public)|git push|gh api|Set-Content.*private/);
+  assert.doesNotMatch(
+    enroll,
+    /Start-ScheduledTask|Register-ScheduledTask|Stop-Process|Restart-Service/,
+  );
+  assert.doesNotMatch(
+    enroll,
+    /curl|Invoke-WebRequest|Copy-Item.*(private|public)|git push|gh api|Set-Content.*private/,
+  );
 });
 
 test(
