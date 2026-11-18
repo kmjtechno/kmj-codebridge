@@ -51,7 +51,10 @@ export function withinSourceTree(repo, candidate, platform = process.platform) {
   const root = normalize(repo);
   const file = normalize(candidate);
   const separator = win ? "\\" : "/";
-  return file === root || file.startsWith(root.endsWith(separator) ? root : root + separator);
+  return (
+    file === root ||
+    file.startsWith(root.endsWith(separator) ? root : root + separator)
+  );
 }
 
 export function assessOwnerAutoPolicy(p, now = Date.now()) {
