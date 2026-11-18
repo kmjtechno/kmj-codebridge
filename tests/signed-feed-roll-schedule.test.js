@@ -10,6 +10,10 @@ const timer = fs.readFileSync(
   "scripts/production/systemd/kmj-codebridge-signed-feed-roll.timer",
   "utf8",
 );
+const trip = fs.readFileSync(
+  "scripts/production/systemd/kmj-codebridge-signed-feed-roll-trip.service",
+  "utf8",
+);
 const publisher = fs.readFileSync(
   "scripts/production/owner_roll_signed_latest_feed_20261115.py",
   "utf8",
@@ -74,6 +78,29 @@ test("signed feed service is a hardened, fixed-path root oneshot only", () => {
   assert.doesNotMatch(
     service,
     /ExecStartPre|ExecStartPost|EnvironmentFile|WorkingDirectory|\/bin\/(?:bash|sh)|git pull|git reset|curl.*\|.*bash/,
+  );
+});
+
+test("publication failure trips only the fixed feed timer, never the agent", () => {
+  assert.equal(
+    field(service, "OnFailure"),
+    "kmj-codebridge-signed-feed-roll-trip.service",
+  );
+  assert.equal(field(trip, "Type"), "oneshot");
+  assert.equal(field(trip, "User"), "root");
+  assert.equal(field(trip, "Group"), "root");
+  assert.equal(field(trip, "ProtectSystem"), "strict");
+  assert.equal(field(trip, "NoNewPrivileges"), "true");
+  assert.equal(field(trip, "RestrictAddressFamilies"), "AF_UNIX");
+  assert.equal(field(trip, "CapabilityBoundingSet"), "");
+  assert.equal(field(trip, "AmbientCapabilities"), "");
+  assert.equal(
+    field(trip, "ExecStart"),
+    "/usr/bin/systemctl disable --now kmj-codebridge-signed-feed-roll.timer",
+  );
+  assert.doesNotMatch(
+    trip,
+    /ExecStartPre|ExecStartPost|EnvironmentFile|\/bin\/(?:sh|bash)|git pull|rm -rf|stable-update\.timer/,
   );
 });
 
