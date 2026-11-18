@@ -132,12 +132,14 @@ try{
     [string]$actionReadback[0].WorkingDirectory -ieq $Install) 'TASK_READBACK_UNVERIFIED'
   Enable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop|Out-Null
   $activated=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+  $activatedActions=@($activated.Actions)
   Need ([string]$activated.State -in @('Ready','Running') -and
     [string]$activated.Principal.RunLevel -ceq 'Limited' -and
     [string]$activated.Principal.LogonType -ceq 'Interactive' -and
-    @($activated.Actions).Count -eq 1 -and
-    [string]@($activated.Actions)[0].Execute -ieq $node -and
-    [string]@($activated.Actions)[0].Arguments -ceq $expectedArgument) 'ENABLED_TASK_READBACK_UNVERIFIED'
+    $activatedActions.Count -eq 1 -and
+    [string]$activatedActions[0].Execute -ieq $node -and
+    [string]$activatedActions[0].Arguments -ceq $expectedArgument -and
+    [string]$activatedActions[0].WorkingDirectory -ieq $Install) 'ENABLED_TASK_READBACK_UNVERIFIED'
   Mark 'OWNER_AUTOSIGN_TASK' 'ENABLED_HOURLY'
   Mark 'OWNER_AUTOSIGN_SIGNER' 'OWNER_HOST_ONLY'
   Mark 'OWNER_AUTOSIGN_SETUP' 'PASS'
