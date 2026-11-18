@@ -174,8 +174,8 @@ test("incomplete, successful, unrelated, stale or non-push runs are never execut
     const f = fixture(t, options);
     await f.worker.tick();
     assert.equal(f.journal.state.tasks.length, 0);
-  }
-});
+  },
+);
 
 test("local branch or HEAD mismatch prevents all network requests", async (t) => {
   for (const o of [
@@ -345,8 +345,9 @@ test("watch worker disabled entirely creates no timers", async () => {
   await noOp.close();
 });
 
-
-test("403 and 5xx responses preserve bounded retry cooldown without repair admission", async (t) => {
+test(
+  "403 and 5xx responses preserve bounded retry cooldown without repair admission",
+  async (t) => {
   for (const status of [403, 500, 503]) {
     const f = fixture(t, { httpFailure: status });
     await f.worker.tick();
