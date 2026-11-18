@@ -1,0 +1,148 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import { generateKeyPairSync, createHash, verify, createPublicKey } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import test from "node:test";
+import {
+  assessOwnerAutoPolicy,
+  protectedMain,
+  sourceChanged,
+  makeSignedRelease,
+} from "../scripts/production/owner-auto-sign-stable.mjs";
+
+const valid = () => ({
+  schema: 1,
+  enabled: true,
+  repo: "kmjtechno/kmj-codebridge",
+  profile: "owner-host-auto-sign-stable-only",
+  ownerConsent: "AUTO_SIGN_REVIEWED_MAIN_ONLY",
+  keyId: "kmj-release-2026",
+  approvedAt: "2026-11-18T00:00:00Z",
+  expiresAt: "2026-11-30T00:00:00Z",
+  maxSequence: 100,
+  repoPath: "/trusted/repo",
+  keyFile: "/trusted/secret/key.pem",
+  publicKeyFile: "/trusted/secret/key.pub",
+});
+
+test("owner opt-in is exact, short lived and cannot point into source repository", () => {
+  const now = Date.parse("2026-11-18T05:00:00Z");
+  assert.equal(assessOwnerAutoPolicy(valid(), now), "PASS");
+  for (const patch of [
+    { enabled: false },
+    { ownerConsent: "YES" },
+    { repo: "attacker/other" },
+    { profile: "unrestricted" },
+    { expiresAt: "2026-12-31T00:00:00Z" },
+    { approvedAt: "2026-11-19T00:00:00Z" },
+    { maxSequence: 100001 },
+    { keyFile: "/trusted/repo/evil.pem" },
+    { publicKeyFile: "/trusted/repo/evil.pem" },
+    { unrelated: true },
+  ]) {
+    assert.notEqual(
+      assessOwnerAutoPolicy({ ...valid(), ...patch }, now),
+      "PASS",
+    );
+  }
+  assert.notEqual(
+    assessOwnerAutoPolicy(valid(), Date.parse("2026-12-01T00:00:00Z")),
+    "PASS",
+  );
+});
+
+test("automatic signing requires real branch reviews, strict checks and admin enforcement", () => {
+  const good = {
+    required_pull_request_reviews: { required_approving_review_count: 1 },
+    enforce_admins: { enabled: true },
+    required_status_checks: { strict: true },
+  };
+  assert.equal(protectedMain(good), true);
+  assert.equal(protectedMain(null), false);
+  for (const drift of [
+    { required_pull_request_reviews: { required_approving_review_count: 0 } },
+    { enforce_admins: { enabled: false } },
+    { required_status_checks: { strict: false } },
+  ]) {
+    assert.equal(protectedMain({ ...good, ...drift }), false);
+  }
+});
+
+test("release metadata-only merges do not recursively generate new signed releases", () => {
+  assert.equal(sourceChanged(["releases/stable/a/release-manifest.json"]), false);
+  assert.equal(sourceChanged(["releases/stable/a/release-manifest.sig"]), false);
+  assert.equal(sourceChanged(["src/gateway.js"]), true);
+  assert.equal(
+    sourceChanged(["releases/stable/a/release-manifest.json", "src/agent.js"]),
+    true,
+  );
+  assert.equal(sourceChanged([]), false);
+  assert.equal(sourceChanged(["\u0000"]), false);
+});
+
+test("owner signer uses fixed Ed25519 key identity, signs bytes and rejects mismatched keys", () => {
+  const one = generateKeyPairSync("ed25519");
+  const two = generateKeyPairSync("ed25519");
+  const pem = one.publicKey.export({ format: "pem", type: "spki" });
+  const priv = one.privateKey.export({ format: "pem", type: "pkcs8" });
+  const fp = createHash("sha256").update(one.publicKey.export({
+    format: "der", type: "spki",
+  })).digest("hex");
+  const args = {
+    revision: "a".repeat(40),
+    version: "0.3.2",
+    sequence: 31,
+    archive: Buffer.alloc(1100, 17),
+    publicKey: pem,
+    privateKey: priv,
+    publishedAt: "2026-11-18T05:00:00.000Z",
+    expectedSpki: fp,
+  };
+  const signed = makeSignedRelease(args);
+  assert.equal(signed.manifest.sequence, 31);
+  assert.match(signed.manifest.archive, /^https:\/\/kmjtechno\.com\/codebridge\/releases\/stable\//);
+  const sig = Buffer.from(signed.signatureBytes.toString("ascii").trim(), "base64url");
+  assert.equal(sig.length, 64);
+  assert.equal(verify(null, signed.manifestBytes, createPublicKey(pem), sig), true);
+  assert.throws(
+    () => makeSignedRelease({ ...args, privateKey: two.privateKey.export({
+      format: "pem", type: "pkcs8",
+    }) }),
+    /OWNER_KEY_IDENTITY_INVALID/,
+  );
+  assert.throws(
+    () => makeSignedRelease({ ...args, expectedSpki: "0".repeat(64) }),
+    /OWNER_KEY_IDENTITY_INVALID/,
+  );
+  assert.throws(
+    () => makeSignedRelease({ ...args, sequence: 0 }),
+    /SOURCE_IDENTITY_INVALID/,
+  );
+  assert.throws(
+    () => makeSignedRelease({ ...args, archive: Buffer.alloc(9) }),
+    /ARCHIVE_OR_CLOCK_INVALID/,
+  );
+});
+
+test("owner signer CLI never signs on ambiguous or missing arguments", () => {
+  const r = spawnSync("node", ["scripts/production/owner-auto-sign-stable.mjs"],
+    { encoding: "utf8" });
+  assert.equal(r.status, 2);
+  assert.match(r.stdout, /BLOCKED:OWNER_HOST_ONCE_ONLY/);
+});
+
+test("signer never executes source script or exports private keys into GitHub", () => {
+  const source = fs.readFileSync(
+    "scripts/production/owner-auto-sign-stable.mjs", "utf8");
+  assert.match(source, /EXACT_HEAD_CI_NOT_GREEN/);
+  assert.match(source, /PROTECTED_MAIN_REVIEWS_MISSING/);
+  assert.match(source, /AUTOSIGN_PREKEY_RACE/);
+  assert.match(source, /SIGNED_HISTORY_SIGNATURE_INVALID/);
+  assert.match(source, /sourceChanged/);
+  assert.match(source, /AUTOSIGN_SINGLE_FLIGHT_OR_STALE_LOCK/);
+  assert.match(source, /owner-host-auto-sign-stable-only/);
+  assert.match(source, /GH_TOKEN/);
+  assert.doesNotMatch(source, /npm\s+run|node_modules|owner-sign-stable-20261116\.sh|curl.*\|\s*bash/);
+  assert.doesNotMatch(source, /gh\(\[.*(?:privateKey|keyFile|signingKey)/);
+  assert.doesNotMatch(source, /git\s+reset|git\s+clean|--force-with-lease|push\s+--force/);
+});
