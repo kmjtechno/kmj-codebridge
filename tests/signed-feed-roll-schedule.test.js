@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import test from "node:test";
 
 const service = fs.readFileSync(
@@ -66,10 +67,10 @@ test("signed feed service is a hardened, fixed-path root oneshot only", () => {
   })) {
     assert.equal(field(service, key), expected, key);
   }
-  assert.equal((service.match(/^ConditionPathIsRegular=/gm) ?? []).length, 2);
+  assert.equal((service.match(/^ConditionFileNotEmpty=/gm) ?? []).length, 2);
   assert.match(
     service,
-    /^ConditionPathIsRegular=\/etc\/kmj-codebridge-update\/stable-update\.json$/m,
+    /^ConditionFileNotEmpty=\/etc\/kmj-codebridge-update\/stable-update\.json$/m,
   );
   assert.match(
     service,
@@ -103,6 +104,29 @@ test("publication failure trips only the fixed feed timer, never the agent", () 
     /ExecStartPre|ExecStartPost|EnvironmentFile|\/bin\/(?:sh|bash)|git pull|rm -rf|stable-update\.timer/,
   );
 });
+
+test(
+  "native systemd unit parser accepts all three publisher unit definitions",
+  { skip: process.platform !== "linux" },
+  () => {
+    const check = spawnSync(
+      "systemd-analyze",
+      [
+        "verify",
+        "scripts/production/systemd/kmj-codebridge-signed-feed-roll.service",
+        "scripts/production/systemd/kmj-codebridge-signed-feed-roll.timer",
+        "scripts/production/systemd/kmj-codebridge-signed-feed-roll-trip.service",
+      ],
+      { encoding: "utf8", timeout: 10000 },
+    );
+    if (check.error?.code === "ENOENT") return;
+    assert.equal(check.status, 0, check.stderr || String(check.error));
+    assert.doesNotMatch(
+      check.stderr,
+      /Unknown key|Unknown lvalue|Failed to parse|Invalid argument/i,
+    );
+  },
+);
 
 test("periodic publisher is signed-only, monotonic, atomically reversible", () => {
   for (const gate of [
