@@ -58,6 +58,23 @@ jobs:
           fi
           [[ "$count" == 1 ]] || { echo 'ONE_RELEASE_PER_CHANGE_REQUIRED' >&2; exit 2; }
           [[ "$added" =~ ^[a-f0-9]{40}$ ]] || { echo 'REVISION_NOT_FULL_SHA' >&2; exit 2; }
+          if [[ "$EVENT" != workflow_dispatch ]]; then
+            # Release PRs are data-only. Never let a release metadata PR also
+            # modify the verifier, workflow, source or any other file.
+            one="releases/stable/$added/release-manifest.json"
+            two="releases/stable/$added/release-manifest.sig"
+            actual="$(git diff --name-only "$base" HEAD | sort)"
+            expected="$(printf '%s\n' "$one" "$two" | sort)"
+            [[ "$actual" == "$expected" ]] || {
+              echo 'RELEASE_ONLY_EXACT_MANIFEST_AND_SIGNATURE' >&2; exit 2;
+            }
+            for f in "$one" "$two"; do
+              action="$(git diff --name-status "$base" HEAD -- "$f" | cut -f1)"
+              [[ "$action" == A ]] || {
+                echo 'RELEASE_METADATA_MUST_BE_CREATE_ONLY' >&2; exit 2;
+              }
+            done
+          fi
           echo "revision=$added" >> "$GITHUB_OUTPUT"
       - name: Verify signed metadata and rebuild exact archive
         id: verify
