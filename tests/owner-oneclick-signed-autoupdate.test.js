@@ -18,6 +18,7 @@ test("signed one-click auto-updater requires explicit owner policy and no unsign
   assert.match(source, /AUTO_ENABLE_ROLLBACK_OWNER_REVIEW_REQUIRED/);
   assert.match(source, /SIGNED_TIMER_DISABLE_UNVERIFIED/);
   assert.match(source, /AUTO_CONFIG_BACKUP_UNVERIFIED/);
+  assert.match(source, /ACTIVE_TIMER_FEED_NOT_ROLLING/);
   assert.match(source, /AUTO_CONFIG_SHORT_WRITE/);
   assert.doesNotMatch(source, /shell=True|os\.system|sudo -|rm -rf/);
 });
@@ -42,6 +43,6 @@ test(
       { encoding: "utf8", timeout: 20000 },
     );
     assert.equal(run.status, 0, String(run.stderr || run.error).slice(-4000));
-    assert.match(run.stderr, /Ran 17 tests/);
+    assert.match(run.stderr, /Ran 18 tests/);
   },
 );
