@@ -170,6 +170,8 @@ test(
     assert.match(linux, /--property=User --value/);
     assert.match(linux, /--property=NeedDaemonReload --value/);
     assert.match(linux, /matching>1: raise SystemExit\(2\)/);
+    assert.match(linux, /except PermissionError:\n            # Unreadable PIDs/);
+    assert.match(linux, /global uniqueness unverifiable/);
     const embedded = linux.match(
       /python3 - "\$mainpid" "\$cfg" <<'PY'\n([\s\S]*?)\nPY/,
     );
