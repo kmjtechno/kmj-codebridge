@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   generateKeyPairSync,
   createHash,
@@ -15,6 +17,9 @@ import {
   makeSignedRelease,
 } from "../scripts/production/owner-auto-sign-stable.mjs";
 
+const ROOT = path.join(os.tmpdir(), "kmj-auto-sign-test-repo");
+const SECRETS = path.join(os.tmpdir(), "kmj-auto-sign-test-secrets");
+
 const valid = () => ({
   schema: 1,
   enabled: true,
@@ -25,9 +30,9 @@ const valid = () => ({
   approvedAt: "2026-11-18T00:00:00Z",
   expiresAt: "2026-11-30T00:00:00Z",
   maxSequence: 100,
-  repoPath: "/trusted/repo",
-  keyFile: "/trusted/secret/key.pem",
-  publicKeyFile: "/trusted/secret/key.pub",
+  repoPath: ROOT,
+  keyFile: path.join(SECRETS, "key.pem"),
+  publicKeyFile: path.join(SECRETS, "key.pub"),
 });
 
 test("owner opt-in is exact, short lived and cannot point into source repository", () => {
@@ -41,8 +46,8 @@ test("owner opt-in is exact, short lived and cannot point into source repository
     { expiresAt: "2026-12-31T00:00:00Z" },
     { approvedAt: "2026-11-19T00:00:00Z" },
     { maxSequence: 100001 },
-    { keyFile: "/trusted/repo/evil.pem" },
-    { publicKeyFile: "/trusted/repo/evil.pem" },
+    { keyFile: path.join(ROOT, "evil.pem") },
+    { publicKeyFile: path.join(ROOT, "evil.pem") },
     { unrelated: true },
   ]) {
     assert.notEqual(
