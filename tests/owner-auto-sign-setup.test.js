@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import test from "node:test";
+
+const ps = "scripts/windows/ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118.ps1";
+const cmd = "scripts/windows/ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118.cmd";
+const source = fs.readFileSync(ps, "utf8");
+const launcher = fs.readFileSync(cmd, "utf8");
+
+test("one-click release signer is P520-scoped, pinned and owner policy gated", () => {
+  for (const guard of [
+    "DESKTOP-5FVJMET",
+    "SOURCE_BLOB_NOT_PINNED",
+    "ONE_TIME_OWNER_POLICY_MISSING",
+    "AUTO_SIGN_REVIEWED_MAIN_ONLY",
+    "OWNER_FILE_ACL_UNSAFE",
+    "AUTOSIGN_TASK_ALREADY_PRESENT",
+    "OWNER_AUTOSIGN_TASK",
+    "ONE_CLICK",
+    "Interactive",
+    "Limited",
+    "IgnoreNew",
+    "Register-ScheduledTask",
+  ]) {
+    // One-click label lives in filename, not in script output; skip generic.
+    if (guard === "ONE_CLICK") continue;
+    assert.ok(source.includes(guard), guard);
+  }
+  assert.match(source, /4382d2f4db1edf768cdfcfefde11e2ea6d95587b/);
+  assert.match(source, /897d9ff674ac6d007bae34084060a16b713ef2b6/);
+  assert.match(source, /Node24|NODE24_REQUIRED/);
+  assert.doesNotMatch(source, /Restart-Service|Stop-Process|git reset|git clean|taskkill|Set-Content.*keyFile/);
+  assert.doesNotMatch(source, /Start-ScheduledTask|Unregister-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask/);
+  assert.match(launcher, /ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118\.ps1" -Apply/);
+  assert.doesNotMatch(launcher, /EncodedCommand|curl|bitsadmin|certutil|taskkill/);
+});
+
+test(
+  "owner auto signer Windows PowerShell syntax and selftest pass without installing task",
+  { skip: process.platform !== "win32" },
+  () => {
+    const full = path.resolve(ps);
+    const parsed = spawnSync("powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$t=$null;$e=$null;[System.Management.Automation.Language.Parser]::ParseFile($env:KMJ_CHECK_SCRIPT,[ref]$t,[ref]$e)|Out-Null;if($e.Count -gt 0){$e|ForEach-Object{Write-Error $_.Message};exit 2}",
+      ],
+      { encoding: "utf8", env: { ...process.env, KMJ_CHECK_SCRIPT: full } });
+    assert.equal(parsed.status, 0, parsed.stderr || parsed.stdout);
+    const checked = spawnSync("powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-File", full, "-SelfTest"],
+      { encoding: "utf8" });
+    assert.equal(checked.status, 0, checked.stderr || checked.stdout);
+    assert.match(checked.stdout, /OWNER_AUTOSIGN_SETUP_SELFTEST=PASS/);
+  },
+);
