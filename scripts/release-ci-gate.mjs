@@ -42,7 +42,8 @@ export function assessReleaseChecks(response, expectedSha) {
       typeof run !== "object" ||
       run.head_sha !== expectedSha ||
       run.app?.slug !== "github-actions"
-    ) return fail("CI_SOURCE_OR_APP_UNTRUSTED");
+    )
+      return fail("CI_SOURCE_OR_APP_UNTRUSTED");
     if (run.status !== "completed" || run.conclusion !== "success")
       return fail("CI_INCOMPLETE_OR_RED");
   }
@@ -78,12 +79,17 @@ async function main() {
   console.log("RELEASE_SOURCE_SHA=" + result.revision);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     await main();
   } catch (error) {
     const message = String(error?.message ?? "");
-    const code = /^[A-Z_]{4,64}$/.test(message) ? message : "CI_VERIFICATION_FAILED";
+    const code = /^[A-Z_]{4,64}$/.test(message)
+      ? message
+      : "CI_VERIFICATION_FAILED";
     console.log("RELEASE_EXACT_HEAD_CI=BLOCKED:" + code);
     process.exitCode = 2;
   }
