@@ -149,6 +149,7 @@ test("GitHub Release publication requires independent owner Ed25519 proof", () =
   assert.match(wf, /id: owner_signature/);
   assert.match(wf, /steps\.owner_signature\.outcome == 'success'/);
   assert.match(wf, /github\.event_name != 'pull_request'/);
+  assert.match(wf, /RELEASE_CHANGE_WITHOUT_NEW_MANIFEST/);
   assert.match(wf, /RELEASE_ONLY_EXACT_MANIFEST_AND_SIGNATURE/);
   assert.match(wf, /RELEASE_METADATA_MUST_BE_CREATE_ONLY/);
   assert.match(wf, /git diff --name-status/);
