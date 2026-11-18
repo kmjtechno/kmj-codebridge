@@ -347,6 +347,15 @@ def main(argv):
         return
     is_on = systemd_policy(timer, service, dev)
     if argv in ([], ["--status"]):
+        if is_on:
+            # A running timer pointed at an immutable old release is NOT
+            # functioning automatic updates. Never report false READY.
+            active_cfg = parse_config(read_root(CONFIG))
+            require(active_cfg["manifestUrl"] == FEED_MANIFEST and
+                    active_cfg["signatureUrl"] == FEED_SIG,
+                    "ACTIVE_TIMER_FEED_NOT_ROLLING")
+            signed_sequence = verify_feed(active_cfg)
+            print("SIGNED_RELEASE_FEED_SEQUENCE=" + str(signed_sequence))
         print("ONECLICK_AUTO_SIGNED=" + ("ENABLED" if is_on else "DISABLED"))
         print("AUTO_DEPLOY_SCOPE=SIGNED_AGENT_ONLY")
         print("GATEWAY_SUPERVISOR_AUTOPROMOTION=NOT_ENABLED")
