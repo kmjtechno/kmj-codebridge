@@ -28,7 +28,7 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
     if (guard === "ONE_CLICK") continue;
     assert.ok(source.includes(guard), guard);
   }
-  assert.match(source, /4382d2f4db1edf768cdfcfefde11e2ea6d95587b/);
+  assert.match(source, /7f00a624f37bbc5a492570a02070a76dd6947d74/);
   assert.match(source, /897d9ff674ac6d007bae34084060a16b713ef2b6/);
   assert.match(source, /Node24|NODE24_REQUIRED/);
   assert.doesNotMatch(
