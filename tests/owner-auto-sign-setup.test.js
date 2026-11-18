@@ -50,8 +50,16 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
   );
   assert.doesNotMatch(
     source,
-    /Start-ScheduledTask|Unregister-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask/,
+    /Start-ScheduledTask|Unregister-ScheduledTask|Set-ScheduledTask/,
   );
+  // Failed install must never leave a runnable owner-key task.
+  assert.match(source, /New-ScheduledTaskSettingsSet -Disable/);
+  assert.match(source, /\$task.State -ceq 'Disabled'/);
+  assert.match(source, /Enable-ScheduledTask -TaskName \$TaskName/);
+  assert.match(source, /ENABLED_TASK_READBACK_UNVERIFIED/);
+  assert.match(source, /if\(\$TaskOwned\)/);
+  assert.match(source, /Disable-ScheduledTask -TaskName \$TaskName/);
+  assert.match(source, /DISABLED_ON_SETUP_FAILURE/);
   assert.match(
     launcher,
     /ONE-CLICK-OWNER-AUTOSIGN-SETUP-20261118\.ps1" -Apply/,
