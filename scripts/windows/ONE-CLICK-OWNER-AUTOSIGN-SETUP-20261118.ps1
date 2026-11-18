@@ -13,7 +13,7 @@ $EnrollSource=Join-Path $PSScriptRoot 'OWNER-AUTOSIGN-LOCAL-ENROLL-20261118.ps1'
 $Signer=Join-Path $Install 'scripts\production\owner-auto-sign-stable.mjs'
 $Gate=Join-Path $Install 'scripts\release-ci-gate.mjs'
 $Policy=Join-Path $HOME '.config\kmj-codebridge\auto-sign-policy.json'
-$SignerBlob='6208d6f4b8d7fb322e3b3c74839487b808bc5ff3'
+$SignerBlob='49c2223247774f4811ffe6e62888f2d2ab259415'
 $GateBlob='897d9ff674ac6d007bae34084060a16b713ef2b6'
 $EnrollBlob='cdbcdea317ba8be0a18a28abdca18f6eca94cd19'
 function Mark([string]$n,[string]$v){Write-Output ($n+'='+$v)}
@@ -66,6 +66,13 @@ try{
     [int]$protection.required_pull_request_reviews.required_approving_review_count -ge 1 -and
     $protection.enforce_admins.enabled -eq $true -and
     $protection.required_status_checks.strict -eq $true) 'GITHUB_MAIN_REVIEW_POLICY_BLOCKED'
+  $repositoryText=(& $gh api --hostname github.com repos/kmjtechno/kmj-codebridge 2>$null)
+  Need ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(
+    [string]($repositoryText -join ''))) 'GITHUB_REPOSITORY_SETTINGS_UNAVAILABLE'
+  $repository=($repositoryText -join [Environment]::NewLine) |
+    ConvertFrom-Json -ErrorAction Stop
+  Need ($repository.allow_auto_merge -eq $true -and
+    $repository.allow_squash_merge -eq $true) 'GITHUB_REPOSITORY_AUTO_MERGE_DISABLED'
   $major=([string](& $node --version)).TrimStart('v').Split('.')[0]
   Need ($LASTEXITCODE -eq 0 -and [int]$major -ge 24) 'NODE24_REQUIRED'
   foreach($pair in @(@($Source,$SignerBlob),@($SourceGate,$GateBlob),@($EnrollSource,$EnrollBlob))){
