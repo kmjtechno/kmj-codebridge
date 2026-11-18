@@ -79,6 +79,7 @@ export function createVerifiedFreeCloudCodingModel({
         result?.actualUpstreamModel !== null ||
         typeof result?.response !== "string" ||
         result.response.trim().length === 0 ||
+        result.response.length > 1_048_576 ||
         result.response.includes("\0")
       )
         throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
