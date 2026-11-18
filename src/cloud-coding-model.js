@@ -77,6 +77,8 @@ export function createVerifiedFreeCloudCodingModel({
         result?.billingVerified !== false ||
         result?.paidInference !== null ||
         result?.actualUpstreamModel !== null ||
+        result?.cloudFallback !== null ||
+        result?.outputIsUntrusted !== true ||
         typeof result?.response !== "string" ||
         result.response.trim().length === 0 ||
         result.response.length > 1_048_576 ||
