@@ -22,6 +22,21 @@ scripts/production/owner_oneclick_signed_autoupdate.py supports only:
 - --disable --confirm-signed-auto-owner-go
 
 It accepts no caller path, URL, channel, unit or executable.
+
+An active systemd timer is **not** sufficient to claim a working updater.
+Read-only status for an active timer checks that both URLs reference the pinned
+rolling `stable/latest` feed, downloads the exact pair, and verifies the
+owner's Ed25519 signature before reporting `ONECLICK_AUTO_SIGNED=ENABLED`.
+An invalid or unreachable signed feed returns a bounded blocker instead of
+an optimistic success. Disabling the timer also requires an exact systemd
+readback (`UnitFileState=disabled`, `ActiveState=inactive`); a successful
+`systemctl` return code alone does not prove a disabled timer.
+
+When first switching the updater config to the signed rolling feed, the
+helper now persists its protected rollback backup with a full-write loop,
+file fsync, **parent-directory fsync**, and byte-for-byte readback before
+replacing the original config. A pre-existing or partial backup is never
+silently deleted; owner reconciliation is required before another attempt.
 Before enable, it enforces a root-owned approval file, fixed stable-agent
 scope, pinned owner public SPKI, signed _latest-feed_ bytes, precise
 config and service unit policy, and no development-timer conflict. It
