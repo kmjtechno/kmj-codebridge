@@ -71,7 +71,6 @@ test("one-click release signer is P520-scoped, pinned and owner policy gated", (
   );
 });
 
-
 test("P520 installer explicitly protects installed leaf files and fail-closed recovers only an exact partial tree", () => {
   assert.match(source, /OWNER_AUTOSIGN_PARTIAL.*EXACT_LAYOUT_RECOVERY/);
   assert.match(source, /PARTIAL_INSTALL_LAYOUT_UNTRUSTED/);
@@ -85,8 +84,14 @@ test("P520 installer explicitly protects installed leaf files and fail-closed re
   assert.match(source, /OwnerAcl \$f \$sid/);
   assert.match(source, /icacls\.exe \$f \/inheritance:r \/grant:r/);
   assert.doesNotMatch(source, /'\/T','\/Q'/);
-  assert.ok(source.indexOf("OWNER_AUTOSIGN_INSTALLED_FILE_ACL") < source.indexOf("INSTALLED_SOURCE_HASH_DRIFT"));
-  assert.ok(source.indexOf("AUTOSIGN_TASK_ALREADY_PRESENT") < source.indexOf("EXACT_LAYOUT_RECOVERY"));
+  assert.ok(
+    source.indexOf("OWNER_AUTOSIGN_INSTALLED_FILE_ACL") <
+      source.indexOf("INSTALLED_SOURCE_HASH_DRIFT"),
+  );
+  assert.ok(
+    source.indexOf("AUTOSIGN_TASK_ALREADY_PRESENT") <
+      source.indexOf("EXACT_LAYOUT_RECOVERY"),
+  );
 });
 
 test("first-run enrollment is explicit, local-key only and fail closed", () => {
