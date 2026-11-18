@@ -126,10 +126,64 @@ if not isinstance(projects,list) or not any(
 ): raise SystemExit(2)
 PY
 }
+# A healthy systemd state alone is not proof of the enrolled CodeBridge process.
+# Require this fixed service, unmodified unit identity, private owner, and a
+# unique Node agent PID bound to this exact existing configuration.
+proof_existing_agent() {
+  local account fragment mainpid workdir start needreload
+  account="$(systemctl show "$unit" --property=User --value --no-pager)" ||
+    return 1
+  fragment="$(systemctl show "$unit" --property=FragmentPath --value --no-pager)" ||
+    return 1
+  mainpid="$(systemctl show "$unit" --property=MainPID --value --no-pager)" ||
+    return 1
+  workdir="$(systemctl show "$unit" --property=WorkingDirectory --value --no-pager)" ||
+    return 1
+  start="$(systemctl show "$unit" --property=ExecStart --value --no-pager)" ||
+    return 1
+  needreload="$(systemctl show "$unit" --property=NeedDaemonReload --value --no-pager)" ||
+    return 1
+  [[ -n "$account" && "$account" != root &&
+     "$account" == "$(stat -c '%U' -- "$cfg")" ]] || return 1
+  [[ "$fragment" == "/etc/systemd/system/$unit" &&
+     -f "$fragment" && ! -L "$fragment" ]] || return 1
+  [[ "$workdir" == "/opt/kmj-codebridge-agent" &&
+     "$start" == *"/src/cli.js"* && "$start" == *"$cfg"* &&
+     "$needreload" == no && "$mainpid" =~ ^[1-9][0-9]*$ ]] || return 1
+  python3 - "$mainpid" "$cfg" <<'PY'
+import os,sys
+pid=int(sys.argv[1])
+config=sys.argv[2]
+def is_agent(raw):
+    args=[arg for arg in raw.split(b"\0") if arg]
+    return (len(args)>=4 and args[-1] == os.fsencode(config) and
+            args[-2] == b"agent" and
+            args[-3].endswith(b"/src/cli.js"))
+try:
+    with open(f"/proc/{pid}/cmdline","rb") as fh:
+        if not is_agent(fh.read(8192)): raise SystemExit(2)
+    matching=0
+    for entry in os.scandir("/proc"):
+        if not entry.name.isdecimal(): continue
+        try:
+            with open(f"/proc/{entry.name}/cmdline","rb") as fh:
+                if is_agent(fh.read(8192)):
+                    matching+=1
+                    if matching>1: raise SystemExit(2)
+        except (FileNotFoundError,ProcessLookupError,PermissionError):
+            # Root may race with an exiting process; no extra process counted.
+            continue
+    if matching!=1: raise SystemExit(2)
+except (OSError,ValueError):
+    raise SystemExit(2)
+PY
+}
+
 if [[ -e "$cfg" ]]; then
   command -v python3 >/dev/null || fail PYTHON_REQUIRED_FOR_EXISTING_ENROLLMENT
   config_matches || fail EXISTING_ENROLLMENT_SCOPE_MISMATCH
   if systemctl is-active --quiet "$unit"; then
+    proof_existing_agent || fail EXISTING_AGENT_IDENTITY_UNVERIFIED
     mark KMJ_UNIVERSAL_LINUX_MODE EXISTING_ACTIVE_NO_MUTATION
     mark KMJ_UNIVERSAL_LINUX_AGENT LOCAL_ACTIVE
     mark KMJ_DEVICE_ONE_CLICK PASS
@@ -161,6 +215,7 @@ env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin HOME=/root USER=root LANG=C.UTF-8 \
 command -v python3 >/dev/null || fail POSTINSTALL_PYTHON_MISSING
 config_matches || fail POSTINSTALL_SCOPE_MISMATCH
 systemctl is-active --quiet "$unit" || fail POSTINSTALL_SERVICE_NOT_ACTIVE
+proof_existing_agent || fail POSTINSTALL_AGENT_IDENTITY_UNVERIFIED
 mark KMJ_UNIVERSAL_LINUX_AGENT LOCAL_ACTIVE
 mark KMJ_DEVICE_ONE_CLICK PASS
 mark KMJ_ACCOUNT_READY CHECK_AUTHENTICATED_CONNECTION_OVERVIEW
