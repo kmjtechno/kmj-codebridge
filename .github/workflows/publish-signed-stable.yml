@@ -54,7 +54,8 @@ jobs:
           fi
           count=$(printf '%s' "$added" | grep -c . || true)
           if [[ "$count" == 0 ]]; then
-            echo 'NEW_RELEASE_FOLDER=NONE'; echo "revision=" >> "$GITHUB_OUTPUT"; exit 0
+            echo 'RELEASE_CHANGE_WITHOUT_NEW_MANIFEST' >&2
+            exit 2
           fi
           [[ "$count" == 1 ]] || { echo 'ONE_RELEASE_PER_CHANGE_REQUIRED' >&2; exit 2; }
           [[ "$added" =~ ^[a-f0-9]{40}$ ]] || { echo 'REVISION_NOT_FULL_SHA' >&2; exit 2; }
