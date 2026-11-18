@@ -49,6 +49,24 @@ when reading the export under work/qa, **do not bypass its project
 allowlist**; use an existing authorized owner evidence channel instead.
 No generic root-shell capability is granted by these scripts.
 
+### Automated GitHub Release signature admission
+
+Before the immutable GitHub Release publish action, the fixed
+publish-signed-stable workflow must run
+scripts/verify-signed-owner-release.mjs against the exact release SHA.
+The verifier reads the existing owner-supplied PUBLIC PEM fixture, pins the
+actual Ed25519 SPKI SHA-256, verifies detached signature against the exact
+manifest file bytes and checks identity, archive URL, version, sequence and
+key ID. It does not fetch a key or permit the newly proposed manifest to
+self-select its trust. Missing/tampered/invalid owner signatures now block
+the GitHub Release creation step, even if the archive rebuilt correctly.
+
+This is an **authenticity gate**, not a claim that an owner private key is
+available to GitHub, that the release passed live VPS signing-key custody
+review, or that agents safely installed it. Those production gates remain
+independent. The public key fixture is not secret, but its SHA-256 pin
+must never be changed merely to make a release PR green.
+
 ### Merge / deployment rules
 
 - PR #944 is about requiring a real signed latest release catalog, not
