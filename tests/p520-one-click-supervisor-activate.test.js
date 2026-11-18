@@ -23,6 +23,8 @@ test("P520 one-click is fixed device, pinned release and rollback-only task muta
   assert.match(source, /LIVE_AGENT_NOT_UNIQUE/);
   assert.match(source, /AGENT_TASK_OWNER_MISMATCH/);
   assert.match(source, /PERSISTENT_SUPERVISOR_NOT_UNIQUE/);
+  assert.match(source, /HMAC_PROBE_SOURCE_MISMATCH/);
+  assert.match(source, /fe58effe8c0c0129922492dfa2c40dddd144ed46/);
   assert.match(source, /Enable-ScheduledTask -TaskName \$TaskName/);
   assert.match(source, /Start-ScheduledTask -TaskName \$TaskName/);
   assert.match(source, /Stop-ScheduledTask -TaskName \$TaskName/);
