@@ -257,14 +257,19 @@ def sync_private_config_parent():
         os.close(fd)
 
 
-def atomic_replace_config(before, obj):
-    # Never alter any field except the two signed feed URLs.
+def prepared_feed_config(obj):
+    # Deterministic intended bytes allow recovery even if the swap succeeds
+    # but post-rename fsync or independent readback throws before return.
     updated = dict(obj, manifestUrl=FEED_MANIFEST, signatureUrl=FEED_SIG)
     require({k: updated[k] for k in obj if k not in
              ("manifestUrl", "signatureUrl")} ==
             {k: obj[k] for k in obj if k not in
              ("manifestUrl", "signatureUrl")}, "CONFIG_UNRELATED_CHANGE")
-    new = (json.dumps(updated, indent=2) + "\n").encode()
+    return (json.dumps(updated, indent=2) + "\n").encode()
+
+
+def atomic_replace_config(before, obj):
+    new = prepared_feed_config(obj)
     require(not os.path.lexists(BACKUP), "OWNER_CONFIG_BACKUP_EXISTS")
     trusted_ancestors(CONFIG)
     fd = os.open(BACKUP, os.O_WRONLY | os.O_CREAT | os.O_EXCL |
@@ -369,24 +374,44 @@ def main(argv):
         require(cfg["manifestUrl"] == FEED_MANIFEST, "TIMER_ACTIVE_WITH_STATIC_CONFIG")
         print("ONECLICK_AUTO_SIGNED=ALREADY_ENABLED")
         return
-    changed = False
-    written = None
+    # Compute intended bytes before the transaction. The function that
+    # writes them may throw AFTER the atomic rename but BEFORE returning.
+    migration = cfg["manifestUrl"] == OLD_MANIFEST
+    planned = prepared_feed_config(cfg) if migration else None
     try:
-        if cfg["manifestUrl"] == OLD_MANIFEST:
-            written = atomic_replace_config(original, cfg)
-            changed = True
+        if migration:
+            atomic_replace_config(original, cfg)
         command(SYSTEMCTL, "enable", "--now", SIGNED_TIMER, timeout=30)
         fresh = status(SIGNED_TIMER)
-        require(fresh["ActiveState"] == "active" and
+        require(fresh["LoadState"] == "loaded" and
+                fresh["FragmentPath"] ==
+                "/etc/systemd/system/" + SIGNED_TIMER and
+                fresh["NeedDaemonReload"] == "no" and
+                fresh["ActiveState"] == "active" and
                 fresh["UnitFileState"] in ("enabled", "enabled-runtime"),
                 "SIGNED_TIMER_ENABLE_UNVERIFIED")
-    except Blocked:
-        # Fail closed. Try to stop the timer before restoring the original
-        # static release URLs. Never claim success if recovery was incomplete.
+    except (Blocked, OSError):
+        # Even a post-rename fsync or readback failure may leave the new
+        # config active without atomic_replace_config having returned.
+        # Refuse to overwrite unknown third-party bytes.
         try:
             command(SYSTEMCTL, "disable", "--now", SIGNED_TIMER, timeout=25)
-            if changed: rollback_config(original, written)
-        except Blocked:
+            disabled = status(SIGNED_TIMER)
+            require(disabled["LoadState"] == "loaded" and
+                    disabled["FragmentPath"] ==
+                    "/etc/systemd/system/" + SIGNED_TIMER and
+                    disabled["NeedDaemonReload"] == "no" and
+                    disabled["ActiveState"] == "inactive" and
+                    disabled["UnitFileState"] == "disabled",
+                    "SIGNED_TIMER_ROLLBACK_UNVERIFIED")
+            if migration:
+                live = read_root(CONFIG)
+                if live == planned:
+                    rollback_config(original, planned)
+                else:
+                    require(live == original,
+                            "CONFIG_CHANGED_ROLLBACK_REFUSED")
+        except (Blocked, OSError):
             raise Blocked("AUTO_ENABLE_ROLLBACK_OWNER_REVIEW_REQUIRED") from None
         raise
     print("ONECLICK_AUTO_SIGNED=ENABLED")
