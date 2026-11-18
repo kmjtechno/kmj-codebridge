@@ -126,7 +126,8 @@ try{
   }
   $json=$p|ConvertTo-Json -Depth 4
   $utf8=New-Object System.Text.UTF8Encoding($false)
-  $policyFile=New-Object IO.FileStream($Policy,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+  $policyFile=[IO.FileStream]::new(
+    $Policy,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
   try {
     $bytes=$utf8.GetBytes($json+[Environment]::NewLine)
     $policyFile.Write($bytes,0,$bytes.Length)
