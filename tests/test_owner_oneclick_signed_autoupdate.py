@@ -216,6 +216,61 @@ class SignedOneClickTests(unittest.TestCase):
             mod.main([])
             command.assert_not_called()
 
+    def test_disable_rechecks_exact_timer_state_after_successful_systemctl(self):
+        timer, service, dev = unit_fixtures()
+        after = dict(timer, UnitFileState="disabled",
+                     ActiveState="inactive")
+        with patch.object(mod.os, "geteuid", return_value=0), \
+             patch.object(mod.socket, "gethostname", return_value="KMJ-elite"), \
+             patch.object(mod, "read_root", return_value=b"unused"), \
+             patch.object(mod, "owner_approval"), \
+             patch.object(mod, "status",
+                          side_effect=[timer, service, dev, after]) as status, \
+             patch.object(mod, "command") as command:
+            mod.main(["--disable", mod.CONFIRM])
+            self.assertEqual(status.call_count, 4)
+            command.assert_called_once_with(
+                mod.SYSTEMCTL, "disable", "--now", mod.SIGNED_TIMER,
+                timeout=25)
+        for wrong in (
+            dict(after, UnitFileState="enabled"),
+            dict(after, ActiveState="active"),
+            dict(after, LoadState="not-found"),
+            dict(after, NeedDaemonReload="yes"),
+        ):
+            with self.subTest(wrong=wrong), \
+                 patch.object(mod.os, "geteuid", return_value=0), \
+                 patch.object(mod.socket, "gethostname",
+                              return_value="KMJ-elite"), \
+                 patch.object(mod, "read_root", return_value=b"unused"), \
+                 patch.object(mod, "owner_approval"), \
+                 patch.object(mod, "status",
+                              side_effect=[timer, service, dev, wrong]), \
+                 patch.object(mod, "command"):
+                with self.assertRaisesRegex(
+                    mod.Blocked, "SIGNED_TIMER_DISABLE_UNVERIFIED"
+                ):
+                    mod.main(["--disable", mod.CONFIRM])
+
+    def test_atomic_backup_writer_retries_short_writes_and_blocks_zero(self):
+        received = bytearray()
+        def short_write(fd, chunk):
+            self.assertEqual(fd, 123)
+            n = min(2, len(chunk))
+            received.extend(chunk[:n])
+            return n
+        with patch.object(mod.os, "write", side_effect=short_write):
+            mod.write_exact(123, b"abcdef")
+        self.assertEqual(bytes(received), b"abcdef")
+        with patch.object(mod.os, "write", side_effect=[1, 0]):
+            with self.assertRaisesRegex(
+                mod.Blocked, "AUTO_CONFIG_SHORT_WRITE"
+            ):
+                mod.write_exact(123, b"abc")
+        source = SRC.read_text()
+        self.assertIn("sync_private_config_parent()", source)
+        self.assertIn('read_root(BACKUP) == before', source)
+
     def test_declines_automatic_activation_of_unsigned_builds(self):
         source = SRC.read_text()
         self.assertIn("UNSIGNED_GITHUB_MERGE_AUTOPROMOTION=DENIED", source)
