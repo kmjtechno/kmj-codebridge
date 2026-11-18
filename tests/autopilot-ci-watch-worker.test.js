@@ -345,26 +345,27 @@ test("watch worker disabled entirely creates no timers", async () => {
   await noOp.close();
 });
 
-test(
-  "403 and 5xx responses preserve bounded retry cooldown without repair admission",
-  async (t) => {
-    for (const status of [403, 500, 503]) {
-      const f = fixture(t, { httpFailure: status });
-      await f.worker.tick();
-      await f.worker.tick();
-      assert.equal(
-        f.calls.length,
-        1,
-        `HTTP ${status} must not trigger a retry burst`,
-      );
-      assert.equal(f.journal.state.tasks.length, 0);
-      f.advance(899999);
-      await f.worker.tick();
-      assert.equal(f.calls.length, 1);
-      f.advance(1);
-      await f.worker.tick();
-      assert.equal(f.calls.length, 2, `HTTP ${status} retries only after cooldown`);
-      assert.equal(f.journal.state.tasks.length, 0);
-    }
-  },
-);
+test("403 and 5xx responses preserve bounded retry cooldown without repair admission", async (t) => {
+  for (const status of [403, 500, 503]) {
+    const f = fixture(t, { httpFailure: status });
+    await f.worker.tick();
+    await f.worker.tick();
+    assert.equal(
+      f.calls.length,
+      1,
+      `HTTP ${status} must not trigger a retry burst`,
+    );
+    assert.equal(f.journal.state.tasks.length, 0);
+    f.advance(899999);
+    await f.worker.tick();
+    assert.equal(f.calls.length, 1);
+    f.advance(1);
+    await f.worker.tick();
+    assert.equal(
+      f.calls.length,
+      2,
+      `HTTP ${status} retries only after cooldown`,
+    );
+    assert.equal(f.journal.state.tasks.length, 0);
+  }
+});
