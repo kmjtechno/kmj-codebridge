@@ -108,6 +108,43 @@ test(
 );
 
 test(
+  "Linux unique native agent proof rejects wrong config, service and executable",
+  { skip: process.platform === "win32" },
+  () => {
+    assert.match(linux, /EXISTING_AGENT_IDENTITY_UNVERIFIED/);
+    assert.match(linux, /POSTINSTALL_AGENT_IDENTITY_UNVERIFIED/);
+    assert.match(linux, /--property=MainPID --value/);
+    assert.match(linux, /--property=ExecStart --value/);
+    assert.match(linux, /--property=User --value/);
+    assert.match(linux, /--property=NeedDaemonReload --value/);
+    assert.match(linux, /matching>1: raise SystemExit\(2\)/);
+    const embedded = linux.match(
+      /python3 - "\$mainpid" "\$cfg" <<'PY'\n([\s\S]*?)\nPY/,
+    );
+    assert.ok(embedded, "missing exact native PID verifier");
+    const helpers = embedded[1].match(/def is_agent\(raw\):\n[\s\S]*?(?=\ntry:)/);
+    assert.ok(helpers, "missing native command identity validator");
+    const python = [
+      "import os",
+      helpers[0],
+      "def pack(*items): return b'\\0'.join(i.encode() for i in items)+b'\\0'",
+      "node='/opt/kmj-codebridge-node/bin/node'",
+      "entry='/opt/kmj-codebridge-agent/src/cli.js'",
+      "cfg='/etc/kmj-codebridge/agent.json'",
+      "assert is_agent(pack(node,entry,'agent',cfg))",
+      "assert not is_agent(pack(node,entry,'gateway',cfg))",
+      "assert not is_agent(pack(node,entry,'agent','/etc/foreign/agent.json'))",
+      "assert not is_agent(pack(node,'/tmp/rogue.js','agent',cfg))",
+      "assert not is_agent(pack(node,entry,'agent',cfg,'extra'))",
+    ].join("\n");
+    const proof = spawnSync("python3", ["-c", python], {
+      encoding: "utf8",
+    });
+    assert.equal(proof.status, 0, proof.stderr);
+  },
+);
+
+test(
   "Windows universal pairing native selftest passes before any owner enrollment",
   { skip: process.platform !== "win32" },
   () => {
