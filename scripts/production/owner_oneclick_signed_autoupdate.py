@@ -239,6 +239,24 @@ if(pub.asymmetricKeyType!=='ed25519'||fp!==x.fp||sig.length!==64||
     return m["sequence"]
 
 
+def write_exact(fd, data):
+    offset = 0
+    while offset < len(data):
+        n = os.write(fd, data[offset:])
+        require(n > 0, "AUTO_CONFIG_SHORT_WRITE")
+        offset += n
+
+
+def sync_private_config_parent():
+    # Both the protected backup and config replacement must survive a crash.
+    fd = os.open(CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY |
+                 os.O_NOFOLLOW | os.O_CLOEXEC)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 def atomic_replace_config(before, obj):
     # Never alter any field except the two signed feed URLs.
     updated = dict(obj, manifestUrl=FEED_MANIFEST, signatureUrl=FEED_SIG)
@@ -253,26 +271,25 @@ def atomic_replace_config(before, obj):
                  os.O_NOFOLLOW | os.O_CLOEXEC, 0o600)
     try:
         os.fchmod(fd, 0o600)
-        os.write(fd, before)
+        write_exact(fd, before)
         os.fsync(fd)
     finally:
         os.close(fd)
+    # A durable backup is a prerequisite to touching the live config.
+    sync_private_config_parent()
+    require(read_root(BACKUP) == before, "AUTO_CONFIG_BACKUP_UNVERIFIED")
     # This check prevents overwriting an administrator's concurrent change.
     require(read_root(CONFIG) == before, "CONFIG_CONCURRENT_CHANGE")
     fd, path = tempfile.mkstemp(prefix=".stable-update-feed-", dir=CONFIG.parent)
     try:
         os.fchmod(fd, 0o600)
-        os.write(fd, new)
+        write_exact(fd, new)
         os.fsync(fd)
         os.close(fd)
         fd = -1
         require(read_root(CONFIG) == before, "CONFIG_CONCURRENT_CHANGE")
         os.replace(path, CONFIG)
-        dirfd = os.open(CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(dirfd)
-        finally:
-            os.close(dirfd)
+        sync_private_config_parent()
     finally:
         if fd >= 0:
             os.close(fd)
@@ -289,16 +306,12 @@ def rollback_config(before, written):
     fd, path = tempfile.mkstemp(prefix=".stable-update-restore-", dir=CONFIG.parent)
     try:
         os.fchmod(fd, 0o600)
-        os.write(fd, before)
+        write_exact(fd, before)
         os.fsync(fd)
         os.close(fd)
         fd = -1
         os.replace(path, CONFIG)
-        dirfd = os.open(CONFIG.parent, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(dirfd)
-        finally:
-            os.close(dirfd)
+        sync_private_config_parent()
     finally:
         if fd >= 0: os.close(fd)
         if os.path.lexists(path): os.unlink(path)
@@ -320,6 +333,16 @@ def main(argv):
         owner_approval()
         require(timer["LoadState"] == "loaded", "SIGNED_TIMER_MISSING")
         command(SYSTEMCTL, "disable", "--now", SIGNED_TIMER, timeout=25)
+        # systemctl exit 0 is not proof that a timer stopped or stayed disabled.
+        # Fail closed rather than reporting a false DISABLED state.
+        after = status(SIGNED_TIMER)
+        require(after["LoadState"] == "loaded" and
+                after["FragmentPath"] ==
+                "/etc/systemd/system/" + SIGNED_TIMER and
+                after["NeedDaemonReload"] == "no" and
+                after["ActiveState"] == "inactive" and
+                after["UnitFileState"] == "disabled",
+                "SIGNED_TIMER_DISABLE_UNVERIFIED")
         print("ONECLICK_AUTO_SIGNED=DISABLED")
         return
     is_on = systemd_policy(timer, service, dev)
