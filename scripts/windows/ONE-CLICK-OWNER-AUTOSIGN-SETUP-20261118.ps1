@@ -150,9 +150,15 @@ try{
     OwnerAcl $dir $sid
   }
   foreach($f in @($Signer,$Gate)){
-    Need (FileSafe $f) 'INSTALL_FILE_UNTRUSTED'
+    # Directory enumeration reads the entry without requiring the leaf
+    # READ_DATA permission (which the defective prior install removed).
+    $leaf=@(Get-ChildItem -LiteralPath (Split-Path -Parent $f) -Force -ErrorAction Stop |
+      Where-Object { $_.FullName -ieq $f })
+    Need ($leaf.Count -eq 1 -and -not $leaf[0].PSIsContainer -and
+      ($leaf[0].Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'INSTALL_FILE_UNTRUSTED'
     & icacls.exe $f /inheritance:r /grant:r ('*'+$sid+':F') '*S-1-5-18:F' '*S-1-5-32-544:F' 1>$null
     Need ($LASTEXITCODE -eq 0) 'INSTALL_FILE_ACL_FAILED'
+    Need (FileSafe $f) 'INSTALL_FILE_ACL_READBACK_FAILED'
     OwnerAcl $f $sid
   }
   Mark 'OWNER_AUTOSIGN_INSTALLED_FILE_ACL' 'PASS'
