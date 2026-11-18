@@ -369,3 +369,23 @@ test("unsafe clock and cooldown overflow fail closed without GitHub calls", asyn
   await overflow.worker.tick();
   assert.equal(overflow.calls.length, 2, "safe clock resumes polling");
 });
+
+test("invalid clock between ticks preserves cooldown and exact-SHA dedup", async (t) => {
+  const f = fixture(t);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 1);
+
+  f.setClock(Number.NaN);
+  await f.worker.tick();
+  f.setClock(Infinity);
+  await f.worker.tick();
+  f.setClock(1000000);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2, "invalid samples cannot bypass cooldown");
+
+  f.advance(900000);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 4, "polling resumes after full cooldown");
+  assert.equal(f.journal.state.tasks.length, 1, "repair stays single-flight");
+});
