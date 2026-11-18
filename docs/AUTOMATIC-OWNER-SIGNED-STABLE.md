@@ -25,13 +25,21 @@ PowerShell command for each release:
 6. Sign the immutable manifest and create a reviewable release PR
    automatically. An ambiguous post-sign outcome leaves a sticky lock,
    not an unattended retry.
-7. After independent release PR review/merge, the existing GitHub workflow
+7. When repository `Allow auto-merge` and squash merges are enabled,
+   the signer asks GitHub to queue its signed PR for `--auto --squash`.
+   GitHub must still obtain independent required reviewer approval and all
+   required status checks before automatically merging; no `--admin`.
+   The signer fails BEFORE key use if this repository option is disabled.
+8. After the protected automatic merge, the existing GitHub workflow
    publishes the signed immutable GitHub Release automatically. The
    separately reviewed Elite signed-feed publisher and agent auto-updater
    can then safely publish/consume it when independently activated.
 
-**Signing and release PR creation are automatic; PR review/merge remains a
-separate security gate.**
+**Signing, PR creation and post-review merge are automatic; independent
+approval remains a human security gate.** At audit time this repository
+reports `allow_auto_merge=false`; its owner must turn on
+**Settings > General > Pull Requests > Allow auto-merge** once. Never remove
+the independent review rule to obtain automatic merging.
 
 **Key custody trade-off:** unattended signing needs the protected owner key
 to be accessible to the owner-host process during a scheduled run. A truly
