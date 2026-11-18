@@ -27,10 +27,7 @@ test("signed feed publisher timer is opt-in, hourly and fixed to the reviewed un
   assert.equal(field(timer, "OnCalendar"), "hourly");
   assert.equal(field(timer, "RandomizedDelaySec"), "5min");
   assert.equal(field(timer, "Persistent"), "true");
-  assert.equal(
-    field(timer, "Unit"),
-    "kmj-codebridge-signed-feed-roll.service",
-  );
+  assert.equal(field(timer, "Unit"), "kmj-codebridge-signed-feed-roll.service");
   assert.equal(field(timer, "WantedBy"), "timers.target");
   assert.doesNotMatch(
     timer,
@@ -65,10 +62,7 @@ test("signed feed service is a hardened, fixed-path root oneshot only", () => {
   })) {
     assert.equal(field(service, key), expected, key);
   }
-  assert.equal(
-    (service.match(/^ConditionPathIsRegular=/gm) ?? []).length,
-    2,
-  );
+  assert.equal((service.match(/^ConditionPathIsRegular=/gm) ?? []).length, 2);
   assert.match(
     service,
     /^ConditionPathIsRegular=\/etc\/kmj-codebridge-update\/stable-update\.json$/m,
