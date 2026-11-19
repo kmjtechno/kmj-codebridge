@@ -115,13 +115,24 @@ export function createVerifiedFreeCloudCodingModel({
         result.response.includes("\0")
       )
         throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
-      // Untrusted result getters may revoke consent during validation. Recheck
-      // immediately before releasing any patch to the caller.
+      // Snapshot the untrusted response and flags exactly once. A getter may
+      // revoke consent or return different content on subsequent reads.
+      let response, hitTokenLimit, truncated;
+      try {
+        response = result.response;
+        hitTokenLimit = result.hitTokenLimit === true;
+        truncated = result.truncated === true;
+      } catch {
+        throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
+      }
+      if (typeof response !== "string" || !response.trim() ||
+          response.length > 1_048_576 || response.includes("\\0"))
+        throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
       if (!approved()) deny();
       return {
-        response: result.response,
-        hitTokenLimit: result.hitTokenLimit === true,
-        truncated: result.truncated === true,
+        response,
+        hitTokenLimit,
+        truncated,
         modelUsage: cloudCodingReceipt(model),
       };
     },
