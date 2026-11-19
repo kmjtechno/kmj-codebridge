@@ -76,6 +76,16 @@ test(
           ? "P520_V2_INVENTORY=BLOCKED_SOURCE_SYNTAX"
           : "P520_V2_INVENTORY=BLOCKED_NO_READONLY_MARKER");
     console.log(classified);
+    // The connected CodeBridge agent is intentionally NOT the P520 key owner.
+    // Its protected private-directory ACL refusal is an expected safety boundary,
+    // NOT proof of candidate presence, image admission or a physical restore.
+    if (classified === "P520_V2_INVENTORY=BLOCKED_PRIVATE_ACL_INVALID") {
+      assert.equal(r.status, 2, "P520_OWNER_ACL_DENIAL_EXIT_NOT_FAIL_CLOSED");
+      assert.ok(rows.includes("P520_V2_PHYSICAL_PG_UPLOADS_RESTORE=NOT_EXECUTED"));
+      assert.ok(rows.includes("PRODUCTION_APPROVAL=NOT_GRANTED"));
+      console.log("P520_V2_OWNER_SESSION_REQUIRED=PASS_FAIL_CLOSED");
+      return;
+    }
     const safeMarkers = [
       "P520_V2_CANDIDATE_SHA=",
       "P520_V2_CIPHER=",
