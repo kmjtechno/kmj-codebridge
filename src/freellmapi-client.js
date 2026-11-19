@@ -134,6 +134,10 @@ export function createFreeLlmApiClient({
     async status() {
       const res = await readCatalogRows();
       const ids = res.data.map((m) => m.id);
+      // Duplicate advertised IDs make chain discovery ambiguous. Reject the
+      // entire catalog rather than silently choosing one upstream route.
+      if (new Set(ids).size !== ids.length)
+        fail("FREELLMAPI_BAD_RESPONSE");
       return {
         available: true,
         provider: "freellmapi-loopback",
