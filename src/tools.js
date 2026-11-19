@@ -29,6 +29,7 @@ import { selectSkillPacks } from "./skill-packs.js";
 import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
 import { buildRoutingInventory } from "./model-inventory.js";
+import { BrowserGrantRegistry } from "./browser-grants.js";
 import { planHyperSpeed } from "./hyperspeed-plan.js";
 import { planLargePrompt } from "./large-prompt-plan.js";
 import { buildProjectProgress } from "./project-progress.js";
@@ -661,6 +662,7 @@ export const FAST_READ_TOOLS = [
   "search_code",
   "skill_recommendations",
   "model_route_plan",
+  "browser_grant_status",
   "read_file",
   "read_file_tail",
   "read_file_range",
@@ -1653,6 +1655,13 @@ export const definitions = {
     },
     access: "write",
   },
+  browser_grant_status: {
+    title: "Browser local grant status",
+    description:
+      "Read-only list of active in-memory browser grants for this device/project (origin, scopes, expiry). Grants can only be issued by the trusted host, never through MCP: this tool cannot create, extend or use a grant and launches no browser. An empty list means no browser action is authorized.",
+    input: { ...scoped },
+    access: "read",
+  },
   skill_recommendations: {
     title: "Recommend engineering skill packs",
     description:
@@ -2323,6 +2332,7 @@ export function createDispatcher(
       { ...p, files: new ProjectFiles(p.root) },
     ]),
   );
+  const browserGrants = new BrowserGrantRegistry();
   let freeLlmApi;
   const freeRouter = () => (freeLlmApi ??= freeLlmApiFactory());
   let localModel;
@@ -3360,6 +3370,21 @@ export function createDispatcher(
       return {
         ...planSmartModelRoute({ models, task: a.task, state: a.quotaState }),
         inventory,
+      };
+    }
+    if (name === "browser_grant_status") {
+      const grants = browserGrants.list({
+        tenant: config.tenant,
+        device: config.id,
+        project: p.id,
+      });
+      return {
+        device: config.id,
+        project: p.id,
+        grants,
+        active: grants.length,
+        issuance: "TRUSTED_HOST_ONLY",
+        browserLaunch: "NOT_AVAILABLE",
       };
     }
     if (name === "skill_recommendations")
