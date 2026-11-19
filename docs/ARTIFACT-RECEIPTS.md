@@ -1,10 +1,10 @@
 # Artifact SHA-256 receipts (source-only building block)
 
-Status: **opt-in in `JobRunner` only; no tool or command profile passes it yet, and nothing
-is proven on any device.** `src/artifact-receipt.js` is unit tested on CI. The only importer
-is `src/jobs.js` (a test enforces that). Because no preset or MCP tool supplies the new
-`artifacts` option, no CodeBridge job produces a receipt today. Declaring output paths per
-profile (schema bump) and exposing them through tools is a later, owner-reviewed change.
+Status: **opt-in per command-profile variant** (`variants.<name>.artifacts`, schema 1.4).
+No preset declares it, so no job produces a receipt unless an administrator adds the field
+to their own config. `src/artifact-receipt.js` is unit tested on CI and its only importer is
+`src/jobs.js` (a test enforces that). A receipt is stored on the job and returned by
+`get_job_status`; it is **not** proven on any device yet.
 
 ## Job runner integration
 

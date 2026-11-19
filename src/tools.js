@@ -5140,6 +5140,7 @@ export function createDispatcher(
         command: approvedPowerShell?.command ?? profile.command,
         args: approvedPowerShell?.args ?? variant.args,
         timeoutMs: variant.timeoutMs,
+        ...(variant.artifacts ? { artifacts: variant.artifacts } : {}),
       });
     }
     if (name === "browser_agentic_observe") {
