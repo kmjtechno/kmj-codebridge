@@ -125,6 +125,36 @@ test("N2 host command is hidden and denied on wrong device/project/read-only che
   }
 });
 
+test("N2 identity fails closed for wrong zone, missing zone and wrong machine", (t) => {
+  const py = process.platform === "win32" ? "python" : "python3";
+  const harness = [
+    CLOUDOS_N2_READINESS_PYTHON,
+    "def fake_meta(field):",
+    "    return fields.get(field, 'UNVERIFIED')",
+    "meta=fake_meta",
+    "assert identity_matches() is True",
+    "fields['zone']='projects/123/zones/us-central1-b'",
+    "assert identity_matches() is False",
+    "del fields['zone']",
+    "assert identity_matches() is False",
+    "fields['zone']='projects/123/zones/us-central1-a'",
+    "fields['machine-type']='n2-standard-4'",
+    "assert identity_matches() is False",
+    "fields['machine-type']='n2-standard-2'",
+    "fields['name']='other-instance'",
+    "assert identity_matches() is False",
+  ].join("\\n");
+  const source = "fields={'name':'instance-20260912-094732','machine-type':'n2-standard-2','zone':'projects/123/zones/us-central1-a'}\\n" + harness;
+  const checked = spawnSync(py, ["-I", "-B", "-c", source], {
+    encoding: "utf8", timeout: 10000,
+  });
+  if (checked.error && checked.error.code === "ENOENT") {
+    t.skip("Python runtime unavailable on this test host");
+  } else {
+    assert.equal(checked.status, 0, checked.stderr);
+  }
+});
+
 test("Pinned Python inspector has valid syntax and no host mutation primitives", (t) => {
   assert.match(CLOUDOS_N2_READINESS_PYTHON, /google-vps1/);
   assert.match(CLOUDOS_N2_READINESS_PYTHON, /instance-20260912-094732/);
