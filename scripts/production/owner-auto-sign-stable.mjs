@@ -13,7 +13,7 @@ import {
   verify,
 } from "node:crypto";
 import { execFileSync, spawnSync } from "node:child_process";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { assessReleaseChecks } from "../release-ci-gate.mjs";
 
 const REPO = "kmjtechno/kmj-codebridge";
@@ -32,6 +32,8 @@ const POLICY = path.join(
 );
 const STATE = path.join(HOME, ".local", "state", "kmj-codebridge", "auto-sign");
 const LOCK = path.join(STATE, "single-flight.lock");
+const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
+let hooksDir = null;
 const GIT = process.platform === "win32" ? "git.exe" : "/usr/bin/git";
 const GH = process.platform === "win32" ? "gh.exe" : "/usr/bin/gh";
 class Blocked extends Error {}
@@ -251,8 +253,31 @@ const fixedCommand = (bin, args, { cwd, maxBuffer = 1048576 } = {}) => {
     throw new Blocked("PINNED_COMMAND_FAILED");
   }
 };
-const git = (root, args) =>
-  fixedCommand(GIT, ["-c", "core.hooksPath=/dev/null", "-C", root, ...args]);
+// Git for Windows can resolve /dev/null as a literal repository path.
+// Use a fresh *empty* directory under the protected installed signer instead.
+// No candidate hook, post-checkout script or source-controlled hook is run.
+export function makeIsolatedHooksDir(parent) {
+  const original = fs.lstatSync(parent);
+  requireGate(
+    original.isDirectory() && !original.isSymbolicLink(),
+    "GIT_HOOK_PARENT_UNSAFE",
+  );
+  const dir = fs.mkdtempSync(path.join(parent, ".kmj-empty-hooks-"));
+  const st = fs.lstatSync(dir);
+  requireGate(
+    st.isDirectory() && !st.isSymbolicLink() && fs.readdirSync(dir).length === 0,
+    "GIT_HOOK_DIRECTORY_UNSAFE",
+  );
+  return dir;
+}
+
+const git = (root, args) => {
+  requireGate(
+    typeof hooksDir === "string" && hooksDir.length > 0,
+    "GIT_HOOK_ISOLATION_NOT_READY",
+  );
+  return fixedCommand(GIT, ["-c", "core.hooksPath=" + hooksDir, "-C", root, ...args]);
+};
 const gh = (args) => fixedCommand(GH, args);
 const api = (resource) => {
   try {
@@ -415,6 +440,7 @@ function runOnce() {
     );
     lockOnce();
     locked = true;
+    hooksDir = makeIsolatedHooksDir(SCRIPT_DIR);
     gh(["auth", "status"]);
     requireGate(
       protectedMain(api("branches/main/protection")),
@@ -614,6 +640,14 @@ function runOnce() {
       } catch {
         process.exitCode = 2;
       }
+    }
+    if (hooksDir) {
+      try {
+        fs.rmdirSync(hooksDir);
+      } catch {
+        process.exitCode = 2;
+      }
+      hooksDir = null;
     }
     // Any failure after key use leaves a sticky lock until owner reconciles.
     if (locked && (!signingStarted || process.exitCode !== 2)) {
