@@ -13,7 +13,9 @@ if [[ "${1:-}" == "--apply" ]]; then APPLY=1; shift; fi
 PROJECT_ID='kmj-codebridge'
 INSTANCE='kmj-codebridge-dev'
 REPO_URL='https://github.com/kmjtechno/kmj-codebridge.git'
-PROJECT_ROOT='/srv/kmj-codebridge-projects/kmj-codebridge'
+# Dedicated checkout: never reuse an older checkout that may carry credentials.
+PROJECT_ROOT='/srv/kmj-codebridge-dev/kmj-codebridge'
+PROJECT_PARENT='/srv/kmj-codebridge-dev'
 # Signed, world-readable runtime kept current by the owner-signed updater (the
 # Main Platform agent runs from it as an unprivileged user). The legacy
 # /opt/kmj-codebridge-agent tree is root-only and must not be used.
@@ -60,7 +62,7 @@ if [[ $APPLY -ne 1 ]]; then
 fi
 
 id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --home-dir "$STATE_DIR" --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
-install -d -m 0755 /srv/kmj-codebridge-projects
+install -d -m 0755 -o "$SERVICE_USER" -g "$SERVICE_USER" "$PROJECT_PARENT"
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" "$STATE_DIR" "$CONFIG_DIR"
 
 if [[ ! -d "$PROJECT_ROOT/.git" ]]; then
@@ -69,7 +71,8 @@ if [[ ! -d "$PROJECT_ROOT/.git" ]]; then
   sudo -u "$SERVICE_USER" -H env GIT_TERMINAL_PROMPT=0 git clone --quiet "$REPO_URL" "$PROJECT_ROOT"
 fi
 origin="$(git -c safe.directory="$PROJECT_ROOT" -C "$PROJECT_ROOT" remote get-url origin)"
-[[ "$origin" == "$REPO_URL" ]] || { echo "ORIGIN_MISMATCH: $origin" >&2; exit 3; }
+# Never print the URL: a remote can embed credentials.
+[[ "$origin" == "$REPO_URL" ]] || { echo 'ORIGIN_MISMATCH (value withheld; remote must be exactly the clean public HTTPS URL)' >&2; exit 3; }
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_ROOT"
 
 echo 'Owner browser approval is required next (pairing code is printed below).'
