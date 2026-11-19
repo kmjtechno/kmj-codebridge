@@ -23,7 +23,13 @@ export function createVerifiedFreeCloudCodingModel({
     async status() {
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
-      const status = await getClient().status();
+      let status;
+      try {
+        status = await getClient().status();
+      } catch {
+        // A failed discovery endpoint cannot admit cloud coding work.
+        return { available: false, activeRequest: false, models: [] };
+      }
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
