@@ -213,3 +213,31 @@ test("cloud catalog rejects coercion, deduplicates and bounds verifier calls to 
   assert.deepEqual(status.models, names.slice(0, 32));
   assert.equal(status.available, true);
 });
+
+test("cloud status discards earlier admissions when a later verifier revokes consent and throws", async () => {
+  let consent = true;
+  let checked = 0;
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => consent,
+    createClient: () => ({
+      status: async () => ({
+        available: true,
+        approvedFreeChains: ["auto:first", "auto:second"],
+      }),
+      checkZeroCostChain: async ({ chain }) => {
+        checked++;
+        if (chain === "auto:second") {
+          consent = false;
+          throw new Error("VERIFIER_FAILED_AFTER_REVOCATION");
+        }
+        return { admitted: true, chain };
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+  assert.equal(checked, 2);
+});
