@@ -74,3 +74,19 @@ test("P520 handoff never registers new task, enrolls device, touches main platfo
     /ssh(?:\.exe)?\b|scp(?:\.exe)?\b|ALTER DATABASE|pg_restore|APPROVED_PRODUCTION_RELEASE/,
   );
 });
+
+test("P520 pinned-doctor failures stay read-only, exact and categorically diagnosable", () => {
+  for (const gate of [
+    "REVIEWED_SOURCE_MISSING",
+    "REVIEWED_SOURCE_METADATA_UNREADABLE",
+    "REVIEWED_SOURCE_HASH_UNREADABLE",
+    "REVIEWED_SOURCE_SHA_MISMATCH",
+    "UNTRUSTED_FILE_OR_DIRECTORY",
+  ]) {
+    assert.ok(source.includes(gate), gate);
+  }
+  assert.match(source, /Get-FileHash -Algorithm SHA256 -LiteralPath/);
+  assert.match(source, /Sha \$p/);
+  assert.match(source, /if\(-not\(Test-Path -LiteralPath \$p -PathType Leaf/);
+  assert.doesNotMatch(source, /Write-Output[^\n]*\$p|Mark[^\n]*\$p/);
+});
