@@ -28,8 +28,24 @@ function Ordinary([string]$p,[bool]$directory) {
         ($v.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'UNTRUSTED_FILE_OR_DIRECTORY'
 }
 function Pinned([string]$p,[string]$sha) {
-  Ordinary $p $false
-  Need ((Sha $p) -ceq $sha) 'REVIEWED_SOURCE_SHA_MISMATCH'
+  # Exact read-only source admission. Keep errors categorical and path-free.
+  # Any missing, unreadable, replaced, or mismatched file still fails closed.
+  if(-not(Test-Path -LiteralPath $p -PathType Leaf -ErrorAction SilentlyContinue)) {
+    throw 'REVIEWED_SOURCE_MISSING'
+  }
+  try {
+    Ordinary $p $false
+  } catch {
+    if([string]$_.Exception.Message -ceq 'UNTRUSTED_FILE_OR_DIRECTORY') { throw }
+    throw 'REVIEWED_SOURCE_METADATA_UNREADABLE'
+  }
+  $actual=$null
+  try {
+    $actual=Sha $p
+  } catch {
+    throw 'REVIEWED_SOURCE_HASH_UNREADABLE'
+  }
+  Need ($actual -ceq $sha) 'REVIEWED_SOURCE_SHA_MISMATCH'
 }
 function ScopedAgents([string]$config) {
   $all=@(Get-CimInstance Win32_Process -Filter "Name='node.exe'" -ErrorAction Stop)
