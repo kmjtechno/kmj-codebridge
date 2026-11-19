@@ -16,6 +16,7 @@ import {
   protectedMain,
   sourceChanged,
   makeSignedRelease,
+  ownerCommandEnv,
 } from "../scripts/production/owner-auto-sign-stable.mjs";
 
 const ROOT = path.join(os.tmpdir(), "kmj-auto-sign-test-repo");
@@ -34,6 +35,39 @@ const valid = () => ({
   repoPath: ROOT,
   keyFile: path.join(SECRETS, "key.pem"),
   publicKeyFile: path.join(SECRETS, "key.pub"),
+});
+
+test("Windows owner signer passes only required gh config environment", () => {
+  const parent = {
+    PATH: "C:\\Windows\\System32",
+    USERPROFILE: "C:\\Users\\KMJ TECHNO",
+    APPDATA: "C:\\Users\\KMJ TECHNO\\AppData\\Roaming",
+    LOCALAPPDATA: "C:\\Users\\KMJ TECHNO\\AppData\\Local",
+    SystemRoot: "C:\\Windows",
+    WINDIR: "C:\\Windows",
+    TEMP: "C:\\Temp",
+    TMP: "C:\\Temp",
+    GH_CONFIG_DIR: "C:\\Users\\KMJ TECHNO\\gh-config",
+    GH_TOKEN: "test-token-do-not-log",
+    NODE_OPTIONS: "--require ./evil.js",
+    GIT_CONFIG_GLOBAL: "C:\\attacker.gitconfig",
+    HTTP_PROXY: "http://attacker.invalid",
+  };
+  const win = ownerCommandEnv(parent, "win32", parent.USERPROFILE);
+  assert.equal(win.APPDATA, parent.APPDATA);
+  assert.equal(win.LOCALAPPDATA, parent.LOCALAPPDATA);
+  assert.equal(win.SystemRoot, parent.SystemRoot);
+  assert.equal(win.GH_CONFIG_DIR, parent.GH_CONFIG_DIR);
+  assert.equal(win.HOME, parent.USERPROFILE);
+  assert.equal(win.GH_TOKEN, parent.GH_TOKEN);
+  for (const unsafe of ["NODE_OPTIONS", "GIT_CONFIG_GLOBAL", "HTTP_PROXY"])
+    assert.equal(Object.hasOwn(win, unsafe), false, unsafe);
+  assert.equal(Object.hasOwn(parent, "GH_TOKEN"), true);
+  const linux = ownerCommandEnv(parent, "linux", "/home/owner");
+  assert.equal(linux.PATH, "/usr/bin:/bin");
+  assert.equal(linux.HOME, "/home/owner");
+  assert.equal(Object.hasOwn(linux, "APPDATA"), false);
+  assert.equal(Object.hasOwn(linux, "GH_CONFIG_DIR"), false);
 });
 
 test("owner opt-in is exact, short lived and cannot point into source repository", () => {

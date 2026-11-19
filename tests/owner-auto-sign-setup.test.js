@@ -94,6 +94,89 @@ test("P520 installer explicitly protects installed leaf files and fail-closed re
   );
 });
 
+test("reviewed signer upgrade refuses unknown task or bits and preserves protected owner key", () => {
+  const upgrade = fs.readFileSync(
+    "scripts/windows/OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119.ps1",
+    "utf8",
+  );
+  const oneClick = fs.readFileSync(
+    "scripts/windows/ONE-CLICK-OWNER-AUTOSIGN-UPGRADE-20261119.cmd",
+    "utf8",
+  );
+  assert.match(
+    oneClick,
+    /OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119\.ps1" -Apply/,
+  );
+  assert.doesNotMatch(oneClick, /curl|wget|bitsadmin|EncodedCommand|taskkill/);
+  for (const guard of [
+    "DESKTOP-5FVJMET",
+    "a41985b2b407bebd34ddb5bfa8f010bf4e11ffb1",
+    "b3717a8b3c948567f6648ad11233ed276d58b143",
+    "897d9ff674ac6d007bae34084060a16b713ef2b6",
+    "UPGRADE_TASK_IDENTITY_UNVERIFIED",
+    "UPGRADE_OWNER_CONSENT_INVALID",
+    "UPGRADE_SIGNER_UNRECOGNIZED",
+    "UPGRADE_TASK_NOT_DISABLED",
+    "UPGRADE_TASK_NOT_DISABLED_AT_REPLACE",
+    "UPGRADE_PREVIOUS_ARTIFACT_PRESENT",
+    "UPGRADE_REPLACED_HASH_DRIFT",
+    "UPGRADE_ROLLBACK_BACKUP_DRIFT",
+    "UPGRADE_DISABLED_READBACK_UNVERIFIED",
+    "DISABLED_PRESERVED",
+    "OWNER_AUTOSIGN_UPGRADE",
+    "PRESERVED_FOR_ROLLBACK",
+  ])
+    assert.ok(upgrade.includes(guard), guard);
+  assert.match(
+    upgrade,
+    /\[System\.IO\.File\]::Replace\(\$Candidate,\$Signer,\$Backup\)/,
+  );
+  assert.doesNotMatch(
+    upgrade,
+    /Enable-ScheduledTask|Disable-ScheduledTask|Start-ScheduledTask/,
+  );
+  assert.match(upgrade, /\$task.State -ceq 'Disabled'/);
+  assert.match(upgrade, /OwnerAcl \$Signer \$sid/);
+  assert.match(upgrade, /OwnerAcl \$Backup \$sid/);
+  assert.match(upgrade, /UPGRADE_OWNER_REVIEW_REQUIRED/);
+  assert.doesNotMatch(
+    upgrade,
+    /Restart-Service|Start-ScheduledTask|Unregister-ScheduledTask|git reset|git clean|taskkill|Invoke-WebRequest/,
+  );
+  assert.doesNotMatch(
+    upgrade,
+    /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/,
+  );
+});
+
+test(
+  "owner signer pinned upgrader Windows syntax and refusal selftest are safe",
+  { skip: process.platform !== "win32" },
+  () => {
+    const script = path.resolve(
+      "scripts/windows/OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119.ps1",
+    );
+    const parse = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$t=$null;$e=$null;[System.Management.Automation.Language.Parser]::ParseFile($env:KMJ_CHECK_SCRIPT,[ref]$t,[ref]$e)|Out-Null;if($e.Count -gt 0){$e|ForEach-Object{Write-Error $_.Message};exit 2}",
+      ],
+      { encoding: "utf8", env: { ...process.env, KMJ_CHECK_SCRIPT: script } },
+    );
+    assert.equal(parse.status, 0, parse.stderr || parse.stdout);
+    const denied = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-File", script, "-SelfTest"],
+      { encoding: "utf8" },
+    );
+    assert.equal(denied.status, 0, denied.stderr || denied.stdout);
+    assert.match(denied.stdout, /OWNER_AUTOSIGN_UPGRADE_SELFTEST=PASS/);
+  },
+);
+
 test("first-run enrollment is explicit, local-key only and fail closed", () => {
   for (const field of [
     "DESKTOP-5FVJMET",

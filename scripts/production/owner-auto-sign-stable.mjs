@@ -198,6 +198,40 @@ export function makeSignedRelease({
   };
 }
 
+// The Windows gh CLI uses APPDATA for its standard credential/config path.
+// A restricted child environment must preserve that *specific* OS path while
+// never passing arbitrary parent variables into Git or GitHub commands.
+export function ownerCommandEnv(
+  parent = process.env,
+  platform = process.platform,
+  home = HOME,
+) {
+  const env = {
+    PATH: platform === "win32" ? parent.PATH : "/usr/bin:/bin",
+    HOME: home,
+    USERPROFILE: parent.USERPROFILE,
+    GH_TOKEN: parent.GH_TOKEN,
+    GITHUB_TOKEN: parent.GITHUB_TOKEN,
+    LC_ALL: "C",
+    GIT_TERMINAL_PROMPT: "0",
+  };
+  if (platform === "win32") {
+    for (const key of [
+      "APPDATA",
+      "LOCALAPPDATA",
+      "SystemRoot",
+      "WINDIR",
+      "TEMP",
+      "TMP",
+      "GH_CONFIG_DIR",
+    ]) {
+      if (typeof parent[key] === "string" && parent[key].length > 0)
+        env[key] = parent[key];
+    }
+  }
+  return env;
+}
+
 const fixedCommand = (bin, args, { cwd, maxBuffer = 1048576 } = {}) => {
   requireGate(
     args.every((a) => typeof a === "string" && !a.includes("\0")),
@@ -211,15 +245,7 @@ const fixedCommand = (bin, args, { cwd, maxBuffer = 1048576 } = {}) => {
       encoding: "utf8",
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: {
-        PATH: process.platform === "win32" ? process.env.PATH : "/usr/bin:/bin",
-        HOME,
-        USERPROFILE: process.env.USERPROFILE,
-        GH_TOKEN: process.env.GH_TOKEN,
-        GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-        LC_ALL: "C",
-        GIT_TERMINAL_PROMPT: "0",
-      },
+      env: ownerCommandEnv(),
     }).trim();
   } catch {
     throw new Blocked("PINNED_COMMAND_FAILED");
