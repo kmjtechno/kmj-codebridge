@@ -116,12 +116,14 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     "UPGRADE_TASK_IDENTITY_UNVERIFIED",
     "UPGRADE_OWNER_CONSENT_INVALID",
     "UPGRADE_SIGNER_UNRECOGNIZED",
-    "UPGRADE_TASK_NOT_IDLE_READY",
+    "UPGRADE_TASK_NOT_DISABLED",
+    "UPGRADE_TASK_NOT_DISABLED_AT_REPLACE",
     "UPGRADE_PREVIOUS_ARTIFACT_PRESENT",
     "UPGRADE_REPLACED_HASH_DRIFT",
     "UPGRADE_ROLLBACK_BACKUP_DRIFT",
-    "UPGRADE_TASK_DISABLE_UNVERIFIED",
-    "DISABLED_ON_UPGRADE_FAILURE",
+    "UPGRADE_DISABLED_READBACK_UNVERIFIED",
+    "DISABLED_PRESERVED",
+    "UPGRADE_PREVIOUS_ARTIFACT_PRESENT",
     "OWNER_AUTOSIGN_UPGRADE",
     "PRESERVED_FOR_ROLLBACK",
   ])
@@ -130,8 +132,8 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     upgrade,
     /\[System\.IO\.File\]::Replace\(\$Candidate,\$Signer,\$Backup\)/,
   );
-  assert.match(upgrade, /Disable-ScheduledTask -TaskName \$TaskName/);
-  assert.match(upgrade, /Enable-ScheduledTask -TaskName \$TaskName/);
+  assert.doesNotMatch(upgrade, /Enable-ScheduledTask|Disable-ScheduledTask|Start-ScheduledTask/);
+  assert.match(upgrade, /\$task.State -ceq 'Disabled'/);
   assert.match(upgrade, /OwnerAcl \$Signer \$sid/);
   assert.match(upgrade, /OwnerAcl \$Backup \$sid/);
   assert.match(upgrade, /UPGRADE_OWNER_REVIEW_REQUIRED/);
