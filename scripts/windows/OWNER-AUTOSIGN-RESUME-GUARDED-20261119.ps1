@@ -36,7 +36,7 @@ function PrivateOwnerAcl([string]$p,[string]$sid){
 function GhJson([string]$resource){
   $output=@(& gh.exe api $resource 2>$null)
   Need ($LASTEXITCODE -eq 0 -and $output.Count -gt 0) 'AUTOSIGN_GITHUB_API_UNAVAILABLE'
-  try {return ($output -join "`n) | ConvertFrom-Json -ErrorAction Stop}
+  try {return ($output -join "`n") | ConvertFrom-Json -ErrorAction Stop}
   catch {throw 'AUTOSIGN_GITHUB_JSON_UNVERIFIED'}
 }
 if($SelfTest) {
