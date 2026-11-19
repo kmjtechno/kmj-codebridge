@@ -103,6 +103,9 @@ export function createVerifiedFreeCloudCodingModel({
       // A hostile proxy or accessor must never escape the attestation gate
       // with an arbitrary exception or supply an unvalidated patch.
       let valid = false;
+      let response;
+      let hitTokenLimit;
+      let truncated;
       try {
         valid =
           result?.provider === "freellmapi-loopback" &&
@@ -117,14 +120,19 @@ export function createVerifiedFreeCloudCodingModel({
           result.response.trim().length > 0 &&
           result.response.length <= 1_048_576 &&
           !result.response.includes("\\0");
+        if (valid) {
+          response = result.response;
+          hitTokenLimit = result.hitTokenLimit === true;
+          truncated = result.truncated === true;
+        }
       } catch {
         valid = false;
       }
       if (!valid) throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
       return {
-        response: result.response,
-        hitTokenLimit: result.hitTokenLimit === true,
-        truncated: result.truncated === true,
+        response,
+        hitTokenLimit,
+        truncated,
         modelUsage: cloudCodingReceipt(model),
       };
     },
