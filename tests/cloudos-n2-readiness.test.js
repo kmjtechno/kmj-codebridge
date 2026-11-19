@@ -144,7 +144,13 @@ test("N2 identity fails closed for wrong zone, missing zone and wrong machine", 
     "fields['name']='other-instance'",
     "assert identity_matches() is False",
   ].join("\n");
+  // Windows Python has no fcntl; this identity-only harness never calls ioctl.
+  const windowsFcntlStub =
+    process.platform === "win32"
+      ? "import sys,types;sys.modules['fcntl']=types.ModuleType('fcntl')\n"
+      : "";
   const source =
+    windowsFcntlStub +
     "fields={'name':'instance-20260912-094732','machine-type':'n2-standard-2','zone':'projects/123/zones/us-central1-a'}\n" +
     harness;
   const checked = spawnSync(py, ["-I", "-B", "-c", source], {
