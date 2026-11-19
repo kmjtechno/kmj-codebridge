@@ -27,8 +27,8 @@ test("cloud response getter cannot swap validated patch on later read", async ()
     createClient: () => ({ generate: async () => result }),
   });
   const output = await model.generate({ model: "auto:code", prompt: "OFFLINE_ONLY" });
-  assert.equal(output.response, "diff --git a/evil b/evil");
-  assert.equal(reads, 5);
+  assert.equal(output.response, "diff --git a/a b/a");
+  assert.equal(reads, 1);
 });
 
 test("cloud flag getter revoking consent cannot release patch", async () => {
