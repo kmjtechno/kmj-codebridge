@@ -241,3 +241,31 @@ test("cloud status discards earlier admissions when a later verifier revokes con
   });
   assert.equal(checked, 2);
 });
+
+test("cloud status fails closed on discovery errors without invoking attestation or generation", async () => {
+  let verified = 0;
+  let generated = 0;
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => true,
+    createClient: () => ({
+      status: async () => {
+        throw new Error("DISCOVERY_OFFLINE");
+      },
+      checkZeroCostChain: async () => {
+        verified++;
+        return { admitted: true, chain: "auto:code" };
+      },
+      generate: async () => {
+        generated++;
+        return receipt();
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+  assert.equal(verified, 0);
+  assert.equal(generated, 0);
+});
