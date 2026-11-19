@@ -131,7 +131,10 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     upgrade,
     /\[System\.IO\.File\]::Replace\(\$Candidate,\$Signer,\$Backup\)/,
   );
-  assert.doesNotMatch(upgrade, /Enable-ScheduledTask|Disable-ScheduledTask|Start-ScheduledTask/);
+  assert.doesNotMatch(
+    upgrade,
+    /Enable-ScheduledTask|Disable-ScheduledTask|Start-ScheduledTask/,
+  );
   assert.match(upgrade, /\$task.State -ceq 'Disabled'/);
   assert.match(upgrade, /OwnerAcl \$Signer \$sid/);
   assert.match(upgrade, /OwnerAcl \$Backup \$sid/);
