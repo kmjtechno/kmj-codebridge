@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $TaskName='KMJ-CodeBridge-Owner-Auto-Sign'
 $ExpectedHost='DESKTOP-5FVJMET'
-$ExpectedBlob='31c58d25baa2d57945a70fe689c54979b8023229'
+$ExpectedBlob='e2cc293448d13e7acf7172f111574954257e4b60'
 $Signer=Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\OwnerSigner\scripts\production\owner-auto-sign-stable.mjs'
 $Install=Join-Path $env:LOCALAPPDATA 'KMJ-CodeBridge\OwnerSigner'
 $Policy=Join-Path $HOME '.config\kmj-codebridge\auto-sign-policy.json'
