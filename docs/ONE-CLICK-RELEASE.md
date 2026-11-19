@@ -76,6 +76,42 @@ smoke, and anything that is not a signed release. The script never touches keys,
 the updater, the agent, Nginx or source repositories, and has no arbitrary path,
 URL or shell argument.
 
+## Fully automatic on KMJ-elite (one-time owner install)
+
+After a one-time root install, KMJ-elite applies every owner-signed release by
+itself. A release then needs only two owner actions: `npm run release` on the
+signing PC, and approving its metadata PR. The **signature plus that protected
+PR approval are the release approval**; the timer never signs and holds no key.
+
+Every 10 minutes `kmj-codebridge-auto-release.timer` runs
+`owner_elite_auto_release.py`, which applies **one** release per tick: the lowest
+sequence above the live gateway sequence, via the same
+`owner_elite_release.py` steps (publish, feed, cutover). Safety rails:
+
+- **Kill switch:** `touch /etc/kmj-codebridge-release/auto-release.disabled`
+  stops everything at once (both the unit condition and the script honour it).
+  `systemctl disable --now kmj-codebridge-auto-release.timer` also works.
+- **No automatic retry after a cutover attempt.** The release is recorded as
+  attempted _before_ the restart; a failed or rolled-back release (or a crash)
+  is never retried automatically. The owner clears it in
+  `/var/lib/kmj-codebridge-release/auto-release-state.json`.
+- **Cooldown** of 30 minutes between successful cutovers; the tick never waits
+  for the signed updater (it simply retries on the next tick).
+- Same cutover guarantees as the manual command: catalog superset, critical
+  schemas, exact commit, rollback on any failure.
+- Root/KMJ-elite only, no arguments, URLs or paths from outside; the three
+  scripts are installed hash-pinned and the timer refuses a changed copy.
+
+Install (dry run first; `--apply` needs the standing-consent flag):
+
+```bash
+python3 -I owner_install_elite_auto_release.py
+python3 -I owner_install_elite_auto_release.py --apply --confirm-unattended-release-owner-go
+```
+
+It installs only the scripts, the service and the timer, and removes exactly
+what it created if any step fails.
+
 ## Previous per-sequence scripts
 
 The older `owner_publish_seq*`, `owner_activate_signed*` and `owner_promote_*`
