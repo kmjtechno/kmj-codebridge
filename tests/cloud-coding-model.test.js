@@ -187,7 +187,12 @@ test("no trusted zero-cost attestor means no upstream cloud POST, even with expl
 test("cloud catalog rejects coercion, deduplicates and bounds verifier calls to 32", async () => {
   let coerced = 0;
   const checked = [];
-  const unsafe = { toString() { coerced++; throw new Error("COERCION"); } };
+  const unsafe = {
+    toString() {
+      coerced++;
+      throw new Error("COERCION");
+    },
+  };
   const names = Array.from({ length: 40 }, (_, i) => `auto:route${i}`);
   const model = createVerifiedFreeCloudCodingModel({
     authorized: () => true,
