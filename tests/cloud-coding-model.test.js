@@ -183,3 +183,59 @@ test("no trusted zero-cost attestor means no upstream cloud POST, even with expl
   );
   assert.equal(posts, 0);
 });
+
+test("cloud discovery fails closed when owner consent or client discovery throws", async () => {
+  let created = 0;
+  const consentFailure = createVerifiedFreeCloudCodingModel({
+    authorized: () => {
+      throw new Error("CONSENT_BACKEND_OFFLINE");
+    },
+    createClient: () => {
+      created++;
+      throw new Error("CLIENT_MUST_NOT_START");
+    },
+  });
+  assert.deepEqual(await consentFailure.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+  assert.equal(created, 0);
+
+  const discoveryFailure = createVerifiedFreeCloudCodingModel({
+    authorized: () => true,
+    createClient: () => ({
+      status: async () => {
+        throw new Error("DISCOVERY_UNAVAILABLE");
+      },
+    }),
+  });
+  assert.deepEqual(await discoveryFailure.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+});
+
+test("cloud discovery discards admitted routes if consent check fails after verification", async () => {
+  let checks = 0;
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => {
+      checks++;
+      if (checks >= 4) throw new Error("CONSENT_BACKEND_OFFLINE");
+      return true;
+    },
+    createClient: () => ({
+      status: async () => ({
+        available: true,
+        approvedFreeChains: ["auto:code"],
+      }),
+      checkZeroCostChain: async ({ chain }) => ({ admitted: true, chain }),
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+});

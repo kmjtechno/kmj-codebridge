@@ -21,36 +21,46 @@ export function createVerifiedFreeCloudCodingModel({
   const getClient = () => (client ??= createClient());
   return {
     async status() {
-      if (!approved())
-        return { available: false, activeRequest: false, models: [] };
-      const status = await getClient().status();
-      // Never consider an advertised but unapproved proxy chain eligible.
-      if (!approved())
-        return { available: false, activeRequest: false, models: [] };
-      const candidates = Array.isArray(status?.approvedFreeChains)
-        ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
-        : [];
-      // Proxy discovery alone is NOT a no-cost proof. Without trusted
-      // account+route verification do not even claim work or read source.
-      const models = [];
-      if (status?.available === true) {
-        for (const chain of candidates) {
-          try {
-            const proof = await getClient().checkZeroCostChain({ chain });
-            if (!approved())
-              return { available: false, activeRequest: false, models: [] };
-            if (proof?.admitted === true && proof.chain === chain)
-              models.push(chain);
-          } catch {
-            // No verifier or expired/free-quota evidence => fail closed.
+      const unavailable = () => ({
+        available: false,
+        activeRequest: false,
+        models: [],
+      });
+      // An owner-consent provider is an external trust boundary. Exceptions
+      // must not crash the worker or turn discovery into implicit approval.
+      try {
+        if (!approved()) return unavailable();
+        const status = await getClient().status();
+        // Never consider an advertised but unapproved proxy chain eligible.
+        if (!approved()) return unavailable();
+        const candidates = Array.isArray(status?.approvedFreeChains)
+          ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
+          : [];
+        // Proxy discovery alone is NOT a no-cost proof. Without trusted
+        // account+route verification do not even claim work or read source.
+        const models = [];
+        if (status?.available === true) {
+          for (const chain of candidates) {
+            try {
+              const proof = await getClient().checkZeroCostChain({ chain });
+              if (!approved())
+                return { available: false, activeRequest: false, models: [] };
+              if (proof?.admitted === true && proof.chain === chain)
+                models.push(chain);
+            } catch {
+              // No verifier or expired/free-quota evidence => fail closed.
+            }
           }
         }
+        if (!approved()) return unavailable();
+        return {
+          available: models.length > 0,
+          activeRequest: false,
+          models,
+        };
+      } catch {
+        return unavailable();
       }
-      return {
-        available: models.length > 0,
-        activeRequest: false,
-        models,
-      };
     },
     async generate({ model, prompt, maxTokens, timeoutSeconds }) {
       if (!approved()) deny();
