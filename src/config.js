@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { validApprovedScriptPath } from "./windows-powershell-profile.js";
 import { COMMAND_PRESET_IDS, expandCommandPresets } from "./command-presets.js";
+import { modelRegistrySchema } from "./model-registry-schema.js";
 const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
 const digest = z.string().regex(/^[a-f0-9]{64}$/);
 const permission = z.enum(["read", "write", "execute"]);
@@ -258,6 +259,8 @@ export const agentSchema = z.object({
       message: "Pinned Browsentic entry checksum required for opt-in",
     })
     .optional(),
+  // Owner-declared model registry for the read-only model_inventory tool.
+  modelRegistry: modelRegistrySchema.optional(),
   // Both Linux paths are exact constants, not caller-supplied IPC addresses.
   // Elite CloudOS must use an entirely separate root-owned read-only profile.
   supervisorSocket: z

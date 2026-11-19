@@ -661,6 +661,7 @@ export const FAST_READ_TOOLS = [
   "search_code",
   "skill_recommendations",
   "model_route_plan",
+  "model_inventory",
   "read_file",
   "read_file_tail",
   "read_file_range",
@@ -1652,6 +1653,16 @@ export const definitions = {
         .max(50),
     },
     access: "write",
+  },
+  model_inventory: {
+    title: "Owner model registry inventory",
+    description:
+      "Read-only inventory of the owner-declared model registry on this device (agent config), optionally overlaid with the LIVE local FreeLLMAPI catalog: a model not positively ready is demoted. Listing a model is NOT proof it is free or approved; no model is invoked and no host-chat model is switched. An unreadable requested overlay fails instead of falling back.",
+    input: {
+      ...scoped,
+      liveRouterOverlay: z.boolean().default(false),
+    },
+    access: "read",
   },
   skill_recommendations: {
     title: "Recommend engineering skill packs",
@@ -3360,6 +3371,29 @@ export function createDispatcher(
       return {
         ...planSmartModelRoute({ models, task: a.task, state: a.quotaState }),
         inventory,
+      };
+    }
+    if (name === "model_inventory") {
+      const registry = config.modelRegistry ?? [];
+      const built = buildRoutingInventory({
+        ownerRegistry: registry,
+        catalog:
+          a.liveRouterOverlay === true ? await freeRouter().catalog() : null,
+        nowMs: Date.now(),
+      });
+      return {
+        device: config.id,
+        project: p.id,
+        source: "OWNER_REGISTRY",
+        configured: registry.length,
+        liveOverlay: a.liveRouterOverlay === true,
+        models: built.models,
+        rejected: built.rejected,
+        demoted: built.models
+          .filter((m) => m.available === false)
+          .map((m) => m.id),
+        modelExecution: "NOT_EXECUTED",
+        costProof: "NOT_PROVEN",
       };
     }
     if (name === "skill_recommendations")
