@@ -1,5 +1,7 @@
 # KMJ TECHNO — owner-only, fail-closed upgrade of an ALREADY installed signer.
 # Do not copy/read private keys or modify release approval. Never replace an unknown task.
+# SAFETY HOLD: this maintenance tool accepts ONLY an already-disabled task.
+# It never enables, starts, or schedules signing.
 [CmdletBinding()]
 param([switch]$Apply,[switch]$SelfTest)
 Set-StrictMode -Version Latest
@@ -50,7 +52,6 @@ if($SelfTest) {
   Mark 'OWNER_AUTOSIGN_UPGRADE_SELFTEST' 'PASS'
   exit 0
 }
-$DisabledByThisRun=$false
 try {
   Need ($env:OS -ceq 'Windows_NT' -and
     $env:COMPUTERNAME -ieq $ExpectedHost) 'UPGRADE_WRONG_HOST'
@@ -93,7 +94,7 @@ try {
     [string]$actions[0].Execute -ieq $node -and
     [string]$actions[0].Arguments -ceq ('"'+$Signer+'" --once') -and
     [string]$actions[0].WorkingDirectory -ieq $Install) 'UPGRADE_TASK_IDENTITY_UNVERIFIED'
-  Need ([string]$task.State -ceq 'Ready') 'UPGRADE_TASK_NOT_IDLE_READY'
+  Need ([string]$task.State -ceq 'Disabled') 'UPGRADE_TASK_NOT_DISABLED'
   if($existing -ceq $NewSignerBlob) {
     Mark 'OWNER_AUTOSIGN_UPGRADE' 'ALREADY_CURRENT'
     exit 0
@@ -105,21 +106,17 @@ try {
     Mark 'OWNER_AUTOSIGN_UPGRADE' 'DRY_RUN_ONLY'
     exit 0
   }
-  # Stage and verify while the old task is still enabled. A failing stage
-  # cannot alter the scheduled action or original installed signer.
+  # Stage and verify only after the owner has independently disabled the task.
+  # A failing stage cannot alter the scheduled action or original signer.
   Copy-Item -LiteralPath $Source -Destination $Candidate -ErrorAction Stop
   & icacls.exe $Candidate /inheritance:r /grant:r ('*'+$sid+':F') '*S-1-5-18:F' '*S-1-5-32-544:F' 1>$null
   Need ($LASTEXITCODE -eq 0) 'UPGRADE_CANDIDATE_ACL_FAILED'
   Need (SafeFile $Candidate) 'UPGRADE_CANDIDATE_FILE_UNTRUSTED'
   OwnerAcl $Candidate $sid
   Need ((GitBlob $Candidate $git) -ceq $NewSignerBlob) 'UPGRADE_CANDIDATE_HASH_DRIFT'
-  # Recheck it did not begin running during staging before disabling.
+  # Recheck the owner-maintained safety hold immediately before replacement.
   $before=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
-  Need ([string]$before.State -ceq 'Ready') 'UPGRADE_TASK_BECAME_BUSY'
-  Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop|Out-Null
-  $DisabledByThisRun=$true
-  $stopped=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
-  Need ([string]$stopped.State -ceq 'Disabled') 'UPGRADE_TASK_DISABLE_UNVERIFIED'
+  Need ([string]$before.State -ceq 'Disabled') 'UPGRADE_TASK_NOT_DISABLED_AT_REPLACE'
   # Same-volume NTFS replacement atomically stores the known-good old file
   # in a protected backup. Preserve it for an owner-controlled rollback.
   [System.IO.File]::Replace($Candidate,$Signer,$Backup)
@@ -129,30 +126,26 @@ try {
   Need (SafeFile $Backup) 'UPGRADE_ROLLBACK_BACKUP_MISSING'
   OwnerAcl $Backup $sid
   Need ((GitBlob $Backup $git) -ceq $OldSignerBlob) 'UPGRADE_ROLLBACK_BACKUP_DRIFT'
-  Enable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop|Out-Null
-  $enabled=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
-  Need ([string]$enabled.State -ceq 'Ready' -and
-    @($enabled.Actions).Count -eq 1 -and
-    [string]$enabled.Actions[0].Arguments -ceq ('"'+$Signer+'" --once') -and
-    [string]$enabled.Actions[0].WorkingDirectory -ieq $Install
-  ) 'UPGRADE_ENABLED_READBACK_UNVERIFIED'
-  $DisabledByThisRun=$false
+  $disabled=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+  Need ([string]$disabled.State -ceq 'Disabled' -and
+    @($disabled.Actions).Count -eq 1 -and
+    [string]$disabled.Actions[0].Arguments -ceq ('"'+$Signer+'" --once') -and
+    [string]$disabled.Actions[0].WorkingDirectory -ieq $Install
+  ) 'UPGRADE_DISABLED_READBACK_UNVERIFIED'
   Mark 'OWNER_AUTOSIGN_UPGRADE' 'PASS'
   Mark 'OWNER_AUTOSIGN_SIGNER_BLOB' $NewSignerBlob
-  Mark 'OWNER_AUTOSIGN_TASK' 'ENABLED_HOURLY'
+  Mark 'OWNER_AUTOSIGN_TASK' 'DISABLED_PRESERVED'
   Mark 'OWNER_AUTOSIGN_OLD_SIGNER' 'PRESERVED_FOR_ROLLBACK'
 } catch {
-  # An ambiguous post-disable outcome leaves the owner-key task DISABLED.
-  # Never silently resume an unverified installed script or remove evidence.
-  if($DisabledByThisRun) {
-    try{
-      Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop|Out-Null
-      $d=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
-      if([string]$d.State -ceq 'Disabled'){
-        Mark 'OWNER_AUTOSIGN_TASK' 'DISABLED_ON_UPGRADE_FAILURE'
-      }else{Mark 'OWNER_AUTOSIGN_TASK' 'REVIEW_REQUIRED'}
-    }catch{Mark 'OWNER_AUTOSIGN_TASK' 'REVIEW_REQUIRED'}
-  }
+  # No automatic reenable on success or failure. Preserve explicit owner hold.
+  try {
+    $d=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+    if([string]$d.State -ceq 'Disabled'){
+      Mark 'OWNER_AUTOSIGN_TASK' 'DISABLED_PRESERVED'
+    }else{
+      Mark 'OWNER_AUTOSIGN_TASK' 'REVIEW_REQUIRED'
+    }
+  }catch{Mark 'OWNER_AUTOSIGN_TASK' 'REVIEW_REQUIRED'}
   $reason=[string]$_.Exception.Message
   if($reason -cnotmatch '^[A-Z][A-Z0-9_]{3,90}$'){
     $reason='UPGRADE_OWNER_REVIEW_REQUIRED'
