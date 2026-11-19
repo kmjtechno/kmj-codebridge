@@ -1,0 +1,35 @@
+name: P520 guarded existing Supervisor activation QA
+
+on:
+  pull_request:
+    paths:
+      - scripts/windows/P520-GUARDED-SUPERVISOR-ACTIVATE-20261119.ps1
+      - scripts/windows/P520-PERSISTENT-HMAC-VERIFY-20261119.mjs
+      - tests/p520-guarded-persistent-supervisor.test.js
+      - .github/workflows/p520-guarded-supervisor-activation-qa.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-powershell-parse:
+    runs-on: windows-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout exact PR source
+        uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 syntax only (never activate a task)
+        shell: powershell
+        run: |
+          $path = Join-Path $env:GITHUB_WORKSPACE 'scripts\windows\P520-GUARDED-SUPERVISOR-ACTIVATE-20261119.ps1'
+          $tokens = $null
+          $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile(
+            $path, [ref]$tokens, [ref]$errors
+          ) | Out-Null
+          if ($errors.Count -gt 0) {
+            $errors | ForEach-Object { Write-Error $_.Message }
+            exit 1
+          }
+          Write-Host 'P520_GUARDED_ACTIVATION_PS51_PARSE=PASS'
