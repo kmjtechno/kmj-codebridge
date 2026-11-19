@@ -265,7 +265,9 @@ export function makeIsolatedHooksDir(parent) {
   const dir = fs.mkdtempSync(path.join(parent, ".kmj-empty-hooks-"));
   const st = fs.lstatSync(dir);
   requireGate(
-    st.isDirectory() && !st.isSymbolicLink() && fs.readdirSync(dir).length === 0,
+    st.isDirectory() &&
+      !st.isSymbolicLink() &&
+      fs.readdirSync(dir).length === 0,
     "GIT_HOOK_DIRECTORY_UNSAFE",
   );
   return dir;
