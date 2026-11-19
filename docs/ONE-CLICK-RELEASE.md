@@ -123,6 +123,8 @@ scripts remain for history and rollback reference only.
 agent next to the Main Platform one. Dry-run by default; `--apply` is required to
 change anything.
 
+- Runs from the signed runtime `/opt/kmj-codebridge-stable/current` (readable by
+  unprivileged users); the root-only legacy `/opt/kmj-codebridge-agent` is never used.
 - Runs only on host `kmj-elite`, as the unprivileged `kmjdev` system user (it
   refuses a root service user).
 - Clones the public repository over HTTPS into

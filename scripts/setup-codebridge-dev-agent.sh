@@ -14,7 +14,10 @@ PROJECT_ID='kmj-codebridge'
 INSTANCE='kmj-codebridge-dev'
 REPO_URL='https://github.com/kmjtechno/kmj-codebridge.git'
 PROJECT_ROOT='/srv/kmj-codebridge-projects/kmj-codebridge'
-RUNTIME='/opt/kmj-codebridge-agent'
+# Signed, world-readable runtime kept current by the owner-signed updater (the
+# Main Platform agent runs from it as an unprivileged user). The legacy
+# /opt/kmj-codebridge-agent tree is root-only and must not be used.
+RUNTIME='/opt/kmj-codebridge-stable/current'
 NODE='/opt/kmj-codebridge-node/bin/node'
 ENROLLMENT_BASE='https://kmjtechno.com'
 GATEWAY='https://kmjtechno.com'
@@ -49,7 +52,7 @@ fi
 [[ ! -e "$SERVICE_FILE" && ! -e "$CONFIG" ]] || { echo 'ALREADY_ENROLLED: unit/config exist; nothing changed' >&2; exit 0; }
 
 # The service user must be able to run the live runtime read-only.
-echo "runtime_check=$(systemd-run --quiet --wait --collect --pipe -p User=nobody -p NoNewPrivileges=true /bin/sh -c 'test -x "$1" && test -r "$2"' sh "$NODE" "$RUNTIME/src/cli.js" >/dev/null 2>&1 && echo OK || echo NOT_READABLE_BY_UNPRIVILEGED_USER)"
+echo "runtime_check=$(systemd-run --quiet --wait --collect --pipe -p User=nobody -p NoNewPrivileges=true /bin/sh -c 'test -x "$1" && test -r "$2" && test -r "$3"' sh "$NODE" "$RUNTIME/src/cli.js" "$RUNTIME/scripts/enroll-device.js" >/dev/null 2>&1 && echo OK || echo NOT_READABLE_BY_UNPRIVILEGED_USER)"
 
 if [[ $APPLY -ne 1 ]]; then
   echo 'DRY_RUN_UNCHANGED: re-run with --apply to create the user, checkout, pairing and unit'
