@@ -276,7 +276,13 @@ const git = (root, args) => {
     typeof hooksDir === "string" && hooksDir.length > 0,
     "GIT_HOOK_ISOLATION_NOT_READY",
   );
-  return fixedCommand(GIT, ["-c", "core.hooksPath=" + hooksDir, "-C", root, ...args]);
+  return fixedCommand(GIT, [
+    "-c",
+    "core.hooksPath=" + hooksDir,
+    "-C",
+    root,
+    ...args,
+  ]);
 };
 const gh = (args) => fixedCommand(GH, args);
 const api = (resource) => {
