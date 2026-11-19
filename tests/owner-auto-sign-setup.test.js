@@ -129,6 +129,34 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
   assert.doesNotMatch(upgrade, /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/);
 });
 
+test(
+  "owner signer pinned upgrader Windows syntax and refusal selftest are safe",
+  { skip: process.platform !== "win32" },
+  () => {
+    const script = path.resolve(
+      "scripts/windows/OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119.ps1",
+    );
+    const parse = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$t=$null;$e=$null;[System.Management.Automation.Language.Parser]::ParseFile($env:KMJ_CHECK_SCRIPT,[ref]$t,[ref]$e)|Out-Null;if($e.Count -gt 0){$e|ForEach-Object{Write-Error $_.Message};exit 2}",
+      ],
+      { encoding: "utf8", env: { ...process.env, KMJ_CHECK_SCRIPT: script } },
+    );
+    assert.equal(parse.status, 0, parse.stderr || parse.stdout);
+    const denied = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-File", script, "-SelfTest"],
+      { encoding: "utf8" },
+    );
+    assert.equal(denied.status, 0, denied.stderr || denied.stdout);
+    assert.match(denied.stdout, /OWNER_AUTOSIGN_UPGRADE_SELFTEST=PASS/);
+  },
+);
+
 test("first-run enrollment is explicit, local-key only and fail closed", () => {
   for (const field of [
     "DESKTOP-5FVJMET",
