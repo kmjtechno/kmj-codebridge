@@ -10,7 +10,8 @@ import {
   verifyBindingSnapshot,
 } from "../scripts/windows/P520-EXACT-AGENT-BINDING-PREFLIGHT-20261119.mjs";
 
-const agentPath = "C:\\Users\\KMJ TECHNO\\AppData\\Local\\KMJ-CodeBridge\\private\\agent.json";
+const agentPath =
+  "C:\\Users\\KMJ TECHNO\\AppData\\Local\\KMJ-CodeBridge\\private\\agent.json";
 const supervisor = () => ({
   pipeName: "kmj-codebridge-supervisor-p520",
   tokenFile: TOKEN,
@@ -21,7 +22,12 @@ const supervisor = () => ({
 const current = () => ({
   id: DEVICE_ID,
   gateway: "https://kmjtechno.com/",
-  projects: [{ id: "kmj-codebridge", root: "C:\\Users\\KMJ TECHNO\\KMJ\\kmj-codebridge" }],
+  projects: [
+    {
+      id: "kmj-codebridge",
+      root: "C:\\Users\\KMJ TECHNO\\KMJ\\kmj-codebridge",
+    },
+  ],
   stateDir: "C:\\Users\\KMJ TECHNO\\AppData\\Local\\KMJ-CodeBridge\\state",
 });
 const proposed = () => ({
@@ -38,12 +44,24 @@ test("accepts exact additive P520 binding proposal without changing live agent",
 
 test("refuses missing, changed or privilege-bearing Supervisor config", () => {
   for (const change of [
-    (s) => { s.pipeName = "kmj-codebridge-supervisor-p720"; },
-    (s) => { s.tokenFile = "C:\\Temp\\token"; },
-    (s) => { s.agent.installDir = "C:\\untrusted"; },
-    (s) => { s.agent.configPath = "agent.json"; },
-    (s) => { s.agent.restartTask = "arbitrary"; },
-    (s) => { s.projects.push({ id: "admin" }); },
+    (s) => {
+      s.pipeName = "kmj-codebridge-supervisor-p720";
+    },
+    (s) => {
+      s.tokenFile = "C:\\Temp\\token";
+    },
+    (s) => {
+      s.agent.installDir = "C:\\untrusted";
+    },
+    (s) => {
+      s.agent.configPath = "agent.json";
+    },
+    (s) => {
+      s.agent.restartTask = "arbitrary";
+    },
+    (s) => {
+      s.projects.push({ id: "admin" });
+    },
   ]) {
     const s = supervisor();
     change(s);
@@ -56,10 +74,18 @@ test("refuses missing, changed or privilege-bearing Supervisor config", () => {
 
 test("refuses untrusted current device identity or preexisting Supervisor wiring", () => {
   for (const change of [
-    (a) => { a.id = "different"; },
-    (a) => { a.gateway = "https://attacker.example"; },
-    (a) => { a.projects.push({ id: "other" }); },
-    (a) => { a.supervisorSocket = "/tmp/not-windows"; },
+    (a) => {
+      a.id = "different";
+    },
+    (a) => {
+      a.gateway = "https://attacker.example";
+    },
+    (a) => {
+      a.projects.push({ id: "other" });
+    },
+    (a) => {
+      a.supervisorSocket = "/tmp/not-windows";
+    },
   ]) {
     const a = current();
     change(a);
@@ -72,9 +98,15 @@ test("refuses untrusted current device identity or preexisting Supervisor wiring
 
 test("rejects extra proposal mutations and substituted Supervisor endpoints", () => {
   for (const change of [
-    (p) => { p.supervisorPipe = "\\\\.\\pipe\\other"; },
-    (p) => { p.supervisorTokenFile = "C:\\other\\token"; },
-    (p) => { p.supervisorSocket = "/tmp/unsafe"; },
+    (p) => {
+      p.supervisorPipe = "\\\\.\\pipe\\other";
+    },
+    (p) => {
+      p.supervisorTokenFile = "C:\\other\\token";
+    },
+    (p) => {
+      p.supervisorSocket = "/tmp/unsafe";
+    },
   ]) {
     const p = proposed();
     change(p);
@@ -84,9 +116,15 @@ test("rejects extra proposal mutations and substituted Supervisor endpoints", ()
     );
   }
   for (const change of [
-    (p) => { p.projects[0].root = "C:\\Other"; },
-    (p) => { p.stateDir = "C:\\Other"; },
-    (p) => { p.extraGrant = "root"; },
+    (p) => {
+      p.projects[0].root = "C:\\Other";
+    },
+    (p) => {
+      p.stateDir = "C:\\Other";
+    },
+    (p) => {
+      p.extraGrant = "root";
+    },
   ]) {
     const p = proposed();
     change(p);
@@ -106,7 +144,10 @@ test("blocks wrong workstation before file access", () => {
           platform: "win32",
           hostname: "DESKTOP-5FVJMET",
           ...patch,
-          read: () => { reads++; return supervisor(); },
+          read: () => {
+            reads++;
+            return supervisor();
+          },
         }),
       /BINDING_WRONG_DEVICE/,
     );
@@ -124,7 +165,10 @@ test("read-only preflight reads exact fixed config and owner proposal only", () 
   const r = inspectLocalBinding({
     platform: "win32",
     hostname: "DESKTOP-5FVJMET",
-    read: (p) => { paths.push(p); return fixtures.get(p); },
+    read: (p) => {
+      paths.push(p);
+      return fixtures.get(p);
+    },
   });
   assert.deepEqual(r, { verified: true });
   assert.deepEqual(paths, [
@@ -136,11 +180,17 @@ test("read-only preflight reads exact fixed config and owner proposal only", () 
 
 test("missing proposal always fails closed", () => {
   assert.throws(
-    () => inspectLocalBinding({
-      platform: "win32",
-      hostname: "DESKTOP-5FVJMET",
-      read: (p) => p === SUPERVISOR_JSON ? supervisor() : p === agentPath ? current() : undefined,
-    }),
+    () =>
+      inspectLocalBinding({
+        platform: "win32",
+        hostname: "DESKTOP-5FVJMET",
+        read: (p) =>
+          p === SUPERVISOR_JSON
+            ? supervisor()
+            : p === agentPath
+              ? current()
+              : undefined,
+      }),
     /BINDING_JSON_INVALID/,
   );
 });
