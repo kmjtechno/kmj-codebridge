@@ -43,10 +43,7 @@ test("V2 inventory requires exact immutable image digest, no auto-pin", () => {
     "FORMAT_PASS_NOT_OWNER_ATTESTED",
   );
   assert.equal(classifyPolicy(stat("file", 64), "z".repeat(64)), "MALFORMED");
-  assert.equal(
-    classifyPolicy(stat("file", 66), digest + "  "),
-    "MALFORMED",
-  );
+  assert.equal(classifyPolicy(stat("file", 66), digest + "  "), "MALFORMED");
   assert.equal(
     classifyPolicy(stat("symlink", 64), digest),
     "MISSING_OR_UNTRUSTED",
@@ -84,7 +81,9 @@ test(
       console.log(marker);
     }
     assert.ok(rows.includes("P520_V2_ARCHIVE_SHA_READBACK=NOT_EXECUTED"));
-    assert.ok(rows.includes("P520_V2_PHYSICAL_PG_UPLOADS_RESTORE=NOT_EXECUTED"));
+    assert.ok(
+      rows.includes("P520_V2_PHYSICAL_PG_UPLOADS_RESTORE=NOT_EXECUTED"),
+    );
     assert.ok(rows.includes("PRODUCTION_APPROVAL=NOT_GRANTED"));
     assert.ok(rows.includes("P520_V2_INVENTORY=READ_ONLY_COMPLETE"));
     assert.equal(r.status, 0, "P520_V2_INVENTORY_READONLY_FAILED");
