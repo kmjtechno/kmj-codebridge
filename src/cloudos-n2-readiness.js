@@ -52,11 +52,11 @@ export const CLOUDOS_N2_READINESS_PYTHON = [
   "    zone=meta('zone').rsplit('/',1)[-1]",
   "    return name==INSTANCE and machine=='n2-standard-2' and zone==ZONE",
   "",
-  "def main():"
+  "def main():",
   "    if os.geteuid()==0 or socket.gethostname().split('.')[0]!=HOST:",
   "        print('CLOUDOS_N2_READINESS=BLOCKED_HOST_OR_ROOT')",
   "        return 2",
-  "    identity=identity_matches()"
+  "    identity=identity_matches()",
   "    try:",
   "        with open('/proc/cpuinfo','rb') as file:",
   "            flags=set(file.read(1048577).decode('ascii','ignore').split())",
