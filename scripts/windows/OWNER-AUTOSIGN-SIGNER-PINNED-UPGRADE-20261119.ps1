@@ -39,6 +39,138 @@ function OwnerAcl([string]$p,[string]$sid) {
   }
   Need $found 'UPGRADE_OWNER_ACE_MISSING'
 }
+# Scheduled Task UserId can be a SID or DOMAIN\\user. Compare canonical SIDs.
+function TaskPrincipalSid([string]$principal) {
+  Need (-not [string]::IsNullOrWhiteSpace($principal) -and
+    $principal.Length -le 256) 'AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED'
+  try {
+    if($principal -match '^S-1-[0-9-]+
+  $h=([string](& $git hash-object -- $p)).Trim()
+  Need ($LASTEXITCODE -eq 0 -and $h -match '^[a-f0-9]{40}$') 'UPGRADE_HASH_UNVERIFIED'
+  return $h
+}
+if($SelfTest) {
+  $caught=$false
+  try{Need $false 'UPGRADE_DENIAL_SELFTEST'}catch{
+    $caught=([string]$_.Exception.Message -ceq 'UPGRADE_DENIAL_SELFTEST')
+  }
+  Need $caught 'UPGRADE_SELFTEST_FAIL'
+  $me=[Security.Principal.WindowsIdentity]::GetCurrent()
+  Need ((TaskPrincipalSid $me.User.Value) -ceq $me.User.Value) 'AUTOSIGN_SID_SELFTEST_FAIL'
+  Need ((TaskPrincipalSid $me.Name) -ceq $me.User.Value) 'AUTOSIGN_ACCOUNT_SELFTEST_FAIL'
+  Need ((TaskPrincipalSid 'S-1-5-18') -cne $me.User.Value) 'AUTOSIGN_FOREIGN_SID_SELFTEST_FAIL'
+  Mark 'OWNER_AUTOSIGN_UPGRADE_SELFTEST' 'PASS'
+  exit 0
+}
+try {
+  Need ($env:OS -ceq 'Windows_NT' -and
+    $env:COMPUTERNAME -ieq $ExpectedHost) 'UPGRADE_WRONG_HOST'
+  $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+
+  $git=(Get-Command git.exe -ErrorAction Stop).Source
+  $node=(Get-Command node.exe -ErrorAction Stop).Source
+  Need (SafeFile $Source) 'UPGRADE_PINNED_SOURCE_MISSING'
+  Need ((GitBlob $Source $git) -ceq $NewSignerBlob) 'UPGRADE_SOURCE_NOT_PINNED'
+  Need (SafeFile $Policy) 'UPGRADE_OWNER_POLICY_MISSING'
+  OwnerAcl $Policy $sid
+  $policy=Get-Content -LiteralPath $Policy -Raw -ErrorAction Stop |
+    ConvertFrom-Json -ErrorAction Stop
+  Need ($policy.enabled -eq $true -and
+    [string]$policy.ownerConsent -ceq 'AUTO_SIGN_REVIEWED_MAIN_ONLY' -and
+    [string]$policy.repo -ceq 'kmjtechno/kmj-codebridge' -and
+    [string]$policy.keyId -ceq 'kmj-release-2026' -and
+    [datetime]::UtcNow -lt ([datetime]::Parse([string]$policy.expiresAt)).ToUniversalTime()
+  ) 'UPGRADE_OWNER_CONSENT_INVALID'
+  Need (Test-Path -LiteralPath $Install -PathType Container) 'UPGRADE_INSTALL_MISSING'
+  foreach($dir in @($Install,(Join-Path $Install 'scripts'),
+        (Join-Path $Install 'scripts\production'))) {
+    $d=Get-Item -LiteralPath $dir -Force -ErrorAction Stop
+    Need ($d.PSIsContainer -and
+      ($d.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) 'UPGRADE_DIRECTORY_UNTRUSTED'
+    OwnerAcl $dir $sid
+  }
+  Need ((SafeFile $Signer) -and (SafeFile $Gate)) 'UPGRADE_INSTALLED_FILES_MISSING'
+  OwnerAcl $Signer $sid
+  OwnerAcl $Gate $sid
+  Need ((GitBlob $Gate $git) -ceq $GateBlob) 'UPGRADE_CI_GATE_DRIFT'
+  $existing=(GitBlob $Signer $git)
+  Need ($existing -in @($OldSignerBlob,$IntermediateSignerBlob,$NewSignerBlob)) 'UPGRADE_SIGNER_UNRECOGNIZED'
+  $task=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+  $actions=@($task.Actions)
+  $taskSid=TaskPrincipalSid ([string]$task.Principal.UserId)
+  Need ($actions.Count -eq 1 -and
+    $taskSid -ceq $sid -and
+    [string]$task.Principal.RunLevel -ceq 'Limited' -and
+    [string]$task.Principal.LogonType -ceq 'Interactive' -and
+    [string]$actions[0].Execute -ieq $node -and
+    [string]$actions[0].Arguments -ceq ('"'+$Signer+'" --once') -and
+    [string]$actions[0].WorkingDirectory -ieq $Install) 'UPGRADE_TASK_IDENTITY_UNVERIFIED'
+  Need ([string]$task.State -ceq 'Disabled') 'UPGRADE_TASK_NOT_DISABLED'
+  if($existing -ceq $NewSignerBlob) {
+    Mark 'OWNER_AUTOSIGN_UPGRADE' 'ALREADY_CURRENT'
+    exit 0
+  }
+  Need (-not(Test-Path -LiteralPath $Candidate) -and
+    -not(Test-Path -LiteralPath $Backup)) 'UPGRADE_PREVIOUS_ARTIFACT_PRESENT'
+  Mark 'OWNER_AUTOSIGN_UPGRADE_PREFLIGHT' 'PASS'
+  if(-not $Apply) {
+    Mark 'OWNER_AUTOSIGN_UPGRADE' 'DRY_RUN_ONLY'
+    exit 0
+  }
+  # Stage and verify only after the owner has independently disabled the task.
+  # A failing stage cannot alter the scheduled action or original signer.
+  Copy-Item -LiteralPath $Source -Destination $Candidate -ErrorAction Stop
+  & icacls.exe $Candidate /inheritance:r /grant:r ('*'+$sid+':F') '*S-1-5-18:F' '*S-1-5-32-544:F' 1>$null
+  Need ($LASTEXITCODE -eq 0) 'UPGRADE_CANDIDATE_ACL_FAILED'
+  Need (SafeFile $Candidate) 'UPGRADE_CANDIDATE_FILE_UNTRUSTED'
+  OwnerAcl $Candidate $sid
+  Need ((GitBlob $Candidate $git) -ceq $NewSignerBlob) 'UPGRADE_CANDIDATE_HASH_DRIFT'
+  # Recheck the owner-maintained safety hold immediately before replacement.
+  $before=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+  Need ([string]$before.State -ceq 'Disabled') 'UPGRADE_TASK_NOT_DISABLED_AT_REPLACE'
+  # Same-volume NTFS replacement atomically stores the known-good old file
+  # in a protected backup. Preserve it for an owner-controlled rollback.
+  [System.IO.File]::Replace($Candidate,$Signer,$Backup)
+  Need (SafeFile $Signer) 'UPGRADE_REPLACEMENT_UNTRUSTED'
+  OwnerAcl $Signer $sid
+  Need ((GitBlob $Signer $git) -ceq $NewSignerBlob) 'UPGRADE_REPLACED_HASH_DRIFT'
+  Need (SafeFile $Backup) 'UPGRADE_ROLLBACK_BACKUP_MISSING'
+  OwnerAcl $Backup $sid
+  Need ((GitBlob $Backup $git) -ceq $existing) 'UPGRADE_ROLLBACK_BACKUP_DRIFT'
+  $disabled=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+  Need ([string]$disabled.State -ceq 'Disabled' -and
+    @($disabled.Actions).Count -eq 1 -and
+    [string]$disabled.Actions[0].Arguments -ceq ('"'+$Signer+'" --once') -and
+    [string]$disabled.Actions[0].WorkingDirectory -ieq $Install
+  ) 'UPGRADE_DISABLED_READBACK_UNVERIFIED'
+  Mark 'OWNER_AUTOSIGN_UPGRADE' 'PASS'
+  Mark 'OWNER_AUTOSIGN_SIGNER_BLOB' $NewSignerBlob
+  Mark 'OWNER_AUTOSIGN_TASK' 'DISABLED_PRESERVED'
+  Mark 'OWNER_AUTOSIGN_OLD_SIGNER' 'PRESERVED_FOR_ROLLBACK'
+} catch {
+  # No automatic reenable on success or failure. Preserve explicit owner hold.
+  try {
+    $d=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
+    if([string]$d.State -ceq 'Disabled'){
+      Mark 'OWNER_AUTOSIGN_TASK' 'DISABLED_PRESERVED'
+    }else{
+      Mark 'OWNER_AUTOSIGN_TASK' 'REVIEW_REQUIRED'
+    }
+  }catch{Mark 'OWNER_AUTOSIGN_TASK' 'REVIEW_REQUIRED'}
+  $reason=[string]$_.Exception.Message
+  if($reason -cnotmatch '^[A-Z][A-Z0-9_]{3,90}$'){
+    $reason='UPGRADE_OWNER_REVIEW_REQUIRED'
+  }
+  Mark 'OWNER_AUTOSIGN_UPGRADE' ('BLOCKED:'+$reason)
+  Mark 'OWNER_AUTOSIGN_PRIVATE_KEY' 'UNTOUCHED'
+  exit 2
+}){
+      return ([Security.Principal.SecurityIdentifier]::new($principal)).Value
+    }
+    return ([Security.Principal.NTAccount]::new($principal)).Translate(
+      [Security.Principal.SecurityIdentifier]).Value
+  } catch { throw 'AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED' }
+}
 function GitBlob([string]$p,[string]$git) {
   $h=([string](& $git hash-object -- $p)).Trim()
   Need ($LASTEXITCODE -eq 0 -and $h -match '^[a-f0-9]{40}$') 'UPGRADE_HASH_UNVERIFIED'
