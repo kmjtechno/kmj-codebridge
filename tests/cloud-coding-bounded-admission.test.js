@@ -49,3 +49,28 @@ test("cloud discovery deduplicates chains before zero-cost verification", async 
   });
   assert.deepEqual(checked, ["auto:code", "auto:other"]);
 });
+
+test("cloud discovery drops verified admissions when consent is revoked mid-verification", async () => {
+  let consent = true;
+  let checks = 0;
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => consent,
+    createClient: () => ({
+      status: async () => ({
+        available: true,
+        approvedFreeChains: ["auto:first", "auto:second"],
+      }),
+      checkZeroCostChain: async ({ chain }) => {
+        checks++;
+        consent = false;
+        return { admitted: true, chain };
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
+  assert.equal(checks, 1, "revoked consent must prevent additional verification");
+});
