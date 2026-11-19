@@ -15,7 +15,9 @@ export const TOKEN = WIN.join(ROOT, "supervisor.token");
 export const PIPE = "\\\\.\\pipe\\kmj-codebridge-supervisor-p520";
 export const DEVICE_ID = "kmj-kmj-codebridge-desktop-5fvjmet";
 
-const deny = (reason) => { throw new Error(reason); };
+const deny = (reason) => {
+  throw new Error(reason);
+};
 const same = (a, b) =>
   typeof a === "string" &&
   typeof b === "string" &&
@@ -24,20 +26,28 @@ const same = (a, b) =>
   WIN.normalize(a).toLowerCase() === WIN.normalize(b).toLowerCase();
 
 function nontrivialAgentPath(p) {
-  return typeof p === "string" &&
+  return (
+    typeof p === "string" &&
     WIN.isAbsolute(p) &&
     !p.startsWith("\\\\") &&
     WIN.basename(p).toLowerCase() === "agent.json" &&
-    !p.includes("..");
+    !p.includes("..")
+  );
 }
 
 export function verifyBindingSnapshot(supervisor, current, proposed) {
   if (
-    !supervisor || !current || !proposed ||
-    typeof supervisor !== "object" || Array.isArray(supervisor) ||
-    typeof current !== "object" || Array.isArray(current) ||
-    typeof proposed !== "object" || Array.isArray(proposed)
-  ) deny("BINDING_JSON_INVALID");
+    !supervisor ||
+    !current ||
+    !proposed ||
+    typeof supervisor !== "object" ||
+    Array.isArray(supervisor) ||
+    typeof current !== "object" ||
+    Array.isArray(current) ||
+    typeof proposed !== "object" ||
+    Array.isArray(proposed)
+  )
+    deny("BINDING_JSON_INVALID");
 
   const agentPath = supervisor.agent?.configPath;
   if (
@@ -50,26 +60,33 @@ export function verifyBindingSnapshot(supervisor, current, proposed) {
     !Array.isArray(supervisor.readOnlyProjects) ||
     supervisor.readOnlyProjects.length !== 0 ||
     Object.hasOwn(supervisor.agent ?? {}, "restartTask")
-  ) deny("BINDING_SUPERVISOR_SCOPE_CHANGED");
+  )
+    deny("BINDING_SUPERVISOR_SCOPE_CHANGED");
 
   if (
     current.id !== DEVICE_ID ||
-    !["https://kmjtechno.com", "https://kmjtechno.com/"].includes(current.gateway) ||
+    !["https://kmjtechno.com", "https://kmjtechno.com/"].includes(
+      current.gateway,
+    ) ||
     !Array.isArray(current.projects) ||
     current.projects.length !== 1 ||
     current.projects[0]?.id !== "kmj-codebridge" ||
-    ["supervisorPipe", "supervisorTokenFile", "supervisorSocket"].some((k) => Object.hasOwn(current, k))
-  ) deny("BINDING_EXISTING_AGENT_IDENTITY_CHANGED");
+    ["supervisorPipe", "supervisorTokenFile", "supervisorSocket"].some((k) =>
+      Object.hasOwn(current, k),
+    )
+  )
+    deny("BINDING_EXISTING_AGENT_IDENTITY_CHANGED");
 
   if (
     proposed.supervisorPipe !== PIPE ||
     !same(proposed.supervisorTokenFile, TOKEN) ||
     Object.hasOwn(proposed, "supervisorSocket")
-  ) deny("BINDING_PROPOSAL_ENDPOINT_CHANGED");
+  )
+    deny("BINDING_PROPOSAL_ENDPOINT_CHANGED");
 
   const copy = Object.fromEntries(
-    Object.entries(proposed).filter(([key]) =>
-      key !== "supervisorPipe" && key !== "supervisorTokenFile"
+    Object.entries(proposed).filter(
+      ([key]) => key !== "supervisorPipe" && key !== "supervisorTokenFile",
     ),
   );
   if (!isDeepStrictEqual(copy, current))
@@ -84,7 +101,9 @@ function readTrustedJson(file) {
   // Refuse reparse points, symlinks, special files and oversized JSON.
   const parsed = WIN.parse(file);
   let ancestor = parsed.root;
-  const relative = WIN.relative(parsed.root, WIN.dirname(file)).split("\\").filter(Boolean);
+  const relative = WIN.relative(parsed.root, WIN.dirname(file))
+    .split("\\")
+    .filter(Boolean);
   for (const part of relative) {
     ancestor = WIN.join(ancestor, part);
     const entry = fs.lstatSync(ancestor);
@@ -92,13 +111,22 @@ function readTrustedJson(file) {
       deny("BINDING_DIRECTORY_UNTRUSTED");
   }
   const before = fs.lstatSync(file);
-  if (!before.isFile() || before.isSymbolicLink() || before.size < 10 || before.size > 1024 * 1024)
+  if (
+    !before.isFile() ||
+    before.isSymbolicLink() ||
+    before.size < 10 ||
+    before.size > 1024 * 1024
+  )
     deny("BINDING_JSON_FILE_UNTRUSTED");
   const data = fs.readFileSync(file, "utf8");
   const after = fs.lstatSync(file);
   if (before.size !== after.size || before.mtimeMs !== after.mtimeMs)
     deny("BINDING_JSON_CHANGED_DURING_READ");
-  try { return JSON.parse(data); } catch { deny("BINDING_JSON_PARSE_FAILED"); }
+  try {
+    return JSON.parse(data);
+  } catch {
+    deny("BINDING_JSON_PARSE_FAILED");
+  }
 }
 
 export function inspectLocalBinding({
