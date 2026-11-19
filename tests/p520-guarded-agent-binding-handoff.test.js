@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 
 const source = fs.readFileSync(
-  new URL("../scripts/windows/P520-GUARDED-AGENT-BINDING-HANDOFF-20261119.ps1", import.meta.url),
+  new URL(
+    "../scripts/windows/P520-GUARDED-AGENT-BINDING-HANDOFF-20261119.ps1",
+    import.meta.url,
+  ),
   "utf8",
 );
 
@@ -19,8 +22,14 @@ test("P520 agent handoff dry-run is the default", () => {
 test("P520 handoff requires real current HMAC and exact existing-agent proposal", () => {
   assert.match(source, /P520-PERSISTENT-HMAC-VERIFY-20261119\.mjs/);
   assert.match(source, /P520-EXACT-AGENT-BINDING-PREFLIGHT-20261119\.mjs/);
-  assert.match(source, /3bd126fb9901c91cf32dfdbdd4362bb29f37dc99bbc7da01a138674f6cc723a9/);
-  assert.match(source, /e66d268f2e9a199a1d450c40b27249232c54d8ce179d6885a49371c676973b4d/);
+  assert.match(
+    source,
+    /3bd126fb9901c91cf32dfdbdd4362bb29f37dc99bbc7da01a138674f6cc723a9/,
+  );
+  assert.match(
+    source,
+    /e66d268f2e9a199a1d450c40b27249232c54d8ce179d6885a49371c676973b4d/,
+  );
   assert.match(source, /P520_PERSISTENT_HMAC_STATUS=PASS/);
   assert.match(source, /P520_AGENT_PROPOSAL_EXACT_ONLY=PASS/);
   assert.match(source, /SUPERVISOR_EXISTING_TASK_NOT_RUNNING/);
@@ -60,5 +69,8 @@ test("P520 handoff never registers new task, enrolls device, touches main platfo
     source,
     /\b(?:Register-ScheduledTask|Unregister-ScheduledTask|New-ScheduledTask|Enable-ScheduledTask|Disable-ScheduledTask|Set-ScheduledTask|git\s+reset|git\s+clean|New-Service|Set-Service)\b/i,
   );
-  assert.doesNotMatch(source, /ssh(?:\.exe)?\b|scp(?:\.exe)?\b|ALTER DATABASE|pg_restore|APPROVED_PRODUCTION_RELEASE/);
+  assert.doesNotMatch(
+    source,
+    /ssh(?:\.exe)?\b|scp(?:\.exe)?\b|ALTER DATABASE|pg_restore|APPROVED_PRODUCTION_RELEASE/,
+  );
 });
