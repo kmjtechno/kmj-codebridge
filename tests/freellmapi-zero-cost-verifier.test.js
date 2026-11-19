@@ -159,3 +159,33 @@ test("module is pure and imported only by the opt-in runtime assembly", () => {
     );
   assert.deepEqual(importers, ["freellmapi-runtime.js"]);
 });
+
+test("ambiguous OpenRouter catalog rows deny before account key lookup", async () => {
+  let keyReads = 0;
+  const good = catalog().data;
+  for (const duplicate of [
+    { ...good[0], pricing: { prompt: "1", completion: "0" } },
+    { ...good[0] },
+  ]) {
+    await denied({
+      fetchOpenRouterModels: async () => ({ data: [...good, duplicate] }),
+      fetchOpenRouterKey: async () => {
+        keyReads++;
+        return key();
+      },
+    });
+  }
+  assert.equal(keyReads, 0);
+});
+
+test("malformed catalog row denies before account key lookup", async () => {
+  let keyReads = 0;
+  await denied({
+    fetchOpenRouterModels: async () => ({ data: [...catalog().data, null] }),
+    fetchOpenRouterKey: async () => {
+      keyReads++;
+      return key();
+    },
+  });
+  assert.equal(keyReads, 0);
+});

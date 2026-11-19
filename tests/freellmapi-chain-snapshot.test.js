@@ -123,3 +123,18 @@ test("installer is dry-run by default, runs as the router user, and the reader i
     .replace(/\/\/.*$/gm, "");
   assert.ok(!/process\.env|readFile|child_process|node:/.test(src));
 });
+
+test("invalid and unsafe clock readings fail closed", async () => {
+  for (const clock of [NaN, Infinity, -1, 1.5, Number.MAX_SAFE_INTEGER]) {
+    const reader = createChainSnapshotReader({
+      readSnapshot: async () => snap(),
+      now: () => clock,
+    });
+    await assert.rejects(reader(CHAIN), { message: "CHAIN_SNAPSHOT_UNUSABLE" });
+  }
+});
+
+test("duplicate chain members fail closed rather than silently deduplicating", async () => {
+  const member = { platform: "openrouter", modelId: "a/b:free" };
+  await unusable(snap({ members: [member, { ...member }] }));
+});

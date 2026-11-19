@@ -68,7 +68,14 @@ export function createZeroCostVerifier({
     if (!liveIds.every((id, i) => id === pinned[i])) deny();
     const catalog = await fetchOpenRouterModels();
     const rows = Array.isArray(catalog?.data) ? catalog.data : [];
-    const models = pinned.map((id) => rows.find((r) => r?.id === id));
+    // An ambiguous catalog cannot prove which price applies to a pinned route.
+    // Reject duplicate IDs before selecting any row, even if the first is free.
+    const seen = new Set();
+    for (const row of rows) {
+      if (typeof row?.id !== "string" || seen.has(row.id)) deny();
+      seen.add(row.id);
+    }
+    const models = pinned.map((id) => rows.find((r) => r.id === id));
     if (!models.every((r) => r && isVerifiedFreeModel(r))) deny();
     const proof = buildZeroCostProof({
       chain,
