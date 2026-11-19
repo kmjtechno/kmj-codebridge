@@ -178,6 +178,81 @@ test(
   },
 );
 
+test("guarded one-click resume requires pinned signer, owner policy, CI and task identity", () => {
+  const source = fs.readFileSync(
+    "scripts/windows/OWNER-AUTOSIGN-RESUME-GUARDED-20261119.ps1",
+    "utf8",
+  );
+  const launcher = fs.readFileSync(
+    "scripts/windows/ONE-CLICK-OWNER-AUTOSIGN-RESUME-20261119.cmd",
+    "utf8",
+  );
+  for (const gate of [
+    "DESKTOP-5FVJMET",
+    "31c58d25baa2d57945a70fe689c54979b8023229",
+    "AUTOSIGN_SIGNER_BLOB_NOT_APPROVED",
+    "AUTOSIGN_OWNER_POLICY_NOT_APPROVED",
+    "AUTOSIGN_TASK_NOT_OWNER_DISABLED",
+    "AUTOSIGN_TASK_NODE24_REQUIRED",
+    "AUTOSIGN_REPO_MERGE_POLICY_UNVERIFIED",
+    "AUTOSIGN_BRANCH_PROTECTION_UNVERIFIED",
+    "AUTOSIGN_EXACT_HEAD_CI_NOT_GREEN",
+    "AUTOSIGN_MAIN_MOVED",
+    "AUTOSIGN_ENABLE_PREFLIGHT",
+    "OWNER_AUTOSIGN_FIRST_SIGNED_RELEASE",
+    "Enable-ScheduledTask",
+  ]) assert.ok(source.includes(gate), gate);
+  assert.match(
+    launcher,
+    /OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119\.ps1" -Apply/,
+  );
+  assert.match(
+    launcher,
+    /OWNER-AUTOSIGN-RESUME-GUARDED-20261119\.ps1" -Apply/,
+  );
+  assert.ok(
+    launcher.indexOf("OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE") <
+      launcher.indexOf("OWNER-AUTOSIGN-RESUME-GUARDED"),
+  );
+  assert.doesNotMatch(
+    launcher,
+    /curl|wget|Invoke-WebRequest|EncodedCommand|taskkill|git reset|git clean/,
+  );
+  assert.doesNotMatch(
+    source,
+    /Start-ScheduledTask|Unregister-ScheduledTask|Restart-Service|git reset|git clean/,
+  );
+  assert.doesNotMatch(source, /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/);
+});
+
+test(
+  "owner resume PowerShell selftest is available without any task mutation",
+  { skip: process.platform !== "win32" },
+  () => {
+    const script = path.resolve(
+      "scripts/windows/OWNER-AUTOSIGN-RESUME-GUARDED-20261119.ps1",
+    );
+    const syntax = spawnSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$t=$null;$e=$null;[System.Management.Automation.Language.Parser]::ParseFile($env:KMJ_CHECK_SCRIPT,[ref]$t,[ref]$e)|Out-Null;if($e.Count -gt 0){$e|ForEach-Object{Write-Error $_.Message};exit 2}",
+      ],
+      { encoding: "utf8", env: { ...process.env, KMJ_CHECK_SCRIPT: script } },
+    );
+    assert.equal(syntax.status, 0, syntax.stderr || syntax.stdout);
+    const t = spawnSync(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-File", script, "-SelfTest"],
+      { encoding: "utf8" },
+    );
+    assert.equal(t.status, 0, t.stderr || t.stdout);
+    assert.match(t.stdout, /OWNER_AUTOSIGN_RESUME_SELFTEST=PASS/);
+  },
+);
+
 test("first-run enrollment is explicit, local-key only and fail closed", () => {
   for (const field of [
     "DESKTOP-5FVJMET",
