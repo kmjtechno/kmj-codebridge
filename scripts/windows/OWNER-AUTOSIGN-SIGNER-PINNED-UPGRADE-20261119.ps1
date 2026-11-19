@@ -14,7 +14,8 @@ $Gate=Join-Path $Install 'scripts\release-ci-gate.mjs'
 $Source=Join-Path $PSScriptRoot '..\production\owner-auto-sign-stable.mjs'
 $Policy=Join-Path $HOME '.config\kmj-codebridge\auto-sign-policy.json'
 $OldSignerBlob='a41985b2b407bebd34ddb5bfa8f010bf4e11ffb1'
-$NewSignerBlob='b3717a8b3c948567f6648ad11233ed276d58b143'
+$IntermediateSignerBlob='b3717a8b3c948567f6648ad11233ed276d58b143'
+$NewSignerBlob='e2cc293448d13e7acf7172f111574954257e4b60'
 $GateBlob='897d9ff674ac6d007bae34084060a16b713ef2b6'
 $Candidate=$Signer+'.upgrade-candidate-20261119'
 $Backup=$Signer+'.pre-upgrade-20261119'
@@ -84,7 +85,7 @@ try {
   OwnerAcl $Gate $sid
   Need ((GitBlob $Gate $git) -ceq $GateBlob) 'UPGRADE_CI_GATE_DRIFT'
   $existing=(GitBlob $Signer $git)
-  Need ($existing -in @($OldSignerBlob,$NewSignerBlob)) 'UPGRADE_SIGNER_UNRECOGNIZED'
+  Need ($existing -in @($OldSignerBlob,$IntermediateSignerBlob,$NewSignerBlob)) 'UPGRADE_SIGNER_UNRECOGNIZED'
   $task=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   $actions=@($task.Actions)
   Need ($actions.Count -eq 1 -and
@@ -125,7 +126,7 @@ try {
   Need ((GitBlob $Signer $git) -ceq $NewSignerBlob) 'UPGRADE_REPLACED_HASH_DRIFT'
   Need (SafeFile $Backup) 'UPGRADE_ROLLBACK_BACKUP_MISSING'
   OwnerAcl $Backup $sid
-  Need ((GitBlob $Backup $git) -ceq $OldSignerBlob) 'UPGRADE_ROLLBACK_BACKUP_DRIFT'
+  Need ((GitBlob $Backup $git) -ceq $existing) 'UPGRADE_ROLLBACK_BACKUP_DRIFT'
   $disabled=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   Need ([string]$disabled.State -ceq 'Disabled' -and
     @($disabled.Actions).Count -eq 1 -and
