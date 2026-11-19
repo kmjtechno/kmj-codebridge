@@ -75,7 +75,7 @@ try {
   $verify=Join-Path $PSScriptRoot 'P520-PERSISTENT-HMAC-VERIFY-20261119.mjs'
   Pinned $doctor '7326fcc54aca02bd57ed9d220380eddc5ffeda26f393aa9fdda1fa0adf4b4a5d'
   Pinned $smoke 'a727ea6ba818858947079a59a7f29373e35cdace859393e2959b7d275fe942af'
-  Pinned $verify '414111c78505766bb2ae303d4749828eacd06563550a71a7625cb7beca752ba0'
+  Pinned $verify 'e66d268f2e9a199a1d450c40b27249232c54d8ce179d6885a49371c676973b4d'
   $node=TaskExact
   CheckDoctor $doctor @(
     'P520_DEVICE=PASS','P520_EXISTING_TASK=ONE',
