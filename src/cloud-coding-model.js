@@ -54,6 +54,9 @@ export function createVerifiedFreeCloudCodingModel({
           }
         }
       }
+      // A verifier can revoke consent and throw; never expose earlier admissions.
+      if (!approved())
+        return { available: false, activeRequest: false, models: [] };
       return {
         available: models.length > 0,
         activeRequest: false,
