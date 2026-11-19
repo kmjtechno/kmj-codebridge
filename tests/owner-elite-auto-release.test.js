@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
@@ -80,7 +82,7 @@ test("cooldown, kill switch and listing parsing", () => {
   assert.equal(ok(`a.cooldown_ok({"lastCutoverAt": 1000}, 1500)`).ok, false);
   assert.equal(ok(`a.cooldown_ok({"lastCutoverAt": 1000}, 2800)`).ok, true);
   assert.equal(ok(`a.cooldown_ok({}, 5)`).ok, true);
-  const tmp = fs.mkdtempSync("/tmp/ks-");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "ks-"));
   fs.writeFileSync(`${tmp}/off`, "");
   assert.equal(
     ok(`a.kill_switch_active(${JSON.stringify(tmp + "/off")})`).ok,
@@ -110,8 +112,9 @@ test("cooldown, kill switch and listing parsing", () => {
   );
 });
 
-test("state files are validated and written privately", () => {
-  const tmp = fs.mkdtempSync("/tmp/st-");
+test("state files are validated and written privately", (t) => {
+  if (process.platform === "win32") return t.skip("POSIX file modes");
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "st-"));
   const file = `${tmp}/state.json`;
   const rev = "d".repeat(40);
   const body = (obj) =>

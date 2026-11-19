@@ -166,7 +166,7 @@ def load_release():
 def load_state(strict=True, path=STATE):
     if not os.path.lexists(path):
         return {"seen": {}, "attempted": {}, "lastCutoverAt": 0}
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
+    fd = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_CLOEXEC", 0))
     try:
         st = os.fstat(fd)
         need(stat.S_ISREG(st.st_mode) and st.st_nlink == 1
@@ -186,7 +186,7 @@ def save_state(state, path=STATE):
     need(not path.parent.is_symlink(), "STATE_DIR_UNTRUSTED")
     data = json.dumps(clean_state(state), sort_keys=True).encode()
     temp = path.with_name(path.name + ".tmp")
-    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
     try:
         os.write(fd, data)
         os.fsync(fd)

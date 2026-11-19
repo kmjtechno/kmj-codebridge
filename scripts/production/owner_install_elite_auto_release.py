@@ -23,14 +23,15 @@ import subprocess
 import sys
 
 SOURCE = pathlib.Path(__file__).resolve().parent
-INSTALL_DIR = pathlib.Path("/usr/local/lib/kmj-codebridge-release")
+INSTALL_TEXT = "/usr/local/lib/kmj-codebridge-release"
+INSTALL_DIR = pathlib.Path(INSTALL_TEXT)
 CONF_DIR = pathlib.Path("/etc/kmj-codebridge-release")
 UNIT_DIR = pathlib.Path("/etc/systemd/system")
 SERVICE = "kmj-codebridge-auto-release.service"
 TIMER = "kmj-codebridge-auto-release.timer"
 CONFIRM = "--confirm-unattended-release-owner-go"
 FILES = {
-    "owner_elite_auto_release.py": "2dc36f4443b1d8df4f918032de3e340318e17ccee2c7c10369bf66fedaf98865",
+    "owner_elite_auto_release.py": "59837def9910937b85790834d22c0f202d13278b59658d32a39ebce29d46d66b",
     "owner_elite_release.py": "e11e9d463d432bb0f2fbbc5b0eededbfb554e0f71653dad8d005c3d16f3aafd3",
     "owner_roll_signed_latest_feed_20261115.py":
         "3e0613f8826589c6b718e97cd227899f0fbc65cb97cd0a5aa5afe5de727aa509",
@@ -50,7 +51,7 @@ ProtectHome=true
 RuntimeDirectory=kmj-codebridge-release
 RuntimeDirectoryMode=0700
 TimeoutStartSec=1500
-ExecStart=/usr/bin/python3 -I {INSTALL_DIR}/owner_elite_auto_release.py
+ExecStart=/usr/bin/python3 -I {INSTALL_TEXT}/owner_elite_auto_release.py
 """
 TIMER_UNIT = f"""[Unit]
 Description=Check for a new owner-signed CodeBridge release every 10 minutes
