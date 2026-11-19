@@ -17,7 +17,7 @@ test("dev-agent setup is dry-run by default and refuses root service user", () =
   assert.match(text, /--apply/);
   assert.match(text, /SERVICE_USER_IS_ROOT/);
   assert.match(text, /^SERVICE_USER='kmjdev'$/m);
-  assert.match(text, /\[\[ ".*hostname -s.*" == "kmj-elite" \]\]/);
+  assert.match(text, /\[\[ "\$\{HOST_SHORT,,\}" == "kmj-elite" \]\]/);
 });
 
 test("dev-agent setup never touches the Main Platform agent or pipes remote code", () => {

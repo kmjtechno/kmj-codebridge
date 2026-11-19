@@ -34,7 +34,8 @@ echo "MODE=$([[ $APPLY -eq 1 ]] && echo APPLY || echo DRY_RUN)"
 echo "project=$PROJECT_ID root=$PROJECT_ROOT service=$SERVICE user=$SERVICE_USER"
 
 [[ ${EUID:-$(id -u)} -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
-[[ "$(hostname -s)" == "kmj-elite" ]] || { echo 'WRONG_HOST: expected kmj-elite' >&2; exit 1; }
+HOST_SHORT="$(hostname -s)"
+[[ "${HOST_SHORT,,}" == "kmj-elite" ]] || { echo "WRONG_HOST: expected kmj-elite, got $HOST_SHORT" >&2; exit 1; }
 [[ -x "$NODE" ]] || { echo "NODE_MISSING: $NODE" >&2; exit 2; }
 [[ -f "$RUNTIME/src/cli.js" && -f "$RUNTIME/scripts/enroll-device.js" ]] || { echo "RUNTIME_MISSING: $RUNTIME" >&2; exit 2; }
 command -v git >/dev/null 2>&1 || { echo 'GIT_MISSING' >&2; exit 2; }
