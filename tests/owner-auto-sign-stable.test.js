@@ -16,6 +16,7 @@ import {
   protectedMain,
   sourceChanged,
   makeSignedRelease,
+  makeIsolatedHooksDir,
   ownerCommandEnv,
 } from "../scripts/production/owner-auto-sign-stable.mjs";
 
@@ -35,6 +36,28 @@ const valid = () => ({
   repoPath: ROOT,
   keyFile: path.join(SECRETS, "key.pem"),
   publicKeyFile: path.join(SECRETS, "key.pub"),
+});
+
+test("signer isolates all Git hooks in a fresh empty directory", () => {
+  const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-git-hook-isolation-"));
+  try {
+    const first = makeIsolatedHooksDir(base);
+    const second = makeIsolatedHooksDir(base);
+    assert.notEqual(first, second);
+    assert.deepEqual(fs.readdirSync(first), []);
+    assert.deepEqual(fs.readdirSync(second), []);
+    const source = fs.readFileSync(
+      "scripts/production/owner-auto-sign-stable.mjs",
+      "utf8",
+    );
+    assert.doesNotMatch(source, /core\.hooksPath=\/dev\/null/);
+    assert.match(source, /"core\.hooksPath=" \+ hooksDir/);
+    assert.match(source, /GIT_HOOK_ISOLATION_NOT_READY/);
+    assert.match(source, /GIT_HOOK_DIRECTORY_UNSAFE/);
+    assert.match(source, /fs\.rmdirSync\(hooksDir\)/);
+  } finally {
+    fs.rmSync(base, { recursive: true });
+  }
 });
 
 test("Windows owner signer passes only required gh config environment", () => {
