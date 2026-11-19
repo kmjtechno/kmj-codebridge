@@ -26,6 +26,11 @@ test("dev-agent setup never touches the Main Platform agent or pipes remote code
   assert.doesNotMatch(text, /deploy_ed25519|gh auth|ssh-keygen/);
 });
 
+test("dev-agent uses the signed readable runtime, not the root-only legacy tree", () => {
+  assert.match(text, /^RUNTIME='\/opt\/kmj-codebridge-stable\/current'$/m);
+  assert.doesNotMatch(text, /RUNTIME='\/opt\/kmj-codebridge-agent'/);
+});
+
 test("dev-agent config is fixed-profile only and the unit is hardened", () => {
   assert.match(text, /commandPresets: \['node-standard'\]/);
   assert.match(text, /gates: \{\}/);
