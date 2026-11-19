@@ -64,3 +64,24 @@ test("dev-agent setup is valid bash and non-root dry-run exits before changing a
   assert.match(r.stdout, /MODE=DRY_RUN/);
   assert.match(r.stderr, /Run as root/);
 });
+
+test("dev-agent jobs prefer the signed Node >=24 and the PATH script is fail-closed", () => {
+  assert.match(
+    text,
+    /Environment=PATH=\/opt\/kmj-codebridge-node\/bin:\/usr\/local\/bin:\/usr\/bin:\/bin/,
+  );
+  const fix = fs.readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      "..",
+      "scripts",
+      "setup-codebridge-dev-agent-path.sh",
+    ),
+    "utf8",
+  );
+  assert.match(fix, /^APPLY=0$/m);
+  assert.match(fix, /NODE_TOO_OLD/);
+  assert.match(fix, /"\$\{HOST_SHORT,,\}" == "kmj-elite"/);
+  assert.match(fix, /RESTART_FAILED_ROLLBACK/);
+  assert.doesNotMatch(fix, /curl|wget|apt|tar |main-platform/);
+});
