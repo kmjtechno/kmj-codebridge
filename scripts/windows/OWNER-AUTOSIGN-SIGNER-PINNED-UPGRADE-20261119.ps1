@@ -39,6 +39,20 @@ function OwnerAcl([string]$p,[string]$sid) {
   }
   Need $found 'UPGRADE_OWNER_ACE_MISSING'
 }
+# Canonicalize Windows Task Scheduler principal; SID or NTAccount must resolve.
+function TaskPrincipalSid([string]$principal) {
+  Need (-not [string]::IsNullOrWhiteSpace($principal) -and
+    $principal.Length -le 256) 'AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED'
+  try {
+    if($principal -match '^S-1-[0-9-]+$'){
+      return ([Security.Principal.SecurityIdentifier]::new($principal)).Value
+    }
+    return ([Security.Principal.NTAccount]::new($principal)).Translate(
+      [Security.Principal.SecurityIdentifier]).Value
+  } catch {
+    throw 'AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED'
+  }
+}
 function GitBlob([string]$p,[string]$git) {
   $h=([string](& $git hash-object -- $p)).Trim()
   Need ($LASTEXITCODE -eq 0 -and $h -match '^[a-f0-9]{40}$') 'UPGRADE_HASH_UNVERIFIED'
@@ -50,6 +64,10 @@ if($SelfTest) {
     $caught=([string]$_.Exception.Message -ceq 'UPGRADE_DENIAL_SELFTEST')
   }
   Need $caught 'UPGRADE_SELFTEST_FAIL'
+  $me=[Security.Principal.WindowsIdentity]::GetCurrent()
+  Need ((TaskPrincipalSid $me.User.Value) -ceq $me.User.Value) 'AUTOSIGN_SID_SELFTEST_FAIL'
+  Need ((TaskPrincipalSid $me.Name) -ceq $me.User.Value) 'AUTOSIGN_ACCOUNT_SELFTEST_FAIL'
+  Need ((TaskPrincipalSid 'S-1-5-18') -cne $me.User.Value) 'AUTOSIGN_FOREIGN_SID_SELFTEST_FAIL'
   Mark 'OWNER_AUTOSIGN_UPGRADE_SELFTEST' 'PASS'
   exit 0
 }
@@ -57,7 +75,6 @@ try {
   Need ($env:OS -ceq 'Windows_NT' -and
     $env:COMPUTERNAME -ieq $ExpectedHost) 'UPGRADE_WRONG_HOST'
   $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
   $git=(Get-Command git.exe -ErrorAction Stop).Source
   $node=(Get-Command node.exe -ErrorAction Stop).Source
   Need (SafeFile $Source) 'UPGRADE_PINNED_SOURCE_MISSING'
@@ -88,8 +105,9 @@ try {
   Need ($existing -in @($OldSignerBlob,$IntermediateSignerBlob,$NewSignerBlob)) 'UPGRADE_SIGNER_UNRECOGNIZED'
   $task=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   $actions=@($task.Actions)
+  $taskSid=TaskPrincipalSid ([string]$task.Principal.UserId)
   Need ($actions.Count -eq 1 -and
-    [string]$task.Principal.UserId -ieq $identity -and
+    $taskSid -ceq $sid -and
     [string]$task.Principal.RunLevel -ceq 'Limited' -and
     [string]$task.Principal.LogonType -ceq 'Interactive' -and
     [string]$actions[0].Execute -ieq $node -and

@@ -33,6 +33,20 @@ function PrivateOwnerAcl([string]$p,[string]$sid){
   }
   Need $found 'AUTOSIGN_OWNER_ACL_MISSING'
 }
+# Canonicalize Windows Task Scheduler principal; SID or NTAccount must resolve.
+function TaskPrincipalSid([string]$principal) {
+  Need (-not [string]::IsNullOrWhiteSpace($principal) -and
+    $principal.Length -le 256) 'AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED'
+  try {
+    if($principal -match '^S-1-[0-9-]+$'){
+      return ([Security.Principal.SecurityIdentifier]::new($principal)).Value
+    }
+    return ([Security.Principal.NTAccount]::new($principal)).Translate(
+      [Security.Principal.SecurityIdentifier]).Value
+  } catch {
+    throw 'AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED'
+  }
+}
 function GhJson([string]$resource){
   $output=@(& gh.exe api $resource 2>$null)
   Need ($LASTEXITCODE -eq 0 -and $output.Count -gt 0) 'AUTOSIGN_GITHUB_API_UNAVAILABLE'
@@ -43,6 +57,10 @@ if($SelfTest) {
   $denied=$false
   try{Need $false 'AUTOSIGN_GUARDED_SELFTEST'}catch{$denied=([string]$_.Exception.Message -ceq 'AUTOSIGN_GUARDED_SELFTEST')}
   Need $denied 'AUTOSIGN_SELFTEST_FAILED'
+  $me=[Security.Principal.WindowsIdentity]::GetCurrent()
+  Need ((TaskPrincipalSid $me.User.Value) -ceq $me.User.Value) 'AUTOSIGN_SID_SELFTEST_FAIL'
+  Need ((TaskPrincipalSid $me.Name) -ceq $me.User.Value) 'AUTOSIGN_ACCOUNT_SELFTEST_FAIL'
+  Need ((TaskPrincipalSid 'S-1-5-18') -cne $me.User.Value) 'AUTOSIGN_FOREIGN_SID_SELFTEST_FAIL'
   Mark 'OWNER_AUTOSIGN_RESUME_SELFTEST' 'PASS'
   exit 0
 }
@@ -50,7 +68,6 @@ try {
   Need ($env:OS -ceq 'Windows_NT' -and
     $env:COMPUTERNAME -ieq $ExpectedHost) 'AUTOSIGN_WRONG_HOST'
   $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-  $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
   Need (SafeFile $Signer) 'AUTOSIGN_PINNED_SIGNER_MISSING'
   Need (SafeFile $Policy) 'AUTOSIGN_OWNER_POLICY_MISSING'
   PrivateOwnerAcl $Signer $sid
@@ -68,8 +85,9 @@ try {
   ) 'AUTOSIGN_OWNER_POLICY_NOT_APPROVED'
   $task=Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop
   $actions=@($task.Actions)
+  $taskSid=TaskPrincipalSid ([string]$task.Principal.UserId)
   Need ([string]$task.State -ceq 'Disabled' -and $actions.Count -eq 1 -and
-    [string]$task.Principal.UserId -ieq $identity -and
+    $taskSid -ceq $sid -and
     [string]$task.Principal.RunLevel -ceq 'Limited' -and
     [string]$task.Principal.LogonType -ceq 'Interactive' -and
     [string]$actions[0].Arguments -ceq ('"'+$Signer+'" --once') -and
