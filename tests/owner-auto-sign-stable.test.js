@@ -39,7 +39,9 @@ const valid = () => ({
 });
 
 test("signer isolates all Git hooks in a fresh empty directory", () => {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-git-hook-isolation-"));
+  const base = fs.mkdtempSync(
+    path.join(os.tmpdir(), "kmj-git-hook-isolation-"),
+  );
   try {
     const first = makeIsolatedHooksDir(base);
     const second = makeIsolatedHooksDir(base);
