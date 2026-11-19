@@ -144,9 +144,12 @@ test("N2 identity fails closed for wrong zone, missing zone and wrong machine", 
     "fields['name']='other-instance'",
     "assert identity_matches() is False",
   ].join("\n");
-  const source = "fields={'name':'instance-20260912-094732','machine-type':'n2-standard-2','zone':'projects/123/zones/us-central1-a'}\n" + harness;
+  const source =
+    "fields={'name':'instance-20260912-094732','machine-type':'n2-standard-2','zone':'projects/123/zones/us-central1-a'}\n" +
+    harness;
   const checked = spawnSync(py, ["-I", "-B", "-c", source], {
-    encoding: "utf8", timeout: 10000,
+    encoding: "utf8",
+    timeout: 10000,
   });
   if (checked.error && checked.error.code === "ENOENT") {
     t.skip("Python runtime unavailable on this test host");
