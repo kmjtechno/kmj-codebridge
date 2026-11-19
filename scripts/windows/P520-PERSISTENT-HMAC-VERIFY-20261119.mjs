@@ -9,7 +9,7 @@ export const RELEASE_SHA = "b652b29beafb9b14e42b0078bfb9571fef5b3271";
 export const ROOT = "C:\\ProgramData\\KMJ-CodeBridge\\P520";
 export const RELEASE = path.win32.join(ROOT, "releases", RELEASE_SHA);
 export const CONFIG = path.win32.join(ROOT, "supervisor.json");
-export const TOKEN = [REDACTED], "supervisor.token");
+export const TOKEN = path.win32.join(ROOT, "supervisor.token");
 export const PIPE_NAME = "kmj-codebridge-supervisor-p520";
 export const PIPE_PATH = "\\\\.\\pipe\\" + PIPE_NAME;
 
