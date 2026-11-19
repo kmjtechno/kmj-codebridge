@@ -33,6 +33,9 @@ export function createChainSnapshotReader({
       snap.version !== 1 ||
       snap.chain !== chain ||
       !Number.isSafeInteger(at) ||
+      !Number.isSafeInteger(t) ||
+      t < 0 ||
+      t > Number.MAX_SAFE_INTEGER - MAX_SKEW_MS ||
       at > t + MAX_SKEW_MS ||
       t - at > MAX_AGE_MS ||
       !Array.isArray(snap.members) ||
@@ -48,6 +51,10 @@ export function createChainSnapshotReader({
       )
     )
       stale();
+    const unique = new Set(
+      snap.members.map((m) => JSON.stringify([m.platform, m.modelId])),
+    );
+    if (unique.size !== snap.members.length) stale();
     return snap.members.map((m) => ({
       platform: m.platform,
       modelId: m.modelId,

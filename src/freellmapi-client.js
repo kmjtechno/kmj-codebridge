@@ -75,6 +75,8 @@ export function createFreeLlmApiClient({
     // again immediately before every generation or 429 fallback attempt.
     if (!verifyZeroCostChain) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     const observedAt = now();
+    // Never ask an attestor to authorize an invalid wall-clock reading.
+    if (!Number.isSafeInteger(observedAt)) fail("FREELLMAPI_INVALID_CLOCK");
     let proof;
     try {
       proof = await verifyZeroCostChain({
@@ -84,6 +86,10 @@ export function createFreeLlmApiClient({
     } catch {
       fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     }
+    const checkedAt = now();
+    // A rollback during an async billing lookup invalidates its freshness.
+    if (!Number.isSafeInteger(checkedAt) || checkedAt < observedAt)
+      fail("FREELLMAPI_INVALID_CLOCK");
     const ready =
       proof?.source === "authenticated_provider_billing_and_route_binding" &&
       proof.chain === chain &&
@@ -98,7 +104,7 @@ export function createFreeLlmApiClient({
       proof.observedAtEpochMs <= observedAt &&
       proof.observedAtEpochMs > observedAt - 60000 &&
       Number.isSafeInteger(proof.expiresAtEpochMs) &&
-      proof.expiresAtEpochMs > now() &&
+      proof.expiresAtEpochMs > checkedAt &&
       proof.expiresAtEpochMs <= observedAt + 60000;
     if (!ready) fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
     return true;
@@ -134,6 +140,9 @@ export function createFreeLlmApiClient({
     async status() {
       const res = await readCatalogRows();
       const ids = res.data.map((m) => m.id);
+      // Duplicate advertised IDs make chain discovery ambiguous. Reject the
+      // entire catalog rather than silently choosing one upstream route.
+      if (new Set(ids).size !== ids.length) fail("FREELLMAPI_BAD_RESPONSE");
       return {
         available: true,
         provider: "freellmapi-loopback",
@@ -188,6 +197,7 @@ export function createFreeLlmApiClient({
       // successful coding or discarding a provider-side error as empty text.
       if (
         !Array.isArray(res?.choices) ||
+        res.choices.length !== 1 ||
         !choice ||
         typeof choice !== "object" ||
         Array.isArray(choice) ||
@@ -230,6 +240,9 @@ export function createFreeLlmApiClient({
         fail("FREELLMAPI_INVALID_TIMEOUT");
       const startedAt = now();
       const deadline = startedAt + totalSeconds * 1000;
+      // A safe start time can still overflow the exact integer range when
+      // adding the request budget; reject before discovery or cloud POST.
+      if (!Number.isSafeInteger(deadline)) fail("FREELLMAPI_INVALID_CLOCK");
       // Even explicit chains must be advertised, approved and discovered.
       // A non-monotonic clock must not extend the lifetime of a previously
       // discovered route catalog. Fail closed on invalid timestamps and
@@ -250,8 +263,15 @@ export function createFreeLlmApiClient({
       ).filter((name) => approved.has(name));
       if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
       const attempts = [];
+      let lastAttemptAt = startedAt;
       for (const candidate of candidates.slice(0, 2)) {
-        const remainingMs = deadline - now();
+        const attemptAt = now();
+        // A rollback or invalid clock after catalog discovery must never
+        // extend a cloud route's budget or allow a fallback POST.
+        if (!Number.isSafeInteger(attemptAt) || attemptAt < lastAttemptAt)
+          fail("FREELLMAPI_INVALID_CLOCK");
+        lastAttemptAt = attemptAt;
+        const remainingMs = deadline - attemptAt;
         // Reserve enough for one meaningful request; do not begin a second
         // cloud request with only milliseconds remaining after a 429.
         if (remainingMs < 4500) fail("FREELLMAPI_DEADLINE_EXCEEDED");

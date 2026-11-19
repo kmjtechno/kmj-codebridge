@@ -16,6 +16,8 @@ const receipt = (chain = "auto:code") => ({
   billingVerified: false,
   paidInference: null,
   actualUpstreamModel: null,
+  cloudFallback: null,
+  outputIsUntrusted: true,
 });
 
 test("cloud coding stays offline and never initializes a client without explicit owner permission", async () => {
@@ -133,6 +135,14 @@ test("cloud adapter refuses false provider, route, billing and model claims", as
     { paidInference: false },
     { billingVerified: true },
     { actualUpstreamModel: "hidden-vendor" },
+    { cloudFallback: "paid-backup" },
+    { outputIsUntrusted: false },
+    { response: "" },
+    { response: "   " },
+    { response: null },
+    { response: { patch: "not text" } },
+    { response: "diff --git a/a b/b\0malformed" },
+    { response: "x".repeat(1_048_577) },
   ];
   for (const patch of patches) {
     const model = createVerifiedFreeCloudCodingModel({
@@ -182,4 +192,60 @@ test("no trusted zero-cost attestor means no upstream cloud POST, even with expl
     /FREELLMAPI_ZERO_COST_NOT_ATTESTED/,
   );
   assert.equal(posts, 0);
+});
+
+test("cloud status rejects mismatched and unverified zero-cost attestations", async () => {
+  const proofs = [
+    { admitted: false, chain: "auto:code" },
+    { admitted: true, chain: "auto:other" },
+    { admitted: "true", chain: "auto:code" },
+    null,
+  ];
+  for (const proof of proofs) {
+    let calls = 0;
+    const model = createVerifiedFreeCloudCodingModel({
+      authorized: () => true,
+      createClient: () => ({
+        status: async () => ({
+          available: true,
+          approvedFreeChains: ["auto:code"],
+        }),
+        checkZeroCostChain: async () => {
+          calls++;
+          return proof;
+        },
+        generate: async () => {
+          throw new Error("MUST_NOT_GENERATE");
+        },
+      }),
+    });
+    assert.deepEqual(await model.status(), {
+      available: false,
+      activeRequest: false,
+      models: [],
+    });
+    assert.equal(calls, 1);
+  }
+});
+
+test("cloud status fails closed when consent is revoked during zero-cost verification", async () => {
+  let consent = true;
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => consent,
+    createClient: () => ({
+      status: async () => ({
+        available: true,
+        approvedFreeChains: ["auto:code"],
+      }),
+      checkZeroCostChain: async ({ chain }) => {
+        consent = false;
+        return { admitted: true, chain };
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: false,
+    models: [],
+  });
 });
