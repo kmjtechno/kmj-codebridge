@@ -112,7 +112,7 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     "DESKTOP-5FVJMET",
     "a41985b2b407bebd34ddb5bfa8f010bf4e11ffb1",
     "b3717a8b3c948567f6648ad11233ed276d58b143",
-    "31c58d25baa2d57945a70fe689c54979b8023229",
+    "e2cc293448d13e7acf7172f111574954257e4b60",
     "897d9ff674ac6d007bae34084060a16b713ef2b6",
     "UPGRADE_TASK_IDENTITY_UNVERIFIED",
     "UPGRADE_OWNER_CONSENT_INVALID",
@@ -189,7 +189,7 @@ test("guarded one-click resume requires pinned signer, owner policy, CI and task
   );
   for (const gate of [
     "DESKTOP-5FVJMET",
-    "31c58d25baa2d57945a70fe689c54979b8023229",
+    "e2cc293448d13e7acf7172f111574954257e4b60",
     "AUTOSIGN_SIGNER_BLOB_NOT_APPROVED",
     "AUTOSIGN_OWNER_POLICY_NOT_APPROVED",
     "AUTOSIGN_TASK_NOT_OWNER_DISABLED",
@@ -207,10 +207,7 @@ test("guarded one-click resume requires pinned signer, owner policy, CI and task
     launcher,
     /OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119\.ps1" -Apply/,
   );
-  assert.match(
-    launcher,
-    /OWNER-AUTOSIGN-RESUME-GUARDED-20261119\.ps1" -Apply/,
-  );
+  assert.match(launcher, /OWNER-AUTOSIGN-RESUME-GUARDED-20261119\.ps1" -Apply/);
   assert.ok(
     launcher.indexOf("OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE") <
       launcher.indexOf("OWNER-AUTOSIGN-RESUME-GUARDED"),
