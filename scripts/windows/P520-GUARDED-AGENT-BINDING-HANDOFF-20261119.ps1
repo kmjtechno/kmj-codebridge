@@ -233,38 +233,7 @@ try {
   Mark 'PRODUCTION_APPROVAL' 'NOT_GRANTED'
 } catch {
   $code=[string]$_.Exception.Message
-  if($code -cnotmatch '^[A-Z][A-Z0-9_]{3,100}
-  if($switched) {
-    try {
-      if($newPid -gt 0 -and (Get-Process -Id $newPid -ErrorAction SilentlyContinue)) {
-        Stop-Process -Id $newPid -ErrorAction Stop
-      }
-      Need (-not [string]::IsNullOrWhiteSpace($backup) -and
-            (Test-Path -LiteralPath $backup -PathType Leaf) -and
-            (Sha $backup) -ceq $originalHash) 'ROLLBACK_BACKUP_NOT_ATTESTED'
-      $restore=$config+'.rollback-'+[guid]::NewGuid().ToString('N')+'.tmp'
-      Copy-Item -LiteralPath $backup -Destination $restore -ErrorAction Stop
-      Set-Acl -LiteralPath $restore -AclObject (Get-Acl -LiteralPath $config) -ErrorAction Stop
-      [IO.File]::Replace($restore,$config,$null)
-      Need ((Sha $config) -ceq $originalHash) 'ROLLBACK_CONFIG_HASH_MISMATCH'
-      Mark 'P520_AGENT_CONFIG_ROLLBACK' 'PASS'
-      if($oldStopped) {
-        Need (@(ScopedAgents $config).Count -eq 0) 'ROLLBACK_DUPLICATE_AGENT_PRESENT'
-        $reconnectAt=[datetime]::UtcNow
-        $pid=StartScoped $node $entry $config $repo
-        Need (ConfirmHeartbeat $pid $entry $config $state $reconnectAt) 'ROLLBACK_HEARTBEAT_UNVERIFIED'
-        Mark 'P520_AGENT_RESTART_ROLLBACK' 'PASS'
-      }
-    } catch {
-      Mark 'P520_AGENT_ROLLBACK' 'FAILED_OWNER_RECOVERY_REQUIRED'
-    }
-  }
-  Mark 'P520_AGENT_HANDOFF' ('BLOCKED_'+$code)
-  Mark 'P520_PHYSICAL_RESTORE' 'NOT_EXECUTED'
-  Mark 'PRODUCTION_APPROVAL' 'NOT_GRANTED'
-  exit 2
-}
-) { $code='UNEXPECTED_IN_'+$phase }
+  if($code -cnotmatch '^[A-Z][A-Z0-9_]{3,100}$') { $code='UNEXPECTED_IN_'+$phase }
   if($switched) {
     try {
       if($newPid -gt 0 -and (Get-Process -Id $newPid -ErrorAction SilentlyContinue)) {
