@@ -115,8 +115,12 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     "DISABLED_ON_UPGRADE_FAILURE",
     "OWNER_AUTOSIGN_UPGRADE",
     "PRESERVED_FOR_ROLLBACK",
-  ]) assert.ok(upgrade.includes(guard), guard);
-  assert.match(upgrade, /\[System\.IO\.File\]::Replace\(\$Candidate,\$Signer,\$Backup\)/);
+  ])
+    assert.ok(upgrade.includes(guard), guard);
+  assert.match(
+    upgrade,
+    /\[System\.IO\.File\]::Replace\(\$Candidate,\$Signer,\$Backup\)/,
+  );
   assert.match(upgrade, /Disable-ScheduledTask -TaskName \$TaskName/);
   assert.match(upgrade, /Enable-ScheduledTask -TaskName \$TaskName/);
   assert.match(upgrade, /OwnerAcl \$Signer \$sid/);
@@ -126,7 +130,10 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     upgrade,
     /Restart-Service|Start-ScheduledTask|Unregister-ScheduledTask|git reset|git clean|taskkill|Invoke-WebRequest/,
   );
-  assert.doesNotMatch(upgrade, /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/);
+  assert.doesNotMatch(
+    upgrade,
+    /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/,
+  );
 });
 
 test(
