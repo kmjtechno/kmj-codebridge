@@ -648,7 +648,7 @@ def step_cutover(args, tmp):
 # ---------------------------------------------------------------------- main
 def run(argv):
     args = parse_args(argv)
-    need(os.geteuid() == 0 and socket.gethostname().split(".")[0].lower() == "kmj-elite",
+    need(getattr(os, "geteuid", lambda: 1)() == 0 and socket.gethostname().split(".")[0].lower() == "kmj-elite",
          "WRONG_ROOT_OR_HOST")
     need(os.path.isfile(NODE) and os.access(NODE, os.X_OK), "PINNED_NODE_MISSING")
     key = trust_key()

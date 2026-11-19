@@ -194,11 +194,11 @@ test("override bytes round-trip and equal the template the per-release script wr
     "ExecStart=\n" +
     `ExecStart=/opt/kmj-codebridge-node/bin/node ${dirName}/src/cli.js gateway ${cfg}\n`;
   const r = py(
-    `out(lambda: m.override_content(m.pathlib.Path(${JSON.stringify(dirName)}), ${JSON.stringify(REV)}, m.NODE, ${JSON.stringify(cfg)}).decode())`,
+    `out(lambda: m.override_content(${JSON.stringify(dirName)}, ${JSON.stringify(REV)}, m.NODE, ${JSON.stringify(cfg)}).decode())`,
   );
   assert.equal(r.ok, expected);
   const parsed = py(
-    `out(lambda: [str(x) for x in m.parse_override(${JSON.stringify(expected)})])`,
+    `out(lambda: [str(x).replace(chr(92), "/") for x in m.parse_override(${JSON.stringify(expected)})])`,
   );
   assert.deepEqual(parsed.ok, [dirName, REV, cfg]);
   const forged = [
