@@ -70,7 +70,8 @@ export async function probePersistent({
   },
   request = async (req) => {
     const { windowsSupervisorRequest } = await import(
-      pathToFileURL(path.win32.join(RELEASE, "src", "supervisor-client.js")).href
+      pathToFileURL(path.win32.join(RELEASE, "src", "supervisor-client.js"))
+        .href
     );
     return windowsSupervisorRequest(
       { pipePath: PIPE_PATH, tokenFile: TOKEN },
@@ -110,7 +111,7 @@ if (
     const code = String(error?.message ?? "");
     console.error(
       "P520_PERSISTENT_HMAC_STATUS=BLOCKED_" +
-      (/^[A-Z0-9_]{4,90}$/.test(code) ? code : "REVIEW_REQUIRED"),
+        (/^[A-Z0-9_]{4,90}$/.test(code) ? code : "REVIEW_REQUIRED"),
     );
     process.exitCode = 2;
   }
