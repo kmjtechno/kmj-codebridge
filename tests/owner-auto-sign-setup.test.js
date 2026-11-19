@@ -94,6 +94,41 @@ test("P520 installer explicitly protects installed leaf files and fail-closed re
   );
 });
 
+test("reviewed signer upgrade refuses unknown task or bits and preserves protected owner key", () => {
+  const upgrade = fs.readFileSync(
+    "scripts/windows/OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119.ps1",
+    "utf8",
+  );
+  for (const guard of [
+    "DESKTOP-5FVJMET",
+    "a41985b2b407bebd34ddb5bfa8f010bf4e11ffb1",
+    "b3717a8b3c948567f6648ad11233ed276d58b143",
+    "897d9ff674ac6d007bae34084060a16b713ef2b6",
+    "UPGRADE_TASK_IDENTITY_UNVERIFIED",
+    "UPGRADE_OWNER_CONSENT_INVALID",
+    "UPGRADE_SIGNER_UNRECOGNIZED",
+    "UPGRADE_TASK_NOT_IDLE_READY",
+    "UPGRADE_PREVIOUS_ARTIFACT_PRESENT",
+    "UPGRADE_REPLACED_HASH_DRIFT",
+    "UPGRADE_ROLLBACK_BACKUP_DRIFT",
+    "UPGRADE_TASK_DISABLE_UNVERIFIED",
+    "DISABLED_ON_UPGRADE_FAILURE",
+    "OWNER_AUTOSIGN_UPGRADE",
+    "PRESERVED_FOR_ROLLBACK",
+  ]) assert.ok(upgrade.includes(guard), guard);
+  assert.match(upgrade, /\[System\.IO\.File\]::Replace\(\$Candidate,\$Signer,\$Backup\)/);
+  assert.match(upgrade, /Disable-ScheduledTask -TaskName \$TaskName/);
+  assert.match(upgrade, /Enable-ScheduledTask -TaskName \$TaskName/);
+  assert.match(upgrade, /OwnerAcl \$Signer \$sid/);
+  assert.match(upgrade, /OwnerAcl \$Backup \$sid/);
+  assert.match(upgrade, /UPGRADE_OWNER_REVIEW_REQUIRED/);
+  assert.doesNotMatch(
+    upgrade,
+    /Restart-Service|Start-ScheduledTask|Unregister-ScheduledTask|git reset|git clean|taskkill|Invoke-WebRequest/,
+  );
+  assert.doesNotMatch(upgrade, /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/);
+});
+
 test("first-run enrollment is explicit, local-key only and fail closed", () => {
   for (const field of [
     "DESKTOP-5FVJMET",
