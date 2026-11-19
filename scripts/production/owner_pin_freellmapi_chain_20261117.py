@@ -108,7 +108,8 @@ def main(argv):
     fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o644)
     # Explicit: the open() mode is masked by umask, and agents must be able to
     # read this root-owned manifest even from a restrictive (0077) root shell.
-    os.fchmod(fd, 0o644)
+    if hasattr(os, "fchmod"):  # POSIX only; Windows Python has no fchmod
+        os.fchmod(fd, 0o644)
     with os.fdopen(fd, "w") as fh:
         json.dump({"version": 1, "chain": chain, "models": sorted(ids),
                    "sha256": digest(ids)}, fh)
