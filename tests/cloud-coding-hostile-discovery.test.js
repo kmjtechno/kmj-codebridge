@@ -20,6 +20,15 @@ test("hostile discovery getters and array proxies fail closed without route admi
       available: true,
       approvedFreeChains: new Proxy(["auto:code"], {
         get(target, property, receiver) {
+          if (property === "length") throw new Error("HOSTILE_LENGTH");
+          return Reflect.get(target, property, receiver);
+        },
+      }),
+    },
+    {
+      available: true,
+      approvedFreeChains: new Proxy(["auto:code"], {
+        get(target, property, receiver) {
           if (property === "slice") throw new Error("HOSTILE_SLICE");
           return Reflect.get(target, property, receiver);
         },
