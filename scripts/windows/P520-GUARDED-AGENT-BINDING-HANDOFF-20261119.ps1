@@ -115,16 +115,24 @@ try {
         $env:COMPUTERNAME -ieq 'DESKTOP-5FVJMET' -and
         [Environment]::Is64BitOperatingSystem) 'WRONG_P520_DEVICE'
   $phase='SUPERVISOR'
+  $phase='ROOT_DIR'
   Ordinary $root $true
+  $phase='SUPERVISOR_FILE'
   Ordinary $supervisorFile $false
+  $phase='PIN_DOCTOR'
   Pinned $doctor '3bd126fb9901c91cf32dfdbdd4362bb29f37dc99bbc7da01a138674f6cc723a9'
+  $phase='PIN_HMAC'
   Pinned $hmac 'e66d268f2e9a199a1d450c40b27249232c54d8ce179d6885a49371c676973b4d'
+  $phase='TASK_INVENTORY'
   $task=@(Get-ScheduledTask -ErrorAction Stop | Where-Object {
     $_.TaskName -ieq $taskName
   })
+  $phase='TASK_STATE'
   Need ($task.Count -eq 1 -and [string]$task[0].TaskPath -ceq '\' -and
         [string]$task[0].State -ceq 'Running') 'SUPERVISOR_EXISTING_TASK_NOT_RUNNING'
+  $phase='NODE_LOOKUP'
   $node=(Get-Command node.exe -ErrorAction Stop).Source
+  $phase='NODE_ACTION'
   Need (Same ([string]$task[0].Actions[0].Execute) $node) 'SUPERVISOR_NODE_IDENTITY_CHANGED'
   $phase='HMAC'
   $hmacResult=@(& $node $hmac 2>$null)
