@@ -5,7 +5,7 @@
 import { createFreeLlmApiClient } from "./freellmapi-client.js";
 import { cloudCodingReceipt } from "./model-attribution.js";
 
-const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
+const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$(?![\\s\\S])/;
 // Untrusted advertised-chain lists are bounded before any verifier call.
 const MAX_ADVERTISED = 256;
 const MAX_VERIFIED = 32;
