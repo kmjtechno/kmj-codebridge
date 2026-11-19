@@ -116,3 +116,26 @@ what it created if any step fails.
 
 The older `owner_publish_seq*`, `owner_activate_signed*` and `owner_promote_*`
 scripts remain for history and rollback reference only.
+
+## Development on KMJ-elite: separate `kmj-codebridge` agent
+
+`scripts/setup-codebridge-dev-agent.sh` (root, once) adds a second CodeBridge
+agent next to the Main Platform one. Dry-run by default; `--apply` is required to
+change anything.
+
+- Runs only on host `kmj-elite`, as the unprivileged `kmjdev` system user (it
+  refuses a root service user).
+- Clones the public repository over HTTPS into
+  `/srv/kmj-codebridge-projects/kmj-codebridge` (no deploy key, no token).
+- Pairing needs one owner browser approval (the script prints the code); the
+  device credential is written only to `/etc/kmj-codebridge-dev/agent.json`
+  (0600).
+- Project profiles are the fixed `node-standard` presets (`npm ci`, test, check,
+  build, lint). No gates, no freeform commands.
+- Hardened systemd unit (`NoNewPrivileges`, `ProtectSystem=strict`,
+  `ProtectHome`), writable only in the project root and its state directory. It
+  never touches the Main Platform agent, unit, config or checkout, and the live
+  gateway/runtime under `/opt` stay read-only to it.
+
+Status: the script and its static tests are reviewed source only. It is **not**
+proven on the live host until the owner runs it and a receipt is read back.
