@@ -68,11 +68,11 @@ print(m.token_class("github_pat_x"),m.token_class("ghs_x"),m.token_class("zzz"))
   );
   assert.equal(r.status, 0, r.stderr);
   assert.equal(
-    r.stdout.trim().split("\n")[0],
+    r.stdout.trim().split(/\r?\n/)[0],
     "READ_OK TOKEN_INVALID_OR_EXPIRED RATE_LIMITED FORBIDDEN_GRANT_OR_SSO NO_ACCESS_OR_MISSING NETWORK_OR_OTHER",
   );
   assert.equal(
-    r.stdout.trim().split("\n")[1],
+    r.stdout.trim().split(/\r?\n/)[1],
     "fine_grained_pat app_installation unknown",
   );
 });
