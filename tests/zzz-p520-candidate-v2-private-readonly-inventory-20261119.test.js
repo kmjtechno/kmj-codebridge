@@ -67,6 +67,15 @@ test(
       maxBuffer: 16384,
     });
     const rows = String(r.stdout ?? "").split(/\r?\n/);
+    const state = rows.find((line) => /^P520_V2_INVENTORY=(?:BLOCKED_[A-Z0-9_]+|READ_ONLY_COMPLETE)$/.test(line));
+    const stderr = String(r.stderr ?? "");
+    const classified = state ??
+      (stderr.includes("ERR_MODULE_NOT_FOUND")
+        ? "P520_V2_INVENTORY=BLOCKED_SOURCE_MODULE_NOT_FOUND"
+        : stderr.includes("SyntaxError")
+          ? "P520_V2_INVENTORY=BLOCKED_SOURCE_SYNTAX"
+          : "P520_V2_INVENTORY=BLOCKED_NO_READONLY_MARKER");
+    console.log(classified);
     const safeMarkers = [
       "P520_V2_CANDIDATE_SHA=",
       "P520_V2_CIPHER=",
