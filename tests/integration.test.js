@@ -14,7 +14,10 @@ const digest = (s) => createHash("sha256").update(s).digest("hex");
 const userToken = "u".repeat(48),
   agentToken = "a".repeat(48),
   otherToken = "b".repeat(48);
-async function setup(t, { includeMainPlatformCi = false } = {}) {
+async function setup(
+  t,
+  { includeMainPlatformCi = false, includeArtifactCommand = false } = {},
+) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-e2e-"));
   const root = path.join(dir, "project");
   fs.mkdirSync(root);
@@ -87,6 +90,33 @@ async function setup(t, { includeMainPlatformCi = false } = {}) {
               },
             },
           },
+          ...(includeArtifactCommand
+            ? {
+                build_artifact: {
+                  category: "build",
+                  description: "Build fixture with a declared output receipt.",
+                  command: process.execPath,
+                  variants: {
+                    default: {
+                      args: [
+                        "-e",
+                        'require("fs").mkdirSync("out",{recursive:true});require("fs").writeFileSync("out/app.bin","v1")',
+                      ],
+                      timeoutMs: 2000,
+                      artifacts: { include: ["out"] },
+                    },
+                    failing: {
+                      args: [
+                        "-e",
+                        'require("fs").mkdirSync("out",{recursive:true});require("fs").writeFileSync("out/app.bin","v1");process.exit(3)',
+                      ],
+                      timeoutMs: 2000,
+                      artifacts: { include: ["out"] },
+                    },
+                  },
+                },
+              }
+            : {}),
           ...(includeMainPlatformCi
             ? {
                 main_platform_ui_ci: {
@@ -295,6 +325,45 @@ test("structured project commands expose profiles without raw argv and run exact
   });
   assert.equal(denied.isError, true);
   assert.equal(content(denied).error, "COMMAND_NOT_ALLOWED");
+});
+
+test("a profile variant with artifacts returns a SHA-256 receipt only for a succeeded job", async (t) => {
+  const { client, root } = await setup(t, { includeArtifactCommand: true });
+  const run = async (variant, requestKey) => {
+    const started = content(
+      await client.callTool({
+        name: "run_project_command",
+        arguments: {
+          device: "d1",
+          project: "p1",
+          command: "build_artifact",
+          variant,
+          requestKey,
+        },
+      }),
+    );
+    let done = started;
+    for (let i = 0; i < 80 && done.state === "running"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+      done = content(
+        await client.callTool({
+          name: "get_job_status",
+          arguments: { device: "d1", project: "p1", job: started.id },
+        }),
+      );
+    }
+    return done;
+  };
+  const ok = await run("default", "artifact-ok");
+  assert.equal(ok.state, "succeeded");
+  assert.equal(ok.artifactReceipt.totalFiles, 1);
+  assert.equal(ok.artifactReceipt.totalBytes, 2);
+  assert.match(ok.artifactReceipt.receiptSha256, /^[a-f0-9]{64}$/);
+  assert.equal(ok.artifactReceiptError, undefined);
+  assert.ok(!JSON.stringify(ok).includes(root), "no absolute path leaks");
+  const bad = await run("failing", "artifact-fail");
+  assert.equal(bad.state, "failed");
+  assert.equal(bad.artifactReceipt, undefined);
 });
 
 test("policy catalog exposes deterministic risk metadata without raw commands", async (t) => {

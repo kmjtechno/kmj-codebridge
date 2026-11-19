@@ -1,6 +1,6 @@
 # Command-profile schema and compatibility matrix
 
-Document version: **1.3** (2026-11-16). Milestone: **M0 inventory/contracts** of
+Document version: **1.4** (2026-11-19). Milestone: **M0 inventory/contracts** of
 `docs/UNIVERSAL-LOCAL-DEVELOPMENT-ENGINE.md`.
 
 This documents the contract that the code enforces **today**. It adds no new
@@ -31,14 +31,15 @@ not proven on a real device; see "What is not claimed".
 
 ## 2. Profile schema (config `commands.<id>`)
 
-| Field                       | Type / limit                                 |
-| --------------------------- | -------------------------------------------- |
-| `category`                  | `inspect` \| `build` \| `write` \| `network` |
-| `description`               | string, <= 160 chars                         |
-| `command`                   | string, <= 260 chars, no control characters  |
-| `variants.<name>.args`      | array, <= 32 items, each <= 512 chars        |
-| `variants.<name>.timeoutMs` | integer 10..300000 (default 30000)           |
-| `powershellScript`          | optional `{ path, sha256 }`, pinned          |
+| Field                       | Type / limit                                   |
+| --------------------------- | ---------------------------------------------- |
+| `category`                  | `inspect` \| `build` \| `write` \| `network`   |
+| `description`               | string, <= 160 chars                           |
+| `command`                   | string, <= 260 chars, no control characters    |
+| `variants.<name>.args`      | array, <= 32 items, each <= 512 chars          |
+| `variants.<name>.timeoutMs` | integer 10..300000 (default 30000)             |
+| `powershellScript`          | optional `{ path, sha256 }`, pinned            |
+| `variants.<name>.artifacts` | optional `{ include: [1..64 relative names] }` |
 
 Risk mapping: `inspect`->READ, `build`->TEST, `write`->EDIT, `network`->SERVICE;
 anything else -> PRIVILEGED. `approvalRequired` applies only to DEPLOY, PRIVILEGED
@@ -48,6 +49,12 @@ and DESTRUCTIVE risk.
 version of this document and a test fails if the two differ. It is informational:
 the config file still has no `schemaVersion` field and nothing is allowed or denied
 because of it.
+
+`variants.<name>.artifacts` (schema 1.4, opt-in, no preset declares it): after a job of
+that variant ends `succeeded`, `JobRunner` hashes the listed files under the job's `cwd`
+and stores the SHA-256 receipt summary on the job (`artifactReceipt`, visible through
+`get_job_status`). Failure to hash sets `artifactReceiptError` only; it never changes the
+job state or exit code. Details and limits: [ARTIFACT-RECEIPTS.md](ARTIFACT-RECEIPTS.md).
 
 ## 3. Reason codes (Enforced)
 

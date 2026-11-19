@@ -579,6 +579,25 @@ export const agentSchema = z.object({
                         })
                         .strict()
                         .optional(),
+                      // Optional, admin-declared output files hashed after a
+                      // SUCCEEDED job (SHA-256 receipt, see
+                      // docs/ARTIFACT-RECEIPTS.md). Relative names only; the
+                      // receipt module re-validates and refuses symlinks.
+                      artifacts: z
+                        .object({
+                          include: z
+                            .array(
+                              z
+                                .string()
+                                .min(1)
+                                .max(260)
+                                .refine((value) => !/[\x00-\x1f]/.test(value)),
+                            )
+                            .min(1)
+                            .max(64),
+                        })
+                        .strict()
+                        .optional(),
                     }),
                   )
                   .refine((variants) => Object.keys(variants).length > 0),
