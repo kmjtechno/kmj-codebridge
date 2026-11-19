@@ -5523,7 +5523,9 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command" || name === "ide_run_project_task"
-        ? ["cloudos_host_storage_audit", "cloudos_n2_guest_readiness"].includes(a.command)
+        ? ["cloudos_host_storage_audit", "cloudos_n2_guest_readiness"].includes(
+            a.command,
+          )
           ? "READ"
           : [
                 "browser_public_qa",
