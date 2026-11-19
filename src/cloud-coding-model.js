@@ -27,8 +27,16 @@ export function createVerifiedFreeCloudCodingModel({
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
+      // Reject non-string catalog entries before RegExp coercion, and bound
+      // verifier calls against duplicate or oversized untrusted catalogs.
       const candidates = Array.isArray(status?.approvedFreeChains)
-        ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
+        ? [
+            ...new Set(
+              status.approvedFreeChains.filter(
+                (name) => typeof name === "string" && CHAIN.test(name),
+              ),
+            ),
+          ].slice(0, 32)
         : [];
       // Proxy discovery alone is NOT a no-cost proof. Without trusted
       // account+route verification do not even claim work or read source.
