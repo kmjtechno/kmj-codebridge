@@ -72,20 +72,24 @@ print(repr(m.replace_line(e,"KMJ_CODEBRIDGE_GITHUB_TOKEN",0,"NEW")))
   assert.equal(lines[4], "'export KMJ_CODEBRIDGE_GITHUB_TOKEN=NEW'");
 });
 
-test("atomic write preserves mode and leaves no temp file", () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-rot-"));
-  const f = path.join(dir, "env");
-  fs.writeFileSync(f, "X=1\n", { mode: 0o640 });
-  const r = py(
-    "p=__import__('pathlib').Path(sys.argv[2]);m.atomic_write(p,'X=2\\n',p)",
-    f,
-  );
-  assert.equal(r.status, 0, r.stderr);
-  assert.equal(fs.readFileSync(f, "utf8"), "X=2\n");
-  assert.equal(fs.statSync(f).mode & 0o777, 0o640);
-  assert.deepEqual(fs.readdirSync(dir), ["env"]);
-  fs.rmSync(dir, { recursive: true, force: true });
-});
+test(
+  "atomic write preserves mode and leaves no temp file",
+  { skip: process.platform === "win32" && "requires Linux semantics" },
+  () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-rot-"));
+    const f = path.join(dir, "env");
+    fs.writeFileSync(f, "X=1\n", { mode: 0o640 });
+    const r = py(
+      "p=__import__('pathlib').Path(sys.argv[2]);m.atomic_write(p,'X=2\\n',p)",
+      f,
+    );
+    assert.equal(r.status, 0, r.stderr);
+    assert.equal(fs.readFileSync(f, "utf8"), "X=2\n");
+    assert.equal(fs.statSync(f).mode & 0o777, 0o640);
+    assert.deepEqual(fs.readdirSync(dir), ["env"]);
+    fs.rmSync(dir, { recursive: true, force: true });
+  },
+);
 
 test("probe requires read on both repos and refuses explicit no-push", () => {
   assert.match(script, /st != 200 or push == "no"/);
