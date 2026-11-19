@@ -109,10 +109,12 @@ $config=$null
 $state=$null
 $repo=$null
 $node=$null
+$phase='DEVICE'
 try {
   Need ($env:OS -ceq 'Windows_NT' -and
         $env:COMPUTERNAME -ieq 'DESKTOP-5FVJMET' -and
         [Environment]::Is64BitOperatingSystem) 'WRONG_P520_DEVICE'
+  $phase='SUPERVISOR'
   Ordinary $root $true
   Ordinary $supervisorFile $false
   Pinned $doctor '3bd126fb9901c91cf32dfdbdd4362bb29f37dc99bbc7da01a138674f6cc723a9'
@@ -124,14 +126,17 @@ try {
         [string]$task[0].State -ceq 'Running') 'SUPERVISOR_EXISTING_TASK_NOT_RUNNING'
   $node=(Get-Command node.exe -ErrorAction Stop).Source
   Need (Same ([string]$task[0].Actions[0].Execute) $node) 'SUPERVISOR_NODE_IDENTITY_CHANGED'
+  $phase='HMAC'
   $hmacResult=@(& $node $hmac 2>$null)
   Need ($LASTEXITCODE -eq 0 -and
         $hmacResult -ccontains 'P520_PERSISTENT_HMAC_STATUS=PASS' -and
         $hmacResult -ccontains 'P520_PERSISTENT_HMAC_CONFIG=PASS') 'SUPERVISOR_HMAC_NOT_AUTHENTICATED'
+  $phase='PROPOSAL'
   $proposalResult=@(& $node $doctor --inspect 2>$null)
   Need ($LASTEXITCODE -eq 0 -and
         $proposalResult -ccontains 'P520_AGENT_PROPOSAL_EXACT_ONLY=PASS' -and
         $proposalResult -ccontains 'P520_AGENT_BINDING_PREFLIGHT=PASS') 'EXACT_AGENT_PROPOSAL_NOT_ATTESTED'
+  $phase='AGENT_CONFIG'
   $supervisor=Get-Content -LiteralPath $supervisorFile -Raw -ErrorAction Stop |
     ConvertFrom-Json -ErrorAction Stop
   $config=[string]$supervisor.agent.configPath
@@ -140,16 +145,20 @@ try {
   $agent=Get-Content -LiteralPath $config -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
   $state=[string]$agent.stateDir
   Need (-not [string]::IsNullOrWhiteSpace($state) -and [IO.Path]::IsPathRooted($state)) 'AGENT_STATE_DIR_UNVERIFIED'
+  $phase='IDLE'
   AssertIdle $state
+  $phase='PROCESS'
   $agents=@(ScopedAgents $config)
   Need ($agents.Count -eq 1) 'AGENT_PROCESS_NOT_UNIQUE'
   $oldPid=[int]$agents[0].ProcessId
   Need (Same ([string]$agents[0].ExecutablePath) $node) 'AGENT_EXECUTABLE_CHANGED'
+  $phase='IDENTITY'
   $me=[Security.Principal.WindowsIdentity]::GetCurrent()
   $owner=Invoke-CimMethod -InputObject $agents[0] -MethodName GetOwnerSid -ErrorAction Stop
   Need ([string]$owner.Sid -ceq $me.User.Value) 'AGENT_OWNER_SID_MISMATCH'
   # Extract only an exactly quoted original Node CLI path; don't reconstruct
   # a command from a caller path, Git checkout, backup, or environment input.
+  $phase='COMMANDLINE'
   $line=[string]$agents[0].CommandLine
   $match=[regex]::Match($line,'(?i)"(?<entry>[A-Z]:\\[^"]+[\\/]src[\\/]cli\.js)"\s+agent\s+"(?<config>[A-Z]:\\[^"]+[\\/]agent\.json)"\s*$')
   Need ($match.Success -and (Same ([string]$match.Groups['config'].Value) $config)) 'AGENT_COMMANDLINE_UNTRUSTED'
@@ -157,6 +166,7 @@ try {
   Ordinary $entry $false
   $repo=[IO.Path]::GetFullPath((Join-Path (Split-Path -Parent $entry) '..'))
   Ordinary $repo $true
+  $phase='SOURCE'
   $git=(Get-Command git.exe -ErrorAction Stop).Source
   $head=[string]((& $git --no-optional-locks -C $repo rev-parse HEAD 2>$null) | Select-Object -First 1)
   Need ($LASTEXITCODE -eq 0 -and
@@ -167,6 +177,7 @@ try {
                              'https://github.com/kmjtechno/kmj-codebridge')) 'AGENT_RUNNING_SOURCE_ORIGIN_MISMATCH'
   $tracked=@(& $git --no-optional-locks -C $repo status --porcelain=v1 --untracked-files=no 2>$null)
   Need ($LASTEXITCODE -eq 0 -and $tracked.Count -eq 0) 'AGENT_RUNNING_SOURCE_TRACKED_DIRTY'
+  $phase='FINAL'
   $originalHash=Sha $config
   $proposalHash=Sha ($config+'.proposed')
   Mark 'P520_AGENT_HANDOFF_PREFLIGHT' 'PASS'
@@ -191,6 +202,7 @@ try {
   $backup=$config+'.p520-'+$nonce+'.backup'
   Need (-not(Test-Path -LiteralPath $temp) -and
         -not(Test-Path -LiteralPath $backup)) 'AGENT_BACKUP_COLLISION'
+  $phase='CONFIG_SWAP'
   Copy-Item -LiteralPath ($config+'.proposed') -Destination $temp -ErrorAction Stop
   Set-Acl -LiteralPath $temp -AclObject (Get-Acl -LiteralPath $config) -ErrorAction Stop
   [IO.File]::Replace($temp,$config,$backup)
@@ -198,6 +210,7 @@ try {
   Need ((Sha $config) -ceq $proposalHash -and (Sha $backup) -ceq $originalHash) 'AGENT_ATOMIC_BACKUP_SHA_MISMATCH'
   Mark 'P520_AGENT_BACKUP' 'VERIFIED_SAME_DIRECTORY'
   $oldStopped=$true
+  $phase='AGENT_STOP'
   Stop-Process -Id $oldPid -ErrorAction Stop
   for($i=0;$i -lt 20;$i++) {
     if(-not(Get-Process -Id $oldPid -ErrorAction SilentlyContinue)){break}
@@ -206,8 +219,10 @@ try {
   Need (-not(Get-Process -Id $oldPid -ErrorAction SilentlyContinue)) 'AGENT_OLD_PROCESS_DID_NOT_STOP'
   Need (@(ScopedAgents $config).Count -eq 0) 'AGENT_AUTORESTART_COLLISION'
   $since=[datetime]::UtcNow
+  $phase='AGENT_START'
   $newPid=StartScoped $node $entry $config $repo
   Need (ConfirmHeartbeat $newPid $entry $config $state $since) 'AGENT_NEW_HEARTBEAT_NOT_ATTESTED'
+  $phase='POST_HMAC'
   $hmacAfter=@(& $node $hmac 2>$null)
   Need ($LASTEXITCODE -eq 0 -and
         $hmacAfter -ccontains 'P520_PERSISTENT_HMAC_STATUS=PASS') 'AGENT_POSTHANDOFF_HMAC_FAILED'
@@ -218,7 +233,38 @@ try {
   Mark 'PRODUCTION_APPROVAL' 'NOT_GRANTED'
 } catch {
   $code=[string]$_.Exception.Message
-  if($code -cnotmatch '^[A-Z][A-Z0-9_]{3,100}$') { $code='UNKNOWN_PRECONDITION' }
+  if($code -cnotmatch '^[A-Z][A-Z0-9_]{3,100}
+  if($switched) {
+    try {
+      if($newPid -gt 0 -and (Get-Process -Id $newPid -ErrorAction SilentlyContinue)) {
+        Stop-Process -Id $newPid -ErrorAction Stop
+      }
+      Need (-not [string]::IsNullOrWhiteSpace($backup) -and
+            (Test-Path -LiteralPath $backup -PathType Leaf) -and
+            (Sha $backup) -ceq $originalHash) 'ROLLBACK_BACKUP_NOT_ATTESTED'
+      $restore=$config+'.rollback-'+[guid]::NewGuid().ToString('N')+'.tmp'
+      Copy-Item -LiteralPath $backup -Destination $restore -ErrorAction Stop
+      Set-Acl -LiteralPath $restore -AclObject (Get-Acl -LiteralPath $config) -ErrorAction Stop
+      [IO.File]::Replace($restore,$config,$null)
+      Need ((Sha $config) -ceq $originalHash) 'ROLLBACK_CONFIG_HASH_MISMATCH'
+      Mark 'P520_AGENT_CONFIG_ROLLBACK' 'PASS'
+      if($oldStopped) {
+        Need (@(ScopedAgents $config).Count -eq 0) 'ROLLBACK_DUPLICATE_AGENT_PRESENT'
+        $reconnectAt=[datetime]::UtcNow
+        $pid=StartScoped $node $entry $config $repo
+        Need (ConfirmHeartbeat $pid $entry $config $state $reconnectAt) 'ROLLBACK_HEARTBEAT_UNVERIFIED'
+        Mark 'P520_AGENT_RESTART_ROLLBACK' 'PASS'
+      }
+    } catch {
+      Mark 'P520_AGENT_ROLLBACK' 'FAILED_OWNER_RECOVERY_REQUIRED'
+    }
+  }
+  Mark 'P520_AGENT_HANDOFF' ('BLOCKED_'+$code)
+  Mark 'P520_PHYSICAL_RESTORE' 'NOT_EXECUTED'
+  Mark 'PRODUCTION_APPROVAL' 'NOT_GRANTED'
+  exit 2
+}
+) { $code='UNEXPECTED_IN_'+$phase }
   if($switched) {
     try {
       if($newPid -gt 0 -and (Get-Process -Id $newPid -ErrorAction SilentlyContinue)) {
