@@ -23,12 +23,26 @@ export function createVerifiedFreeCloudCodingModel({
     async status() {
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
-      const status = await getClient().status();
+      let status;
+      try {
+        status = await getClient().status();
+      } catch {
+        // A failed discovery endpoint cannot admit cloud coding work.
+        return { available: false, activeRequest: false, models: [] };
+      }
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved())
         return { available: false, activeRequest: false, models: [] };
+      // Reject non-string catalog entries before RegExp coercion, and bound
+      // verifier calls against duplicate or oversized untrusted catalogs.
       const candidates = Array.isArray(status?.approvedFreeChains)
-        ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
+        ? [
+            ...new Set(
+              status.approvedFreeChains.filter(
+                (name) => typeof name === "string" && CHAIN.test(name),
+              ),
+            ),
+          ].slice(0, 32)
         : [];
       // Proxy discovery alone is NOT a no-cost proof. Without trusted
       // account+route verification do not even claim work or read source.
@@ -46,6 +60,9 @@ export function createVerifiedFreeCloudCodingModel({
           }
         }
       }
+      // A verifier can revoke consent and throw; never expose earlier admissions.
+      if (!approved())
+        return { available: false, activeRequest: false, models: [] };
       return {
         available: models.length > 0,
         activeRequest: false,
