@@ -250,8 +250,18 @@ export function createFreeLlmApiClient({
       ).filter((name) => approved.has(name));
       if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
       const attempts = [];
+      let lastAttemptAt = startedAt;
       for (const candidate of candidates.slice(0, 2)) {
-        const remainingMs = deadline - now();
+        const attemptAt = now();
+        // A rollback or invalid clock after catalog discovery must never
+        // extend a cloud route's budget or allow a fallback POST.
+        if (
+          !Number.isSafeInteger(attemptAt) ||
+          attemptAt < lastAttemptAt
+        )
+          fail("FREELLMAPI_INVALID_CLOCK");
+        lastAttemptAt = attemptAt;
+        const remainingMs = deadline - attemptAt;
         // Reserve enough for one meaningful request; do not begin a second
         // cloud request with only milliseconds remaining after a 429.
         if (remainingMs < 4500) fail("FREELLMAPI_DEADLINE_EXCEEDED");
