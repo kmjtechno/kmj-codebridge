@@ -246,11 +246,26 @@ test("owner-exported public PEM verifies real signed stable release", () => {
     "tests/fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt",
     "utf8",
   );
+  // The newest signed release changes with every owner-signed sequence, and
+  // release PRs are data-only, so the expected value is derived from the
+  // committed manifests instead of being hand-edited per release. The pinned
+  // owner key must still verify the newest one.
+  const newest = fs
+    .readdirSync("releases/stable", { withFileTypes: true })
+    .filter((e) => e.isDirectory() && /^[a-f0-9]{40}$/.test(e.name))
+    .map((e) => ({
+      revision: e.name,
+      sequence: JSON.parse(
+        fs.readFileSync(
+          `releases/stable/${e.name}/release-manifest.json`,
+          "utf8",
+        ),
+      ).sequence,
+    }))
+    .sort((a, b) => b.sequence - a.sequence)[0];
+  assert.ok(newest.sequence >= 31);
   assert.deepEqual(
     latestSignedRelease("releases/stable", { trustedPublicKeyPem }),
-    {
-      sequence: 31,
-      revision: "c0505b74bf1b79df35f36fe0634f269bacf07f41",
-    },
+    { sequence: newest.sequence, revision: newest.revision },
   );
 });
