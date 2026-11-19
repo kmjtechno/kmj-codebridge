@@ -35,7 +35,14 @@ test(
     );
     const r = spawnSync(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", script],
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        script,
+      ],
       { encoding: "utf8", windowsHide: true, timeout: 45000, maxBuffer: 65536 },
     );
     const lines = String(r.stdout ?? "").split(/\r?\n/);
