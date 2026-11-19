@@ -45,3 +45,19 @@ metadata. The result adds `inventory: { liveOverlay, rejected, demoted }`.
 This is planning only: it does not prove zero cost, invoke a model or enable
 generation. Generation still needs the verifier wiring and a passing
 `freellmapi_generate` admission.
+
+## `model_inventory`: read-only owner registry inventory
+
+`model_inventory` (read access, device/project scoped) lists the owner-declared
+`modelRegistry` from the agent config, so an AI chat no longer has to paste model
+metadata. Each entry is strict: `id`, `provider`, `kind`, `free`,
+`privateCodeAllowed`, `contextWindow`, `capabilities` and optional quality or
+limit hints. Live fields (`health`, `available`, discovery time) are rejected in
+the config; they only come from the optional overlay.
+
+With `liveRouterOverlay: true` the loopback FreeLLMAPI catalog is read and any
+model not positively `ready` is demoted (`demoted` lists them). An unreadable
+overlay fails instead of silently trusting config. The result always states
+`modelExecution: NOT_EXECUTED` and `costProof: NOT_PROVEN`: listing a model is
+not proof that it is free or approved, and nothing is invoked. Without a
+`modelRegistry` the tool returns an empty inventory.
