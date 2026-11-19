@@ -21,12 +21,18 @@ export function createVerifiedFreeCloudCodingModel({
   const getClient = () => (client ??= createClient());
   return {
     async status() {
-      if (!approved())
-        return { available: false, activeRequest: false, models: [] };
-      const status = await getClient().status();
-      // Never consider an advertised but unapproved proxy chain eligible.
-      if (!approved())
-        return { available: false, activeRequest: false, models: [] };
+      const unavailable = () => ({
+        available: false,
+        activeRequest: false,
+        models: [],
+      });
+      // An owner-consent provider is an external trust boundary. Exceptions
+      // must not crash the worker or turn discovery into implicit approval.
+      try {
+        if (!approved()) return unavailable();
+        const status = await getClient().status();
+        // Never consider an advertised but unapproved proxy chain eligible.
+        if (!approved()) return unavailable();
       const candidates = Array.isArray(status?.approvedFreeChains)
         ? status.approvedFreeChains.filter((name) => CHAIN.test(name))
         : [];
@@ -46,11 +52,15 @@ export function createVerifiedFreeCloudCodingModel({
           }
         }
       }
-      return {
-        available: models.length > 0,
-        activeRequest: false,
-        models,
-      };
+        if (!approved()) return unavailable();
+        return {
+          available: models.length > 0,
+          activeRequest: false,
+          models,
+        };
+      } catch {
+        return unavailable();
+      }
     },
     async generate({ model, prompt, maxTokens, timeoutSeconds }) {
       if (!approved()) deny();
