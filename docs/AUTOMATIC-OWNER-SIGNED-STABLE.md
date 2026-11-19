@@ -5,6 +5,25 @@ on the reviewed release CI gate in PR #1051, signed feed publisher PR #1050
 and existing immutable GitHub Release workflow. No signing keys go to
 GitHub Actions, Cloudflare, Render, Elite VPS, CodeBridge agents or AI tools.
 
+## 2026-11-19 owner-host safety hold (operator reported)
+
+The original source-only status above describes this feature before the owner
+installed it. The owner subsequently verified a P520 one-click enrollment
+(`OWNER_AUTOSIGN_SETUP=PASS`, hourly Windows task `Ready`) and later
+explicitly disabled `KMJ-CodeBridge-Owner-Auto-Sign`, with a local
+`Get-ScheduledTask` readback of `Disabled`. The prior scheduled execution
+returned exit code 2 and no new signed Seq32 PR was verified.
+
+**Do not enable the signer from a code upgrade.** The reviewed Windows
+GH-credential-environment patch and pinned installer upgrade are maintenance
+only. The upgrade requires an already-disabled owner task and must leave it
+disabled after success or failure. A future signer activation needs a
+**separate explicit owner decision** accepting or rejecting removal of
+per-release `Get-FileHash` approval and the online key-custody trade-off.
+Neither CI PASS nor a GitHub PR review grants that authorization.
+Release publication, fleet updater and production canary/rollback retain
+their independent gates.
+
 ## Automatic path
 
 Once the owner installs the trusted P520 signer and approves its short-lived
