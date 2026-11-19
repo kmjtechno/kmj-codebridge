@@ -137,6 +137,11 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     /Enable-ScheduledTask|Disable-ScheduledTask|Start-ScheduledTask/,
   );
   assert.match(upgrade, /\$task.State -ceq 'Disabled'/);
+  assert.match(upgrade, /function TaskPrincipalSid/);
+  assert.match(upgrade, /\$taskSid -ceq \$sid/);
+  assert.match(upgrade, /AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED/);
+  assert.match(upgrade, /AUTOSIGN_FOREIGN_SID_SELFTEST_FAIL/);
+  assert.doesNotMatch(upgrade, /\$task.Principal.UserId -ieq \$identity/);
   assert.match(upgrade, /OwnerAcl \$Signer \$sid/);
   assert.match(upgrade, /OwnerAcl \$Backup \$sid/);
   assert.match(upgrade, /UPGRADE_OWNER_REVIEW_REQUIRED/);
@@ -216,6 +221,11 @@ test("guarded one-click resume requires pinned signer, owner policy, CI and task
     launcher,
     /curl|wget|Invoke-WebRequest|EncodedCommand|taskkill|git reset|git clean/,
   );
+  assert.match(source, /function TaskPrincipalSid/);
+  assert.match(source, /\$taskSid -ceq \$sid/);
+  assert.match(source, /AUTOSIGN_TASK_PRINCIPAL_UNRESOLVED/);
+  assert.match(source, /AUTOSIGN_FOREIGN_SID_SELFTEST_FAIL/);
+  assert.doesNotMatch(source, /\$task.Principal.UserId -ieq \$identity/);
   assert.doesNotMatch(
     source,
     /Start-ScheduledTask|Unregister-ScheduledTask|Restart-Service|git reset|git clean/,
