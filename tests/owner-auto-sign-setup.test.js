@@ -103,7 +103,10 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     "scripts/windows/ONE-CLICK-OWNER-AUTOSIGN-UPGRADE-20261119.cmd",
     "utf8",
   );
-  assert.match(oneClick, /OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119\.ps1" -Apply/);
+  assert.match(
+    oneClick,
+    /OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119\.ps1" -Apply/,
+  );
   assert.doesNotMatch(oneClick, /curl|wget|bitsadmin|EncodedCommand|taskkill/);
   for (const guard of [
     "DESKTOP-5FVJMET",
