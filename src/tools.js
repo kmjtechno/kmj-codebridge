@@ -1,4 +1,5 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
+import { CLOUDOS_N2_READINESS_PYTHON } from "./cloudos-n2-readiness.js";
 import { verifiedFastReceipt } from "./browser-fast-receipt.js";
 import { browserRuntimeStatus } from "./browser-runtime.js";
 import { browserAgenticReadiness } from "./browser-agentic.js";
@@ -4278,6 +4279,15 @@ export function createDispatcher(
                   approvalRequired: false,
                   variants: ["overview"],
                 },
+                {
+                  id: "cloudos_n2_guest_readiness",
+                  category: "inspect",
+                  description:
+                    "Fixed N2/KVM/guest tools inspection without sudo, arbitrary commands, VM starts or release credit.",
+                  risk: "READ",
+                  approvalRequired: false,
+                  variants: ["check"],
+                },
               ]
             : []),
           // Fixed host-specific loopback-only HTTPS audit. It cannot modify
@@ -4750,6 +4760,25 @@ export function createDispatcher(
           command: "python3",
           args: ["-I", "-B", "-c", CLOUDOS_HOST_STORAGE_AUDIT_PYTHON],
           timeoutMs: 180000,
+        });
+      }
+      if (a.command === "cloudos_n2_guest_readiness") {
+        if (
+          a.variant !== "check" ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (p.id !== "kmj-cloudos" || config.id !== "google-vps" || !p.writable)
+          fail("CLOUDOS_N2_READINESS_NOT_AUTHORIZED");
+        return runner.run({
+          project: p.id,
+          gate: "command:cloudos_n2_guest_readiness:check:inspect",
+          key: a.requestKey,
+          cwd: p.files.root,
+          command: "python3",
+          args: ["-I", "-B", "-c", CLOUDOS_N2_READINESS_PYTHON],
+          timeoutMs: 30000,
         });
       }
       if (a.command === "cloudos_origin_https_audit") {
@@ -5528,7 +5557,9 @@ export function createDispatcher(
 
     const risk =
       name === "run_project_command" || name === "ide_run_project_task"
-        ? a.command === "cloudos_host_storage_audit"
+        ? ["cloudos_host_storage_audit", "cloudos_n2_guest_readiness"].includes(
+            a.command,
+          )
           ? "READ"
           : [
                 "browser_public_qa",
