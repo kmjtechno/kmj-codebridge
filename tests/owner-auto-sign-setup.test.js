@@ -112,7 +112,7 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     "DESKTOP-5FVJMET",
     "a41985b2b407bebd34ddb5bfa8f010bf4e11ffb1",
     "b3717a8b3c948567f6648ad11233ed276d58b143",
-    "1af22ec588966fdebd02f178721cc35121580346",
+    "31c58d25baa2d57945a70fe689c54979b8023229",
     "897d9ff674ac6d007bae34084060a16b713ef2b6",
     "UPGRADE_TASK_IDENTITY_UNVERIFIED",
     "UPGRADE_OWNER_CONSENT_INVALID",
