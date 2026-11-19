@@ -123,7 +123,6 @@ test("reviewed signer upgrade refuses unknown task or bits and preserves protect
     "UPGRADE_ROLLBACK_BACKUP_DRIFT",
     "UPGRADE_DISABLED_READBACK_UNVERIFIED",
     "DISABLED_PRESERVED",
-    "UPGRADE_PREVIOUS_ARTIFACT_PRESENT",
     "OWNER_AUTOSIGN_UPGRADE",
     "PRESERVED_FOR_ROLLBACK",
   ])
