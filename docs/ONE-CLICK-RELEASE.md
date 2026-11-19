@@ -143,3 +143,13 @@ change anything.
 
 Status: the script and its static tests are reviewed source only. It is **not**
 proven on the live host until the owner runs it and a receipt is read back.
+
+### Node version for dev jobs
+
+Agent jobs inherit `PATH`, and the systemd default resolves `npm` to the older
+system Node. `scripts/setup-codebridge-dev-agent-path.sh` (root, dry-run
+default) verifies that `/opt/kmj-codebridge-node/bin` has Node >= 24 and npm,
+then adds one drop-in (`Environment=PATH=...`) for `kmj-codebridge-dev.service`
+and restarts only that service. It installs nothing, downloads nothing and
+fails closed (`NODE_TOO_OLD`) if that Node is older than 24. New installs from
+`setup-codebridge-dev-agent.sh` already carry the same `PATH`.

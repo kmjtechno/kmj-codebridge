@@ -137,6 +137,8 @@ RestrictSUIDSGID=true
 LockPersonality=true
 ReadWritePaths=$PROJECT_ROOT $STATE_DIR
 UMask=0077
+# Jobs inherit PATH: prefer the Node >=24 that ships with the signed runtime.
+Environment=PATH=/opt/kmj-codebridge-node/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]
 WantedBy=multi-user.target
