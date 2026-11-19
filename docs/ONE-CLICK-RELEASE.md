@@ -128,7 +128,9 @@ change anything.
 - Runs only on host `kmj-elite`, as the unprivileged `kmjdev` system user (it
   refuses a root service user).
 - Clones the public repository over HTTPS into
-  `/srv/kmj-codebridge-projects/kmj-codebridge` (no deploy key, no token).
+  `/srv/kmj-codebridge-dev/kmj-codebridge`, a dedicated checkout (no deploy key, no
+  token); an existing checkout elsewhere is never reused or modified. A remote URL
+  is never printed because it can embed credentials.
 - Pairing needs one owner browser approval (the script prints the code); the
   device credential is written only to `/etc/kmj-codebridge-dev/agent.json`
   (0600).

@@ -31,6 +31,15 @@ test("dev-agent uses the signed readable runtime, not the root-only legacy tree"
   assert.doesNotMatch(text, /RUNTIME='\/opt\/kmj-codebridge-agent'/);
 });
 
+test("dev-agent uses a dedicated checkout and never prints a remote URL", () => {
+  assert.match(
+    text,
+    /^PROJECT_ROOT='\/srv\/kmj-codebridge-dev\/kmj-codebridge'$/m,
+  );
+  assert.doesNotMatch(text, /echo "ORIGIN_MISMATCH: \$origin"/);
+  assert.doesNotMatch(text, /echo[^\n]*\$origin/);
+});
+
 test("dev-agent config is fixed-profile only and the unit is hardened", () => {
   assert.match(text, /commandPresets: \['node-standard'\]/);
   assert.match(text, /gates: \{\}/);
