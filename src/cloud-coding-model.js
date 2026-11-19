@@ -115,6 +115,9 @@ export function createVerifiedFreeCloudCodingModel({
         result.response.includes("\0")
       )
         throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
+      // Untrusted result getters may revoke consent during validation. Recheck
+      // immediately before releasing any patch to the caller.
+      if (!approved()) deny();
       return {
         response: result.response,
         hitTokenLimit: result.hitTokenLimit === true,
