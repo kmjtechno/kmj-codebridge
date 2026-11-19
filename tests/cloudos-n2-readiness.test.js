@@ -128,7 +128,7 @@ test("N2 host command is hidden and denied on wrong device/project/read-only che
 test("N2 identity fails closed for wrong zone, missing zone and wrong machine", (t) => {
   const py = process.platform === "win32" ? "python" : "python3";
   const harness = [
-    CLOUDOS_N2_READINESS_PYTHON,
+    CLOUDOS_N2_READINESS_PYTHON.split("if __name__=='__main__':")[0],
     "def fake_meta(field):",
     "    return fields.get(field, 'UNVERIFIED')",
     "meta=fake_meta",
