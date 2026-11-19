@@ -100,6 +100,14 @@ export function createVerifiedFreeCloudCodingModel({
       // applying its returned patch, even though already sent bytes cannot
       // be recalled.
       if (!approved()) deny();
+      let response, hitTokenLimit, truncated;
+      try {
+        response = result?.response;
+        hitTokenLimit = result?.hitTokenLimit === true;
+        truncated = result?.truncated === true;
+      } catch {
+        throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
+      }
       if (
         result?.provider !== "freellmapi-loopback" ||
         result?.chain !== model ||
@@ -109,24 +117,11 @@ export function createVerifiedFreeCloudCodingModel({
         result?.actualUpstreamModel !== null ||
         result?.cloudFallback !== null ||
         result?.outputIsUntrusted !== true ||
-        typeof result?.response !== "string" ||
-        result.response.trim().length === 0 ||
-        result.response.length > 1_048_576 ||
-        result.response.includes("\0")
+        typeof response !== "string" ||
+        response.trim().length === 0 ||
+        response.length > 1_048_576 ||
+        response.includes("\0")
       )
-        throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
-      // Snapshot the untrusted response and flags exactly once. A getter may
-      // revoke consent or return different content on subsequent reads.
-      let response, hitTokenLimit, truncated;
-      try {
-        response = result.response;
-        hitTokenLimit = result.hitTokenLimit === true;
-        truncated = result.truncated === true;
-      } catch {
-        throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
-      }
-      if (typeof response !== "string" || !response.trim() ||
-          response.length > 1_048_576 || response.includes("\\0"))
         throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
       if (!approved()) deny();
       return {
