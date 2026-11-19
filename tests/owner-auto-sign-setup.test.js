@@ -201,7 +201,8 @@ test("guarded one-click resume requires pinned signer, owner policy, CI and task
     "AUTOSIGN_ENABLE_PREFLIGHT",
     "OWNER_AUTOSIGN_FIRST_SIGNED_RELEASE",
     "Enable-ScheduledTask",
-  ]) assert.ok(source.includes(gate), gate);
+  ])
+    assert.ok(source.includes(gate), gate);
   assert.match(
     launcher,
     /OWNER-AUTOSIGN-SIGNER-PINNED-UPGRADE-20261119\.ps1" -Apply/,
@@ -222,7 +223,10 @@ test("guarded one-click resume requires pinned signer, owner policy, CI and task
     source,
     /Start-ScheduledTask|Unregister-ScheduledTask|Restart-Service|git reset|git clean/,
   );
-  assert.doesNotMatch(source, /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/);
+  assert.doesNotMatch(
+    source,
+    /Get-Content[^\n]*keyFile|Copy-Item[^\n]*keyFile/,
+  );
 });
 
 test(
