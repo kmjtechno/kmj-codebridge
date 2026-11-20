@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createSupervisorHandler } from "../src/supervisor.js";
 
 const CLOUDOS = "kmj-codebridge-cloudos.service";
-const CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
+const CONFIG = "/run/credentials/kmj-codebridge-supervisor.service/agent.json";
 const PROJECT = "/home/info/kmj-cloudos";
 
 function fixture({ state = "active" } = {}) {
@@ -135,4 +135,43 @@ test("Google supervisor refuses unloaded service and unknown profiles", async ()
     () => createSupervisorHandler({ profile: "untrusted" }),
     /SUPERVISOR_PROFILE_INVALID/,
   );
+});
+
+test("Google Supervisor never falls back to the info-owned home config", async () => {
+  const reads = [];
+  const handler = createSupervisorHandler({
+    profile: "cloudos",
+    run: (_binary, args) => {
+      assert.equal(args[1], CLOUDOS);
+      return "LoadState=loaded\\nActiveState=active\\n";
+    },
+    readFile: (path) => {
+      reads.push(path);
+      const error = new Error("credential unavailable");
+      error.code = "ENOENT";
+      throw error;
+    },
+  });
+  const validation = await handler({ op: "config_validate", service: "agent" });
+  assert.equal(validation.response.valid, false);
+  assert.equal(typeof validation.response.reason, "string");
+  await assert.rejects(
+    handler({ op: "project_status", projectId: "kmj-cloudos" }),
+    /SUPERVISOR_CONFIG_INVALID/,
+  );
+  assert.deepEqual(reads, [CONFIG, CONFIG]);
+  assert.ok(!reads.some((p) => p.startsWith("/home/info/")));
+});
+
+test("Google Supervisor rejects caller supplied config paths without reading", async () => {
+  const f = fixture();
+  await assert.rejects(
+    f.handler({
+      op: "config_validate",
+      service: "agent",
+      configPath: "/home/info/.config/kmj-codebridge/agent.json",
+    }),
+    /INVALID_SUPERVISOR_REQUEST/,
+  );
+  assert.deepEqual(f.reads, []);
 });
