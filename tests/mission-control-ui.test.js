@@ -905,6 +905,78 @@ test("handoff UI explicitly distinguishes CodeBridge continuation from host chat
   );
 });
 
+test("real connection_overview may omit connectionState on unregistered device without breaking fleet", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+        {
+          device: "device2",
+          project: "project2",
+          status: "GATEWAY_REGISTRATION_MISSING",
+          nextAction: "RUN_VM_CONNECTION_DOCTOR",
+        },
+      ],
+    },
+  });
+  assert.equal(v.element("fleetKnown").textContent, "2");
+  assert.equal(v.element("fleetReady").textContent, "1");
+  assert.equal(v.element("fleetAttention").textContent, "1");
+  assert.match(v.element("fleet-device-1").textContent, /GATEWAY_REGISTRATION_MISSING/);
+});
+
+test("authenticated Linux systemd receipt displays running service without Windows HMAC assumption", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "elite1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("checkSupervisor").handlers.click();
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      activeState: "active",
+      subState: "running",
+      mainPid: 58771,
+    },
+  });
+  v.replyResult(8, { isError: true });
+  assert.equal(v.element("fleetAgentState").textContent, "SERVICE RUNNING");
+  assert.equal(v.element("fleetGatewayState").textContent, "UNKNOWN");
+  assert.ok(
+    !v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"),
+  );
+  v.element("checkSupervisor").handlers.click();
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      activeState: "active",
+      subState: "running",
+      mainPid: 0,
+    },
+  });
+  v.replyResult(8, { isError: true });
+  assert.equal(v.element("fleetAgentState").textContent, "UNKNOWN");
+});
+
 test("Devices tab checks authenticated account fleet only after a real click", () => {
   const v = openCard();
   v.element("refreshFleet").handlers.click();
