@@ -185,13 +185,29 @@ test(
   { skip: !linux },
   (t) => {
     const f = releaseFixture(t);
+    // The bare fixture may inherit an existing legitimate release branch
+    // from the source checkout. A missing key must leave refs unchanged,
+    // not demand that the fixture has no release history at all.
+    const beforeRefs = git(
+      f.repo,
+      "ls-remote",
+      "--heads",
+      "origin",
+      "release/*",
+    );
+    assert.equal(beforeRefs.status, 0);
     rmSync(path.join(f.home, ".config", "kmj-codebridge", "release.env"));
     const r = oneClick(f);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /KMJ_RELEASE=BLOCKED:KEY_FILE_NOT_CONFIGURED/);
-    assert.equal(
-      git(f.repo, "ls-remote", "--heads", "origin", "release/*").stdout,
-      "",
+    const afterRefs = git(
+      f.repo,
+      "ls-remote",
+      "--heads",
+      "origin",
+      "release/*",
     );
+    assert.equal(afterRefs.status, 0);
+    assert.equal(afterRefs.stdout, beforeRefs.stdout);
   },
 );
