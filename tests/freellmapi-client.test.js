@@ -48,9 +48,11 @@ test("missing FreeLLMAPI key exposes only the stable typed MCP blocker", () => {
     error: "FREELLMAPI_KEY_NOT_CONFIGURED",
   });
   assert.deepEqual(
-    publicError(Object.assign(new Error("private credential path"), {
-      code: "FREELLMAPI_KEY_NOT_CONFIGURED",
-    })),
+    publicError(
+      Object.assign(new Error("private credential path"), {
+        code: "FREELLMAPI_KEY_NOT_CONFIGURED",
+      }),
+    ),
     { error: "INTERNAL_ERROR" },
   );
 });
