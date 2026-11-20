@@ -65,6 +65,24 @@ class RollbackDoctorBehavior(unittest.TestCase):
         with patch.object(Path, "lstat", autospec=True, return_value=metadata(stat.S_IFREG | 0o600, uid=doctor.os.getuid())), patch("builtins.open", side_effect=AssertionError("content read forbidden")):
             self.assertEqual(doctor.config_metadata(), "OWNER_AND_MODE_PASS_CONTENT_UNREAD")
 
+    def test_config_rejects_symlink_and_wrong_owner_without_read(self):
+        cases = [
+            (metadata(stat.S_IFLNK | 0o777, uid=doctor.os.getuid()), "IDENTITY_MISMATCH"),
+            (metadata(stat.S_IFREG | 0o600, uid=doctor.os.getuid() + 1), "IDENTITY_MISMATCH"),
+            (metadata(stat.S_IFREG | 0o640, uid=doctor.os.getuid()), "PERMISSIONS_UNSAFE"),
+            (metadata(stat.S_IFREG | 0o606, uid=doctor.os.getuid()), "PERMISSIONS_UNSAFE"),
+        ]
+        for fake_info, expected in cases:
+            with self.subTest(mode=fake_info.st_mode, uid=fake_info.st_uid):
+                with patch.object(Path, "lstat", autospec=True, return_value=fake_info), patch("builtins.open", side_effect=AssertionError("credential read forbidden")) as opened:
+                    self.assertEqual(doctor.config_metadata(), expected)
+                    opened.assert_not_called()
+
+    def test_config_unavailable_never_reads_content(self):
+        with patch.object(Path, "lstat", autospec=True, side_effect=PermissionError("denied")), patch("builtins.open", side_effect=AssertionError("credential read forbidden")) as opened:
+            self.assertEqual(doctor.config_metadata(), "UNAVAILABLE")
+            opened.assert_not_called()
+
     def test_wrong_host_and_arguments_do_not_probe(self):
         with patch.object(doctor.sys, "argv", ["doctor"]), patch.object(doctor.socket, "gethostname", return_value="wrong-host"), patch.object(doctor, "status", side_effect=AssertionError("probe forbidden")):
             self.assertEqual(doctor.main(), 2)
