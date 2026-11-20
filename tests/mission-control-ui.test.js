@@ -917,10 +917,24 @@ test("Devices tab checks authenticated account fleet only after a real click", (
   assert.equal(req.params.name, "connection_overview");
   assert.deepEqual({ ...req.params.arguments }, {});
   assert.equal(v.element("fleetReady").textContent, "");
-  v.replyResult(6, { structuredContent: { devices: [
-    { device: "device1", project: "project1", status: "READY", connectionState: "online" },
-    { device: "device2", project: "project2", status: "GATEWAY_REGISTRATION_MISSING", connectionState: "offline" },
-  ] } });
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+        {
+          device: "device2",
+          project: "project2",
+          status: "GATEWAY_REGISTRATION_MISSING",
+          connectionState: "offline",
+        },
+      ],
+    },
+  });
   assert.equal(v.element("fleetReady").textContent, "1");
   assert.equal(v.element("fleetAttention").textContent, "1");
   assert.equal(v.element("fleetKnown").textContent, "2");
@@ -932,58 +946,115 @@ test("Connect/Repair is one host-approved click, never an unaudited service rest
   v.handshake();
   v.send({ product: "KMJ CodeBridge", device: "device1", project: "project1" });
   v.element("openDevices").handlers.click();
-  v.replyResult(6, { structuredContent: { devices: [
-    { device: "device1", project: "project1", status: "READY", connectionState: "online" },
-  ] } });
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
   v.element("connectDevice").handlers.click();
   const req = v.parentMessages.at(-1).message;
   assert.equal(req.method, "ui/message");
   assert.match(req.params.content.text, /connection_overview/);
   assert.match(req.params.content.text, /supervisor_status/);
   assert.match(req.params.content.text, /no active jobs/);
-  assert.match(req.params.content.text, /If already READY, do not restart anything/);
+  assert.match(
+    req.params.content.text,
+    /If already READY, do not restart anything/,
+  );
   v.element("connectDevice").handlers.click();
   assert.equal(v.parentMessages.at(-1).message, req);
   v.replyHost(9);
   assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
 });
 
 test("Unknown or forged fleet result never authorizes a restart or fake READY", () => {
   const v = openCard();
   v.handshake();
   v.element("openDevices").handlers.click();
-  v.replyResult(6, { structuredContent: { devices: [
-    { device: "../evil", project: "project1", status: "READY", connectionState: "online" },
-  ] } });
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "../evil",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
   assert.equal(v.element("fleetKnown").textContent, "—");
   v.element("connectDevice").handlers.click();
-  assert.match(v.element("fleetActionNotice").textContent, /select an authorized device/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.method === "ui/message"));
+  assert.match(
+    v.element("fleetActionNotice").textContent,
+    /select an authorized device/,
+  );
+  assert.ok(
+    !v.parentMessages.some(({ message }) => message.method === "ui/message"),
+  );
 });
 
 test("Read-only Supervisor checks cannot manufacture an active agent or restart rights", () => {
   const v = openCard();
   v.handshake();
   v.element("openDevices").handlers.click();
-  v.replyResult(6, { structuredContent: { devices: [
-    { device: "device1", project: "project1", status: "READY", connectionState: "online" },
-  ] } });
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
   v.element("fleet-device-0").handlers.click();
   v.element("checkSupervisor").handlers.click();
   const calls = v.parentMessages.slice(-2).map((x) => x.message);
-  assert.deepEqual(calls.map((x) => x.params.name), ["supervisor_status", "supervisor_status"]);
-  assert.deepEqual(calls.map((x) => x.params.arguments.service), ["agent", "gateway"]);
-  v.replyResult(7, { structuredContent: {
-    service: "agent", installed: true, supervisor: "windows-native",
-    state: "unknown", activeProcessRuntime: { verified: false },
-    restart: { supported: false },
-  } });
+  assert.deepEqual(
+    calls.map((x) => x.params.name),
+    ["supervisor_status", "supervisor_status"],
+  );
+  assert.deepEqual(
+    calls.map((x) => x.params.arguments.service),
+    ["agent", "gateway"],
+  );
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      installed: true,
+      supervisor: "windows-native",
+      state: "unknown",
+      activeProcessRuntime: { verified: false },
+      restart: { supported: false },
+    },
+  });
   v.replyResult(8, { isError: true });
   assert.equal(v.element("fleetAgentState").textContent, "PROCESS UNVERIFIED");
   assert.equal(v.element("fleetGatewayState").textContent, "UNKNOWN");
-  assert.match(v.element("fleetSupervisorDetail").textContent, /independent verified evidence/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+  assert.match(
+    v.element("fleetSupervisorDetail").textContent,
+    /independent verified evidence/,
+  );
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
 });
 
 test("Pairing remains official domain-owner approval and never starts untrusted installer", () => {
@@ -992,7 +1063,10 @@ test("Pairing remains official domain-owner approval and never starts untrusted 
   v.element("beginPairing").handlers.click();
   const req = v.parentMessages.at(-1).message;
   assert.equal(req.method, "ui/message");
-  assert.match(req.params.content.text, /kmjtechno.com owner-authorized HTTPS browser approval/);
+  assert.match(
+    req.params.content.text,
+    /kmjtechno.com owner-authorized HTTPS browser approval/,
+  );
   assert.match(req.params.content.text, /No GitHub login/);
   v.replyHost(10, "denied");
   assert.match(v.element("fleetActionNotice").textContent, /denied or failed/);
