@@ -70,3 +70,24 @@ test("cloud discovery revocation from getter prevents any verifier invocation", 
   assert.deepEqual(await model.status(), unavailable);
   assert.equal(verified, 0);
 });
+
+test("cloud discovery stops after a verifier revokes consent and throws", async () => {
+  let consent = true;
+  const checked = [];
+  const model = createVerifiedFreeCloudCodingModel({
+    authorized: () => consent,
+    createClient: () => ({
+      status: async () => ({
+        available: true,
+        approvedFreeChains: ["auto:first", "auto:second"],
+      }),
+      checkZeroCostChain: async ({ chain }) => {
+        checked.push(chain);
+        consent = false;
+        throw new Error("verification failed after consent revocation");
+      },
+    }),
+  });
+  assert.deepEqual(await model.status(), unavailable);
+  assert.deepEqual(checked, ["auto:first"]);
+});
