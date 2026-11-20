@@ -4,13 +4,10 @@ import { createVerifiedFreeCloudCodingModel } from "../src/cloud-coding-model.js
 
 const unavailable = { available: false, activeRequest: false, models: [] };
 
-test("cloud discovery rejects a proxy that throws on Array.isArray", async () => {
+test("cloud discovery rejects a revoked proxy during Array.isArray", async () => {
   let verified = 0;
-  const chains = new Proxy(["auto:first"], {
-    getPrototypeOf() {
-      throw new Error("hostile prototype");
-    },
-  });
+  const { proxy: chains, revoke } = Proxy.revocable(["auto:first"], {});
+  revoke();
   const model = createVerifiedFreeCloudCodingModel({
     authorized: () => true,
     createClient: () => ({
