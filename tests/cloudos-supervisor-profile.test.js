@@ -3,15 +3,21 @@ import assert from "node:assert/strict";
 import { createSupervisorHandler } from "../src/supervisor.js";
 
 const CLOUDOS = "kmj-codebridge-cloudos.service";
-const CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
+const CONFIG =
+  "/run/credentials/kmj-codebridge-supervisor.service/cloudos-agent-config";
 const PROJECT = "/home/info/kmj-cloudos";
 
-function fixture({ state = "active" } = {}) {
+function fixture({
+  state = "active",
+  credentialsDirectory = "/run/credentials/kmj-codebridge-supervisor.service",
+  readError = null,
+} = {}) {
   const calls = [];
   const reads = [];
   const restarts = [];
   const handler = createSupervisorHandler({
     profile: "cloudos",
+    cloudosCredentialsDirectory: credentialsDirectory,
     run: (binary, args) => {
       calls.push({ binary, args });
       if (binary === "/usr/bin/systemctl") {
@@ -31,6 +37,7 @@ function fixture({ state = "active" } = {}) {
     readFile: (p) => {
       reads.push(p);
       assert.equal(p, CONFIG);
+      if (readError) throw readError;
       return JSON.stringify({
         gateway: "https://kmjtechno.com",
         token: "x".repeat(48),
@@ -69,7 +76,12 @@ test("Google supervisor status accepts only fixed CloudOS systemd unit", async (
 test("Google supervisor only validates pinned rootless CloudOS config", async () => {
   const f = fixture();
   const r = await f.handler({ op: "config_validate", service: "agent" });
-  assert.deepEqual(r.response, { service: "agent", valid: true });
+  assert.deepEqual(r.response, {
+    service: "agent",
+    valid: true,
+    scope: "SYSTEMD_CREDENTIAL_SNAPSHOT_ONLY",
+    runtimeConfigAttested: false,
+  });
   assert.deepEqual(f.reads, [CONFIG]);
 });
 
@@ -135,4 +147,45 @@ test("Google supervisor refuses unloaded service and unknown profiles", async ()
     () => createSupervisorHandler({ profile: "untrusted" }),
     /SUPERVISOR_PROFILE_INVALID/,
   );
+});
+
+test("Google Supervisor fails closed without the unit-bound systemd credential directory", async () => {
+  for (const credentialsDirectory of [
+    null,
+    "",
+    "/tmp",
+    "/run/credentials/other.service",
+    "/run/credentials/kmj-codebridge-supervisor.service/..",
+  ]) {
+    const f = fixture({ credentialsDirectory });
+    const checked = await f.handler({ op: "config_validate", service: "agent" });
+    assert.deepEqual(checked.response, {
+      service: "agent",
+      valid: false,
+      reason: "SUPERVISOR_CREDENTIAL_UNAVAILABLE",
+    });
+    await assert.rejects(
+      f.handler({ op: "project_status", projectId: "kmj-cloudos" }),
+      /SUPERVISOR_CONFIG_INVALID/,
+    );
+    assert.deepEqual(f.reads, [], "never fall back to info:0600 agent.json");
+  }
+});
+
+test("Google Supervisor does not expose secrets when credential read is denied", async () => {
+  const error = new Error("secret-name-should-not-escape");
+  error.code = "EACCES";
+  const f = fixture({ readError: error });
+  const result = await f.handler({ op: "config_validate", service: "agent" });
+  assert.deepEqual(result.response, {
+    service: "agent",
+    valid: false,
+    reason: "CONFIG_FILE_UNREADABLE",
+  });
+  assert.equal(JSON.stringify(result).includes("secret-name"), false);
+  await assert.rejects(
+    f.handler({ op: "project_status", projectId: "kmj-cloudos" }),
+    /SUPERVISOR_CONFIG_INVALID/,
+  );
+  assert.deepEqual(f.reads, [CONFIG, CONFIG]);
 });
