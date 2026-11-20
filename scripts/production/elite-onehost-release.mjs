@@ -96,6 +96,15 @@ function fixedTimerStatus() {
   return parseSystemd(proc.stdout);
 }
 
+function protectedSignerFile(file) {
+  const st = fs.lstatSync(file);
+  if (
+    !path.isAbsolute(file) || !st.isFile() || st.isSymbolicLink() ||
+    st.uid !== process.getuid() || st.nlink !== 1 ||
+    (st.mode & 0o077) || st.size < 1 || st.size > 8192
+  ) throw new Error("SIGNER_KEY_FILE_NOT_PROTECTED");
+}
+
 function ownerPolicy() {
   const home = os.homedir();
   if (!path.isAbsolute(home) || home === "/" || home === "/root")
@@ -133,6 +142,12 @@ async function main(args) {
     throw new Error("OWNER_POLICY_NOT_APPROVED");
   if (owner.repoPath === ROOT || owner.repoPath.startsWith(ROOT + "/"))
     throw new Error("SOURCE_REPO_INSIDE_TRUST_ROOT");
+  // Metadata only; the pinned signer checks Ed25519 SPKI during signing.
+  // Missing keys/loose ACLs must never be reported as ready.
+  protectedSignerFile(owner.keyFile);
+  protectedSignerFile(owner.publicKeyFile);
+  if (!fs.existsSync("/usr/bin/gh") || !fs.existsSync("/usr/bin/git"))
+    throw new Error("GH_OR_GIT_NOT_INSTALLED");
   if (args[0] === "--inspect") {
     console.log("ELITE_ONEHOST_SIGNER=READY_FOR_OWNER_SIGN");
     console.log("SIGNED_DEPLOY_TIMER=ACTIVE");
