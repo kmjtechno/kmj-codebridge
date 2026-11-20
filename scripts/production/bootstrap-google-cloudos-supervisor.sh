@@ -328,9 +328,9 @@ def verify(label,obj,field,expected):
         with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as sock:
             sock.settimeout(5)
             sock.connect(socket_path)
-            sock.sendall(json.dumps(obj).encode()+b"\\n")
+            sock.sendall(json.dumps(obj).encode()+b"\n")
             response=b""
-            while not response.endswith(b"\\n") and len(response)<65536:
+            while not response.endswith(b"\n") and len(response)<65536:
                 part=sock.recv(4096)
                 if not part: break
                 response+=part
