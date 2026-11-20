@@ -11,7 +11,12 @@ test("dedicated nonroot signer accepts only the pinned Elite host label and Node
     assert.equal(assessEliteIdentity(host, 995, "kmjsigner", 24), "PASS");
   }
   assert.equal(
-    assessEliteIdentity("kmj-elite-other.example.internal", 995, "kmjsigner", 24),
+    assessEliteIdentity(
+      "kmj-elite-other.example.internal",
+      995,
+      "kmjsigner",
+      24,
+    ),
     "HOST_NOT_ELITE",
   );
 });
@@ -31,8 +36,5 @@ test("signed deployment timer requires all three stable enabled states", () => {
       "ELITE_SIGNED_DEPLOY_TIMER_NOT_ACTIVE",
     );
   }
-  assert.equal(
-    assessDeployTimer(null),
-    "ELITE_SIGNED_DEPLOY_TIMER_NOT_ACTIVE",
-  );
+  assert.equal(assessDeployTimer(null), "ELITE_SIGNED_DEPLOY_TIMER_NOT_ACTIVE");
 });
