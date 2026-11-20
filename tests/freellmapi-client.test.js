@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import http from "node:http";
 import { createFreeLlmApiClient } from "../src/freellmapi-client.js";
+import { CodeBridgeError, publicError } from "../src/errors.js";
 
 const KEY = "freellma-test-key-0001";
 const verifiedProof = ({ chain, observedAtEpochMs }) => ({
@@ -33,6 +34,25 @@ test("requires a configured key and a sane port", () => {
   assert.throws(() => createFreeLlmApiClient({ apiKey: KEY, port: 80 }), {
     message: "FREELLMAPI_INVALID_PORT",
   });
+});
+
+test("missing FreeLLMAPI key exposes only the stable typed MCP blocker", () => {
+  let actual;
+  try {
+    createFreeLlmApiClient({ apiKey: "" });
+  } catch (error) {
+    actual = error;
+  }
+  assert.ok(actual instanceof CodeBridgeError);
+  assert.deepEqual(publicError(actual), {
+    error: "FREELLMAPI_KEY_NOT_CONFIGURED",
+  });
+  assert.deepEqual(
+    publicError(Object.assign(new Error("private credential path"), {
+      code: "FREELLMAPI_KEY_NOT_CONFIGURED",
+    })),
+    { error: "INTERNAL_ERROR" },
+  );
 });
 
 test("generate needs consent, an auto:<chain> name and bounded inputs", async () => {
