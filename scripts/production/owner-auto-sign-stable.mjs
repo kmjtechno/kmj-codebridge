@@ -437,8 +437,10 @@ function runOnce() {
     // Prevent privileged/root CodeBridge or gateway processes from wielding
     // an owner signing key. A dedicated non-root signer is required on Linux.
     if (process.platform !== "win32") {
-      requireGate(typeof process.getuid === "function" && process.getuid() !== 0,
-        "ROOT_SIGNER_FORBIDDEN");
+      requireGate(
+        typeof process.getuid === "function" && process.getuid() !== 0,
+        "ROOT_SIGNER_FORBIDDEN",
+      );
     }
     const p = JSON.parse(privateFile(POLICY).toString("utf8"));
     requireGate(
