@@ -32,7 +32,7 @@ test("operator bootstrap is fenced to fixed GCE host and immutable source", () =
     "instance-20260912-094732",
     "Metadata-Flavor: Google",
     "kmj-codebridge-cloudos.service",
-    "fa9340b958ce50000298282d65f3132596c16503",
+    "b71477886a03f128044cc482971db0b50790405c",
     "dea0a6e398cd4706ddc61e314174314b9a6f95ee",
     "NODE24_REQUIRED",
     "SOURCE_HEAD_CHANGED",
@@ -53,11 +53,14 @@ test("root Supervisor imports only staged root-owned pinned source", () => {
   assert.match(source, /--ignore-scripts --no-audit --no-fund/);
   assert.match(source, /find "\$STAGE" -type f -exec chmod 0444/);
   assert.match(source, /ProtectHome=tmpfs/);
-  assert.match(
-    source,
-    /BindReadOnlyPaths=\/home\/info\/\.config\/kmj-codebridge \/home\/info\/kmj-cloudos/,
-  );
+  assert.match(source, /BindReadOnlyPaths=\/home\/info\/kmj-cloudos/);
   assert.match(source, /Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=cloudos/);
+  assert.match(source, /LoadCredential=agent\.json:\$CONFIG/);
+  assert.match(source, /CapabilityBoundingSet=\n/);
+  assert.match(source, /AmbientCapabilities=\n/);
+  assert.match(source, /NoNewPrivileges=yes/);
+  assert.doesNotMatch(source, /BindReadOnlyPaths=.*\.config\/kmj-codebridge/);
+  assert.doesNotMatch(source, /(?:chmod|chown)\s+[^\n]*\$CONFIG/);
   assert.doesNotMatch(source, /(?:git reset|git clean|curl.*\|\s*(?:bash|sh))/);
 });
 
@@ -69,6 +72,11 @@ test("existing enrollment and other services are preserved on failure", () => {
   assert.match(source, /SUPERVISOR_CONFIG_ROLLBACK=ATTEMPTED/);
   assert.match(source, /SUPERVISOR_NEW_UNITS_ROLLBACK=ATTEMPTED/);
   assert.match(source, /FRESH_AGENT_CONNECTION_NOT_VERIFIED/);
+  assert.match(source, /CREDENTIAL_SNAPSHOT_REFRESH_FAILED/);
+  assert.match(source, /systemctl restart "\$SERVICE_UNIT"/);
+  assert.match(source, /supervisor_rpcs PREFLIGHT/);
+  assert.match(source, /supervisor_rpcs POST_CONFIG/);
+  assert.match(source, /SUPERVISOR_RPC_\{phase\}_\{label\}=FAIL/);
   assert.match(source, /CLOUDOS_SUPERVISOR_BOOTSTRAP=PASS/);
   assert.doesNotMatch(source, /systemctl restart kmj-cloudos-api/);
   assert.doesNotMatch(source, /systemctl restart kmj-cloudos-worker/);
@@ -108,4 +116,16 @@ test("fallback provisions only checksum-pinned official root-managed Node 24", (
   assert.match(source, /ROOT_NODE24_BUNDLE_INVALID/);
   assert.match(source, /NODE_STAGE/);
   assert.match(source, /CLOUDOS_SUPERVISOR_ROOT_NODE=VERIFIED/);
+});
+
+test("Google Supervisor bootstrap retains the old root stage without forced reset", () => {
+  assert.match(source, /STAGING_CONFLICT/);
+  assert.match(source, /SOURCE_PIN=b71477886a03f128044cc482971db0b50790405c/);
+  assert.doesNotMatch(
+    source,
+    /(?:git reset|git clean|rm -rf -- "\$BASE\/fa9340)/,
+  );
+  assert.match(source, /supervisor_rpcs\(\)/);
+  assert.match(source, /b"\\n"/);
+  assert.doesNotMatch(source, /b"\\\\n"/);
 });
