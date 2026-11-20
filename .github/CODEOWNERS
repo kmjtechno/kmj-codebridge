@@ -1,0 +1,20 @@
+# Risk-based review. GitHub applies the LAST matching pattern, so every path is
+# owner-reviewed by default and only plain Markdown documentation is released
+# from review. See docs/RISK-BASED-MERGE.md for the two repository settings the
+# owner must apply for this file to take effect.
+*                      @nskmedia
+
+# Explicit high-risk paths (already covered by the default; listed so they can
+# never be loosened by accident in a later edit).
+/.github/              @nskmedia
+/CLAUDE.md             @nskmedia
+/SECURITY.md           @nskmedia
+/releases/             @nskmedia
+/scripts/              @nskmedia
+/src/                  @nskmedia
+/config/               @nskmedia
+/package.json          @nskmedia
+/package-lock.json     @nskmedia
+
+# Low risk: Markdown under docs/ only (no code, workflows, policy or data files).
+/docs/**/*.md
