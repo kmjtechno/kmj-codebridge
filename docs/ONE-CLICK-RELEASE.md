@@ -18,6 +18,13 @@ The key file must be outside the repository. Log in to GitHub CLI once
 
 ## Every release
 
+On the owner PC, double-click `scripts\RELEASE-CODEBRIDGE.cmd` (or run
+`npm run release`). The launcher checks Git Bash and `gh`, requires a clean
+checkout on `main`, fast-forwards it, and then runs the same reviewed
+`scripts/release.sh`. It stops with a `KMJ_RELEASE=BLOCKED:<reason>` line
+instead of guessing, never deploys, and the key stays in your private
+`release.env` outside the repository.
+
 ```bash
 npm run release
 ```
