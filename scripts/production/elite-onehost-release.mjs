@@ -12,15 +12,20 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const ROOT = "/usr/local/libexec/kmj-codebridge-elite-signer";
 const SIGNER = path.join(ROOT, "production/owner-auto-sign-stable.mjs");
 const GATE = path.join(ROOT, "release-ci-gate.mjs");
-const SIGNER_PIN = "939c45ce8a3b9dad2ca1e66c4cbdf2314f48d724c18de65a4980e79bab33f749";
-const GATE_PIN = "da76cec89e2384a8c8c3126020bdded3b4955de53e8bfca6882fc446742436c1";
+const SIGNER_PIN =
+  "939c45ce8a3b9dad2ca1e66c4cbdf2314f48d724c18de65a4980e79bab33f749";
+const GATE_PIN =
+  "da76cec89e2384a8c8c3126020bdded3b4955de53e8bfca6882fc446742436c1";
 const TIMER = "kmj-codebridge-auto-release.timer";
 const PROFILE = "kmjsigner";
 const MAX_FILE = 100000;
 const digest = (bytes) => createHash("sha256").update(bytes).digest("hex");
 
 export function assessEliteIdentity(host, uid, user, major) {
-  if (typeof host !== "string" || host.toLowerCase().split(".")[0] !== "kmj-elite")
+  if (
+    typeof host !== "string" ||
+    host.toLowerCase().split(".")[0] !== "kmj-elite"
+  )
     return "HOST_NOT_ELITE";
   if (!Number.isInteger(uid) || uid === 0 || user !== PROFILE)
     return "DEDICATED_NONROOT_SIGNER_REQUIRED";
@@ -33,13 +38,19 @@ export function assessDeployTimer(info) {
     info?.LoadState !== "loaded" ||
     info?.ActiveState !== "active" ||
     info?.UnitFileState !== "enabled"
-  ) return "ELITE_SIGNED_DEPLOY_TIMER_NOT_ACTIVE";
+  )
+    return "ELITE_SIGNED_DEPLOY_TIMER_NOT_ACTIVE";
   return "PASS";
 }
 
 function safeDirectory(name) {
   const st = fs.lstatSync(name);
-  if (!st.isDirectory() || st.isSymbolicLink() || st.uid !== 0 || (st.mode & 0o022))
+  if (
+    !st.isDirectory() ||
+    st.isSymbolicLink() ||
+    st.uid !== 0 ||
+    st.mode & 0o022
+  )
     throw new Error("ROOT_OWNED_SOURCE_DIRECTORY_REQUIRED");
 }
 
@@ -48,9 +59,14 @@ function guardedFile(name, expected, maximum = MAX_FILE) {
   try {
     const before = fs.fstatSync(fd);
     if (
-      !before.isFile() || before.uid !== 0 || before.nlink !== 1 ||
-      (before.mode & 0o022) || before.size <= 0 || before.size > maximum
-    ) throw new Error("INSTALLED_SIGNER_IDENTITY_INVALID");
+      !before.isFile() ||
+      before.uid !== 0 ||
+      before.nlink !== 1 ||
+      before.mode & 0o022 ||
+      before.size <= 0 ||
+      before.size > maximum
+    )
+      throw new Error("INSTALLED_SIGNER_IDENTITY_INVALID");
     const buffer = Buffer.alloc(before.size);
     let offset = 0;
     while (offset < buffer.length) {
@@ -60,10 +76,13 @@ function guardedFile(name, expected, maximum = MAX_FILE) {
     }
     const after = fs.fstatSync(fd);
     if (
-      before.dev !== after.dev || before.ino !== after.ino ||
-      before.size !== after.size || before.mtimeMs !== after.mtimeMs ||
+      before.dev !== after.dev ||
+      before.ino !== after.ino ||
+      before.size !== after.size ||
+      before.mtimeMs !== after.mtimeMs ||
       digest(buffer) !== expected
-    ) throw new Error("INSTALLED_SIGNER_PIN_MISMATCH");
+    )
+      throw new Error("INSTALLED_SIGNER_PIN_MISMATCH");
   } finally {
     fs.closeSync(fd);
   }
@@ -75,7 +94,10 @@ function parseSystemd(raw) {
     const at = line.indexOf("=");
     if (at < 0) throw new Error("SIGNED_DEPLOY_TIMER_METADATA_INVALID");
     const key = line.slice(0, at);
-    if (!["LoadState", "ActiveState", "UnitFileState"].includes(key) || Object.hasOwn(found, key))
+    if (
+      !["LoadState", "ActiveState", "UnitFileState"].includes(key) ||
+      Object.hasOwn(found, key)
+    )
       throw new Error("SIGNED_DEPLOY_TIMER_METADATA_INVALID");
     found[key] = line.slice(at + 1);
   }
@@ -85,12 +107,22 @@ function parseSystemd(raw) {
 }
 
 function fixedTimerStatus() {
-  const proc = spawnSync("/usr/bin/systemctl", [
-    "show", "--no-pager", "--property=LoadState,ActiveState,UnitFileState", TIMER,
-  ], {
-    cwd: "/", encoding: "utf8", timeout: 10000, maxBuffer: 4096,
-    env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
-  });
+  const proc = spawnSync(
+    "/usr/bin/systemctl",
+    [
+      "show",
+      "--no-pager",
+      "--property=LoadState,ActiveState,UnitFileState",
+      TIMER,
+    ],
+    {
+      cwd: "/",
+      encoding: "utf8",
+      timeout: 10000,
+      maxBuffer: 4096,
+      env: { PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C" },
+    },
+  );
   if (proc.status !== 0 || proc.error)
     throw new Error("SIGNED_DEPLOY_TIMER_STATUS_UNAVAILABLE");
   return parseSystemd(proc.stdout);
@@ -99,23 +131,37 @@ function fixedTimerStatus() {
 function protectedSignerFile(file) {
   const st = fs.lstatSync(file);
   if (
-    !path.isAbsolute(file) || !st.isFile() || st.isSymbolicLink() ||
-    st.uid !== process.getuid() || st.nlink !== 1 ||
-    (st.mode & 0o077) || st.size < 1 || st.size > 8192
-  ) throw new Error("SIGNER_KEY_FILE_NOT_PROTECTED");
+    !path.isAbsolute(file) ||
+    !st.isFile() ||
+    st.isSymbolicLink() ||
+    st.uid !== process.getuid() ||
+    st.nlink !== 1 ||
+    st.mode & 0o077 ||
+    st.size < 1 ||
+    st.size > 8192
+  )
+    throw new Error("SIGNER_KEY_FILE_NOT_PROTECTED");
 }
 
 function ownerPolicy() {
   const home = os.homedir();
   if (!path.isAbsolute(home) || home === "/" || home === "/root")
     throw new Error("SIGNER_HOME_UNSAFE");
-  const target = path.join(home, ".config/kmj-codebridge/auto-sign-policy.json");
+  const target = path.join(
+    home,
+    ".config/kmj-codebridge/auto-sign-policy.json",
+  );
   const stat = fs.lstatSync(target);
   if (
-    !stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1 ||
-    stat.uid !== process.getuid() || (stat.mode & 0o077) ||
-    stat.size < 20 || stat.size > 8192
-  ) throw new Error("OWNER_POLICY_UNTRUSTED");
+    !stat.isFile() ||
+    stat.isSymbolicLink() ||
+    stat.nlink !== 1 ||
+    stat.uid !== process.getuid() ||
+    stat.mode & 0o077 ||
+    stat.size < 20 ||
+    stat.size > 8192
+  )
+    throw new Error("OWNER_POLICY_UNTRUSTED");
   return JSON.parse(fs.readFileSync(target, "utf8"));
 }
 
@@ -123,13 +169,22 @@ async function main(args) {
   if (args.length !== 1 || !["--inspect", "--sign-once"].includes(args[0]))
     throw new Error("ARGUMENT_NOT_ALLOWED");
   const verdict = assessEliteIdentity(
-    os.hostname(), process.getuid?.(), os.userInfo().username, process.versions.node.split(".")[0],
+    os.hostname(),
+    process.getuid?.(),
+    os.userInfo().username,
+    process.versions.node.split(".")[0],
   );
   if (verdict !== "PASS") throw new Error(verdict);
   const myself = path.resolve(fileURLToPath(import.meta.url));
   if (myself !== path.join(ROOT, "production/elite-onehost-release.mjs"))
     throw new Error("UNINSTALLED_OPERATOR_REJECTED");
-  for (const dir of ["/usr", "/usr/local", "/usr/local/libexec", ROOT, path.join(ROOT, "production")])
+  for (const dir of [
+    "/usr",
+    "/usr/local",
+    "/usr/local/libexec",
+    ROOT,
+    path.join(ROOT, "production"),
+  ])
     safeDirectory(dir);
   guardedFile(SIGNER, SIGNER_PIN);
   guardedFile(GATE, GATE_PIN);
@@ -158,24 +213,38 @@ async function main(args) {
   // Release signer itself enforces exact-source CI, pinned Ed25519 key identity,
   // independent GitHub review + protection, immutable PR, and sticky failure lock.
   const child = spawnSync(process.execPath, [SIGNER, "--once"], {
-    cwd: "/", encoding: "utf8", timeout: 600000, maxBuffer: 16384,
+    cwd: "/",
+    encoding: "utf8",
+    timeout: 600000,
+    maxBuffer: 16384,
     env: {
-      HOME: os.homedir(), USER: PROFILE, LOGNAME: PROFILE,
-      PATH: "/usr/bin:/bin", LANG: "C", LC_ALL: "C",
+      HOME: os.homedir(),
+      USER: PROFILE,
+      LOGNAME: PROFILE,
+      PATH: "/usr/bin:/bin",
+      LANG: "C",
+      LC_ALL: "C",
       GIT_TERMINAL_PROMPT: "0",
     },
   });
   if (child.error || child.status !== 0)
     throw new Error("OWNER_SIGNING_FAILED_REVIEW_REQUIRED");
   // A signer success is only PR creation/queueing, never immediate deployment.
-  if (!/(?:AUTO_SIGNED_RELEASE=PR_AUTO_MERGE_QUEUED|AUTO_SIGNED_RELEASE=ALREADY_CURRENT)/.test(child.stdout))
+  if (
+    !/(?:AUTO_SIGNED_RELEASE=PR_AUTO_MERGE_QUEUED|AUTO_SIGNED_RELEASE=ALREADY_CURRENT)/.test(
+      child.stdout,
+    )
+  )
     throw new Error("OWNER_SIGNER_RECEIPT_UNVERIFIED");
   console.log("ELITE_OWNER_SIGN=REVIEW_GATED");
   console.log("ELITE_DEPLOY=SIGNED_TIMER_MANAGED_NOT_ATTESTED");
   console.log("PRIVATE_KEY_EXPORTED=NO");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href
+) {
   main(process.argv.slice(2)).catch((error) => {
     const text = String(error?.message ?? "");
     const code = /^[A-Z0-9_]{3,70}$/.test(text) ? text : "REVIEW_REQUIRED";
