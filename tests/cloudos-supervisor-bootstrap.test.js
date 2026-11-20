@@ -32,7 +32,7 @@ test("operator bootstrap is fenced to fixed GCE host and immutable source", () =
     "instance-20260912-094732",
     "Metadata-Flavor: Google",
     "kmj-codebridge-cloudos.service",
-    "86d3cfee4017d33e6fd38df32866fcb702165b64",
+    "ea46be1045e678112b1ae51117600c07a183e332",
     "dea0a6e398cd4706ddc61e314174314b9a6f95ee",
     "NODE24_REQUIRED",
     "SOURCE_HEAD_CHANGED",
@@ -120,7 +120,7 @@ test("fallback provisions only checksum-pinned official root-managed Node 24", (
 
 test("Google Supervisor bootstrap retains the old root stage without forced reset", () => {
   assert.match(source, /STAGING_CONFLICT/);
-  assert.match(source, /SOURCE_PIN=86d3cfee4017d33e6fd38df32866fcb702165b64/);
+  assert.match(source, /SOURCE_PIN=ea46be1045e678112b1ae51117600c07a183e332/);
   assert.doesNotMatch(
     source,
     /(?:git reset|git clean|rm -rf -- "\$BASE\/fa9340)/,

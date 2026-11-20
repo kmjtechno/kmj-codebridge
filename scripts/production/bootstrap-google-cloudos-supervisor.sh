@@ -9,7 +9,7 @@ export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 # This exact ancestor commit contains the credential-aware Supervisor and tests.
 # Merge this PR with a real merge commit, not squash, so this pin remains
 # reachable from the protected main history before owner installation.
-SOURCE_PIN=86d3cfee4017d33e6fd38df32866fcb702165b64
+SOURCE_PIN=ea46be1045e678112b1ae51117600c07a183e332
 AGENT_PIN=dea0a6e398cd4706ddc61e314174314b9a6f95ee
 REPO=https://github.com/kmjtechno/kmj-codebridge.git
 HOST=google-vps1
