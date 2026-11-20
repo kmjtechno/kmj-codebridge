@@ -121,7 +121,10 @@ test("fallback provisions only checksum-pinned official root-managed Node 24", (
 test("Google Supervisor bootstrap retains the old root stage without forced reset", () => {
   assert.match(source, /STAGING_CONFLICT/);
   assert.match(source, /SOURCE_PIN=86d3cfee4017d33e6fd38df32866fcb702165b64/);
-  assert.doesNotMatch(source, /(?:git reset|git clean|rm -rf -- "\$BASE\/fa9340)/);
+  assert.doesNotMatch(
+    source,
+    /(?:git reset|git clean|rm -rf -- "\$BASE\/fa9340)/,
+  );
   assert.match(source, /supervisor_rpcs\(\)/);
   assert.match(source, /b"\\n"/);
   assert.doesNotMatch(source, /b"\\\\n"/);
