@@ -544,10 +544,14 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      var x=data.devices[i];
      if(!x||!validFleetId(x.device)||!validFleetId(x.project)||
         typeof x.status!=="string"||!/^[A-Z][A-Z0-9_]{1,63}$/.test(x.status)||
-        typeof x.connectionState!=="string"||!/^(online|offline|stale|unknown)$/.test(x.connectionState))return false;
+        (x.connectionState!==undefined&&x.connectionState!==null&&
+        (typeof x.connectionState!=="string"||!/^(online|offline|stale|unknown)$/.test(x.connectionState))))return false;
      var key=x.device+"/"+x.project;
      if(unique[key])return false;unique[key]=true;
-     valid.push({device:x.device,project:x.project,status:x.status,connectionState:x.connectionState});
+     // An absent connectionState is a legitimate unregistered/offline device;
+     // never turn missing data into a fabricated online connection.
+     valid.push({device:x.device,project:x.project,status:x.status,
+       connectionState:x.connectionState===undefined||x.connectionState===null?"unknown":x.connectionState});
    }
    fleet=valid;
    if(!currentFleetScope()){
@@ -747,13 +751,21 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      var status="UNKNOWN";
      if(!message.error&&message.result&&!message.result.isError&&response&&
         supervisorScope&&scope&&scope.device===supervisorScope.device&&
-        scope.project===supervisorScope.project&&response.service===service&&
-        response.installed===true&&
-        (response.supervisor==="windows-native"||response.supervisor==="linux-native")){
-       status=typeof response.state==="string"&&/^(active|inactive|failed|unknown)$/.test(response.state)
-         ?response.state.toUpperCase():"UNKNOWN";
-       if(status==="UNKNOWN"&&response.activeProcessRuntime&&response.activeProcessRuntime.verified===false)
-         status="PROCESS UNVERIFIED";
+        scope.project===supervisorScope.project&&response.service===service){
+       if(response.supervisor==="windows-native"&&response.installed===true){
+         status=typeof response.state==="string"&&/^(active|inactive|failed|unknown)$/.test(response.state)
+           ?response.state.toUpperCase():"UNKNOWN";
+         if(status==="UNKNOWN"&&response.activeProcessRuntime&&response.activeProcessRuntime.verified===false)
+           status="PROCESS UNVERIFIED";
+       }else if(response.activeState==="active"&&response.subState==="running"&&
+           Number.isSafeInteger(response.mainPid)&&response.mainPid>0){
+         // Authenticated Linux systemd service receipt, not a Windows HMAC claim.
+         status="SERVICE RUNNING";
+       }else if(response.activeState==="inactive"&&response.subState==="dead"){
+         status="SERVICE INACTIVE";
+       }else if(response.activeState==="failed"){
+         status="SERVICE FAILED";
+       }
      }
      text(service==="agent"?"fleetAgentState":"fleetGatewayState",status);
      supervisorPending--;
