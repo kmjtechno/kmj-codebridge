@@ -65,6 +65,16 @@ def status(unit: str) -> str:
 
 
 def stage(pin: str) -> str:
+    # A safe leaf beneath a redirected or writable parent is not safe.
+    for parent in (Path("/"), Path("/opt"), STAGE_ROOT):
+        try:
+            parent_info = parent.lstat()
+        except OSError:
+            return "PARENT_UNAVAILABLE"
+        if not stat.S_ISDIR(parent_info.st_mode) or parent_info.st_uid != 0:
+            return "UNSAFE_PARENT_IDENTITY"
+        if parent_info.st_mode & 0o022:
+            return "UNSAFE_PARENT_PERMISSIONS"
     path = STAGE_ROOT / pin
     try:
         info = path.lstat()
@@ -102,9 +112,11 @@ def socket_metadata() -> str:
         return "UNAVAILABLE"
     if not stat.S_ISSOCK(info.st_mode):
         return "NOT_SOCKET"
-    if info.st_uid != os.getuid() or info.st_mode & 0o077:
-        return "OWNER_OR_MODE_MISMATCH"
-    return "PRESENT_NOT_RPC_ATTESTED"
+    # Root-owned/group-accessible sockets can be valid. The approved
+    # ownership/group/mode contract is not yet available to this doctor.
+    if info.st_mode & 0o002:
+        return "UNSAFE_WORLD_WRITABLE_SOCKET"
+    return "PRESENT_POLICY_NOT_ATTESTED_RPC_NOT_TESTED"
 
 
 def main() -> int:
