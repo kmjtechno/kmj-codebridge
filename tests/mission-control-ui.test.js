@@ -930,7 +930,10 @@ test("real connection_overview may omit connectionState on unregistered device w
   assert.equal(v.element("fleetKnown").textContent, "2");
   assert.equal(v.element("fleetReady").textContent, "1");
   assert.equal(v.element("fleetAttention").textContent, "1");
-  assert.match(v.element("fleet-device-1").textContent, /GATEWAY_REGISTRATION_MISSING/);
+  assert.match(
+    v.element("fleet-device-1").textContent,
+    /GATEWAY_REGISTRATION_MISSING/,
+  );
 });
 
 test("authenticated Linux systemd receipt displays running service without Windows HMAC assumption", () => {
@@ -949,6 +952,7 @@ test("authenticated Linux systemd receipt displays running service without Windo
       ],
     },
   });
+  v.element("fleet-device-0").handlers.click();
   v.element("checkSupervisor").handlers.click();
   v.replyResult(7, {
     structuredContent: {
@@ -962,7 +966,9 @@ test("authenticated Linux systemd receipt displays running service without Windo
   assert.equal(v.element("fleetAgentState").textContent, "SERVICE RUNNING");
   assert.equal(v.element("fleetGatewayState").textContent, "UNKNOWN");
   assert.ok(
-    !v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"),
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
   );
   v.element("checkSupervisor").handlers.click();
   v.replyResult(7, {
