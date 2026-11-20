@@ -29,7 +29,7 @@ PINNED = {
     ),
     ("production", "elite-onehost-release.mjs"): (
         HERE / "elite-onehost-release.mjs",
-        "ffd5c28d0c2568de16ee6edb6707ff9dd521b5c82804ff7d2415408757329754",
+        "bc036efb5ddc92e0d5136769dc492a0cc8620d13a9b45f9076be33e9db4b8f8a",
     ),
     ("", "release-ci-gate.mjs"): (
         SRC_ROOT / "release-ci-gate.mjs",
@@ -75,9 +75,11 @@ def strict_dir(path: Path, create: bool = False) -> None:
     if not os.path.lexists(path):
         require(create, "INSTALL_DIRECTORY_MISSING")
         path.mkdir(mode=0o755)
+        os.chmod(path, 0o755)  # readable/executable by dedicated non-root signer
     st = os.lstat(path)
     require(stat.S_ISDIR(st.st_mode) and st.st_uid == 0
-            and not st.st_mode & 0o022, "INSTALL_DIRECTORY_UNTRUSTED")
+            and not st.st_mode & 0o022 and st.st_mode & 0o005 == 0o005,
+            "INSTALL_DIRECTORY_UNTRUSTED")
 
 
 def install_exclusive(dest: Path, data: bytes) -> bool:
