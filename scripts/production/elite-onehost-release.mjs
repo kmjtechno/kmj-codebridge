@@ -13,7 +13,7 @@ const ROOT = "/usr/local/libexec/kmj-codebridge-elite-signer";
 const SIGNER = path.join(ROOT, "production/owner-auto-sign-stable.mjs");
 const GATE = path.join(ROOT, "release-ci-gate.mjs");
 const SIGNER_PIN =
-  "939c45ce8a3b9dad2ca1e66c4cbdf2314f48d724c18de65a4980e79bab33f749";
+  "b6cc130f933c29b5f8bbf94dc83742bad53e3fdcbfd20ad43bb941ec8d92d0f1";
 const GATE_PIN =
   "da76cec89e2384a8c8c3126020bdded3b4955de53e8bfca6882fc446742436c1";
 const TIMER = "kmj-codebridge-auto-release.timer";
