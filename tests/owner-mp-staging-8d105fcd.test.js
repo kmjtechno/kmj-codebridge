@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { spawnSync } from "node:child_process";
 
-const SCRIPT = "scripts/production/owner_main_platform_staging_8d105fcd_20261120.py";
+const SCRIPT =
+  "scripts/production/owner_main_platform_staging_8d105fcd_20261120.py";
 const script = fs.readFileSync(SCRIPT, "utf8");
 const code = script.replace(/"""[\s\S]*?"""/, "");
 
@@ -147,7 +148,13 @@ test("exact release pin is new 8d105fcd candidate against LIVE 98bd predecessor"
 print(json.dumps({"approved": m.APPROVED, "live": m.LIVE_RELEASE, "flags": list(m.FLAGS)}))`);
   assert.equal(r.approved, "8d105fcd41d0b4bb744e8843b5e1200f7d7381fe");
   assert.equal(r.live, "platform-98bd75b69135");
-  assert.deepEqual(r.flags.sort(), [
-    "--attest-backup", "--attest-rollback", "--attest-storage", "--attest-zero-cost"
-  ].sort());
+  assert.deepEqual(
+    r.flags.sort(),
+    [
+      "--attest-backup",
+      "--attest-rollback",
+      "--attest-storage",
+      "--attest-zero-cost",
+    ].sort(),
+  );
 });
