@@ -143,7 +143,7 @@ test("Google Supervisor never falls back to the info-owned home config", async (
     profile: "cloudos",
     run: (_binary, args) => {
       assert.equal(args[1], CLOUDOS);
-      return "LoadState=loaded\\nActiveState=active\\n";
+      return "LoadState=loaded\nActiveState=active\n";
     },
     readFile: (path) => {
       reads.push(path);
