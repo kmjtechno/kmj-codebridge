@@ -42,7 +42,12 @@ const ELITE_CLOUDOS_READONLY_OPERATIONS = new Set([
   "disk_space",
 ]);
 const CLOUDOS_AGENT_UNIT = "kmj-codebridge-cloudos.service";
-const CLOUDOS_AGENT_CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
+// The Google restricted root service deliberately has no DAC-bypass caps.
+// PID 1 reads the private info-owned 0600 config via systemd LoadCredential=;
+// the Supervisor may read only this fixed, unit-scoped credential copy.
+// Never fall back to the home path or accept a caller/environment chosen path.
+const CLOUDOS_AGENT_CONFIG =
+  "/run/credentials/kmj-codebridge-supervisor.service/agent.json";
 const CLOUDOS_PROJECT_ID = "kmj-cloudos";
 const CLOUDOS_OPERATIONS = new Set([
   "status",
