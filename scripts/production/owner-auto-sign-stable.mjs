@@ -434,6 +434,14 @@ function runOnce() {
   let worktree = null;
   let root = null;
   try {
+    // Prevent privileged/root CodeBridge or gateway processes from wielding
+    // an owner signing key. A dedicated non-root signer is required on Linux.
+    if (process.platform !== "win32") {
+      requireGate(
+        typeof process.getuid === "function" && process.getuid() !== 0,
+        "ROOT_SIGNER_FORBIDDEN",
+      );
+    }
     const p = JSON.parse(privateFile(POLICY).toString("utf8"));
     requireGate(
       assessOwnerAutoPolicy(p) === "PASS",
@@ -448,7 +456,10 @@ function runOnce() {
     );
     lockOnce();
     locked = true;
-    hooksDir = makeIsolatedHooksDir(SCRIPT_DIR);
+    // On Elite the reviewed signer files are root-owned and read-only.
+    // Create empty Git hook sandboxes only in the dedicated signer's 0700
+    // private state directory, never beside trusted installed code.
+    hooksDir = makeIsolatedHooksDir(STATE);
     gh(["auth", "status"]);
     requireGate(
       protectedMain(api("branches/main/protection")),
