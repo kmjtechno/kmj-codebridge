@@ -20,8 +20,10 @@ ${body}`;
   return JSON.parse(r.stdout.trim().split("\n").pop());
 }
 
-test("dry run by default; writing needs --apply and both attestations, nothing partial", () => {
+test("dry run by default; needs explicit --sha and --live; writing needs --apply and both attestations", () => {
   const r = py(`
+S = "8d105fcd41d0b4bb744e8843b5e1200f7d7381fe"; L = "platform-98bd75b69135"
+base = ["--sha=" + S, "--live=" + L]
 def attempt(argv):
     try:
         return list(m.parse_args(argv))
@@ -30,24 +32,37 @@ def attempt(argv):
 F = list(m.FLAGS)
 print(json.dumps({
   "none": attempt([]),
-  "all": attempt(["--apply"] + F),
-  "apply_only": attempt(["--apply"]),
-  "partial": attempt(["--apply", F[0]]),
-  "flags_no_apply": attempt(F),
-  "dup": attempt(["--apply"] + F + ["--apply"]),
-  "unknown": attempt(["--apply"] + F + ["--force"]),
+  "dry": attempt(base),
+  "all": attempt(base + ["--apply"] + F),
+  "apply_only": attempt(base + ["--apply"]),
+  "partial": attempt(base + ["--apply", F[0]]),
+  "flags_no_apply": attempt(base + F),
+  "dup": attempt(base + ["--apply"] + F + ["--apply"]),
+  "dupsha": attempt(base + ["--sha=" + S]),
+  "unknown": attempt(base + ["--apply"] + F + ["--force"]),
+  "badsha": attempt(["--sha=abc", "--live=" + L]),
+  "badlive": attempt(["--sha=" + S, "--live=platform-xyz"]),
+  "target_is_live": attempt(["--sha=" + S, "--live=platform-" + S[:12]]),
+  "upper": attempt(["--sha=" + S.upper(), "--live=" + L]),
 }))`);
-  assert.deepEqual(r.none, [false, false]);
+  assert.equal(r.none, "SHA_AND_LIVE_REQUIRED");
+  assert.deepEqual(r.dry, [false, false]);
   assert.deepEqual(r.all, [true, true]);
   assert.equal(r.apply_only, "APPLY_REQUIRES_BOTH_ATTEST_FLAGS");
   assert.equal(r.partial, "APPLY_REQUIRES_BOTH_ATTEST_FLAGS");
   assert.equal(r.flags_no_apply, "ATTEST_FLAGS_REQUIRE_APPLY");
   assert.equal(r.dup, "UNKNOWN_OR_DUPLICATE_ARGUMENT");
+  assert.equal(r.dupsha, "UNKNOWN_OR_DUPLICATE_ARGUMENT");
   assert.equal(r.unknown, "UNKNOWN_OR_DUPLICATE_ARGUMENT");
+  assert.equal(r.badsha, "SHA_INVALID");
+  assert.equal(r.badlive, "LIVE_RELEASE_INVALID");
+  assert.equal(r.target_is_live, "TARGET_EQUALS_LIVE");
+  assert.equal(r.upper, "SHA_INVALID");
 });
 
 test("approval has exactly the four keys the Supervisor and controller accept; flags true only when attested", () => {
   const r = py(`
+m.configure("8d105fcd41d0b4bb744e8843b5e1200f7d7381fe", "platform-98bd75b69135")
 print(json.dumps({"no": m.build_approval(False), "yes": m.build_approval(True),
   "size": len(m.render(m.build_approval(True)))}))`);
   const keys = [
@@ -72,6 +87,7 @@ print(json.dumps({"no": m.build_approval(False), "yes": m.build_approval(True),
 test("backup witness must bind exact SHA, live release and archive digest", () => {
   const r = py(`
 import json as j
+m.configure("8d105fcd41d0b4bb744e8843b5e1200f7d7381fe", "platform-98bd75b69135")
 d = "c" * 64
 good = {"approvedSha": m.APPROVED, "currentRelease": m.LIVE_RELEASE, "backupSha256": d}
 def run(rec, digest=d, raw=None):
@@ -97,9 +113,15 @@ print(json.dumps({
   assert.equal(r.dup, "WITNESS_UNREADABLE");
 });
 
-test("pinned, no command execution or network, never activates, single write path after dry-run return", () => {
-  assert.match(script, /APPROVED = "[0-9a-f]{40}"/);
-  assert.match(script, /LIVE_RELEASE = "platform-[0-9a-f]{12}"/);
+test("inputs validated and bound to host, no command execution or network, never activates, single write path after dry-run return", () => {
+  assert.match(script, /SHA40 = re\.compile\(r"\[a-f0-9\]\{40\}\\Z"\)/);
+  assert.match(
+    script,
+    /LIVE12 = re\.compile\(r"platform-\[a-f0-9\]\{12\}\\Z"\)/,
+  );
+  assert.match(script, /LIVE_RELEASE_MISMATCH/);
+  assert.match(script, /WITNESS_SHA_MISMATCH/);
+  assert.match(script, /TARGET_ALREADY_LIVE/);
   assert.match(script, /\.lower\(\) == "kmj-elite"/);
   assert.match(script, /NOT_ROOT/);
   assert.match(script, /O_NOFOLLOW/);
@@ -115,9 +137,27 @@ test("pinned, no command execution or network, never activates, single write pat
   assert.match(script, /PRODUCTION_ACTIVATION=NOT_STARTED/);
 });
 
-test("without root it blocks before touching anything", () => {
+test("without root it blocks before touching anything (needs the explicit inputs first)", () => {
+  const noInputs = spawnSync("python3", ["-I", "-B", SCRIPT], {
+    encoding: "utf8",
+  });
+  assert.equal(noInputs.status, 2);
+  assert.match(noInputs.stdout, /BLOCKED_SHA_AND_LIVE_REQUIRED/);
   if (typeof process.getuid === "function" && process.getuid() === 0) return;
-  const r = spawnSync("python3", ["-I", "-B", SCRIPT], { encoding: "utf8" });
+  const r = spawnSync(
+    "python3",
+    [
+      "-I",
+      "-B",
+      SCRIPT,
+      "--sha=8d105fcd41d0b4bb744e8843b5e1200f7d7381fe",
+      "--live=platform-98bd75b69135",
+      "--apply",
+      "--attest-backup",
+      "--attest-rollback",
+    ],
+    { encoding: "utf8" },
+  );
   assert.equal(r.status, 2);
   assert.match(r.stdout, /BLOCKED_NOT_ROOT/);
   assert.match(r.stdout, /NOTHING_ACTIVATED/);

@@ -8,7 +8,11 @@ flags are the attestation. Claude never runs it.
 - Default is a **dry run**. Writing needs `--apply --attest-backup --attest-rollback`.
 - Writes exactly the four keys the Supervisor accepts: `approvedSha`,
   `expectedCurrentRelease`, `backupVerified`, `rollbackVerified`.
-- Pins the exact SHA and the live predecessor release.
+- Takes the exact SHA and the live predecessor release as explicit owner inputs
+  (`--sha=<40 hex> --live=platform-<12 hex>`; nothing is inferred) and binds them to
+  the real host: the live pointer must equal `--live`, the candidate must be
+  `platform-<sha12>`, and the backup witness must name exactly that SHA, that live
+  release and the archive digest.
 
 ## Verified on the host
 

@@ -19,8 +19,8 @@ It does NOT activate anything, start a unit, move current/previous, touch stagin
 database, DNS, Google/offsite or the network, and runs no command. An existing approval is
 backed up to /root before it is replaced. Activation is a separate Supervisor step.
 
-  python3 -I owner_main_platform_production_approval.py                 # dry run
-  python3 -I owner_main_platform_production_approval.py --apply --attest-backup --attest-rollback
+  python3 -I owner_main_platform_production_approval.py --sha=<40hex> --live=platform-<12hex>          # dry run
+  python3 -I owner_main_platform_production_approval.py --sha=<40hex> --live=platform-<12hex> --apply --attest-backup --attest-rollback
 """
 import hashlib
 import json
@@ -31,17 +31,18 @@ import stat
 import sys
 import time
 
-APPROVED = "98bd75b691354a8d0d3023ff1c2ddc8ef370b9ff"
-SHORT = APPROVED[:12]
-LIVE_RELEASE = "platform-ce6ad7dc9d89"
+# Explicit owner inputs (never inferred from the network): --sha=<40 hex> --live=platform-<12 hex>.
+# They are set once by configure() before any host check and are then bound to the real host state:
+# the live pointer must equal --live, the candidate must be platform-<sha12>, and the backup witness
+# must name exactly this SHA, this live release and the archive digest.
+SHA40 = re.compile(r"[a-f0-9]{40}\Z")
+LIVE12 = re.compile(r"platform-[a-f0-9]{12}\Z")
+APPROVED = SHORT = LIVE_RELEASE = CANDIDATE = WITNESS = ARCHIVE = None
 
 ROOT = "/home/kmjprod"
 PROD_LINK = ROOT + "/current"
-CANDIDATE = ROOT + "/releases/platform-" + SHORT
 SHARED = ROOT + "/shared/storage"
 APPROVAL = "/etc/kmj-codebridge/main-platform-production-release.json"
-WITNESS = "/var/backups/kmj-platform/pre-deploy-" + SHORT + ".json"
-ARCHIVE = "/var/backups/kmj-platform/pre-deploy-" + SHORT + ".tar.gz"
 BACKUP_DIR = "/root"
 
 FLAGS = ("--attest-backup", "--attest-rollback")
@@ -57,15 +58,37 @@ def require(ok, code):
         raise Blocked(code)
 
 
+def configure(sha, live):
+    global APPROVED, SHORT, LIVE_RELEASE, CANDIDATE, WITNESS, ARCHIVE
+    require(isinstance(sha, str) and SHA40.match(sha) is not None, "SHA_INVALID")
+    require(isinstance(live, str) and LIVE12.match(live) is not None, "LIVE_RELEASE_INVALID")
+    require(live != "platform-" + sha[:12], "TARGET_EQUALS_LIVE")
+    APPROVED, SHORT, LIVE_RELEASE = sha, sha[:12], live
+    CANDIDATE = ROOT + "/releases/platform-" + SHORT
+    WITNESS = "/var/backups/kmj-platform/pre-deploy-" + SHORT + ".json"
+    ARCHIVE = "/var/backups/kmj-platform/pre-deploy-" + SHORT + ".tar.gz"
+
+
 def parse_args(argv):
+    """Returns (apply, attested). Requires --sha=... and --live=...; configures the module."""
+    values, flags = {}, []
+    for arg in argv:
+        if arg.startswith(("--sha=", "--live=")):
+            key, _, val = arg.partition("=")
+            require(key not in values, "UNKNOWN_OR_DUPLICATE_ARGUMENT")
+            values[key] = val
+        else:
+            flags.append(arg)
     known = {"--apply", *FLAGS}
-    seen = set(argv)
-    require(len(argv) == len(seen) and seen <= known, "UNKNOWN_OR_DUPLICATE_ARGUMENT")
-    flags = seen & set(FLAGS)
+    seen = set(flags)
+    require(len(flags) == len(seen) and seen <= known, "UNKNOWN_OR_DUPLICATE_ARGUMENT")
+    require(set(values) == {"--sha", "--live"}, "SHA_AND_LIVE_REQUIRED")
+    configure(values["--sha"], values["--live"])
+    given = seen & set(FLAGS)
     if "--apply" in seen:
-        require(flags == set(FLAGS), "APPLY_REQUIRES_BOTH_ATTEST_FLAGS")
+        require(given == set(FLAGS), "APPLY_REQUIRES_BOTH_ATTEST_FLAGS")
         return True, True
-    require(not flags, "ATTEST_FLAGS_REQUIRE_APPLY")
+    require(not given, "ATTEST_FLAGS_REQUIRE_APPLY")
     return False, False
 
 
