@@ -25,11 +25,11 @@ CONFIRM = "--confirm-elite-nonroot-signer-owner-go"
 PINNED = {
     ("production", "owner-auto-sign-stable.mjs"): (
         HERE / "owner-auto-sign-stable.mjs",
-        "939c45ce8a3b9dad2ca1e66c4cbdf2314f48d724c18de65a4980e79bab33f749",
+        "b6cc130f933c29b5f8bbf94dc83742bad53e3fdcbfd20ad43bb941ec8d92d0f1",
     ),
     ("production", "elite-onehost-release.mjs"): (
         HERE / "elite-onehost-release.mjs",
-        "bc036efb5ddc92e0d5136769dc492a0cc8620d13a9b45f9076be33e9db4b8f8a",
+        "cd3198b1f07ea5d24d4ac07c003a314fb76d7fdfea6bfa7c5cc4bf86dd2836c9",
     ),
     ("", "release-ci-gate.mjs"): (
         SRC_ROOT / "release-ci-gate.mjs",
