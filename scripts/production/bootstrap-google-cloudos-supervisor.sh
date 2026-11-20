@@ -6,7 +6,9 @@ umask 077
 # Root-only deterministic command resolution; never import caller PATH.
 export PATH=/usr/sbin:/usr/bin:/sbin:/bin
 
-SOURCE_PIN=fa9340b958ce50000298282d65f3132596c16503
+# Pin to already merged, independently reviewed credential-aware source.
+# This full commit is protected-main reachable (merge of approved PR #1125).
+SOURCE_PIN=b71477886a03f128044cc482971db0b50790405c
 AGENT_PIN=dea0a6e398cd4706ddc61e314174314b9a6f95ee
 REPO=https://github.com/kmjtechno/kmj-codebridge.git
 HOST=google-vps1
@@ -244,7 +246,8 @@ mv -T "$STAGE" "$BASE/$SOURCE_PIN"
 STAGE=''
 
 # Narrow root service: only CloudOS agent is controllable by the info-owned
-# private socket. Both home bind mounts are explicitly read-only.
+# private socket. Credential material is copied by PID 1 into a private
+# service-only snapshot; original info-owned 0600 config is not bind-mounted.
 temp_service=$(mktemp /etc/systemd/system/.cloudos-supervisor-service-XXXXXXXX)
 temp_socket=$(mktemp /etc/systemd/system/.cloudos-supervisor-socket-XXXXXXXX)
 cat >"$temp_service" <<EOF
@@ -260,11 +263,12 @@ Group=root
 WorkingDirectory=$BASE/$SOURCE_PIN
 ExecStart=$node $BASE/$SOURCE_PIN/src/cli.js supervisor
 Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=cloudos
+LoadCredential=agent.json:$CONFIG
 NoNewPrivileges=yes
 PrivateTmp=yes
 ProtectSystem=strict
 ProtectHome=tmpfs
-BindReadOnlyPaths=/home/info/.config/kmj-codebridge /home/info/kmj-cloudos
+BindReadOnlyPaths=/home/info/kmj-cloudos
 ProtectKernelTunables=yes
 ProtectKernelModules=yes
 ProtectKernelLogs=yes
@@ -311,25 +315,39 @@ systemctl enable --now "$SOCKET_UNIT" || die SOCKET_ENABLE_FAILED
 [[ -S "$SOCKET" && "$(stat -c %U:%a "$SOCKET")" == info:600 ]] ||
   die SOCKET_OWNER_OR_MODE_WRONG
 
-runuser -u info -- python3 - "$SOCKET" <<'PY' || die LIVE_SUPERVISOR_RPC_FAILED
+# Both initial and post-config-refresh probes use fixed categorical markers,
+# never raw responses, file paths, credential values or parser exceptions.
+supervisor_rpcs() {
+  local phase="$1"
+  runuser -u info -- python3 - "$SOCKET" "$phase" <<'PY'
 import json,socket,sys
-def request(obj):
-    with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as sock:
-        sock.settimeout(5)
-        sock.connect(sys.argv[1])
-        sock.sendall(json.dumps(obj).encode()+b"\n")
-        response=b""
-        while not response.endswith(b"\n") and len(response)<65536:
-            part=sock.recv(4096)
-            if not part: break
-            response+=part
-    data=json.loads(response)
-    assert data.get("ok") is True
-    return data["result"]
-assert request({"op":"status","service":"agent"})["activeState"]=="active"
-assert request({"op":"config_validate","service":"agent"})["valid"] is True
-assert request({"op":"project_status","projectId":"kmj-cloudos"})["gitCheckout"] is True
+socket_path,phase=sys.argv[1:3]
+def verify(label,obj,field,expected):
+    try:
+        with socket.socket(socket.AF_UNIX,socket.SOCK_STREAM) as sock:
+            sock.settimeout(5)
+            sock.connect(socket_path)
+            sock.sendall(json.dumps(obj).encode()+b"\n")
+            response=b""
+            while not response.endswith(b"\n") and len(response)<65536:
+                part=sock.recv(4096)
+                if not part: break
+                response+=part
+        data=json.loads(response)
+        valid=(isinstance(data,dict) and data.get("ok") is True
+               and isinstance(data.get("result"),dict)
+               and data["result"].get(field) == expected)
+        if not valid: raise ValueError("invariant")
+    except (OSError,ValueError,KeyError,TypeError,AssertionError):
+        print(f"SUPERVISOR_RPC_{phase}_{label}=FAIL",flush=True)
+        raise SystemExit(1)
+    print(f"SUPERVISOR_RPC_{phase}_{label}=PASS",flush=True)
+verify("STATUS",{"op":"status","service":"agent"},"activeState","active")
+verify("CONFIG",{"op":"config_validate","service":"agent"},"valid",True)
+verify("PROJECT",{"op":"project_status","projectId":"kmj-cloudos"},"gitCheckout",True)
 PY
+}
+supervisor_rpcs PREFLIGHT || die LIVE_SUPERVISOR_RPC_FAILED
 
 # Preserve all gateway credentials and task/worker settings; add only the
 # canonical Supervisor socket property, then verify fresh agent reconnect.
@@ -381,6 +399,10 @@ PY
   sleep 1
 done
 [[ "$connected" == 1 ]] || die FRESH_AGENT_CONNECTION_NOT_VERIFIED
+# Reload PID 1's credential snapshot after the agent config was changed.
+# The original agent remains info:0600; never relax ACL or add DAC caps.
+systemctl restart "$SERVICE_UNIT" || die CREDENTIAL_SNAPSHOT_REFRESH_FAILED
+supervisor_rpcs POST_CONFIG || die POST_CONFIG_SUPERVISOR_RPC_FAILED
 for unit in kmj-cloudos-api.service kmj-cloudos-worker.service; do
   systemctl is-active --quiet "$unit" || die CLOUDOS_SERVICE_CHANGED
 done
