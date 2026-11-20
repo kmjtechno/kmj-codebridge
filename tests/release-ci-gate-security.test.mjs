@@ -71,9 +71,6 @@ test("inconsistent or unbounded response counts cannot authorize release", () =>
 });
 
 test("signed publication alone is not a substitute for source CI", () => {
-  const runs = [
-    good("signed_release"),
-    ...required().slice(1),
-  ];
+  const runs = [good("signed_release"), ...required().slice(1)];
   assert.equal(assessReleaseChecks(response(runs), SHA).ready, false);
 });
