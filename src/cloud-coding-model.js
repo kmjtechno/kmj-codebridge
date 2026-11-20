@@ -73,6 +73,8 @@ export function createVerifiedFreeCloudCodingModel({
       // account+route verification do not even claim work or read source.
       const models = [];
       for (const chain of candidates) {
+        // A failing verifier can revoke consent before throwing.
+        if (!approved()) return unavailable();
         try {
           const proof = await getClient().checkZeroCostChain({ chain });
           // Consent revoked (or its check throwing) discards ALL admissions.
@@ -81,6 +83,7 @@ export function createVerifiedFreeCloudCodingModel({
             models.push(chain);
         } catch {
           // No verifier or expired/free-quota evidence => fail closed.
+          if (!approved()) return unavailable();
         }
       }
       // Final consent re-check: nothing is reported if consent ended meanwhile.
