@@ -38,3 +38,11 @@ test("release launcher keeps the key outside the repository and holds the window
     "no labels: safe with LF endings",
   );
 });
+
+test("release launcher reads variables set inside a block with delayed expansion", () => {
+  assert.match(text, /setlocal EnableDelayedExpansion/i);
+  // %VAR% inside a parenthesised block is expanded before the block runs.
+  assert.match(text, /"!BRANCH!"=="main"/);
+  assert.match(text, /"!DIRTY!"=="0"/);
+  assert.doesNotMatch(text, /%BRANCH%|%DIRTY%/);
+});

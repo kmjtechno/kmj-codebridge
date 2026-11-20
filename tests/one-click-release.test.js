@@ -82,6 +82,16 @@ function releaseFixture(t) {
   git(repo, "commit", "-q", "--allow-empty", "-m", "fixture source");
   // A bare clone works from a shallow source too (a push would not).
   assert.equal(run("git", ["clone", "-q", "--bare", repo, origin]).status, 0);
+  // CI on a push to release/stable-seqN checks that branch out, so the clone
+  // above would copy it into the fixture origin. Only main belongs there.
+  const heads = git(
+    origin,
+    "for-each-ref",
+    "--format=%(refname)",
+    "refs/heads/release/",
+  );
+  for (const ref of heads.stdout.split("\n").filter(Boolean))
+    assert.equal(git(origin, "update-ref", "-d", ref).status, 0);
   git(repo, "remote", "set-url", "origin", origin);
   assert.equal(git(repo, "fetch", "-q", "origin").status, 0);
   const home = path.join(root, "home");
@@ -185,13 +195,29 @@ test(
   { skip: !linux },
   (t) => {
     const f = releaseFixture(t);
+    // The bare fixture may inherit an existing legitimate release branch
+    // from the source checkout. A missing key must leave refs unchanged,
+    // not demand that the fixture has no release history at all.
+    const beforeRefs = git(
+      f.repo,
+      "ls-remote",
+      "--heads",
+      "origin",
+      "release/*",
+    );
+    assert.equal(beforeRefs.status, 0);
     rmSync(path.join(f.home, ".config", "kmj-codebridge", "release.env"));
     const r = oneClick(f);
     assert.equal(r.status, 2);
     assert.match(r.stderr, /KMJ_RELEASE=BLOCKED:KEY_FILE_NOT_CONFIGURED/);
-    assert.equal(
-      git(f.repo, "ls-remote", "--heads", "origin", "release/*").stdout,
-      "",
+    const afterRefs = git(
+      f.repo,
+      "ls-remote",
+      "--heads",
+      "origin",
+      "release/*",
     );
+    assert.equal(afterRefs.status, 0);
+    assert.equal(afterRefs.stdout, beforeRefs.stdout);
   },
 );

@@ -1,5 +1,5 @@
 @echo off
-setlocal
+setlocal EnableDelayedExpansion
 rem KMJ CodeBridge - one double-click stable release (OWNER PC ONLY).
 rem Signs with the offline key from %USERPROFILE%\.config\kmj-codebridge\release.env
 rem (via scripts\release.sh) and opens the review PR. It never deploys anything.
@@ -24,8 +24,8 @@ if "%OK%"=="1" (
 
 if "%OK%"=="1" (
   for /f "delims=" %%B in ('git rev-parse --abbrev-ref HEAD') do set "BRANCH=%%B"
-  if /i not "%BRANCH%"=="main" (
-    echo KMJ_RELEASE=BLOCKED:NOT_ON_MAIN - this checkout is on "%BRANCH%". Switch to main first.
+  if /i not "!BRANCH!"=="main" (
+    echo KMJ_RELEASE=BLOCKED:NOT_ON_MAIN - this checkout is on "!BRANCH!". Switch to main first.
     set "OK=0"
   )
 )
@@ -34,7 +34,7 @@ if "%OK%"=="1" (
   git status --porcelain > "%TEMP%\kmj-release-dirty.txt"
   for %%F in ("%TEMP%\kmj-release-dirty.txt") do set "DIRTY=%%~zF"
   del "%TEMP%\kmj-release-dirty.txt" >nul 2>nul
-  if not "%DIRTY%"=="0" (
+  if not "!DIRTY!"=="0" (
     echo KMJ_RELEASE=BLOCKED:LOCAL_CHANGES - commit or stash your changes first.
     set "OK=0"
   )
