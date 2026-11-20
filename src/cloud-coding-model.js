@@ -46,20 +46,29 @@ export function createVerifiedFreeCloudCodingModel({
       }
       // Never consider an advertised but unapproved proxy chain eligible.
       if (!approved()) return unavailable();
-      if (
-        !status ||
-        typeof status !== "object" ||
-        status.available !== true ||
-        !Array.isArray(status.approvedFreeChains)
-      )
+      // Discovery data is untrusted: getters, proxies and array iteration can
+      // throw or revoke consent. Never allow them to escape status() or admit
+      // a chain without checking owner permission again.
+      let candidates;
+      try {
+        if (
+          !status ||
+          typeof status !== "object" ||
+          status.available !== true ||
+          !Array.isArray(status.approvedFreeChains)
+        )
+          return unavailable();
+        candidates = [
+          ...new Set(
+            status.approvedFreeChains
+              .slice(0, MAX_ADVERTISED)
+              .filter((name) => typeof name === "string" && CHAIN.test(name)),
+          ),
+        ].slice(0, MAX_VERIFIED);
+      } catch {
         return unavailable();
-      const candidates = [
-        ...new Set(
-          status.approvedFreeChains
-            .slice(0, MAX_ADVERTISED)
-            .filter((name) => typeof name === "string" && CHAIN.test(name)),
-        ),
-      ].slice(0, MAX_VERIFIED);
+      }
+      if (!approved()) return unavailable();
       // Proxy discovery alone is NOT a no-cost proof. Without trusted
       // account+route verification do not even claim work or read source.
       const models = [];
