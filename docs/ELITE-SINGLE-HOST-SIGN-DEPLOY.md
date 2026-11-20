@@ -1,7 +1,7 @@
 # KMJ-elite: signing AND deployment on one VPS
 
 **Scope:** KMJ CodeBridge stable release pipeline only. No P520, Google N2 or
-another VPS is required *after* owner-controlled signer-key provisioning.
+another VPS is required _after_ owner-controlled signer-key provisioning.
 Nothing here applies a Main Platform production approval or fixes offsite SFTP.
 
 ## Two identities, one server
@@ -15,7 +15,7 @@ Nothing here applies a Main Platform production approval or fixes offsite SFTP.
   owner-signed, merged immutable release manifests, advances the signed feed
   and performs guarded gateway cutover/rollback. It neither reads the private
   signing key nor accepts an arbitrary git branch or uploaded source.
-- GitHub remains the signed release *metadata and independent-review* ledger,
+- GitHub remains the signed release _metadata and independent-review_ ledger,
   not another signing/deployment server. Neither P520 nor a remote VPS is in
   the release execution path.
 
