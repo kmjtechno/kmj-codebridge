@@ -37,3 +37,11 @@ Effect:
 - If the second setting is not turned on, reviews required = 0 would let any
   PR merge on green checks. **Apply both settings together, or neither.**
 - To undo: set required approving reviews back to 1.
+
+## Applied
+
+Applied by the owner on 2026-11-20: required approving reviews 0, Require
+review from Code Owners ON, the five required checks, strict up-to-date,
+dismiss stale reviews and include administrators unchanged. Verified read-only
+from the API after saving; the merge state of a docs-only PR and a non-docs PR
+is checked in the PRs that follow this note.
