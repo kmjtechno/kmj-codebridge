@@ -42,7 +42,17 @@ const ELITE_CLOUDOS_READONLY_OPERATIONS = new Set([
   "disk_space",
 ]);
 const CLOUDOS_AGENT_UNIT = "kmj-codebridge-cloudos.service";
-const CLOUDOS_AGENT_CONFIG = "/home/info/.config/kmj-codebridge/agent.json";
+// A systemd-managed *snapshot*, loaded by PID 1 from the info:0600 config.
+// Never let the capability-restricted Supervisor read the owner config or
+// follow caller-supplied paths. The unit is fixed and root-owned.
+const CLOUDOS_CREDENTIAL_DIRECTORY =
+  "/run/credentials/kmj-codebridge-supervisor.service";
+const CLOUDOS_CREDENTIAL_NAME = "cloudos-agent-config";
+function cloudosCredentialFile(directory) {
+  if (directory !== CLOUDOS_CREDENTIAL_DIRECTORY)
+    fail("SUPERVISOR_CREDENTIAL_UNAVAILABLE");
+  return `${CLOUDOS_CREDENTIAL_DIRECTORY}/${CLOUDOS_CREDENTIAL_NAME}`;
+}
 const CLOUDOS_PROJECT_ID = "kmj-cloudos";
 const CLOUDOS_OPERATIONS = new Set([
   "status",
@@ -1492,6 +1502,8 @@ export function classifySupervisorConfigError(error) {
   // Emit only fixed codes. Never return file paths, parser messages,
   // validation paths, expected values or any secret from config data.
   if (error?.code === "CONFIG_TRUST_INVALID") return "CONFIG_TRUST_INVALID";
+  if (error?.code === "SUPERVISOR_CREDENTIAL_UNAVAILABLE")
+    return "SUPERVISOR_CREDENTIAL_UNAVAILABLE";
   if (error?.code === "ENOENT") return "CONFIG_FILE_MISSING";
   if (error?.code === "EACCES" || error?.code === "EPERM")
     return "CONFIG_FILE_UNREADABLE";
@@ -1517,6 +1529,7 @@ export function createSupervisorHandler({
   backupEvidence = mainPlatformLocalBackupEvidence,
   backupInventory = mainPlatformBackupInventory,
   profile = process.env.KMJ_CODEBRIDGE_SUPERVISOR_PROFILE ?? "default",
+  cloudosCredentialsDirectory = process.env.CREDENTIALS_DIRECTORY,
 } = {}) {
   if (
     ![
@@ -1754,7 +1767,7 @@ export function createSupervisorHandler({
         chosenUnit = serviceUnit(request.service, run, profile);
         const configPath =
           profile === CLOUDOS_SUPERVISOR_PROFILE
-            ? CLOUDOS_AGENT_CONFIG
+            ? cloudosCredentialFile(cloudosCredentialsDirectory)
             : request.service === "agent" &&
                 chosenUnit === MAIN_PLATFORM_AGENT_SERVICE
               ? MAIN_PLATFORM_AGENT_CONFIG
@@ -1779,7 +1792,14 @@ export function createSupervisorHandler({
                   runtimeConfigAttested: false,
                   signedRuntimeAttested: false,
                 }
-              : { service: request.service, valid: true },
+              : profile === CLOUDOS_SUPERVISOR_PROFILE
+                ? {
+                    service: request.service,
+                    valid: true,
+                    scope: "SYSTEMD_CREDENTIAL_SNAPSHOT_ONLY",
+                    runtimeConfigAttested: false,
+                  }
+                : { service: request.service, valid: true },
         };
       } catch (error) {
         let reason = classifySupervisorConfigError(error);
@@ -1826,7 +1846,7 @@ export function createSupervisorHandler({
           JSON.parse(
             readFile(
               profile === CLOUDOS_SUPERVISOR_PROFILE
-                ? CLOUDOS_AGENT_CONFIG
+                ? cloudosCredentialFile(cloudosCredentialsDirectory)
                 : request.projectId === MAIN_PLATFORM_PROJECT_ID
                   ? MAIN_PLATFORM_AGENT_CONFIG
                   : CONFIGS.agent,
