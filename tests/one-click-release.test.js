@@ -82,6 +82,16 @@ function releaseFixture(t) {
   git(repo, "commit", "-q", "--allow-empty", "-m", "fixture source");
   // A bare clone works from a shallow source too (a push would not).
   assert.equal(run("git", ["clone", "-q", "--bare", repo, origin]).status, 0);
+  // CI on a push to release/stable-seqN checks that branch out, so the clone
+  // above would copy it into the fixture origin. Only main belongs there.
+  const heads = git(
+    origin,
+    "for-each-ref",
+    "--format=%(refname)",
+    "refs/heads/release/",
+  );
+  for (const ref of heads.stdout.split("\n").filter(Boolean))
+    assert.equal(git(origin, "update-ref", "-d", ref).status, 0);
   git(repo, "remote", "set-url", "origin", origin);
   assert.equal(git(repo, "fetch", "-q", "origin").status, 0);
   const home = path.join(root, "home");
