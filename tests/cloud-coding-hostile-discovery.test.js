@@ -9,10 +9,16 @@ test("cloud discovery denies throwing availability getter without verifying chai
   const model = createVerifiedFreeCloudCodingModel({
     authorized: () => true,
     createClient: () => ({
-      status: async () => Object.defineProperty({}, "available", {
-        get() { throw new Error("hostile getter"); },
-      }),
-      checkZeroCostChain: async () => { verified++; throw new Error("must not verify"); },
+      status: async () =>
+        Object.defineProperty({}, "available", {
+          get() {
+            throw new Error("hostile getter");
+          },
+        }),
+      checkZeroCostChain: async () => {
+        verified++;
+        throw new Error("must not verify");
+      },
     }),
   });
   assert.deepEqual(await model.status(), unavailable);
@@ -31,7 +37,10 @@ test("cloud discovery denies hostile approved chain array proxy", async () => {
     authorized: () => true,
     createClient: () => ({
       status: async () => ({ available: true, approvedFreeChains: chains }),
-      checkZeroCostChain: async () => { verified++; throw new Error("must not verify"); },
+      checkZeroCostChain: async () => {
+        verified++;
+        throw new Error("must not verify");
+      },
     }),
   });
   assert.deepEqual(await model.status(), unavailable);
@@ -43,13 +52,19 @@ test("cloud discovery revocation from getter prevents any verifier invocation", 
   let verified = 0;
   const status = { available: true };
   Object.defineProperty(status, "approvedFreeChains", {
-    get() { consent = false; return ["auto:code"]; },
+    get() {
+      consent = false;
+      return ["auto:code"];
+    },
   });
   const model = createVerifiedFreeCloudCodingModel({
     authorized: () => consent,
     createClient: () => ({
       status: async () => status,
-      checkZeroCostChain: async () => { verified++; throw new Error("must not verify"); },
+      checkZeroCostChain: async () => {
+        verified++;
+        throw new Error("must not verify");
+      },
     }),
   });
   assert.deepEqual(await model.status(), unavailable);
