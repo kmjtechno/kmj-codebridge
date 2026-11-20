@@ -53,10 +53,7 @@ test("root Supervisor imports only staged root-owned pinned source", () => {
   assert.match(source, /--ignore-scripts --no-audit --no-fund/);
   assert.match(source, /find "\$STAGE" -type f -exec chmod 0444/);
   assert.match(source, /ProtectHome=tmpfs/);
-  assert.match(
-    source,
-    /BindReadOnlyPaths=\/home\/info\/kmj-cloudos/,
-  );
+  assert.match(source, /BindReadOnlyPaths=\/home\/info\/kmj-cloudos/);
   assert.match(source, /Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=cloudos/);
   assert.match(source, /LoadCredential=cloudos-agent-config:\$CONFIG/);
   assert.match(source, /CapabilityBoundingSet=\n/);
@@ -79,7 +76,7 @@ test("existing enrollment and other services are preserved on failure", () => {
   assert.match(source, /systemctl restart "\$SERVICE_UNIT"/);
   assert.match(source, /supervisor_rpcs PREFLIGHT/);
   assert.match(source, /supervisor_rpcs POST_CONFIG/);
-  assert.match(source, /SUPERVISOR_RPC_\$\{phase\}_\$\{label\}=FAIL/);
+  assert.match(source, /SUPERVISOR_RPC_\{phase\}_\{label\}=FAIL/);
   assert.match(source, /CLOUDOS_SUPERVISOR_BOOTSTRAP=PASS/);
   assert.doesNotMatch(source, /systemctl restart kmj-cloudos-api/);
   assert.doesNotMatch(source, /systemctl restart kmj-cloudos-worker/);
