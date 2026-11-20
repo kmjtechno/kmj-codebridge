@@ -13,8 +13,13 @@ if [[ "${1:-}" == "--apply" ]]; then APPLY=1; shift; fi
 PROJECT_ID='kmj-codebridge'
 INSTANCE='kmj-codebridge-dev'
 REPO_URL='https://github.com/kmjtechno/kmj-codebridge.git'
-PROJECT_ROOT='/srv/kmj-codebridge-projects/kmj-codebridge'
-RUNTIME='/opt/kmj-codebridge-agent'
+# Dedicated checkout: never reuse an older checkout that may carry credentials.
+PROJECT_ROOT='/srv/kmj-codebridge-dev/kmj-codebridge'
+PROJECT_PARENT='/srv/kmj-codebridge-dev'
+# Signed, world-readable runtime kept current by the owner-signed updater (the
+# Main Platform agent runs from it as an unprivileged user). The legacy
+# /opt/kmj-codebridge-agent tree is root-only and must not be used.
+RUNTIME='/opt/kmj-codebridge-stable/current'
 NODE='/opt/kmj-codebridge-node/bin/node'
 ENROLLMENT_BASE='https://kmjtechno.com'
 GATEWAY='https://kmjtechno.com'
@@ -34,7 +39,8 @@ echo "MODE=$([[ $APPLY -eq 1 ]] && echo APPLY || echo DRY_RUN)"
 echo "project=$PROJECT_ID root=$PROJECT_ROOT service=$SERVICE user=$SERVICE_USER"
 
 [[ ${EUID:-$(id -u)} -eq 0 ]] || { echo 'Run as root.' >&2; exit 1; }
-[[ "$(hostname -s)" == "kmj-elite" ]] || { echo 'WRONG_HOST: expected kmj-elite' >&2; exit 1; }
+HOST_SHORT="$(hostname -s)"
+[[ "${HOST_SHORT,,}" == "kmj-elite" ]] || { echo "WRONG_HOST: expected kmj-elite, got $HOST_SHORT" >&2; exit 1; }
 [[ -x "$NODE" ]] || { echo "NODE_MISSING: $NODE" >&2; exit 2; }
 [[ -f "$RUNTIME/src/cli.js" && -f "$RUNTIME/scripts/enroll-device.js" ]] || { echo "RUNTIME_MISSING: $RUNTIME" >&2; exit 2; }
 command -v git >/dev/null 2>&1 || { echo 'GIT_MISSING' >&2; exit 2; }
@@ -48,7 +54,7 @@ fi
 [[ ! -e "$SERVICE_FILE" && ! -e "$CONFIG" ]] || { echo 'ALREADY_ENROLLED: unit/config exist; nothing changed' >&2; exit 0; }
 
 # The service user must be able to run the live runtime read-only.
-echo "runtime_check=$(systemd-run --quiet --wait --collect --pipe -p User=nobody -p NoNewPrivileges=true /bin/sh -c 'test -x "$1" && test -r "$2"' sh "$NODE" "$RUNTIME/src/cli.js" >/dev/null 2>&1 && echo OK || echo NOT_READABLE_BY_UNPRIVILEGED_USER)"
+echo "runtime_check=$(systemd-run --quiet --wait --collect --pipe -p User=nobody -p NoNewPrivileges=true /bin/sh -c 'test -x "$1" && test -r "$2" && test -r "$3"' sh "$NODE" "$RUNTIME/src/cli.js" "$RUNTIME/scripts/enroll-device.js" >/dev/null 2>&1 && echo OK || echo NOT_READABLE_BY_UNPRIVILEGED_USER)"
 
 if [[ $APPLY -ne 1 ]]; then
   echo 'DRY_RUN_UNCHANGED: re-run with --apply to create the user, checkout, pairing and unit'
@@ -56,7 +62,7 @@ if [[ $APPLY -ne 1 ]]; then
 fi
 
 id "$SERVICE_USER" >/dev/null 2>&1 || useradd --system --home-dir "$STATE_DIR" --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
-install -d -m 0755 /srv/kmj-codebridge-projects
+install -d -m 0755 -o "$SERVICE_USER" -g "$SERVICE_USER" "$PROJECT_PARENT"
 install -d -m 0700 -o "$SERVICE_USER" -g "$SERVICE_USER" "$STATE_DIR" "$CONFIG_DIR"
 
 if [[ ! -d "$PROJECT_ROOT/.git" ]]; then
@@ -65,7 +71,8 @@ if [[ ! -d "$PROJECT_ROOT/.git" ]]; then
   sudo -u "$SERVICE_USER" -H env GIT_TERMINAL_PROMPT=0 git clone --quiet "$REPO_URL" "$PROJECT_ROOT"
 fi
 origin="$(git -c safe.directory="$PROJECT_ROOT" -C "$PROJECT_ROOT" remote get-url origin)"
-[[ "$origin" == "$REPO_URL" ]] || { echo "ORIGIN_MISMATCH: $origin" >&2; exit 3; }
+# Never print the URL: a remote can embed credentials.
+[[ "$origin" == "$REPO_URL" ]] || { echo 'ORIGIN_MISMATCH (value withheld; remote must be exactly the clean public HTTPS URL)' >&2; exit 3; }
 chown -R "$SERVICE_USER:$SERVICE_USER" "$PROJECT_ROOT"
 
 echo 'Owner browser approval is required next (pairing code is printed below).'
@@ -130,6 +137,8 @@ RestrictSUIDSGID=true
 LockPersonality=true
 ReadWritePaths=$PROJECT_ROOT $STATE_DIR
 UMask=0077
+# Jobs inherit PATH: prefer the Node >=24 that ships with the signed runtime.
+Environment=PATH=/opt/kmj-codebridge-node/bin:/usr/local/bin:/usr/bin:/bin
 
 [Install]
 WantedBy=multi-user.target

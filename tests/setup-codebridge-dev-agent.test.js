@@ -17,13 +17,27 @@ test("dev-agent setup is dry-run by default and refuses root service user", () =
   assert.match(text, /--apply/);
   assert.match(text, /SERVICE_USER_IS_ROOT/);
   assert.match(text, /^SERVICE_USER='kmjdev'$/m);
-  assert.match(text, /\[\[ ".*hostname -s.*" == "kmj-elite" \]\]/);
+  assert.match(text, /\[\[ "\$\{HOST_SHORT,,\}" == "kmj-elite" \]\]/);
 });
 
 test("dev-agent setup never touches the Main Platform agent or pipes remote code", () => {
   assert.doesNotMatch(text, /main-platform/);
   assert.doesNotMatch(text, /curl[^\n]*\|\s*(ba)?sh/);
   assert.doesNotMatch(text, /deploy_ed25519|gh auth|ssh-keygen/);
+});
+
+test("dev-agent uses the signed readable runtime, not the root-only legacy tree", () => {
+  assert.match(text, /^RUNTIME='\/opt\/kmj-codebridge-stable\/current'$/m);
+  assert.doesNotMatch(text, /RUNTIME='\/opt\/kmj-codebridge-agent'/);
+});
+
+test("dev-agent uses a dedicated checkout and never prints a remote URL", () => {
+  assert.match(
+    text,
+    /^PROJECT_ROOT='\/srv\/kmj-codebridge-dev\/kmj-codebridge'$/m,
+  );
+  assert.doesNotMatch(text, /echo "ORIGIN_MISMATCH: \$origin"/);
+  assert.doesNotMatch(text, /echo[^\n]*\$origin/);
 });
 
 test("dev-agent config is fixed-profile only and the unit is hardened", () => {
@@ -49,4 +63,25 @@ test("dev-agent setup is valid bash and non-root dry-run exits before changing a
   assert.equal(r.status, 1);
   assert.match(r.stdout, /MODE=DRY_RUN/);
   assert.match(r.stderr, /Run as root/);
+});
+
+test("dev-agent jobs prefer the signed Node >=24 and the PATH script is fail-closed", () => {
+  assert.match(
+    text,
+    /Environment=PATH=\/opt\/kmj-codebridge-node\/bin:\/usr\/local\/bin:\/usr\/bin:\/bin/,
+  );
+  const fix = fs.readFileSync(
+    path.resolve(
+      import.meta.dirname,
+      "..",
+      "scripts",
+      "setup-codebridge-dev-agent-path.sh",
+    ),
+    "utf8",
+  );
+  assert.match(fix, /^APPLY=0$/m);
+  assert.match(fix, /NODE_TOO_OLD/);
+  assert.match(fix, /"\$\{HOST_SHORT,,\}" == "kmj-elite"/);
+  assert.match(fix, /RESTART_FAILED_ROLLBACK/);
+  assert.doesNotMatch(fix, /curl|wget|apt|tar |main-platform/);
 });

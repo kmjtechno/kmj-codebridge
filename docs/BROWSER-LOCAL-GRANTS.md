@@ -42,3 +42,14 @@ Grant issuance from the Main Platform, any durable or cross-process revocation, 
 Playwright launcher on ephemeral profiles, enforcing the origin and address checks
 inside a real browser (a Playwright `--allowed-origins` flag is not a security
 boundary), receipts, a real Windows/Linux/macOS smoke test, and any benchmark.
+
+## Slice 3: read-only `browser_grant_status` (DRAFT, owner review)
+
+The dispatcher holds one in-memory `BrowserGrantRegistry`; the read-only MCP tool
+`browser_grant_status` lists its active grants for this device/project (id,
+origin, scopes, issue/expiry time). There is deliberately **no** MCP path that
+creates, extends or uses a grant: issuance stays `TRUSTED_HOST_ONLY`, so the list
+is empty until a trusted host component registers one, and the tool reports
+`browserLaunch: NOT_AVAILABLE`. This slice widens no browser permission; it only
+makes the (currently empty) grant state observable. Issuance, durable revocation
+and the launcher remain pending as listed above.

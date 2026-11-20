@@ -18,6 +18,13 @@ The key file must be outside the repository. Log in to GitHub CLI once
 
 ## Every release
 
+On the owner PC, double-click `scripts\RELEASE-CODEBRIDGE.cmd` (or run
+`npm run release`). The launcher checks Git Bash and `gh`, requires a clean
+checkout on `main`, fast-forwards it, and then runs the same reviewed
+`scripts/release.sh`. It stops with a `KMJ_RELEASE=BLOCKED:<reason>` line
+instead of guessing, never deploys, and the key stays in your private
+`release.env` outside the repository.
+
 ```bash
 npm run release
 ```
@@ -123,10 +130,14 @@ scripts remain for history and rollback reference only.
 agent next to the Main Platform one. Dry-run by default; `--apply` is required to
 change anything.
 
+- Runs from the signed runtime `/opt/kmj-codebridge-stable/current` (readable by
+  unprivileged users); the root-only legacy `/opt/kmj-codebridge-agent` is never used.
 - Runs only on host `kmj-elite`, as the unprivileged `kmjdev` system user (it
   refuses a root service user).
 - Clones the public repository over HTTPS into
-  `/srv/kmj-codebridge-projects/kmj-codebridge` (no deploy key, no token).
+  `/srv/kmj-codebridge-dev/kmj-codebridge`, a dedicated checkout (no deploy key, no
+  token); an existing checkout elsewhere is never reused or modified. A remote URL
+  is never printed because it can embed credentials.
 - Pairing needs one owner browser approval (the script prints the code); the
   device credential is written only to `/etc/kmj-codebridge-dev/agent.json`
   (0600).
@@ -139,3 +150,13 @@ change anything.
 
 Status: the script and its static tests are reviewed source only. It is **not**
 proven on the live host until the owner runs it and a receipt is read back.
+
+### Node version for dev jobs
+
+Agent jobs inherit `PATH`, and the systemd default resolves `npm` to the older
+system Node. `scripts/setup-codebridge-dev-agent-path.sh` (root, dry-run
+default) verifies that `/opt/kmj-codebridge-node/bin` has Node >= 24 and npm,
+then adds one drop-in (`Environment=PATH=...`) for `kmj-codebridge-dev.service`
+and restarts only that service. It installs nothing, downloads nothing and
+fails closed (`NODE_TOO_OLD`) if that Node is older than 24. New installs from
+`setup-codebridge-dev-agent.sh` already carry the same `PATH`.

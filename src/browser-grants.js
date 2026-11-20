@@ -219,6 +219,27 @@ export class BrowserGrantRegistry {
     return revoked;
   }
 
+  // Read-only snapshot for status reporting: scoped to tenant/device/project,
+  // never returns anything that could be replayed (callers authorize by id only
+  // against this registry, and ids are not credentials to other processes).
+  list({ tenant, device, project } = {}) {
+    this.#prune();
+    return [...this.#active.values()]
+      .filter(
+        (g) =>
+          (tenant === undefined || g.tenant === tenant) &&
+          (device === undefined || g.device === device) &&
+          (project === undefined || g.project === project),
+      )
+      .map((g) => ({
+        id: g.id,
+        origin: g.origin,
+        scopes: [...g.scopes],
+        issuedAt: g.issuedAt,
+        expiresAt: g.expiresAt,
+      }));
+  }
+
   get size() {
     this.#prune();
     return this.#active.size;

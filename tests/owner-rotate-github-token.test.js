@@ -79,6 +79,7 @@ test(
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-rot-"));
     const f = path.join(dir, "env");
     fs.writeFileSync(f, "X=1\n", { mode: 0o640 });
+    fs.chmodSync(f, 0o640); // writeFileSync mode is masked by umask
     const r = py(
       "p=__import__('pathlib').Path(sys.argv[2]);m.atomic_write(p,'X=2\\n',p)",
       f,
