@@ -4,6 +4,7 @@
 // Only `auto:<chain>` model names are accepted so a request cannot pick a
 // specific (possibly paid) upstream; the owner defines the chain in FreeLLMAPI.
 import http from "node:http";
+import { CodeBridgeError } from "./errors.js";
 
 const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
 const KEY = /^[A-Za-z0-9._-]{8,200}$/;
@@ -26,9 +27,9 @@ export function candidateChains(task, available) {
   return found;
 }
 
-// Carry the stable reason as `.code` too: the MCP layer only reports string
-// `.code` values, everything else collapses into a useless INTERNAL_ERROR.
-const codedError = (code) => Object.assign(new Error(code), { code });
+// The MCP boundary exposes only typed CodeBridgeError codes; an arbitrary
+// Error with a string .code is intentionally not public to prevent leaks.
+const codedError = (code) => new CodeBridgeError(code);
 const fail = (code) => {
   throw codedError(code);
 };
