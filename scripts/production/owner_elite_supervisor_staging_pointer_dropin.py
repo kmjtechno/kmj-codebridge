@@ -12,9 +12,10 @@ becomes visible, and it is read-only.
 Default is a DRY RUN. --apply:
   1. checks host/root/units and that no guarded release unit is running,
   2. writes /etc/systemd/system/kmj-codebridge-supervisor.service.d/30-main-platform-staging-pointer.conf,
-  3. daemon-reload, restarts ONLY kmj-codebridge-supervisor.service (CodeBridge Supervisor tools are briefly
-     unavailable), waits for it and its socket,
-  4. on any failure removes the drop-in, reloads and restarts again (automatic rollback) and says so.
+  3. daemon-reload ONLY. The Supervisor is socket-activated (kmj-codebridge-supervisor.socket stays listening,
+     the service starts per request), so the next request starts it with the new mount. NO restart, no tool outage,
+  4. verifies the effective unit now lists the bind path; on any failure removes the drop-in and reloads
+     (automatic rollback) and says so.
 It touches no application, database, release pointer, staging/production unit, DNS, network or secret.
 
   python3 -I owner_elite_supervisor_staging_pointer_dropin.py            # dry run
@@ -25,13 +26,12 @@ import socket
 import stat
 import subprocess
 import sys
-import time
 
 UNIT = "kmj-codebridge-supervisor.service"
 DROPIN_DIR = "/etc/systemd/system/" + UNIT + ".d"
 EXISTING = DROPIN_DIR + "/20-main-platform-production-readonly.conf"
 DROPIN = DROPIN_DIR + "/30-main-platform-staging-pointer.conf"
-SOCKET = "/run/kmj-codebridge/supervisor.sock"
+SOCKET_UNIT = "kmj-codebridge-supervisor.socket"
 STAGING_DIR = "/home/kmjstage/htdocs"
 STAGING_LINK = STAGING_DIR + "/staging.kmjtechno.com"
 BUSY_UNITS = (
@@ -82,7 +82,7 @@ def inspect_host():
     with open(EXISTING, encoding="utf-8") as src:
         text = src.read()
     require("ProtectHome=tmpfs" in text and "BindReadOnlyPaths=/home/kmjprod" in text, "PRODUCTION_DROPIN_UNEXPECTED")
-    require(is_active(UNIT) == "active", "SUPERVISOR_NOT_ACTIVE")
+    require(is_active(SOCKET_UNIT) == "active", "SUPERVISOR_SOCKET_NOT_ACTIVE")
     for name in BUSY_UNITS:
         require(is_active(name) not in ("active", "activating", "deactivating"), "RELEASE_UNIT_BUSY")
     if os.path.lexists(DROPIN):
@@ -91,12 +91,9 @@ def inspect_host():
             require(src.read() == CONTENT, "EXISTING_DROPIN_DIFFERS")
 
 
-def wait_healthy():
-    for _ in range(20):
-        if is_active(UNIT) == "active" and os.path.exists(SOCKET):
-            return True
-        time.sleep(1)
-    return False
+def effective_has_bind():
+    out = ctl("show", UNIT, "-p", "BindReadOnlyPaths", "--value", check=False).stdout
+    return STAGING_DIR in out and "/home/kmjprod" in out
 
 
 def rollback():
@@ -104,10 +101,9 @@ def rollback():
         if os.path.lexists(DROPIN):
             os.unlink(DROPIN)
         ctl("daemon-reload")
-        ctl("restart", UNIT)
     except (OSError, subprocess.SubprocessError):
         return False
-    return wait_healthy()
+    return is_active(SOCKET_UNIT) == "active"
 
 
 def write_dropin():
@@ -131,21 +127,20 @@ def main(argv):
         print("SUPERVISOR_STAGING_POINTER_HOST_CHECKS=PASS")
         print("WILL_ADD=BindReadOnlyPaths=-" + STAGING_DIR + " (read-only, directory with the staging symlink only)")
         if not apply:
-            print("WILL_RESTART=" + UNIT + " (Supervisor tools briefly unavailable)")
+            print("WILL_RUN=daemon-reload only (socket-activated Supervisor, no restart, no tool outage)")
             print("SUPERVISOR_STAGING_POINTER=DRY_RUN_NOTHING_CHANGED")
             return 0
         print("DROPIN=" + write_dropin())
         try:
             ctl("daemon-reload")
-            ctl("restart", UNIT)
-            healthy = wait_healthy()
+            healthy = effective_has_bind() and is_active(SOCKET_UNIT) == "active"
         except (OSError, subprocess.SubprocessError):
             healthy = False
         if not healthy:
             print("SUPERVISOR_STAGING_POINTER=FAILED_ROLLED_BACK_" + ("OK" if rollback() else "CHECK_MANUALLY"))
             return 2
-        print("SUPERVISOR_STAGING_POINTER=INSTALLED_SUPERVISOR_ACTIVE_SOCKET_PRESENT")
-        print("ONLY_SUPERVISOR_RESTARTED=YES")
+        print("SUPERVISOR_STAGING_POINTER=INSTALLED_EFFECTIVE_ON_NEXT_SUPERVISOR_REQUEST")
+        print("NO_RESTART=YES")
         return 0
     except Blocked as exc:
         print("SUPERVISOR_STAGING_POINTER=BLOCKED_" + str(exc))

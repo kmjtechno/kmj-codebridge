@@ -54,16 +54,20 @@ test("drop-in exposes exactly one read-only path: the staging pointer directory"
   );
 });
 
-test("only the supervisor unit is restarted; rollback exists; busy release units block", () => {
+test("socket-activated: daemon-reload only, no restart; rollback exists; busy release units block", () => {
   assert.deepEqual(
     [...script.matchAll(/ctl\("([a-z-]+)"/g)].map((x) => x[1]).sort(),
-    ["daemon-reload", "daemon-reload", "is-active", "restart", "restart"],
+    ["daemon-reload", "daemon-reload", "is-active", "show"],
   );
+  assert.doesNotMatch(
+    script.replace(/"""[\s\S]*?"""/, ""),
+    /"restart"|"stop"|"start"/,
+  );
+  assert.match(script, /kmj-codebridge-supervisor\.socket/);
+  assert.match(script, /SUPERVISOR_SOCKET_NOT_ACTIVE/);
   assert.match(script, /def rollback\(\)/);
   assert.match(script, /FAILED_ROLLED_BACK_/);
   assert.match(script, /RELEASE_UNIT_BUSY/);
-  assert.match(script, /kmj-main-platform-production-release\.service/);
-  assert.match(script, /kmj-main-platform-staging-deploy\.service/);
   assert.match(script, /EXISTING_DROPIN_DIFFERS/);
   assert.match(script, /\.lower\(\) == "kmj-elite"/);
   assert.match(script, /NOT_ROOT/);
