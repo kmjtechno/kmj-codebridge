@@ -158,7 +158,10 @@ test("Google Supervisor fails closed without the unit-bound systemd credential d
     "/run/credentials/kmj-codebridge-supervisor.service/..",
   ]) {
     const f = fixture({ credentialsDirectory });
-    const checked = await f.handler({ op: "config_validate", service: "agent" });
+    const checked = await f.handler({
+      op: "config_validate",
+      service: "agent",
+    });
     assert.deepEqual(checked.response, {
       service: "agent",
       valid: false,
