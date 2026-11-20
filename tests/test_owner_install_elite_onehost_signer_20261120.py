@@ -14,6 +14,13 @@ spec.loader.exec_module(m)
 
 
 class SourceOnly(unittest.TestCase):
+    def test_installer_pins_match_current_reviewer_sources(self):
+        for name, (source, expected) in m.PINNED.items():
+            with self.subTest(file=name):
+                self.assertTrue(source.is_file())
+                self.assertEqual(hashlib.sha256(source.read_bytes()).hexdigest(),
+                                 expected)
+
     def test_reviewed_source_bytes_and_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
             p = Path(tmp) / "trusted.py"
