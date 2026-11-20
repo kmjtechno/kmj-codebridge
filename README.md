@@ -201,6 +201,8 @@ CodeBridge separates the AI client, control plane, and device execution boundary
 
 The device agent must be online, authorized for the tenant, and configured for the requested project before work can execute.
 
+How changes reach `main` (owner review by default; documentation-only pull requests are released from review): see [docs/RISK-BASED-MERGE.md](docs/RISK-BASED-MERGE.md).
+
 ## What CodeBridge is — and is not
 
 | CodeBridge is                                            | CodeBridge is not                                  |
