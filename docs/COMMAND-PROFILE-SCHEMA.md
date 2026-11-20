@@ -92,8 +92,20 @@ Timeouts are per variant, in ms. "Lane" = must run in a pinned isolated lane.
 Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
 (`start`), `main_platform_ui_deps` (`ci`), `main_platform_php_deps`
 (`ci`, `routes`, `test`), `main_platform_offsite_status` and
-`cloudos_host_storage_audit` (`overview`, inspect), `cloudos_release_qa` (`full`),
+`cloudos_host_storage_audit` (`overview`, inspect), `cloudos_n2_guest_readiness`
+(`check`, inspect, **google-vps only**), `cloudos_release_qa` (`full`),
 `cloudos_origin_https_audit` (`check`, inspect, **kmj-elite-cloudos only**).
+
+The Google VPS N2 guest-readiness profile is built-in, rootless, and accepts no
+caller command, path, URL, or shell. Its fixed inline Python verifies the GCE
+instance ID/machine type from metadata, non-root KVM ABI 12, required package
+executables, CloudOS service states and a read-only libvirt domain inventory.
+If the device agent has not yet inherited the `kvm` or `libvirt` group, it
+reports an unverified/blocked condition; it never falls back to sudo. Missing
+cloud-init seed tools or real guest evidence keeps production HOLD. It creates
+no VM, image, port, package or release receipt. Source merge and separately
+verified signed runtime installation are prerequisites to using this profile
+on a real Google VPS; it is not active merely because this file documents it.
 
 The last profile runs a fixed inline Python script, not an arbitrary repository
 script. It requires the writable authorized `kmj-cloudos` project on the exact
