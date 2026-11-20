@@ -1,0 +1,53 @@
+name: KMJ Elite Single Host Signing QA
+
+on:
+  pull_request:
+    paths:
+      - "scripts/production/elite-onehost-release.mjs"
+      - "scripts/production/owner-auto-sign-stable.mjs"
+      - "scripts/production/owner_install_elite_onehost_signer_20261120.py"
+      - "scripts/release-ci-gate.mjs"
+      - "tests/elite-onehost-release.test.js"
+      - "tests/test_owner_install_elite_onehost_signer_20261120.py"
+      - ".github/workflows/elite-onehost-release-qa.yml"
+  push:
+    branches:
+      - "feat/elite-single-host-signing-release-20261120"
+
+permissions:
+  contents: read
+
+jobs:
+  offline-gates:
+    name: Rootless signing and immutable install fixtures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 7
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+      - name: Check installer syntax without writing bytecode
+        run: |
+          python3 -I -B - <<'PY'
+          from pathlib import Path
+          for f in [
+            "scripts/production/owner_install_elite_onehost_signer_20261120.py",
+            "tests/test_owner_install_elite_onehost_signer_20261120.py",
+          ]:
+            compile(Path(f).read_text("utf-8"), f, "exec")
+          print("ELITE_ONEHOST_PYTHON_SYNTAX=PASS")
+          PY
+      - name: Run isolated no-root admission and installer tests
+        run: |
+          node --test tests/elite-onehost-release.test.js
+          python3 -I -B tests/test_owner_install_elite_onehost_signer_20261120.py -v
+          echo "ELITE_ONEHOST_OFFLINE_GATES=PASS"
+      - name: Ensure release automation cannot sign or deploy in CI
+        run: |
+          test "$(id -u)" -ne 0
+          test ! -e /usr/local/libexec/kmj-codebridge-elite-signer
+          echo "LIVE_SIGNER_PRIVATE_KEY=NOT_ACCESSED"
+          echo "PRODUCTION_SYSTEMD=NOT_CHANGED"
