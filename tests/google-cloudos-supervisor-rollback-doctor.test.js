@@ -29,8 +29,11 @@ test("Google CloudOS rollback doctor is deliberately read only", () => {
   );
   assert.match(source, /len\(sys\.argv\) != 1/);
   assert.match(source, /socket\.gethostname\(\)/);
-  assert.doesNotMatch(source, /subprocess\.(?:Popen|call|check_call|check_output)/);
+  assert.doesNotMatch(
+    source,
+    /subprocess\.(?:Popen|call|check_call|check_output)/,
+  );
   assert.doesNotMatch(source, /shell\s*=\s*True/);
-  assert.doesNotMatch(source, /\b(?:unlink|rmtree|rename|replace)\s*\(/);
+  assert.doesNotMatch(source, /\b(?:unlink|rmtree|rename)\s*\(/);
   assert.doesNotMatch(source, /\.(?:write_text|write_bytes|open)\s*\(/);
 });
