@@ -21,6 +21,7 @@ import {
 } from "./main-platform-staging-unit-policy.js";
 import { mainPlatformLocalBackupEvidence } from "./main-platform-local-backup-evidence.js";
 import { mainPlatformBackupInventory } from "./main-platform-backup-inventory.js";
+import { aggregateEliteMailHealth } from "./main-platform-mail-health.js";
 
 const SERVICES = {
   agent: "kmj-codebridge-agent.service",
@@ -2123,6 +2124,45 @@ export function createSupervisorHandler({
         },
       };
     }
+    // Owner policy: KMJ-elite only. Read-only, fixed executable/argv and
+    // bounded output. Do not pass source queue lines, addresses or SMTP text
+    // back to the gateway. CloudOS/Google profiles are already denied above.
+    if (request.op === "main_platform_mail_health") {
+      exactKeys(request, ["op"]);
+      try {
+        const execute = (command, args, maxBuffer = 65536) =>
+          run(command, args, { timeout: 5000, maxBuffer });
+        const result = aggregateEliteMailHealth({
+          queueJsonl: execute("/usr/sbin/postqueue", ["-j"], 262144),
+          lifetime: execute("/usr/sbin/postconf", ["-h", "maximal_queue_lifetime"]),
+          relayhost: execute("/usr/sbin/postconf", ["-h", "relayhost"]),
+          fallback: execute("/usr/sbin/postconf", ["-h", "smtp_fallback_relay"]),
+          postfixState: execute("/usr/bin/systemctl", [
+            "show", "postfix.service", "--property=ActiveState", "--no-pager",
+          ]),
+          opendkimState: execute("/usr/bin/systemctl", [
+            "show", "opendkim.service", "--property=ActiveState", "--no-pager",
+          ]),
+        });
+        return { response: result };
+      } catch {
+        // Never reflect exec stderr, raw queue records, addresses, paths
+        // or SMTP errors through a privileged tool exception.
+        return {
+          response: {
+            schema: "KMJ_ELITE_MAIL_HEALTH_V1",
+            mode: "READ_ONLY",
+            scope: "kmj-main-platform",
+            inspection: "UNAVAILABLE",
+            recipientDeliveryProven: false,
+            queueDrained: null,
+            queueMutation: "NONE",
+            dnsMutation: "NONE",
+          },
+        };
+      }
+    }
+
     if (request.op === "main_platform_production_status") {
       exactKeys(request, ["op"]);
       return { response: productionReleaseState() };
