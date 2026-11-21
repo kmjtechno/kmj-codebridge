@@ -8,7 +8,12 @@ AGENT_USER=info
 BASE=/home/info/.local/share/kmj-codebridge
 RUNTIME=$BASE/runtime-v0.3.2-20261012
 CONFIG=/home/info/.config/kmj-codebridge/agent.json
-PIN=dea0a6e398cd4706ddc61e314174314b9a6f95ee
+OLD_PIN=dea0a6e398cd4706ddc61e314174314b9a6f95ee
+PIN=9584b584c9a94545fb9dc750c9dfef5bf4f7978a
+# This specific stable release has an independently owner-signed manifest.
+RELEASE_METADATA_COMMIT=37c0669b08d6a3d04e346fa5532066a28ee27427
+RELEASE_METADATA_BASE=https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/$RELEASE_METADATA_COMMIT/releases/stable/$PIN
+RELEASE_ARCHIVE=https://kmjtechno.com/codebridge/releases/stable/$PIN/kmj-codebridge-0.3.2-9584b584c9a9.tar.gz
 REPO=https://github.com/kmjtechno/kmj-codebridge.git
 STAGE=""
 BACKUP=""
@@ -62,6 +67,13 @@ cloudos_services_healthy || die CLOUDOS_SERVICES_NOT_ACTIVE_PRE
 [[ "$(stat -c %u "$RUNTIME")" == "$(id -u "$AGENT_USER")" ]] || die RUNTIME_OWNERSHIP
 [[ "$(stat -c %u "$BASE")" == "$(id -u "$AGENT_USER")" ]] || die BASE_OWNERSHIP
 [[ "$(stat -c %u "$CONFIG")" == "$(id -u "$AGENT_USER")" ]] || die CONFIG_OWNERSHIP
+[[ "$(stat -c %a "$CONFIG")" == 600 ]] || die CONFIG_MODE_CHANGED
+[[ "$(git -C "$RUNTIME" rev-parse HEAD)" == "$OLD_PIN" ]] || die OLD_RUNTIME_PIN_CHANGED
+[[ -z "$(git -C "$RUNTIME" status --porcelain --untracked-files=no)" ]] || die OLD_RUNTIME_DIRTY
+systemctl is-active --quiet kmj-codebridge-supervisor.socket || die SUPERVISOR_SOCKET_INACTIVE
+[[ -S /run/kmj-codebridge/supervisor.sock &&
+   "$(stat -c %U:%a /run/kmj-codebridge/supervisor.sock)" == info:600 ]] ||
+  die SUPERVISOR_SOCKET_UNVERIFIED
 PID="$(systemctl show -p MainPID --value "$UNIT")"
 [[ "$PID" =~ ^[1-9][0-9]*$ && -r "/proc/$PID/cmdline" ]] || die AGENT_PID_MISSING
 NODE="$(readlink -f "/proc/$PID/exe")"
@@ -134,6 +146,56 @@ runuser -u "$AGENT_USER" -- git -C "$STAGE" checkout -q --detach "$PIN" || die P
 [[ -z "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" status --porcelain --untracked-files=no)" ]] || die SOURCE_DIRTY
 [[ "$("$NODE" -p 'require(process.argv[1]).name' "$STAGE/package.json")" == @kmjtechno/codebridge ]] || die PACKAGE_MISMATCH
 
+# Signed stable seq33 authentication is separate from Git SHA/pin checks.
+# The public PEM is harmless; the owner private Ed25519 key is never used.
+# An unsigned Git branch, archive without the exact signature, or paid fallback
+# cannot authorize the agent swap. All work is in the rootless disposable stage.
+RELEASE_DIR="$STAGE/.kmj-signed-release-check"
+[[ ! -e "$RELEASE_DIR" ]] || die SIGNED_STAGE_CONFLICT
+runuser -u "$AGENT_USER" -- mkdir -m 0700 -- "$RELEASE_DIR" || die SIGNED_STAGE_FAILED
+runuser -u "$AGENT_USER" -- curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 60 \
+  "$RELEASE_METADATA_BASE/release-manifest.json" -o "$RELEASE_DIR/manifest.json" ||
+  die SIGNED_MANIFEST_UNAVAILABLE
+runuser -u "$AGENT_USER" -- curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 60 \
+  "$RELEASE_METADATA_BASE/release-manifest.sig" -o "$RELEASE_DIR/manifest.sig" ||
+  die SIGNED_SIGNATURE_UNAVAILABLE
+runuser -u "$AGENT_USER" -- curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 120 \
+  "$RELEASE_ARCHIVE" -o "$RELEASE_DIR/archive.tar.gz" ||
+  die SIGNED_ARCHIVE_UNAVAILABLE
+runuser -u "$AGENT_USER" -- "$NODE" --input-type=module - "$RELEASE_DIR" "$PIN" <<'JS' ||
+  die OWNER_ED25519_RELEASE_UNVERIFIED
+import fs from "node:fs";
+import path from "node:path";
+import {createHash,createPublicKey,verify} from "node:crypto";
+const [root,revision]=process.argv.slice(2);
+const read=(name,limit)=>{
+ const file=path.join(root,name),st=fs.lstatSync(file);
+ if(!st.isFile()||st.isSymbolicLink()||st.nlink!==1||st.size<1||st.size>limit)throw Error("UNTRUSTED_FILE");
+ return fs.readFileSync(file);
+};
+const manifest=read("manifest.json",65536);
+const signature=read("manifest.sig",1024).toString("ascii").trim();
+const archive=read("archive.tar.gz",2500000);
+const sha=x=>createHash("sha256").update(x).digest("hex");
+const publicKey=createPublicKey("-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA5KblzKLYvHE1FwJHOCITtn4BTHjy8QADSGKU/9HH+7E=\n-----END PUBLIC KEY-----\n");
+if(publicKey.asymmetricKeyType!=="ed25519"||sha(publicKey.export({format:"der",type:"spki"}))!=="2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8")throw Error("TRUST_KEY");
+if(sha(manifest)!=="1d19f0e2163fa764432c1612914fef5215ba30cdc26e87f9e41a28342d016bc7")throw Error("MANIFEST_PIN");
+if(!/^[A-Za-z0-9_-]{86}$/.test(signature))throw Error("SIGNATURE_FORMAT");
+const bytes=Buffer.from(signature,"base64url");
+if(bytes.length!==64||bytes.toString("base64url")!==signature||!verify(null,manifest,publicKey,bytes))throw Error("BAD_SIGNATURE");
+const m=JSON.parse(manifest.toString("utf8"));
+if(m.schema!==1||m.product!=="KMJ CodeBridge"||m.channel!=="stable"||m.keyId!=="kmj-release-2026"||m.revision!==revision||m.sequence!==33||m.version!=="0.3.2"||m.nodeMajor!==24)throw Error("RELEASE_IDENTITY");
+if(m.archive!=="https://kmjtechno.com/codebridge/releases/stable/"+revision+"/kmj-codebridge-0.3.2-"+revision.slice(0,12)+".tar.gz")throw Error("ARCHIVE_URL");
+if(m.sha256!=="32320e772aa1167a8ddefbd036dd2b95c9bf565608426c624de4d01173742ca0"||m.bytes!==2483840||archive.length!==m.bytes||sha(archive)!==m.sha256)throw Error("ARCHIVE_HASH");
+console.log("OWNER_ED25519_SIGNED_SEQ33=PASS");
+console.log("SIGNED_ARCHIVE_DIGEST=PASS");
+JS
+# Delete only these fixed newly created public artifacts before runtime swap.
+runuser -u "$AGENT_USER" -- rm -f -- "$RELEASE_DIR/manifest.json" "$RELEASE_DIR/manifest.sig" "$RELEASE_DIR/archive.tar.gz" ||
+  die SIGNED_ARTIFACT_CLEANUP_FAILED
+runuser -u "$AGENT_USER" -- rmdir -- "$RELEASE_DIR" || die SIGNED_ARTIFACT_CLEANUP_FAILED
+
+
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" ci --ignore-scripts --no-audit --no-fund || die NPM_CI_FAILED
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" run check || die CHECK_FAILED
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" test || die TEST_FAILED
@@ -179,5 +241,5 @@ echo "KMJ_CLOUDOS_AGENT_UPGRADE=PASS"
 echo "NEW_RUNTIME_SHA=$PIN"
 echo "GATEWAY=FRESH_CONNECTED"
 echo "PREVIOUS_RUNTIME=PRESERVED_FOR_ROLLBACK"
-echo "SUPERVISOR_STATUS=NOT_INSTALLED_UNCHANGED"
+echo "SUPERVISOR_STATUS=EXISTING_SOCKET_LEFT_UNCHANGED"
 echo "NEXT=REMOTE_CODEBRIDGE_CLOUDOS_COMMAND_VERIFICATION"
