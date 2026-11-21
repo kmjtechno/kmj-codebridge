@@ -2134,14 +2134,26 @@ export function createSupervisorHandler({
           run(command, args, { timeout: 5000, maxBuffer });
         const result = aggregateEliteMailHealth({
           queueJsonl: execute("/usr/sbin/postqueue", ["-j"], 262144),
-          lifetime: execute("/usr/sbin/postconf", ["-h", "maximal_queue_lifetime"]),
+          lifetime: execute("/usr/sbin/postconf", [
+            "-h",
+            "maximal_queue_lifetime",
+          ]),
           relayhost: execute("/usr/sbin/postconf", ["-h", "relayhost"]),
-          fallback: execute("/usr/sbin/postconf", ["-h", "smtp_fallback_relay"]),
+          fallback: execute("/usr/sbin/postconf", [
+            "-h",
+            "smtp_fallback_relay",
+          ]),
           postfixState: execute("/usr/bin/systemctl", [
-            "show", "postfix.service", "--property=ActiveState", "--no-pager",
+            "show",
+            "postfix.service",
+            "--property=ActiveState",
+            "--no-pager",
           ]),
           opendkimState: execute("/usr/bin/systemctl", [
-            "show", "opendkim.service", "--property=ActiveState", "--no-pager",
+            "show",
+            "opendkim.service",
+            "--property=ActiveState",
+            "--no-pager",
           ]),
         });
         return { response: result };
