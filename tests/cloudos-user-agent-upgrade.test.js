@@ -130,3 +130,15 @@ test("Google upgrade admits only the independently signed seq33 and fixed old ru
   );
   assert.doesNotMatch(source, /(?:git reset|git clean|curl\s*\|\s*bash)/);
 });
+
+test("Google agent source checks never execute info-owned Node or Git as root", () => {
+  const checks = source.split("\n").filter(
+    (line) =>
+      line.includes('"$NODE" -p ') ||
+      line.includes('"$NODE" --check ') ||
+      line.includes('git -C "$RUNTIME"'),
+  );
+  assert.equal(checks.length, 5);
+  for (const line of checks)
+    assert.ok(line.includes('runuser -u "$AGENT_USER" --'), "privilege boundary");
+});
