@@ -19,7 +19,7 @@ const CODE = [
   "d, gotstem, archive=mod.manifest_identity(json.dumps(doc).encode(),rev)",
   "assert gotstem==stem and archive==stem+'.tar.gz'",
   "for key,value in [('channel','beta'),('product','Other'),('keyId','attacker'),",
-  "                  ('revision','b'*40),('sha256','x'*64),('bytes',4095),",
+  "                  ('revision','b'*40),('sha256','x'*64),('bytes',0),",
   "                  ('sequence',True),('archive','https://evil.test/pkg.tar.gz')]:",
   "    broken=dict(doc);broken[key]=value",
   "    try:mod.manifest_identity(json.dumps(broken).encode(),rev)",
@@ -69,12 +69,21 @@ test(
 
 test("Elite installer has fixed identities, signature gate, negative RPC and rollback", () => {
   const source = fs.readFileSync(FILE, "utf8");
-  assert.match(source, /PIN = "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8"/);
+  assert.match(
+    source,
+    /PIN = "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8"/,
+  );
   assert.match(source, /AGENT_UNIT = "kmj-codebridge-dev.service"/);
   assert.match(source, /SOCKET_UNIT = "kmj-codebridge-dev-supervisor.socket"/);
-  assert.match(source, /SERVICE_UNIT = "kmj-codebridge-dev-supervisor.service"/);
+  assert.match(
+    source,
+    /SERVICE_UNIT = "kmj-codebridge-dev-supervisor.service"/,
+  );
   assert.match(source, /"PRIVATE_READ_ONLY_RPC_PASS"/);
-  assert.match(source, /"DEV_SUPERVISOR_INSTALL=PASS_AGENT_BINDING_NOT_ATTEMPTED"/);
+  assert.match(
+    source,
+    /"DEV_SUPERVISOR_INSTALL=PASS_AGENT_BINDING_NOT_ATTEMPTED"/,
+  );
   assert.match(source, /"DEV_AGENT_RESTART=NOT_ATTEMPTED"/);
   assert.match(source, /"OWNER_INSTALLER_MUST_RUN_FROM_SIGNED_RELEASE"/);
   assert.match(source, /"IMMUTABLE_SOURCE_BYTES_MISMATCH"/);
