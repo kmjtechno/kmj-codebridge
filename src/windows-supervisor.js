@@ -485,8 +485,7 @@ export function createWindowsSupervisorHandler({
       exactKeys(request, ["op", "service"]);
       if (request.service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       const task = await agentTaskState();
-      if (!task.exists || !task.enabled)
-        fail("SUPERVISOR_RESTART_UNAVAILABLE");
+      if (!task.exists || !task.enabled) fail("SUPERVISOR_RESTART_UNAVAILABLE");
       if (!config.agent.restartTask || !agentProcessIdentity().verified)
         fail("SUPERVISOR_RESTART_UNAVAILABLE");
       const taskName = config.agent.restartTask;
