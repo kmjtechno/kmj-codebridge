@@ -25,7 +25,8 @@ From a clean, reviewed source checkout:
 
 ```bash
 python3 -I -B scripts/production/render-elite-dev-supervisor-units.py \
-  --source-sha <independently-reviewed-exact-40-hex-source-sha>
+  --source-sha <independently-reviewed-exact-40-hex-source-sha> \
+  --version <signed-manifest-version>
 ```
 
 The output is JSON with the proposed service/socket text, plus explicit
@@ -34,7 +35,33 @@ The output is JSON with the proposed service/socket text, plus explicit
 The renderer has **no `--apply` option**. Never pipe its JSON into shell,
 `systemctl` or `sudo`. Output is a candidate for independent root review.
 
-## Step 2 — installer requirements (not implemented or authorized here)
+## Step 2 — signed installer source (owner activation not performed)
+
+The separate `scripts/production/owner_install_elite_dev_supervisor.py` is
+dry-run by default, requires the **original Ed25519-signed stable manifest**
+and archived source to match a root-owned installed runtime at
+`/opt/kmj-codebridge-stable/releases/<version>-<sha12>`. It verifies source
+bytes including its own installer before importing any renderer. The exact
+signed manifest version and SHA select the fixed unit runtime directory.
+
+From the signed release directory **only**, the Elite owner first runs the
+read-only root preflight:
+
+```bash
+sudo /usr/bin/python3 -I -B /opt/kmj-codebridge-stable/releases/<version>-<sha12>/scripts/production/owner_install_elite_dev_supervisor.py --revision <signed-40-hex-sha>
+```
+
+Only after verified preflight and independently approved signing and host
+change, the exact fixed apply grammar is
+`--revision <sha> --apply --confirm-elite-dev-signed-supervisor-owner-go`.
+Do not invoke this script from a writable checkout or bypass the signature
+check. This installer creates **only** the private read-only socket/service,
+probes read-only and denied RPCs, then reports
+`PASS_AGENT_BINDING_NOT_ATTEMPTED`. It never restarts or re-enrolls the dev
+agent, never edits the private agent config, and does not deploy the public
+website. Agent binding remains a separate signed/job-drained handoff.
+
+## Step 3 — additional guardrails and live proof requirements
 
 A separate operator-controlled, signed and pinned Elite-only installer must:
 
