@@ -1074,6 +1074,29 @@ test("READY device Connect click verifies exact scope then automatically checks 
   );
 });
 
+test("READY recheck refuses malformed tools response without crashing or creating service jobs", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("connectDevice").handlers.click();
+  v.replyResult(11, { structuredContent: { devices: [null] } });
+  assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
+  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_status"));
+});
+
 test("READY recheck refuses swapped scope and converts stale offline to guarded repair", () => {
   const v = openCard();
   v.handshake();
