@@ -842,9 +842,30 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
          status="SERVICE FAILED";
        }
      }
+     if(status==="UNKNOWN"&&(message.error||(message.result&&message.result.isError))){
+       // Only fixed, known supervisor error markers become user-facing labels.
+       // Never echo raw exceptions, endpoints, configurations or credentials.
+       var err=message.error&&typeof message.error.message==="string"?message.error.message:"";
+       var blocks=message.result&&Array.isArray(message.result.content)?message.result.content:[];
+       for(var k=0;k<Math.min(3,blocks.length);k++){
+         if(blocks[k]&&typeof blocks[k].text==="string")err+=blocks[k].text.slice(0,4096);
+       }
+       if(err.indexOf("SUPERVISOR_UNAVAILABLE")!==-1||
+          err.indexOf("SUPERVISOR_NOT_CONFIGURED")!==-1)status="SETUP REQUIRED";
+       else if(err.indexOf("SUPERVISOR_SERVICE_NOT_ALLOWED")!==-1)status="NOT SUPPORTED";
+     }
      text(service==="agent"?"fleetAgentState":"fleetGatewayState",status);
      supervisorPending--;
-     if(supervisorPending===0)text("fleetSupervisorDetail","Supervisor RPC results are a snapshot; restart support, process identity and permissions require independent verified evidence.");
+     if(supervisorPending===0){
+       var a=document.getElementById("fleetAgentState").textContent;
+       var g=document.getElementById("fleetGatewayState").textContent;
+       var detail=a==="SETUP REQUIRED"||g==="SETUP REQUIRED"?
+         "Verified Supervisor RPC unavailable. A one-time approved, signed host-side setup is required; the browser cannot install privileged services.":
+         g==="NOT SUPPORTED"?
+           "This device does not expose a gateway Supervisor service. Agent status is separate; do not attempt gateway restart.":
+           "Supervisor RPC results are a snapshot; restart support, process identity and permissions require independent verified evidence.";
+       text("fleetSupervisorDetail",detail);
+     }
      return;
    }
    if((message.id===9&&connectPending)||(message.id===10&&pairPending)){
