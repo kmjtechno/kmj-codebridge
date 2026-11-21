@@ -753,7 +753,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      var scopeMatched=verifyScope&&selection&&
        selection.device===verifyScope.device&&selection.project===verifyScope.project;
      var exact=checked&&!message.error&&!message.result.isError&&
-       Array.isArray(checked.devices)&&checked.devices.length===1&&scopeMatched&&
+       Array.isArray(checked.devices)&&checked.devices.length===1&&
+       checked.devices[0]&&typeof checked.devices[0]==="object"&&scopeMatched&&
        checked.devices[0].device===verifyScope.device&&
        checked.devices[0].project===verifyScope.project;
      var live=exact&&checked.devices[0].status==="READY"&&
