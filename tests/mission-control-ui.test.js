@@ -1358,6 +1358,74 @@ test("Read-only Supervisor checks cannot manufacture an active agent or restart 
   );
 });
 
+test("Supervisor unavailable and unsupported platform are distinct, safe statuses", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyHost(7, "SUPERVISOR_UNAVAILABLE");
+  v.replyHost(8, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+  assert.match(v.element("fleetSupervisorDetail").textContent, /approved, signed host-side setup/);
+  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+});
+
+test("Unsupported Windows gateway is labeled without inventing healthy process identity", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      platform: "win32",
+      supervisor: "windows-native",
+      installed: true,
+      state: "unknown",
+      activeProcessRuntime: {
+        verified: false,
+        reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+      },
+      restart: { supported: false },
+    },
+  });
+  v.replyResult(8, {
+    isError: true,
+    content: [{ type: "text", text: "SUPERVISOR_SERVICE_NOT_ALLOWED" }],
+  });
+  assert.equal(v.element("fleetAgentState").textContent, "PROCESS UNVERIFIED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+  assert.match(v.element("fleetSupervisorDetail").textContent, /does not expose a gateway Supervisor/);
+  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+});
+
 test("Pairing remains official domain-owner approval and never starts untrusted installer", () => {
   const v = openCard();
   v.handshake();
