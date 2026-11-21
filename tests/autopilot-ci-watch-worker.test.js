@@ -169,10 +169,26 @@ test("incomplete, successful, unrelated, stale or non-push runs are never execut
     { event: "pull_request" },
     { jobSha: "b".repeat(40) },
     { jobConclusion: "success" },
-    { runCount: 11 },
   ]) {
     const f = fixture(t, options);
     await f.worker.tick();
+    assert.equal(f.journal.state.tasks.length, 0);
+  }
+});
+
+test("GitHub history beyond one page still admits the bounded exact-head failure", async (t) => {
+  const f = fixture(t, { runCount: 250 });
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 1);
+  assert.equal(f.journal.state.tasks[0].key, "auto-repair:format:" + HEAD);
+});
+
+test("malformed GitHub total_count fails closed without queueing", async (t) => {
+  for (const runCount of [-1, 0, 1.5, Number.MAX_SAFE_INTEGER + 1]) {
+    const f = fixture(t, { runCount });
+    await f.worker.tick();
+    assert.equal(f.calls.length, 1);
     assert.equal(f.journal.state.tasks.length, 0);
   }
 });
