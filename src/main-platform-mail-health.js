@@ -97,7 +97,7 @@ export function aggregateEliteMailHealth(
     inspection: "PASS",
     postfixActive: stateFromUnit(postfixState) === "active",
     opendkimActive: stateFromUnit(opendkimState) === "active",
-    directMxPrimaryConfigured: safeText(relayhost) === "",
+    directMxPrimaryConfigured: typeof relayhost === "string" && safeText(relayhost) === "",
     brevoFallbackConfigured: safeText(fallback) === "[smtp-relay.brevo.com]:587",
     queueMessages: messages,
     queueRecipients: recipients,
