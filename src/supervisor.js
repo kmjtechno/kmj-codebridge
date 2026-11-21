@@ -34,6 +34,10 @@ const CONFIGS = {
 // profile. Default/Main Platform routing stays unchanged on every other host.
 const CLOUDOS_SUPERVISOR_PROFILE = "cloudos";
 const ELITE_CLOUDOS_SUPERVISOR_PROFILE = "cloudos-elite";
+// Separate from the Main Platform and CloudOS privileges: allow only
+// status/device/disk for the enrolled kmjdev development agent.
+const ELITE_DEV_SUPERVISOR_PROFILE = "codebridge-dev-elite";
+const ELITE_DEV_AGENT_UNIT = "kmj-codebridge-dev.service";
 // Dedicated Elite CloudOS agent only; never target the Main Platform agent.
 const ELITE_CLOUDOS_AGENT_UNIT = "kmj-codebridge-kmj-cloudos.service";
 const ELITE_CLOUDOS_READONLY_OPERATIONS = new Set([
@@ -150,13 +154,16 @@ function exactKeys(value, allowed) {
 function serviceUnit(service, run, profile = "default") {
   if (
     profile === CLOUDOS_SUPERVISOR_PROFILE ||
-    profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
+    profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE ||
+    profile === ELITE_DEV_SUPERVISOR_PROFILE
   ) {
     if (service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
     const fixedAgentUnit =
-      profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
-        ? ELITE_CLOUDOS_AGENT_UNIT
-        : CLOUDOS_AGENT_UNIT;
+      profile === ELITE_DEV_SUPERVISOR_PROFILE
+        ? ELITE_DEV_AGENT_UNIT
+        : profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE
+          ? ELITE_CLOUDOS_AGENT_UNIT
+          : CLOUDOS_AGENT_UNIT;
     const fields = parseProperties(
       run(SYSTEMCTL, [
         "show",
@@ -1528,6 +1535,7 @@ export function createSupervisorHandler({
       "default",
       CLOUDOS_SUPERVISOR_PROFILE,
       ELITE_CLOUDOS_SUPERVISOR_PROFILE,
+      ELITE_DEV_SUPERVISOR_PROFILE,
     ].includes(profile)
   )
     fail("SUPERVISOR_PROFILE_INVALID");
@@ -1706,7 +1714,8 @@ export function createSupervisorHandler({
     // resource inventory. No restart, config read, arbitrary project scope,
     // gateway update, developer broker, or production action.
     if (
-      profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE &&
+      (profile === ELITE_CLOUDOS_SUPERVISOR_PROFILE ||
+        profile === ELITE_DEV_SUPERVISOR_PROFILE) &&
       !ELITE_CLOUDOS_READONLY_OPERATIONS.has(request.op)
     )
       fail("SUPERVISOR_OPERATION_NOT_ALLOWED");
@@ -1870,9 +1879,12 @@ export function createSupervisorHandler({
 
     if (request.op === "disk_space") {
       exactKeys(request, ["op"]);
-      const target = fs.existsSync("/var/lib/kmj-codebridge")
-        ? "/var/lib/kmj-codebridge"
-        : "/";
+      const target =
+        profile === ELITE_DEV_SUPERVISOR_PROFILE
+          ? "/var/lib/kmj-codebridge-dev"
+          : fs.existsSync("/var/lib/kmj-codebridge")
+            ? "/var/lib/kmj-codebridge"
+            : "/";
       const stats = statfs(target);
       const blockSize = Number(stats.bsize);
       return {

@@ -9,6 +9,11 @@ export const SUPERVISOR_SOCKET = "/run/kmj-codebridge/supervisor.sock";
 // the Main Platform principal and must never be chmod/chgrp/ACL-shared.
 export const ELITE_CLOUDOS_SUPERVISOR_SOCKET =
   "/run/kmj-codebridge-cloudos/supervisor.sock";
+// The separately enrolled kmjdev agent must NOT share the Main Platform or
+// CloudOS root socket. Only an operator-installed fixed read-only profile may
+// listen on this exact dedicated socket.
+export const ELITE_DEV_SUPERVISOR_SOCKET =
+  "/run/kmj-codebridge-dev/supervisor.sock";
 export function isAuthorizedSupervisorSocket(
   socketPath,
   platform = process.platform,
@@ -17,7 +22,8 @@ export function isAuthorizedSupervisorSocket(
     platform !== "win32" &&
     path.posix.isAbsolute(String(socketPath)) &&
     (socketPath === SUPERVISOR_SOCKET ||
-      socketPath === ELITE_CLOUDOS_SUPERVISOR_SOCKET)
+      socketPath === ELITE_CLOUDOS_SUPERVISOR_SOCKET ||
+      socketPath === ELITE_DEV_SUPERVISOR_SOCKET)
   );
 }
 const MAX_RESPONSE_BYTES = 65536;

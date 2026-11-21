@@ -26,6 +26,7 @@ import {
   supervisorRequest,
   windowsSupervisorRequest,
   ELITE_CLOUDOS_SUPERVISOR_SOCKET,
+  ELITE_DEV_SUPERVISOR_SOCKET,
 } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
 import {
@@ -45,6 +46,30 @@ import { VERSION } from "./version.js";
 // Must stay above the gateway's AGENT_POLL_WAIT_CAP_MS (src/gateway.js), or an
 // idle long poll is aborted and counted as a connection failure.
 export const AGENT_REQUEST_TIMEOUT_MS = 20000;
+// Exact project-binding guard shared by startup and hermetic profile tests.
+// A dedicated socket never authorizes access to a different enrolled project.
+export function assertSupervisorProjectSocketScope(config) {
+  const scopes = [
+    [
+      ELITE_CLOUDOS_SUPERVISOR_SOCKET,
+      "kmj-cloudos",
+      "ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH",
+    ],
+    [
+      ELITE_DEV_SUPERVISOR_SOCKET,
+      "kmj-codebridge",
+      "ELITE_DEV_SUPERVISOR_PROJECT_MISMATCH",
+    ],
+  ];
+  for (const [socket, project, reason] of scopes) {
+    if (
+      config.supervisorSocket === socket &&
+      (config.projects?.length !== 1 || config.projects[0]?.id !== project)
+    )
+      throw new Error(reason);
+  }
+}
+
 export async function startAgent(
   rawConfig,
   { createUpdateGuard = (options) => new AgentUpdateGuard(options) } = {},
@@ -156,14 +181,7 @@ export async function startAgent(
         });
     },
   });
-  // The Elite CloudOS socket belongs to one dedicated, non-Main-Platform
-  // project. Even a misconfigured enrolled agent must not select it for a
-  // different project identity or a multi-project process.
-  if (
-    c.supervisorSocket === ELITE_CLOUDOS_SUPERVISOR_SOCKET &&
-    (c.projects?.length !== 1 || c.projects[0]?.id !== "kmj-cloudos")
-  )
-    throw new Error("ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH");
+  assertSupervisorProjectSocketScope(c);
   if (c.supervisorSocket && (c.supervisorPipe || c.supervisorTokenFile))
     throw new Error(
       "Configure either the Linux supervisor socket or the Windows pipe, not both.",
