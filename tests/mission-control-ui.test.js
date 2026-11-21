@@ -1040,10 +1040,13 @@ test("READY device Connect click verifies exact scope then automatically checks 
   const req = v.parentMessages.at(-1).message;
   assert.equal(req.method, "tools/call");
   assert.equal(req.params.name, "connection_overview");
-  assert.deepEqual({ ...req.params.arguments }, {
-    expectedDevice: "device1",
-    expectedProject: "project1",
-  });
+  assert.deepEqual(
+    { ...req.params.arguments },
+    {
+      expectedDevice: "device1",
+      expectedProject: "project1",
+    },
+  );
   const before = v.parentMessages.length;
   v.element("connectDevice").handlers.click();
   assert.equal(v.parentMessages.length, before);
@@ -1059,7 +1062,10 @@ test("READY device Connect click verifies exact scope then automatically checks 
       ],
     },
   });
-  assert.match(v.element("fleetActionNotice").textContent, /fresh scoped account status PASS/);
+  assert.match(
+    v.element("fleetActionNotice").textContent,
+    /fresh scoped account status PASS/,
+  );
   assert.deepEqual(
     v.parentMessages.slice(-2).map((item) => item.message.params.name),
     ["supervisor_status", "supervisor_status"],
@@ -1069,7 +1075,9 @@ test("READY device Connect click verifies exact scope then automatically checks 
     false,
   );
   assert.equal(
-    v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"),
+    v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
     false,
   );
 });
@@ -1094,7 +1102,11 @@ test("READY recheck refuses malformed tools response without crashing or creatin
   v.element("connectDevice").handlers.click();
   v.replyResult(11, { structuredContent: { devices: [null] } });
   assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_status"));
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_status",
+    ),
+  );
 });
 
 test("READY recheck refuses swapped scope and converts stale offline to guarded repair", () => {
@@ -1128,7 +1140,11 @@ test("READY recheck refuses swapped scope and converts stale offline to guarded 
     },
   });
   assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_status"));
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_status",
+    ),
+  );
   v.element("connectDevice").handlers.click();
   v.replyResult(11, {
     structuredContent: {
@@ -1147,7 +1163,11 @@ test("READY recheck refuses swapped scope and converts stale offline to guarded 
   const request = v.parentMessages.at(-1).message;
   assert.equal(request.method, "ui/message");
   assert.match(request.params.content.text, /allowlisted/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
 });
 
 test("Connect/Repair is one host-approved click, never an unaudited service restart", () => {
