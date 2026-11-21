@@ -4,6 +4,9 @@ import { spawnSync } from "node:child_process";
 
 const SCRIPT = "scripts/production/render-elite-dev-supervisor-units.py";
 const SHA = "a".repeat(40);
+const VERSION = "0.3.2";
+const RELEASE_PATH =
+  "/opt/kmj-codebridge-stable/releases/" + VERSION + "-" + SHA.slice(0, 12);
 const UNIT = "kmj-codebridge-dev-supervisor";
 const NATIVE_PYTHON = process.platform !== "win32";
 
@@ -18,7 +21,7 @@ test(
   "Elite dev Supervisor units are offline-only and bound to isolated kmjdev principal",
   { skip: !NATIVE_PYTHON },
   () => {
-    const process = render("--source-sha", SHA);
+    const process = render("--source-sha", SHA, "--version", VERSION);
     assert.equal(process.status, 0, process.stderr);
     const result = JSON.parse(process.stdout);
     assert.equal(result.mode, "OFFLINE_RENDER_ONLY");
@@ -54,16 +57,13 @@ test(
     assert.match(service, /^AmbientCapabilities=$/m);
     assert.match(
       service,
-      new RegExp(
-        "^WorkingDirectory=/opt/kmj-codebridge-dev-supervisor/" + SHA + "$",
-        "m",
-      ),
+      new RegExp("^WorkingDirectory=" + RELEASE_PATH + "$", "m"),
     );
     assert.match(
       service,
       new RegExp(
-        "^ExecStart=/opt/kmj-codebridge-node/bin/node /opt/kmj-codebridge-dev-supervisor/" +
-          SHA +
+        "^ExecStart=/opt/kmj-codebridge-node/bin/node " +
+          RELEASE_PATH +
           "/src/cli\\.js supervisor$",
         "m",
       ),
@@ -106,7 +106,7 @@ test(
       "A".repeat(40),
       SHA + "/../escape",
     ]) {
-      const result = render("--source-sha", sha);
+      const result = render("--source-sha", sha, "--version", VERSION);
       assert.notEqual(result.status, 0);
       assert.equal(result.stdout, "");
     }
@@ -116,9 +116,21 @@ test(
       "/home/kmjdev/node",
       "/usr/local/bin/node",
     ]) {
-      const result = render("--source-sha", SHA, "--node", node);
+      const result = render(
+        "--source-sha",
+        SHA,
+        "--version",
+        VERSION,
+        "--node",
+        node,
+      );
       assert.notEqual(result.status, 0);
       assert.equal(result.stdout, "");
+    }
+    for (const badVersion of ["", "main", "0.3.2/../x", "0.3.2-beta"]) {
+      const bad = render("--source-sha", SHA, "--version", badVersion);
+      assert.notEqual(bad.status, 0);
+      assert.equal(bad.stdout, "");
     }
     const noArgs = render();
     assert.notEqual(noArgs.status, 0);
@@ -130,7 +142,14 @@ test(
   "Elite dev unit renderer permits the second fixed root-managed Node alternative only",
   { skip: !NATIVE_PYTHON },
   () => {
-    const result = render("--source-sha", SHA, "--node", "/usr/bin/node");
+    const result = render(
+      "--source-sha",
+      SHA,
+      "--version",
+      VERSION,
+      "--node",
+      "/usr/bin/node",
+    );
     assert.equal(result.status, 0, result.stderr);
     const service = JSON.parse(result.stdout).units[UNIT + ".service"];
     assert.match(service, /^ExecStart=\/usr\/bin\/node /m);
