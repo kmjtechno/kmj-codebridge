@@ -123,7 +123,7 @@ test("chain names cannot escape the pins or snapshot directories", async () => {
   }
 });
 
-test("tools.js defaults to the configured factory; gateway tool set is unchanged", () => {
+test("MCP tools and agent cloud coding both use the owner-configured verifier", () => {
   const t = fs.readFileSync("src/tools.js", "utf8");
   assert.match(t, /freeLlmApiFactory = createConfiguredFreeLlmApiClient/);
   assert.ok(!/from "\.\/freellmapi-zero-cost-verifier\.js"/.test(t));
@@ -133,8 +133,6 @@ test("tools.js defaults to the configured factory; gateway tool set is unchanged
   );
   assert.deepEqual(
     importers.sort(),
-    ["freellmapi-runtime.js", "tools.js"].filter(
-      (f) => f !== "freellmapi-runtime.js",
-    ),
+    ["agent.js", "tools.js"],
   );
 });
