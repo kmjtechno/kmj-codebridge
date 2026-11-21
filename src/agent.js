@@ -20,6 +20,7 @@ import {
   codingRouteApproved,
 } from "./autopilot-coding-worker.js";
 import { createVerifiedFreeCloudCodingModel } from "./cloud-coding-model.js";
+import { createConfiguredFreeLlmApiClient } from "./freellmapi-runtime.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
 import {
@@ -276,6 +277,12 @@ export async function startAgent(
     cloudModel: (project) => {
       const approvedConfig = project.autopilotCodingWorker;
       return createVerifiedFreeCloudCodingModel({
+        // Use the SAME owner-controlled zero-cost verifier wiring as the
+        // read-only FreeLLMAPI tools. The plain client rejects all routes
+        // even when independently attested device proofs are installed.
+        // This remains fail-closed if the device's owner-controlled key,
+        // pinned route manifest, snapshot or verified free quota is absent.
+        createClient: createConfiguredFreeLlmApiClient,
         authorized: () =>
           project.writable === true &&
           project.autopilotCodingWorker === approvedConfig &&
