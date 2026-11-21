@@ -110,12 +110,14 @@ test("Main Platform client capture reports the missing fixed offsite diagnostic 
   );
   assert.deepEqual(result.blockerRecovery.clientModelToolsMissing, [
     "supervisor_main_platform_offsite_diagnostic",
+    "supervisor_main_platform_offsite_exit3_diagnostic",
   ]);
   const blocker = result.blockerRecovery.blockers.find(
     (entry) => entry.code === "CLIENT_TOOL_NOT_ADVERTISED",
   );
   assert.deepEqual(blocker?.evidence.missingTools, [
     "supervisor_main_platform_offsite_diagnostic",
+    "supervisor_main_platform_offsite_exit3_diagnostic",
   ]);
   assert.equal(blocker?.evidenceSource, "CALLER_CLIENT_TOOL_SNAPSHOT");
   assert.match(blocker?.nextAction ?? "", /refresh app\/catalog/);
@@ -151,6 +153,30 @@ test("project-required client tool names are fixed and cannot request arbitrary 
       }),
     /INVALID_FIXED_CLIENT_TOOL_POLICY/,
   );
+  const withExit3 = inspectBlockers({
+    fixedProjectRequiredTools: [
+      "supervisor_main_platform_offsite_diagnostic",
+      "supervisor_main_platform_offsite_exit3_diagnostic",
+    ],
+  });
+  assert.equal(withExit3.clientModelToolsMissing, null);
+  for (const wrong of [
+    ["supervisor_main_platform_offsite_exit3_diagnostic"],
+    [
+      "supervisor_main_platform_offsite_exit3_diagnostic",
+      "supervisor_main_platform_offsite_diagnostic",
+    ],
+    [
+      "supervisor_main_platform_offsite_diagnostic",
+      "supervisor_main_platform_offsite_exit3_diagnostic",
+      "supervisor_main_platform_production_activate",
+    ],
+  ]) {
+    assert.throws(
+      () => inspectBlockers({ fixedProjectRequiredTools: wrong }),
+      /INVALID_FIXED_CLIENT_TOOL_POLICY/,
+    );
+  }
   const withoutCapture = inspectBlockers({
     fixedProjectRequiredTools: ["supervisor_main_platform_offsite_diagnostic"],
   });

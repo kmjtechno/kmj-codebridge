@@ -16,6 +16,10 @@ import {
   runOffsiteDiagnostic,
 } from "./offsite-diagnostic-policy.js";
 import {
+  EXIT3_DIAGNOSTIC_CONFIRMATION,
+  runExit3Diagnostic,
+} from "./offsite-exit3-diagnostic-policy.js";
+import {
   attestMainPlatformStaging,
   STAGING_DEPLOY_UNIT,
 } from "./main-platform-staging-unit-policy.js";
@@ -2395,6 +2399,29 @@ export function createSupervisorHandler({
       return {
         response: {
           mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+          scope: "kmj-main-platform",
+          unit: "kmj-elite-offsite-backup.service",
+          diagnostic,
+          mutations: "NONE",
+          rawJournalExposed: false,
+          recentBackupVerified: false,
+          restoreVerified: false,
+          productionReleaseApprovedByThisCheck: false,
+        },
+      };
+    }
+
+    // Separate, byte-pinned root diagnostic for exit-3. A stale, uninstalled,
+    // mismatched or replaced script fails closed; no caller-selected shell,
+    // paths, service or invocation. Classification is not backup proof.
+    if (request.op === "main_platform_offsite_exit3_diagnostic") {
+      exactKeys(request, ["op", "confirmation"]);
+      if (request.confirmation !== EXIT3_DIAGNOSTIC_CONFIRMATION)
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const diagnostic = runExit3Diagnostic({ run, lstat, readFile });
+      return {
+        response: {
+          mode: "READ_ONLY_FIXED_EXIT3_DIAGNOSTIC",
           scope: "kmj-main-platform",
           unit: "kmj-elite-offsite-backup.service",
           diagnostic,
