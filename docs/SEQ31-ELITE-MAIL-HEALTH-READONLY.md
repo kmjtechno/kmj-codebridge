@@ -18,7 +18,7 @@ read scope requires owner security review before merge or signed cutover.
     `smtp_fallback_relay`.
   - Fixed `systemctl show postfix.service/opendkim.service` ActiveState.
 - Pure parser outputs only queue message/recipient counts, service boolean
-  states, route booleans, historical SMTP code *categories*, age buckets and
+  states, route booleans, historical SMTP code _categories_, age buckets and
   bounded uptime/lifetime fields. **Never returns SMTP response strings,
   email addresses, queue identifiers, envelope senders, recipient addresses,
   message headers, bodies, credentials or raw journal.**
