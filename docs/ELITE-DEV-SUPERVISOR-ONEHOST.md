@@ -79,7 +79,12 @@ A separate operator-controlled, signed and pinned Elite-only installer must:
 4. Prove the dedicated socket and systemd unit names are absent or an exact,
    byte-identical previously installed instance; **never overwrite** another
    service or socket. Service runs as **kmjdev**, not root.
-5. Create in the root-controlled systemd directory using a private\n   temporary inode, fsync its complete bytes, and atomically hard-link\n   create-only into the **absent** final unit name. Never rename-overwrite an\n   existing unit or expose a partially written file. Fail closed on any\n   collision; do not restart the enrolled agent. Roll back only files owned\n   by this invocation, and preserve unrelated pre-existing units.
+5. Create in the root-controlled systemd directory using a private
+   temporary inode, fsync its complete bytes, and atomically hard-link
+   create-only into the **absent** final unit name. Never rename-overwrite an
+   existing unit or expose a partially written file. Fail closed on any
+   collision; do not restart the enrolled agent. Roll back only files owned
+   by this invocation, and preserve unrelated pre-existing units.
 6. Validate with systemd and a real authenticated/authorized read-only RPC
    probe. The socket must be `0600`, owned by `kmjdev`, with correct
    directory traversal permissions, and must not grant Main Platform or
