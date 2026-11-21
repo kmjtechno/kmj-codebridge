@@ -243,7 +243,7 @@ def signed_source(revision):
          "SIGNED_RELEASE_NOT_CURRENT")
     need(Path(__file__).absolute() == source / THIS_FILE,
          "OWNER_INSTALLER_MUST_RUN_FROM_SIGNED_RELEASE")
-    return source
+    return source, d["version"]
 
 
 def verify_enrollment():
@@ -283,13 +283,13 @@ def verify_enrollment():
              == "not-found", "DEV_SUPERVISOR_UNIT_COLLISION")
 
 
-def unit_texts(source, revision):
+def unit_texts(source, revision, version):
     file = source / RENDERER
     spec = importlib.util.spec_from_file_location("_kmj_approved_renderer", file)
     need(spec is not None and spec.loader is not None, "RENDERER_NOT_FOUND")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
-    result = mod.render_units(revision, str(NODE))
+    result = mod.render_units(revision, str(NODE), version)
     need(set(result) == {SERVICE_UNIT, SOCKET_UNIT}, "UNITS_UNEXPECTED")
     need(str(source) in result[SERVICE_UNIT], "RELEASE_PATH_MISMATCH")
     return result
@@ -364,9 +364,9 @@ def main(argv):
     need(os.geteuid() == 0
          and socket.gethostname().split(".")[0].lower() == "kmj-elite",
          "ELITE_ROOT_REQUIRED")
-    source = signed_source(revision)
+    source, version = signed_source(revision)
     verify_enrollment()
-    spec = unit_texts(source, revision)
+    spec = unit_texts(source, revision, version)
     print("OWNER_SIGNED_RELEASE_AND_DEV_SCOPE=PASS")
     if not apply:
         print("DEV_SUPERVISOR_INSTALL=DRY_RUN_NO_CHANGES")
