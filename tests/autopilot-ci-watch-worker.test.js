@@ -344,3 +344,48 @@ test("watch worker disabled entirely creates no timers", async () => {
   assert.deepEqual(noOp.enabledProjects, []);
   await noOp.close();
 });
+
+test("unsafe clock and cooldown overflow fail closed without GitHub calls", async (t) => {
+  for (const clock of [
+    NaN,
+    -Infinity,
+    -1,
+    1.5,
+    Number.MAX_SAFE_INTEGER + 1,
+    Infinity,
+  ]) {
+    const f = fixture(t);
+    f.setClock(clock);
+    await f.worker.tick();
+    assert.equal(f.calls.length, 0);
+    assert.equal(f.journal.state.tasks.length, 0);
+  }
+  const overflow = fixture(t);
+  overflow.setClock(Number.MAX_SAFE_INTEGER - 100);
+  await overflow.worker.tick();
+  assert.equal(overflow.calls.length, 0);
+  assert.equal(overflow.journal.state.tasks.length, 0);
+  overflow.setClock(1000000);
+  await overflow.worker.tick();
+  assert.equal(overflow.calls.length, 2, "safe clock resumes polling");
+});
+
+test("invalid clock between ticks preserves cooldown and exact-SHA dedup", async (t) => {
+  const f = fixture(t);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2);
+  assert.equal(f.journal.state.tasks.length, 1);
+
+  f.setClock(Number.NaN);
+  await f.worker.tick();
+  f.setClock(Infinity);
+  await f.worker.tick();
+  f.setClock(1000000);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 2, "invalid samples cannot bypass cooldown");
+
+  f.advance(900000);
+  await f.worker.tick();
+  assert.equal(f.calls.length, 4, "polling resumes after full cooldown");
+  assert.equal(f.journal.state.tasks.length, 1, "repair stays single-flight");
+});
