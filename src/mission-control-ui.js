@@ -527,6 +527,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  // No browser-origin restart, enrollment credentials, token storage or shell.
  var fleet=null,selectedFleet=null,fleetPending=false,fleetRequested=false,fleetPage=0;
  var supervisorPending=0,supervisorScope=null,connectPending=false,pairPending=false;
+ var supervisorRounds=0,supervisorReplyIds={agent:null,gateway:null};
+ var supervisorReceived={agent:false,gateway:false};
  var verifyPending=false,verifyScope=null;
  function validFleetId(s){return typeof s==="string"&&/^[A-Za-z0-9_-]{1,64}$/.test(s);}
  function currentFleetScope(){
@@ -603,6 +605,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  }
  function clearSupervisor(){
    supervisorScope=null;supervisorPending=0;
+   supervisorReplyIds={agent:null,gateway:null};
+   supervisorReceived={agent:false,gateway:false};
    text("fleetAgentState","UNKNOWN");text("fleetGatewayState","UNKNOWN");
    text("fleetSupervisorDetail","No verified Supervisor status for this selection.");
  }
@@ -631,14 +635,22 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  document.getElementById("openDevices").addEventListener("click",function(){tab("devices");});
  function checkSupervisor(){
    var scope=currentFleetScope();
-   if(!initialized||!scope||supervisorPending){text("fleetActionNotice","Refresh and select one authorized device first.");return;}
+   if(!initialized||!scope||supervisorPending||verifyPending||fleetPending||connectPending||pairPending){
+     text("fleetActionNotice","Wait for the current authorized device verification before checking Supervisor.");return;
+   }
    supervisorScope={device:scope.device,project:scope.project};
    supervisorPending=2;
+   // New RPC ids after the first round prevent late replies from an earlier
+   // device check from being mistaken for this round's service evidence.
+   var firstId=supervisorRounds===0?7:12+2*(supervisorRounds-1);
+   supervisorRounds++;
+   supervisorReplyIds={agent:firstId,gateway:firstId+1};
+   supervisorReceived={agent:false,gateway:false};
    text("fleetAgentState","CHECKING");text("fleetGatewayState","CHECKING");
    text("fleetSupervisorDetail","Checking allowlisted agent and gateway service status; no restart.");
    for(var i=0;i<2;i++){
      var service=i===0?"agent":"gateway";
-     window.parent.postMessage({jsonrpc:"2.0",id:i===0?7:8,method:"tools/call",params:{
+     window.parent.postMessage({jsonrpc:"2.0",id:i===0?supervisorReplyIds.agent:supervisorReplyIds.gateway,method:"tools/call",params:{
        name:"supervisor_status",arguments:{device:scope.device,project:scope.project,service:service}
      }},"*");
    }
@@ -819,8 +831,10 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      }else clearSupervisor();
      return;
    }
-   if((message.id===7||message.id===8)&&supervisorPending>0){
-     var service=message.id===7?"agent":"gateway";
+   if((message.id===supervisorReplyIds.agent||message.id===supervisorReplyIds.gateway)&&supervisorPending>0){
+     var service=message.id===supervisorReplyIds.agent?"agent":"gateway";
+     if(supervisorReceived[service])return; // duplicate host RPC, not another service
+     supervisorReceived[service]=true;
      var response=message.result&&message.result.structuredContent;
      var scope=currentFleetScope();
      var status="UNKNOWN";
