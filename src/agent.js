@@ -50,8 +50,16 @@ export const AGENT_REQUEST_TIMEOUT_MS = 20000;
 // A dedicated socket never authorizes access to a different enrolled project.
 export function assertSupervisorProjectSocketScope(config) {
   const scopes = [
-    [ELITE_CLOUDOS_SUPERVISOR_SOCKET, "kmj-cloudos", "ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH"],
-    [ELITE_DEV_SUPERVISOR_SOCKET, "kmj-codebridge", "ELITE_DEV_SUPERVISOR_PROJECT_MISMATCH"],
+    [
+      ELITE_CLOUDOS_SUPERVISOR_SOCKET,
+      "kmj-cloudos",
+      "ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH",
+    ],
+    [
+      ELITE_DEV_SUPERVISOR_SOCKET,
+      "kmj-codebridge",
+      "ELITE_DEV_SUPERVISOR_PROJECT_MISMATCH",
+    ],
   ];
   for (const [socket, project, reason] of scopes) {
     if (
