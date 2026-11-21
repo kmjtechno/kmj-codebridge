@@ -100,25 +100,39 @@ export function createVerifiedFreeCloudCodingModel({
       // applying its returned patch, even though already sent bytes cannot
       // be recalled.
       if (!approved()) deny();
-      if (
-        result?.provider !== "freellmapi-loopback" ||
-        result?.chain !== model ||
-        result?.zeroCostRouteAdmissionVerified !== true ||
-        result?.billingVerified !== false ||
-        result?.paidInference !== null ||
-        result?.actualUpstreamModel !== null ||
-        result?.cloudFallback !== null ||
-        result?.outputIsUntrusted !== true ||
-        typeof result?.response !== "string" ||
-        result.response.trim().length === 0 ||
-        result.response.length > 1_048_576 ||
-        result.response.includes("\0")
-      )
-        throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
+      // A hostile proxy or accessor must never escape the attestation gate
+      // with an arbitrary exception or supply an unvalidated patch.
+      let valid = false;
+      let response;
+      let hitTokenLimit;
+      let truncated;
+      try {
+        valid =
+          result?.provider === "freellmapi-loopback" &&
+          result?.chain === model &&
+          result?.zeroCostRouteAdmissionVerified === true &&
+          result?.billingVerified === false &&
+          result?.paidInference === null &&
+          result?.actualUpstreamModel === null &&
+          result?.cloudFallback === null &&
+          result?.outputIsUntrusted === true &&
+          typeof result?.response === "string" &&
+          result.response.trim().length > 0 &&
+          result.response.length <= 1_048_576 &&
+          !result.response.includes("\\0");
+        if (valid) {
+          response = result.response;
+          hitTokenLimit = result.hitTokenLimit === true;
+          truncated = result.truncated === true;
+        }
+      } catch {
+        valid = false;
+      }
+      if (!valid) throw new Error("CLOUD_CODING_ATTESTATION_INVALID");
       return {
-        response: result.response,
-        hitTokenLimit: result.hitTokenLimit === true,
-        truncated: result.truncated === true,
+        response,
+        hitTokenLimit,
+        truncated,
         modelUsage: cloudCodingReceipt(model),
       };
     },

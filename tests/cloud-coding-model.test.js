@@ -249,3 +249,24 @@ test("cloud status fails closed when consent is revoked during zero-cost verific
     models: [],
   });
 });
+
+test("cloud generation rejects hostile receipt getters without exposing their exceptions", async () => {
+  for (const field of ["provider", "response", "hitTokenLimit", "truncated"]) {
+    const model = createVerifiedFreeCloudCodingModel({
+      authorized: () => true,
+      createClient: () => ({
+        generate: async () =>
+          new Proxy(receipt(), {
+            get(target, key) {
+              if (key === field) throw new Error("HOSTILE_RECEIPT_GETTER");
+              return Reflect.get(target, key);
+            },
+          }),
+      }),
+    });
+    await assert.rejects(
+      model.generate({ model: "auto:code", prompt: "private" }),
+      /CLOUD_CODING_ATTESTATION_INVALID/,
+    );
+  }
+});
