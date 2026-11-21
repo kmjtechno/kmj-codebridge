@@ -3769,7 +3769,9 @@ export function createDispatcher(
         !p.writable
       )
         fail("ACCESS_DENIED");
-      const result = await supervisor.request({ op: "main_platform_mail_health" });
+      const result = await supervisor.request({
+        op: "main_platform_mail_health",
+      });
       // Trust is verified at this boundary too. Never reflect unknown
       // privileged provider fields even if the Supervisor is misconfigured.
       const raw = result?.response;
@@ -3777,8 +3779,11 @@ export function createDispatcher(
         fail("SUPERVISOR_RECEIPT_INVALID");
       const validCount = (n, maximum = 100000) =>
         Number.isSafeInteger(n) && n >= 0 && n <= maximum ? n : null;
-      const validFloat = (n, maximum = 100000) =>
-        typeof n === "number" && Number.isFinite(n) && n >= 0 && n <= maximum ? n : null;
+      const validFloat = (n) => {
+        if (typeof n !== "number" || !Number.isFinite(n) || n < 0 || n > 100000)
+          return null;
+        return n;
+      };
       const allow = (obj, keys) => {
         const clean = {};
         if (obj && typeof obj === "object" && !Array.isArray(obj)) {
@@ -3790,36 +3795,70 @@ export function createDispatcher(
         return clean;
       };
       const categoryKeys = [
-        "SMTP_525", "SMTP_535", "SMTP_530", "SMTP_454", "SMTP_450",
-        "AUTH_OTHER", "TIMEOUT", "CONNECTION_REFUSED", "NETWORK_UNREACHABLE",
-        "DNS", "TLS", "OTHER_REDACTED", "NO_DELAY_REASON", "UNCLASSIFIED",
+        "SMTP_525",
+        "SMTP_535",
+        "SMTP_530",
+        "SMTP_454",
+        "SMTP_450",
+        "AUTH_OTHER",
+        "TIMEOUT",
+        "CONNECTION_REFUSED",
+        "NETWORK_UNREACHABLE",
+        "DNS",
+        "TLS",
+        "OTHER_REDACTED",
+        "NO_DELAY_REASON",
+        "UNCLASSIFIED",
       ];
-      return { response: {
-        schema: "KMJ_ELITE_MAIL_HEALTH_V1",
-        mode: "READ_ONLY",
-        scope: "kmj-main-platform",
-        inspection: raw.inspection === "PASS" ? "PASS" : "UNAVAILABLE",
-        postfixActive: raw.postfixActive === true,
-        opendkimActive: raw.opendkimActive === true,
-        directMxPrimaryConfigured: raw.directMxPrimaryConfigured === true,
-        brevoFallbackConfigured: raw.brevoFallbackConfigured === true,
-        queueMessages: validCount(raw.queueMessages),
-        queueRecipients: validCount(raw.queueRecipients),
-        queueStates: allow(raw.queueStates, ["deferred", "active", "incoming", "hold", "maildrop", "corrupt", "unknown"]),
-        queueAgeBuckets: allow(raw.queueAgeBuckets, [
-          "AT_OR_OVER_LIFETIME", "WITHIN_24H_OF_LIFETIME",
-          "BELOW_WARNING_WINDOW", "THRESHOLD_UNKNOWN",
-        ]),
-        oldestHours: validFloat(raw.oldestHours),
-        unknownAgeMessages: validCount(raw.unknownAgeMessages),
-        maximalQueueLifetimeHours: validCount(raw.maximalQueueLifetimeHours, 8760),
-        lastRecordedDelayCategories: allow(raw.lastRecordedDelayCategories, categoryKeys),
-        queueDrained: raw.queueDrained === true ? true : raw.queueDrained === false ? false : null,
-        recipientDeliveryProven: false,
-        rootCommandExecutedForMutation: false,
-        queueMutation: "NONE",
-        dnsMutation: "NONE",
-      }};
+      const queueStateKeys = [
+        "deferred",
+        "active",
+        "incoming",
+        "hold",
+        "maildrop",
+        "corrupt",
+        "unknown",
+      ];
+      const queueAgeKeys = [
+        "AT_OR_OVER_LIFETIME",
+        "WITHIN_24H_OF_LIFETIME",
+        "BELOW_WARNING_WINDOW",
+        "THRESHOLD_UNKNOWN",
+      ];
+      let queueDrained = null;
+      if (typeof raw.queueDrained === "boolean")
+        queueDrained = raw.queueDrained;
+      return {
+        response: {
+          schema: "KMJ_ELITE_MAIL_HEALTH_V1",
+          mode: "READ_ONLY",
+          scope: "kmj-main-platform",
+          inspection: raw.inspection === "PASS" ? "PASS" : "UNAVAILABLE",
+          postfixActive: raw.postfixActive === true,
+          opendkimActive: raw.opendkimActive === true,
+          directMxPrimaryConfigured: raw.directMxPrimaryConfigured === true,
+          brevoFallbackConfigured: raw.brevoFallbackConfigured === true,
+          queueMessages: validCount(raw.queueMessages),
+          queueRecipients: validCount(raw.queueRecipients),
+          queueStates: allow(raw.queueStates, queueStateKeys),
+          queueAgeBuckets: allow(raw.queueAgeBuckets, queueAgeKeys),
+          oldestHours: validFloat(raw.oldestHours),
+          unknownAgeMessages: validCount(raw.unknownAgeMessages),
+          maximalQueueLifetimeHours: validCount(
+            raw.maximalQueueLifetimeHours,
+            8760,
+          ),
+          lastRecordedDelayCategories: allow(
+            raw.lastRecordedDelayCategories,
+            categoryKeys,
+          ),
+          queueDrained,
+          recipientDeliveryProven: false,
+          rootCommandExecutedForMutation: false,
+          queueMutation: "NONE",
+          dnsMutation: "NONE",
+        },
+      };
     }
     if (name === "supervisor_main_platform_health_unit_receipt") {
       if (
