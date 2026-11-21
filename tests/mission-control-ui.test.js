@@ -1019,6 +1019,78 @@ test("Devices tab checks authenticated account fleet only after a real click", (
   assert.equal(v.element("fleet-device-1").hidden, false);
 });
 
+test("Device pages cover authorized entries beyond 12, without granting a new device", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  const devices = Array.from({ length: 25 }, (_, index) => ({
+    device: "device" + index,
+    project: "project1",
+    status: index === 24 ? "AGENT_OFFLINE" : "READY",
+    connectionState: index === 24 ? "offline" : "online",
+  }));
+  v.replyResult(6, { structuredContent: { devices } });
+  assert.equal(v.element("fleetKnown").textContent, "25");
+  assert.equal(v.element("fleetReady").textContent, "24");
+  assert.equal(v.element("fleetPageInfo").textContent, "Showing 1–12 of 25 authorized entries");
+  assert.equal(v.element("fleetPrev").disabled, true);
+  assert.equal(v.element("fleetNext").disabled, false);
+  v.element("fleetNext").handlers.click();
+  assert.equal(v.element("fleetPageInfo").textContent, "Showing 13–24 of 25 authorized entries");
+  assert.match(v.element("fleet-device-0").textContent, /device12/);
+  v.element("fleetNext").handlers.click();
+  assert.equal(v.element("fleetPageInfo").textContent, "Showing 25–25 of 25 authorized entries");
+  assert.equal(v.element("fleetNext").disabled, true);
+  assert.equal(v.element("fleet-device-1").hidden, true);
+  v.element("fleet-device-0").handlers.click();
+  assert.match(v.element("fleetSelected").textContent, /device24 \/ project1/);
+  v.element("fleetPrev").handlers.click();
+  assert.match(v.element("fleetSelected").textContent, /device24 \/ project1/);
+  v.element("fleetNext").handlers.click();
+  assert.equal(v.element("fleet-device-0").attributes["aria-pressed"], "true");
+  v.element("connectDevice").handlers.click();
+  const action = v.parentMessages.at(-1).message;
+  assert.equal(action.method, "ui/message");
+  assert.match(action.params.content.text, /device24 project project1/);
+  assert.equal(
+    v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"),
+    false,
+  );
+});
+
+test("Fleet refresh preserves selected grant and page but clamps after device removal", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  const rows = Array.from({ length: 13 }, (_, index) => ({
+    device: "d" + index,
+    project: "project1",
+    status: "READY",
+    connectionState: "online",
+  }));
+  v.replyResult(6, { structuredContent: { devices: rows } });
+  v.element("fleetNext").handlers.click();
+  v.element("fleet-device-0").handlers.click();
+  assert.match(v.element("fleetSelected").textContent, /d12/);
+  v.element("refreshFleet").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [...rows].reverse(),
+    },
+  });
+  assert.equal(v.element("fleetPageInfo").textContent, "Showing 1–12 of 13 authorized entries");
+  assert.equal(v.element("fleet-device-0").attributes["aria-pressed"], "true");
+  assert.match(v.element("fleetSelected").textContent, /d12/);
+  v.element("refreshFleet").handlers.click();
+  v.replyResult(6, {
+    structuredContent: { devices: rows.slice(0, 5) },
+  });
+  assert.equal(v.element("fleetPrev").disabled, true);
+  assert.equal(v.element("fleetNext").disabled, true);
+  assert.equal(v.element("fleetPageInfo").textContent, "Showing 1–5 of 5 authorized entries");
+  assert.match(v.element("fleetSelected").textContent, /Select an account-authorized device/);
+});
+
 test("READY device Connect click verifies exact scope then automatically checks Supervisor", () => {
   const v = openCard();
   v.handshake();
