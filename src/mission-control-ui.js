@@ -150,6 +150,16 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 .kmj-workspace .kmj-composer-actions button{min-height:42px}
 .kmj-workspace .kmj-composer .kmj-shortcut{font-size:12px;margin:7px 0 0;color:#acbdd3}
 @media(max-width:640px){.kmj-workspace nav[role="tablist"]{overflow-x:auto;flex-wrap:nowrap}.kmj-workspace nav[role="tablist"] button{flex:0 0 auto;min-width:86px}.kmj-workspace .kmj-composer textarea{font-size:16px}}
+.kmj-fleet-controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;margin:14px 0}
+.kmj-fleet-controls button{min-height:42px;padding:9px 12px;border:1px solid var(--edge);border-radius:10px;color:var(--text);background:var(--glass);cursor:pointer;font-size:12px;font-weight:650}
+.kmj-fleet-controls button:hover{border-color:rgba(121,230,227,.4)}
+.kmj-fleet-controls button:focus-visible,.kmj-device-item:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+.kmj-fleet-controls button:disabled{opacity:.48;cursor:not-allowed}
+.kmj-device-list{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:8px;margin:12px 0}
+.kmj-device-item{width:100%;min-height:54px;text-align:left;border:1px solid var(--edge);border-radius:11px;background:rgba(16,24,45,.75);color:#d6e4f2;padding:10px;cursor:pointer;overflow-wrap:anywhere;font-size:11px}
+.kmj-device-item[aria-pressed="true"]{border-color:var(--cyan);background:rgba(121,230,227,.13)}
+.kmj-fleet-selected{border:1px solid var(--edge);border-radius:10px;background:rgba(16,24,45,.6);padding:12px;font-size:12px;overflow-wrap:anywhere}
+@media(max-width:520px){.kmj-fleet-controls button{flex:1 1 130px}.kmj-device-list{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -162,6 +172,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <button type="button" class="kmj-rail-action" data-target-view="work">◷ Workstream</button>
     <button type="button" class="kmj-rail-action" data-target-view="evidence">✓ Verification</button>
     <button type="button" class="kmj-rail-action" data-target-view="workspace">⌘ Project files</button>
+    <button type="button" class="kmj-rail-action" data-target-view="devices">↔ Devices &amp; Services</button>
   </div>
   <p class="kmj-side-heading">Conversations</p>
   <p class="kmj-side-note">Host-managed conversations. No unverified history or cross-project data is displayed.</p>
@@ -190,6 +201,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <button type="button" role="tab" id="tab-work" aria-controls="panel-work" aria-selected="false" data-view="work" tabindex="-1">Workstream</button>
   <button type="button" role="tab" id="tab-evidence" aria-controls="panel-evidence" aria-selected="false" data-view="evidence" tabindex="-1">Evidence</button>
   <button type="button" role="tab" id="tab-workspace" aria-controls="panel-workspace" aria-selected="false" data-view="workspace" tabindex="-1">Workspace</button>
+  <button type="button" role="tab" id="tab-devices" aria-controls="panel-devices" aria-selected="false" data-view="devices" tabindex="-1">Devices</button>
 </nav>
 <section class="panel" id="panel-overview" role="tabpanel" aria-labelledby="tab-overview">
   <div class="cards">
@@ -208,9 +220,51 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <p class="note" id="nextAction">Use a verified CodeBridge tool to inspect the next action.</p>
   <div style="margin-top:10px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
     <button id="refreshProgress" type="button" style="padding:8px 11px;border:1px solid var(--edge);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Refresh progress</button>
+    <button id="openDevices" type="button" style="padding:8px 11px;border:1px solid rgba(121,230,227,.5);border-radius:9px;background:var(--glass);color:var(--text);cursor:pointer">Connect devices &amp; services</button>
     <span class="note" id="progressRefreshNotice" role="status">Status is the last authenticated snapshot, not continuous polling.</span>
   </div>
 
+</section>
+<section class="panel" id="panel-devices" role="tabpanel" aria-labelledby="tab-devices" hidden>
+  <h2 class="sectiontitle">Device &amp; Supervisor Control</h2>
+  <p class="note">One dashboard for owner-authorized devices. Status comes from fresh account grants and supervisor RPC, not from a browser-declared heartbeat. New enrollment still needs owner approval.</p>
+  <div class="cards" style="margin-top:12px">
+    <div class="metric cyan"><label>READY CONNECTIONS</label><b id="fleetReady">—</b><em>Verified account result</em></div>
+    <div class="metric warn"><label>NEED ATTENTION</label><b id="fleetAttention">—</b><em>Never silently restart</em></div>
+    <div class="metric"><label>AUTHORIZED ENTRIES</label><b id="fleetKnown">—</b><em>Latest requested snapshot</em></div>
+  </div>
+  <div class="kmj-fleet-controls">
+    <button type="button" id="refreshFleet">↻ Refresh devices</button>
+    <button type="button" id="checkSupervisor">Check Agent + Supervisor</button>
+    <button type="button" id="connectDevice">Connect / Repair selected</button>
+    <button type="button" id="beginPairing">＋ Pair new device</button>
+  </div>
+  <p class="note" id="fleetNotice" role="status">No account connection result yet. Refresh to load authorized devices.</p>
+  <div class="kmj-fleet-selected"><strong>Selected:</strong> <span id="fleetSelected">Select a verified device below.</span>
+    <p class="note">Agent: <strong id="fleetAgentState">UNKNOWN</strong> · Gateway: <strong id="fleetGatewayState">UNKNOWN</strong></p>
+    <p class="note" id="fleetSupervisorDetail">Supervisor service identity and restart rights have not been checked.</p>
+  </div>
+  <div class="kmj-device-list" aria-label="Account-authorized device and project connections">
+    <button type="button" class="kmj-device-item" id="fleet-device-0" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-1" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-2" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-3" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-4" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-5" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-6" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-7" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-8" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-9" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-10" aria-pressed="false" hidden></button>
+    <button type="button" class="kmj-device-item" id="fleet-device-11" aria-pressed="false" hidden></button>
+  </div>
+  <div class="kmj-fleet-controls" aria-label="Device list pages">
+    <button type="button" id="fleetPrev" disabled>← Previous 12</button>
+    <span class="note" id="fleetPageInfo" role="status">No devices loaded</span>
+    <button type="button" id="fleetNext" disabled>Next 12 →</button>
+  </div>
+  <p class="note" id="fleetActionNotice" role="status">Connect / Repair asks the authenticated host to use existing scoped tools. Host acknowledgment does not prove a reconnect, service start or successful pairing.</p>
+  <p class="note">Unavailable/offline machines cannot be magically started remotely. Never bypass owner browser pairing, Windows HMAC/ACL, signed release, process identity, or an explicit privileged approval.</p>
 </section>
 <section class="panel" id="panel-work" role="tabpanel" aria-labelledby="tab-work" hidden>
   <h2 class="sectiontitle">Tracked task states</h2>
@@ -314,7 +368,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 <script>
 (function(){
  "use strict";
- var views=["overview","work","evidence","workspace"];
+ var views=["overview","work","evidence","workspace","devices"];
  var latest=null;
  function text(id,value){var el=document.getElementById(id);if(el)el.textContent=String(value===null||value===undefined?"—":value).slice(0,128);}
  // Project patches are already redacted and bounded by the scoped gateway.
@@ -328,6 +382,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  function stat(value){return value===null?"—":value;}
  function setEvidence(id,valid){text(id,valid===true?"Verified":"Not reported");}
  function tab(view){
+   if(view==="devices"&&initialized&&!fleetRequested)requestFleet();
    for(var i=0;i<views.length;i++){
      var name=views[i],active=name===view;
      var t=document.getElementById("tab-"+name);
@@ -468,6 +523,170 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      }
    }},"*");
  });
+ // Device control only uses account-scoped MCP tools and host-approved actions.
+ // No browser-origin restart, enrollment credentials, token storage or shell.
+ var fleet=null,selectedFleet=null,fleetPending=false,fleetRequested=false,fleetPage=0;
+ var supervisorPending=0,supervisorScope=null,connectPending=false,pairPending=false;
+ var supervisorRounds=0,supervisorReplyIds={agent:null,gateway:null};
+ var supervisorReceived={agent:false,gateway:false};
+ var verifyPending=false,verifyScope=null;
+ function validFleetId(s){return typeof s==="string"&&/^[A-Za-z0-9_-]{1,64}$/.test(s);}
+ function currentFleetScope(){
+   if(!selectedFleet||!Array.isArray(fleet))return null;
+   for(var i=0;i<fleet.length;i++){
+     var item=fleet[i];
+     if(item.device===selectedFleet.device&&item.project===selectedFleet.project)return item;
+   }
+   return null;
+ }
+ function showSelected(){
+   var scope=currentFleetScope();
+   text("fleetSelected",scope?scope.device+" / "+scope.project:"Select an account-authorized device.");
+   var total=fleet?fleet.length:0;
+   var pageCount=Math.max(1,Math.ceil(total/12));
+   fleetPage=Math.max(0,Math.min(fleetPage,pageCount-1));
+   for(var i=0;i<12;i++){
+     var row=document.getElementById("fleet-device-"+i),entry=fleet&&fleet[fleetPage*12+i];
+     row.hidden=!entry;
+     row.setAttribute("aria-pressed",String(!!scope&&!!entry&&scope.device===entry.device&&scope.project===entry.project));
+     if(entry)text("fleet-device-"+i,entry.device+" / "+entry.project+" · "+entry.status);
+   }
+   document.getElementById("fleetPrev").disabled=fleetPage===0;
+   document.getElementById("fleetNext").disabled=fleetPage>=pageCount-1;
+   text("fleetPageInfo",total?
+     "Showing "+(fleetPage*12+1)+"–"+Math.min(total,(fleetPage+1)*12)+" of "+total+
+     " authorized entries":"No authorized entries reported");
+ }
+ function renderFleet(data){
+   if(!data||!Array.isArray(data.devices)||data.devices.length>128)return false;
+   var unique={},valid=[];
+   for(var i=0;i<data.devices.length;i++){
+     var x=data.devices[i];
+     if(!x||!validFleetId(x.device)||!validFleetId(x.project)||
+        typeof x.status!=="string"||!/^[A-Z][A-Z0-9_]{1,63}$/.test(x.status)||
+        (x.connectionState!==undefined&&x.connectionState!==null&&
+        (typeof x.connectionState!=="string"||!/^(online|offline|stale|unknown)$/.test(x.connectionState))))return false;
+     var key=x.device+"/"+x.project;
+     if(unique[key])return false;unique[key]=true;
+     // An absent connectionState is a legitimate unregistered/offline device;
+     // never turn missing data into a fabricated online connection.
+     valid.push({device:x.device,project:x.project,status:x.status,
+       connectionState:x.connectionState===undefined||x.connectionState===null?"unknown":x.connectionState});
+   }
+   fleet=valid;
+   if(!currentFleetScope()){
+     selectedFleet=null;
+     if(latest&&validFleetId(latest.device)&&validFleetId(latest.project)){
+       for(var j=0;j<valid.length;j++){
+         if(valid[j].device===latest.device&&valid[j].project===latest.project){selectedFleet=valid[j];break;}
+       }
+     }
+   }
+   // Keep the selected authorized device visible after a fresh snapshot.
+   var existing=currentFleetScope();
+   if(existing){
+     selectedFleet=existing;
+     fleetPage=Math.floor(valid.indexOf(existing)/12);
+   }else fleetPage=0;
+   var ready=valid.filter(function(e){return e.status==="READY"&&e.connectionState==="online";}).length;
+   text("fleetReady",ready);text("fleetAttention",valid.length-ready);
+   text("fleetKnown",valid.length);
+   text("fleetNotice",valid.length+" authorized entries reported. Use the device pages below to select an authorized device. Snapshot only.");
+   showSelected();
+   return true;
+ }
+ function requestFleet(){
+   if(!initialized||fleetPending){text("fleetNotice","Host is unavailable or a check is already pending.");return;}
+   fleetPending=true;fleetRequested=true;
+   text("fleetNotice","Checking authenticated account device grants...");
+   window.parent.postMessage({jsonrpc:"2.0",id:6,method:"tools/call",params:{
+     name:"connection_overview",arguments:{}
+   }},"*");
+ }
+ function clearSupervisor(){
+   supervisorScope=null;supervisorPending=0;
+   supervisorReplyIds={agent:null,gateway:null};
+   supervisorReceived={agent:false,gateway:false};
+   text("fleetAgentState","UNKNOWN");text("fleetGatewayState","UNKNOWN");
+   text("fleetSupervisorDetail","No verified Supervisor status for this selection.");
+ }
+ for(var fleetIndex=0;fleetIndex<12;fleetIndex++){
+   (function(index){
+     document.getElementById("fleet-device-"+index).addEventListener("click",function(){
+       var entry=fleet&&fleet[fleetPage*12+index];
+       if(!entry||supervisorPending||verifyPending)return;
+       selectedFleet=entry;clearSupervisor();showSelected();
+       text("fleetActionNotice","Selected authorized device. Check Supervisor or request Connect / Repair.");
+     });
+   })(fleetIndex);
+ }
+ for(var delta=-1;delta<=1;delta+=2){
+   (function(step){
+     document.getElementById(step<0?"fleetPrev":"fleetNext").addEventListener("click",function(){
+       if(!Array.isArray(fleet)||supervisorPending||verifyPending)return;
+       var pages=Math.max(1,Math.ceil(fleet.length/12));
+       var next=fleetPage+step;
+       if(next<0||next>=pages)return;
+       fleetPage=next;showSelected();
+     });
+   })(delta);
+ }
+ document.getElementById("refreshFleet").addEventListener("click",requestFleet);
+ document.getElementById("openDevices").addEventListener("click",function(){tab("devices");});
+ function checkSupervisor(){
+   var scope=currentFleetScope();
+   if(!initialized||!scope||supervisorPending||verifyPending||fleetPending||connectPending||pairPending){
+     text("fleetActionNotice","Wait for the current authorized device verification before checking Supervisor.");return;
+   }
+   supervisorScope={device:scope.device,project:scope.project};
+   supervisorPending=2;
+   // New RPC ids after the first round prevent late replies from an earlier
+   // device check from being mistaken for this round's service evidence.
+   var firstId=supervisorRounds===0?7:12+2*(supervisorRounds-1);
+   supervisorRounds++;
+   supervisorReplyIds={agent:firstId,gateway:firstId+1};
+   supervisorReceived={agent:false,gateway:false};
+   text("fleetAgentState","CHECKING");text("fleetGatewayState","CHECKING");
+   text("fleetSupervisorDetail","Checking allowlisted agent and gateway service status; no restart.");
+   for(var i=0;i<2;i++){
+     var service=i===0?"agent":"gateway";
+     window.parent.postMessage({jsonrpc:"2.0",id:i===0?supervisorReplyIds.agent:supervisorReplyIds.gateway,method:"tools/call",params:{
+       name:"supervisor_status",arguments:{device:scope.device,project:scope.project,service:service}
+     }},"*");
+   }
+ }
+ document.getElementById("checkSupervisor").addEventListener("click",checkSupervisor);
+ function hostConnect(kind){
+   var scope=kind==="pair"?null:currentFleetScope();
+   if(!initialized||connectPending||pairPending||verifyPending||aiMessagePending||handoffPending||(kind!=="pair"&&!scope)){
+     text("fleetActionNotice","Host not ready; refresh the fleet and select an authorized device.");return;
+   }
+   var body;
+   if(kind==="pair"){
+     pairPending=true;
+     body="Start KMJ CodeBridge official one-click NEW DEVICE pairing workflow through kmjtechno.com owner-authorized HTTPS browser approval only. Check existing device grants first; avoid duplicate enrollment. Offer a single reviewed signed installer/launcher when a first local action is required. No GitHub login or private token copying. Never silently create a device, disable HMAC/ACL, or run arbitrary shell. Report explicit remaining owner approval; verify account grant plus new authenticated heartbeat before READY.";
+   }else{
+     // A READY connection needs a fresh owner-scoped read, not a restart.
+     // A subsequent authenticated service check stays read-only.
+     if(scope.status==="READY"&&scope.connectionState==="online"){
+       verifyPending=true;verifyScope={device:scope.device,project:scope.project};
+       text("fleetActionNotice","Rechecking current account grant; no restart or enrollment...");
+       window.parent.postMessage({jsonrpc:"2.0",id:11,method:"tools/call",params:{
+         name:"connection_overview",arguments:{expectedDevice:scope.device,expectedProject:scope.project}
+       }},"*");
+       return;
+     }
+     connectPending=true;
+     body="One-click KMJ CodeBridge CONNECT/REPAIR for account-authorized device "+scope.device+" project "+scope.project+". First check connection_overview, connection_doctor, then supervisor_status for agent and gateway. If already READY, do not restart anything. If offline, use only existing allowlisted fixed service recovery when supported with verified process identity, no active jobs, approval and HMAC/ACL gates. supervisor_restart is permissible ONLY when that exact allowlisted device/service explicitly reports restart supported and owner policy approves. Never use arbitrary shell, create duplicate agents, rotate credentials, bypass OAuth or ask for GitHub login. For unreachable devices identify the ONE local signed launcher or browser approval required. After any action repeat account-grant+fresh-heartbeat+Supervisor checks and report PASS only with those receipts; otherwise BLOCKED.";
+   }
+   text("fleetActionNotice","Owner workflow requested through host. Connection/service outcome NOT VERIFIED.");
+   window.parent.postMessage({jsonrpc:"2.0",id:kind==="pair"?10:9,method:"ui/message",params:{
+     role:"user",content:{type:"text",text:body}
+   }},"*");
+ }
+ document.getElementById("connectDevice").addEventListener("click",function(){hostConnect("connect");});
+ document.getElementById("beginPairing").addEventListener("click",function(){hostConnect("pair");});
+
  var selectedWorkspaceFiles=[];
  var selectedPatch=null;
  function renderSelectedFile(path){
@@ -572,6 +791,104 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
          jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
        },"*");
      }
+     return;
+   }
+   if(message.id===11&&verifyPending){
+     verifyPending=false;
+     var checked=message.result&&message.result.structuredContent;
+     var selection=currentFleetScope();
+     var scopeMatched=verifyScope&&selection&&
+       selection.device===verifyScope.device&&selection.project===verifyScope.project;
+     var exact=checked&&!message.error&&!message.result.isError&&
+       Array.isArray(checked.devices)&&checked.devices.length===1&&
+       checked.devices[0]&&typeof checked.devices[0]==="object"&&scopeMatched&&
+       checked.devices[0].device===verifyScope.device&&
+       checked.devices[0].project===verifyScope.project;
+     var live=exact&&checked.devices[0].status==="READY"&&
+       checked.devices[0].connectionState==="online";
+     if(exact&&!live){
+       // Authoritative new result supersedes a stale READY fleet snapshot.
+       selection.status=checked.devices[0].status;
+       selection.connectionState=checked.devices[0].connectionState||"unknown";
+       showSelected();
+     }
+     verifyScope=null;
+     if(live){
+       text("fleetActionNotice","CONNECTED: fresh scoped account status PASS. Supervisor check follows; no restart.");
+       checkSupervisor();
+     }else{
+       text("fleetActionNotice","Connection NOT VERIFIED after fresh scoped check. Refresh or request guarded repair.");
+     }
+     return;
+   }
+   if(message.id===6&&fleetPending){
+     fleetPending=false;
+     var account=message.result&&message.result.structuredContent;
+     if(message.error||!message.result||message.result.isError||!renderFleet(account)){
+       fleet=null;selectedFleet=null;clearSupervisor();showSelected();
+       text("fleetReady","—");text("fleetAttention","—");text("fleetKnown","—");
+       text("fleetNotice","Verified account fleet unavailable or malformed. No connection state assumed.");
+     }else clearSupervisor();
+     return;
+   }
+   if((message.id===supervisorReplyIds.agent||message.id===supervisorReplyIds.gateway)&&supervisorPending>0){
+     var service=message.id===supervisorReplyIds.agent?"agent":"gateway";
+     if(supervisorReceived[service])return; // duplicate host RPC, not another service
+     supervisorReceived[service]=true;
+     var response=message.result&&message.result.structuredContent;
+     var scope=currentFleetScope();
+     var status="UNKNOWN";
+     if(!message.error&&message.result&&!message.result.isError&&response&&
+        supervisorScope&&scope&&scope.device===supervisorScope.device&&
+        scope.project===supervisorScope.project&&response.service===service){
+       if(response.supervisor==="windows-native"&&response.installed===true){
+         status=typeof response.state==="string"&&/^(active|inactive|failed|unknown)$/.test(response.state)
+           ?response.state.toUpperCase():"UNKNOWN";
+         if(status==="UNKNOWN"&&response.activeProcessRuntime&&response.activeProcessRuntime.verified===false)
+           status="PROCESS UNVERIFIED";
+       }else if(response.activeState==="active"&&response.subState==="running"&&
+           Number.isSafeInteger(response.mainPid)&&response.mainPid>0){
+         // Authenticated Linux systemd service receipt, not a Windows HMAC claim.
+         status="SERVICE RUNNING";
+       }else if(response.activeState==="inactive"&&response.subState==="dead"){
+         status="SERVICE INACTIVE";
+       }else if(response.activeState==="failed"){
+         status="SERVICE FAILED";
+       }
+     }
+     if(status==="UNKNOWN"&&(message.error||(message.result&&message.result.isError))){
+       // Only fixed, known supervisor error markers become user-facing labels.
+       // Never echo raw exceptions, endpoints, configurations or credentials.
+       var err=message.error&&typeof message.error.message==="string"?message.error.message:"";
+       var blocks=message.result&&Array.isArray(message.result.content)?message.result.content:[];
+       for(var k=0;k<Math.min(3,blocks.length);k++){
+         if(blocks[k]&&typeof blocks[k].text==="string")err+=blocks[k].text.slice(0,4096);
+       }
+       if(err.indexOf("SUPERVISOR_UNAVAILABLE")!==-1||
+          err.indexOf("SUPERVISOR_NOT_CONFIGURED")!==-1)status="SETUP REQUIRED";
+       else if(err.indexOf("SUPERVISOR_SERVICE_NOT_ALLOWED")!==-1)status="NOT SUPPORTED";
+     }
+     text(service==="agent"?"fleetAgentState":"fleetGatewayState",status);
+     supervisorPending--;
+     if(supervisorPending===0){
+       var a=document.getElementById("fleetAgentState").textContent;
+       var g=document.getElementById("fleetGatewayState").textContent;
+       var detail=a==="SETUP REQUIRED"||g==="SETUP REQUIRED"?
+         "Verified Supervisor RPC unavailable. A one-time approved, signed host-side setup is required; the browser cannot install privileged services.":
+         g==="NOT SUPPORTED"?
+           "This device does not expose a gateway Supervisor service. Agent status is separate; do not attempt gateway restart.":
+           "Supervisor RPC results are a snapshot; restart support, process identity and permissions require independent verified evidence.";
+       text("fleetSupervisorDetail",detail);
+     }
+     return;
+   }
+   if((message.id===9&&connectPending)||(message.id===10&&pairPending)){
+     var action=message.id===9?"Connection repair":"Pairing";
+     if(message.id===9)connectPending=false;else pairPending=false;
+     var accepted=!message.error&&message.result&&!message.result.isError;
+     text("fleetActionNotice",accepted?
+       action+" request accepted by host. Actual connection or enrollment NOT VERIFIED; refresh the account fleet after host completes.":
+       action+" was denied or failed at host. No device or service change is verified.");
      return;
    }
    if(message.id===4&&refreshPending){

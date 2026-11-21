@@ -36,7 +36,7 @@ function openCard(initialOutput = null) {
     }
     return elements.get(id);
   }
-  const views = ["overview", "work", "evidence", "workspace"];
+  const views = ["overview", "work", "evidence", "workspace", "devices"];
   for (const view of views) {
     element("tab-" + view).attributes["data-view"] = view;
     element("rail-" + view).attributes["data-target-view"] = view;
@@ -903,4 +903,668 @@ test("handoff UI explicitly distinguishes CodeBridge continuation from host chat
     KMJ_STATUS_HTML,
     /<script\s+src=|fetch\s*\(|XMLHttpRequest|new WebSocket\s*\(/i,
   );
+});
+
+test("real connection_overview may omit connectionState on unregistered device without breaking fleet", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+        {
+          device: "device2",
+          project: "project2",
+          status: "GATEWAY_REGISTRATION_MISSING",
+          nextAction: "RUN_VM_CONNECTION_DOCTOR",
+        },
+      ],
+    },
+  });
+  assert.equal(v.element("fleetKnown").textContent, "2");
+  assert.equal(v.element("fleetReady").textContent, "1");
+  assert.equal(v.element("fleetAttention").textContent, "1");
+  assert.match(
+    v.element("fleet-device-1").textContent,
+    /GATEWAY_REGISTRATION_MISSING/,
+  );
+});
+
+test("authenticated Linux systemd receipt displays running service without Windows HMAC assumption", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "elite1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      activeState: "active",
+      subState: "running",
+      mainPid: 58771,
+    },
+  });
+  v.replyResult(8, { isError: true });
+  assert.equal(v.element("fleetAgentState").textContent, "SERVICE RUNNING");
+  assert.equal(v.element("fleetGatewayState").textContent, "UNKNOWN");
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+  v.element("checkSupervisor").handlers.click();
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map(({ message }) => message.id),
+    [12, 13],
+  );
+  v.replyResult(12, {
+    structuredContent: {
+      service: "agent",
+      activeState: "active",
+      subState: "running",
+      mainPid: 0,
+    },
+  });
+  v.replyResult(13, { isError: true });
+  assert.equal(v.element("fleetAgentState").textContent, "UNKNOWN");
+});
+
+test("Devices tab checks authenticated account fleet only after a real click", () => {
+  const v = openCard();
+  v.element("refreshFleet").handlers.click();
+  assert.equal(v.parentMessages.length, 1);
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  assert.equal(v.element("panel-devices").hidden, false);
+  const req = v.parentMessages.at(-1).message;
+  assert.equal(req.method, "tools/call");
+  assert.equal(req.params.name, "connection_overview");
+  assert.deepEqual({ ...req.params.arguments }, {});
+  assert.equal(v.element("fleetReady").textContent, "");
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+        {
+          device: "device2",
+          project: "project2",
+          status: "GATEWAY_REGISTRATION_MISSING",
+          connectionState: "offline",
+        },
+      ],
+    },
+  });
+  assert.equal(v.element("fleetReady").textContent, "1");
+  assert.equal(v.element("fleetAttention").textContent, "1");
+  assert.equal(v.element("fleetKnown").textContent, "2");
+  assert.equal(v.element("fleet-device-1").hidden, false);
+});
+
+test("Device pages cover authorized entries beyond 12, without granting a new device", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  const devices = Array.from({ length: 25 }, (_, index) => ({
+    device: "device" + index,
+    project: "project1",
+    status: index === 24 ? "AGENT_OFFLINE" : "READY",
+    connectionState: index === 24 ? "offline" : "online",
+  }));
+  v.replyResult(6, { structuredContent: { devices } });
+  assert.equal(v.element("fleetKnown").textContent, "25");
+  assert.equal(v.element("fleetReady").textContent, "24");
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 1–12 of 25 authorized entries",
+  );
+  assert.equal(v.element("fleetPrev").disabled, true);
+  assert.equal(v.element("fleetNext").disabled, false);
+  v.element("fleetNext").handlers.click();
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 13–24 of 25 authorized entries",
+  );
+  assert.match(v.element("fleet-device-0").textContent, /device12/);
+  v.element("fleetNext").handlers.click();
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 25–25 of 25 authorized entries",
+  );
+  assert.equal(v.element("fleetNext").disabled, true);
+  assert.equal(v.element("fleet-device-1").hidden, true);
+  v.element("fleet-device-0").handlers.click();
+  assert.match(v.element("fleetSelected").textContent, /device24 \/ project1/);
+  v.element("fleetPrev").handlers.click();
+  assert.match(v.element("fleetSelected").textContent, /device24 \/ project1/);
+  v.element("fleetNext").handlers.click();
+  assert.equal(v.element("fleet-device-0").attributes["aria-pressed"], "true");
+  v.element("connectDevice").handlers.click();
+  const action = v.parentMessages.at(-1).message;
+  assert.equal(action.method, "ui/message");
+  assert.match(action.params.content.text, /device24 project project1/);
+  assert.equal(
+    v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+    false,
+  );
+});
+
+test("Fleet refresh preserves selected grant and page but clamps after device removal", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  const rows = Array.from({ length: 13 }, (_, index) => ({
+    device: "d" + index,
+    project: "project1",
+    status: "READY",
+    connectionState: "online",
+  }));
+  v.replyResult(6, { structuredContent: { devices: rows } });
+  v.element("fleetNext").handlers.click();
+  v.element("fleet-device-0").handlers.click();
+  assert.match(v.element("fleetSelected").textContent, /d12/);
+  v.element("refreshFleet").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [...rows].reverse(),
+    },
+  });
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 1–12 of 13 authorized entries",
+  );
+  assert.equal(v.element("fleet-device-0").attributes["aria-pressed"], "true");
+  assert.match(v.element("fleetSelected").textContent, /d12/);
+  v.element("refreshFleet").handlers.click();
+  v.replyResult(6, {
+    structuredContent: { devices: rows.slice(0, 5) },
+  });
+  assert.equal(v.element("fleetPrev").disabled, true);
+  assert.equal(v.element("fleetNext").disabled, true);
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 1–5 of 5 authorized entries",
+  );
+  assert.match(
+    v.element("fleetSelected").textContent,
+    /Select an account-authorized device/,
+  );
+});
+
+test("READY device Connect click verifies exact scope then automatically checks Supervisor", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("connectDevice").handlers.click();
+  const req = v.parentMessages.at(-1).message;
+  assert.equal(req.method, "tools/call");
+  assert.equal(req.params.name, "connection_overview");
+  assert.deepEqual(
+    { ...req.params.arguments },
+    {
+      expectedDevice: "device1",
+      expectedProject: "project1",
+    },
+  );
+  const before = v.parentMessages.length;
+  v.element("connectDevice").handlers.click();
+  assert.equal(v.parentMessages.length, before);
+  v.replyResult(11, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  assert.match(
+    v.element("fleetActionNotice").textContent,
+    /fresh scoped account status PASS/,
+  );
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map((item) => item.message.params.name),
+    ["supervisor_status", "supervisor_status"],
+  );
+  assert.equal(
+    v.parentMessages.some(({ message }) => message.method === "ui/message"),
+    false,
+  );
+  assert.equal(
+    v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+    false,
+  );
+});
+
+test("READY recheck refuses malformed tools response without crashing or creating service jobs", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("connectDevice").handlers.click();
+  v.replyResult(11, { structuredContent: { devices: [null] } });
+  assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_status",
+    ),
+  );
+});
+
+test("READY recheck refuses swapped scope and converts stale offline to guarded repair", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("connectDevice").handlers.click();
+  v.replyResult(11, {
+    structuredContent: {
+      devices: [
+        {
+          device: "other",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_status",
+    ),
+  );
+  v.element("connectDevice").handlers.click();
+  v.replyResult(11, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "AGENT_OFFLINE",
+          connectionState: "offline",
+        },
+      ],
+    },
+  });
+  assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
+  v.element("connectDevice").handlers.click();
+  const request = v.parentMessages.at(-1).message;
+  assert.equal(request.method, "ui/message");
+  assert.match(request.params.content.text, /allowlisted/);
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});
+
+test("Connect/Repair is one host-approved click, never an unaudited service restart", () => {
+  const v = openCard();
+  v.handshake();
+  v.send({ product: "KMJ CodeBridge", device: "device1", project: "project1" });
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "AGENT_OFFLINE",
+          connectionState: "offline",
+        },
+      ],
+    },
+  });
+  v.element("connectDevice").handlers.click();
+  const req = v.parentMessages.at(-1).message;
+  assert.equal(req.method, "ui/message");
+  assert.match(req.params.content.text, /connection_overview/);
+  assert.match(req.params.content.text, /supervisor_status/);
+  assert.match(req.params.content.text, /no active jobs/);
+  assert.match(
+    req.params.content.text,
+    /If already READY, do not restart anything/,
+  );
+  v.element("connectDevice").handlers.click();
+  assert.equal(v.parentMessages.at(-1).message, req);
+  v.replyHost(9);
+  assert.match(v.element("fleetActionNotice").textContent, /NOT VERIFIED/);
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});
+
+test("Unknown or forged fleet result never authorizes a restart or fake READY", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "../evil",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  assert.equal(v.element("fleetKnown").textContent, "—");
+  v.element("connectDevice").handlers.click();
+  assert.match(
+    v.element("fleetActionNotice").textContent,
+    /select an authorized device/,
+  );
+  assert.ok(
+    !v.parentMessages.some(({ message }) => message.method === "ui/message"),
+  );
+});
+
+test("Read-only Supervisor checks cannot manufacture an active agent or restart rights", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  const calls = v.parentMessages.slice(-2).map((x) => x.message);
+  assert.deepEqual(
+    calls.map((x) => x.params.name),
+    ["supervisor_status", "supervisor_status"],
+  );
+  assert.deepEqual(
+    calls.map((x) => x.params.arguments.service),
+    ["agent", "gateway"],
+  );
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      installed: true,
+      supervisor: "windows-native",
+      state: "unknown",
+      activeProcessRuntime: { verified: false },
+      restart: { supported: false },
+    },
+  });
+  v.replyResult(8, { isError: true });
+  assert.equal(v.element("fleetAgentState").textContent, "PROCESS UNVERIFIED");
+  assert.equal(v.element("fleetGatewayState").textContent, "UNKNOWN");
+  assert.match(
+    v.element("fleetSupervisorDetail").textContent,
+    /independent verified evidence/,
+  );
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});
+
+test("READY device cannot start stale Supervisor read while scoped connection recheck is pending", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("connectDevice").handlers.click();
+  const count = v.parentMessages.length;
+  v.element("checkSupervisor").handlers.click();
+  assert.equal(v.parentMessages.length, count);
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_status",
+    ),
+  );
+  v.replyResult(11, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map(({ message }) => message.params.name),
+    ["supervisor_status", "supervisor_status"],
+  );
+});
+
+test("duplicate and late Supervisor RPC replies cannot complete a different service or round", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyHost(7, "SUPERVISOR_UNAVAILABLE");
+  v.replyHost(7, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
+  assert.equal(v.element("fleetGatewayState").textContent, "CHECKING");
+  v.replyHost(8, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+
+  v.element("checkSupervisor").handlers.click();
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map(({ message }) => message.id),
+    [12, 13],
+  );
+  v.replyHost(7, "SUPERVISOR_SERVICE_NOT_ALLOWED"); // stale previous round
+  v.replyHost(8, "SUPERVISOR_UNAVAILABLE");
+  assert.equal(v.element("fleetAgentState").textContent, "CHECKING");
+  assert.equal(v.element("fleetGatewayState").textContent, "CHECKING");
+  v.replyHost(12, "SUPERVISOR_UNAVAILABLE");
+  assert.equal(v.element("fleetGatewayState").textContent, "CHECKING");
+  v.replyHost(13, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});
+
+test("Supervisor unavailable and unsupported platform are distinct, safe statuses", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyHost(7, "SUPERVISOR_UNAVAILABLE");
+  v.replyHost(8, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+  assert.match(
+    v.element("fleetSupervisorDetail").textContent,
+    /approved, signed host-side setup/,
+  );
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});
+
+test("Unsupported Windows gateway is labeled without inventing healthy process identity", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyResult(7, {
+    structuredContent: {
+      service: "agent",
+      platform: "win32",
+      supervisor: "windows-native",
+      installed: true,
+      state: "unknown",
+      activeProcessRuntime: {
+        verified: false,
+        reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+      },
+      restart: { supported: false },
+    },
+  });
+  v.replyResult(8, {
+    isError: true,
+    content: [{ type: "text", text: "SUPERVISOR_SERVICE_NOT_ALLOWED" }],
+  });
+  assert.equal(v.element("fleetAgentState").textContent, "PROCESS UNVERIFIED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+  assert.match(
+    v.element("fleetSupervisorDetail").textContent,
+    /does not expose a gateway Supervisor/,
+  );
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});
+
+test("Pairing remains official domain-owner approval and never starts untrusted installer", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("beginPairing").handlers.click();
+  const req = v.parentMessages.at(-1).message;
+  assert.equal(req.method, "ui/message");
+  assert.match(
+    req.params.content.text,
+    /kmjtechno.com owner-authorized HTTPS browser approval/,
+  );
+  assert.match(req.params.content.text, /No GitHub login/);
+  v.replyHost(10, "denied");
+  assert.match(v.element("fleetActionNotice").textContent, /denied or failed/);
 });
