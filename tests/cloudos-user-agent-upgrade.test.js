@@ -4,6 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { verifyOwnerReleaseFolder } from "../scripts/verify-signed-owner-release.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const SCRIPT = path.join(
@@ -92,4 +93,57 @@ test("new runtime goes live only after exact-source check, all tests and backup"
     assert.ok(next > last, "sequence/order guard " + marker);
     last = next;
   }
+});
+
+test("Google upgrade admits only the independently signed seq33 and fixed old runtime", () => {
+  const oldPin = "dea0a6e398cd4706ddc61e314174314b9a6f95ee";
+  const newPin = "9584b584c9a94545fb9dc750c9dfef5bf4f7978a";
+  const m = verifyOwnerReleaseFolder(ROOT, newPin);
+  assert.deepEqual(m, { sequence: 33, revision: newPin });
+  for (const required of [
+    "OLD_PIN=" + oldPin,
+    "PIN=" + newPin,
+    "RELEASE_METADATA_COMMIT=37c0669b08d6a3d04e346fa5532066a28ee27427",
+    "OWNER_ED25519_SIGNED_SEQ33=PASS",
+    "SIGNED_ARCHIVE_DIGEST=PASS",
+    "OWNER_ED25519_RELEASE_UNVERIFIED",
+    "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8",
+    "1d19f0e2163fa764432c1612914fef5215ba30cdc26e87f9e41a28342d016bc7",
+    "32320e772aa1167a8ddefbd036dd2b95c9bf565608426c624de4d01173742ca0",
+    "OLD_RUNTIME_PIN_CHANGED",
+    "CONFIG_MODE_CHANGED",
+    "SUPERVISOR_SOCKET_UNVERIFIED",
+    "SUPERVISOR_STATUS=EXISTING_SOCKET_LEFT_UNCHANGED",
+  ])
+    assert.ok(source.includes(required), required);
+  assert.ok(
+    source.indexOf("OWNER_ED25519_RELEASE_UNVERIFIED") <
+      source.indexOf('mv -- "$RUNTIME" "$BACKUP"'),
+  );
+  assert.ok(
+    source.indexOf("SIGNED_ARTIFACT_CLEANUP_FAILED") <
+      source.indexOf('mv -- "$RUNTIME" "$BACKUP"'),
+  );
+  assert.doesNotMatch(
+    source,
+    /(?:systemctl restart|systemctl stop|systemctl enable).*kmj-codebridge-supervisor/,
+  );
+  assert.doesNotMatch(source, /(?:git reset|git clean|curl\s*\|\s*bash)/);
+});
+
+test("Google agent source checks never execute info-owned Node or Git as root", () => {
+  const checks = source
+    .split("\n")
+    .filter(
+      (line) =>
+        line.includes('"$NODE" -p ') ||
+        line.includes('"$NODE" --check ') ||
+        line.includes('git -C "$RUNTIME"'),
+    );
+  assert.equal(checks.length, 5);
+  for (const line of checks)
+    assert.ok(
+      line.includes('runuser -u "$AGENT_USER" --'),
+      "privilege boundary",
+    );
 });
