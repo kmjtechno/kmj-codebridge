@@ -131,8 +131,5 @@ test("MCP tools and agent cloud coding both use the owner-configured verifier", 
   const importers = dir.filter((f) =>
     /freellmapi-runtime/.test(fs.readFileSync(path.join("src", f), "utf8")),
   );
-  assert.deepEqual(
-    importers.sort(),
-    ["agent.js", "tools.js"],
-  );
+  assert.deepEqual(importers.sort(), ["agent.js", "tools.js"]);
 });
