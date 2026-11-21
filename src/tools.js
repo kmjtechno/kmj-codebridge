@@ -2071,6 +2071,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_mail_health: {
+    title: "Inspect redacted Elite Postfix mail health",
+    description:
+      "Read only a fixed, bounded KMJ-elite Postfix queue/configuration and service health snapshot via its existing root Supervisor. Returns aggregate queue counts, age buckets and error-code categories without sender, recipient, queue ID, raw logs, credentials or shell. A zero queue does NOT prove delivery. No caller arguments or mutations.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_health_unit_receipt: {
     title: "Verify latest health unit's own pass receipt",
     description:
@@ -3753,6 +3760,17 @@ export function createDispatcher(
         fail("ACCESS_DENIED");
       return await supervisor.request({
         op: "main_platform_backup_inventory",
+      });
+    }
+    if (name === "supervisor_main_platform_mail_health") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform" ||
+        !p.writable
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_mail_health",
       });
     }
     if (name === "supervisor_main_platform_health_unit_receipt") {
