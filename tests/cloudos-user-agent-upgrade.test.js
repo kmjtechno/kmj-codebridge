@@ -120,5 +120,5 @@ test("Google upgrade admits only the independently signed seq33 and fixed old ru
   assert.ok(source.indexOf("SIGNED_ARTIFACT_CLEANUP_FAILED") <
     source.indexOf('mv -- "$RUNTIME" "$BACKUP"'));
   assert.doesNotMatch(source, /(?:systemctl restart|systemctl stop|systemctl enable).*kmj-codebridge-supervisor/);
-  assert.doesNotMatch(source, /(?:git reset|git clean|curl\\s*\\|\\s*bash)/);
+  assert.doesNotMatch(source, /(?:git reset|git clean|curl\s*\|\s*bash)/);
 });
