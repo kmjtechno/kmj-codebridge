@@ -22,6 +22,7 @@ import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 
 REV = re.compile(r"[a-f0-9]{40}\Z")
 HASH = re.compile(r"[a-f0-9]{64}\Z")
@@ -301,10 +302,24 @@ def unit_texts(source, revision, version):
 
 
 def write_exclusive(path, data):
+    """Atomically publish a complete, fsynced root-owned unit without overwrite.
+
+    A final O_EXCL write exposes a partially written file. Instead, write an
+    exclusive private staging inode in the same root-controlled directory and
+    hard-link it into an absent final name (atomic EEXIST refusal). No rename
+    or replace of a pre-existing systemd unit is ever permitted.
+    """
     root_parents(path)
-    fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
-                 | os.O_CLOEXEC, 0o644)
+    need(path.parent == UNIT_DIR and path.name in (SERVICE_UNIT, SOCKET_UNIT),
+         "UNIT_PATH_NOT_ALLOWLISTED")
+    need(not os.path.lexists(path), "UNIT_ALREADY_EXISTS")
+    fd, staged = tempfile.mkstemp(prefix=f".{path.name}.staging-",
+                                  dir=str(path.parent))
+    published = False
     try:
+        before = os.fstat(fd)
+        need(stat.S_ISREG(before.st_mode) and before.st_uid == 0
+             and before.st_nlink == 1, "STAGING_INODE_UNTRUSTED")
         os.fchmod(fd, 0o644)
         pos = 0
         while pos < len(data):
@@ -312,12 +327,37 @@ def write_exclusive(path, data):
             need(n > 0, "UNIT_SHORT_WRITE")
             pos += n
         os.fsync(fd)
+        finished = os.fstat(fd)
+        need(finished.st_size == len(data) and stat.S_IMODE(finished.st_mode) == 0o644,
+             "UNIT_STAGING_BYTES_INVALID")
+        # link() fails with EEXIST rather than replacing a concurrently-created
+        # unit. Both names reside on the same trusted filesystem.
+        try:
+            os.link(staged, path, follow_symlinks=False)
+        except FileExistsError:
+            raise Blocked("UNIT_ALREADY_EXISTS") from None
+        published = True
+        dirfd = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY
+                        | os.O_NOFOLLOW | os.O_CLOEXEC)
+        try:
+            os.fsync(dirfd)
+        finally:
+            os.close(dirfd)
     except BaseException:
-        os.close(fd)
-        os.unlink(path)  # we alone created this exact O_EXCL leaf
+        # Only remove the final inode if it is still the same one WE just
+        # published; otherwise fail closed for operator recovery.
+        if published:
+            current = os.lstat(path)
+            original = os.fstat(fd)
+            need((current.st_dev, current.st_ino) ==
+                 (original.st_dev, original.st_ino),
+                 "UNIT_ROLLBACK_IDENTITY_MISMATCH")
+            os.unlink(path)
         raise
-    else:
+    finally:
         os.close(fd)
+        if os.path.lexists(staged):
+            os.unlink(staged)
 
 
 def private_socket_probe():
