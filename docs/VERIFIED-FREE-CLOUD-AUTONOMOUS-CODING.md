@@ -47,8 +47,12 @@ It must be rechecked on every attempt/retry and on revocation. The worker
 now requires an independent read-only no-charge proof during model status
 **before claiming a task, preparing a lane or reading private source**, and
 rechecks immediately before the actual cloud POST. Without the protected
-verifier, status reports no eligible model. No verifier is included in this
-branch.
+verifier, status reports no eligible model. The agent's cloud coding model now
+uses the same `createConfiguredFreeLlmApiClient` factory as the MCP tools:
+its device-owner inputs are a pinned route manifest directory, a fresh
+router-membership snapshot directory, and an owner-provided OpenRouter key.
+This wiring does **not** install those device-private inputs, attest a real
+provider account, enable a coding worker, or authorize private-source transfer.
 
 Cloud attribution reports `provider=freellmapi-loopback`,
 `execution=verified_zero_cost_route_admission`, `paidInference=null` and
