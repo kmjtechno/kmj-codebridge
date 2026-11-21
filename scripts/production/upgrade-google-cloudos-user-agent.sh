@@ -68,8 +68,8 @@ cloudos_services_healthy || die CLOUDOS_SERVICES_NOT_ACTIVE_PRE
 [[ "$(stat -c %u "$BASE")" == "$(id -u "$AGENT_USER")" ]] || die BASE_OWNERSHIP
 [[ "$(stat -c %u "$CONFIG")" == "$(id -u "$AGENT_USER")" ]] || die CONFIG_OWNERSHIP
 [[ "$(stat -c %a "$CONFIG")" == 600 ]] || die CONFIG_MODE_CHANGED
-[[ "$(git -C "$RUNTIME" rev-parse HEAD)" == "$OLD_PIN" ]] || die OLD_RUNTIME_PIN_CHANGED
-[[ -z "$(git -C "$RUNTIME" status --porcelain --untracked-files=no)" ]] || die OLD_RUNTIME_DIRTY
+[[ "$(runuser -u "$AGENT_USER" -- git -C "$RUNTIME" rev-parse HEAD)" == "$OLD_PIN" ]] || die OLD_RUNTIME_PIN_CHANGED
+[[ -z "$(runuser -u "$AGENT_USER" -- git -C "$RUNTIME" status --porcelain --untracked-files=no)" ]] || die OLD_RUNTIME_DIRTY
 systemctl is-active --quiet kmj-codebridge-supervisor.socket || die SUPERVISOR_SOCKET_INACTIVE
 [[ -S /run/kmj-codebridge/supervisor.sock &&
    "$(stat -c %U:%a /run/kmj-codebridge/supervisor.sock)" == info:600 ]] ||
@@ -78,7 +78,7 @@ PID="$(systemctl show -p MainPID --value "$UNIT")"
 [[ "$PID" =~ ^[1-9][0-9]*$ && -r "/proc/$PID/cmdline" ]] || die AGENT_PID_MISSING
 NODE="$(readlink -f "/proc/$PID/exe")"
 [[ -x "$NODE" ]] || die NODE_UNAVAILABLE
-[[ "$("$NODE" -p 'process.versions.node.split(".")[0]')" == 24 ]] || die NODE24_REQUIRED
+[[ "$(runuser -u "$AGENT_USER" -- "$NODE" -p 'process.versions.node.split(".")[0]')" == 24 ]] || die NODE24_REQUIRED
 NODE_DIR="$(dirname "$NODE")"
 NPM="$NODE_DIR/npm"
 if [[ ! -x "$NPM" ]]; then NPM="$(command -v npm || true)"; fi
@@ -144,7 +144,7 @@ runuser -u "$AGENT_USER" -- git -C "$STAGE" checkout -q --detach "$PIN" || die P
 [[ "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" rev-parse HEAD)" == "$PIN" ]] || die SOURCE_SHA_MISMATCH
 [[ "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" remote get-url origin)" == "$REPO" ]] || die SOURCE_ORIGIN_MISMATCH
 [[ -z "$(runuser -u "$AGENT_USER" -- git -C "$STAGE" status --porcelain --untracked-files=no)" ]] || die SOURCE_DIRTY
-[[ "$("$NODE" -p 'require(process.argv[1]).name' "$STAGE/package.json")" == @kmjtechno/codebridge ]] || die PACKAGE_MISMATCH
+[[ "$(runuser -u "$AGENT_USER" -- "$NODE" -p 'require(process.argv[1]).name' "$STAGE/package.json")" == @kmjtechno/codebridge ]] || die PACKAGE_MISMATCH
 
 # Signed stable seq33 authentication is separate from Git SHA/pin checks.
 # The public PEM is harmless; the owner private Ed25519 key is never used.
@@ -202,7 +202,7 @@ runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" 
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" run check || die CHECK_FAILED
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" test || die TEST_FAILED
 runuser -u "$AGENT_USER" -- env PATH="$NODE_DIR:$PATH" "$NPM" --prefix "$STAGE" prune --omit=dev --ignore-scripts --no-audit --no-fund || die PRUNE_FAILED
-"$NODE" --check "$STAGE/src/cli.js" || die SYNTAX_FAILED
+runuser -u "$AGENT_USER" -- "$NODE" --check "$STAGE/src/cli.js" || die SYNTAX_FAILED
 [[ "$(sha256sum "$CONFIG" | cut -d' ' -f1)" == "$CONFIG_SHA" ]] || die ENROLLMENT_CHANGED
 check_jobs || die NEW_ACTIVE_QA_JOB
 
