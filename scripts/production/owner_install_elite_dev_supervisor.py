@@ -132,6 +132,11 @@ def verify_signature(raw, signature):
         raise Blocked("TRUST_CONFIG_INVALID") from None
     need(type(key) is str and 32 <= len(key) <= 8192,
          "TRUST_KEY_MISSING")
+    root_parents(NODE)
+    nstat = os.lstat(NODE)
+    need(nstat.st_uid == 0 and not (nstat.st_mode & 0o022)
+         and (stat.S_ISREG(nstat.st_mode) or stat.S_ISLNK(nstat.st_mode)),
+         "NODE_LINK_UNTRUSTED")
     node = NODE.resolve(strict=True)
     need(str(node).startswith("/opt/kmj-codebridge-node/")
          or str(node) in ("/usr/bin/node", "/usr/bin/nodejs"),
@@ -341,6 +346,7 @@ def rollback(created, activation_attempted):
     # Only remove files this exact invocation created. Never touch other units.
     if activation_attempted:
         try:
+            run(["/usr/bin/systemctl", "stop", SERVICE_UNIT])
             run(["/usr/bin/systemctl", "disable", "--now", SOCKET_UNIT])
         except Blocked:
             print("DEV_SUPERVISOR_ROLLBACK=FAILED_MANUAL_RECOVERY")
@@ -386,7 +392,9 @@ def main(argv):
         need(run(["/usr/bin/systemctl", "is-active", SOCKET_UNIT]) == "active",
              "SOCKET_UNIT_INACTIVE")
         s = os.lstat(SOCKET)
-        need(stat.S_ISSOCK(s.st_mode) and s.st_uid == pwd.getpwnam("kmjdev").pw_uid
+        user = pwd.getpwnam("kmjdev")
+        need(stat.S_ISSOCK(s.st_mode) and s.st_uid == user.pw_uid
+             and s.st_gid == user.pw_gid
              and stat.S_IMODE(s.st_mode) == 0o600,
              "DEV_SOCKET_ACL_MISMATCH")
         private_socket_probe()
