@@ -41,7 +41,10 @@ test(
     const socket = result.units[UNIT + ".socket"];
     assert.match(service, /^User=kmjdev$/m);
     assert.match(service, /^Group=kmjdev$/m);
-    assert.match(service, /^Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=codebridge-dev-elite$/m);
+    assert.match(
+      service,
+      /^Environment=KMJ_CODEBRIDGE_SUPERVISOR_PROFILE=codebridge-dev-elite$/m,
+    );
     assert.match(service, /^NoNewPrivileges=yes$/m);
     assert.match(service, /^ProtectSystem=strict$/m);
     assert.match(service, /^ProtectHome=yes$/m);
@@ -49,18 +52,41 @@ test(
     assert.match(service, /^RestrictAddressFamilies=AF_UNIX$/m);
     assert.match(service, /^CapabilityBoundingSet=$/m);
     assert.match(service, /^AmbientCapabilities=$/m);
-    assert.match(service, new RegExp("^WorkingDirectory=/opt/kmj-codebridge-dev-supervisor/" + SHA + "$", "m"));
-    assert.match(service, new RegExp("^ExecStart=/opt/kmj-codebridge-node/bin/node /opt/kmj-codebridge-dev-supervisor/" + SHA + "/src/cli\\.js supervisor$", "m"));
+    assert.match(
+      service,
+      new RegExp(
+        "^WorkingDirectory=/opt/kmj-codebridge-dev-supervisor/" + SHA + "$",
+        "m",
+      ),
+    );
+    assert.match(
+      service,
+      new RegExp(
+        "^ExecStart=/opt/kmj-codebridge-node/bin/node /opt/kmj-codebridge-dev-supervisor/" +
+          SHA +
+          "/src/cli\\.js supervisor$",
+        "m",
+      ),
+    );
     assert.doesNotMatch(service, /^User=root$/m);
-    assert.doesNotMatch(service, /kmj-main-platform|kmj-cloudos|kmj-codebridge-supervisor\.socket/);
-    assert.match(socket, /^ListenStream=\/run\/kmj-codebridge-dev\/supervisor\.sock$/m);
+    assert.doesNotMatch(
+      service,
+      /kmj-main-platform|kmj-cloudos|kmj-codebridge-supervisor\.socket/,
+    );
+    assert.match(
+      socket,
+      /^ListenStream=\/run\/kmj-codebridge-dev\/supervisor\.sock$/m,
+    );
     assert.match(socket, /^SocketUser=kmjdev$/m);
     assert.match(socket, /^SocketGroup=kmjdev$/m);
     assert.match(socket, /^SocketMode=0600$/m);
     assert.match(socket, /^DirectoryMode=0711$/m);
     assert.match(socket, new RegExp("^Service=" + UNIT + "\\.service$", "m"));
     assert.doesNotMatch(socket, /\/run\/kmj-codebridge\/supervisor\.sock/);
-    assert.doesNotMatch(socket, /\/run\/kmj-codebridge-cloudos\/supervisor\.sock/);
+    assert.doesNotMatch(
+      socket,
+      /\/run\/kmj-codebridge-cloudos\/supervisor\.sock/,
+    );
     assert.doesNotMatch(
       JSON.stringify(result),
       /sudo|systemctl (?:enable|start|restart)|chmod 777|chmod 666/,
