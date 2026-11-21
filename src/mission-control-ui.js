@@ -258,6 +258,11 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <button type="button" class="kmj-device-item" id="fleet-device-10" aria-pressed="false" hidden></button>
     <button type="button" class="kmj-device-item" id="fleet-device-11" aria-pressed="false" hidden></button>
   </div>
+  <div class="kmj-fleet-controls" aria-label="Device list pages">
+    <button type="button" id="fleetPrev" disabled>← Previous 12</button>
+    <span class="note" id="fleetPageInfo" role="status">No devices loaded</span>
+    <button type="button" id="fleetNext" disabled>Next 12 →</button>
+  </div>
   <p class="note" id="fleetActionNotice" role="status">Connect / Repair asks the authenticated host to use existing scoped tools. Host acknowledgment does not prove a reconnect, service start or successful pairing.</p>
   <p class="note">Unavailable/offline machines cannot be magically started remotely. Never bypass owner browser pairing, Windows HMAC/ACL, signed release, process identity, or an explicit privileged approval.</p>
 </section>
@@ -520,23 +525,35 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  });
  // Device control only uses account-scoped MCP tools and host-approved actions.
  // No browser-origin restart, enrollment credentials, token storage or shell.
- var fleet=null,selectedFleet=null,fleetPending=false,fleetRequested=false;
+ var fleet=null,selectedFleet=null,fleetPending=false,fleetRequested=false,fleetPage=0;
  var supervisorPending=0,supervisorScope=null,connectPending=false,pairPending=false;
  var verifyPending=false,verifyScope=null;
  function validFleetId(s){return typeof s==="string"&&/^[A-Za-z0-9_-]{1,64}$/.test(s);}
  function currentFleetScope(){
    if(!selectedFleet||!Array.isArray(fleet))return null;
-   return fleet.some(function(item){return item.device===selectedFleet.device&&item.project===selectedFleet.project;})?selectedFleet:null;
+   for(var i=0;i<fleet.length;i++){
+     var item=fleet[i];
+     if(item.device===selectedFleet.device&&item.project===selectedFleet.project)return item;
+   }
+   return null;
  }
  function showSelected(){
    var scope=currentFleetScope();
    text("fleetSelected",scope?scope.device+" / "+scope.project:"Select an account-authorized device.");
+   var total=fleet?fleet.length:0;
+   var pageCount=Math.max(1,Math.ceil(total/12));
+   fleetPage=Math.max(0,Math.min(fleetPage,pageCount-1));
    for(var i=0;i<12;i++){
-     var row=document.getElementById("fleet-device-"+i),entry=fleet&&fleet[i];
+     var row=document.getElementById("fleet-device-"+i),entry=fleet&&fleet[fleetPage*12+i];
      row.hidden=!entry;
      row.setAttribute("aria-pressed",String(!!scope&&!!entry&&scope.device===entry.device&&scope.project===entry.project));
      if(entry)text("fleet-device-"+i,entry.device+" / "+entry.project+" · "+entry.status);
    }
+   document.getElementById("fleetPrev").disabled=fleetPage===0;
+   document.getElementById("fleetNext").disabled=fleetPage>=pageCount-1;
+   text("fleetPageInfo",total?
+     "Showing "+(fleetPage*12+1)+"–"+Math.min(total,(fleetPage+1)*12)+" of "+total+
+     " authorized entries":"No authorized entries reported");
  }
  function renderFleet(data){
    if(!data||!Array.isArray(data.devices)||data.devices.length>128)return false;
@@ -563,10 +580,16 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        }
      }
    }
+   // Keep the selected authorized device visible after a fresh snapshot.
+   var existing=currentFleetScope();
+   if(existing){
+     selectedFleet=existing;
+     fleetPage=Math.floor(valid.indexOf(existing)/12);
+   }else fleetPage=0;
    var ready=valid.filter(function(e){return e.status==="READY"&&e.connectionState==="online";}).length;
    text("fleetReady",ready);text("fleetAttention",valid.length-ready);
    text("fleetKnown",valid.length);
-   text("fleetNotice",valid.length+" authorized entries reported. "+(valid.length>12?"Showing first 12; other entries remain selectable from authenticated client.":"Select a device to check services.")+" Snapshot only.");
+   text("fleetNotice",valid.length+" authorized entries reported. Use the device pages below to select an authorized device. Snapshot only.");
    showSelected();
    return true;
  }
@@ -586,11 +609,23 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  for(var fleetIndex=0;fleetIndex<12;fleetIndex++){
    (function(index){
      document.getElementById("fleet-device-"+index).addEventListener("click",function(){
-       if(!Array.isArray(fleet)||!fleet[index]||supervisorPending||verifyPending)return;
-       selectedFleet=fleet[index];clearSupervisor();showSelected();
+       var entry=fleet&&fleet[fleetPage*12+index];
+       if(!entry||supervisorPending||verifyPending)return;
+       selectedFleet=entry;clearSupervisor();showSelected();
        text("fleetActionNotice","Selected authorized device. Check Supervisor or request Connect / Repair.");
      });
    })(fleetIndex);
+ }
+ for(var delta=-1;delta<=1;delta+=2){
+   (function(step){
+     document.getElementById(step<0?"fleetPrev":"fleetNext").addEventListener("click",function(){
+       if(!Array.isArray(fleet)||supervisorPending||verifyPending)return;
+       var pages=Math.max(1,Math.ceil(fleet.length/12));
+       var next=fleetPage+step;
+       if(next<0||next>=pages)return;
+       fleetPage=next;showSelected();
+     });
+   })(delta);
  }
  document.getElementById("refreshFleet").addEventListener("click",requestFleet);
  document.getElementById("openDevices").addEventListener("click",function(){tab("devices");});
