@@ -2,7 +2,14 @@
 // This module never executes a process, touches mail files, or emits envelope identities.
 const LIMIT_BYTES = 262144;
 const MAX_RECORDS = 1000;
-const STATES = new Set(["deferred", "active", "incoming", "hold", "maildrop", "corrupt"]);
+const STATES = new Set([
+  "deferred",
+  "active",
+  "incoming",
+  "hold",
+  "maildrop",
+  "corrupt",
+]);
 const CODES = /\b(525|535|530|454|450)\b/;
 
 function safeText(value) {
@@ -10,7 +17,8 @@ function safeText(value) {
 }
 function stateFromUnit(raw) {
   if (typeof raw !== "string" || raw.length > 256) return "unknown";
-  const m = /^ActiveState=(active|inactive|failed|activating|deactivating)$/m.exec(raw);
+  const m =
+    /^ActiveState=(active|inactive|failed|activating|deactivating)$/m.exec(raw);
   return m ? m[1] : "unknown";
 }
 function lifetimeHours(raw) {
@@ -24,7 +32,8 @@ function classify(reason) {
   const code = CODES.exec(reason);
   if (code) return "SMTP_" + code[1];
   const r = reason.toLowerCase();
-  if (r.includes("sasl") || r.includes("authentication failed")) return "AUTH_OTHER";
+  if (r.includes("sasl") || r.includes("authentication failed"))
+    return "AUTH_OTHER";
   if (r.includes("timed out") || r.includes("timeout")) return "TIMEOUT";
   if (r.includes("refused")) return "CONNECTION_REFUSED";
   if (r.includes("network is unreachable")) return "NETWORK_UNREACHABLE";
@@ -44,10 +53,12 @@ export function aggregateEliteMailHealth(
   { queueJsonl, lifetime, relayhost, fallback, postfixState, opendkimState },
   now = Date.now(),
 ) {
-  if (typeof queueJsonl !== "string" || Buffer.byteLength(queueJsonl) > LIMIT_BYTES)
+  if (
+    typeof queueJsonl !== "string" ||
+    Buffer.byteLength(queueJsonl) > LIMIT_BYTES
+  )
     throw new Error("INVALID_QUEUE_INPUT");
-  if (!Number.isFinite(now) || now <= 0)
-    throw new Error("INVALID_CLOCK");
+  if (!Number.isFinite(now) || now <= 0) throw new Error("INVALID_CLOCK");
   const lifespan = lifetimeHours(lifetime);
   const stateCounts = new Map();
   const ageCounts = new Map();
@@ -67,17 +78,28 @@ export function aggregateEliteMailHealth(
     } catch {
       throw new Error("INVALID_QUEUE_INPUT");
     }
-    if (!m || typeof m !== "object" || Array.isArray(m) || !Array.isArray(m.recipients))
+    if (
+      !m ||
+      typeof m !== "object" ||
+      Array.isArray(m) ||
+      !Array.isArray(m.recipients)
+    )
       throw new Error("INVALID_QUEUE_INPUT");
     const state = STATES.has(m.queue_name) ? m.queue_name : "unknown";
     increment(stateCounts, state);
     const t = m.arrival_time;
-    if (typeof t === "number" && Number.isFinite(t) && t > 0 && t * 1000 <= now + 60000) {
+    if (
+      typeof t === "number" &&
+      Number.isFinite(t) &&
+      t > 0 &&
+      t * 1000 <= now + 60000
+    ) {
       const age = Math.max(0, (now / 1000 - t) / 3600);
       oldest = oldest === null ? age : Math.max(oldest, age);
       if (lifespan === null) increment(ageCounts, "THRESHOLD_UNKNOWN");
       else if (age >= lifespan) increment(ageCounts, "AT_OR_OVER_LIFETIME");
-      else if (age >= Math.max(0, lifespan - 24)) increment(ageCounts, "WITHIN_24H_OF_LIFETIME");
+      else if (age >= Math.max(0, lifespan - 24))
+        increment(ageCounts, "WITHIN_24H_OF_LIFETIME");
       else increment(ageCounts, "BELOW_WARNING_WINDOW");
     } else {
       unknownAge++;
@@ -97,8 +119,10 @@ export function aggregateEliteMailHealth(
     inspection: "PASS",
     postfixActive: stateFromUnit(postfixState) === "active",
     opendkimActive: stateFromUnit(opendkimState) === "active",
-    directMxPrimaryConfigured: typeof relayhost === "string" && safeText(relayhost) === "",
-    brevoFallbackConfigured: safeText(fallback) === "[smtp-relay.brevo.com]:587",
+    directMxPrimaryConfigured:
+      typeof relayhost === "string" && safeText(relayhost) === "",
+    brevoFallbackConfigured:
+      safeText(fallback) === "[smtp-relay.brevo.com]:587",
     queueMessages: messages,
     queueRecipients: recipients,
     queueStates: sortedCounts(stateCounts),
