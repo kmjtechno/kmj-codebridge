@@ -162,8 +162,7 @@ runuser -u "$AGENT_USER" -- curl -fsSL --proto '=https' --tlsv1.2 --connect-time
 runuser -u "$AGENT_USER" -- curl -fsSL --proto '=https' --tlsv1.2 --connect-timeout 10 --max-time 120 \
   "$RELEASE_ARCHIVE" -o "$RELEASE_DIR/archive.tar.gz" ||
   die SIGNED_ARCHIVE_UNAVAILABLE
-runuser -u "$AGENT_USER" -- "$NODE" --input-type=module - "$RELEASE_DIR" "$PIN" <<'JS' ||
-  die OWNER_ED25519_RELEASE_UNVERIFIED
+if ! runuser -u "$AGENT_USER" -- "$NODE" --input-type=module - "$RELEASE_DIR" "$PIN" <<'JS'
 import fs from "node:fs";
 import path from "node:path";
 import {createHash,createPublicKey,verify} from "node:crypto";
@@ -190,6 +189,9 @@ if(m.sha256!=="32320e772aa1167a8ddefbd036dd2b95c9bf565608426c624de4d01173742ca0"
 console.log("OWNER_ED25519_SIGNED_SEQ33=PASS");
 console.log("SIGNED_ARCHIVE_DIGEST=PASS");
 JS
+then
+  die OWNER_ED25519_RELEASE_UNVERIFIED
+fi
 # Delete only these fixed newly created public artifacts before runtime swap.
 runuser -u "$AGENT_USER" -- rm -f -- "$RELEASE_DIR/manifest.json" "$RELEASE_DIR/manifest.sig" "$RELEASE_DIR/archive.tar.gz" ||
   die SIGNED_ARTIFACT_CLEANUP_FAILED
