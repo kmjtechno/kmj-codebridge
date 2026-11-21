@@ -971,7 +971,11 @@ test("authenticated Linux systemd receipt displays running service without Windo
     ),
   );
   v.element("checkSupervisor").handlers.click();
-  v.replyResult(7, {
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map(({ message }) => message.id),
+    [12, 13],
+  );
+  v.replyResult(12, {
     structuredContent: {
       service: "agent",
       activeState: "active",
@@ -979,7 +983,7 @@ test("authenticated Linux systemd receipt displays running service without Windo
       mainPid: 0,
     },
   });
-  v.replyResult(8, { isError: true });
+  v.replyResult(13, { isError: true });
   assert.equal(v.element("fleetAgentState").textContent, "UNKNOWN");
 });
 
@@ -1399,7 +1403,11 @@ test("READY device cannot start stale Supervisor read while scoped connection re
   const count = v.parentMessages.length;
   v.element("checkSupervisor").handlers.click();
   assert.equal(v.parentMessages.length, count);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_status"));
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_status",
+    ),
+  );
   v.replyResult(11, {
     structuredContent: {
       devices: [
@@ -1457,7 +1465,11 @@ test("duplicate and late Supervisor RPC replies cannot complete a different serv
   v.replyHost(13, "SUPERVISOR_SERVICE_NOT_ALLOWED");
   assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
   assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
 });
 
 test("Supervisor unavailable and unsupported platform are distinct, safe statuses", () => {
