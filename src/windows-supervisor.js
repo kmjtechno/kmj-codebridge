@@ -381,6 +381,14 @@ export function createWindowsSupervisorHandler({
     }
   };
 
+  // Windows Scheduled Task metadata does NOT attest the currently running
+  // agent executable, argv, SID or pinned release. Until a separate trusted
+  // live-process proof exists, never permit task-based restart.
+  const agentProcessIdentity = () => ({
+    verified: false,
+    reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+  });
+
   const agentTaskState = async () => {
     const task = config.agent.restartTask;
     if (!task) return { exists: false, state: "unknown", enabled: false };
@@ -419,6 +427,7 @@ export function createWindowsSupervisorHandler({
       exactKeys(request, ["op", "service"]);
       if (request.service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       const task = await agentTaskState();
+      const identity = agentProcessIdentity();
       const rev = revision(config.agent.installDir);
       return {
         response: {
@@ -430,16 +439,16 @@ export function createWindowsSupervisorHandler({
           // agent process after an independently run Windows updater.
           runtime: rev ? { commit: rev.commit, source: rev.source } : null,
           runtimeScope: "configured-install-dir",
-          activeProcessRuntime: {
-            verified: false,
-            reason: "PROCESS_IDENTITY_NOT_CORRELATED",
-          },
+          activeProcessRuntime: identity,
           state: task.state,
           restart: {
             supported:
-              Boolean(config.agent.restartTask) && task.exists && task.enabled,
+              Boolean(config.agent.restartTask) &&
+              task.exists &&
+              task.enabled &&
+              identity.verified,
             mechanism:
-              config.agent.restartTask && task.enabled
+              config.agent.restartTask && task.enabled && identity.verified
                 ? "scheduled-task"
                 : null,
           },
@@ -476,7 +485,8 @@ export function createWindowsSupervisorHandler({
       exactKeys(request, ["op", "service"]);
       if (request.service !== "agent") fail("SUPERVISOR_SERVICE_NOT_ALLOWED");
       const task = await agentTaskState();
-      if (!config.agent.restartTask || !task.exists || !task.enabled)
+      if (!task.exists || !task.enabled) fail("SUPERVISOR_RESTART_UNAVAILABLE");
+      if (!config.agent.restartTask || !agentProcessIdentity().verified)
         fail("SUPERVISOR_RESTART_UNAVAILABLE");
       const taskName = config.agent.restartTask;
       return {
