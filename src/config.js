@@ -267,6 +267,7 @@ export const agentSchema = z.object({
     .enum([
       "/run/kmj-codebridge/supervisor.sock",
       "/run/kmj-codebridge-cloudos/supervisor.sock",
+      "/run/kmj-codebridge-dev/supervisor.sock",
     ])
     .optional(),
   // Windows-native supervisor: fixed-prefix named pipe plus the path of the
