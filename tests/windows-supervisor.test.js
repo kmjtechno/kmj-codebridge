@@ -196,7 +196,7 @@ test("production Windows path rules accept drive and UNC paths and refuse traver
   assert.equal(schema.safeParse(unc).success, false);
 });
 
-test("status is truthful: runtime SHA, no update support, restart only with a verified task", async (t) => {
+test("status separates configured runtime from unverified process and blocks restart", async (t) => {
   const calls = [];
   const { handler } = makeHandler(t, {
     extra: { agent: { restartTask: "KMJ-CodeBridge-Agent" } },
@@ -222,7 +222,8 @@ test("status is truthful: runtime SHA, no update support, restart only with a ve
     reason: "PROCESS_IDENTITY_NOT_CORRELATED",
   });
   assert.equal(response.state, "Running");
-  assert.equal(response.restart.supported, true);
+  assert.equal(response.restart.supported, false);
+  assert.equal(response.restart.mechanism, null);
   assert.equal(response.update.supported, false);
   assert.equal(response.update.scope, "supervisor-command");
   assert.deepEqual(calls[0].slice(1), [
@@ -307,36 +308,55 @@ test("callers cannot select executables, args, cwd, environment or paths", async
   assert.equal(calls.length, 0);
 });
 
-test("restart needs a configured, existing task and uses fixed schtasks argv", async (t) => {
+test("Ready and Running Windows tasks cannot restart an unverified agent process", async (t) => {
   const none = makeHandler(t);
   await assert.rejects(
     none.handler({ op: "restart", service: "agent" }),
     /SUPERVISOR_RESTART_UNAVAILABLE/,
   );
 
-  const calls = [];
-  const { handler } = makeHandler(t, {
-    extra: { agent: { restartTask: "KMJ-CodeBridge-Agent" } },
-    runner: async (exe, args) => {
-      calls.push(args);
-      return {
-        exitCode: 0,
-        output: '"KMJ-CodeBridge-Agent","N/A","Ready"',
-        truncated: false,
-        timedOut: false,
-        logSha256: "x",
-        durationMs: 1,
-      };
-    },
-  });
-  const r = await handler({ op: "restart", service: "agent" });
-  assert.equal(r.response.accepted, true);
-  assert.equal(calls.length, 1, "nothing restarts before the reply is sent");
-  await r.afterSend();
-  assert.deepEqual(calls.slice(1), [
-    ["/End", "/TN", "KMJ-CodeBridge-Agent"],
-    ["/Run", "/TN", "KMJ-CodeBridge-Agent"],
-  ]);
+  for (const state of ["Ready", "Running"]) {
+    const calls = [];
+    const { handler } = makeHandler(t, {
+      extra: { agent: { restartTask: "KMJ-CodeBridge-Agent" } },
+      runner: async (_exe, args) => {
+        calls.push(args);
+        return {
+          exitCode: 0,
+          output: '"KMJ-CodeBridge-Agent","N/A","' + state + '"',
+          truncated: false,
+          timedOut: false,
+          logSha256: "x",
+          durationMs: 1,
+        };
+      },
+    });
+    const status = (await handler({ op: "status", service: "agent" })).response;
+    assert.equal(status.state, state);
+    assert.deepEqual(status.activeProcessRuntime, {
+      verified: false,
+      reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+    });
+    assert.equal(status.restart.supported, false);
+    assert.equal(status.restart.mechanism, null);
+    await assert.rejects(
+      handler({ op: "restart", service: "agent" }),
+      /SUPERVISOR_RESTART_UNAVAILABLE/,
+    );
+    assert.equal(calls.length, 2, "only fixed read-only task queries ran");
+    assert.ok(
+      calls.every((args) =>
+        ["/Query", "/TN", "KMJ-CodeBridge-Agent", "/FO", "CSV", "/NH"].every(
+          (arg) => args.includes(arg),
+        ),
+      ),
+    );
+    assert.equal(
+      calls.some((args) => args.includes("/End") || args.includes("/Run")),
+      false,
+      "no task mutation without a live process identity proof",
+    );
+  }
 });
 
 test("disabled and unknown Windows agent task states cannot be restarted", async (t) => {
