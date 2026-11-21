@@ -114,11 +114,19 @@ test("Google upgrade admits only the independently signed seq33 and fixed old ru
     "CONFIG_MODE_CHANGED",
     "SUPERVISOR_SOCKET_UNVERIFIED",
     "SUPERVISOR_STATUS=EXISTING_SOCKET_LEFT_UNCHANGED",
-  ]) assert.ok(source.includes(required), required);
-  assert.ok(source.indexOf("OWNER_ED25519_RELEASE_UNVERIFIED") <
-    source.indexOf('mv -- "$RUNTIME" "$BACKUP"'));
-  assert.ok(source.indexOf("SIGNED_ARTIFACT_CLEANUP_FAILED") <
-    source.indexOf('mv -- "$RUNTIME" "$BACKUP"'));
-  assert.doesNotMatch(source, /(?:systemctl restart|systemctl stop|systemctl enable).*kmj-codebridge-supervisor/);
+  ])
+    assert.ok(source.includes(required), required);
+  assert.ok(
+    source.indexOf("OWNER_ED25519_RELEASE_UNVERIFIED") <
+      source.indexOf('mv -- "$RUNTIME" "$BACKUP"'),
+  );
+  assert.ok(
+    source.indexOf("SIGNED_ARTIFACT_CLEANUP_FAILED") <
+      source.indexOf('mv -- "$RUNTIME" "$BACKUP"'),
+  );
+  assert.doesNotMatch(
+    source,
+    /(?:systemctl restart|systemctl stop|systemctl enable).*kmj-codebridge-supervisor/,
+  );
   assert.doesNotMatch(source, /(?:git reset|git clean|curl\s*\|\s*bash)/);
 });
