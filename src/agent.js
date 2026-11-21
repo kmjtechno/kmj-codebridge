@@ -26,6 +26,7 @@ import {
   supervisorRequest,
   windowsSupervisorRequest,
   ELITE_CLOUDOS_SUPERVISOR_SOCKET,
+  ELITE_DEV_SUPERVISOR_SOCKET,
 } from "./supervisor-client.js";
 import { createDispatcher } from "./tools.js";
 import {
@@ -164,6 +165,13 @@ export async function startAgent(
     (c.projects?.length !== 1 || c.projects[0]?.id !== "kmj-cloudos")
   )
     throw new Error("ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH");
+  // Never let another authorized project impersonate the Elite kmjdev
+  // read-only Supervisor, even when its agent config has been tampered with.
+  if (
+    c.supervisorSocket === ELITE_DEV_SUPERVISOR_SOCKET &&
+    (c.projects?.length !== 1 || c.projects[0]?.id !== "kmj-codebridge")
+  )
+    throw new Error("ELITE_DEV_SUPERVISOR_PROJECT_MISMATCH");
   if (c.supervisorSocket && (c.supervisorPipe || c.supervisorTokenFile))
     throw new Error(
       "Configure either the Linux supervisor socket or the Windows pipe, not both.",
