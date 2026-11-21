@@ -22,7 +22,10 @@ function build({ ownerEvidence = true, configured = true } = {}) {
   const observedAtEpochMs = Date.now();
   const files = new Map([
     [
-      path.join(env.CODEBRIDGE_FREELLMAPI_PINS_DIR, "route-binding-or-free.json"),
+      path.join(
+        env.CODEBRIDGE_FREELLMAPI_PINS_DIR,
+        "route-binding-or-free.json",
+      ),
       JSON.stringify({
         version: 1,
         chain: CHAIN,
@@ -121,10 +124,7 @@ test("agent coding worker uses the same configured zero-cost verifier as the MCP
     agent,
     /createVerifiedFreeCloudCodingModel\(\{[\s\S]*?createClient: createConfiguredFreeLlmApiClient,/,
   );
-  assert.match(
-    tools,
-    /freeLlmApiFactory = createConfiguredFreeLlmApiClient/,
-  );
+  assert.match(tools, /freeLlmApiFactory = createConfiguredFreeLlmApiClient/);
   assert.doesNotMatch(
     agent,
     /createVerifiedFreeCloudCodingModel\(\{[\s\S]*?createClient: createFreeLlmApiClient,/,
