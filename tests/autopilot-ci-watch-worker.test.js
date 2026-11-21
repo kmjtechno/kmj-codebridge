@@ -344,3 +344,28 @@ test("watch worker disabled entirely creates no timers", async () => {
   assert.deepEqual(noOp.enabledProjects, []);
   await noOp.close();
 });
+
+test("403, 429 and 5xx responses preserve bounded retry cooldown without repair admission", async (t) => {
+  for (const status of [403, 429, 500, 502, 503, 504]) {
+    const f = fixture(t, { httpFailure: status });
+    await f.worker.tick();
+    await f.worker.tick();
+    assert.equal(
+      f.calls.length,
+      1,
+      `HTTP ${status} must not trigger a retry burst`,
+    );
+    assert.equal(f.journal.state.tasks.length, 0);
+    f.advance(899999);
+    await f.worker.tick();
+    assert.equal(f.calls.length, 1);
+    f.advance(1);
+    await f.worker.tick();
+    assert.equal(
+      f.calls.length,
+      2,
+      `HTTP ${status} retries only after cooldown`,
+    );
+    assert.equal(f.journal.state.tasks.length, 0);
+  }
+});
