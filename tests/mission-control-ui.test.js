@@ -1032,14 +1032,23 @@ test("Device pages cover authorized entries beyond 12, without granting a new de
   v.replyResult(6, { structuredContent: { devices } });
   assert.equal(v.element("fleetKnown").textContent, "25");
   assert.equal(v.element("fleetReady").textContent, "24");
-  assert.equal(v.element("fleetPageInfo").textContent, "Showing 1–12 of 25 authorized entries");
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 1–12 of 25 authorized entries",
+  );
   assert.equal(v.element("fleetPrev").disabled, true);
   assert.equal(v.element("fleetNext").disabled, false);
   v.element("fleetNext").handlers.click();
-  assert.equal(v.element("fleetPageInfo").textContent, "Showing 13–24 of 25 authorized entries");
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 13–24 of 25 authorized entries",
+  );
   assert.match(v.element("fleet-device-0").textContent, /device12/);
   v.element("fleetNext").handlers.click();
-  assert.equal(v.element("fleetPageInfo").textContent, "Showing 25–25 of 25 authorized entries");
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 25–25 of 25 authorized entries",
+  );
   assert.equal(v.element("fleetNext").disabled, true);
   assert.equal(v.element("fleet-device-1").hidden, true);
   v.element("fleet-device-0").handlers.click();
@@ -1053,7 +1062,9 @@ test("Device pages cover authorized entries beyond 12, without granting a new de
   assert.equal(action.method, "ui/message");
   assert.match(action.params.content.text, /device24 project project1/);
   assert.equal(
-    v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"),
+    v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
     false,
   );
 });
@@ -1078,7 +1089,10 @@ test("Fleet refresh preserves selected grant and page but clamps after device re
       devices: [...rows].reverse(),
     },
   });
-  assert.equal(v.element("fleetPageInfo").textContent, "Showing 1–12 of 13 authorized entries");
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 1–12 of 13 authorized entries",
+  );
   assert.equal(v.element("fleet-device-0").attributes["aria-pressed"], "true");
   assert.match(v.element("fleetSelected").textContent, /d12/);
   v.element("refreshFleet").handlers.click();
@@ -1087,8 +1101,14 @@ test("Fleet refresh preserves selected grant and page but clamps after device re
   });
   assert.equal(v.element("fleetPrev").disabled, true);
   assert.equal(v.element("fleetNext").disabled, true);
-  assert.equal(v.element("fleetPageInfo").textContent, "Showing 1–5 of 5 authorized entries");
-  assert.match(v.element("fleetSelected").textContent, /Select an account-authorized device/);
+  assert.equal(
+    v.element("fleetPageInfo").textContent,
+    "Showing 1–5 of 5 authorized entries",
+  );
+  assert.match(
+    v.element("fleetSelected").textContent,
+    /Select an account-authorized device/,
+  );
 });
 
 test("READY device Connect click verifies exact scope then automatically checks Supervisor", () => {
@@ -1380,8 +1400,15 @@ test("Supervisor unavailable and unsupported platform are distinct, safe statuse
   v.replyHost(8, "SUPERVISOR_SERVICE_NOT_ALLOWED");
   assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
   assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
-  assert.match(v.element("fleetSupervisorDetail").textContent, /approved, signed host-side setup/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+  assert.match(
+    v.element("fleetSupervisorDetail").textContent,
+    /approved, signed host-side setup/,
+  );
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
 });
 
 test("Unsupported Windows gateway is labeled without inventing healthy process identity", () => {
@@ -1422,8 +1449,15 @@ test("Unsupported Windows gateway is labeled without inventing healthy process i
   });
   assert.equal(v.element("fleetAgentState").textContent, "PROCESS UNVERIFIED");
   assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
-  assert.match(v.element("fleetSupervisorDetail").textContent, /does not expose a gateway Supervisor/);
-  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+  assert.match(
+    v.element("fleetSupervisorDetail").textContent,
+    /does not expose a gateway Supervisor/,
+  );
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
 });
 
 test("Pairing remains official domain-owner approval and never starts untrusted installer", () => {
