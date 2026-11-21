@@ -50,7 +50,9 @@ test("Elite dev profile only targets the fixed kmjdev agent", async () => {
   assert.equal(response.activeState, "active");
   assert.ok(calls.length > 0);
   assert.ok(
-    calls.every((call) => call.binary === "/usr/bin/systemctl" && call.args[1] === UNIT),
+    calls.every(
+      (call) => call.binary === "/usr/bin/systemctl" && call.args[1] === UNIT,
+    ),
   );
   for (const service of ["gateway", "kmj-main-platform", "kmj-cloudos"]) {
     await assert.rejects(
@@ -87,7 +89,10 @@ test("Elite dev profile refuses every privileged or project-file operation", asy
 
 test("Elite dev profile offers only bounded resource inventory", async () => {
   const { h } = fixture();
-  assert.equal(typeof (await h({ op: "device_status" })).response.cpuCount, "number");
+  assert.equal(
+    typeof (await h({ op: "device_status" })).response.cpuCount,
+    "number",
+  );
   const disk = (await h({ op: "disk_space" })).response;
   assert.equal(disk.target, "/var/lib/kmj-codebridge-dev");
   assert.equal(disk.totalBytes, 409600);
@@ -123,7 +128,10 @@ test("dedicated Elite dev socket is a Linux exact-match allowlist entry", () => 
     "/run/kmj-codebridge-dev/supervisor.sock.other",
   ])
     assert.equal(isAuthorizedSupervisorSocket(socket, "linux"), false);
-  assert.equal(isAuthorizedSupervisorSocket(ELITE_DEV_SUPERVISOR_SOCKET, "win32"), false);
+  assert.equal(
+    isAuthorizedSupervisorSocket(ELITE_DEV_SUPERVISOR_SOCKET, "win32"),
+    false,
+  );
   const schema = enrolledAgentSchema.shape.supervisorSocket;
   assert.equal(schema.safeParse(ELITE_DEV_SUPERVISOR_SOCKET).success, true);
   assert.equal(schema.safeParse("/tmp/dev.sock").success, false);
@@ -136,10 +144,11 @@ test("dedicated Supervisor sockets require one matching project, no cross-tenant
     [{ id: "kmj-codebridge" }, { id: "kmj-cloudos" }],
   ]) {
     assert.throws(
-      () => assertSupervisorProjectSocketScope({
-        supervisorSocket: ELITE_DEV_SUPERVISOR_SOCKET,
-        projects,
-      }),
+      () =>
+        assertSupervisorProjectSocketScope({
+          supervisorSocket: ELITE_DEV_SUPERVISOR_SOCKET,
+          projects,
+        }),
       /ELITE_DEV_SUPERVISOR_PROJECT_MISMATCH/,
     );
   }
@@ -150,10 +159,11 @@ test("dedicated Supervisor sockets require one matching project, no cross-tenant
     }),
   );
   assert.throws(
-    () => assertSupervisorProjectSocketScope({
-      supervisorSocket: ELITE_CLOUDOS_SUPERVISOR_SOCKET,
-      projects: [{ id: "kmj-codebridge" }],
-    }),
+    () =>
+      assertSupervisorProjectSocketScope({
+        supervisorSocket: ELITE_CLOUDOS_SUPERVISOR_SOCKET,
+        projects: [{ id: "kmj-codebridge" }],
+      }),
     /ELITE_CLOUDOS_SUPERVISOR_PROJECT_MISMATCH/,
   );
 });
