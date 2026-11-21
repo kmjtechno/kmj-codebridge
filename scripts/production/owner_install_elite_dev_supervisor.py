@@ -165,6 +165,9 @@ def verify_archive_tree(source, archive_bytes, stem):
     """
     need(source.is_dir() and not source.is_symlink(), "IMMUTABLE_RUNTIME_MISSING")
     root_parents(source)
+    parent = os.lstat(source)
+    need(parent.st_uid == 0 and not (parent.st_mode & 0o022),
+         "IMMUTABLE_RUNTIME_OWNER_UNTRUSTED")
     files_seen = set()
     with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
         for member in archive:
@@ -280,16 +283,6 @@ def verify_enrollment():
              == "not-found", "DEV_SUPERVISOR_UNIT_COLLISION")
 
 
-def load_signed_renderer(source):
-    file = source / RENDERER
-    spec = importlib.util.spec_from_file_location("_kmj_approved_renderer", file)
-    need(spec is not None and spec.loader is not None, "RENDERER_NOT_FOUND")
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    return mod.render_units(source.name[-12:] and
-                            source.name[-12:])
-
-
 def unit_texts(source, revision):
     file = source / RENDERER
     spec = importlib.util.spec_from_file_location("_kmj_approved_renderer", file)
@@ -303,13 +296,22 @@ def unit_texts(source, revision):
 
 
 def write_exclusive(path, data):
+    root_parents(path)
     fd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY | os.O_NOFOLLOW
                  | os.O_CLOEXEC, 0o644)
     try:
         os.fchmod(fd, 0o644)
-        os.write(fd, data)
+        pos = 0
+        while pos < len(data):
+            n = os.write(fd, data[pos:])
+            need(n > 0, "UNIT_SHORT_WRITE")
+            pos += n
         os.fsync(fd)
-    finally:
+    except BaseException:
+        os.close(fd)
+        os.unlink(path)  # we alone created this exact O_EXCL leaf
+        raise
+    else:
         os.close(fd)
 
 
@@ -335,12 +337,14 @@ process.stdout.write('PRIVATE_READ_ONLY_RPC_PASS\n');
          "PRIVATE_IPC_AUTH_PROBE_FAILED")
 
 
-def rollback(created):
+def rollback(created, activation_attempted):
     # Only remove files this exact invocation created. Never touch other units.
-    try:
-        run(["/usr/bin/systemctl", "disable", "--now", SOCKET_UNIT])
-    except Blocked:
-        pass
+    if activation_attempted:
+        try:
+            run(["/usr/bin/systemctl", "disable", "--now", SOCKET_UNIT])
+        except Blocked:
+            print("DEV_SUPERVISOR_ROLLBACK=FAILED_MANUAL_RECOVERY")
+            raise  # preserve unit files for operator recovery
     for path in reversed(created):
         if os.path.lexists(path):
             os.unlink(path)
@@ -368,6 +372,7 @@ def main(argv):
         print("DEV_SUPERVISOR_INSTALL=DRY_RUN_NO_CHANGES")
         return 0
     created = []
+    activation_attempted = False
     try:
         for name in (SERVICE_UNIT, SOCKET_UNIT):
             path = UNIT_DIR / name
@@ -376,6 +381,7 @@ def main(argv):
         run(["/usr/bin/systemd-analyze", "verify",
              str(UNIT_DIR / SERVICE_UNIT), str(UNIT_DIR / SOCKET_UNIT)])
         run(["/usr/bin/systemctl", "daemon-reload"])
+        activation_attempted = True
         run(["/usr/bin/systemctl", "enable", "--now", SOCKET_UNIT])
         need(run(["/usr/bin/systemctl", "is-active", SOCKET_UNIT]) == "active",
              "SOCKET_UNIT_INACTIVE")
@@ -390,7 +396,7 @@ def main(argv):
         return 0
     except BaseException:
         if created:
-            rollback(created)
+            rollback(created, activation_attempted)
         raise
 
 
