@@ -522,6 +522,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  // No browser-origin restart, enrollment credentials, token storage or shell.
  var fleet=null,selectedFleet=null,fleetPending=false,fleetRequested=false;
  var supervisorPending=0,supervisorScope=null,connectPending=false,pairPending=false;
+ var verifyPending=false,verifyScope=null;
  function validFleetId(s){return typeof s==="string"&&/^[A-Za-z0-9_-]{1,64}$/.test(s);}
  function currentFleetScope(){
    if(!selectedFleet||!Array.isArray(fleet))return null;
@@ -585,7 +586,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  for(var fleetIndex=0;fleetIndex<12;fleetIndex++){
    (function(index){
      document.getElementById("fleet-device-"+index).addEventListener("click",function(){
-       if(!Array.isArray(fleet)||!fleet[index]||supervisorPending)return;
+       if(!Array.isArray(fleet)||!fleet[index]||supervisorPending||verifyPending)return;
        selectedFleet=fleet[index];clearSupervisor();showSelected();
        text("fleetActionNotice","Selected authorized device. Check Supervisor or request Connect / Repair.");
      });
@@ -593,7 +594,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  }
  document.getElementById("refreshFleet").addEventListener("click",requestFleet);
  document.getElementById("openDevices").addEventListener("click",function(){tab("devices");});
- document.getElementById("checkSupervisor").addEventListener("click",function(){
+ function checkSupervisor(){
    var scope=currentFleetScope();
    if(!initialized||!scope||supervisorPending){text("fleetActionNotice","Refresh and select one authorized device first.");return;}
    supervisorScope={device:scope.device,project:scope.project};
@@ -606,10 +607,11 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        name:"supervisor_status",arguments:{device:scope.device,project:scope.project,service:service}
      }},"*");
    }
- });
+ }
+ document.getElementById("checkSupervisor").addEventListener("click",checkSupervisor);
  function hostConnect(kind){
    var scope=kind==="pair"?null:currentFleetScope();
-   if(!initialized||connectPending||pairPending||aiMessagePending||handoffPending||(kind!=="pair"&&!scope)){
+   if(!initialized||connectPending||pairPending||verifyPending||aiMessagePending||handoffPending||(kind!=="pair"&&!scope)){
      text("fleetActionNotice","Host not ready; refresh the fleet and select an authorized device.");return;
    }
    var body;
@@ -617,6 +619,16 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      pairPending=true;
      body="Start KMJ CodeBridge official one-click NEW DEVICE pairing workflow through kmjtechno.com owner-authorized HTTPS browser approval only. Check existing device grants first; avoid duplicate enrollment. Offer a single reviewed signed installer/launcher when a first local action is required. No GitHub login or private token copying. Never silently create a device, disable HMAC/ACL, or run arbitrary shell. Report explicit remaining owner approval; verify account grant plus new authenticated heartbeat before READY.";
    }else{
+     // A READY connection needs a fresh owner-scoped read, not a restart.
+     // A subsequent authenticated service check stays read-only.
+     if(scope.status==="READY"&&scope.connectionState==="online"){
+       verifyPending=true;verifyScope={device:scope.device,project:scope.project};
+       text("fleetActionNotice","Rechecking current account grant; no restart or enrollment...");
+       window.parent.postMessage({jsonrpc:"2.0",id:11,method:"tools/call",params:{
+         name:"connection_overview",arguments:{expectedDevice:scope.device,expectedProject:scope.project}
+       }},"*");
+       return;
+     }
      connectPending=true;
      body="One-click KMJ CodeBridge CONNECT/REPAIR for account-authorized device "+scope.device+" project "+scope.project+". First check connection_overview, connection_doctor, then supervisor_status for agent and gateway. If already READY, do not restart anything. If offline, use only existing allowlisted fixed service recovery when supported with verified process identity, no active jobs, approval and HMAC/ACL gates. supervisor_restart is permissible ONLY when that exact allowlisted device/service explicitly reports restart supported and owner policy approves. Never use arbitrary shell, create duplicate agents, rotate credentials, bypass OAuth or ask for GitHub login. For unreachable devices identify the ONE local signed launcher or browser approval required. After any action repeat account-grant+fresh-heartbeat+Supervisor checks and report PASS only with those receipts; otherwise BLOCKED.";
    }
@@ -731,6 +743,33 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        window.parent.postMessage({
          jsonrpc:"2.0",method:"ui/notifications/initialized",params:{}
        },"*");
+     }
+     return;
+   }
+   if(message.id===11&&verifyPending){
+     verifyPending=false;
+     var checked=message.result&&message.result.structuredContent;
+     var selection=currentFleetScope();
+     var scopeMatched=verifyScope&&selection&&
+       selection.device===verifyScope.device&&selection.project===verifyScope.project;
+     var exact=checked&&!message.error&&!message.result.isError&&
+       Array.isArray(checked.devices)&&checked.devices.length===1&&scopeMatched&&
+       checked.devices[0].device===verifyScope.device&&
+       checked.devices[0].project===verifyScope.project;
+     var live=exact&&checked.devices[0].status==="READY"&&
+       checked.devices[0].connectionState==="online";
+     if(exact&&!live){
+       // Authoritative new result supersedes a stale READY fleet snapshot.
+       selection.status=checked.devices[0].status;
+       selection.connectionState=checked.devices[0].connectionState||"unknown";
+       showSelected();
+     }
+     verifyScope=null;
+     if(live){
+       text("fleetActionNotice","CONNECTED: fresh scoped account status PASS. Supervisor check follows; no restart.");
+       checkSupervisor();
+     }else{
+       text("fleetActionNotice","Connection NOT VERIFIED after fresh scoped check. Refresh or request guarded repair.");
      }
      return;
    }
