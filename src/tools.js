@@ -2071,6 +2071,13 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  supervisor_main_platform_mail_health: {
+    title: "Inspect redacted Elite Postfix mail health",
+    description:
+      "Read only a fixed, bounded KMJ-elite Postfix queue/configuration and service health snapshot via its existing root Supervisor. Returns aggregate queue counts, age buckets and error-code categories without sender, recipient, queue ID, raw logs, credentials or shell. A zero queue does NOT prove delivery. No caller arguments or mutations.",
+    input: scoped,
+    access: "read",
+  },
   supervisor_main_platform_health_unit_receipt: {
     title: "Verify latest health unit's own pass receipt",
     description:
@@ -3754,6 +3761,104 @@ export function createDispatcher(
       return await supervisor.request({
         op: "main_platform_backup_inventory",
       });
+    }
+    if (name === "supervisor_main_platform_mail_health") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform" ||
+        !p.writable
+      )
+        fail("ACCESS_DENIED");
+      const result = await supervisor.request({
+        op: "main_platform_mail_health",
+      });
+      // Trust is verified at this boundary too. Never reflect unknown
+      // privileged provider fields even if the Supervisor is misconfigured.
+      const raw = result?.response;
+      if (raw?.schema !== "KMJ_ELITE_MAIL_HEALTH_V1")
+        fail("SUPERVISOR_RECEIPT_INVALID");
+      const validCount = (n, maximum = 100000) =>
+        Number.isSafeInteger(n) && n >= 0 && n <= maximum ? n : null;
+      const validFloat = (n) => {
+        if (typeof n !== "number" || !Number.isFinite(n) || n < 0 || n > 100000)
+          return null;
+        return n;
+      };
+      const allow = (obj, keys) => {
+        const clean = {};
+        if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+          for (const key of keys) {
+            const value = validCount(obj[key]);
+            if (value !== null) clean[key] = value;
+          }
+        }
+        return clean;
+      };
+      const categoryKeys = [
+        "SMTP_525",
+        "SMTP_535",
+        "SMTP_530",
+        "SMTP_454",
+        "SMTP_450",
+        "AUTH_OTHER",
+        "TIMEOUT",
+        "CONNECTION_REFUSED",
+        "NETWORK_UNREACHABLE",
+        "DNS",
+        "TLS",
+        "OTHER_REDACTED",
+        "NO_DELAY_REASON",
+        "UNCLASSIFIED",
+      ];
+      const queueStateKeys = [
+        "deferred",
+        "active",
+        "incoming",
+        "hold",
+        "maildrop",
+        "corrupt",
+        "unknown",
+      ];
+      const queueAgeKeys = [
+        "AT_OR_OVER_LIFETIME",
+        "WITHIN_24H_OF_LIFETIME",
+        "BELOW_WARNING_WINDOW",
+        "THRESHOLD_UNKNOWN",
+      ];
+      let queueDrained = null;
+      if (typeof raw.queueDrained === "boolean")
+        queueDrained = raw.queueDrained;
+      return {
+        response: {
+          schema: "KMJ_ELITE_MAIL_HEALTH_V1",
+          mode: "READ_ONLY",
+          scope: "kmj-main-platform",
+          inspection: raw.inspection === "PASS" ? "PASS" : "UNAVAILABLE",
+          postfixActive: raw.postfixActive === true,
+          opendkimActive: raw.opendkimActive === true,
+          directMxPrimaryConfigured: raw.directMxPrimaryConfigured === true,
+          brevoFallbackConfigured: raw.brevoFallbackConfigured === true,
+          queueMessages: validCount(raw.queueMessages),
+          queueRecipients: validCount(raw.queueRecipients),
+          queueStates: allow(raw.queueStates, queueStateKeys),
+          queueAgeBuckets: allow(raw.queueAgeBuckets, queueAgeKeys),
+          oldestHours: validFloat(raw.oldestHours),
+          unknownAgeMessages: validCount(raw.unknownAgeMessages),
+          maximalQueueLifetimeHours: validCount(
+            raw.maximalQueueLifetimeHours,
+            8760,
+          ),
+          lastRecordedDelayCategories: allow(
+            raw.lastRecordedDelayCategories,
+            categoryKeys,
+          ),
+          queueDrained,
+          recipientDeliveryProven: false,
+          rootCommandExecutedForMutation: false,
+          queueMutation: "NONE",
+          dnsMutation: "NONE",
+        },
+      };
     }
     if (name === "supervisor_main_platform_health_unit_receipt") {
       if (
