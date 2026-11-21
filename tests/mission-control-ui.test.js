@@ -1378,6 +1378,88 @@ test("Read-only Supervisor checks cannot manufacture an active agent or restart 
   );
 });
 
+test("READY device cannot start stale Supervisor read while scoped connection recheck is pending", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("connectDevice").handlers.click();
+  const count = v.parentMessages.length;
+  v.element("checkSupervisor").handlers.click();
+  assert.equal(v.parentMessages.length, count);
+  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_status"));
+  v.replyResult(11, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map(({ message }) => message.params.name),
+    ["supervisor_status", "supervisor_status"],
+  );
+});
+
+test("duplicate and late Supervisor RPC replies cannot complete a different service or round", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+      ],
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkSupervisor").handlers.click();
+  v.replyHost(7, "SUPERVISOR_UNAVAILABLE");
+  v.replyHost(7, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
+  assert.equal(v.element("fleetGatewayState").textContent, "CHECKING");
+  v.replyHost(8, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+
+  v.element("checkSupervisor").handlers.click();
+  assert.deepEqual(
+    v.parentMessages.slice(-2).map(({ message }) => message.id),
+    [12, 13],
+  );
+  v.replyHost(7, "SUPERVISOR_SERVICE_NOT_ALLOWED"); // stale previous round
+  v.replyHost(8, "SUPERVISOR_UNAVAILABLE");
+  assert.equal(v.element("fleetAgentState").textContent, "CHECKING");
+  assert.equal(v.element("fleetGatewayState").textContent, "CHECKING");
+  v.replyHost(12, "SUPERVISOR_UNAVAILABLE");
+  assert.equal(v.element("fleetGatewayState").textContent, "CHECKING");
+  v.replyHost(13, "SUPERVISOR_SERVICE_NOT_ALLOWED");
+  assert.equal(v.element("fleetAgentState").textContent, "SETUP REQUIRED");
+  assert.equal(v.element("fleetGatewayState").textContent, "NOT SUPPORTED");
+  assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
+});
+
 test("Supervisor unavailable and unsupported platform are distinct, safe statuses", () => {
   const v = openCard();
   v.handshake();
