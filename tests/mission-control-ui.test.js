@@ -1123,7 +1123,7 @@ test("READY recheck refuses swapped scope and converts stale offline to guarded 
   v.element("connectDevice").handlers.click();
   const request = v.parentMessages.at(-1).message;
   assert.equal(request.method, "ui/message");
-  assert.match(request.params.content.text, /guarded/);
+  assert.match(request.params.content.text, /allowlisted/);
   assert.ok(!v.parentMessages.some(({ message }) => message.params?.name === "supervisor_restart"));
 });
 
