@@ -89,13 +89,13 @@ def root_parents(path):
              and not (s.st_mode & 0o022), "ROOT_PARENT_UNTRUSTED")
 
 
-def root_file(path, limit=65536, private=False):
+def root_file(path, limit=65536, private=False, allow_empty=False):
     root_parents(path)
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
         s = os.fstat(fd)
         need(stat.S_ISREG(s.st_mode) and s.st_nlink == 1 and s.st_uid == 0
-             and 0 < s.st_size <= limit
+             and (s.st_size > 0 or allow_empty) and s.st_size <= limit
              and (s.st_mode & (0o077 if private else 0o022)) == 0,
              "SIGNED_FILE_UNTRUSTED")
         data = b""
@@ -201,7 +201,7 @@ def verify_archive_tree(source, archive_bytes, stem):
                     if not part:
                         break
                     digest.update(part)
-                need(hashlib.sha256(root_file(target, 100_000_000)).digest()
+                need(hashlib.sha256(root_file(target, 100_000_000, allow_empty=True)).digest()
                      == digest.digest(), "IMMUTABLE_SOURCE_BYTES_MISMATCH")
     need(THIS_FILE in files_seen and RENDERER in files_seen
          and "src/cli.js" in files_seen
