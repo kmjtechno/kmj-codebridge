@@ -599,7 +599,8 @@ function toolRisk(name, definition) {
     return "DEPLOY";
   if (
     name === "supervisor_development_ci_start" ||
-    name === "supervisor_main_platform_offsite_diagnostic"
+    name === "supervisor_main_platform_offsite_diagnostic" ||
+    name === "supervisor_main_platform_writer_identity_inspect"
   )
     return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
@@ -2092,6 +2093,16 @@ export const definitions = {
     input: {
       ...scoped,
       confirmation: z.literal("RUN_FIXED_READONLY_OFFSITE_DIAGNOSTIC"),
+    },
+    access: "execute",
+  },
+  supervisor_main_platform_writer_identity_inspect: {
+    title: "Verify pinned Elite production FPM writer identity",
+    description:
+      "Run only the root-owned exact-SHA-pinned, fixed-target read-only PHP-FPM production listener and private activation inbox inspector on KMJ-elite. Requires explicit confirmation and execute permission; no caller script, command, shell, path, PID, port or environment. Returns bounded snapshot evidence, never broker installation, release approval, secrets, arbitrary root execution or customer data.",
+    input: {
+      ...scoped,
+      confirmation: z.literal("RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT"),
     },
     access: "execute",
   },
@@ -3879,6 +3890,17 @@ export function createDispatcher(
         fail("ACCESS_DENIED");
       return await supervisor.request({
         op: "main_platform_offsite_diagnostic",
+        confirmation: a.confirmation,
+      });
+    }
+    if (name === "supervisor_main_platform_writer_identity_inspect") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_writer_identity_inspect",
         confirmation: a.confirmation,
       });
     }
