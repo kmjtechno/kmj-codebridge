@@ -14,24 +14,28 @@ function python(code) {
   });
 }
 
-test("owner dev binding refuses invalid argument and never changes a host", {
-  skip: !LINUX,
-}, () => {
-  for (const args of [
-    [],
-    ["--apply"],
-    ["--revision", REV, "--apply"],
-    ["--revision", "main"],
-    ["--revision", REV, "--force"],
-  ]) {
-    const result = spawnSync("python3", ["-I", "-B", FILE, ...args], {
-      encoding: "utf8",
-      timeout: 15000,
-    });
-    assert.equal(result.status, 2, JSON.stringify(args));
-    assert.match(result.stdout, /BLOCKED_NO_LIVE_CREDIT/);
-  }
-});
+test(
+  "owner dev binding refuses invalid argument and never changes a host",
+  {
+    skip: !LINUX,
+  },
+  () => {
+    for (const args of [
+      [],
+      ["--apply"],
+      ["--revision", REV, "--apply"],
+      ["--revision", "main"],
+      ["--revision", REV, "--force"],
+    ]) {
+      const result = spawnSync("python3", ["-I", "-B", FILE, ...args], {
+        encoding: "utf8",
+        timeout: 15000,
+      });
+      assert.equal(result.status, 2, JSON.stringify(args));
+      assert.match(result.stdout, /BLOCKED_NO_LIVE_CREDIT/);
+    }
+  },
+);
 
 test("signed root binding stages only the fixed drop-in with no restart or token writes", () => {
   const source = fs.readFileSync(FILE, "utf8");
@@ -67,6 +71,7 @@ const HERMETIC = [
   "    def root_stat(fd):",
   "        s=old_fstat(fd)",
   "        return types.SimpleNamespace(st_uid=0,st_mode=s.st_mode,st_nlink=s.st_nlink,st_size=s.st_size,st_dev=s.st_dev,st_ino=s.st_ino)",
+  "    b.trust_dropin_dir=lambda _mod: None",
   "    with mock.patch.object(b.os, 'fstat', side_effect=root_stat):",
   "        b.write_once(dummy)",
   "        assert b.DROPIN.read_bytes()==b.TEXT",
@@ -92,10 +97,14 @@ const HERMETIC = [
   "print('ROOT_DROPIN_ATOMIC_COLLISION_PASS')",
 ].join("\n");
 
-test("root-only staging is atomic and refuses collisions or replacement", {
-  skip: !LINUX,
-}, () => {
-  const out = python(HERMETIC);
-  assert.equal(out.status, 0, out.stderr);
-  assert.match(out.stdout, /ROOT_DROPIN_ATOMIC_COLLISION_PASS/);
-});
+test(
+  "root-only staging is atomic and refuses collisions or replacement",
+  {
+    skip: !LINUX,
+  },
+  () => {
+    const out = python(HERMETIC);
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /ROOT_DROPIN_ATOMIC_COLLISION_PASS/);
+  },
+);
