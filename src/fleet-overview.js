@@ -64,6 +64,53 @@ export function fleetLane(
   return lane;
 }
 
+// One read-only, bounded cross-repo handoff. Never assume a fleet-wide task
+// priority: each project has its own owner-approved queue and lease policy.
+// The gateway has already checked account grants before building these lanes.
+function nextWorkHandoff(lanes, deviceSlots, truncated) {
+  const candidates = [];
+  const reservations = new Map();
+  for (const lane of lanes) {
+    if (candidates.length >= 12) break;
+    if (
+      lane.connectionStatus !== "READY" ||
+      lane.operational !== true ||
+      lane.nextAction !== "CLAIM_APPROVED_READY_TASK" ||
+      typeof lane.device !== "string" ||
+      typeof lane.project !== "string" ||
+      typeof lane.nextReadyTaskId !== "string" ||
+      !/^[A-Za-z0-9._:-]{1,128}$/.test(lane.nextReadyTaskId)
+    )
+      continue;
+    const slots = deviceSlots.get(lane.device) ?? 0;
+    const reserved = reservations.get(lane.device) ?? 0;
+    if (reserved >= slots) continue;
+    reservations.set(lane.device, reserved + 1);
+    // No task objective, repo source, customer data, credential or agent log
+    // is forwarded by this fleet-level planning hint.
+    candidates.push({
+      device: lane.device,
+      project: lane.project,
+      taskId: lane.nextReadyTaskId,
+      nextTool: "autopilot_status",
+      action: "VERIFY_SCOPE_AND_CLAIM",
+      alreadyClaimed: false,
+    });
+  }
+  return {
+    status: candidates.length
+      ? "READY_CANDIDATES_UNCLAIMED"
+      : "NO_READY_CANDIDATES",
+    candidates,
+    partialFleet: truncated,
+    crossProjectPriorityVerified: false,
+    workExecutionStarted: false,
+    ownerApprovalGranted: false,
+    nextStep:
+      "Select an authorized lane by owner priority, verify its current state, then use scoped autopilot_claim; never auto-claim or deploy from this read.",
+  };
+}
+
 export function fleetSummary(lanes, totalGrants) {
   // All projects on one agent share its licensed runner; never multiply slots
   // by the number of separately authorized projects on that device.
@@ -90,6 +137,7 @@ export function fleetSummary(lanes, totalGrants) {
       (sum, slots) => sum + slots,
       0,
     ),
+    nextWork: nextWorkHandoff(lanes, deviceSlots, totalGrants > lanes.length),
     lanes,
     modeledOnly: false,
     noJobsStarted: true,

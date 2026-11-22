@@ -204,13 +204,15 @@ def write_approval(content):
             out.flush()
             os.fsync(out.fileno())
     tmp = APPROVAL + ".tmp-" + str(os.getpid())
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o644)
+    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
     try:
         with os.fdopen(fd, "wb") as out:
             out.write(content)
             out.flush()
             os.fsync(out.fileno())
-        os.chmod(tmp, 0o644)
+        # Private on purpose: the Main Platform autopublish gate / readiness receipt reject any group or
+        # world bit, and every consumer (supervisor, release unit, broker) runs as root.
+        os.chmod(tmp, 0o600)
         os.replace(tmp, APPROVAL)
     except BaseException:
         try:
