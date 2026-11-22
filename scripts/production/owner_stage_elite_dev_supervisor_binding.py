@@ -94,6 +94,10 @@ def fixed_status(mod):
 
 def verify_private_config(mod):
     uid = pwd.getpwnam("kmjdev").pw_uid
+    parent = os.lstat(mod.AGENT_CONFIG.parent)
+    need(stat.S_ISDIR(parent.st_mode) and parent.st_uid == uid
+         and (parent.st_mode & 0o077) == 0,
+         "DEV_CONFIG_DIRECTORY_UNTRUSTED")
     fd = os.open(mod.AGENT_CONFIG, os.O_RDONLY | os.O_NOFOLLOW | os.O_CLOEXEC)
     try:
         st = os.fstat(fd)
@@ -102,6 +106,10 @@ def verify_private_config(mod):
              and 0 < st.st_size < 65536, "DEV_CONFIG_UNTRUSTED")
         raw = os.read(fd, st.st_size)
         need(len(raw) == st.st_size, "DEV_CONFIG_READ_INCOMPLETE")
+        end = os.fstat(fd)
+        need((st.st_dev, st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns)
+             == (end.st_dev, end.st_ino, end.st_size, end.st_mtime_ns, end.st_ctime_ns),
+             "DEV_CONFIG_CHANGED_DURING_READ")
         d = json.loads(raw)
     finally:
         os.close(fd)
@@ -175,6 +183,15 @@ def remove_owned(mod):
     mod.run(["/usr/bin/systemctl", "daemon-reload"])
 
 
+def binding_env_is_exact(text):
+    if type(text) is not str:
+        return False
+    items = text.split()
+    prefix = "KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND="
+    flags = [x for x in items if x.startswith(prefix)]
+    return flags == [FLAG]
+
+
 def main(argv):
     need(type(argv) is list and (len(argv) == 2 and argv[0] == "--revision"
          or len(argv) == 4 and argv[0] == "--revision"
@@ -184,7 +201,9 @@ def main(argv):
     mod, source = release_guard(argv[1])
     before = fixed_status(mod)
     before_digest = verify_private_config(mod)
-    need(FLAG not in before.get("Environment", ""), "BIND_FLAG_ALREADY_PRESENT")
+    need(not any(item.startswith("KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=")
+                 for item in before.get("Environment", "").split()),
+         "BIND_FLAG_ALREADY_PRESENT")
     trust_dropin_dir(mod)
     need(not os.path.lexists(DROPIN), "DROPIN_ALREADY_PRESENT")
     need(mod.run(["/usr/bin/systemctl", "is-active", SOCKET_UNIT]) == "active",
@@ -207,7 +226,7 @@ def main(argv):
         created = True
         mod.run(["/usr/bin/systemctl", "daemon-reload"])
         after = fixed_status(mod)
-        need(FLAG in after.get("Environment", "")
+        need(binding_env_is_exact(after.get("Environment", ""))
              and (after["MainPID"], after["NRestarts"]) ==
              (before["MainPID"], before["NRestarts"]),
              "DEV_AGENT_RESTART_OR_DROPIN_MISMATCH")
