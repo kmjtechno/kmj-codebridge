@@ -11,7 +11,7 @@ const CONFIRM = "RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT";
 
 function fixture(
   t,
-  { device = DEVICE, project = PROJECT, hasSupervisor = true } = {},
+  { device = DEVICE, project = PROJECT, hasSupervisor = true, payload = null } = {},
 ) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-writer-tool-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -25,13 +25,17 @@ function fixture(
         request: async (input) => {
           calls.push(input);
           return {
-            response: {
+            response: payload ?? {
               mode: "READ_ONLY_FIXED_DIAGNOSTIC",
               scope: PROJECT,
               diagnostic: {
                 status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
                 productionPoolWorkers: 3,
-                rootBrokerInstalled: false,
+                activationRequestCreated: false,
+                brokerStarted: false,
+                activationApproved: false,
+                productionReleaseVerified: false,
+                productionMutation: "NONE",
               },
               rootBrokerInstalled: false,
               releaseApprovalGranted: false,
@@ -123,5 +127,130 @@ test("new inspector rejects other device, project and missing supervisor", async
       ),
     );
     assert.equal(f.calls.length, 0);
+  }
+});
+
+test("captured legacy client advertises one fixed inspect variant and safely executes", async (t) => {
+  const f = fixture(t);
+  const list = await f.dispatch(
+    "list_project_commands",
+    { device: DEVICE, project: PROJECT },
+    ["read"],
+  );
+  const profile = list.commands.find((command) =>
+    command.id === "main_platform_writer_identity_inspect");
+  assert.ok(profile);
+  assert.equal(profile.category, "inspect");
+  assert.equal(profile.approvalRequired, true);
+  assert.deepEqual(profile.variants, [CONFIRM]);
+  const result = await f.dispatch(
+    "run_project_command",
+    {
+      device: DEVICE,
+      project: PROJECT,
+      command: "main_platform_writer_identity_inspect",
+      variant: CONFIRM,
+      requestKey: "fixed-writer-inspect-legacy-check",
+    },
+    ["execute"],
+  );
+  assert.deepEqual(f.calls, [{
+    op: "main_platform_writer_identity_inspect",
+    confirmation: CONFIRM,
+  }]);
+  assert.deepEqual(result, {
+    command: "main_platform_writer_identity_inspect",
+    status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
+    productionPoolWorkers: 3,
+    source: "FIXED_SHA_PINNED_SUPERVISOR",
+    rootBrokerInstalled: false,
+    releaseApprovalGranted: false,
+    productionReleaseVerified: false,
+    productionMutation: "NONE",
+  });
+});
+
+test("captured legacy client rejects wrong variant, extra lanes and read-only grants", async (t) => {
+  const f = fixture(t);
+  const request = {
+    device: DEVICE,
+    project: PROJECT,
+    command: "main_platform_writer_identity_inspect",
+    variant: CONFIRM,
+    requestKey: "fixed-writer-inspect-legacy-negative",
+  };
+  for (const extra of [
+    { variant: "overview" },
+    { variant: "RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT " },
+    { variant: "start" },
+    { expectedHead: "a".repeat(40) },
+    { laneId: "anything" },
+  ]) {
+    await assert.rejects(
+      f.dispatch("run_project_command", { ...request, ...extra }, ["execute"]),
+    );
+  }
+  await assert.rejects(
+    f.dispatch("run_project_command", request, ["read"]),
+  );
+  assert.equal(f.calls.length, 0);
+});
+
+test("captured legacy client rejects wrong host/project and forged approval evidence", async (t) => {
+  const request = {
+    device: DEVICE,
+    project: PROJECT,
+    command: "main_platform_writer_identity_inspect",
+    variant: CONFIRM,
+    requestKey: "fixed-writer-inspect-mock-response",
+  };
+  for (const options of [
+    { device: "google-vps1" },
+    { project: "kmj-cloudos" },
+    { hasSupervisor: false },
+  ]) {
+    const f = fixture(t, options);
+    await assert.rejects(
+      f.dispatch("run_project_command", {
+        ...request,
+        device: f.device,
+        project: f.project,
+      }, ["execute"]),
+    );
+    assert.equal(f.calls.length, 0);
+  }
+  const valid = {
+    mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+    scope: PROJECT,
+    diagnostic: {
+      status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
+      productionPoolWorkers: 3,
+      activationRequestCreated: false,
+      brokerStarted: false,
+      activationApproved: false,
+      productionReleaseVerified: false,
+      productionMutation: "NONE",
+    },
+    rootBrokerInstalled: false,
+    releaseApprovalGranted: false,
+    productionMutation: "NONE",
+    rawProcessDataExposed: false,
+  };
+  for (const forged of [
+    { productionMutation: "SOME" },
+    { rootBrokerInstalled: true },
+    { releaseApprovalGranted: true },
+    { rawProcessDataExposed: true },
+    { scope: "kmj-cloudos" },
+    { diagnostic: { ...valid.diagnostic, activationApproved: true } },
+    { diagnostic: { ...valid.diagnostic, brokerStarted: true } },
+    { diagnostic: { ...valid.diagnostic, productionPoolWorkers: 0 } },
+    { diagnostic: { ...valid.diagnostic, productionPoolWorkers: 1025 } },
+  ]) {
+    const f = fixture(t, { payload: { ...valid, ...forged } });
+    await assert.rejects(
+      f.dispatch("run_project_command", request, ["execute"]),
+      /MAIN_PLATFORM_WRITER_INSPECT_UNVERIFIED/,
+    );
   }
 });
