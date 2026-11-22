@@ -36,8 +36,11 @@ const name = chain.slice(5);
 const imp = (f) => import(pathToFileURL(path.join(dir, "src", f)).href);
 const code = (e) =>
   String(e?.code ?? e?.message ?? "ERR").replace(/[^A-Za-z0-9_:.-]/g, "").slice(0, 60);
-const out = (stage, ok, detail = "") =>
+let stageFailed = false;
+const out = (stage, ok, detail = "") => {
+  if (!ok) stageFailed = true;
   console.log(stage + "=" + (ok ? "OK" : "FAIL") + (detail ? " " + detail : ""));
+};
 out("PROCESS_UID", true, String(process.getuid()));
 let pinned = null;
 try {
@@ -59,7 +62,7 @@ try {
   snapMod = await imp("freellmapi-chain-snapshot.js");
   fetcher = f.createOpenRouterEvidenceFetcher({ apiKey: process.env.CODEBRIDGE_OPENROUTER_KEY });
   out("MODULES", true);
-} catch (e) { out("MODULES", false, code(e)); process.exit(0); }
+} catch (e) { out("MODULES", false, code(e)); process.exit(2); }
 try {
   const cat = await fetcher.fetchOpenRouterModels();
   const rows = Array.isArray(cat?.data) ? cat.data : [];
@@ -94,6 +97,7 @@ try {
   const proof = await verify({ chain, observedAtEpochMs: Date.now() });
   out("VERIFIER", true, "requestsRemaining=" + proof.requestsRemaining);
 } catch (e) { out("VERIFIER", false, code(e)); }
+if (stageFailed) process.exitCode = 2;
 '''
 
 
@@ -154,6 +158,7 @@ def main():
     print(result.stdout.rstrip())
     if result.returncode:
         print("NODE_EXIT=" + str(result.returncode))
+        sys.exit(2)
 
 
 if __name__ == "__main__":
