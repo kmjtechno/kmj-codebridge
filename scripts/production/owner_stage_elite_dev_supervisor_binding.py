@@ -173,7 +173,7 @@ def write_once(mod, data=TEXT):
         os.close(fd)
         if os.path.lexists(stage):
             os.unlink(stage)
-    return (original.st_dev, original.st_ino)
+    return (st.st_dev, st.st_ino)
 
 
 def remove_owned(mod, expected_identity):
