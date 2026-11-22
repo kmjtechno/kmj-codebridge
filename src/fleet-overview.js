@@ -98,7 +98,9 @@ function nextWorkHandoff(lanes, deviceSlots, truncated) {
     });
   }
   return {
-    status: candidates.length ? "READY_CANDIDATES_UNCLAIMED" : "NO_READY_CANDIDATES",
+    status: candidates.length
+      ? "READY_CANDIDATES_UNCLAIMED"
+      : "NO_READY_CANDIDATES",
     candidates,
     partialFleet: truncated,
     crossProjectPriorityVerified: false,
