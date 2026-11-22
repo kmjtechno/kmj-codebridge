@@ -11,7 +11,12 @@ const CONFIRM = "RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT";
 
 function fixture(
   t,
-  { device = DEVICE, project = PROJECT, hasSupervisor = true, payload = null } = {},
+  {
+    device = DEVICE,
+    project = PROJECT,
+    hasSupervisor = true,
+    payload = null,
+  } = {},
 ) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-writer-tool-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
@@ -137,8 +142,9 @@ test("captured legacy client advertises one fixed inspect variant and safely exe
     { device: DEVICE, project: PROJECT },
     ["read"],
   );
-  const profile = list.commands.find((command) =>
-    command.id === "main_platform_writer_identity_inspect");
+  const profile = list.commands.find(
+    (command) => command.id === "main_platform_writer_identity_inspect",
+  );
   assert.ok(profile);
   assert.equal(profile.category, "inspect");
   assert.equal(profile.approvalRequired, true);
@@ -154,10 +160,12 @@ test("captured legacy client advertises one fixed inspect variant and safely exe
     },
     ["execute"],
   );
-  assert.deepEqual(f.calls, [{
-    op: "main_platform_writer_identity_inspect",
-    confirmation: CONFIRM,
-  }]);
+  assert.deepEqual(f.calls, [
+    {
+      op: "main_platform_writer_identity_inspect",
+      confirmation: CONFIRM,
+    },
+  ]);
   assert.deepEqual(result, {
     command: "main_platform_writer_identity_inspect",
     status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
@@ -190,9 +198,7 @@ test("captured legacy client rejects wrong variant, extra lanes and read-only gr
       f.dispatch("run_project_command", { ...request, ...extra }, ["execute"]),
     );
   }
-  await assert.rejects(
-    f.dispatch("run_project_command", request, ["read"]),
-  );
+  await assert.rejects(f.dispatch("run_project_command", request, ["read"]));
   assert.equal(f.calls.length, 0);
 });
 
@@ -211,11 +217,15 @@ test("captured legacy client rejects wrong host/project and forged approval evid
   ]) {
     const f = fixture(t, options);
     await assert.rejects(
-      f.dispatch("run_project_command", {
-        ...request,
-        device: f.device,
-        project: f.project,
-      }, ["execute"]),
+      f.dispatch(
+        "run_project_command",
+        {
+          ...request,
+          device: f.device,
+          project: f.project,
+        },
+        ["execute"],
+      ),
     );
     assert.equal(f.calls.length, 0);
   }
