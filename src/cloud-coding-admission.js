@@ -1,15 +1,22 @@
 // Pure, fail-closed admission preflight. This module never calls an inference provider,
 // reads credentials, transfers source, creates a worktree, or starts a worker.
 const own = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
-const sha = (value) => typeof value === "string" && /^[0-9a-f]{40}$/.test(value);
-const nonempty = (value) => typeof value === "string" && value.length > 0 && value.length <= 256;
+const sha = (value) =>
+  typeof value === "string" && /^[0-9a-f]{40}$/.test(value);
+const nonempty = (value) =>
+  typeof value === "string" && value.length > 0 && value.length <= 256;
 
 export function evaluateCloudCodingAdmission(input) {
   const deny = (reason) => ({ allowed: false, reason });
-  if (!input || typeof input !== "object" || Array.isArray(input)) return deny("INVALID_INPUT");
+  if (!input || typeof input !== "object" || Array.isArray(input))
+    return deny("INVALID_INPUT");
   const { provider, consent, lane, qa, release } = input;
-  if (!provider || typeof provider !== "object") return deny("PROVIDER_EVIDENCE_MISSING");
-  if (provider.upstreamProviderVerified !== true || provider.billingVerified !== true)
+  if (!provider || typeof provider !== "object")
+    return deny("PROVIDER_EVIDENCE_MISSING");
+  if (
+    provider.upstreamProviderVerified !== true ||
+    provider.billingVerified !== true
+  )
     return deny("PROVIDER_ACCOUNT_UNVERIFIED");
   if (
     provider.zeroPriceVerified !== true ||
@@ -27,7 +34,8 @@ export function evaluateCloudCodingAdmission(input) {
     provider.routeBound !== true
   )
     return deny("PROVIDER_ROUTE_SNAPSHOT_UNTRUSTED");
-  if (!consent || typeof consent !== "object") return deny("SOURCE_TRANSFER_CONSENT_MISSING");
+  if (!consent || typeof consent !== "object")
+    return deny("SOURCE_TRANSFER_CONSENT_MISSING");
   if (
     consent.approved !== true ||
     !nonempty(consent.project) ||
@@ -66,7 +74,10 @@ export function evaluateCloudCodingAdmission(input) {
     !sha(release.revision)
   )
     return deny("SIGNED_ACTIVATION_UNVERIFIED");
-  if (!own(input, "explicitActivationRequested") || input.explicitActivationRequested !== true)
+  if (
+    !own(input, "explicitActivationRequested") ||
+    input.explicitActivationRequested !== true
+  )
     return deny("ACTIVATION_NOT_REQUESTED");
   // An advisory decision only; runtime must revalidate trusted evidence atomically.
   return { allowed: true, reason: "PREFLIGHT_ONLY_REVALIDATE_AT_EXECUTION" };
