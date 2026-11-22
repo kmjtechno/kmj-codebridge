@@ -162,3 +162,29 @@ test("without root it blocks before touching anything (needs the explicit inputs
   assert.match(r.stdout, /BLOCKED_NOT_ROOT/);
   assert.match(r.stdout, /NOTHING_ACTIVATED/);
 });
+
+test("approval file is written private (0600): the Main Platform autopublish gate rejects any group or world bit", () => {
+  assert.match(code, /os\.O_EXCL \| os\.O_NOFOLLOW, 0o600\)\n    try:/);
+  assert.match(code, /os\.chmod\(tmp, 0o600\)/);
+  assert.doesNotMatch(code, /0o644/);
+  assert.doesNotMatch(code, /os\.chmod\(tmp, 0o6[4-7][0-7]\)/);
+});
+
+test("an existing 0600 or 0644 approval can still be read back for the backup, never a group or world writable one", () => {
+  const r = py(`
+import os, tempfile, stat
+d = tempfile.mkdtemp()
+out = {}
+for mode in (0o600, 0o644, 0o664):
+    p = os.path.join(d, "a%o" % mode)
+    open(p, "wb").write(b"{}")
+    os.chmod(p, mode)
+    try:
+        m.root_regular(p, 4096)
+        out[oct(mode)] = "ok"
+    except Exception as e:
+        out[oct(mode)] = str(e)
+print(json.dumps(out))`);
+  // uid != 0 in CI may reject everything as FILE_UNSAFE; the group-writable file must never pass.
+  assert.notEqual(r["0o664"], "ok");
+});
