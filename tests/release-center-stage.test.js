@@ -60,7 +60,10 @@ test("staging rejects stale SHA, forged signing, traversal, wrong size and hash"
   ])
     assert.equal(assessStagedRuntime(manifest, revision, bytes).ready, false);
 });
-test("staging rejects symlink archive rather than following it", { skip: process.platform === "win32" }, (t) => {
+test(
+  "staging rejects symlink archive rather than following it",
+  { skip: process.platform === "win32" },
+  (t) => {
   const f = fixture(t);
   rmSync(path.join(f.runtime, archive));
   const outside = path.join(f.root, "outside");
@@ -70,7 +73,8 @@ test("staging rejects symlink archive rather than following it", { skip: process
     () => verifyStagedRuntime(f.manifestPath, sha),
     /STAGE_ARCHIVE_UNSAFE/,
   );
-});
+  },
+);
 test("staging workflow stays read-only and runs complete isolated QA", () => {
   const workflow = readFileSync(".github/workflows/oneclick-stage.yml", "utf8");
   for (const token of [
