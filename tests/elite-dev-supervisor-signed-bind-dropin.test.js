@@ -49,6 +49,9 @@ test("signed root binding stages only the fixed drop-in with no restart or token
   assert.match(source, /DEV_AGENT_BINDING_LIVE_RPC=NOT_YET_VERIFIED/);
   assert.match(source, /mod\.private_socket_probe\(\)/);
   assert.match(source, /DEV_CONFIG_MUTATED/);
+  assert.match(source, /DEV_CONFIG_DIRECTORY_UNTRUSTED/);
+  assert.match(source, /DEV_CONFIG_CHANGED_DURING_READ/);
+  assert.match(source, /binding_env_is_exact\(after\.get\("Environment"/);
   assert.match(source, /os\.link\(stage, DROPIN, follow_symlinks=False\)/);
   assert.doesNotMatch(source, /systemctl", "restart"/);
   assert.doesNotMatch(source, /systemctl", "stop"/);
@@ -106,5 +109,25 @@ test(
     const out = python(HERMETIC);
     assert.equal(out.status, 0, out.stderr);
     assert.match(out.stdout, /ROOT_DROPIN_ATOMIC_COLLISION_PASS/);
+  },
+);
+
+test(
+  "effective systemd environment must contain exactly one authorized flag",
+  { skip: !LINUX },
+  () => {
+    const out = python([
+      "import importlib.util",
+      "spec=importlib.util.spec_from_file_location('b','scripts/production/owner_stage_elite_dev_supervisor_binding.py')",
+      "b=importlib.util.module_from_spec(spec)",
+      "spec.loader.exec_module(b)",
+      "assert b.binding_env_is_exact(b.FLAG)",
+      "assert b.binding_env_is_exact('PATH=/usr/bin '+b.FLAG+' OTHER=x')",
+      "for x in ['', b.FLAG+'evil', b.FLAG+' '+b.FLAG, 'KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=0', b.FLAG+' KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=0']:",
+      "    assert not b.binding_env_is_exact(x)",
+      "print('EXACT_BINDING_FLAG_PASS')",
+    ].join("\n"));
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /EXACT_BINDING_FLAG_PASS/);
   },
 );
