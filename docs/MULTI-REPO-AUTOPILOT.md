@@ -43,7 +43,7 @@ decisions and evidence. For example:
   tests against the same signed fixture
 - CodeBridge: scoped agent tasks, dependency ordering and progress evidence
 
-Represent dependencies in *each authorized project's existing* mission/task
+Represent dependencies in _each authorized project's existing_ mission/task
 queue; cross-repo claims are **not** an automatic distributed transaction.
 Use GitHub PR links and verified artifact SHAs as evidence. An OpenSpec-like
 proposal / spec / tasks layout is useful for large changes, but first pilot
@@ -73,7 +73,7 @@ vendor-owned runtime into every repository.
 - A live, authenticated `fleet_overview` read actually contains the bounded
   `nextWork` suggestions and does not expose task objectives or exceed
   per-device available slots.
-- At least one task in two *distinct, authorized* project lanes is resumed
+- At least one task in two _distinct, authorized_ project lanes is resumed
   from a checkpoint and linked to CI evidence without duplicate enqueue.
 - Measure real run times, CI reruns and extra monetary spend; do not claim
   speedup until compared with a baseline.
