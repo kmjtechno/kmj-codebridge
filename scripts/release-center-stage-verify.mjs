@@ -98,7 +98,10 @@ if (
     if (process.argv.length !== 5) throw Error("STAGE_ARGUMENT_COUNT_INVALID");
     const report = verifyStagedRuntime(process.argv[2], process.argv[3]);
     const output = process.argv[4];
-    if (typeof output !== "string" || path.basename(output) !== "stage-receipt.json")
+    if (
+      typeof output !== "string" ||
+      path.basename(output) !== "stage-receipt.json"
+    )
       throw Error("STAGE_RECEIPT_PATH_INVALID");
     fs.writeFileSync(
       output,
