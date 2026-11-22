@@ -45,8 +45,7 @@ function fixture(
       "export const isVerifiedFreeModel = () => true;",
       "export const evaluateAccountEvidence = () => ({",
       "  ok:" + (broken === "account" ? "false" : "true") + ",",
-      "  reasons:" +
-        (broken === "account" ? '["ACCOUNT_NOT_VERIFIED"]' : "[]"),
+      "  reasons:" + (broken === "account" ? '["ACCOUNT_NOT_VERIFIED"]' : "[]"),
       "});",
     ].join("\n"),
     "freellmapi-zero-cost-verifier.js": [
@@ -113,7 +112,11 @@ test(
 for (const [label, args, expected] of [
   ["missing pin", { missingPin: true }, /PIN_READ=FAIL/],
   ["missing snapshot", { missingSnapshot: true }, /SNAPSHOT_READ=FAIL/],
-  ["failed account evidence", { broken: "account" }, /OPENROUTER_KEY_EVIDENCE=FAIL/],
+  [
+    "failed account evidence",
+    { broken: "account" },
+    /OPENROUTER_KEY_EVIDENCE=FAIL/,
+  ],
   ["failed independent verifier", { broken: "verifier" }, /VERIFIER=FAIL/],
   ["missing verifier module", { broken: "modules" }, /MODULES=FAIL/],
 ]) {
