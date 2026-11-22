@@ -173,10 +173,14 @@ def write_once(mod, data=TEXT):
         os.close(fd)
         if os.path.lexists(stage):
             os.unlink(stage)
+    return (original.st_dev, original.st_ino)
 
 
-def remove_owned(mod):
-    """Rollback only a matching create-only file from this invocation."""
+def remove_owned(mod, expected_identity):
+    """Rollback only the exact inode created by this invocation."""
+    current = os.lstat(DROPIN)
+    need((current.st_dev, current.st_ino) == expected_identity,
+         "DROPIN_ROLLBACK_INODE_MISMATCH")
     raw = mod.root_file(DROPIN, 4096)
     need(raw == TEXT, "DROPIN_ROLLBACK_BYTES_MISMATCH")
     os.unlink(DROPIN)
@@ -219,11 +223,10 @@ def main(argv):
         print("DEV_BINDING_ROOT_PREFLIGHT=PASS_NO_CHANGES")
         print("DEV_BINDING_AGENT_RESTART=NOT_ATTEMPTED")
         return 0
-    created = False
+    created_identity = None
     try:
         trust_dropin_dir(mod, create=True)
-        write_once(mod)
-        created = True
+        created_identity = write_once(mod)
         mod.run(["/usr/bin/systemctl", "daemon-reload"])
         after = fixed_status(mod)
         need(binding_env_is_exact(after.get("Environment", ""))
@@ -236,9 +239,9 @@ def main(argv):
         print("DEV_AGENT_BINDING_LIVE_RPC=NOT_YET_VERIFIED")
         return 0
     except BaseException:
-        if created:
+        if created_identity is not None:
             try:
-                remove_owned(mod)
+                remove_owned(mod, created_identity)
             except BaseException:
                 print("DEV_BINDING_ROLLBACK=FAILED_MANUAL_RECOVERY")
                 raise
