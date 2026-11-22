@@ -61,7 +61,33 @@ probes read-only and denied RPCs, then reports
 agent, never edits the private agent config, and does not deploy the public
 website. Agent binding remains a separate signed/job-drained handoff.
 
-## Step 3 — additional guardrails and live proof requirements
+## Step 3 — future agent binding (source only, not activated)
+
+The enrolled development agent now supports an opt-in **operator unit flag**
+`KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=1`. It selects exactly the
+dedicated read-only `/run/kmj-codebridge-dev/supervisor.sock` without
+editing or copying the private enrollment file or its token. Missing flag
+preserves the existing behavior and does not silently connect.
+
+Before accepting the flag at agent startup, the signed runtime checks Linux,
+the exact device ID `kmj-codebridge-elite`, the single enrolled
+`kmj-codebridge` project, the absence of any other socket or Windows pipe,
+and a currently installed Unix socket owned by the non-root agent UID/GID,
+mode `0600`, under a root-owned, non-group-writable directory. Every mismatch
+fails closed before agent credential resolution or acquiring its state lock.
+The flag is *not* a host installer, a signature, a permission grant or a
+service restart. No GitHub file or chat message may set it on behalf of
+the operator.
+
+An independently reviewed, owner-signed **root-managed systemd drop-in**
+and job-drained activation are still required to make the flag effective
+on the actual Elite agent. No running agent may be restarted just to
+enable this code, and the signed host installer remains separate from
+agent binding. After such activation, recheck real authenticated Supervisor
+RPCs (including denied restart/gateway requests) and the one-click dashboard;
+otherwise `SUPERVISOR_NOT_CONFIGURED` remains correct.
+
+## Step 4 — additional guardrails and live proof requirements
 
 A separate operator-controlled, signed and pinned Elite-only installer must:
 
