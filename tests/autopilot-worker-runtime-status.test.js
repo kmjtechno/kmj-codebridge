@@ -29,12 +29,15 @@ function fixture(t, workerSource, codingConfigured = false) {
         autopilotLocalWorker: { enabled: false },
         ...(codingConfigured
           ? {
-              autopilotCodingWorker: {
-                enabled: true,
-                localProcessingApproved: true,
-                model: "qwen3:4b",
-                recipes: {},
-              },
+              autopilotCodingWorker:
+                typeof codingConfigured === "object"
+                  ? codingConfigured
+                  : {
+                      enabled: true,
+                      localProcessingApproved: true,
+                      model: "qwen3:4b",
+                      recipes: {},
+                    },
             }
           : {}),
       },
@@ -154,11 +157,10 @@ test("read authorization and device/project isolation are retained", async (t) =
 });
 
 test("verified-free-cloud coding reports configured without local model consent", async (t) => {
-  const f = fixture(t, () => ({
-    coding: ["project1"],
-    agentRunning: true,
-  }));
-  f.config.projects[0].autopilotCodingWorker = {
+  const f = fixture(
+    t,
+    () => ({ coding: ["project1"], agentRunning: true }),
+    {
     enabled: true,
     inferenceRoute: "verified-free-cloud-only",
     localProcessingApproved: false,
@@ -166,7 +168,8 @@ test("verified-free-cloud coding reports configured without local model consent"
     cloudSourceTransferApproved: true,
     model: "auto:or-free",
     recipes: {},
-  };
+  },
+  );
   const r = await f.dispatch(
     "autopilot_worker_runtime_status",
     { device: "device1", project: "project1" },
@@ -180,11 +183,10 @@ test("verified-free-cloud coding reports configured without local model consent"
 });
 
 test("cloud coding missing separate source-transfer consent never reports configured", async (t) => {
-  const f = fixture(t, () => ({
-    coding: [],
-    agentRunning: true,
-  }));
-  f.config.projects[0].autopilotCodingWorker = {
+  const f = fixture(
+    t,
+    () => ({ coding: [], agentRunning: true }),
+    {
     enabled: true,
     inferenceRoute: "verified-free-cloud-only",
     localProcessingApproved: false,
@@ -192,7 +194,8 @@ test("cloud coding missing separate source-transfer consent never reports config
     cloudSourceTransferApproved: false,
     model: "auto:or-free",
     recipes: {},
-  };
+  },
+  );
   const r = await f.dispatch(
     "autopilot_worker_runtime_status",
     { device: "device1", project: "project1" },
@@ -204,14 +207,13 @@ test("cloud coding missing separate source-transfer consent never reports config
 });
 
 test("local-only worker missing local consent cannot report configured", async (t) => {
-  const f = fixture(t, null);
-  f.config.projects[0].autopilotCodingWorker = {
+  const f = fixture(t, null, {
     enabled: true,
     inferenceRoute: "local-only",
     localProcessingApproved: false,
     model: "qwen3:4b",
     recipes: {},
-  };
+  });
   const r = await f.dispatch(
     "autopilot_worker_runtime_status",
     { device: "device1", project: "project1" },
