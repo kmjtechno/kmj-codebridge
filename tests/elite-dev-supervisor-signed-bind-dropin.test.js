@@ -49,6 +49,7 @@ test("signed root binding stages only the fixed drop-in with no restart or token
   assert.match(source, /DEV_AGENT_BINDING_LIVE_RPC=NOT_YET_VERIFIED/);
   assert.match(source, /mod\.private_socket_probe\(\)/);
   assert.match(source, /DEV_CONFIG_MUTATED/);
+  assert.match(source, /DROPIN_ROLLBACK_INODE_MISMATCH/);
   assert.match(source, /DEV_CONFIG_DIRECTORY_UNTRUSTED/);
   assert.match(source, /DEV_CONFIG_CHANGED_DURING_READ/);
   assert.match(source, /binding_env_is_exact\(after\.get\("Environment"/);
@@ -76,7 +77,8 @@ const HERMETIC = [
   "        return types.SimpleNamespace(st_uid=0,st_mode=s.st_mode,st_nlink=s.st_nlink,st_size=s.st_size,st_dev=s.st_dev,st_ino=s.st_ino)",
   "    b.trust_dropin_dir=lambda _mod: None",
   "    with mock.patch.object(b.os, 'fstat', side_effect=root_stat):",
-  "        b.write_once(dummy)",
+  "        created=b.write_once(dummy)",
+  "        assert created==(os.lstat(b.DROPIN).st_dev,os.lstat(b.DROPIN).st_ino)",
   "        assert b.DROPIN.read_bytes()==b.TEXT",
   "        assert not list(b.DIRECTORY.glob('.kmj-bind-staged-*'))",
   "        try:b.write_once(dummy,b'OTHER')",
@@ -93,7 +95,12 @@ const HERMETIC = [
   "            else:raise AssertionError('raced EEXIST was accepted')",
   "        assert b.DROPIN.read_bytes()==b'UNRELATED_UNIT'",
   "        assert not list(b.DIRECTORY.glob('.kmj-bind-staged-*'))",
-  "        try:b.remove_owned(dummy)",
+  "        identity=(os.lstat(b.DROPIN).st_dev,os.lstat(b.DROPIN).st_ino)",
+  "        try:b.remove_owned(dummy,(identity[0],identity[1]+1))",
+  "        except b.Blocked:pass",
+  "        else:raise AssertionError('deleted replacement inode')",
+  "        assert b.DROPIN.read_bytes()==b'UNRELATED_UNIT'",
+  "        try:b.remove_owned(dummy,identity)",
   "        except b.Blocked:pass",
   "        else:raise AssertionError('deleted unrelated unit')",
   "        assert b.DROPIN.read_bytes()==b'UNRELATED_UNIT'",
