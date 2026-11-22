@@ -9,6 +9,20 @@ Use only the connected CodeBridge tools and actual returned device and project I
 If tools are missing, explain that the MCP connection is not attached; do not claim
 that the plugin package alone gives machine access.
 
+**Multi-repo autopilot quickstart:** When the owner says "kaam jari rakho",
+"continue engineering" or requests the next task across KMJ products without
+selecting a repository, call `fleet_overview({maxProjects:12})` **once**.
+If the running signed gateway provides `nextWork.candidates`, use it as
+a bounded, read-only list of authorized, unclaimed scope/task IDs; otherwise
+use `lanes[].nextAction` from the existing live tool. Choose a lane using
+the owner's latest priority and active-pauses, not a fabricated global
+ranking. Open only the chosen scoped `chat_workspace_open` checkpoint,
+recheck `autopilot_status`, and claim only a confirmed non-destructive,
+dependency-ready task with the normal owner/device permissions. Never
+recompile or enqueue duplicate missions just because a chat restarted;
+never auto-merge, deploy or delete customer data. Source-only PRs do not
+activate this runtime feature. See `docs/MULTI-REPO-AUTOPILOT.md`.
+
 **Persistent roadmap quickstart (all AI chats):** For an authorized CodeBridge
 project with a known device/project/lane, start with ONE
 `chat_workspace_open({device,project,lane})` or `multi_chat_sync`.

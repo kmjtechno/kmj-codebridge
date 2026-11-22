@@ -97,3 +97,75 @@ test("two granted projects on one device cannot double-count one signed slot", (
   assert.equal(summary.ready, 2);
   assert.equal(summary.actualAvailableJobSlots, 1);
 });
+
+test("read-only cross-repo handoff returns only safe scoped IDs", () => {
+  const lanes = [
+    fleetLane("elite", "main-platform", "READY", ap, capacity),
+    fleetLane(
+      "p520",
+      "omnidesk",
+      "READY",
+      {
+        ok: true,
+        value: {
+          counts: { queued: 2 },
+          next: { id: "task-2", objective: "secret=must-not-appear" },
+        },
+      },
+      capacity,
+    ),
+  ];
+  const summary = fleetSummary(lanes, 2);
+  assert.deepEqual(
+    summary.nextWork.candidates.map(({ device, project, taskId }) => ({
+      device,
+      project,
+      taskId,
+    })),
+    [
+      { device: "elite", project: "main-platform", taskId: "approved-task" },
+      { device: "p520", project: "omnidesk", taskId: "task-2" },
+    ],
+  );
+  assert.equal(summary.nextWork.crossProjectPriorityVerified, false);
+  assert.equal(summary.nextWork.workExecutionStarted, false);
+  assert.equal(summary.nextWork.ownerApprovalGranted, false);
+  assert.ok(!JSON.stringify(summary.nextWork).includes("must-not-appear"));
+  assert.ok(!JSON.stringify(summary.nextWork).includes("never-display"));
+});
+
+test("fleet suggestions never exceed shared device slots or include unavailable work", () => {
+  const lanes = [
+    fleetLane("shared", "p1", "READY", ap, capacity),
+    fleetLane("shared", "p2", "READY", ap, capacity),
+    fleetLane("offline", "p3", "AGENT_OFFLINE", ap, capacity),
+    fleetLane("blocked", "p4", "READY", ap, {
+      ok: true,
+      value: { blocked: true, effectiveMaxConcurrent: 2, activeJobs: 0 },
+    }),
+  ];
+  const summary = fleetSummary(lanes, 6);
+  assert.equal(summary.nextWork.partialFleet, true);
+  assert.equal(summary.nextWork.candidates.length, 1);
+  assert.equal(summary.nextWork.candidates[0].project, "p1");
+  assert.equal(summary.nextWork.candidates[0].alreadyClaimed, false);
+  assert.equal(summary.actualAvailableJobSlots, 1);
+});
+
+test("invalid ready IDs and no active slots fail closed without false work claims", () => {
+  const unsafe = fleetLane(
+    "d",
+    "p",
+    "READY",
+    { ok: true, value: { counts: { queued: 1 }, next: { id: "token=oops" } } },
+    capacity,
+  );
+  const busy = fleetLane("d2", "p2", "READY", ap, {
+    ok: true,
+    value: { blocked: false, effectiveMaxConcurrent: 1, activeJobs: 1 },
+  });
+  const next = fleetSummary([unsafe, busy], 2).nextWork;
+  assert.equal(next.status, "NO_READY_CANDIDATES");
+  assert.deepEqual(next.candidates, []);
+  assert.equal(next.workExecutionStarted, false);
+});
