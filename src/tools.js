@@ -1121,6 +1121,16 @@ export const definitions = {
     input: scoped,
     access: "read",
   },
+  freellmapi_zero_cost_preflight: {
+    title: "Verify one device-bound free-cloud chain without inference",
+    description:
+      "Use the owner's already configured fresh account/price/quota and pinned route attestor for one approved auto: chain. Read-only authenticated provider GETs only: no cloud POST, prompt, project source, key output, worker start, or consent mutation. A PASS is momentary, not a final invoice receipt or approval to transfer code.",
+    input: {
+      ...scoped,
+      chain: z.string().regex(/^auto:[A-Za-z0-9_-]{1,20}$/),
+    },
+    access: "read",
+  },
   freellmapi_generate: {
     title: "Generate through the local FreeLLMAPI router",
     description:
@@ -2666,6 +2676,26 @@ export function createDispatcher(
         project: p.id,
         ...(await freeRouter().status()),
       };
+    if (name === "freellmapi_zero_cost_preflight") {
+      // Uses the SAME trusted, owner-side verifier as the coding worker.
+      // Never echo the attestor's raw account data or secret-bearing object.
+      const proof = await freeRouter().checkZeroCostChain({
+        chain: a.chain,
+      });
+      if (proof?.admitted !== true || proof.chain !== a.chain)
+        fail("FREELLMAPI_ZERO_COST_NOT_ATTESTED");
+      return {
+        device: config.id,
+        project: p.id,
+        chain: a.chain,
+        admittedAtCheck: true,
+        cloudPostSent: false,
+        sourceRead: false,
+        workerStarted: false,
+        ownerTransferGranted: false,
+        finalInvoiceVerified: false,
+      };
+    }
     if (name === "freellmapi_generate")
       return {
         device: config.id,
