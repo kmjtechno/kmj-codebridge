@@ -78,10 +78,19 @@ test("hostile or irrelevant root unit flags never bind other devices or scopes",
     { ...agent(), id: "kmj-elite-cloudos" },
     { ...agent(), projects: [{ id: "kmj-cloudos" }] },
     { ...agent(), projects: [] },
-    { ...agent(), projects: [{ id: "kmj-codebridge" }, { id: "kmj-main-platform" }] },
+    {
+      ...agent(),
+      projects: [{ id: "kmj-codebridge" }, { id: "kmj-main-platform" }],
+    },
     { ...agent(), supervisorSocket: "/run/kmj-codebridge/supervisor.sock" },
-    { ...agent(), supervisorSocket: "/run/kmj-codebridge-cloudos/supervisor.sock" },
-    { ...agent(), supervisorPipe: "\\\\.\\pipe\\kmj-codebridge-supervisor-p520" },
+    {
+      ...agent(),
+      supervisorSocket: "/run/kmj-codebridge-cloudos/supervisor.sock",
+    },
+    {
+      ...agent(),
+      supervisorPipe: "\\\\.\\pipe\\kmj-codebridge-supervisor-p520",
+    },
     { ...agent(), supervisorTokenFile: "/tmp/pin" },
   ];
   for (const config of bad)
@@ -100,7 +109,11 @@ test("hostile or irrelevant root unit flags never bind other devices or scopes",
     );
   }
   assert.throws(
-    () => resolveEliteDevSupervisorSocket(agent(), { ...options(), platform: "win32" }),
+    () =>
+      resolveEliteDevSupervisorSocket(agent(), {
+        ...options(),
+        platform: "win32",
+      }),
     /ELITE_DEV_SUPERVISOR_BINDING_DENIED/,
   );
   assert.throws(
@@ -111,7 +124,11 @@ test("hostile or irrelevant root unit flags never bind other devices or scopes",
 
 test("socket must exist, be owned by agent, and be 0600 under trusted root directory", () => {
   const invalid = [
-    options({ stat: () => { throw new Error("ENOENT"); } }),
+    options({
+      stat: () => {
+        throw new Error("ENOENT");
+      },
+    }),
     options({ parent: dir({ uid: UID }) }),
     options({ parent: dir({ mode: 0o40777 }) }),
     options({ parent: dir({ isDirectory: () => false }) }),
@@ -135,7 +152,9 @@ test("startup validates scoped socket before opening gateway credential or acqui
   const bind = source.indexOf("resolveEliteDevSupervisorSocket(c);", start);
   const credential = source.indexOf("resolveAgentGatewayCredential(c);", start);
   const lock = source.indexOf("acquireAgentLock(state);", start);
-  assert.ok(start >= 0 && bind > start && credential > bind && lock > credential);
+  assert.ok(
+    start >= 0 && bind > start && credential > bind && lock > credential,
+  );
   assert.doesNotMatch(
     source.slice(start, credential),
     /writeFileSync|renameSync|systemctl|supervisorSocket = "[^"]+"/,
