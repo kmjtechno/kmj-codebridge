@@ -52,8 +52,7 @@ export function parseWriterIdentityInspect(output) {
   if (typeof output !== "string" || output.length > MAX_OUTPUT_BYTES)
     fail("SUPERVISOR_WRITER_INSPECT_UNSAFE_OUTPUT");
   const lines = output.replace(/\r?\n$/, "").split(/\r?\n/);
-  if (lines.length !== 5)
-    fail("SUPERVISOR_WRITER_INSPECT_UNSAFE_OUTPUT");
+  if (lines.length !== 5) fail("SUPERVISOR_WRITER_INSPECT_UNSAFE_OUTPUT");
   if (
     lines[0] !==
       "KMJ_ACTIVATION_WRITER_IDENTITY=READY_FOR_OWNER_REVIEW_NOT_INSTALLED" ||
@@ -64,8 +63,7 @@ export function parseWriterIdentityInspect(output) {
   )
     fail("SUPERVISOR_WRITER_INSPECT_UNSAFE_OUTPUT");
   const workers = Number(lines[1].split("=")[1]);
-  if (workers > 1024)
-    fail("SUPERVISOR_WRITER_INSPECT_UNSAFE_OUTPUT");
+  if (workers > 1024) fail("SUPERVISOR_WRITER_INSPECT_UNSAFE_OUTPUT");
   return {
     status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
     productionPoolWorkers: workers,
