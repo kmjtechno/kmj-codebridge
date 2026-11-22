@@ -2541,8 +2541,7 @@ export function createDispatcher(
                   repair: p.autopilotRepairWorker?.enabled === true,
                   githubCiWatch: p.autopilotCiWatch?.enabled === true,
                   localDraft: p.autopilotLocalWorker?.enabled === true,
-                  coding:
-                    codingRouteApproved(p.autopilotCodingWorker),
+                  coding: codingRouteApproved(p.autopilotCodingWorker),
                 },
                 workerStarted:
                   typeof workerRuntimeSource === "function"
@@ -3516,8 +3515,7 @@ export function createDispatcher(
             loopStarted: observed("localDraft"),
           },
           coding: {
-            configured:
-              codingRouteApproved(p.autopilotCodingWorker),
+            configured: codingRouteApproved(p.autopilotCodingWorker),
             localProcessingApproved:
               p.autopilotCodingWorker?.localProcessingApproved === true,
             loopStarted: observed("coding"),
