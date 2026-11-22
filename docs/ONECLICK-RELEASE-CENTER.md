@@ -10,14 +10,16 @@ The new gate rejects stale HEAD, moving main, symlinks, unsafe archive names, in
 
 ## Minimal owner release path (existing source)
 
-After staging and the official exact-head source CI pass, the owner uses the existing `scripts/RELEASE-CODEBRIDGE.cmd` on the trusted signing PC (not the dirty development checkout). That launcher already does exact-head GitHub CI admission, signature with the original owner Ed25519 private key outside the repository and a protected two-file release metadata PR. Protected review/merge triggers the generic immutable signed GitHub Release publisher.
+After staging and the official exact-head source CI pass, **stop at source-only staging** until the owner has independently attested an original-owner Ed25519 signing workflow **on KMJ-elite only**, using a protected signer identity/key, an immutable exact-main SHA, a monotonic signed sequence and a separately reviewed, rollback-capable publisher. The owner must explicitly perform or approve that signing action on Elite; GitHub Actions and the CodeBridge development agent must not sign. The resulting signed manifest and detached signature require protected review and successful exact-head CI before the immutable signed GitHub Release publisher may run. An accepted stage receipt or PR approval is not a signature.
+
+The legacy `scripts/RELEASE-CODEBRIDGE.cmd`/trusted-PC/P520 signing route is **not an approved release path** under the current owner policy. P520 autosign is disabled; do not re-enable it, transfer or expose the original private key, claim an Elite signer is installed from source files, or substitute generic root execution. If an owner-controlled Elite signing workflow has not been independently attested, release signing and deployment remain **BLOCKED_SIGNER_NOT_ATTESTED**, while isolated source staging is allowed.
 
 On KMJ-elite, a **separately installed and approved** `kmj-codebridge-auto-release.timer` can publish the verified signed feed and cut over gateway, applying at most one monotonic signed release per run with rollback. The ordinary signed agent update timer is a different service and **does not prove gateway auto-release is installed**. Do not silently enable either timer or the owner-disabled P520 autosign task.
 
 ## Release Center V2: target one-domain UI (not implemented here)
 
 1. **Stage & QA** — the owner-only, rate-limited Main Platform backend sends exactly one GitHub App `workflow_dispatch` for fixed `oneclick-stage.yml`, exact server-verified `main` SHA, with a single-flight lock; no arbitrary ref, workflow or token exposed to the browser.
-2. **Approve signed release** — the original owner-controlled key signs locally, or a new separately reviewed delegated signer is explicitly approved. Review/merge remains enforced. Never send the original private key to ChatGPT, GitHub Actions, Cloudflare, Render or the Elite development agent.
+2. **Approve signed release** — after explicit original-owner approval, the independently attested owner-controlled Ed25519 signer on **KMJ-elite** signs the immutable exact SHA and monotonic sequence; otherwise stop. Protected review/merge remains enforced. No P520 signing, delegated or development-agent signer, and no private-key transfer to ChatGPT, GitHub Actions, Cloudflare, Render or another machine.
 3. **Release LIVE** — immutable original owner-signed GitHub artifact → root-trusted Elite publisher/feed → signed updater → fixed gateway cutover → independent tool catalog, authenticated health and rollback readback. No automatic retry after failed cutover.
 4. **Proof** — dashboard displays stage SHA, CI, artifact digest, signing/approval, live release, rollback SHA and exact blocker. A button click or host ACK never counts as deployment PASS.
 
@@ -25,7 +27,7 @@ GitHub Actions environment reviewers can assist protected approvals, but the act
 
 ## Verified blockers as of 2026-11-22
 
-- Source `b91bafc192082527654e45ce06518dde54a0405c` has 7/7 official CI success, but the last signed installed stable gateway release is Seq33 (`9584b584...`); there is no newer signed release.
+- Historical PR-drafting source `b91bafc192082527654e45ce06518dde54a0405c` had 7/7 official CI success. **Do not reuse** its historical Seq33 gateway receipt as current live-state evidence; inspect the actual owner-signed sequence, signed gateway runtime and host readback afresh before any activation.
 - Dedicated Elite CodeBridge dev agent is still Seq32 with `SUPERVISOR_NOT_CONFIGURED`; do not conflate it with healthy Main Platform gateway Supervisor.
 - P520 owner autosign was explicitly disabled; keep disabled without a fresh owner policy. The P520 checkout is stale and contains owner untracked files; never reset, clean or overwrite.
 - GitHub source CI and the isolated staging workflow can be green while host Supervisor binding, signing, canary and production release remain unverified.
