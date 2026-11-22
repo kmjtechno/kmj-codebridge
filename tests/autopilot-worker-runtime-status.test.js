@@ -57,7 +57,7 @@ function fixture(t, workerSource, codingConfigured = false) {
     undefined,
     workerSource,
   );
-  return { dispatch };
+  return { dispatch, config };
 }
 
 test("runtime status shows started loops distinctly from configuration", async (t) => {
@@ -151,4 +151,71 @@ test("read authorization and device/project isolation are retained", async (t) =
     ),
     /PROJECT_NOT_FOUND/,
   );
+});
+
+test("verified-free-cloud coding reports configured without local model consent", async (t) => {
+  const f = fixture(t, () => ({
+    coding: ["project1"],
+    agentRunning: true,
+  }));
+  f.config.projects[0].autopilotCodingWorker = {
+    enabled: true,
+    inferenceRoute: "verified-free-cloud-only",
+    localProcessingApproved: false,
+    cloudProxyApproved: true,
+    cloudSourceTransferApproved: true,
+    model: "auto:or-free",
+    recipes: {},
+  };
+  const r = await f.dispatch(
+    "autopilot_worker_runtime_status",
+    { device: "device1", project: "project1" },
+    ["read"],
+  );
+  assert.deepEqual(r.workers.coding, {
+    configured: true,
+    localProcessingApproved: false,
+    loopStarted: true,
+  });
+});
+
+test("cloud coding missing separate source-transfer consent never reports configured", async (t) => {
+  const f = fixture(t, () => ({
+    coding: [],
+    agentRunning: true,
+  }));
+  f.config.projects[0].autopilotCodingWorker = {
+    enabled: true,
+    inferenceRoute: "verified-free-cloud-only",
+    localProcessingApproved: false,
+    cloudProxyApproved: true,
+    cloudSourceTransferApproved: false,
+    model: "auto:or-free",
+    recipes: {},
+  };
+  const r = await f.dispatch(
+    "autopilot_worker_runtime_status",
+    { device: "device1", project: "project1" },
+    ["read"],
+  );
+  assert.equal(r.workers.coding.configured, false);
+  assert.equal(r.workers.coding.localProcessingApproved, false);
+  assert.equal(r.workers.coding.loopStarted, false);
+});
+
+test("local-only worker missing local consent cannot report configured", async (t) => {
+  const f = fixture(t, null);
+  f.config.projects[0].autopilotCodingWorker = {
+    enabled: true,
+    inferenceRoute: "local-only",
+    localProcessingApproved: false,
+    model: "qwen3:4b",
+    recipes: {},
+  };
+  const r = await f.dispatch(
+    "autopilot_worker_runtime_status",
+    { device: "device1", project: "project1" },
+    ["read"],
+  );
+  assert.equal(r.workers.coding.configured, false);
 });
