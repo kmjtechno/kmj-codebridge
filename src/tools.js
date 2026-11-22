@@ -22,6 +22,7 @@ import {
   OFFSITE_DIAGNOSTIC_CONFIRMATION,
   FAILURE_CLASSES,
 } from "./offsite-diagnostic-policy.js";
+import { WRITER_IDENTITY_INSPECT_CONFIRMATION } from "./main-platform-writer-identity-policy.js";
 import { redact } from "./jobs.js";
 import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
@@ -599,7 +600,8 @@ function toolRisk(name, definition) {
     return "DEPLOY";
   if (
     name === "supervisor_development_ci_start" ||
-    name === "supervisor_main_platform_offsite_diagnostic"
+    name === "supervisor_main_platform_offsite_diagnostic" ||
+    name === "supervisor_main_platform_writer_identity_inspect"
   )
     return "PRIVILEGED";
   if (name === "run_quality_gate") return "TEST";
@@ -2092,6 +2094,16 @@ export const definitions = {
     input: {
       ...scoped,
       confirmation: z.literal("RUN_FIXED_READONLY_OFFSITE_DIAGNOSTIC"),
+    },
+    access: "execute",
+  },
+  supervisor_main_platform_writer_identity_inspect: {
+    title: "Verify pinned Elite production FPM writer identity",
+    description:
+      "Run only the root-owned exact-SHA-pinned, fixed-target read-only PHP-FPM production listener and private activation inbox inspector on KMJ-elite. Requires explicit confirmation and execute permission; no caller script, command, shell, path, PID, port or environment. Returns bounded snapshot evidence, never broker installation, release approval, secrets, arbitrary root execution or customer data.",
+    input: {
+      ...scoped,
+      confirmation: z.literal("RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT"),
     },
     access: "execute",
   },
@@ -3882,6 +3894,17 @@ export function createDispatcher(
         confirmation: a.confirmation,
       });
     }
+    if (name === "supervisor_main_platform_writer_identity_inspect") {
+      if (
+        a.project !== "kmj-main-platform" ||
+        config.id !== "kmj-elite-main-platform"
+      )
+        fail("ACCESS_DENIED");
+      return await supervisor.request({
+        op: "main_platform_writer_identity_inspect",
+        confirmation: a.confirmation,
+      });
+    }
     if (name === "supervisor_development_privilege_status") {
       if (
         a.project !== "kmj-main-platform" ||
@@ -4393,6 +4416,15 @@ export function createDispatcher(
                   approvalRequired: true,
                   variants: [OFFSITE_DIAGNOSTIC_CONFIRMATION],
                 },
+                {
+                  id: "main_platform_writer_identity_inspect",
+                  category: "inspect",
+                  description:
+                    "Exact root-owned SHA-pinned read-only production FPM listener and writer identity diagnostic via trusted Supervisor. Requires execute grant and literal owner confirmation; no arbitrary path, shell, PID, port, release, permissions or broker start.",
+                  risk: "READ",
+                  approvalRequired: true,
+                  variants: [WRITER_IDENTITY_INSPECT_CONFIRMATION],
+                },
               ]
             : []),
           // Host-specific read-only storage inventory without root/sudo or
@@ -4528,6 +4560,61 @@ export function createDispatcher(
       // Reuse ONLY its already-reviewed pinned Supervisor operation through
       // this named profile. The variant itself is the explicit approval
       // literal; this does not grant a generic privileged read or shell.
+      // Legacy MCP clients already advertise run_project_command. This named
+      // variant is the *same* pinned root-owned inspect-only Supervisor action,
+      // never an alternative command runner or release-approval mechanism.
+      if (a.command === "main_platform_writer_identity_inspect") {
+        if (
+          a.variant !== WRITER_IDENTITY_INSPECT_CONFIRMATION ||
+          a.laneId !== undefined ||
+          a.expectedHead !== undefined
+        )
+          fail("COMMAND_NOT_ALLOWED");
+        if (
+          p.id !== "kmj-main-platform" ||
+          config.id !== "kmj-elite-main-platform" ||
+          !p.writable
+        )
+          fail("MAIN_PLATFORM_WRITER_INSPECT_NOT_AUTHORIZED");
+        if (!supervisor) fail("SUPERVISOR_UNAVAILABLE");
+        const received = await supervisor.request({
+          op: "main_platform_writer_identity_inspect",
+          confirmation: WRITER_IDENTITY_INSPECT_CONFIRMATION,
+        });
+        const state = received?.response ?? received;
+        const evidence = state?.diagnostic;
+        if (
+          state?.mode !== "READ_ONLY_FIXED_DIAGNOSTIC" ||
+          state?.scope !== "kmj-main-platform" ||
+          state?.rootBrokerInstalled !== false ||
+          state?.releaseApprovalGranted !== false ||
+          state?.productionMutation !== "NONE" ||
+          state?.rawProcessDataExposed !== false ||
+          !evidence ||
+          typeof evidence !== "object" ||
+          Array.isArray(evidence) ||
+          evidence.status !== "READY_FOR_OWNER_REVIEW_NOT_INSTALLED" ||
+          !Number.isSafeInteger(evidence.productionPoolWorkers) ||
+          evidence.productionPoolWorkers < 1 ||
+          evidence.productionPoolWorkers > 1024 ||
+          evidence.activationRequestCreated !== false ||
+          evidence.brokerStarted !== false ||
+          evidence.activationApproved !== false ||
+          evidence.productionReleaseVerified !== false ||
+          evidence.productionMutation !== "NONE"
+        )
+          fail("MAIN_PLATFORM_WRITER_INSPECT_UNVERIFIED");
+        return {
+          command: "main_platform_writer_identity_inspect",
+          status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
+          productionPoolWorkers: evidence.productionPoolWorkers,
+          source: "FIXED_SHA_PINNED_SUPERVISOR",
+          rootBrokerInstalled: false,
+          releaseApprovalGranted: false,
+          productionReleaseVerified: false,
+          productionMutation: "NONE",
+        };
+      }
       if (a.command === "main_platform_offsite_diagnostic") {
         if (
           a.variant !== OFFSITE_DIAGNOSTIC_CONFIRMATION ||
