@@ -60,7 +60,7 @@ test("staging rejects stale SHA, forged signing, traversal, wrong size and hash"
   ])
     assert.equal(assessStagedRuntime(manifest, revision, bytes).ready, false);
 });
-test("staging rejects symlink archive rather than following it", (t) => {
+test("staging rejects symlink archive rather than following it", { skip: process.platform === "win32" }, (t) => {
   const f = fixture(t);
   rmSync(path.join(f.runtime, archive));
   const outside = path.join(f.root, "outside");
