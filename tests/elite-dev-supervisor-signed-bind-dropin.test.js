@@ -116,17 +116,19 @@ test(
   "effective systemd environment must contain exactly one authorized flag",
   { skip: !LINUX },
   () => {
-    const out = python([
-      "import importlib.util",
-      "spec=importlib.util.spec_from_file_location('b','scripts/production/owner_stage_elite_dev_supervisor_binding.py')",
-      "b=importlib.util.module_from_spec(spec)",
-      "spec.loader.exec_module(b)",
-      "assert b.binding_env_is_exact(b.FLAG)",
-      "assert b.binding_env_is_exact('PATH=/usr/bin '+b.FLAG+' OTHER=x')",
-      "for x in ['', b.FLAG+'evil', b.FLAG+' '+b.FLAG, 'KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=0', b.FLAG+' KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=0']:",
-      "    assert not b.binding_env_is_exact(x)",
-      "print('EXACT_BINDING_FLAG_PASS')",
-    ].join("\n"));
+    const out = python(
+      [
+        "import importlib.util",
+        "spec=importlib.util.spec_from_file_location('b','scripts/production/owner_stage_elite_dev_supervisor_binding.py')",
+        "b=importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(b)",
+        "assert b.binding_env_is_exact(b.FLAG)",
+        "assert b.binding_env_is_exact('PATH=/usr/bin '+b.FLAG+' OTHER=x')",
+        "for x in ['', b.FLAG+'evil', b.FLAG+' '+b.FLAG, 'KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=0', b.FLAG+' KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=0']:",
+        "    assert not b.binding_env_is_exact(x)",
+        "print('EXACT_BINDING_FLAG_PASS')",
+      ].join("\n"),
+    );
     assert.equal(out.status, 0, out.stderr);
     assert.match(out.stdout, /EXACT_BINDING_FLAG_PASS/);
   },
