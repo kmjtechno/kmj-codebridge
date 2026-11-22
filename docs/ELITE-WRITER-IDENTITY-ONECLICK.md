@@ -15,6 +15,17 @@ must be enrolled for **exact** device `kmj-elite-main-platform`, project
 Google CloudOS, Elite CloudOS and separate CodeBridge dev Supervisor profiles
 must deny this operation.
 
+For a ChatGPT session with a previously captured tool list (no new dedicated
+tool), the same operation is also exposed via the existing
+`list_project_commands` / `run_project_command` interface with
+`command=main_platform_writer_identity_inspect`,
+`variant=RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT` and a stable request key.
+The runtime enforces exact Elite device/project/writable grants, existing
+execute permission, no `laneId` or `expectedHead` and a fixed confirmation.
+The client cannot select the service, socket, command, executable or user.
+The Supervisor's raw reply is revalidated and copied to a bounded no-secrets
+receipt; no approved runtime means this profile cannot execute successfully.
+
 The script is not discovered from project checkout, environment, GitHub API,
 user input, PATH or an uploaded command. An owner-installed root-owned regular
 file under `/usr/local/libexec/kmj-main-platform-activation-writer-identity-inspect.py`
