@@ -16,6 +16,10 @@ import {
   runOffsiteDiagnostic,
 } from "./offsite-diagnostic-policy.js";
 import {
+  WRITER_IDENTITY_INSPECT_CONFIRMATION,
+  runWriterIdentityInspect,
+} from "./main-platform-writer-identity-policy.js";
+import {
   attestMainPlatformStaging,
   STAGING_DEPLOY_UNIT,
 } from "./main-platform-staging-unit-policy.js";
@@ -2467,6 +2471,26 @@ export function createSupervisorHandler({
           recentBackupVerified: false,
           restoreVerified: false,
           productionReleaseApprovedByThisCheck: false,
+        },
+      };
+    }
+
+    // Fixed hash-pinned root read-only writer identity evidence. This is
+    // strictly an inspect-only snapshot, never approval/broker installation.
+    if (request.op === "main_platform_writer_identity_inspect") {
+      exactKeys(request, ["op", "confirmation"]);
+      if (request.confirmation !== WRITER_IDENTITY_INSPECT_CONFIRMATION)
+        fail("INVALID_SUPERVISOR_REQUEST");
+      const diagnostic = runWriterIdentityInspect({ run, lstat, readFile });
+      return {
+        response: {
+          mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+          scope: "kmj-main-platform",
+          diagnostic,
+          rootBrokerInstalled: false,
+          releaseApprovalGranted: false,
+          productionMutation: "NONE",
+          rawProcessDataExposed: false,
         },
       };
     }
