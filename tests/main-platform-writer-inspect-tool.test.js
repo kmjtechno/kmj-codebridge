@@ -9,7 +9,10 @@ const DEVICE = "kmj-elite-main-platform";
 const PROJECT = "kmj-main-platform";
 const CONFIRM = "RUN_FIXED_READONLY_WRITER_IDENTITY_INSPECT";
 
-function fixture(t, { device = DEVICE, project = PROJECT, hasSupervisor = true } = {}) {
+function fixture(
+  t,
+  { device = DEVICE, project = PROJECT, hasSupervisor = true } = {},
+) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-writer-tool-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
   const root = path.join(dir, "project");
@@ -17,31 +20,35 @@ function fixture(t, { device = DEVICE, project = PROJECT, hasSupervisor = true }
   fs.mkdirSync(root);
   fs.mkdirSync(stateDir);
   const calls = [];
-  const supervisor = hasSupervisor ? {
-    request: async (input) => {
-      calls.push(input);
-      return {
-        response: {
-          mode: "READ_ONLY_FIXED_DIAGNOSTIC",
-          scope: PROJECT,
-          diagnostic: {
-            status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
-            productionPoolWorkers: 3,
-            rootBrokerInstalled: false,
-          },
-          rootBrokerInstalled: false,
-          releaseApprovalGranted: false,
-          productionMutation: "NONE",
-          rawProcessDataExposed: false,
+  const supervisor = hasSupervisor
+    ? {
+        request: async (input) => {
+          calls.push(input);
+          return {
+            response: {
+              mode: "READ_ONLY_FIXED_DIAGNOSTIC",
+              scope: PROJECT,
+              diagnostic: {
+                status: "READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
+                productionPoolWorkers: 3,
+                rootBrokerInstalled: false,
+              },
+              rootBrokerInstalled: false,
+              releaseApprovalGranted: false,
+              productionMutation: "NONE",
+              rawProcessDataExposed: false,
+            },
+          };
         },
-      };
-    },
-  } : null;
+      }
+    : null;
   const dispatch = createDispatcher(
     {
       id: device,
       stateDir,
-      projects: [{ id: project, root, writable: true, gates: {}, commands: {} }],
+      projects: [
+        { id: project, root, writable: true, gates: {}, commands: {} },
+      ],
     },
     { maxConcurrent: 1, run: () => assert.fail("NO_PROJECT_JOB") },
     () => ({
@@ -61,10 +68,12 @@ test("new fixed inspector only sends a scoped, no-command supervisor request", a
     { device: DEVICE, project: PROJECT, confirmation: CONFIRM },
     ["execute"],
   );
-  assert.deepEqual(f.calls, [{
-    op: "main_platform_writer_identity_inspect",
-    confirmation: CONFIRM,
-  }]);
+  assert.deepEqual(f.calls, [
+    {
+      op: "main_platform_writer_identity_inspect",
+      confirmation: CONFIRM,
+    },
+  ]);
   assert.equal(result.response.diagnostic.productionPoolWorkers, 3);
   assert.equal(result.response.releaseApprovalGranted, false);
 });
@@ -73,7 +82,9 @@ test("new inspector cannot be invoked by read-only grant or caller path/args", a
   const f = fixture(t);
   const original = { device: DEVICE, project: PROJECT, confirmation: CONFIRM };
   await assert.rejects(
-    f.dispatch("supervisor_main_platform_writer_identity_inspect", original, ["read"]),
+    f.dispatch("supervisor_main_platform_writer_identity_inspect", original, [
+      "read",
+    ]),
   );
   for (const input of [
     { ...original, confirmation: "yes" },
@@ -84,7 +95,9 @@ test("new inspector cannot be invoked by read-only grant or caller path/args", a
     { ...original, port: 22 },
   ]) {
     await assert.rejects(
-      f.dispatch("supervisor_main_platform_writer_identity_inspect", input, ["execute"]),
+      f.dispatch("supervisor_main_platform_writer_identity_inspect", input, [
+        "execute",
+      ]),
     );
   }
   assert.equal(f.calls.length, 0);
@@ -99,11 +112,15 @@ test("new inspector rejects other device, project and missing supervisor", async
   ]) {
     const f = fixture(t, options);
     await assert.rejects(
-      f.dispatch("supervisor_main_platform_writer_identity_inspect", {
-        device: f.device,
-        project: f.project,
-        confirmation: CONFIRM,
-      }, ["execute"]),
+      f.dispatch(
+        "supervisor_main_platform_writer_identity_inspect",
+        {
+          device: f.device,
+          project: f.project,
+          confirmation: CONFIRM,
+        },
+        ["execute"],
+      ),
     );
     assert.equal(f.calls.length, 0);
   }
