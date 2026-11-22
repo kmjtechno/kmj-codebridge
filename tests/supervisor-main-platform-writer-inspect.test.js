@@ -11,17 +11,21 @@ import {
 } from "../src/main-platform-writer-identity-policy.js";
 
 const SOURCE = fs.readFileSync(
-  new URL("./fixtures/elite_activation_writer_identity_doctor.py", import.meta.url),
+  new URL(
+    "./fixtures/elite_activation_writer_identity_doctor.py",
+    import.meta.url,
+  ),
   "utf8",
 );
 const CONFIRM = WRITER_IDENTITY_INSPECT_CONFIRMATION;
-const GOOD = [
-  "KMJ_ACTIVATION_WRITER_IDENTITY=READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
-  "KMJ_FPM_WORKERS_AT_SNAPSHOT=3",
-  "ACTIVATION_REQUEST=NOT_CREATED",
-  "ROOT_BROKER=NOT_STARTED",
-  "PRODUCTION_MUTATION=NONE",
-].join("\n") + "\n";
+const GOOD =
+  [
+    "KMJ_ACTIVATION_WRITER_IDENTITY=READY_FOR_OWNER_REVIEW_NOT_INSTALLED",
+    "KMJ_FPM_WORKERS_AT_SNAPSHOT=3",
+    "ACTIVATION_REQUEST=NOT_CREATED",
+    "ROOT_BROKER=NOT_STARTED",
+    "PRODUCTION_MUTATION=NONE",
+  ].join("\n") + "\n";
 
 const rootFile = (v = {}) => ({
   isFile: () => true,
@@ -87,7 +91,10 @@ test("pinned fixture exactly matches independent reviewed Main Platform inspecto
   );
   assert.match(SOURCE, /PRODUCTION_LISTENER = "0100007F:525C"/);
   assert.match(SOURCE, /PRODUCTION_POOL = "php-fpm: pool kmj-elite-stage"/);
-  assert.doesNotMatch(SOURCE, /shell=True|subprocess\.Popen|os\.chown|os\.chmod/);
+  assert.doesNotMatch(
+    SOURCE,
+    /shell=True|subprocess\.Popen|os\.chown|os\.chmod/,
+  );
 });
 
 test("parser returns only bounded inspect evidence, never release or install proof", () => {
@@ -160,16 +167,13 @@ test("root-owned exact file and fixed Python command required for PASS snapshot"
   assert.equal(result.response.releaseApprovalGranted, false);
   assert.equal(result.response.productionMutation, "NONE");
   assert.equal(result.response.rawProcessDataExposed, false);
-  assert.deepEqual(h.runs, [{
-    exe: "/usr/bin/python3",
-    args: [
-      "-I",
-      "-B",
-      WRITER_IDENTITY_INSPECT_PATH,
-      "--inspect",
-    ],
-    options: { timeout: 25000, maxBuffer: 2048, cwd: "/" },
-  }]);
+  assert.deepEqual(h.runs, [
+    {
+      exe: "/usr/bin/python3",
+      args: ["-I", "-B", WRITER_IDENTITY_INSPECT_PATH, "--inspect"],
+      options: { timeout: 25000, maxBuffer: 2048, cwd: "/" },
+    },
+  ]);
 });
 
 test("absent, unsafe, replaced or non-root script never executes", async () => {
@@ -204,7 +208,10 @@ test("absent, unsafe, replaced or non-root script never executes", async () => {
 test("inspector exit 2 never becomes a PASS and never leaks raw exception", async () => {
   const h = harness({ runThrows: true });
   await assert.rejects(
-    h.handle({ op: "main_platform_writer_identity_inspect", confirmation: CONFIRM }),
+    h.handle({
+      op: "main_platform_writer_identity_inspect",
+      confirmation: CONFIRM,
+    }),
     (error) => {
       assert.equal(error.code, "SUPERVISOR_WRITER_INSPECT_BLOCKED");
       assert.doesNotMatch(String(error.message), /secret|\/root/);
@@ -217,7 +224,10 @@ test("inspector exit 2 never becomes a PASS and never leaks raw exception", asyn
 test("script replacement after execution blocks receipt", async () => {
   const h = harness({ swapAfter: true });
   await assert.rejects(
-    h.handle({ op: "main_platform_writer_identity_inspect", confirmation: CONFIRM }),
+    h.handle({
+      op: "main_platform_writer_identity_inspect",
+      confirmation: CONFIRM,
+    }),
     /SUPERVISOR_WRITER_INSPECT_NOT_READY/,
   );
   assert.equal(h.runs.length, 1);
