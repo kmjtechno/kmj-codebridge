@@ -49,6 +49,7 @@ import { localModelReceipt, unknownModelReceipt } from "./model-attribution.js";
 import { WorktreeLanes } from "./worktree-lanes.js";
 import { canQueueAutopilotGate } from "./autopilot-gate-worker.js";
 import { reviewRepairCandidate } from "./autopilot-repair-review.js";
+import { codingRouteApproved } from "./autopilot-coding-worker.js";
 import {
   inspectBlockers,
   isTrustedWindowsSupervisorStatus,
@@ -2540,9 +2541,7 @@ export function createDispatcher(
                   repair: p.autopilotRepairWorker?.enabled === true,
                   githubCiWatch: p.autopilotCiWatch?.enabled === true,
                   localDraft: p.autopilotLocalWorker?.enabled === true,
-                  coding:
-                    p.autopilotCodingWorker?.enabled === true &&
-                    p.autopilotCodingWorker?.localProcessingApproved === true,
+                  coding: codingRouteApproved(p.autopilotCodingWorker),
                 },
                 workerStarted:
                   typeof workerRuntimeSource === "function"
@@ -3516,9 +3515,7 @@ export function createDispatcher(
             loopStarted: observed("localDraft"),
           },
           coding: {
-            configured:
-              p.autopilotCodingWorker?.enabled === true &&
-              p.autopilotCodingWorker?.localProcessingApproved === true,
+            configured: codingRouteApproved(p.autopilotCodingWorker),
             localProcessingApproved:
               p.autopilotCodingWorker?.localProcessingApproved === true,
             loopStarted: observed("coding"),
