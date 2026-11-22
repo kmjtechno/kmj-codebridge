@@ -71,11 +71,67 @@ export function assertSupervisorProjectSocketScope(config) {
   }
 }
 
+// Operator-selected via a root-owned systemd drop-in. No private enrollment
+// file rewrite is necessary: this exact read-only socket is usable ONLY by
+// the separately enrolled Elite kmjdev development agent. Neither generic
+// environment paths nor agent-controlled project settings are accepted.
+export function resolveEliteDevSupervisorSocket(
+  config,
+  {
+    env = process.env,
+    platform = process.platform,
+    stat = fs.lstatSync,
+    uid = process.getuid?.(),
+    gid = process.getgid?.(),
+  } = {},
+) {
+  const flag = env.KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND;
+  if (flag === undefined) return config.supervisorSocket;
+  if (
+    flag !== "1" ||
+    platform !== "linux" ||
+    config.id !== "kmj-codebridge-elite" ||
+    config.projects?.length !== 1 ||
+    config.projects[0]?.id !== "kmj-codebridge" ||
+    (config.supervisorSocket &&
+      config.supervisorSocket !== ELITE_DEV_SUPERVISOR_SOCKET) ||
+    config.supervisorPipe ||
+    config.supervisorTokenFile ||
+    !Number.isSafeInteger(uid) ||
+    uid === 0 ||
+    !Number.isSafeInteger(gid)
+  )
+    throw new Error("ELITE_DEV_SUPERVISOR_BINDING_DENIED");
+  // The fixed socket MUST already be installed under the dedicated
+  // kmjdev identity. Do not allow startup to silently fall back to Main
+  // Platform or CloudOS when the socket is absent or malformed.
+  try {
+    const parent = stat("/run/kmj-codebridge-dev");
+    const socket = stat(ELITE_DEV_SUPERVISOR_SOCKET);
+    if (
+      !parent.isDirectory() ||
+      parent.uid !== 0 ||
+      (parent.mode & 0o022) !== 0 ||
+      !socket.isSocket() ||
+      socket.uid !== uid ||
+      socket.gid !== gid ||
+      socket.nlink !== 1 ||
+      (socket.mode & 0o777) !== 0o600
+    )
+      throw new Error("INVALID_DEV_SOCKET");
+  } catch {
+    throw new Error("ELITE_DEV_SUPERVISOR_BINDING_UNAVAILABLE");
+  }
+  return ELITE_DEV_SUPERVISOR_SOCKET;
+}
+
 export async function startAgent(
   rawConfig,
   { createUpdateGuard = (options) => new AgentUpdateGuard(options) } = {},
 ) {
   const c = enrolledAgentSchema.parse(rawConfig);
+  const dedicatedSocket = resolveEliteDevSupervisorSocket(c);
+  if (dedicatedSocket !== undefined) c.supervisorSocket = dedicatedSocket;
   // Validate the gateway's credential source before acquiring an agent lock,
   // starting workers, or contacting the network. No credential is logged.
   const gatewayCredential = await resolveAgentGatewayCredential(c);
