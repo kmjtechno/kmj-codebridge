@@ -75,7 +75,7 @@ the exact device ID `kmj-codebridge-elite`, the single enrolled
 and a currently installed Unix socket owned by the non-root agent UID/GID,
 mode `0600`, under a root-owned, non-group-writable directory. Every mismatch
 fails closed before agent credential resolution or acquiring its state lock.
-The flag is *not* a host installer, a signature, a permission grant or a
+The flag is _not_ a host installer, a signature, a permission grant or a
 service restart. No GitHub file or chat message may set it on behalf of
 the operator.
 
