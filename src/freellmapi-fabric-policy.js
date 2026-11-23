@@ -115,13 +115,21 @@ export function inspectFabricCatalog(
   // auto:or-free. Avoid requiring a new coding/fast alias just to automate
   // task selection. Multiple unmatched profiles remain ambiguous and
   // require explicit selection; every POST still needs fresh cost proof.
+  const knownTaskProfiles = new Set(
+    Object.values(TASK_ROUTE_PREFERENCES).flat(),
+  );
   const soleApproved = usable.size === 1 ? [...usable][0] : null;
+  // A known task-specific profile (e.g. auto:code) must NEVER silently
+  // become a general chat or fast chain. This special convenience applies
+  // only to one owner-named custom chain that has no predefined task role.
+  const soleCustom =
+    soleApproved && !knownTaskProfiles.has(soleApproved) ? soleApproved : null;
   const taskRoutes = Object.fromEntries(
     Object.entries(TASK_ROUTE_PREFERENCES).map(([task, preference]) => {
       const matched = preference.filter((chain) => usable.has(chain));
       return [
         task,
-        matched.length ? matched : soleApproved ? [soleApproved] : [],
+        matched.length ? matched : soleCustom ? [soleCustom] : [],
       ];
     }),
   );
