@@ -9,7 +9,9 @@ test(
   "Windows OpenSSH -F resolves strict known_hosts config from a path with spaces",
   { skip: process.platform !== "win32" },
   () => {
-    const work = fs.mkdtempSync(path.join(os.tmpdir(), "kmj ssh config spaces-"));
+    const work = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kmj ssh config spaces-"),
+    );
     try {
       const known = path.join(work, "known_hosts").replaceAll("\\", "/");
       const config = path.join(work, "ssh_config");
