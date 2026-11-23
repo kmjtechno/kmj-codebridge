@@ -1201,8 +1201,14 @@ test("cloud context credential filter rejects high-confidence tokens without fal
   for (const credential of credentialSamples) {
     assert.equal(cloudCodingContextHasCredential(credential), true);
   }
-  assert.equal(cloudCodingContextHasCredential("export const value = 1;"), false);
-  assert.equal(cloudCodingContextHasCredential("const token = process.env.API_TOKEN;"), false);
+  assert.equal(
+    cloudCodingContextHasCredential("export const value = 1;"),
+    false,
+  );
+  assert.equal(
+    cloudCodingContextHasCredential("const token = process.env.API_TOKEN;"),
+    false,
+  );
   assert.equal(cloudCodingContextHasCredential(null), true);
 });
 
