@@ -5,7 +5,11 @@
 // specific (possibly paid) upstream; the owner defines the chain in FreeLLMAPI.
 import http from "node:http";
 import { CodeBridgeError } from "./errors.js";
-import { inspectFabricCatalog, selectFabricCandidates, TASK_ROUTE_PREFERENCES } from "./freellmapi-fabric-policy.js";
+import {
+  inspectFabricCatalog,
+  selectFabricCandidates,
+  TASK_ROUTE_PREFERENCES,
+} from "./freellmapi-fabric-policy.js";
 
 const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
 const KEY = /^[A-Za-z0-9._-]{8,200}$/;
@@ -137,7 +141,8 @@ export function createFreeLlmApiClient({
       return { admitted: true, chain };
     },
     async status({ includeUsage = false } = {}) {
-      if (typeof includeUsage !== "boolean") fail("FREELLMAPI_INVALID_USAGE_OPTION");
+      if (typeof includeUsage !== "boolean")
+        fail("FREELLMAPI_INVALID_USAGE_OPTION");
       const res = await readCatalogRows();
       const ids = res.data.map((m) => m.id);
       if (new Set(ids).size !== ids.length) fail("FREELLMAPI_BAD_RESPONSE");
@@ -159,8 +164,10 @@ export function createFreeLlmApiClient({
           const raw = await call("GET", "/v1/usage", undefined, 5000);
           const valid = (n) => Number.isSafeInteger(n) && n >= 0;
           usage =
-            raw && /^\d{4}-\d{2}$/.test(raw.month) &&
-            valid(raw.requests) && valid(raw.tokens)
+            raw &&
+            /^\d{4}-\d{2}$/.test(raw.month) &&
+            valid(raw.requests) &&
+            valid(raw.tokens)
               ? {
                   state: "ROUTER_USAGE_OBSERVED",
                   month: raw.month,
@@ -169,9 +176,15 @@ export function createFreeLlmApiClient({
                   keyDetails: "REDACTED",
                   spendOrBillingProof: "NOT_VERIFIED",
                 }
-              : { state: "ROUTER_USAGE_UNAVAILABLE", spendOrBillingProof: "NOT_VERIFIED" };
+              : {
+                  state: "ROUTER_USAGE_UNAVAILABLE",
+                  spendOrBillingProof: "NOT_VERIFIED",
+                };
         } catch {
-          usage = { state: "ROUTER_USAGE_UNAVAILABLE", spendOrBillingProof: "NOT_VERIFIED" };
+          usage = {
+            state: "ROUTER_USAGE_UNAVAILABLE",
+            spendOrBillingProof: "NOT_VERIFIED",
+          };
         }
       }
       return {
@@ -212,7 +225,10 @@ export function createFreeLlmApiClient({
         timeoutSeconds > 90
       )
         fail("FREELLMAPI_INVALID_TIMEOUT");
-      if (taskType !== undefined && !["code", "chat", "auto"].includes(taskType))
+      if (
+        taskType !== undefined &&
+        !["code", "chat", "auto"].includes(taskType)
+      )
         fail("FREELLMAPI_INVALID_TASK_TYPE");
       await verifyChainAdmission(chain);
       const res = await call(
@@ -293,10 +309,21 @@ export function createFreeLlmApiClient({
       const planningAt = now();
       if (!Number.isSafeInteger(planningAt) || planningAt < startedAt)
         fail("FREELLMAPI_INVALID_CLOCK");
-      const fabric = inspectFabricCatalog(cached.rows, [...approved], planningAt, cooldowns);
+      const fabric = inspectFabricCatalog(
+        cached.rows,
+        [...approved],
+        planningAt,
+        cooldowns,
+      );
       const candidates = selectFabricCandidates(fabric, task, chain);
       if (candidates.length === 0) {
-        if (fabric.routes.some((r) => r.reason === "RECENT_429_COOLDOWN" || r.reason === "QUOTA_EXHAUSTED"))
+        if (
+          fabric.routes.some(
+            (r) =>
+              r.reason === "RECENT_429_COOLDOWN" ||
+              r.reason === "QUOTA_EXHAUSTED",
+          )
+        )
           fail("FREELLMAPI_QUOTA_EXHAUSTED");
         fail("FREELLMAPI_NO_APPROVED_CHAIN");
       }
@@ -322,8 +349,8 @@ export function createFreeLlmApiClient({
             ...rest,
             chain: candidate,
             timeoutSeconds: remainingSeconds,
-            taskType: task === "code" ? "code" :
-              task === "reasoning" ? "auto" : "chat",
+            taskType:
+              task === "code" ? "code" : task === "reasoning" ? "auto" : "chat",
           });
           return {
             ...out,
@@ -341,7 +368,15 @@ export function createFreeLlmApiClient({
   return client;
 }
 
-function httpRequest({ port, method, path, apiKey, body, timeoutMs, taskType }) {
+function httpRequest({
+  port,
+  method,
+  path,
+  apiKey,
+  body,
+  timeoutMs,
+  taskType,
+}) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request(
