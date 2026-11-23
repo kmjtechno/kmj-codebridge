@@ -69,11 +69,20 @@ test("enrollment never invokes signing or publication", () => {
 });
 
 test("PowerShell 5.1 ssh-keyscan stderr banner is non-fatal while checks stay strict", () => {
-  assert.match(p520, /Start-Process -FilePath \(Get-Command ssh-keyscan\.exe\)\.Source/);
-  assert.match(p520, /-RedirectStandardOutput \$scanOut -RedirectStandardError \$scanErr/);
+  assert.match(
+    p520,
+    /Start-Process -FilePath \(Get-Command ssh-keyscan\.exe\)\.Source/,
+  );
+  assert.match(
+    p520,
+    /-RedirectStandardOutput \$scanOut -RedirectStandardError \$scanErr/,
+  );
   assert.match(p520, /\$scanProc\.ExitCode -ne 0/);
   assert.match(p520, /Get-Content -LiteralPath \$scanOut/);
   assert.match(p520, /\$entries\.Count -ne 1/);
   assert.match(p520, /ssh-keygen\.exe -l -f \$kh -E sha256/);
-  assert.doesNotMatch(p520, /ssh-keyscan\.exe -T 8 -t ed25519 \$hostIp 2>\$null/);
+  assert.doesNotMatch(
+    p520,
+    /ssh-keyscan\.exe -T 8 -t ed25519 \$hostIp 2>\$null/,
+  );
 });
