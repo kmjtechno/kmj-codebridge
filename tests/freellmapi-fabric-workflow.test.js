@@ -102,7 +102,9 @@ test("owner-pinned named profiles outrank global auto-sort aliases", () => {
 });
 
 test("a sole owner-approved custom profile is routed automatically for all tasks", async () => {
-  const custom = [{ id: "auto:or-free", available: true, execution_status: "ready" }];
+  const custom = [
+    { id: "auto:or-free", available: true, execution_status: "ready" },
+  ];
   const projected = inspectFabricCatalog(custom, ["auto:or-free"], 1000000);
   for (const task of ["code", "fast", "reasoning", "general"]) {
     assert.deepEqual(selectFabricCandidates(projected, task), ["auto:or-free"]);
@@ -112,16 +114,25 @@ test("a sole owner-approved custom profile is routed automatically for all tasks
   const client = createFreeLlmApiClient({
     apiKey: key,
     approvedFreeChains: ["auto:or-free"],
-    verifyZeroCostChain: (args) => { admitted += 1; return proof(args); },
+    verifyZeroCostChain: (args) => {
+      admitted += 1;
+      return proof(args);
+    },
     request: async (request) => {
       if (request.path === "/v1/models") return { data: custom };
       requests.push(request);
-      return { choices: [{ message: { content: "safe advisory only" }, finish_reason: "stop" }] };
+      return {
+        choices: [
+          { message: { content: "safe advisory only" }, finish_reason: "stop" },
+        ],
+      };
     },
   });
   const result = await client.generateRouted({
-    task: "code", prompt: "Review this bounded task",
-    localProcessingApproved: true, upstreamCloudApproved: true,
+    task: "code",
+    prompt: "Review this bounded task",
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
   });
   assert.equal(result.routing.chosen, "auto:or-free");
   assert.equal(result.outputIsUntrusted, true);
