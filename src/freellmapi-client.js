@@ -159,7 +159,7 @@ export function createFreeLlmApiClient({
           const raw = await call("GET", "/v1/usage", undefined, 5000);
           const valid = (n) => Number.isSafeInteger(n) && n >= 0;
           usage =
-            raw && /^\\d{4}-\\d{2}$/.test(raw.month) &&
+            raw && /^\d{4}-\d{2}$/.test(raw.month) &&
             valid(raw.requests) && valid(raw.tokens)
               ? {
                   state: "ROUTER_USAGE_OBSERVED",
