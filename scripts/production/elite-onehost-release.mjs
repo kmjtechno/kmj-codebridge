@@ -15,7 +15,7 @@ const GATE = path.join(ROOT, "release-ci-gate.mjs");
 const SIGNER_PIN =
   "b6cc130f933c29b5f8bbf94dc83742bad53e3fdcbfd20ad43bb941ec8d92d0f1";
 const GATE_PIN =
-  "da76cec89e2384a8c8c3126020bdded3b4955de53e8bfca6882fc446742436c1";
+  "74014d9ca667d73997f0286cabf294679906317916892784ce9d9e7da1338bea";
 const TIMER = "kmj-codebridge-auto-release.timer";
 const PROFILE = "kmjsigner";
 const MAX_FILE = 100000;
