@@ -80,9 +80,41 @@ test("cloud coding admission rejects every missing independent evidence gate", (
   }
 });
 
-test("all-positive fixture yields advisory preflight, not live activation", () => {
+test("positive fixture remains advisory and can never grant activation", () => {
   assert.deepEqual(evaluateCloudCodingAdmission(fixture()), {
-    allowed: true,
+    allowed: false,
+    preflightEligible: true,
     reason: "PREFLIGHT_ONLY_REVALIDATE_AT_EXECUTION",
   });
+});
+
+test("inherited evidence and hostile getters cannot forge activation proofs", () => {
+  const inherited = fixture();
+  delete inherited.provider.billingVerified;
+  Object.setPrototypeOf(inherited.provider, { billingVerified: true });
+  assert.deepEqual(evaluateCloudCodingAdmission(inherited), {
+    allowed: false,
+    reason: "UNTRUSTED_EVIDENCE_FIELDS",
+  });
+  const getter = fixture();
+  Object.defineProperty(getter.consent, "approved", {
+    get() {
+      throw new Error("HOSTILE_CONSENT_GETTER");
+    },
+  });
+  assert.deepEqual(evaluateCloudCodingAdmission(getter), {
+    allowed: false,
+    reason: "UNTRUSTED_EVIDENCE_FIELDS",
+  });
+  const trap = new Proxy(fixture(), {
+    getOwnPropertyDescriptor() {
+      throw new Error("HOSTILE_PROXY_TRAP");
+    },
+  });
+  assert.deepEqual(evaluateCloudCodingAdmission(trap), {
+    allowed: false,
+    reason: "EVIDENCE_ACCESS_FAILED",
+  });
+  // All-positive caller-controlled booleans have no authority to start work.
+  assert.equal(evaluateCloudCodingAdmission(fixture()).allowed, false);
 });
