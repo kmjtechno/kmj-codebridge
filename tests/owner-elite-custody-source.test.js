@@ -84,9 +84,12 @@ test("PowerShell 5.1 ssh-keyscan stderr banner is non-fatal while checks stay st
   );
 });
 
-test("P520 keyscan uses Git OpenSSH for sntrup KEX, not incompatible Windows keyscan", () => {
+test("P520 Git keyscan KEX workaround preserves SSH identity checks", () => {
   assert.match(p520, /Join-Path \$gitRoot 'usr\\bin\\ssh-keyscan\.exe'/);
-  assert.match(p520, /Join-Path \$env:ProgramFiles 'Git\\usr\\bin\\ssh-keyscan\.exe'/);
+  assert.match(
+    p520,
+    /Join-Path \$env:ProgramFiles 'Git\\usr\\bin\\ssh-keyscan\.exe'/,
+  );
   assert.match(p520, /GIT_FOR_WINDOWS_KEYSCAN_REQUIRED/);
   assert.match(p520, /GIT_KEYSCAN_SYMLINK_REJECTED/);
   assert.match(p520, /Start-Process -FilePath \$scanBinary/);
@@ -96,7 +99,7 @@ test("P520 keyscan uses Git OpenSSH for sntrup KEX, not incompatible Windows key
   assert.doesNotMatch(p520, /StrictHostKeyChecking=no/);
 });
 
-test("P520 custody removes only its GUID scratch directory without confirmation", () => {
+test("P520 scratch cleanup is noninteractive", () => {
   assert.match(p520, /kmj-elite-custody-/);
   assert.match(p520, /New-Item -ItemType Directory -Path \$work/);
   assert.match(p520, /Remove-Item -LiteralPath \$work -Recurse -Force/);
