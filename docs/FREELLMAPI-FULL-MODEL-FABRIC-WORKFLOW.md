@@ -21,6 +21,8 @@ The upstream router already provides encrypted provider keys, named profiles, fa
 7. **After completion**: CodeBridge treats returned text as untrusted; separately saves a sanitized cross-chat checkpoint, runs allowed repo/OS checks in isolated SHA-guarded lanes, and requires exact-head CI/review and original owner Elite signing for a release.
 8. **Errors and recovery**: denied/paid/unknown price, private-code consent missing, missing chain/old agent, exhausted quota, expired owner attestation and closed router remain **BLOCKED** rather than silently falling back.
 
+The owner may already have one custom pinned free profile (for example `auto:or-free` on KMJ-Elite). When it is the **sole** advertised, approved, non-exhausted candidate, the task planner uses it automatically for code, fast, reasoning and general work rather than requiring the owner to rename it. Two or more unmatched candidates remain ambiguous and require an explicit chain. This only chooses a candidate; it never bypasses independent no-charge price, quota, immutable route-member and source-transfer consent checks.
+
 ## KMJ improvement vs default router behavior
 
 - A provider's `execution_status=ready` means a key may serve it **right now**, not that its usage is free or its code-transfer policy is acceptable.
