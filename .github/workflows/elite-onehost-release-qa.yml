@@ -6,6 +6,8 @@ on:
       - "scripts/production/elite-onehost-release.mjs"
       - "scripts/production/owner-auto-sign-stable.mjs"
       - "scripts/production/owner_install_elite_onehost_signer_20261120.py"
+      - "scripts/production/owner_upgrade_elite_signer_ci_20261123.py"
+      - "tests/test_owner_upgrade_elite_signer_ci_20261123.py"
       - "scripts/release-ci-gate.mjs"
       - "tests/elite-onehost-release.test.js"
       - "tests/test_owner_install_elite_onehost_signer_20261120.py"
@@ -36,6 +38,8 @@ jobs:
           for f in [
             "scripts/production/owner_install_elite_onehost_signer_20261120.py",
             "tests/test_owner_install_elite_onehost_signer_20261120.py",
+            "scripts/production/owner_upgrade_elite_signer_ci_20261123.py",
+            "tests/test_owner_upgrade_elite_signer_ci_20261123.py",
           ]:
             compile(Path(f).read_text("utf-8"), f, "exec")
           print("ELITE_ONEHOST_PYTHON_SYNTAX=PASS")
@@ -44,6 +48,7 @@ jobs:
         run: |
           node --test tests/elite-onehost-release.test.js
           python3 -I -B tests/test_owner_install_elite_onehost_signer_20261120.py -v
+          python3 -I -B tests/test_owner_upgrade_elite_signer_ci_20261123.py -v
           echo "ELITE_ONEHOST_OFFLINE_GATES=PASS"
       - name: Ensure release automation cannot sign or deploy in CI
         run: |
