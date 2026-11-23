@@ -7,7 +7,10 @@ import {
 } from "../src/fabric-skill-workflows.js";
 
 const examples = [
-  ["Cross-repo licensing API across multiple repositories", "cross-repo-contracts"],
+  [
+    "Cross-repo licensing API across multiple repositories",
+    "cross-repo-contracts",
+  ],
   ["Qt6 CMake build regression", "qt-cmake-engineering"],
   ["Laravel migration and Eloquent authorization", "laravel-php-engineering"],
   ["Rust unsafe FFI memory safety", "rust-concurrency-ffi"],
@@ -39,11 +42,17 @@ for (const [objective, expected] of examples) {
 }
 
 test("unrelated work does not load irrelevant skills", () => {
-  assert.deepEqual(selectFabricSkills({ objective: "Summarize accounting invoices" }), []);
+  assert.deepEqual(
+    selectFabricSkills({ objective: "Summarize accounting invoices" }),
+    [],
+  );
 });
 
 test("safe prompt compiler preserves caller text as untrusted and selects FreeLLMAPI only", () => {
-  const out = prepareFabricSkillPrompt("rust-concurrency-ffi", "Fix Rust panic");
+  const out = prepareFabricSkillPrompt(
+    "rust-concurrency-ffi",
+    "Fix Rust panic",
+  );
   assert.equal(out.task, "code");
   assert.equal(out.provider, "freellmapi-loopback");
   assert.ok(out.prompt.includes("Fix Rust panic"));
@@ -53,8 +62,20 @@ test("safe prompt compiler preserves caller text as untrusted and selects FreeLL
 });
 
 test("unknown skill, invalid request and null bytes fail closed", () => {
-  assert.throws(() => prepareFabricSkillPrompt("evil-skill", "hello"), /SKILL_FABRIC_UNKNOWN_SKILL/);
-  assert.throws(() => prepareFabricSkillPrompt("rust-concurrency-ffi", ""), /SKILL_FABRIC_INVALID_REQUEST/);
-  assert.throws(() => prepareFabricSkillPrompt("rust-concurrency-ffi", "x\0y"), /SKILL_FABRIC_INVALID_REQUEST/);
-  assert.throws(() => prepareFabricSkillPrompt("rust-concurrency-ffi", "x".repeat(4097)), /SKILL_FABRIC_INVALID_REQUEST/);
+  assert.throws(
+    () => prepareFabricSkillPrompt("evil-skill", "hello"),
+    /SKILL_FABRIC_UNKNOWN_SKILL/,
+  );
+  assert.throws(
+    () => prepareFabricSkillPrompt("rust-concurrency-ffi", ""),
+    /SKILL_FABRIC_INVALID_REQUEST/,
+  );
+  assert.throws(
+    () => prepareFabricSkillPrompt("rust-concurrency-ffi", "x\0y"),
+    /SKILL_FABRIC_INVALID_REQUEST/,
+  );
+  assert.throws(
+    () => prepareFabricSkillPrompt("rust-concurrency-ffi", "x".repeat(4097)),
+    /SKILL_FABRIC_INVALID_REQUEST/,
+  );
 });
