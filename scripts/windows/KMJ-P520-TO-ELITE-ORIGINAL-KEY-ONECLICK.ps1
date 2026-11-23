@@ -9,7 +9,7 @@ $expectedSsh='SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI'
 $original=Join-Path $HOME 'kmj-offline-keys\kmj-release.pem'
 $public=Join-Path $HOME 'kmj-offline-keys\kmj-release-2026.pub'
 $stage='/root/.kmj-codebridge-owner-custody-20261123'
-$helperSha='5999c59bad389c34382732a752f7fdfaba3d4a03f2c0b0790518a98628f5bcb7'
+$helperSha='baf8fac584cb4e76819ecabb2032d20f8398cf3b9fa1c06490c9e2396c9d7659'
 $helperUri='https://raw.githubusercontent.com/kmjtechno/kmj-codebridge/main/scripts/production/kmj-elite-provision-owner-policy.py'
 $work=Join-Path $env:TEMP ('kmj-elite-custody-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $work -ErrorAction Stop | Out-Null
