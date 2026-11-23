@@ -30,6 +30,31 @@ function guardInput(objective, changedFiles, failureSummary) {
     throw new Error("FABRIC_AUTO_INVALID_OBJECTIVE");
 }
 
+// High-confidence Hindi/Hinglish engineering vocabulary only. These hints
+// influence deterministic skill selection; the owner's original task text
+// reaches the model unchanged. Ambiguous chat words never grant execution
+// permission or invent a programming language.
+const LANGUAGE_HINTS = Object.freeze([
+  { signal: /(?:सुरक्षा|सिक्योरिटी|सुरक्षितता)/u, phrase: "security review" },
+  { signal: /(?:रस्ट)/u, phrase: "rust" },
+  { signal: /(?:लारवेल)/u, phrase: "laravel" },
+  { signal: /(?:रिएक्ट)/u, phrase: "react" },
+  { signal: /(?:क्यूटी|क्यू एम एल)/u, phrase: "qt6" },
+  { signal: /(?:मल्टी[ -]?रिपो|कई रिपोजिटरी|अनेक रिपोजिटरी)/u, phrase: "cross-repo" },
+  { signal: /(?:गिटहब एक्शन|गिटहब वर्कफ़्लो)/u, phrase: "github actions" },
+]);
+
+function selectAutomaticSkills({ objective, changedFiles, failureSummary }) {
+  const text = [objective, failureSummary, ...changedFiles].join(" ");
+  const hints = LANGUAGE_HINTS.filter(({ signal }) => signal.test(text))
+    .map(({ phrase }) => phrase);
+  return selectFabricSkills({
+    objective: hints.length ? objective + "\n" + hints.join(" ") : objective,
+    changedFiles,
+    failureSummary,
+  });
+}
+
 function rankSkill(skill, objective) {
   const signal = objective.toLowerCase();
   if (
@@ -55,7 +80,7 @@ export function planAutomaticFabricWork({
   failureSummary = "",
 } = {}) {
   guardInput(objective, changedFiles, failureSummary);
-  const matches = selectFabricSkills({
+  const matches = selectAutomaticSkills({
     objective,
     changedFiles,
     failureSummary,
@@ -113,7 +138,7 @@ export function prepareAutomaticFabricPrompt({
     changedFiles,
     failureSummary,
   });
-  const selected = selectFabricSkills({
+  const selected = selectAutomaticSkills({
     objective,
     changedFiles,
     failureSummary,
