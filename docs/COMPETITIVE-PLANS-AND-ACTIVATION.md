@@ -8,6 +8,14 @@ Desktop Commander's [official pricing](https://desktopcommander.app/pricing/) cu
 
 KMJ CodeBridge is **not a drop-in feature-complete replacement for Desktop Commander**. Its emphasis is authorized remote engineering over approved project roots, guarded edits, predefined quality gates, recorded status and outbound device agents. It does not grant arbitrary shell or full-device browsing. The separate user-selected AI model/API subscription is **not included** in CodeBridge hosted pricing.
 
+## 23 November 2026 monthly usage update (not active)
+
+Desktop Commander Remote's official [Free/Pro limits](https://desktopcommander.app/help/account-billing/plans-and-tool-call-limits) are 10,000 hosted remote tool calls/month for Free and US$20/month with unlimited Remote calls for Pro; its separate open-source local MCP stays free. **KMJ CodeBridge proposes the same 10,000 Free remote allowance**, plus 100,000 Pro remote calls at the pre-existing **₹299/month India** price and 300,000 Team remote calls per user at **₹699/user/month India**. Business gets contract-defined usage, with explicit capacity limits rather than an unverified "unlimited" claim. Existing project/device/concurrent-job limits stay intact. Free self-hosted Apache-2.0 source is not capped by this KMJ-hosted meter.
+
+**Commercial state:** source-only proposal; there is no running meter, no verified live payments or automatic paid licensing. CodeBridge customer AI-model/API costs are separate. For retention, make first value easy: connect one device, inspect one authorized repo, run a permitted check, and save a reusable project/roadmap summary. Paid upgrade is for real multi-device/project/team value, not artificially broken Free functionality. A card-free, opt-in 14-day Pro trial can be considered only after KSLP signed entitlement lifecycle, consent and cancellation are production tested.
+
+[Monthly hosted usage, growth guardrails, telemetry and fail-closed release acceptance](HOSTED-MONTHLY-TOOL-CALL-PLAN-20261123.md)
+
 ## Proposed KMJ plans — no paid checkout yet
 
 | Plan        | Proposed public price                                  | Intended scope                                                                            | State                                                       |

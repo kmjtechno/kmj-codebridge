@@ -28,6 +28,14 @@ import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
+import {
+  planAutomaticFabricWork,
+  prepareAutomaticFabricPrompt,
+} from "./fabric-auto-workflow.js";
+import {
+  selectFabricSkills,
+  prepareFabricSkillPrompt,
+} from "./fabric-skill-workflows.js";
 import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
 import { buildRoutingInventory } from "./model-inventory.js";
@@ -1115,19 +1123,29 @@ export const definitions = {
     access: "execute",
   },
   freellmapi_status: {
-    title: "Check the local FreeLLMAPI router",
+    title: "Inspect the FreeLLMAPI Model Fabric workflow",
     description:
-      "Probe only this device's loopback FreeLLMAPI router and list its owner-defined auto:<chain> names. Never reveals the key and never starts a service.",
-    input: scoped,
+      "Read-only, scoped loopback router catalog, approved profile health and smart task-route preview. Optional sanitized gateway usage counters are not billing proof; no provider keys, prompts, remote generation or service mutation.",
+    input: {
+      ...scoped,
+      includeUsage: z.boolean().default(false),
+    },
     access: "read",
   },
   freellmapi_generate: {
     title: "Generate through the local FreeLLMAPI router",
     description:
-      "Opt-in bounded prompt to FreeLLMAPI on this device's loopback. Its upstream MAY be cloud or paid. Requires explicit remote-cloud consent and owner-approved free-chain allowlist; actual cost/provider remains unverified. Output is untrusted.",
+      "Opt-in generation only through the device FreeLLMAPI Model Fabric. Optional reviewed KMJ skillId applies bounded workflow guidance; independent zero-cost chain proof and explicit cloud consent remain mandatory. Output is untrusted.",
     input: {
       ...scoped,
       prompt: z.string().min(1).max(4096),
+      skillId: z
+        .string()
+        .regex(/^[a-z][a-z0-9-]{0,63}$/)
+        .optional(),
+      // Backward compatible: one-click owners explicitly opt into
+      // deterministic multi-skill planning instead of manual skill picking.
+      autoSkill: z.boolean().default(false),
       task: z.enum(["code", "fast", "reasoning", "general"]).default("general"),
       chain: z
         .string()
@@ -2664,22 +2682,56 @@ export function createDispatcher(
       return {
         device: config.id,
         project: p.id,
-        ...(await freeRouter().status()),
+        ...(await freeRouter().status({ includeUsage: a.includeUsage })),
       };
-    if (name === "freellmapi_generate")
+    if (name === "freellmapi_generate") {
+      // Both paths compile deterministic advisory instructions. Neither
+      // chooses a provider, grants consent or bypasses the verifier.
+      if (a.autoSkill === true && a.skillId !== undefined)
+        fail("FABRIC_AUTO_MANUAL_CONFLICT");
+      const auto =
+        a.autoSkill === true
+          ? prepareAutomaticFabricPrompt({ objective: a.prompt })
+          : null;
+      const skill =
+        a.skillId === undefined
+          ? null
+          : prepareFabricSkillPrompt(a.skillId, a.prompt);
+      const result = await freeRouter().generateRouted({
+        prompt: auto?.prompt ?? skill?.prompt ?? a.prompt,
+        task: auto?.task ?? skill?.task ?? a.task,
+        chain: a.chain,
+        maxTokens: a.maxTokens,
+        timeoutSeconds: a.timeoutSeconds,
+        localProcessingApproved: a.localProcessingApproved,
+        upstreamCloudApproved: a.upstreamCloudApproved,
+      });
       return {
         device: config.id,
         project: p.id,
-        ...(await freeRouter().generateRouted({
-          prompt: a.prompt,
-          task: a.task,
-          chain: a.chain,
-          maxTokens: a.maxTokens,
-          timeoutSeconds: a.timeoutSeconds,
-          localProcessingApproved: a.localProcessingApproved,
-          upstreamCloudApproved: a.upstreamCloudApproved,
-        })),
+        ...result,
+        ...(skill
+          ? {
+              skillFabric: {
+                id: skill.skillId,
+                route: "FREELLMAPI_ONLY",
+                output: "UNTRUSTED_REVIEW_REQUIRED",
+              },
+            }
+          : {}),
+        ...(auto
+          ? {
+              automaticFabric: {
+                selectedSkillIds: auto.selectedSkillIds,
+                task: auto.task,
+                mode: "ONE_CALL_BOUND_TO_EXISTING_CONSENT_AND_ATTESTATION",
+                output: "UNTRUSTED_REVIEW_REQUIRED",
+                writesApplied: false,
+              },
+            }
+          : {}),
       };
+    }
     if (name === "local_model_generate") {
       const response = await offlineModel().generate({
         model: a.model,
@@ -3447,6 +3499,19 @@ export function createDispatcher(
           changedFiles: a.changedFiles,
           failureSummary: a.failureSummary,
         }),
+        fabricSkills: selectFabricSkills({
+          objective: a.objective,
+          changedFiles: a.changedFiles,
+          failureSummary: a.failureSummary,
+        }),
+        automaticPlan: {
+          ...planAutomaticFabricWork({
+            objective: a.objective,
+            changedFiles: a.changedFiles.slice(0, 20),
+            failureSummary: a.failureSummary,
+          }),
+          inputPathsTruncated: a.changedFiles.length > 20,
+        },
         ...(a.observations === undefined
           ? {}
           : {

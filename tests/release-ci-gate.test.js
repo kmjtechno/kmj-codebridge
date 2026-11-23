@@ -39,10 +39,9 @@ test("exact head CI success is necessary and only a signing preflight", () => {
   );
 });
 
-test("missing, duplicate and red mandatory checks block owner signing", () => {
+test("missing and red mandatory checks block owner signing", () => {
   for (const result of [
     { total_count: 4, check_runs: good().check_runs.slice(0, 4) },
-    good([ciCheck("registry_manifest")]),
     good([ciCheck("extra-security", { conclusion: "failure" })]),
     good([ciCheck("extra-security", { status: "queued", conclusion: null })]),
     good([ciCheck("extra-security", { conclusion: "neutral" })]),
@@ -50,6 +49,26 @@ test("missing, duplicate and red mandatory checks block owner signing", () => {
     good([ciCheck("registry_manifest", { conclusion: "failure" })]),
   ]) {
     assert.equal(assessReleaseChecks(result, SHA).ready, false);
+  }
+});
+
+test("duplicate fully-green GitHub Actions checks for the same SHA are admitted", () => {
+  const double = good(REQUIRED_RELEASE_CHECKS.map((name) => ciCheck(name)));
+  assert.deepEqual(assessReleaseChecks(double, SHA), {
+    ready: true,
+    reason: "PASS",
+    checks: 10,
+    revision: SHA,
+  });
+  // All duplicates are still verified; no failed, queued, forged or stale
+  // duplicate may be masked by a successful run with the same name.
+  for (const bad of [
+    ciCheck("clients", { conclusion: "failure" }),
+    ciCheck("clients", { status: "in_progress", conclusion: null }),
+    ciCheck("clients", { app: { slug: "untrusted" } }),
+    ciCheck("clients", { head_sha: OTHER }),
+  ]) {
+    assert.equal(assessReleaseChecks(good([bad]), SHA).ready, false);
   }
 });
 

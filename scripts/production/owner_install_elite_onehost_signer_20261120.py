@@ -29,11 +29,11 @@ PINNED = {
     ),
     ("production", "elite-onehost-release.mjs"): (
         HERE / "elite-onehost-release.mjs",
-        "cd3198b1f07ea5d24d4ac07c003a314fb76d7fdfea6bfa7c5cc4bf86dd2836c9",
+        "9b291b59d5be85c1b050c89b8ec79b2ca8cb1ccdf59055717ecb54e068bcdc1e",
     ),
     ("", "release-ci-gate.mjs"): (
         SRC_ROOT / "release-ci-gate.mjs",
-        "da76cec89e2384a8c8c3126020bdded3b4955de53e8bfca6882fc446742436c1",
+        "74014d9ca667d73997f0286cabf294679906317916892784ce9d9e7da1338bea",
     ),
 }
 

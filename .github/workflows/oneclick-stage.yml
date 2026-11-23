@@ -1,0 +1,66 @@
+name: CodeBridge one-click isolated staging
+# Stage source on an isolated GitHub runner only; never sign or deploy.
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: codebridge-isolated-stage-main
+  cancel-in-progress: false
+jobs:
+  oneclick_stage:
+    if: github.repository == 'kmjtechno/kmj-codebridge' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Verify main SHA before QA
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          [[ "$SOURCE_SHA" =~ ^[a-f0-9]{40}$ ]] || exit 2
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          read -r remote _ < <(git ls-remote https://github.com/kmjtechno/kmj-codebridge.git refs/heads/main)
+          test "$remote" = "$SOURCE_SHA"
+          echo 'STAGE_IMMUTABLE_MAIN=PASS'
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - run: npm run package:runtime
+      - run: npm run scan:secrets -- dist/runtime
+      - name: Verify staged archive and emit unsigned receipt
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          mkdir -p "$RUNNER_TEMP/kmj-stage-receipt"
+          node scripts/release-center-stage-verify.mjs \
+            dist/runtime/manifest.json "$SOURCE_SHA" \
+            "$RUNNER_TEMP/kmj-stage-receipt/stage-receipt.json"
+      - name: Reject moving main before publication
+        shell: bash
+        env:
+          SOURCE_SHA: ${{ github.sha }}
+        run: |
+          set -Eeuo pipefail
+          read -r remote _ < <(git ls-remote https://github.com/kmjtechno/kmj-codebridge.git refs/heads/main)
+          test "$remote" = "$SOURCE_SHA"
+          echo 'STAGE_MAIN_FREEZE=PASS'
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: codebridge-stage-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/kmj-stage-receipt/stage-receipt.json
+            dist/runtime/manifest.json
+            dist/runtime/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7

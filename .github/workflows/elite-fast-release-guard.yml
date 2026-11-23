@@ -1,0 +1,37 @@
+name: Elite Fast Release Security Gate
+
+on:
+  pull_request:
+    paths:
+      - "scripts/production/elite_fast_release*.py"
+      - "tests/test_elite_fast_release*.py"
+      - "docs/ELITE-UNIVERSAL-FAST-RELEASE.md"
+      - ".github/workflows/elite-fast-release-guard.yml"
+  push:
+    branches: [main]
+    paths:
+      - "scripts/production/elite_fast_release*.py"
+      - "tests/test_elite_fast_release*.py"
+      - "docs/ELITE-UNIVERSAL-FAST-RELEASE.md"
+      - ".github/workflows/elite-fast-release-guard.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  reviewed-dispatcher:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Pure source syntax and fail-closed admission tests
+        run: |
+          python3 -B -m py_compile scripts/production/elite_fast_release.py scripts/production/elite_fast_release_install.py
+          python3 -B -m unittest discover -s tests -p 'test_elite_fast_release*.py' -v
+      - name: No root/service/key/deploy mutation from CI
+        run: |
+          echo 'ELITE_FAST_RELEASE=SOURCE_TEST_ONLY'
+          echo 'PRODUCTION_MUTATION=NONE'
+          echo 'PRIVATE_KEY_READ=NO'

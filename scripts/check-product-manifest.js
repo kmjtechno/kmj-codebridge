@@ -93,6 +93,40 @@ if (
 )
   fail("business custom pricing missing");
 
+// This public metadata is an OWNER REVIEW PROPOSAL, not a running gateway
+// meter, payment entitlement, active quota or production activation.
+const usage = manifest.launch?.hostedUsageProposal;
+if (
+  usage?.status !== "proposal_only" ||
+  usage.authority !== "KMJ Main Platform (hosted)" ||
+  usage.unit !== "completed remote device tool calls" ||
+  usage.period !== "calendar_month_utc" ||
+  usage.resetDayUtc !== 1 ||
+  usage.alertPercent !== 80 ||
+  usage.hardStopWhenExhausted !== true ||
+  usage.noOverageOrAutoCharge !== true ||
+  usage.providerAiFeesIncluded !== false ||
+  usage.selfHostedApache2Metered !== false
+)
+  fail("monthly hosted usage proposal contract drift");
+const monthlyProposals = {
+  community: { calls: 10000, perUser: false, custom: false },
+  pro: { calls: 100000, perUser: false, custom: false },
+  team: { calls: 300000, perUser: true, custom: false },
+  business: { calls: null, perUser: false, custom: true },
+};
+for (const [id, expectedProposal] of Object.entries(monthlyProposals)) {
+  const plan = manifest.plans.find((candidate) => candidate.id === id);
+  const proposal = plan?.hostedUsageProposal;
+  if (
+    !proposal ||
+    proposal.monthlyToolCalls !== expectedProposal.calls ||
+    proposal.perUser !== expectedProposal.perUser ||
+    proposal.customContract !== expectedProposal.custom
+  )
+    fail("monthly proposed quota drift for " + id);
+}
+
 if (manifest.product?.assets?.logo !== "plugin/assets/icon.png")
   fail("canonical logo asset mismatch");
 if (manifest.product?.assets?.icon !== "plugin/assets/icon.png")

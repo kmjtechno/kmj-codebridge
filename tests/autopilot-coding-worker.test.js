@@ -1096,3 +1096,93 @@ test("cloud worker cannot claim tasks or read source without verified zero-cost 
     "export const value = 1;\n",
   );
 });
+
+test("revoking cloud coding grants while reading source denies all outbound prompts", async (t) => {
+  const scenarios = [
+    [
+      "project-scoped cloud source consent",
+      (f) => {
+        f.project.autopilotCodingWorker.cloudSourceTransferApproved = false;
+      },
+    ],
+    [
+      "licensed execute entitlement",
+      (_f, options) => {
+        options.noExecute = true;
+      },
+    ],
+    [
+      "approved QA verification gate",
+      (f) => {
+        f.project.gates.check.autopilotCodingSafe = false;
+      },
+    ],
+  ];
+  for (const [reason, revoke] of scenarios) {
+    let outbound = 0;
+    const options = {
+      onStatus: () => {
+        throw new Error("LOCAL_MODEL_MUST_NOT_RUN");
+      },
+      cloudModel: () => ({
+        status: async () => ({
+          available: true,
+          activeRequest: false,
+          models: ["auto:code"],
+        }),
+        generate: async () => {
+          outbound++;
+          throw new Error("PRIVATE_SOURCE_TRANSFER_FORBIDDEN");
+        },
+      }),
+    };
+    const f = fixture(t, options);
+    const config = f.project.autopilotCodingWorker;
+    config.inferenceRoute = "verified-free-cloud-only";
+    config.localProcessingApproved = false;
+    config.cloudProxyApproved = true;
+    config.cloudSourceTransferApproved = true;
+    config.model = "auto:code";
+    const worker = f.makeWorker();
+    const task = f.enqueue();
+    let revokedDuringContextRead = false;
+    const originalRead = fs.readSync;
+    fs.readSync = (...args) => {
+      const bytesRead = originalRead(...args);
+      if (
+        !revokedDuringContextRead &&
+        bytesRead > 0 &&
+        Buffer.isBuffer(args[1]) &&
+        args[1]
+          .subarray(0, bytesRead)
+          .toString("utf8")
+          .includes("export const value = 1;")
+      ) {
+        revokedDuringContextRead = true;
+        revoke(f, options);
+      }
+      return bytesRead;
+    };
+    try {
+      await worker.tick();
+    } finally {
+      fs.readSync = originalRead;
+    }
+    assert.equal(revokedDuringContextRead, true, reason);
+    assert.equal(outbound, 0, reason);
+    assert.equal(f.generated(), 0, reason);
+    assert.equal(f.starts.length, 0, reason);
+    assert.equal(f.journal.get(task.id, "repo").state, "waiting", reason);
+    assert.equal(
+      f.journal.get(task.id, "repo").lastReason,
+      "LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED",
+      reason,
+    );
+    assert.deepEqual(f.lanes.status("repo", f.root).lanes, [], reason);
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      reason,
+    );
+  }
+});
