@@ -165,13 +165,32 @@ def current_main_platform() -> str:
     return candidate.name
 
 
+def trusted_node24_binary(candidate: str) -> Path | None:
+    # Never exec Node from a writable ancestor: the process runs under the
+    # privileged owner's Ed25519 signer identity after dropping root.
+    try:
+        resolved = Path(candidate).resolve(strict=True)
+        for entry in (resolved, *resolved.parents):
+            st = entry.lstat()
+            if st.st_uid != 0 or st.st_mode & 0o022:
+                return None
+            if entry == resolved:
+                if not (stat.S_ISREG(st.st_mode) and st.st_nlink == 1 and
+                        st.st_mode & 0o111 and not st.st_mode & 0o6000 and
+                        10000 < st.st_size < 200000000):
+                    return None
+            elif not stat.S_ISDIR(st.st_mode):
+                return None
+        return resolved
+    except OSError:
+        return None
+
+
 def verified_node24() -> str:
     for candidate in NODE_CANDIDATES:
         try:
-            resolved = Path(candidate).resolve(strict=True)
-            st = resolved.stat()
-            if not (resolved.is_file() and st.st_uid == 0 and not st.st_mode & 0o022 and
-                    st.st_mode & 0o111 and st.st_size > 10000):
+            resolved = trusted_node24_binary(candidate)
+            if resolved is None:
                 continue
             result = subprocess.run([str(resolved), '--version'], capture_output=True, text=True,
                                     timeout=4, check=False, env={'PATH': '/usr/bin:/bin', 'LANG': 'C'})
@@ -245,6 +264,18 @@ def run_codebridge(action: str, sha: str | None) -> None:
     print('FAST_RELEASE=SIGNED_PR_REVIEW_REQUIRED_NOT_LIVE')
 
 
+def require_installed_self() -> None:
+    require(Path(__file__).resolve() == SELF and SELF.is_file(), 'REVIEWED_ROOT_INSTALL_REQUIRED')
+    selfstat = SELF.lstat()
+    require(stat.S_ISREG(selfstat.st_mode) and selfstat.st_uid == 0 and
+            selfstat.st_nlink == 1 and not selfstat.st_mode & 0o022,
+            'REVIEWED_ROOT_INSTALL_UNTRUSTED')
+    for parent in SELF.parents:
+        st = parent.lstat()
+        require(stat.S_ISDIR(st.st_mode) and st.st_uid == 0 and not st.st_mode & 0o022,
+                'REVIEWED_ROOT_PARENT_UNTRUSTED')
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='KMJ Elite protected, project-adapter fast release')
     parser.add_argument('--project', help='fixed project ID (catalog to list)')
@@ -254,11 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--confirm', help='explicit owner confirmation for mutations')
     args = parser.parse_args(argv)
     require_elite_root()
-    require(Path(__file__).resolve() == SELF and SELF.is_file(), 'REVIEWED_ROOT_INSTALL_REQUIRED')
-    selfstat = SELF.lstat()
-    require(stat.S_ISREG(selfstat.st_mode) and selfstat.st_uid == 0 and
-            selfstat.st_nlink == 1 and not selfstat.st_mode & 0o022,
-            'REVIEWED_ROOT_INSTALL_UNTRUSTED')
+    require_installed_self()
     if args.action == 'catalog':
         require(args.project is None and args.sha is None and args.confirm is None,
                 'CATALOG_ARGUMENTS_NOT_ALLOWED')
