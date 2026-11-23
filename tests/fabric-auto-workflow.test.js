@@ -42,7 +42,7 @@ test("skill prompt is bounded and treats task text as untrusted", () => {
   const objective = "Fix Qt6 CMake crash";
   const out = prepareAutomaticFabricPrompt({ objective });
   assert.equal(out.selectedSkillIds[0], "qt-cmake-engineering");
-  assert.ok(out.prompt.includes("Qt 6"));
+  assert.ok(out.prompt.includes("Qt SDK"));
   assert.ok(out.prompt.includes(objective));
   assert.ok(out.prompt.includes("UNTRUSTED OWNER-APPROVED TASK TEXT"));
   assert.ok(!out.prompt.includes("curl --"));
