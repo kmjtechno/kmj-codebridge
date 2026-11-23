@@ -1,0 +1,10 @@
+[Unit]
+Description=Check every 5 minutes whether CodeBridge agents follow the signed stable runtime
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+Persistent=false
+
+[Install]
+WantedBy=timers.target
