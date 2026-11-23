@@ -84,6 +84,6 @@ Start with existing GitHub plugin quickstarts and the Main Platform product page
 
 ## Release and status
 
-**Implemented in this PR:** versioned, generated *proposal* metadata and strict static checks; published developer-facing specification. **Not implemented:** atomic DB metering, live call counts, UI progress, warnings, actual pause at 10,000, monthly reset worker, commercial checkout, real paid account entitlement or device signer interoperability. CI success never proves these production behaviors.
+**Implemented in this PR:** versioned, generated _proposal_ metadata and strict static checks; published developer-facing specification. **Not implemented:** atomic DB metering, live call counts, UI progress, warnings, actual pause at 10,000, monthly reset worker, commercial checkout, real paid account entitlement or device signer interoperability. CI success never proves these production behaviors.
 
 Keep `docs/PRICING.md`, `docs/LICENSING-HUB-SUITE-PLANS.md`, generated product JSON and Main Platform owner-only pricebook aligned. Do not silently change existing ₹299/₹699 India plans while introducing this monthly allowance.
