@@ -73,7 +73,36 @@ try {
     throw 'ELITE_SSH_HOST_PIN_MISMATCH'
   }
   Write-Host 'ELITE_SSH_HOST_PIN=PASS'
-  $opt=@('-o',"UserKnownHostsFile=$kh",'-o','StrictHostKeyChecking=yes','-o','HostKeyAlgorithms=ssh-ed25519','-o','BatchMode=no')
+  # Win32-OpenSSH/scp can misparse -o UserKnownHostsFile=H:\IDE BACKUP\...
+  # because the Windows TEMP directory contains spaces. A dedicated ASCII
+  # config with a quoted forward-slash path is shared by ssh.exe and scp.exe.
+  # No new host key is trusted: only the verified per-run known_hosts is used.
+  $knownHostsWin=$kh.Replace('\','/')
+  if ($knownHostsWin -match '[`"\r\n]') { throw 'SSH_TEMP_PATH_UNSAFE' }
+  $sshConfig=Join-Path $work 'ssh_config'
+  $sshConfigLines=@(
+    ('Host '+$hostIp),
+    ('  HostName '+$hostIp),
+    '  User root',
+    ('  HostKeyAlias '+$hostIp),
+    ('  UserKnownHostsFile "'+$knownHostsWin+'"'),
+    '  StrictHostKeyChecking yes',
+    '  HostKeyAlgorithms ssh-ed25519',
+    '  GlobalKnownHostsFile none',
+    '  UpdateHostKeys no',
+    '  BatchMode no'
+  )
+  [IO.File]::WriteAllLines($sshConfig,$sshConfigLines,[Text.Encoding]::ASCII)
+  $resolvedConfig=@(& ssh.exe -G -F $sshConfig ('root@'+$hostIp) 2>$null)
+  if ($LASTEXITCODE -ne 0 -or
+      !($resolvedConfig -contains ('userknownhostsfile '+$knownHostsWin)) -or
+      !($resolvedConfig -contains 'stricthostkeychecking true') -or
+      !($resolvedConfig -contains 'globalknownhostsfile none') -or
+      !($resolvedConfig -contains ('hostkeyalias '+$hostIp))) {
+    throw 'SSH_KNOWN_HOSTS_CONFIG_NOT_ATTESTED'
+  }
+  Write-Host 'SSH_PINNED_CONFIG=PASS'
+  $opt=@('-F',$sshConfig)
   & ssh.exe @opt ("root@"+$hostIp) ('test ! -e '+$stage+' && umask 077 && mkdir -m 700 '+$stage)
   if ($LASTEXITCODE -ne 0) { throw 'ELITE_PRIVATE_INBOX_NOT_CREATED' }
   & scp.exe @opt -q $original $public $helper ("root@"+$hostIp+':'+$stage+'/')
