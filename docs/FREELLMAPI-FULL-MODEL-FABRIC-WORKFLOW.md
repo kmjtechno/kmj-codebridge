@@ -13,10 +13,10 @@ The upstream router already provides encrypted provider keys, named profiles, fa
 ## Owner setup / full happy-path UX
 
 1. **One-time secure install**: trusted owner installs FreeLLMAPI under the supported license and deployment policy; bind loopback only. Its UI handles key enrollment, key testing, custom endpoint setup, encrypted key storage and profile chain editing. No automatic provider key creation or secret echo in CodeBridge.
-2. **Connect models**: owner chooses supported truly free models and eligible accounts; creates narrow `auto:code` or `auto:coding`, `auto:fast`, `auto:reasoning`, `auto:default` profiles. Unqualified global `auto:smart`, `auto:fast` strategies can rank *every* enabled upstream; a route is **not** safe just because the alias is called fast/smart.
+2. **Connect models**: owner chooses supported truly free models and eligible accounts; creates narrow `auto:code` or `auto:coding`, `auto:fast`, `auto:reasoning`, `auto:default` profiles. Unqualified global `auto:smart`, `auto:fast` strategies can rank _every_ enabled upstream; a route is **not** safe just because the alias is called fast/smart.
 3. **Model discovery and diagnostics**: CodeBridge `freellmapi_status` reads `GET /v1/models`, filters only owner-approved `auto:<chain>` names and reports task candidates, unavailable/key-needed/exhausted chains and unverified pricing. A missing or malformed catalog fails closed; unknown readiness is not treated as actual successful inference.
 4. **Optional usage dashboard**: `freellmapi_status({includeUsage:true})` also reads authenticated loopback `GET /v1/usage`. Returns only aggregate month/request/token counts; redact provider key IDs, labels, tokens, endpoint URLs and per-key rows. Missing/unavailable usage is explicit. This is **not proof of free billing**; upstream provider prices, credits and route members must be checked separately.
-5. **Smart task routing**: code uses a coding profile first, reasoning uses the reasoning/smart profile, fast work uses fast/reliable profile, ordinary tasks use balanced/default. Only approved, advertised and not *explicitly* router-blocked routes are candidates. A recent 429 causes a 30-second bounded per-route cooldown, reducing repeated quota failures across calls. The owner-pinned verifier rechecks the actual route before **every** remote POST, including a retry.
+5. **Smart task routing**: code uses a coding profile first, reasoning uses the reasoning/smart profile, fast work uses fast/reliable profile, ordinary tasks use balanced/default. Only approved, advertised and not _explicitly_ router-blocked routes are candidates. A recent 429 causes a 30-second bounded per-route cooldown, reducing repeated quota failures across calls. The owner-pinned verifier rechecks the actual route before **every** remote POST, including a retry.
 6. **Bounded execution**: existing `freellmapi_generate` or skill-backed optional `skillId` sends one limited, owner-approved request with no paid or local fallback. The upstream `X-FreeLLM-Task-Type` advisory header biases scoring toward coding/chat when supported; this cannot widen approved route membership. One request may retry a **second approved** chain only after an unambiguous 429 and within one time budget; ambiguous 5xx, timeouts, partially streamed output and malformed completions are **not** automatically replayed.
 7. **After completion**: CodeBridge treats returned text as untrusted; separately saves a sanitized cross-chat checkpoint, runs allowed repo/OS checks in isolated SHA-guarded lanes, and requires exact-head CI/review and original owner Elite signing for a release.
 8. **Errors and recovery**: denied/paid/unknown price, private-code consent missing, missing chain/old agent, exhausted quota, expired owner attestation and closed router remain **BLOCKED** rather than silently falling back.
@@ -32,18 +32,18 @@ The upstream router already provides encrypted provider keys, named profiles, fa
 
 ## Integration decision: reuse vs intentionally exclude
 
-| Upstream FreeLLMAPI capability | KMJ approach |
-| --- | --- |
-| Provider/key onboarding, encrypted keys, key health | Reuse FreeLLMAPI local dashboard; CodeBridge metadata-only |
-| Named profiles, per-chain routing policies | Existing owner-approved `auto:<chain>` profiles with explicit task strategy |
-| Smart model scoring and per-key quotas | Reuse router; augment with CodeBridge readiness/cooldown and independent zero-cost proof |
-| Live model discovery/catalog | Read-only `GET /v1/models`; no unsigned auto-enabling |
-| Monthly request/token usage | Optional privacy-preserving `GET /v1/usage`; not a billing attestation |
-| Automatic failover | Only bounded, reverified 429; do not auto-replay ambiguous failures |
-| Streaming, tool calls, vision, embeddings | Separate future adapter gates for protocol validation, tool execution safety, privacy and cost; **not enabled by this change** |
-| Fusion/parallel generation | No automatic multi-model fanout; each provider request must be independently verified and explicitly approved |
-| FreeLLMAPI MCP administration and route CRUD | Keep privileged provider-key/profile mutation in owner UI; no generic admin MCP exposure |
-| Auto catalog updates and enterprise SLA | Do not assume model lists, pricing, capacity, privacy, license or SLA are guaranteed by upstream counts |
+| Upstream FreeLLMAPI capability                      | KMJ approach                                                                                                                   |
+| --------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| Provider/key onboarding, encrypted keys, key health | Reuse FreeLLMAPI local dashboard; CodeBridge metadata-only                                                                     |
+| Named profiles, per-chain routing policies          | Existing owner-approved `auto:<chain>` profiles with explicit task strategy                                                    |
+| Smart model scoring and per-key quotas              | Reuse router; augment with CodeBridge readiness/cooldown and independent zero-cost proof                                       |
+| Live model discovery/catalog                        | Read-only `GET /v1/models`; no unsigned auto-enabling                                                                          |
+| Monthly request/token usage                         | Optional privacy-preserving `GET /v1/usage`; not a billing attestation                                                         |
+| Automatic failover                                  | Only bounded, reverified 429; do not auto-replay ambiguous failures                                                            |
+| Streaming, tool calls, vision, embeddings           | Separate future adapter gates for protocol validation, tool execution safety, privacy and cost; **not enabled by this change** |
+| Fusion/parallel generation                          | No automatic multi-model fanout; each provider request must be independently verified and explicitly approved                  |
+| FreeLLMAPI MCP administration and route CRUD        | Keep privileged provider-key/profile mutation in owner UI; no generic admin MCP exposure                                       |
+| Auto catalog updates and enterprise SLA             | Do not assume model lists, pricing, capacity, privacy, license or SLA are guaranteed by upstream counts                        |
 
 ## GitHub release acceptance
 
