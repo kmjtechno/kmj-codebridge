@@ -26,22 +26,48 @@ function assessCloudCodingAdmission(input) {
   const { provider, consent, lane, qa, release } = input;
   if (
     !ownDataRecord(input, [
-      "provider", "consent", "lane", "qa", "release", "explicitActivationRequested",
+      "provider",
+      "consent",
+      "lane",
+      "qa",
+      "release",
+      "explicitActivationRequested",
     ]) ||
     !ownDataRecord(provider, [
-      "upstreamProviderVerified", "billingVerified", "zeroPriceVerified",
-      "quotaVerified", "noPaidFallbackVerified", "paidInference", "accountId",
-      "routeId", "snapshotId", "attestationId", "snapshotFresh", "routeBound",
+      "upstreamProviderVerified",
+      "billingVerified",
+      "zeroPriceVerified",
+      "quotaVerified",
+      "noPaidFallbackVerified",
+      "paidInference",
+      "accountId",
+      "routeId",
+      "snapshotId",
+      "attestationId",
+      "snapshotFresh",
+      "routeBound",
     ]) ||
     !ownDataRecord(consent, [
-      "approved", "project", "accountId", "routeId", "approvalId",
+      "approved",
+      "project",
+      "accountId",
+      "routeId",
+      "approvalId",
     ]) ||
     !ownDataRecord(lane, [
-      "project", "head", "dirty", "isolated", "currentHeadVerified", "mayPrepare",
+      "project",
+      "head",
+      "dirty",
+      "isolated",
+      "currentHeadVerified",
+      "mayPrepare",
     ]) ||
     !ownDataRecord(qa, ["approved", "nonDestructive", "recipeId"]) ||
     !ownDataRecord(release, [
-      "ownerSigned", "immutableVerified", "supervisorBound", "revision",
+      "ownerSigned",
+      "immutableVerified",
+      "supervisorBound",
+      "revision",
     ])
   )
     return deny("UNTRUSTED_EVIDENCE_FIELDS");
