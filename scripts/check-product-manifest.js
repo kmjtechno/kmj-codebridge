@@ -107,7 +107,8 @@ if (
   usage.noOverageOrAutoCharge !== true ||
   usage.providerAiFeesIncluded !== false ||
   usage.selfHostedApache2Metered !== false
-) fail("monthly hosted usage proposal contract drift");
+)
+  fail("monthly hosted usage proposal contract drift");
 const monthlyProposals = {
   community: { calls: 10000, perUser: false, custom: false },
   pro: { calls: 100000, perUser: false, custom: false },
@@ -122,7 +123,8 @@ for (const [id, expectedProposal] of Object.entries(monthlyProposals)) {
     proposal.monthlyToolCalls !== expectedProposal.calls ||
     proposal.perUser !== expectedProposal.perUser ||
     proposal.customContract !== expectedProposal.custom
-  ) fail("monthly proposed quota drift for " + id);
+  )
+    fail("monthly proposed quota drift for " + id);
 }
 
 if (manifest.product?.assets?.logo !== "plugin/assets/icon.png")
