@@ -20,7 +20,7 @@ Status: source-only candidate. This does not start a coding worker, install Free
 
 ## What remains gated or not built?
 
-- Enabling nonlocal cloud code upload or authorizing a new account: requires owner/project/provider consent and trusted billing proof, *not* a prompt saying 'approved'.
+- Enabling nonlocal cloud code upload or authorizing a new account: requires owner/project/provider consent and trusted billing proof, _not_ a prompt saying 'approved'.
 - Continuous scheduler + coding worker integration, restart/replay, automatic PR creation and full automatic test fixing: not added in this PR, must integrate with existing signed worker/lease state. A chat timer or an automated plan is not genuine coding.
 - Running arbitrary tools suggested by a remote model: intentionally disallowed; only preapproved fixed profiles and validated patches in isolated worktrees.
 - Production signing, deployment, destructive operations, new paid providers and secret access remain separately authorized; do not treat this as 'one click auto deploy'.
