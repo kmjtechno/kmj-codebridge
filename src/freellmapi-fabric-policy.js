@@ -119,7 +119,10 @@ export function inspectFabricCatalog(
   const taskRoutes = Object.fromEntries(
     Object.entries(TASK_ROUTE_PREFERENCES).map(([task, preference]) => {
       const matched = preference.filter((chain) => usable.has(chain));
-      return [task, matched.length ? matched : soleApproved ? [soleApproved] : []];
+      return [
+        task,
+        matched.length ? matched : soleApproved ? [soleApproved] : [],
+      ];
     }),
   );
   return {
