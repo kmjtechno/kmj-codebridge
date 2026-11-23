@@ -2074,7 +2074,7 @@ export const definitions = {
   supervisor_main_platform_maintenance_status: {
     title: "Main Platform maintenance readiness",
     description:
-      "Read fixed KMJ-elite backup and health one-shot/timer systemd states through the privileged Supervisor. No caller-selected units, shell, secrets, backup transfer, service restarts or production release approval.",
+      "Read fixed KMJ-elite offsite backup/health and new V3 dual-local one-shot/timer systemd states through the privileged Supervisor. This is NOT proof of the first scheduled backup, remote restore, or release approval. No caller-selected units, shell, secrets, backup transfer, service restarts or production release approval.",
     input: scoped,
     access: "read",
   },
