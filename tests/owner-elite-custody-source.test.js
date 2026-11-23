@@ -118,3 +118,29 @@ test("private SSH config handles spaced TEMP path and keeps only pinned host key
   assert.match(p520, /\$opt=@\('-F',\$sshConfig\)/);
   assert.doesNotMatch(p520, /\$opt=@\('-o',"UserKnownHostsFile=\$kh"/);
 });
+
+test("runtime prerequisites are checked before signer file or source mutations", () => {
+  const main = elite.slice(elite.indexOf("def main():"));
+  const nodeProbe = main.indexOf("node = Path('/proc/1627302/exe')");
+  const wrapperProbe = main.indexOf("guard(WRAPPER.exists()");
+  const clone = main.indexOf("run(['/usr/bin/git'");
+  const keyCopy = main.indexOf("copy_private(priv,KEY,uid)");
+  assert.ok(nodeProbe >= 0);
+  assert.ok(nodeProbe < wrapperProbe);
+  assert.ok(wrapperProbe < clone);
+  assert.ok(wrapperProbe < keyCopy);
+});
+
+test("failed signer inspect rolls back new keys and preserves staged originals", () => {
+  const main = elite.slice(elite.indexOf("def main():"));
+  const newFiles = main.indexOf("    created=[]");
+  const inspect = main.indexOf("report = run([node_path,str(WRAPPER),'--inspect']");
+  const rollback = main.indexOf("    except Exception:", newFiles);
+  const stagedCleanup = main.indexOf("    priv.unlink(); pub.unlink()");
+  assert.ok(newFiles >= 0);
+  assert.ok(newFiles < inspect);
+  assert.ok(inspect < rollback);
+  assert.ok(rollback < stagedCleanup);
+  assert.match(main.slice(rollback, stagedCleanup), /for f in reversed\(created\):/);
+  assert.match(main.slice(inspect, rollback), /SIGNER_INSPECT_NOT_READY/);
+});
