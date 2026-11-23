@@ -28,7 +28,10 @@ import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
-import { selectFabricSkills, prepareFabricSkillPrompt } from "./fabric-skill-workflows.js";
+import {
+  selectFabricSkills,
+  prepareFabricSkillPrompt,
+} from "./fabric-skill-workflows.js";
 import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
 import { buildRoutingInventory } from "./model-inventory.js";
@@ -1129,7 +1132,10 @@ export const definitions = {
     input: {
       ...scoped,
       prompt: z.string().min(1).max(4096),
-      skillId: z.string().regex(/^[a-z][a-z0-9-]{0,63}$/).optional(),
+      skillId: z
+        .string()
+        .regex(/^[a-z][a-z0-9-]{0,63}$/)
+        .optional(),
       task: z.enum(["code", "fast", "reasoning", "general"]).default("general"),
       chain: z
         .string()
@@ -2671,9 +2677,10 @@ export function createDispatcher(
     if (name === "freellmapi_generate") {
       // The selected skill adds only curated prompt guidance. It never
       // selects a provider or bypasses FreeLLMAPI's independent cost proof.
-      const skill = a.skillId === undefined
-        ? null
-        : prepareFabricSkillPrompt(a.skillId, a.prompt);
+      const skill =
+        a.skillId === undefined
+          ? null
+          : prepareFabricSkillPrompt(a.skillId, a.prompt);
       const result = await freeRouter().generateRouted({
         prompt: skill?.prompt ?? a.prompt,
         task: skill?.task ?? a.task,
@@ -2688,11 +2695,13 @@ export function createDispatcher(
         project: p.id,
         ...result,
         ...(skill
-          ? { skillFabric: {
-              id: skill.skillId,
-              route: "FREELLMAPI_ONLY",
-              output: "UNTRUSTED_REVIEW_REQUIRED",
-            } }
+          ? {
+              skillFabric: {
+                id: skill.skillId,
+                route: "FREELLMAPI_ONLY",
+                output: "UNTRUSTED_REVIEW_REQUIRED",
+              },
+            }
           : {}),
       };
     }
