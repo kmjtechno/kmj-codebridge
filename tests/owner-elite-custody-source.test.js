@@ -33,8 +33,8 @@ test("P520 rejects unpinned SSH Ed25519 host identity", () => {
   const hostPin = "SHA256:uLP3I92NNheo+MIPWs77aU11NCTK5NrZGwUV0l1QgQI";
   assert.ok(p520.includes(hostPin));
   assert.match(p520, /ELITE_SSH_HOST_PIN_MISMATCH/);
-  assert.match(p520, /StrictHostKeyChecking=yes/);
-  assert.match(p520, /HostKeyAlgorithms=ssh-ed25519/);
+  assert.match(p520, /StrictHostKeyChecking yes/);
+  assert.match(p520, /HostKeyAlgorithms ssh-ed25519/);
   assert.doesNotMatch(p520, /StrictHostKeyChecking=no/);
   assert.doesNotMatch(p520, /UserKnownHostsFile=\/dev\/null/);
 });
@@ -103,4 +103,18 @@ test("P520 scratch cleanup is noninteractive", () => {
   assert.match(p520, /kmj-elite-custody-/);
   assert.match(p520, /New-Item -ItemType Directory -Path \$work/);
   assert.match(p520, /Remove-Item -LiteralPath \$work -Recurse -Force/);
+});
+
+test("private SSH config handles spaced TEMP path and keeps only pinned host keys", () => {
+  assert.match(p520, /\$knownHostsWin=\$kh\.Replace/);
+  assert.match(p520, /UserKnownHostsFile /);
+  assert.match(p520, /StrictHostKeyChecking yes/);
+  assert.match(p520, /HostKeyAlgorithms ssh-ed25519/);
+  assert.match(p520, /GlobalKnownHostsFile none/);
+  assert.match(p520, /UpdateHostKeys no/);
+  assert.match(p520, /HostKeyAlias /);
+  assert.match(p520, /ssh\.exe -G -F \$sshConfig/);
+  assert.match(p520, /SSH_KNOWN_HOSTS_CONFIG_NOT_ATTESTED/);
+  assert.match(p520, /\$opt=@\('-F',\$sshConfig\)/);
+  assert.doesNotMatch(p520, /\$opt=@\('-o',"UserKnownHostsFile=\$kh"/);
 });
