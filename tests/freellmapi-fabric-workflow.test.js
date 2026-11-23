@@ -141,6 +141,18 @@ test("a sole owner-approved custom profile is routed automatically for all tasks
   assert.equal(requests[0].body.model, "auto:or-free");
 });
 
+test("known task-specific approved profile never leaks into unrelated task class", () => {
+  const code = inspectFabricCatalog(
+    [{ id: "auto:code", available: true, execution_status: "ready" }],
+    ["auto:code"],
+    1000000,
+  );
+  assert.deepEqual(selectFabricCandidates(code, "code"), ["auto:code"]);
+  assert.deepEqual(selectFabricCandidates(code, "general"), []);
+  assert.deepEqual(selectFabricCandidates(code, "fast"), []);
+  assert.deepEqual(selectFabricCandidates(code, "reasoning"), []);
+});
+
 test("multiple unknown profile names are never guessed; exhausted sole route stays denied", () => {
   const two = inspectFabricCatalog(
     [
