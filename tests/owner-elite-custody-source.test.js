@@ -7,7 +7,10 @@ import { fileURLToPath } from "node:url";
 
 const base = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const p520 = fs.readFileSync(
-  path.join(base, "scripts/windows/KMJ-P520-TO-ELITE-ORIGINAL-KEY-ONECLICK.ps1"),
+  path.join(
+    base,
+    "scripts/windows/KMJ-P520-TO-ELITE-ORIGINAL-KEY-ONECLICK.ps1",
+  ),
   "utf8",
 );
 const elitePath = path.join(
@@ -37,7 +40,8 @@ test("P520 rejects unpinned SSH Ed25519 host identity", () => {
 });
 
 test("private key cannot be replaced by a new identity", () => {
-  const releasePin = "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8";
+  const releasePin =
+    "2c49c1cea01c662416fd6b6bb4f1eb1d666165c5fcb58bebc436c7e6416c51f8";
   assert.ok(elite.includes(releasePin));
   assert.match(elite, /spki_sha256\(priv,True\) == PIN/);
   assert.match(elite, /spki_sha256\(pub,False\) == PIN/);
