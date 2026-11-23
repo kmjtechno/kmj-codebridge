@@ -601,6 +601,38 @@ export class LocalFirstCodingWorker {
             continue;
           }
 
+          // Context was read after the task was claimed, but its read may have
+          // triggered an operator-side grant or entitlement change. The cloud
+          // transport checks its own provider/route proofs; it cannot infer
+          // the worker's licensed job grants, exact approved recipe or QA gate.
+          // Revalidate those here before any private source enters a prompt.
+          let authorizedBeforePrompt = false;
+          try {
+            const currentEntitlement = this.licenseProvider();
+            authorizedBeforePrompt =
+              this.canStart() &&
+              project.writable === true &&
+              project.autopilotCodingWorker === config &&
+              config.enabled === true &&
+              codingRouteApproved(config) &&
+              config.recipes?.[parsed.recipe] === recipe &&
+              project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
+                true &&
+              codingApprovalFingerprint(
+                config,
+                recipe,
+                project.gates?.[recipe.verifyGate],
+              ) === approvalFingerprint &&
+              hasCodingEntitlement(currentEntitlement);
+          } catch {
+            // Missing, revoked or throwing authorization always denies.
+          }
+          if (!authorizedBeforePrompt) {
+            releaseLaneIfPristine();
+            wait("LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED");
+            continue;
+          }
+
           let generated;
           try {
             const prompt = [
