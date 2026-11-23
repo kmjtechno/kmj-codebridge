@@ -1123,10 +1123,13 @@ export const definitions = {
     access: "execute",
   },
   freellmapi_status: {
-    title: "Check the local FreeLLMAPI router",
+    title: "Inspect the FreeLLMAPI Model Fabric workflow",
     description:
-      "Probe only this device's loopback FreeLLMAPI router and list its owner-defined auto:<chain> names. Never reveals the key and never starts a service.",
-    input: scoped,
+      "Read-only, scoped loopback router catalog, approved profile health and smart task-route preview. Optional sanitized gateway usage counters are not billing proof; no provider keys, prompts, remote generation or service mutation.",
+    input: {
+      ...scoped,
+      includeUsage: z.boolean().default(false),
+    },
     access: "read",
   },
   freellmapi_generate: {
@@ -2679,7 +2682,7 @@ export function createDispatcher(
       return {
         device: config.id,
         project: p.id,
-        ...(await freeRouter().status()),
+        ...(await freeRouter().status({ includeUsage: a.includeUsage })),
       };
     if (name === "freellmapi_generate") {
       // Both paths compile deterministic advisory instructions. Neither
