@@ -28,7 +28,10 @@ import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
-import { planAutomaticFabricWork, prepareAutomaticFabricPrompt } from "./fabric-auto-workflow.js";
+import {
+  planAutomaticFabricWork,
+  prepareAutomaticFabricPrompt,
+} from "./fabric-auto-workflow.js";
 import {
   selectFabricSkills,
   prepareFabricSkillPrompt,
@@ -2683,9 +2686,10 @@ export function createDispatcher(
       // chooses a provider, grants consent or bypasses the verifier.
       if (a.autoSkill === true && a.skillId !== undefined)
         fail("FABRIC_AUTO_MANUAL_CONFLICT");
-      const auto = a.autoSkill === true
-        ? prepareAutomaticFabricPrompt({ objective: a.prompt })
-        : null;
+      const auto =
+        a.autoSkill === true
+          ? prepareAutomaticFabricPrompt({ objective: a.prompt })
+          : null;
       const skill =
         a.skillId === undefined
           ? null
