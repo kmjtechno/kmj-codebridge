@@ -24,7 +24,9 @@ test("one-click auto plan selects relevant skills, remains a zero-execution advi
   assert.equal(plan.generation, "NOT_EXECUTED");
   assert.equal(plan.automaticallyExecutableNow, false);
   assert.equal(plan.route, "FREELLMAPI_ONLY_IF_AUTHORIZED");
-  assert.ok(plan.independentOwnerGates.includes("PRODUCTION_DEPLOY_AND_SIGNING"));
+  assert.ok(
+    plan.independentOwnerGates.includes("PRODUCTION_DEPLOY_AND_SIGNING"),
+  );
 });
 
 test("security review becomes primary ahead of code when genuinely relevant", () => {
@@ -60,7 +62,9 @@ test("reject malformed work requests rather than creating empty or unsafe jobs",
       /FABRIC_AUTO_INVALID_OBJECTIVE/,
     );
   }
-  const unknown = planAutomaticFabricWork({ objective: "Write an invoice summary" });
+  const unknown = planAutomaticFabricWork({
+    objective: "Write an invoice summary",
+  });
   assert.deepEqual(unknown.selectedSkillIds, []);
   assert.equal(unknown.task, "general");
   assert.equal(unknown.automaticallyExecutableNow, false);
@@ -93,36 +97,38 @@ test("MCP one-click generate preserves permission, consent, no-paid and no-write
     undefined,
     null,
     null,
-    () => createFreeLlmApiClient({
-      apiKey: "freellmapi-fabric-test-key",
-      approvedFreeChains: ["auto:code"],
-      verifyZeroCostChain: ({ chain, observedAtEpochMs }) => {
-        proofs += 1;
-        return {
-          source: "authenticated_provider_billing_and_route_binding",
-          chain,
-          routeBindingVerified: true,
-          accountNoChargeVerified: true,
-          noPaidFallback: true,
-          inputPriceUsdPerToken: 0,
-          outputPriceUsdPerToken: 0,
-          requestsRemaining: 2,
-          observedAtEpochMs,
-          expiresAtEpochMs: observedAtEpochMs + 30000,
-        };
-      },
-      request: async (r) => {
-        if (r.path === "/v1/models")
-          return { data: [{ id: "auto:code" }] };
-        requests.push(r);
-        return {
-          choices: [{
-            message: { content: "reviewed proposal only" },
-            finish_reason: "stop",
-          }],
-        };
-      },
-    }),
+    () =>
+      createFreeLlmApiClient({
+        apiKey: "freellmapi-fabric-test-key",
+        approvedFreeChains: ["auto:code"],
+        verifyZeroCostChain: ({ chain, observedAtEpochMs }) => {
+          proofs += 1;
+          return {
+            source: "authenticated_provider_billing_and_route_binding",
+            chain,
+            routeBindingVerified: true,
+            accountNoChargeVerified: true,
+            noPaidFallback: true,
+            inputPriceUsdPerToken: 0,
+            outputPriceUsdPerToken: 0,
+            requestsRemaining: 2,
+            observedAtEpochMs,
+            expiresAtEpochMs: observedAtEpochMs + 30000,
+          };
+        },
+        request: async (r) => {
+          if (r.path === "/v1/models") return { data: [{ id: "auto:code" }] };
+          requests.push(r);
+          return {
+            choices: [
+              {
+                message: { content: "reviewed proposal only" },
+                finish_reason: "stop",
+              },
+            ],
+          };
+        },
+      }),
   );
   assert.ok(definitions.freellmapi_generate.input.autoSkill);
   const args = {
@@ -146,15 +152,23 @@ test("MCP one-click generate preserves permission, consent, no-paid and no-write
     /ACCESS_DENIED/,
   );
   await assert.rejects(
-    dispatch("freellmapi_generate", { ...args, skillId: "rust-concurrency-ffi" }, ["execute"]),
+    dispatch(
+      "freellmapi_generate",
+      { ...args, skillId: "rust-concurrency-ffi" },
+      ["execute"],
+    ),
     /FABRIC_AUTO_MANUAL_CONFLICT/,
   );
   await assert.rejects(
-    dispatch("freellmapi_generate", { ...args, upstreamCloudApproved: false }, ["execute"]),
+    dispatch("freellmapi_generate", { ...args, upstreamCloudApproved: false }, [
+      "execute",
+    ]),
   );
   assert.equal(requests.length, 0);
   const result = await dispatch("freellmapi_generate", args, ["execute"]);
-  assert.deepEqual(result.automaticFabric.selectedSkillIds, ["rust-concurrency-ffi"]);
+  assert.deepEqual(result.automaticFabric.selectedSkillIds, [
+    "rust-concurrency-ffi",
+  ]);
   assert.equal(result.automaticFabric.task, "code");
   assert.equal(result.automaticFabric.writesApplied, false);
   assert.equal(result.response, "reviewed proposal only");
@@ -172,8 +186,7 @@ test("automatic classification does not bypass absent real billing attestation",
     apiKey: "freellmapi-fabric-test-key",
     approvedFreeChains: ["auto:code"],
     request: async (r) => {
-      if (r.path === "/v1/models")
-        return { data: [{ id: "auto:code" }] };
+      if (r.path === "/v1/models") return { data: [{ id: "auto:code" }] };
       sent += 1;
       return {};
     },
