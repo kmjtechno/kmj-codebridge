@@ -40,14 +40,18 @@ const LANGUAGE_HINTS = Object.freeze([
   { signal: /(?:लारवेल)/u, phrase: "laravel" },
   { signal: /(?:रिएक्ट)/u, phrase: "react" },
   { signal: /(?:क्यूटी|क्यू एम एल)/u, phrase: "qt6" },
-  { signal: /(?:मल्टी[ -]?रिपो|कई रिपोजिटरी|अनेक रिपोजिटरी)/u, phrase: "cross-repo" },
+  {
+    signal: /(?:मल्टी[ -]?रिपो|कई रिपोजिटरी|अनेक रिपोजिटरी)/u,
+    phrase: "cross-repo",
+  },
   { signal: /(?:गिटहब एक्शन|गिटहब वर्कफ़्लो)/u, phrase: "github actions" },
 ]);
 
 function selectAutomaticSkills({ objective, changedFiles, failureSummary }) {
   const text = [objective, failureSummary, ...changedFiles].join(" ");
-  const hints = LANGUAGE_HINTS.filter(({ signal }) => signal.test(text))
-    .map(({ phrase }) => phrase);
+  const hints = LANGUAGE_HINTS.filter(({ signal }) => signal.test(text)).map(
+    ({ phrase }) => phrase,
+  );
   return selectFabricSkills({
     objective: hints.length ? objective + "\n" + hints.join(" ") : objective,
     changedFiles,
