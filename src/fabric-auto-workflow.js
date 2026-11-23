@@ -47,7 +47,11 @@ const LANGUAGE_HINTS = Object.freeze([
   { signal: /(?:गिटहब एक्शन|गिटहब वर्कफ़्लो)/u, phrase: "github actions" },
 ]);
 
-function selectAutomaticSkills({ objective, changedFiles, failureSummary }) {
+function selectAutomaticSkills({
+  objective,
+  changedFiles = [],
+  failureSummary = "",
+}) {
   const text = [objective, failureSummary, ...changedFiles].join(" ");
   const hints = LANGUAGE_HINTS.filter(({ signal }) => signal.test(text)).map(
     ({ phrase }) => phrase,
