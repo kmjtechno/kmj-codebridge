@@ -47,9 +47,14 @@ export function assessReleaseChecks(response, expectedSha) {
     if (run.status !== "completed" || run.conclusion !== "success")
       return fail("CI_INCOMPLETE_OR_RED");
   }
+  // GitHub can report the same successful check name twice for a SHA
+  // (for example, separate push and pull_request workflow runs). Every
+  // returned non-release run was already required above to be from the
+  // exact SHA, GitHub Actions app, and completed SUCCESS. Count duplicates
+  // as additional evidence, never as permission to ignore red runs.
   for (const name of REQUIRED_RELEASE_CHECKS) {
-    if (checkRuns.filter((run) => run.name === name).length !== 1)
-      return fail("CI_REQUIRED_NAME_MISSING_OR_DUPLICATED");
+    if (!checkRuns.some((run) => run.name === name))
+      return fail("CI_REQUIRED_NAME_MISSING");
   }
   return {
     ready: true,
