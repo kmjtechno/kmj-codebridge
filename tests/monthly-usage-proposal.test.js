@@ -51,15 +51,27 @@ test("10k free, affordable Pro, per-user Team and custom Business preserve appro
   });
   assert.equal(plans.business.customPricing, true);
   assert.deepEqual(
-    [plans.community.limits.devices, plans.community.limits.projects, plans.community.limits.concurrentJobs],
+    [
+      plans.community.limits.devices,
+      plans.community.limits.projects,
+      plans.community.limits.concurrentJobs,
+    ],
     [1, 1, 1],
   );
   assert.deepEqual(
-    [plans.pro.limits.devices, plans.pro.limits.projects, plans.pro.limits.concurrentJobs],
+    [
+      plans.pro.limits.devices,
+      plans.pro.limits.projects,
+      plans.pro.limits.concurrentJobs,
+    ],
     [3, 10, 3],
   );
   assert.deepEqual(
-    [plans.team.limits.devicesPerUser, plans.team.limits.projectsPerUser, plans.team.limits.concurrentJobsPerUser],
+    [
+      plans.team.limits.devicesPerUser,
+      plans.team.limits.projectsPerUser,
+      plans.team.limits.concurrentJobsPerUser,
+    ],
     [10, 50, 10],
   );
 });
