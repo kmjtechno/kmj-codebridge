@@ -179,17 +179,47 @@ def main():
     # Fresh isolated source checkout, no checkout of repository file contents or hooks.
     source_parent=HOME/'source'
     trusted_dir(source_parent,uid,allow_create=True)
-    guard(not SRC.exists() and not SRC.is_symlink(), 'SIGNER_REPO_ALREADY_PRESENT')
-    run(['/usr/bin/git','-c','core.hooksPath=/dev/null','clone','--no-checkout',
-         '--single-branch','--branch','main','https://github.com/kmjtechno/kmj-codebridge.git',
-         str(SRC)],username=USER,timeout=180,stdout=False)
-    current=run(['/usr/bin/git','-C',str(SRC),'rev-parse','refs/remotes/origin/main'],
+    # A previous attempt may have cloned verified main before a later
+    # permission/inspect gate blocked enrollment. Reuse only that exact
+    # owner-held non-writable clone; do not delete, overwrite, fetch, or
+    # silently repair suspicious existing source directories.
+    reused=SRC.exists() or SRC.is_symlink()
+    if reused:
+        source_stat=SRC.lstat()
+        guard(stat.S_ISDIR(source_stat.st_mode) and source_stat.st_uid == uid
+              and not source_stat.st_mode & 0o022 and not SRC.is_symlink(),
+              'EXISTING_SIGNER_SOURCE_UNTRUSTED')
+        metadata=SRC/'.git'
+        git_stat=metadata.lstat()
+        guard(stat.S_ISDIR(git_stat.st_mode) and git_stat.st_uid == uid
+              and not git_stat.st_mode & 0o022 and not metadata.is_symlink(),
+              'EXISTING_SIGNER_GIT_UNTRUSTED')
+        origin=run(['/usr/bin/git','-c','core.hooksPath=/dev/null','-C',str(SRC),
+                    'remote','get-url','origin'],username=USER,timeout=20).decode().strip()
+        guard(origin == 'https://github.com/kmjtechno/kmj-codebridge.git',
+              'EXISTING_SIGNER_ORIGIN_UNTRUSTED')
+        top=run(['/usr/bin/git','-c','core.hooksPath=/dev/null','-C',str(SRC),
+                 'rev-parse','--show-toplevel'],username=USER,timeout=20).decode().strip()
+        guard(top == str(SRC), 'EXISTING_SIGNER_WORKTREE_UNTRUSTED')
+    else:
+        run(['/usr/bin/git','-c','core.hooksPath=/dev/null','clone','--no-checkout',
+             '--single-branch','--branch','main','https://github.com/kmjtechno/kmj-codebridge.git',
+             str(SRC)],username=USER,timeout=180,stdout=False)
+    current=run(['/usr/bin/git','-c','core.hooksPath=/dev/null','-C',str(SRC),
+                 'rev-parse','refs/remotes/origin/main'],
                 username=USER,timeout=20).decode().strip()
+    if reused:
+        head=run(['/usr/bin/git','-c','core.hooksPath=/dev/null','-C',str(SRC),
+                  'rev-parse','HEAD'],username=USER,timeout=20).decode().strip()
+        guard(head == current and len(current) == 40 and
+              all(c in '0123456789abcdef' for c in current),
+              'EXISTING_SIGNER_HEAD_UNTRUSTED')
     remote=run(['/usr/bin/git','ls-remote','https://github.com/kmjtechno/kmj-codebridge.git',
                 'refs/heads/main'],username=USER,timeout=20).decode().strip().split()
     guard(len(remote)==2 and remote[0]==current and remote[1]=='refs/heads/main',
           'MAIN_SHA_MOVED_RETRY_AFTER_REVIEW')
     print('SIGNER_SOURCE_MAIN_FREEZE=PASS',flush=True)
+    print('SIGNER_SOURCE_REUSED=PASS' if reused else 'SIGNER_SOURCE_FRESH=PASS',flush=True)
     trusted_dir(HOME/'.config',uid,allow_create=True)
     trusted_dir(CONFIG,uid,allow_create=True)
     created=[]
