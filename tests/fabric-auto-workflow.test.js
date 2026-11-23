@@ -49,6 +49,11 @@ test("automatic skill matching recognizes explicit Hindi and Hinglish technology
   for (const [objective, expected] of cases) {
     assert.equal(planAutomaticFabricWork({ objective }).primarySkillId, expected);
   }
+  const mixed = planAutomaticFabricWork({
+    objective: "रस्ट FFI की सुरक्षा समीक्षा करो",
+  });
+  assert.equal(mixed.primarySkillId, "security-differential-review");
+  assert.ok(mixed.selectedSkillIds.includes("rust-concurrency-ffi"));
   const ambiguous = planAutomaticFabricWork({ objective: "काम जारी रखो" });
   assert.equal(ambiguous.primarySkillId, null);
   const raw = "लारवेल में queue error ठीक करो";
