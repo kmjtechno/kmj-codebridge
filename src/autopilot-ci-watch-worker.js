@@ -38,12 +38,12 @@ function matchesFailedRun(data, config, identity) {
   if (
     !data ||
     !Array.isArray(data.workflow_runs) ||
-    !Number.isInteger(data.total_count) ||
-    data.total_count > MAX_RUNS ||
+    !Number.isSafeInteger(data.total_count) ||
+    data.total_count < data.workflow_runs.length ||
     data.workflow_runs.length > MAX_RUNS
   )
     return null;
-  // A pending newer run must block creating work from an older failed run.
+  // total_count is the full matching GitHub history, not this bounded page.\n  // Reject malformed pages, but allow repositories with more than ten runs.\n  // A pending newer run must block creating work from an older failed run.
   const matching = data.workflow_runs
     .filter(
       (run) =>
