@@ -45,6 +45,43 @@ The **KMJ Main Platform** is the only hosted plan, consent, billing and quota au
 - Contract tests: first/last second of a UTC month, leap year, time-zone mismatch, simultaneous 10k+1 calls, retry after gateway crash, queued/running cancellation, multi-device/multi-chat same account, team seat boundaries, counter replay, denied tools not counted, refunded/revoked entitlement, monthly plan switch, no paid fallback and no self-hosted limiter.
 - Rehearsed PostgreSQL migration/rollback and disaster recovery; independent authenticated gateway + Windows device E2E, cross-language entitlement checks, privacy/security review and protected Elite release. **Feature flags default OFF** until all proofs and commercial approvals are true.
 
+## Product-led acquisition and retention: earn repeat use, do not manufacture dependence
+
+The commercial objective is **more successful developer work per returning user**, not forced notification clicks, surprise charges, lock-in or intentionally crippling Free. Offer real export of project context; keep the portable Apache-2.0 core useful.
+
+### Five-minute first-value path (proposed workflow, NOT yet one-click-certified)
+
+1. **Connect one authorized device without paying.** Choose ChatGPT, Claude, Codex or another supported MCP client; sign into Main Platform and approve the device and exact project. No GitHub authentication prompt in the owner dashboard and no broad shell approval. If pairing fails, show one actionable reason instead of offering an unsafe workaround.
+2. **Get one valuable answer.** The first action is a single scoped `workspace_home` / project summary: file tree, stack, Git state, allowed quality gates and what can safely run. Never force the model to re-read an entire roadmap in each new chat.
+3. **Finish one real job.** Offer "Inspect my project", "Find a bug safely" and "Run one approved check" as honest, permission-bound presets. Write requires explicit project capability; deployments and signing require separate approval.
+4. **Resume with one click next time.** Save a tenant/project-scoped, versioned non-secret project summary, completed gate receipts, last task and safe next action. Across AI chats, show the same authorized workspace state; expire/refresh summaries after code changes, with user-visible export/delete. This is a planned experience, not a claim that all cross-client handoff already works.
+5. **Show earned value.** A factual "3 safe fixes reviewed, 2 checks passed" history and a clear monthly **remote calls used / remaining** count. No fabricated automation progress, no hidden prompts, no arbitrary streak penalties and no data use for ad targeting.
+
+### Conversion moments that help the customer
+
+- The first genuine need for **a second device or project** is a natural Pro offer; Free still lets the user complete work on the first one.
+- A team inviting another developer or needing managed policy/audit is a natural Team offer. Team requires a **minimum of 3 real paid seats** under the existing price; do not auto-enrol teammates or resell one seat as many.
+- At **80% of monthly calls**, show remaining quota, exact next reset, ways to reduce redundant operations, and a reversible upgrade comparison; no panic timer or countdown unless it reflects a real UTC reset.
+- Offer a **card-free, opt-in 14-day Pro trial** only after the signed KSLP trial and abuse-control lifecycle is deployed. Default on expiry is Community; never auto-charge or erase project data.
+- For annual Pro, preserve the existing published **₹2,499/year** reference, about 30% below twelve monthly payments of ₹299. Actual checkout must disclose taxes, cancellation/refunds and renewal in advance. Do not advertise live sales or a founding scarcity offer until independently approved.
+- Add a voluntary "Help me onboard my team" contact path for a **real qualified** org; prioritize 1–3 genuine design partners over fake install counts. No scraping, unsolicited automated mail, forced referrals or fabricated testimonials.
+
+### Acquisition channels, low fixed cost
+
+Start with existing GitHub plugin quickstarts and the Main Platform product page, then publish **specific reproducible demos**: review a real authorized repo, perform a hash-guarded edit, run a safe check, resume a long-running task in a second chat. Clearly distinguish "source verified", "test verified" and "deployed on customer device". Create bilingual English/Hindi onboarding without promising unsupported local OS access. Invite opt-in customer feedback and community contributions; do not manipulate ratings or stars.
+
+### Cohort dashboard and decision gates (targets to test, not observed results)
+
+- **Activation =** signed-in, device grant approved, one project selected, one authorized project-inspect tool actually completed. Target the **first useful result within 5 minutes** for a typical supported client on a clean enrollment; collect anonymized duration only with appropriate consent.
+- **D1/D7/D30 repeat value =** an active customer account with at least one real completed authorized tool call on those days. Do not count bot pings, internal health polls, CI or owner automation as active customers.
+- **Qualified paid conversion =** independently verified paid subscription linked to KSLP entitlement; separate Pro trials, Team seat count, cancellations/refunds and opt-in contact requests. Do not invent conversion rates; the ChartMogul 2026 study reports 8% median free-to-paid across a mixed set of 200 B2B software products, **not** a forecast for CodeBridge.
+- **Gross-margin gate =** actual net recognized subscription revenue less measured gateway fees/refunds, support costs and server/relay/network variable costs. Aim for **≥70% variable margin** after instrumented evidence, not from a fabricated assumed low cost. The 100,000 Pro calls/month allowance is a **proposal**, subject to real production capacity tests and publication of any prospective changes.
+- Segment by active users and **authorized hosted workspace**, not by chat count alone; protect tenant privacy, minimize analytics content and support account deletion/export obligations.
+
+### Ship order for fastest sustainable revenue
+
+**P0:** frictionless Free first-value, truthful usage preview + source-only pricebook; **P1:** atomic cross-chat/monthly metering and user-facing usage meter; **P2:** opt-in trial, protected KSLP signed lease, merchant capture/refunds/cancel and live customer end-to-end proof; **P3:** consented Pro/Team checkout, annual plan, partner demos and measurement. Gate every production switch on verified security and commercial evidence, not just CI.
+
 ## Release and status
 
 **Implemented in this PR:** versioned, generated *proposal* metadata and strict static checks; published developer-facing specification. **Not implemented:** atomic DB metering, live call counts, UI progress, warnings, actual pause at 10,000, monthly reset worker, commercial checkout, real paid account entitlement or device signer interoperability. CI success never proves these production behaviors.
