@@ -17,6 +17,14 @@ Owner-approved on 2026-11-13 (see [Suite plans](LICENSING-HUB-SUITE-PLANS.md) fo
 
 These prices exclude AI-model subscription or API fees charged by third-party AI providers.
 
+## Proposed monthly remote tool-call limits (source-only, not active)
+
+For KMJ-hosted remote MCP accounts, the **proposed** UTC-calendar-month allowance is **Community 10,000 calls (free)**, **Pro 100,000 calls at the existing ₹299/month India price**, **Team 300,000 calls per paid user at the existing ₹699/user/month India price**, and **Business custom**. These are **not currently enforced**, not currently purchasable, and are **not** model tokens or hosted LLM credits. The Apache-2.0 self-hosted core has **no KMJ remote monthly call ceiling**.
+
+A future server-side usage ledger must count each device-delivered completed execution once (including a completed application error), not denied/replayed or transport-failed requests. Reset occurs at **00:00 UTC on day 1** each month, warnings start at **80%**, and quota exhaustion pauses new hosted execution without overage, forced upgrade or automatic AI charges. Signed tenant/seat entitlements, exact-once concurrency-safe accounting, an authenticated usage view, rollback and real device/browser evidence are required **before** activating this policy.
+
+[Source-only monthly usage proposal and security acceptance →](HOSTED-MONTHLY-TOOL-CALL-PLAN-20261123.md)
+
 **Pilot enquiries:** Developers who want an early access evaluation can [contact KMJ CodeBridge support](https://kmjtechno.com/products/kmj-codebridge/support) voluntarily. This is not a payment link. Only a KMJ Main Platform owner-authorized, independently verified commercial order may lead to a hosted paid entitlement.
 
 ## Feature matrix

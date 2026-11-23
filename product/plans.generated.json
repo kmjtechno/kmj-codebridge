@@ -6,7 +6,19 @@
     "trialDays": 14,
     "trialCardRequired": false,
     "trialAutoConvert": false,
-    "foundingPriceMonths": 12
+    "foundingPriceMonths": 12,
+    "hostedUsageProposal": {
+      "status": "proposal_only",
+      "authority": "KMJ Main Platform (hosted)",
+      "unit": "completed remote device tool calls",
+      "period": "calendar_month_utc",
+      "resetDayUtc": 1,
+      "alertPercent": 80,
+      "hardStopWhenExhausted": true,
+      "noOverageOrAutoCharge": true,
+      "providerAiFeesIncluded": false,
+      "selfHostedApache2Metered": false
+    }
   },
   "plans": [
     {
@@ -20,6 +32,11 @@
         "devices": 1,
         "projects": 1,
         "concurrentJobs": 1
+      },
+      "hostedUsageProposal": {
+        "monthlyToolCalls": 10000,
+        "perUser": false,
+        "customContract": false
       }
     },
     {
@@ -33,6 +50,11 @@
         "devices": 3,
         "projects": 10,
         "concurrentJobs": 3
+      },
+      "hostedUsageProposal": {
+        "monthlyToolCalls": 100000,
+        "perUser": false,
+        "customContract": false
       }
     },
     {
@@ -46,12 +68,22 @@
         "devicesPerUser": 10,
         "projectsPerUser": 50,
         "concurrentJobsPerUser": 10
+      },
+      "hostedUsageProposal": {
+        "monthlyToolCalls": 300000,
+        "perUser": true,
+        "customContract": false
       }
     },
     {
       "id": "business",
       "name": "Business",
-      "customPricing": true
+      "customPricing": true,
+      "hostedUsageProposal": {
+        "monthlyToolCalls": null,
+        "perUser": false,
+        "customContract": true
+      }
     }
   ]
 }
