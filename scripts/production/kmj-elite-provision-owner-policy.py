@@ -167,6 +167,15 @@ def main():
           and not KEY.exists() and not KEY.is_symlink()
           and not PUB.exists() and not PUB.is_symlink(),
           'SIGNER_ENROLLMENT_ALREADY_PRESENT')
+    # Fail before creating signer files or cloning a repository when the fixed
+    # runtime is not present. No PATH lookup or runtime substitution.
+    node = Path('/proc/1627302/exe')
+    guard(node.exists(), 'PINNED_AGENT_NODE24_PROCESS_NOT_FOUND')
+    node_path = str(node.resolve())
+    ver = run([node_path,'--version'],timeout=8).decode().strip()
+    guard(ver.startswith('v24.'), 'PINNED_AGENT_NODE24_REQUIRED')
+    guard(WRAPPER.exists(), 'ELITE_ONEHOST_SIGNER_NOT_INSTALLED')
+    print('NODE24=PASS',flush=True)
     # Fresh isolated source checkout, no checkout of repository file contents or hooks.
     source_parent=HOME/'source'
     trusted_dir(source_parent,uid,allow_create=True)
@@ -188,30 +197,22 @@ def main():
         copy_private(priv,KEY,uid); created.append(KEY)
         copy_private(pub,PUB,uid); created.append(PUB)
         create_policy(uid); created.append(POLICY)
+        # Runtime readiness can fail after enrollment; rollback all files
+        # created by this operation while keeping the root-only inbox intact.
+        report = run([node_path,str(WRAPPER),'--inspect'],username=USER,timeout=20).decode()
+        guard('ELITE_ONEHOST_SIGNER=READY_FOR_OWNER_SIGN' in report and
+              'SIGNED_DEPLOY_TIMER=ACTIVE' in report,
+              'SIGNER_INSPECT_NOT_READY')
     except Exception:
-        # Create-only rollback of files created by this process; preserve original inbox.
         for f in reversed(created):
             try: f.unlink()
             except OSError: pass
         raise
-    # Remove root-private staging copies once signer files are committed.
+    # Only commit staged-key cleanup after successful runtime inspection.
     priv.unlink(); pub.unlink()
     print('OWNER_POLICY=CREATED_29_DAY',flush=True)
     print('KEY_CUSTODY=NONROOT_0600',flush=True)
     print('OWNER_PRIVATE_KEY_EXPORTED_TO_CHAT=NO',flush=True)
-    # The already observed Elite Main Platform agent's Node24 binary is used
-    # only if its proc pointer still exists; no PATH fallback or version bypass.
-    node = Path('/proc/1627302/exe')
-    guard(node.exists(), 'PINNED_AGENT_NODE24_PROCESS_NOT_FOUND')
-    node_path = str(node.resolve())
-    ver = run([node_path,'--version'],timeout=8).decode().strip()
-    guard(ver.startswith('v24.'), 'PINNED_AGENT_NODE24_REQUIRED')
-    print('NODE24=PASS',flush=True)
-    guard(WRAPPER.exists(), 'ELITE_ONEHOST_SIGNER_NOT_INSTALLED')
-    report = run([node_path,str(WRAPPER),'--inspect'],username=USER,timeout=20).decode()
-    guard('ELITE_ONEHOST_SIGNER=READY_FOR_OWNER_SIGN' in report and
-          'SIGNED_DEPLOY_TIMER=ACTIVE' in report,
-          'SIGNER_INSPECT_NOT_READY')
     print('ELITE_ONEHOST_SIGNER=READY_FOR_OWNER_SIGN',flush=True)
     print('SIGNED_DEPLOY_TIMER=ACTIVE',flush=True)
     print('SIGNER_ENROLLMENT=PASS_INSPECT_ONLY',flush=True)
