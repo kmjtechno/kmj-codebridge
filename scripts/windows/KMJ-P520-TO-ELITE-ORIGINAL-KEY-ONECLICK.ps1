@@ -36,7 +36,31 @@ try {
   # a single pinned ED25519 host key below (no trust-on-first-use fallback).
   $scanOut=Join-Path $work 'keyscan.stdout'
   $scanErr=Join-Path $work 'keyscan.stderr'
-  $scanProc=Start-Process -FilePath (Get-Command ssh-keyscan.exe).Source `
+  # Win32-OpenSSH ssh-keyscan may advertise sntrup KEX it cannot execute.
+  # Prefer the Git-for-Windows OpenSSH scanner, never the broken Win32 one.
+  # Host identity is still verified against the independent pinned fingerprint.
+  $scanCandidates=@()
+  $gitExe=Get-Command git.exe -ErrorAction SilentlyContinue
+  if ($gitExe) {
+    $gitRoot=Split-Path -Parent (Split-Path -Parent $gitExe.Source)
+    $scanCandidates+=Join-Path $gitRoot 'usr\bin\ssh-keyscan.exe'
+  }
+  if ($env:ProgramFiles) {
+    $scanCandidates+=Join-Path $env:ProgramFiles 'Git\usr\bin\ssh-keyscan.exe'
+  }
+  $scanBinary=$null
+  foreach($candidate in $scanCandidates) {
+    if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+      $scanMeta=Get-Item -LiteralPath $candidate -Force
+      if (($scanMeta.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'GIT_KEYSCAN_SYMLINK_REJECTED'
+      }
+      $scanBinary=$candidate
+      break
+    }
+  }
+  if (-not $scanBinary) { throw 'GIT_FOR_WINDOWS_KEYSCAN_REQUIRED' }
+  $scanProc=Start-Process -FilePath $scanBinary `
     -ArgumentList @('-T','8','-t','ed25519',$hostIp) -Wait -PassThru -NoNewWindow `
     -RedirectStandardOutput $scanOut -RedirectStandardError $scanErr
   if ($scanProc.ExitCode -ne 0) { throw 'ELITE_ED25519_SSH_HOST_ID_UNAVAILABLE' }
@@ -64,6 +88,6 @@ try {
   Write-Host ('CUSTODY_TRANSFER=BLOCKED '+$_.Exception.Message)
   throw
 } finally {
-  Remove-Item -LiteralPath $kh,$helper -Force -ErrorAction SilentlyContinue
-  Remove-Item -LiteralPath $work -Force -ErrorAction SilentlyContinue
+  # Only the GUID-created temporary directory; remove children without prompt.
+  Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
