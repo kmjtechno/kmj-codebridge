@@ -29,7 +29,7 @@ This switch is source-level preparation, **not evidence of live authorization**.
    do not manually trigger a duplicate deploy.
 4. Once the new commit is deployed healthy, set the **single** Render
    environment key `CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY=true` using the
-   *merge* update action (`replace=false`). Do not rewrite
+   _merge_ update action (`replace=false`). Do not rewrite
    `CODEBRIDGE_GITHUB_REPOSITORIES` or protected `CODEBRIDGE_CONFIG_JSON`.
    Environment change can redeploy; preserve the current healthy rollback.
 5. After new deployment is healthy, run
