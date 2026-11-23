@@ -30,7 +30,17 @@ try {
   if ((Get-FileHash -LiteralPath $helper -Algorithm SHA256).Hash.ToLowerInvariant() -ne $helperSha) {
     throw 'REMOTE_ENROLLMENT_HELPER_PIN_MISMATCH'
   }
-  $scan=@(& ssh-keyscan.exe -T 8 -t ed25519 $hostIp 2>$null)
+  # Windows PowerShell 5.1 turns OpenSSH's harmless stderr version banner
+  # into a terminating NativeCommandError under ErrorActionPreference=Stop.
+  # Redirect both streams as native files; still require successful exit and
+  # a single pinned ED25519 host key below (no trust-on-first-use fallback).
+  $scanOut=Join-Path $work 'keyscan.stdout'
+  $scanErr=Join-Path $work 'keyscan.stderr'
+  $scanProc=Start-Process -FilePath (Get-Command ssh-keyscan.exe).Source `
+    -ArgumentList @('-T','8','-t','ed25519',$hostIp) -Wait -PassThru -NoNewWindow `
+    -RedirectStandardOutput $scanOut -RedirectStandardError $scanErr
+  if ($scanProc.ExitCode -ne 0) { throw 'ELITE_ED25519_SSH_HOST_ID_UNAVAILABLE' }
+  $scan=@(Get-Content -LiteralPath $scanOut -ErrorAction Stop)
   $entries=@($scan | Where-Object { $_ -match '^150\.242\.200\.81 ssh-ed25519 [A-Za-z0-9+/=]+$' })
   if ($entries.Count -ne 1) { throw 'ELITE_ED25519_SSH_HOST_ID_UNAVAILABLE' }
   [IO.File]::WriteAllText($kh,($entries[0]+"`n"),[Text.Encoding]::ASCII)

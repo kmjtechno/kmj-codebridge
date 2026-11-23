@@ -28,6 +28,10 @@ import { VERSION } from "./version.js";
 import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
+import {
+  selectFabricSkills,
+  prepareFabricSkillPrompt,
+} from "./fabric-skill-workflows.js";
 import { evaluateEngineeringObservations } from "./engineering-observer.js";
 import { planSmartModelRoute } from "./smart-model-router.js";
 import { buildRoutingInventory } from "./model-inventory.js";
@@ -1124,10 +1128,14 @@ export const definitions = {
   freellmapi_generate: {
     title: "Generate through the local FreeLLMAPI router",
     description:
-      "Opt-in bounded prompt to FreeLLMAPI on this device's loopback. Its upstream MAY be cloud or paid. Requires explicit remote-cloud consent and owner-approved free-chain allowlist; actual cost/provider remains unverified. Output is untrusted.",
+      "Opt-in generation only through the device FreeLLMAPI Model Fabric. Optional reviewed KMJ skillId applies bounded workflow guidance; independent zero-cost chain proof and explicit cloud consent remain mandatory. Output is untrusted.",
     input: {
       ...scoped,
       prompt: z.string().min(1).max(4096),
+      skillId: z
+        .string()
+        .regex(/^[a-z][a-z0-9-]{0,63}$/)
+        .optional(),
       task: z.enum(["code", "fast", "reasoning", "general"]).default("general"),
       chain: z
         .string()
@@ -2666,20 +2674,37 @@ export function createDispatcher(
         project: p.id,
         ...(await freeRouter().status()),
       };
-    if (name === "freellmapi_generate")
+    if (name === "freellmapi_generate") {
+      // The selected skill adds only curated prompt guidance. It never
+      // selects a provider or bypasses FreeLLMAPI's independent cost proof.
+      const skill =
+        a.skillId === undefined
+          ? null
+          : prepareFabricSkillPrompt(a.skillId, a.prompt);
+      const result = await freeRouter().generateRouted({
+        prompt: skill?.prompt ?? a.prompt,
+        task: skill?.task ?? a.task,
+        chain: a.chain,
+        maxTokens: a.maxTokens,
+        timeoutSeconds: a.timeoutSeconds,
+        localProcessingApproved: a.localProcessingApproved,
+        upstreamCloudApproved: a.upstreamCloudApproved,
+      });
       return {
         device: config.id,
         project: p.id,
-        ...(await freeRouter().generateRouted({
-          prompt: a.prompt,
-          task: a.task,
-          chain: a.chain,
-          maxTokens: a.maxTokens,
-          timeoutSeconds: a.timeoutSeconds,
-          localProcessingApproved: a.localProcessingApproved,
-          upstreamCloudApproved: a.upstreamCloudApproved,
-        })),
+        ...result,
+        ...(skill
+          ? {
+              skillFabric: {
+                id: skill.skillId,
+                route: "FREELLMAPI_ONLY",
+                output: "UNTRUSTED_REVIEW_REQUIRED",
+              },
+            }
+          : {}),
       };
+    }
     if (name === "local_model_generate") {
       const response = await offlineModel().generate({
         model: a.model,
@@ -3443,6 +3468,11 @@ export function createDispatcher(
     if (name === "skill_recommendations")
       return {
         skills: selectSkillPacks({
+          objective: a.objective,
+          changedFiles: a.changedFiles,
+          failureSummary: a.failureSummary,
+        }),
+        fabricSkills: selectFabricSkills({
           objective: a.objective,
           changedFiles: a.changedFiles,
           failureSummary: a.failureSummary,
