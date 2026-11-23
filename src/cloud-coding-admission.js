@@ -6,11 +6,45 @@ const sha = (value) =>
 const nonempty = (value) =>
   typeof value === "string" && value.length > 0 && value.length <= 256;
 
-export function evaluateCloudCodingAdmission(input) {
+// Evidence input may come from a plugin, IPC or a developer fixture. Require
+// plain, own data fields before inspecting values; inherited approvals and
+// getters must never become owner authorization.
+function ownDataRecord(value, fields) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const proto = Object.getPrototypeOf(value);
+  if (proto !== Object.prototype && proto !== null) return false;
+  return fields.every((field) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, field);
+    return descriptor !== undefined && own(descriptor, "value");
+  });
+}
+
+function assessCloudCodingAdmission(input) {
   const deny = (reason) => ({ allowed: false, reason });
   if (!input || typeof input !== "object" || Array.isArray(input))
     return deny("INVALID_INPUT");
   const { provider, consent, lane, qa, release } = input;
+  if (
+    !ownDataRecord(input, [
+      "provider", "consent", "lane", "qa", "release", "explicitActivationRequested",
+    ]) ||
+    !ownDataRecord(provider, [
+      "upstreamProviderVerified", "billingVerified", "zeroPriceVerified",
+      "quotaVerified", "noPaidFallbackVerified", "paidInference", "accountId",
+      "routeId", "snapshotId", "attestationId", "snapshotFresh", "routeBound",
+    ]) ||
+    !ownDataRecord(consent, [
+      "approved", "project", "accountId", "routeId", "approvalId",
+    ]) ||
+    !ownDataRecord(lane, [
+      "project", "head", "dirty", "isolated", "currentHeadVerified", "mayPrepare",
+    ]) ||
+    !ownDataRecord(qa, ["approved", "nonDestructive", "recipeId"]) ||
+    !ownDataRecord(release, [
+      "ownerSigned", "immutableVerified", "supervisorBound", "revision",
+    ])
+  )
+    return deny("UNTRUSTED_EVIDENCE_FIELDS");
   if (!provider || typeof provider !== "object")
     return deny("PROVIDER_EVIDENCE_MISSING");
   if (
@@ -79,6 +113,22 @@ export function evaluateCloudCodingAdmission(input) {
     input.explicitActivationRequested !== true
   )
     return deny("ACTIVATION_NOT_REQUESTED");
-  // An advisory decision only; runtime must revalidate trusted evidence atomically.
-  return { allowed: true, reason: "PREFLIGHT_ONLY_REVALIDATE_AT_EXECUTION" };
+  // This is never a runnable activation grant. The device must independently
+  // authenticate account billing, route binding, consent and signed runtime
+  // at the point of work. Returning allowed=true here would let caller-
+  // fabricated booleans be mistaken for authorization by a future consumer.
+  return {
+    allowed: false,
+    preflightEligible: true,
+    reason: "PREFLIGHT_ONLY_REVALIDATE_AT_EXECUTION",
+  };
+}
+
+// Hostile getters or proxy traps are untrusted evidence, not a worker crash.
+export function evaluateCloudCodingAdmission(input) {
+  try {
+    return assessCloudCodingAdmission(input);
+  } catch {
+    return { allowed: false, reason: "EVIDENCE_ACCESS_FAILED" };
+  }
 }
