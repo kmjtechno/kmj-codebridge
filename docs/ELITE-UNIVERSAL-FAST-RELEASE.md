@@ -11,12 +11,12 @@ production mutation is implied by source merge.
 reviewed, hardcoded project adapters. It **does not** accept a shell command,
 repository URL, filesystem path, executable, arbitrary project or branch.
 
-| Project ID | Adapter V1 | Operations |
-| --- | --- | --- |
-| `main-platform` | Existing pinned owner release helper | `inspect`, `prepare`, `release`, `post-activation` |
-| `codebridge` | Existing owner-pinned non-root signer | `inspect`, `sign` (signs PR for review, **not** LIVE) |
-| `cloudos` | Not reviewed | Blocked; Google is only for CloudOS testing |
-| `omnidesk`, `calibration`, `cinecore` | No reviewed Windows signing/deployment adapter | Blocked |
+| Project ID                            | Adapter V1                                     | Operations                                            |
+| ------------------------------------- | ---------------------------------------------- | ----------------------------------------------------- |
+| `main-platform`                       | Existing pinned owner release helper           | `inspect`, `prepare`, `release`, `post-activation`    |
+| `codebridge`                          | Existing owner-pinned non-root signer          | `inspect`, `sign` (signs PR for review, **not** LIVE) |
+| `cloudos`                             | Not reviewed                                   | Blocked; Google is only for CloudOS testing           |
+| `omnidesk`, `calibration`, `cinecore` | No reviewed Windows signing/deployment adapter | Blocked                                               |
 
 Each additional project requires a new reviewed adapter and an independently
 approved target-specific release policy. This avoids letting one compromised
@@ -34,8 +34,7 @@ Windows binaries directly or substitute unsigned artifacts for signed releases.
    Main Platform owner helper at commit
    `7d8cc8d9e5c5a3d94bcaad520674c1e596730470` (SHA256
    `325b24d32ebcf01b42994276a7beb550ed72c69cb044f8ffab03db6f1e218cec`).
-3. Run the verified installer a second time with `--apply
-   --confirm-elite-root-reviewed-adapters-install` after review. It only
+3. Run the verified installer a second time with `--apply --confirm-elite-root-reviewed-adapters-install` after review. It only
    creates exact root-owned protected files at:
    - `/usr/local/libexec/kmj-fast-release/elite_fast_release.py`
    - `/usr/local/libexec/kmj-fast-release/owner-release-main-platform.sh`
