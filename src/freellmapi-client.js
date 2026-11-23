@@ -5,6 +5,7 @@
 // specific (possibly paid) upstream; the owner defines the chain in FreeLLMAPI.
 import http from "node:http";
 import { CodeBridgeError } from "./errors.js";
+import { inspectFabricCatalog, selectFabricCandidates, TASK_ROUTE_PREFERENCES } from "./freellmapi-fabric-policy.js";
 
 const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
 const KEY = /^[A-Za-z0-9._-]{8,200}$/;
@@ -14,12 +15,7 @@ const STATUS_TTL_MS = 60000;
 export const TASKS = Object.freeze(["code", "fast", "reasoning", "general"]);
 // Owner-defined FreeLLMAPI fallback chains, in preference order per task.
 // Only chains FreeLLMAPI actually reports are used; "auto:default" is last.
-const CHAIN_PREFERENCE = Object.freeze({
-  code: ["auto:code", "auto:coder", "auto:default"],
-  fast: ["auto:fast", "auto:default"],
-  reasoning: ["auto:smart", "auto:reasoning", "auto:default"],
-  general: ["auto:default"],
-});
+const CHAIN_PREFERENCE = TASK_ROUTE_PREFERENCES;
 
 export function candidateChains(task, available) {
   const preferred = CHAIN_PREFERENCE[task] ?? CHAIN_PREFERENCE.general;
@@ -64,8 +60,10 @@ export function createFreeLlmApiClient({
   // Owner approved != audited free pricing; upstream may still use cloud.
   const approved = new Set(approvedFreeChains);
   let cached = null;
-  const call = (method, path, body, timeoutMs) =>
-    request({ port, method, path, apiKey, body, timeoutMs });
+  const cooldowns = new Map();
+  const COOLDOWN_MS = 30000;
+  const call = (method, path, body, timeoutMs, taskType) =>
+    request({ port, method, path, apiKey, body, timeoutMs, taskType });
   // Read-only proof can be checked BEFORE claiming a coding task or reading
   // private project source. A second check ALWAYS runs before each POST.
   const verifyChainAdmission = async (chain) => {
@@ -138,23 +136,56 @@ export function createFreeLlmApiClient({
       await verifyChainAdmission(chain);
       return { admitted: true, chain };
     },
-    async status() {
+    async status({ includeUsage = false } = {}) {
+      if (typeof includeUsage !== "boolean") fail("FREELLMAPI_INVALID_USAGE_OPTION");
       const res = await readCatalogRows();
       const ids = res.data.map((m) => m.id);
-      // Duplicate advertised IDs make chain discovery ambiguous. Reject the
-      // entire catalog rather than silently choosing one upstream route.
       if (new Set(ids).size !== ids.length) fail("FREELLMAPI_BAD_RESPONSE");
+      const inspectedAt = now();
+      if (!Number.isSafeInteger(inspectedAt) || inspectedAt < 0)
+        fail("FREELLMAPI_INVALID_CLOCK");
+      const fabric = inspectFabricCatalog(
+        res.data,
+        [...approved],
+        inspectedAt,
+        cooldowns,
+      );
+      // The router catalog may list unavailable models and does NOT prove
+      // source-transfer consent, pricing, or an account's free allowance.
+      cached = { at: inspectedAt, rows: res.data };
+      let usage;
+      if (includeUsage) {
+        try {
+          const raw = await call("GET", "/v1/usage", undefined, 5000);
+          const valid = (n) => Number.isSafeInteger(n) && n >= 0;
+          usage =
+            raw && /^\\d{4}-\\d{2}$/.test(raw.month) &&
+            valid(raw.requests) && valid(raw.tokens)
+              ? {
+                  state: "ROUTER_USAGE_OBSERVED",
+                  month: raw.month,
+                  requests: raw.requests,
+                  tokens: raw.tokens,
+                  keyDetails: "REDACTED",
+                  spendOrBillingProof: "NOT_VERIFIED",
+                }
+              : { state: "ROUTER_USAGE_UNAVAILABLE", spendOrBillingProof: "NOT_VERIFIED" };
+        } catch {
+          usage = { state: "ROUTER_USAGE_UNAVAILABLE", spendOrBillingProof: "NOT_VERIFIED" };
+        }
+      }
       return {
         available: true,
         provider: "freellmapi-loopback",
         chains: ids.filter((id) => CHAIN.test(id)).slice(0, 20),
         modelCount: ids.length,
-        // Loopback only proves the local proxy address, not its upstream.
         cloudFallback: null,
         paidInference: null,
         upstreamProviderVerified: false,
         billingVerified: false,
         approvedFreeChains: ids.filter((id) => approved.has(id)).slice(0, 20),
+        fabric,
+        ...(includeUsage ? { usage } : {}),
       };
     },
     async generate({
@@ -164,6 +195,7 @@ export function createFreeLlmApiClient({
       timeoutSeconds = 60,
       localProcessingApproved,
       upstreamCloudApproved,
+      taskType,
     }) {
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
       if (upstreamCloudApproved !== true)
@@ -180,6 +212,8 @@ export function createFreeLlmApiClient({
         timeoutSeconds > 90
       )
         fail("FREELLMAPI_INVALID_TIMEOUT");
+      if (taskType !== undefined && !["code", "chat", "auto"].includes(taskType))
+        fail("FREELLMAPI_INVALID_TASK_TYPE");
       await verifyChainAdmission(chain);
       const res = await call(
         "POST",
@@ -191,6 +225,7 @@ export function createFreeLlmApiClient({
           messages: [{ role: "user", content: prompt }],
         },
         timeoutSeconds * 1000,
+        taskType,
       );
       const choice = res?.choices?.[0];
       // A successful HTTP status is not proof of a valid completion.
@@ -254,15 +289,17 @@ export function createFreeLlmApiClient({
         startedAt < cached.at ||
         startedAt - cached.at > STATUS_TTL_MS
       )
-        cached = { at: startedAt, chains: (await client.status()).chains };
-      const candidates = (
-        chain === undefined
-          ? candidateChains(task, cached.chains)
-          : cached.chains.includes(chain)
-            ? [chain]
-            : []
-      ).filter((name) => approved.has(name));
-      if (candidates.length === 0) fail("FREELLMAPI_NO_APPROVED_CHAIN");
+        await client.status();
+      const planningAt = now();
+      if (!Number.isSafeInteger(planningAt) || planningAt < startedAt)
+        fail("FREELLMAPI_INVALID_CLOCK");
+      const fabric = inspectFabricCatalog(cached.rows, [...approved], planningAt, cooldowns);
+      const candidates = selectFabricCandidates(fabric, task, chain);
+      if (candidates.length === 0) {
+        if (fabric.routes.some((r) => r.reason === "RECENT_429_COOLDOWN" || r.reason === "QUOTA_EXHAUSTED"))
+          fail("FREELLMAPI_QUOTA_EXHAUSTED");
+        fail("FREELLMAPI_NO_APPROVED_CHAIN");
+      }
       const attempts = [];
       let lastAttemptAt = startedAt;
       for (const candidate of candidates.slice(0, 2)) {
@@ -285,6 +322,8 @@ export function createFreeLlmApiClient({
             ...rest,
             chain: candidate,
             timeoutSeconds: remainingSeconds,
+            taskType: task === "code" ? "code" :
+              task === "reasoning" ? "auto" : "chat",
           });
           return {
             ...out,
@@ -292,6 +331,7 @@ export function createFreeLlmApiClient({
           };
         } catch (error) {
           if (error.message !== "FREELLMAPI_QUOTA_EXHAUSTED") throw error;
+          cooldowns.set(candidate, attemptAt + COOLDOWN_MS);
           attempts.push({ chain: candidate, outcome: "quota_exhausted" });
         }
       }
@@ -301,7 +341,7 @@ export function createFreeLlmApiClient({
   return client;
 }
 
-function httpRequest({ port, method, path, apiKey, body, timeoutMs }) {
+function httpRequest({ port, method, path, apiKey, body, timeoutMs, taskType }) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
     const req = http.request(
@@ -313,6 +353,7 @@ function httpRequest({ port, method, path, apiKey, body, timeoutMs }) {
         timeout: timeoutMs,
         headers: {
           authorization: `Bearer ${apiKey}`,
+          ...(taskType ? { "x-freellm-task-type": taskType } : {}),
           ...(payload
             ? {
                 "content-type": "application/json",
