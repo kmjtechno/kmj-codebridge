@@ -111,11 +111,16 @@ export function inspectFabricCatalog(
   const usable = new Set(
     routes.filter((r) => r.routeStatus === "CANDIDATE").map((r) => r.chain),
   );
+  // A real owner may have just ONE custom approved cloud profile, e.g.
+  // auto:or-free. Avoid requiring a new coding/fast alias just to automate
+  // task selection. Multiple unmatched profiles remain ambiguous and
+  // require explicit selection; every POST still needs fresh cost proof.
+  const soleApproved = usable.size === 1 ? [...usable][0] : null;
   const taskRoutes = Object.fromEntries(
-    Object.entries(TASK_ROUTE_PREFERENCES).map(([task, preference]) => [
-      task,
-      preference.filter((chain) => usable.has(chain)),
-    ]),
+    Object.entries(TASK_ROUTE_PREFERENCES).map(([task, preference]) => {
+      const matched = preference.filter((chain) => usable.has(chain));
+      return [task, matched.length ? matched : soleApproved ? [soleApproved] : []];
+    }),
   );
   return {
     modelCount: rows.length,
