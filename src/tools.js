@@ -29,6 +29,10 @@ import { runtimeRevision } from "./runtime-revision.js";
 import { observeSupervisorSocket } from "./supervisor-socket-observation.js";
 import { selectSkillPacks } from "./skill-packs.js";
 import {
+  planAutomaticFabricWork,
+  prepareAutomaticFabricPrompt,
+} from "./fabric-auto-workflow.js";
+import {
   selectFabricSkills,
   prepareFabricSkillPrompt,
 } from "./fabric-skill-workflows.js";
@@ -1139,6 +1143,9 @@ export const definitions = {
         .string()
         .regex(/^[a-z][a-z0-9-]{0,63}$/)
         .optional(),
+      // Backward compatible: one-click owners explicitly opt into
+      // deterministic multi-skill planning instead of manual skill picking.
+      autoSkill: z.boolean().default(false),
       task: z.enum(["code", "fast", "reasoning", "general"]).default("general"),
       chain: z
         .string()
@@ -2678,15 +2685,21 @@ export function createDispatcher(
         ...(await freeRouter().status({ includeUsage: a.includeUsage })),
       };
     if (name === "freellmapi_generate") {
-      // The selected skill adds only curated prompt guidance. It never
-      // selects a provider or bypasses FreeLLMAPI's independent cost proof.
+      // Both paths compile deterministic advisory instructions. Neither
+      // chooses a provider, grants consent or bypasses the verifier.
+      if (a.autoSkill === true && a.skillId !== undefined)
+        fail("FABRIC_AUTO_MANUAL_CONFLICT");
+      const auto =
+        a.autoSkill === true
+          ? prepareAutomaticFabricPrompt({ objective: a.prompt })
+          : null;
       const skill =
         a.skillId === undefined
           ? null
           : prepareFabricSkillPrompt(a.skillId, a.prompt);
       const result = await freeRouter().generateRouted({
-        prompt: skill?.prompt ?? a.prompt,
-        task: skill?.task ?? a.task,
+        prompt: auto?.prompt ?? skill?.prompt ?? a.prompt,
+        task: auto?.task ?? skill?.task ?? a.task,
         chain: a.chain,
         maxTokens: a.maxTokens,
         timeoutSeconds: a.timeoutSeconds,
@@ -2703,6 +2716,17 @@ export function createDispatcher(
                 id: skill.skillId,
                 route: "FREELLMAPI_ONLY",
                 output: "UNTRUSTED_REVIEW_REQUIRED",
+              },
+            }
+          : {}),
+        ...(auto
+          ? {
+              automaticFabric: {
+                selectedSkillIds: auto.selectedSkillIds,
+                task: auto.task,
+                mode: "ONE_CALL_BOUND_TO_EXISTING_CONSENT_AND_ATTESTATION",
+                output: "UNTRUSTED_REVIEW_REQUIRED",
+                writesApplied: false,
               },
             }
           : {}),
@@ -3480,6 +3504,14 @@ export function createDispatcher(
           changedFiles: a.changedFiles,
           failureSummary: a.failureSummary,
         }),
+        automaticPlan: {
+          ...planAutomaticFabricWork({
+            objective: a.objective,
+            changedFiles: a.changedFiles.slice(0, 20),
+            failureSummary: a.failureSummary,
+          }),
+          inputPathsTruncated: a.changedFiles.length > 20,
+        },
         ...(a.observations === undefined
           ? {}
           : {
