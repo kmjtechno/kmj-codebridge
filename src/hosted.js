@@ -3,6 +3,7 @@ import { startGateway } from "./gateway.js";
 import { fail } from "./errors.js";
 const EXACT_CLOUDOS_REPO = "kmjtechno/kmj-cloudos";
 const EXACT_CALIBRATION_STUDIO_REPO = "kmjtechno/KMJ-Calibration-Studio";
+const EXACT_OMNIDESK_REPO = "kmjtechno/kmj-omnidesk";
 function hostedGitHubConfig(env) {
   const apiBase = env.CODEBRIDGE_GITHUB_API_BASE;
   const token = env.CODEBRIDGE_GITHUB_PROXY_TOKEN;
@@ -59,7 +60,8 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     const cloudosOptIn = env.CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY;
     const calibrationOptIn =
       env.CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY;
-    for (const optIn of [cloudosOptIn, calibrationOptIn]) {
+    const omnideskOptIn = env.CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY;
+    for (const optIn of [cloudosOptIn, calibrationOptIn, omnideskOptIn]) {
       if (optIn !== undefined && optIn !== "true" && optIn !== "false")
         fail("HOSTED_CONFIG_INVALID");
     }
@@ -128,6 +130,25 @@ export function hostedConfig(text, port = "10000", env = process.env) {
       const repositories = existing.includes(EXACT_CALIBRATION_STUDIO_REPO)
         ? existing
         : [...existing, EXACT_CALIBRATION_STUDIO_REPO];
+      config = gatewaySchema.parse({
+        ...config,
+        github: { ...config.github, repositories },
+      });
+    }
+    // Owner-approved OmniDesk repository is added only to an already
+    // authenticated, private-capable GitHub bridge. No token, wildcard,
+    // OAuth/device scope, or unrelated repository grant is changed.
+    if (omnideskOptIn === "true") {
+      if (
+        !config.github ||
+        config.github.publicReadOnly ||
+        !config.github.tokenEnv
+      )
+        fail("HOSTED_CONFIG_INVALID");
+      const existing = config.github.repositories;
+      const repositories = existing.includes(EXACT_OMNIDESK_REPO)
+        ? existing
+        : [...existing, EXACT_OMNIDESK_REPO];
       config = gatewaySchema.parse({
         ...config,
         github: { ...config.github, repositories },
