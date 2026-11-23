@@ -242,6 +242,120 @@ test("hosted CloudOS and Calibration Studio owner opt-ins preserve both exact sc
   ]);
 });
 
+test("hosted OmniDesk owner opt-in allows only the exact repository and preserves existing grants", () => {
+  const secured = {
+    ...config,
+    github: {
+      apiBase: "https://existing-github-proxy.example/",
+      tokenEnv: "KMJ_GITHUB_PRIVATE_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-main-platform"],
+      cacheSeconds: 30,
+    },
+  };
+  const baseline = hostedConfig(JSON.stringify(secured), "10000", {});
+  assert.deepEqual(baseline.github.repositories, secured.github.repositories);
+  const active = hostedConfig(JSON.stringify(secured), "10000", {
+    CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "true",
+  });
+  assert.deepEqual(active.github.repositories, [
+    "kmjtechno/kmj-codebridge",
+    "kmjtechno/kmj-main-platform",
+    "kmjtechno/kmj-omnidesk",
+  ]);
+  assert.equal(active.github.tokenEnv, baseline.github.tokenEnv);
+  assert.equal(active.github.apiBase, baseline.github.apiBase);
+  assert.deepEqual(active.users, baseline.users);
+  assert.deepEqual(active.agents, baseline.agents);
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(secured), "10000", {
+      CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "false",
+    }).github.repositories,
+    baseline.github.repositories,
+  );
+  const alreadyGranted = {
+    ...secured,
+    github: {
+      ...secured.github,
+      repositories: [...secured.github.repositories, "kmjtechno/kmj-omnidesk"],
+    },
+  };
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(alreadyGranted), "10000", {
+      CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "true",
+    }).github.repositories,
+    alreadyGranted.github.repositories,
+  );
+});
+
+test("hosted OmniDesk opt-in rejects anonymous and invalid settings without granting anything", () => {
+  const optIn = { CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "true" };
+  assert.throws(
+    () => hostedConfig(JSON.stringify(config), "10000", optIn),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        ...optIn,
+        CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+        CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "TRUE",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(JSON.stringify(config), "10000", {
+        ...optIn,
+        CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
+        CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  const privateEnv = {
+    ...optIn,
+    CODEBRIDGE_GITHUB_API_BASE: "https://github-proxy.example/",
+    CODEBRIDGE_GITHUB_PROXY_TOKEN: "x".repeat(48),
+    CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+  };
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(config), "10000", privateEnv).github
+      .repositories,
+    ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-omnidesk"],
+  );
+});
+
+test("hosted OmniDesk opt-in composes without replacing CloudOS or Calibration grants", () => {
+  const secured = {
+    ...config,
+    github: {
+      apiBase: "https://existing-github-proxy.example/",
+      tokenEnv: "KMJ_GITHUB_PRIVATE_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge"],
+      cacheSeconds: 30,
+    },
+  };
+  assert.deepEqual(
+    hostedConfig(JSON.stringify(secured), "10000", {
+      CODEBRIDGE_ENABLE_CLOUDOS_REPOSITORY: "true",
+      CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY: "true",
+      CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "true",
+    }).github.repositories,
+    [
+      "kmjtechno/kmj-codebridge",
+      "kmjtechno/kmj-cloudos",
+      "kmjtechno/KMJ-Calibration-Studio",
+      "kmjtechno/kmj-omnidesk",
+    ],
+  );
+});
+
 test("hosted config supports explicit public read-only GitHub mode without a credential", () => {
   const parsed = hostedConfig(JSON.stringify(config), "10000", {
     CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
