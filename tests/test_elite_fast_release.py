@@ -125,20 +125,25 @@ class ReleaseTest(unittest.TestCase):
             self.assertEqual(invoke.call_count, 1)
 
     def test_owner_confirm_required_for_each_mutation(self):
-        with patch.object(release, 'require_elite_root'), patch.object(release, 'SELF', MODULE):
+        with patch.object(release, 'require_elite_root'), patch.object(release, 'require_installed_self'):
             for action, project in [('prepare', 'main-platform'), ('release', 'main-platform'),
                                     ('post-activation', 'main-platform'), ('sign', 'codebridge')]:
                 with self.assertRaisesRegex(release.Blocked, 'EXPLICIT_OWNER_APPROVAL_REQUIRED'):
                     release.main(['--project', project, '--action', action, '--sha', SHA])
 
     def test_unapproved_project_and_action_rejected(self):
-        with patch.object(release, 'require_elite_root'), patch.object(release, 'SELF', MODULE):
+        with patch.object(release, 'require_elite_root'), patch.object(release, 'require_installed_self'):
             with self.assertRaisesRegex(release.Blocked, 'PROJECT_ADAPTER_NOT_APPROVED'):
                 release.main(['--project', 'cloudos', '--action', 'release', '--sha', SHA,
                               '--confirm', release.CONFIRM])
             with self.assertRaisesRegex(release.Blocked, 'ACTION_NOT_APPROVED_FOR_PROJECT'):
                 release.main(['--project', 'codebridge', '--action', 'release', '--sha', SHA,
                               '--confirm', release.CONFIRM])
+
+    def test_untrusted_node_from_tmp_is_rejected(self):
+        # Never execute an attacker-modifiable path while preparing signer.
+        with patch.object(release.Path, 'resolve', return_value=Path('/tmp/kmj-untrusted-node')):
+            self.assertIsNone(release.trusted_node24_binary('/usr/bin/node'))
 
     def test_signer_cannot_be_root(self):
         # Invocation always enters dedicated non-root signer account.
