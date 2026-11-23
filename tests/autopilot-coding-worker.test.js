@@ -8,6 +8,7 @@ import { AutopilotJournal } from "../src/autopilot.js";
 import {
   LocalFirstCodingWorker,
   codingRouteApproved,
+  cloudCodingContextHasCredential,
   parseCodingTask,
   validateCodingPatch,
 } from "../src/autopilot-coding-worker.js";
@@ -1184,5 +1185,83 @@ test("revoking cloud coding grants while reading source denies all outbound prom
       "export const value = 1;\n",
       reason,
     );
+  }
+});
+
+test("cloud context credential filter rejects high-confidence tokens without false positives on clean code", () => {
+  const credentialSamples = [
+    "-----BEGIN " + "PRIVATE KEY-----",
+    "Bearer " + "a".repeat(28),
+    "sk-" + "a".repeat(28),
+    "ghp_" + "A".repeat(36),
+    "github_pat_" + "A".repeat(42),
+    "AKIA" + "A".repeat(16),
+    "xoxb-" + "a".repeat(24),
+  ];
+  for (const credential of credentialSamples) {
+    assert.equal(cloudCodingContextHasCredential(credential), true);
+  }
+  assert.equal(cloudCodingContextHasCredential("export const value = 1;"), false);
+  assert.equal(cloudCodingContextHasCredential("const token = process.env.API_TOKEN;"), false);
+  assert.equal(cloudCodingContextHasCredential(null), true);
+});
+
+test("cloud coding never transfers source or task text containing credentials", async (t) => {
+  const secret = "ghp_" + "A".repeat(36);
+  for (const location of ["tracked source file", "task objective"]) {
+    let outbound = 0;
+    const f = fixture(t, {
+      onStatus: () => {
+        throw new Error("LOCAL_MODEL_MUST_NOT_RUN");
+      },
+      cloudModel: () => ({
+        status: async () => ({
+          available: true,
+          activeRequest: false,
+          models: ["auto:code"],
+        }),
+        generate: async () => {
+          outbound++;
+          throw new Error("CLOUD_SOURCE_TRANSFER_FORBIDDEN");
+        },
+      }),
+    });
+    const config = f.project.autopilotCodingWorker;
+    config.inferenceRoute = "verified-free-cloud-only";
+    config.localProcessingApproved = false;
+    config.cloudProxyApproved = true;
+    config.cloudSourceTransferApproved = true;
+    config.model = "auto:code";
+    let head = f.head;
+    if (location === "tracked source file") {
+      fs.writeFileSync(
+        path.join(f.root, "src", "app.js"),
+        "export const value = 1; // " + secret + "\n",
+      );
+      git(f.root, "add", "src/app.js");
+      git(f.root, "commit", "-qm", "committed fixture with credential");
+      head = git(f.root, "rev-parse", "HEAD");
+    }
+    const task = f.journal.enqueue({
+      project: "repo",
+      key: "auto-code:feature:" + head,
+      objective:
+        location === "task objective"
+          ? "Update source without leaking " + secret
+          : "Update the value from 1 to 2",
+    });
+    await f.makeWorker().tick();
+    const record = f.journal.get(task.id, "repo");
+    assert.equal(record.state, "waiting", location);
+    assert.equal(
+      record.lastReason,
+      "CLOUD_CODING_CONTEXT_CREDENTIAL_REVIEW_REQUIRED",
+      location,
+    );
+    assert.equal(outbound, 0, location);
+    assert.equal(f.generated(), 0, location);
+    assert.equal(f.starts.length, 0, location);
+    assert.deepEqual(f.lanes.status("repo", f.root).lanes, [], location);
+    assert.equal(git(f.root, "rev-parse", "HEAD"), head, location);
   }
 });
