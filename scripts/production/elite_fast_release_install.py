@@ -21,7 +21,7 @@ from urllib.request import Request, urlopen
 CODEBRIDGE_REPO = 'kmjtechno/kmj-codebridge'
 CODEBRIDGE_OPERATOR = 'scripts/production/elite_fast_release.py'
 # Change together with the reviewed program source. NEVER accept a caller hash.
-CODEBRIDGE_OPERATOR_SHA256 = '3203bf637223877d289cf63e59e67157d99c8a158fecea35762326a558e7586a'
+CODEBRIDGE_OPERATOR_SHA256 = '353d9a3a205d36b59c6569290520cbd47bed31e9c60f9c062a29ff3c698725bc'
 MAIN_COMMIT = '7d8cc8d9e5c5a3d94bcaad520674c1e596730470'
 MAIN_FILE = 'scripts/operations/owner-release-main-platform.sh'
 MAIN_SHA256 = '325b24d32ebcf01b42994276a7beb550ed72c69cb044f8ffab03db6f1e218cec'
