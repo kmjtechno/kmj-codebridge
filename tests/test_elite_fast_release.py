@@ -1,0 +1,152 @@
+"""Hermetic regression tests. No root, network, key or service mutation."""
+from __future__ import annotations
+
+import importlib.util
+from pathlib import Path
+import unittest
+from unittest.mock import patch
+
+MODULE = Path(__file__).resolve().parents[1] / 'scripts' / 'production' / 'elite_fast_release.py'
+spec = importlib.util.spec_from_file_location('kmj_elite_fast_release_v1', MODULE)
+release = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(release)
+SHA = '7d8cc8d9e5c5a3d94bcaad520674c1e596730470'
+CB_SHA = '1e007c477d8938b621c62832c33d24c80bead4c3'
+
+
+def response(repo, sha, names):
+    return [
+        {'object': {'sha': sha}},
+        {'workflow_runs': [
+            {'head_sha': sha, 'head_branch': 'main', 'name': n,
+             'id': 200 + i, 'status': 'completed', 'conclusion': 'success'}
+            for i, n in enumerate(names)
+        ]},
+        {'object': {'sha': sha}},
+    ]
+
+
+class ReleaseTest(unittest.TestCase):
+    def test_sha_and_project_scope(self):
+        for value in ('main', 'x' * 40, 'a' * 39, 'a' * 41, 'A' * 40, SHA + ';rm -rf /'):
+            with self.assertRaises(release.Blocked):
+                release.sha_input(value)
+        self.assertEqual(release.sha_input(SHA), SHA)
+        self.assertEqual(sorted(release.PROJECTS), ['codebridge', 'main-platform'])
+        self.assertNotIn('cloudos', release.PROJECTS)
+
+    def test_api_path_scope(self):
+        with self.assertRaises(release.Blocked):
+            release.github_json('/repos/otherorg/repo/git/ref/heads/main')
+        with self.assertRaises(release.Blocked):
+            release.github_json('/repos/kmjtechno/../../admin')
+
+    def test_ci_exact_workflow_success(self):
+        names = release.PROJECTS['main-platform']['required_workflows']
+        with patch.object(release, 'github_json', side_effect=response('x', SHA, names)) as api:
+            self.assertEqual(len(release.verify_exact_main_ci('kmjtechno/kmj-main-platform', SHA, names)), 3)
+            self.assertEqual(api.call_count, 3)
+
+    def test_ci_missing_required_rejected(self):
+        names = release.PROJECTS['main-platform']['required_workflows']
+        with patch.object(release, 'github_json', side_effect=response('x', SHA, names[:2])):
+            with self.assertRaisesRegex(release.Blocked, 'REQUIRED_CI_CHECK_ABSENT'):
+                release.verify_exact_main_ci('kmjtechno/kmj-main-platform', SHA, names)
+
+    def test_ci_failing_or_running_rejected(self):
+        names = release.PROJECTS['main-platform']['required_workflows']
+        for status, conclusion in [('completed', 'failure'), ('in_progress', None), ('completed', 'skipped')]:
+            data = response('x', SHA, names)
+            data[1]['workflow_runs'][0]['status'] = status
+            data[1]['workflow_runs'][0]['conclusion'] = conclusion
+            with patch.object(release, 'github_json', side_effect=data):
+                with self.assertRaisesRegex(release.Blocked, 'EXACT_HEAD_CI_NOT_ALL_GREEN'):
+                    release.verify_exact_main_ci('kmjtechno/kmj-main-platform', SHA, names)
+
+    def test_ci_main_moved_before_or_after_checks_rejected(self):
+        names = release.PROJECTS['main-platform']['required_workflows']
+        for idx in (0, 2):
+            data = response('x', SHA, names)
+            data[idx]['object']['sha'] = 'b' * 40
+            with patch.object(release, 'github_json', side_effect=data):
+                with self.assertRaises(release.Blocked):
+                    release.verify_exact_main_ci('kmjtechno/kmj-main-platform', SHA, names)
+
+    def test_ci_latest_success_supersedes_old_cancelled_attempt(self):
+        names = release.PROJECTS['codebridge']['required_workflows']
+        data = response('x', CB_SHA, names)
+        data[1]['workflow_runs'].append({
+            'head_sha': CB_SHA, 'head_branch': 'main', 'name': names[0],
+            'id': 1, 'status': 'completed', 'conclusion': 'cancelled',
+        })
+        with patch.object(release, 'github_json', side_effect=data):
+            release.verify_exact_main_ci('kmjtechno/kmj-codebridge', CB_SHA, names)
+
+    def test_current_live_already_matches_does_not_mutate(self):
+        with patch.object(release, 'trusted_regular_file'), \
+             patch.object(release, 'verify_exact_main_ci'), \
+             patch.object(release, 'current_main_platform', return_value='platform-' + SHA[:12]), \
+             patch.object(release, 'invoke_fixed') as invoke:
+            release.run_main_platform('prepare', SHA)
+            invoke.assert_not_called()
+
+    def test_main_post_activation_rejects_not_live(self):
+        with patch.object(release, 'trusted_regular_file'), \
+             patch.object(release, 'current_main_platform', return_value='platform-' + 'a' * 12), \
+             patch.object(release, 'invoke_fixed') as invoke:
+            with self.assertRaisesRegex(release.Blocked, 'POST_ACTIVATION_SHA_NOT_LIVE'):
+                release.run_main_platform('post-activation', SHA)
+            invoke.assert_not_called()
+
+    def test_main_prepare_receipt_required(self):
+        with patch.object(release, 'trusted_regular_file'), \
+             patch.object(release, 'verify_exact_main_ci'), \
+             patch.object(release, 'current_main_platform', return_value='platform-' + 'a' * 12), \
+             patch.object(release, 'invoke_fixed', return_value='APPROVAL_REVIEW_REQUIRED'):
+            with self.assertRaisesRegex(release.Blocked, 'OWNER_RELEASE_RECEIPT_UNVERIFIED'):
+                release.run_main_platform('prepare', SHA)
+
+    def test_main_prepare_exact_fixed_invocation(self):
+        marker = 'APPROVAL_DONE_PREPARE_ONLY_ACTIVATE_THEN_RUN_POST_ACTIVATION'
+        with patch.object(release, 'trusted_regular_file'), \
+             patch.object(release, 'verify_exact_main_ci'), \
+             patch.object(release, 'current_main_platform', return_value='platform-' + 'a' * 12), \
+             patch.object(release, 'invoke_fixed', return_value=marker) as call:
+            release.run_main_platform('prepare', SHA)
+            args = call.call_args.args[0]
+            self.assertEqual(args, ['/bin/bash', str(release.MAIN_HELPER), '--prepare-only', SHA])
+
+    def test_signer_requires_inspect_ready(self):
+        with patch.object(release, 'trusted_regular_file'), \
+             patch.object(release, 'verified_node24', return_value='/usr/bin/node'), \
+             patch.object(release, 'invoke_fixed', return_value='ELITE_ONEHOST=BLOCKED:REVIEW_REQUIRED') as invoke:
+            with self.assertRaisesRegex(release.Blocked, 'OWNER_SIGNER_NOT_ATTESTED'):
+                release.run_codebridge('sign', CB_SHA)
+            self.assertEqual(invoke.call_count, 1)
+
+    def test_owner_confirm_required_for_each_mutation(self):
+        with patch.object(release, 'require_elite_root'), patch.object(release, 'SELF', MODULE):
+            for action, project in [('prepare', 'main-platform'), ('release', 'main-platform'),
+                                    ('post-activation', 'main-platform'), ('sign', 'codebridge')]:
+                with self.assertRaisesRegex(release.Blocked, 'EXPLICIT_OWNER_APPROVAL_REQUIRED'):
+                    release.main(['--project', project, '--action', action, '--sha', SHA])
+
+    def test_unapproved_project_and_action_rejected(self):
+        with patch.object(release, 'require_elite_root'), patch.object(release, 'SELF', MODULE):
+            with self.assertRaisesRegex(release.Blocked, 'PROJECT_ADAPTER_NOT_APPROVED'):
+                release.main(['--project', 'cloudos', '--action', 'release', '--sha', SHA,
+                              '--confirm', release.CONFIRM])
+            with self.assertRaisesRegex(release.Blocked, 'ACTION_NOT_APPROVED_FOR_PROJECT'):
+                release.main(['--project', 'codebridge', '--action', 'release', '--sha', SHA,
+                              '--confirm', release.CONFIRM])
+
+    def test_signer_cannot_be_root(self):
+        # Invocation always enters dedicated non-root signer account.
+        text = MODULE.read_text()
+        self.assertIn("[RUNUSER, '-u', 'kmjsigner', '--', node, str(SIGNER)]", text)
+        self.assertNotIn('shell=True', text)
+        self.assertNotIn('os.system(', text)
+
+
+if __name__ == '__main__':
+    unittest.main()
