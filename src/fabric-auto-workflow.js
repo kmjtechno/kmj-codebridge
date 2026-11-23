@@ -32,9 +32,17 @@ function guardInput(objective, changedFiles, failureSummary) {
 
 function rankSkill(skill, objective) {
   const signal = objective.toLowerCase();
-  if (skill.id === "skill-supply-chain" && /(?:third.party|prompt injection|skill scanner|supply.chain)/i.test(signal))
+  if (
+    skill.id === "skill-supply-chain" &&
+    /(?:third.party|prompt injection|skill scanner|supply.chain)/i.test(signal)
+  )
     return 0;
-  if (skill.id === "security-differential-review" && /(?:security review|threat model|vulnerability|credential|crypto|authentication)/i.test(signal))
+  if (
+    skill.id === "security-differential-review" &&
+    /(?:security review|threat model|vulnerability|credential|crypto|authentication)/i.test(
+      signal,
+    )
+  )
     return 1;
   return 10;
 }
@@ -47,10 +55,18 @@ export function planAutomaticFabricWork({
   failureSummary = "",
 } = {}) {
   guardInput(objective, changedFiles, failureSummary);
-  const matches = selectFabricSkills({ objective, changedFiles, failureSummary });
+  const matches = selectFabricSkills({
+    objective,
+    changedFiles,
+    failureSummary,
+  });
   const ordered = matches
     .map((skill, index) => ({ skill, index }))
-    .sort((a, b) => rankSkill(a.skill, objective) - rankSkill(b.skill, objective) || a.index - b.index)
+    .sort(
+      (a, b) =>
+        rankSkill(a.skill, objective) - rankSkill(b.skill, objective) ||
+        a.index - b.index,
+    )
     .slice(0, MAX_SKILLS)
     .map((item) => item.skill);
   const primary = ordered[0] ?? null;
@@ -87,9 +103,21 @@ export function planAutomaticFabricWork({
 
 // Does not auto-execute generated shell/patches and never calls a provider.
 // Auto mode is opt-in at the existing scoped MCP generate boundary.
-export function prepareAutomaticFabricPrompt({ objective, changedFiles, failureSummary } = {}) {
-  const plan = planAutomaticFabricWork({ objective, changedFiles, failureSummary });
-  const selected = selectFabricSkills({ objective, changedFiles, failureSummary });
+export function prepareAutomaticFabricPrompt({
+  objective,
+  changedFiles,
+  failureSummary,
+} = {}) {
+  const plan = planAutomaticFabricWork({
+    objective,
+    changedFiles,
+    failureSummary,
+  });
+  const selected = selectFabricSkills({
+    objective,
+    changedFiles,
+    failureSummary,
+  });
   const byId = new Map(selected.map((skill) => [skill.id, skill]));
   const sections = [
     "KMJ reviewed multi-skill engineering workflow; answer is advisory until independently tested.",
@@ -100,13 +128,18 @@ export function prepareAutomaticFabricPrompt({ objective, changedFiles, failureS
     const skill = byId.get(id);
     if (!skill) throw new Error("FABRIC_AUTO_INVALID_SKILL");
     sections.push("Skill: " + id);
-    sections.push(...skill.workflow.map((step, i) => String(i + 1) + ". " + step));
+    sections.push(
+      ...skill.workflow.map((step, i) => String(i + 1) + ". " + step),
+    );
     sections.push("Required evidence: " + skill.evidence.join("; "));
   }
-  sections.push("Return a bounded reviewable proposal and exact verification steps; no deployment claims.");
+  sections.push(
+    "Return a bounded reviewable proposal and exact verification steps; no deployment claims.",
+  );
   sections.push("--- UNTRUSTED OWNER-APPROVED TASK TEXT ---");
   sections.push(objective);
   const prompt = sections.join("\n");
-  if (prompt.length > MAX_PROMPT) throw new Error("FABRIC_AUTO_PROMPT_TOO_LARGE");
+  if (prompt.length > MAX_PROMPT)
+    throw new Error("FABRIC_AUTO_PROMPT_TOO_LARGE");
   return { ...plan, prompt };
 }
