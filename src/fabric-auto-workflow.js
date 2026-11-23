@@ -64,7 +64,7 @@ function rankSkill(skill, objective) {
     return 0;
   if (
     skill.id === "security-differential-review" &&
-    /(?:security review|threat model|vulnerability|credential|crypto|authentication)/i.test(
+    /(?:security review|threat model|vulnerability|credential|crypto|authentication|सुरक्षा|सिक्योरिटी)/iu.test(
       signal,
     )
   )
