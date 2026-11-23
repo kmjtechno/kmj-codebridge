@@ -79,6 +79,28 @@ test("invalid, repeated or forged catalog/profile data is rejected", () => {
   assert.equal(Object.isFrozen(TASK_ROUTE_PREFERENCES), true);
 });
 
+test("owner-pinned named profiles outrank global auto-sort aliases", () => {
+  const overview = inspectFabricCatalog(
+    [
+      { id: "auto:general", available: true, execution_status: "ready" },
+      { id: "auto:quick", available: true, execution_status: "ready" },
+      { id: "auto:fast", available: true, execution_status: "ready" },
+      { id: "auto:balanced", available: true, execution_status: "ready" },
+    ],
+    ["auto:general", "auto:quick", "auto:fast", "auto:balanced"],
+    1000000,
+  );
+  assert.deepEqual(selectFabricCandidates(overview, "fast"), [
+    "auto:quick",
+    "auto:fast",
+  ]);
+  assert.deepEqual(selectFabricCandidates(overview, "general"), [
+    "auto:general",
+    "auto:balanced",
+  ]);
+  assert.equal(overview.inferenceReady, false);
+});
+
 test("cooldown demotes only the affected approved route, not the entire model pool", () => {
   const cooling = new Map([["auto:code", 1010000]]);
   const before = inspectFabricCatalog(
