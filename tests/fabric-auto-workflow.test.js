@@ -38,6 +38,23 @@ test("security review becomes primary ahead of code when genuinely relevant", ()
   assert.ok(plan.selectedSkillIds.includes("laravel-php-engineering"));
 });
 
+test("automatic skill matching recognizes explicit Hindi and Hinglish technology cues", () => {
+  const cases = [
+    ["लारवेल में queue error ठीक करो", "laravel-php-engineering"],
+    ["रस्ट में FFI crash ठीक करो", "rust-concurrency-ffi"],
+    ["क्यूटी widget crash fix करो", "qt-cmake-engineering"],
+    ["सुरक्षा की समीक्षा करो", "security-differential-review"],
+    ["रिएक्ट rendering performance ठीक करो", "react-frontend-performance"],
+  ];
+  for (const [objective, expected] of cases) {
+    assert.equal(planAutomaticFabricWork({ objective }).primarySkillId, expected);
+  }
+  const ambiguous = planAutomaticFabricWork({ objective: "काम जारी रखो" });
+  assert.equal(ambiguous.primarySkillId, null);
+  const raw = "लारवेल में queue error ठीक करो";
+  assert.ok(prepareAutomaticFabricPrompt({ objective: raw }).prompt.endsWith(raw));
+});
+
 test("skill prompt is bounded and treats task text as untrusted", () => {
   const objective = "Fix Qt6 CMake crash";
   const out = prepareAutomaticFabricPrompt({ objective });
