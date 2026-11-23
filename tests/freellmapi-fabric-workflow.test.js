@@ -101,6 +101,54 @@ test("owner-pinned named profiles outrank global auto-sort aliases", () => {
   assert.equal(overview.inferenceReady, false);
 });
 
+test("a sole owner-approved custom profile is routed automatically for all tasks", async () => {
+  const custom = [{ id: "auto:or-free", available: true, execution_status: "ready" }];
+  const projected = inspectFabricCatalog(custom, ["auto:or-free"], 1000000);
+  for (const task of ["code", "fast", "reasoning", "general"]) {
+    assert.deepEqual(selectFabricCandidates(projected, task), ["auto:or-free"]);
+  }
+  let admitted = 0;
+  const requests = [];
+  const client = createFreeLlmApiClient({
+    apiKey: key,
+    approvedFreeChains: ["auto:or-free"],
+    verifyZeroCostChain: (args) => { admitted += 1; return proof(args); },
+    request: async (request) => {
+      if (request.path === "/v1/models") return { data: custom };
+      requests.push(request);
+      return { choices: [{ message: { content: "safe advisory only" }, finish_reason: "stop" }] };
+    },
+  });
+  const result = await client.generateRouted({
+    task: "code", prompt: "Review this bounded task",
+    localProcessingApproved: true, upstreamCloudApproved: true,
+  });
+  assert.equal(result.routing.chosen, "auto:or-free");
+  assert.equal(result.outputIsUntrusted, true);
+  assert.equal(admitted, 1);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].body.model, "auto:or-free");
+});
+
+test("multiple unknown profile names are never guessed; exhausted sole route stays denied", () => {
+  const two = inspectFabricCatalog(
+    [
+      { id: "auto:or-free", available: true, execution_status: "ready" },
+      { id: "auto:backup-free", available: true, execution_status: "ready" },
+    ],
+    ["auto:or-free", "auto:backup-free"],
+    1000000,
+  );
+  assert.deepEqual(selectFabricCandidates(two, "code"), []);
+  assert.deepEqual(selectFabricCandidates(two, "fast"), []);
+  const exhausted = inspectFabricCatalog(
+    [{ id: "auto:or-free", available: true, execution_status: "exhausted" }],
+    ["auto:or-free"],
+    1000000,
+  );
+  assert.deepEqual(selectFabricCandidates(exhausted, "code"), []);
+});
+
 test("cooldown demotes only the affected approved route, not the entire model pool", () => {
   const cooling = new Map([["auto:code", 1010000]]);
   const before = inspectFabricCatalog(
