@@ -3,17 +3,17 @@ name: Elite Fast Release Security Gate
 on:
   pull_request:
     paths:
-      - 'scripts/production/elite_fast_release*.py'
-      - 'tests/test_elite_fast_release*.py'
-      - 'docs/ELITE-UNIVERSAL-FAST-RELEASE.md'
-      - '.github/workflows/elite-fast-release-guard.yml'
+      - "scripts/production/elite_fast_release*.py"
+      - "tests/test_elite_fast_release*.py"
+      - "docs/ELITE-UNIVERSAL-FAST-RELEASE.md"
+      - ".github/workflows/elite-fast-release-guard.yml"
   push:
     branches: [main]
     paths:
-      - 'scripts/production/elite_fast_release*.py'
-      - 'tests/test_elite_fast_release*.py'
-      - 'docs/ELITE-UNIVERSAL-FAST-RELEASE.md'
-      - '.github/workflows/elite-fast-release-guard.yml'
+      - "scripts/production/elite_fast_release*.py"
+      - "tests/test_elite_fast_release*.py"
+      - "docs/ELITE-UNIVERSAL-FAST-RELEASE.md"
+      - ".github/workflows/elite-fast-release-guard.yml"
 
 permissions:
   contents: read
