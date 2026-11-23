@@ -19,7 +19,8 @@ import subprocess
 import sys
 import time
 
-CURRENT = pathlib.Path("/opt/kmj-codebridge-stable/current")
+CURRENT_STR = "/opt/kmj-codebridge-stable/current"
+CURRENT = pathlib.Path(CURRENT_STR)
 RELEASES = pathlib.Path("/opt/kmj-codebridge-stable/releases")
 UNITS = ("kmj-codebridge-dev.service", "kmj-codebridge-kmj-cloudos.service")
 SETTLE_SECONDS = 120
@@ -33,7 +34,7 @@ def plan(unit, info, target, target_age, running_dir, children):
         return "SKIP", "NOT_ALLOWLISTED"
     if info.get("LoadState") != "loaded" or info.get("ActiveState") != "active":
         return "SKIP", "NOT_ACTIVE"
-    if info.get("WorkingDirectory") != str(CURRENT):
+    if info.get("WorkingDirectory") != CURRENT_STR:
         return "SKIP", "NOT_ON_STABLE_SYMLINK"
     if target is None:
         return "SKIP", "TARGET_INVALID"
