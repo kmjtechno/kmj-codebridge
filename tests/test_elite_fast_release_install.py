@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 from pathlib import Path
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -34,13 +35,25 @@ class TestOwnerInstaller(unittest.TestCase):
             self.assertEqual(install.pinned_bytes(uri, hashlib.sha256(b'A' * 500).hexdigest(), 1000), b'A' * 500)
 
     def test_create_once_and_refuse_conflicting_file(self):
-        with tempfile.TemporaryDirectory() as d:
+        # Simulate root ownership ONLY in the test fixture; the production
+        # installer still requires real st_uid == 0 on all installed files.
+        real_lstat = Path.lstat
+        def root_owned_lstat(path):
+            st = real_lstat(path)
+            return SimpleNamespace(st_mode=st.st_mode, st_uid=0,
+                                   st_nlink=st.st_nlink, st_size=st.st_size)
+        with tempfile.TemporaryDirectory() as d, patch.object(install.Path, 'lstat', root_owned_lstat):
             target = Path(d) / 'operator'
             self.assertEqual(install.install_or_identical(target, b'hello', True), 'CREATED')
             self.assertEqual(install.install_or_identical(target, b'hello', True), 'ALREADY_IDENTICAL')
             with self.assertRaisesRegex(install.Blocked, 'EXISTING_FILE_HASH_CONFLICT'):
                 install.install_or_identical(target, b'HELLO', True)
             self.assertEqual(target.read_bytes(), b'hello')
+
+    def test_installer_pin_matches_reviewed_dispatcher(self):
+        dispatcher = MOD.parent / 'elite_fast_release.py'
+        self.assertEqual(hashlib.sha256(dispatcher.read_bytes()).hexdigest(),
+                         install.CODEBRIDGE_OPERATOR_SHA256)
 
     def test_symlink_does_not_overwrite(self):
         with tempfile.TemporaryDirectory() as d:
