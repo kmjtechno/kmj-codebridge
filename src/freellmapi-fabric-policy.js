@@ -3,6 +3,10 @@
 // provider authorization or route-member immutability.
 const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
 const STATE = new Set(["ready", "needsKey", "exhausted"]);
+// Prefer owner-defined narrow named profiles over FreeLLMAPI's global
+// auto:smart/fast/balanced sorts, which can include ALL enabled providers.
+// Keep legacy auto:default only if the live router actually advertises it;
+// upstream uses plain "auto" for its active default chain instead.
 export const TASK_ROUTE_PREFERENCES = Object.freeze({
   code: Object.freeze([
     "auto:code",
@@ -11,14 +15,26 @@ export const TASK_ROUTE_PREFERENCES = Object.freeze({
     "auto:smart",
     "auto:default",
   ]),
-  fast: Object.freeze(["auto:fast", "auto:reliable", "auto:default"]),
+  fast: Object.freeze([
+    "auto:quick",
+    "auto:lowlatency",
+    "auto:fast",
+    "auto:reliable",
+    "auto:default",
+  ]),
   reasoning: Object.freeze([
     "auto:reasoning",
+    "auto:analysis",
     "auto:smart",
     "auto:reliable",
     "auto:default",
   ]),
-  general: Object.freeze(["auto:balanced", "auto:default"]),
+  general: Object.freeze([
+    "auto:general",
+    "auto:chat",
+    "auto:balanced",
+    "auto:default",
+  ]),
 });
 const MAX_CATALOG = 4096;
 
