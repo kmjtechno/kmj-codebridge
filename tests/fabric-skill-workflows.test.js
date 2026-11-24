@@ -19,11 +19,16 @@ const examples = [
   ["GitHub Actions workflow security", "github-actions-hardening"],
   ["Third-party skill prompt injection audit", "skill-supply-chain"],
   ["Polyglot toolchain matrix build", "polyglot-quality-matrix"],
+  ["Node.js MCP protocol failure", "node-mcp-engineering"],
+  ["Python pytest typing", "python-engineering"],
+  ["Go test cancellation", "go-engineering"],
+  [".NET C# disposal", "dotnet-engineering"],
+  ["Kotlin JVM concurrency", "jvm-engineering"],
 ];
 
 test("fabric contains bounded, original skills with no executable provider configuration", () => {
-  assert.equal(FABRIC_SKILLS.length, 9);
-  assert.equal(new Set(FABRIC_SKILLS.map((s) => s.id)).size, 9);
+  assert.equal(FABRIC_SKILLS.length, 14);
+  assert.equal(new Set(FABRIC_SKILLS.map((s) => s.id)).size, 14);
   for (const s of FABRIC_SKILLS) {
     assert.equal(s.inference, "FREELLMAPI_VERIFIED_FREE_CLOUD_ONLY");
     assert.equal(s.execution, "ADVISORY_UNTIL_EXPLICIT_AUTHORIZED_GENERATION");
@@ -78,4 +83,22 @@ test("unknown skill, invalid request and null bytes fail closed", () => {
     () => prepareFabricSkillPrompt("rust-concurrency-ffi", "x".repeat(4097)),
     /SKILL_FABRIC_INVALID_REQUEST/,
   );
+});
+
+test("polyglot manifests select relevant workflows without executing code", () => {
+  const cases = [
+    ["package-lock.json", "node-mcp-engineering"],
+    ["pyproject.toml", "python-engineering"],
+    ["go.mod", "go-engineering"],
+    ["app/Example.csproj", "dotnet-engineering"],
+    ["build.gradle.kts", "jvm-engineering"],
+  ];
+  for (const [file, id] of cases) {
+    assert.deepEqual(
+      selectFabricSkills({ changedFiles: [file] }).map((s) => s.id),
+      [id],
+    );
+    assert.equal(prepareFabricSkillPrompt(id, "Verify project").task, "code");
+  }
+  assert.deepEqual(selectFabricSkills({ objective: "Go ahead" }), []);
 });
