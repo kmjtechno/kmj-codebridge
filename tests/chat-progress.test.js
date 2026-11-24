@@ -26,7 +26,10 @@ test("progress requires a bounded token, supported tool and both accept types", 
     progressRequested(
       {
         ...request,
-        params: { ...request.params, _meta: { progressToken: "x".repeat(129) } },
+        params: {
+          ...request.params,
+          _meta: { progressToken: "x".repeat(129) },
+        },
       },
       accept,
     ),
