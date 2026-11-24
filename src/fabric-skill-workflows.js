@@ -228,12 +228,7 @@ const SKILLS = Object.freeze([
     id: "python-engineering",
     title: "Python typing and test engineering",
     task: "code",
-    signals: [
-      /\bpython\b/i,
-      /\bpytest\b/i,
-      /pyproject\.toml/i,
-      /\.py\b/i,
-    ],
+    signals: [/\bpython\b/i, /\bpytest\b/i, /pyproject\.toml/i, /\.py\b/i],
     workflow: [
       "confirm interpreter, dependency lock and supported environments",
       "trace typing, exception handling and resource lifetime",
@@ -250,12 +245,7 @@ const SKILLS = Object.freeze([
     id: "go-engineering",
     title: "Go concurrency and service engineering",
     task: "code",
-    signals: [
-      /\bgolang\b/i,
-      /\bgo test\b/i,
-      /go\.mod/i,
-      /\.go\b/i,
-    ],
+    signals: [/\bgolang\b/i, /\bgo test\b/i, /go\.mod/i, /\.go\b/i],
     workflow: [
       "confirm Go module and target toolchain versions",
       "trace context cancellation, goroutines and error propagation",
