@@ -119,3 +119,16 @@ test("bounded receipt count prevents unbounded payloads", () => {
     "UNAVAILABLE",
   );
 });
+
+test("duplicate job IDs and impossible totals fail closed", () => {
+  const duplicate = receipts();
+  duplicate.value.jobs[1].id = duplicate.value.jobs[0].id;
+  const impossible = receipts();
+  impossible.value.total = 1;
+  for (const jobs of [duplicate, impossible]) {
+    assert.equal(
+      buildMissionActivity({ project: "project1", jobs, now }).status,
+      "UNAVAILABLE",
+    );
+  }
+});

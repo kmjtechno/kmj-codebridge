@@ -36,7 +36,8 @@ export function buildMissionActivity({ project, jobs, now = Date.now() }) {
     jobs.value?.project !== project ||
     !Array.isArray(jobs.value.jobs) ||
     !Number.isSafeInteger(now) ||
-    now < 0
+    now < 0 ||
+    now > 8640000000000000
   )
     return unavailable;
 
@@ -44,14 +45,17 @@ export function buildMissionActivity({ project, jobs, now = Date.now() }) {
   const total =
     Number.isSafeInteger(input.total) && input.total >= 0 ? input.total : null;
   // A project mismatch is not a partial result: it is an invalid response.
-  if (total === null || input.jobs.length > 6) return unavailable;
+  if (total === null || input.jobs.length > MAX_ITEMS || total < input.jobs.length)
+    return unavailable;
 
   const items = [];
+  const seen = new Set();
   for (const job of input.jobs) {
     if (
       !job ||
       typeof job.id !== "string" ||
       !JOB_ID.test(job.id) ||
+      seen.has(job.id) ||
       typeof job.gate !== "string" ||
       !GATE.test(job.gate) ||
       !STATES.has(job.state)
@@ -64,6 +68,7 @@ export function buildMissionActivity({ project, jobs, now = Date.now() }) {
           ? boundedTime(job.startedAt)
           : boundedTime(job.endedAt);
     if (!at || Date.parse(at) > now + 5000) return unavailable;
+    seen.add(job.id);
     items.push({
       id: job.id,
       gate: job.gate,
@@ -82,6 +87,6 @@ export function buildMissionActivity({ project, jobs, now = Date.now() }) {
     status: "AVAILABLE",
     observedAt: new Date(now).toISOString(),
     items,
-    hasMore: input.nextCursor !== null || total > items.length,
+    hasMore: input.nextCursor != null || total > items.length,
   };
 }

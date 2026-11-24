@@ -1873,7 +1873,7 @@ test("gateway configuration rejects a local/loopback icon URL", async () => {
 
 test("status progress is request scoped and JSON remains the default", async (t) => {
   const { gw } = await setup(t);
-  const call = (project, token, bearer = userToken) =>
+  const call = (project, token, bearer = userToken, name = "render_codebridge_status") =>
     fetch(gw.url + "/mcp", {
       method: "POST",
       headers: {
@@ -1886,7 +1886,7 @@ test("status progress is request scoped and JSON remains the default", async (t)
         id: 73,
         method: "tools/call",
         params: {
-          name: "render_codebridge_status",
+          name,
           arguments: { device: "d1", project },
           ...(token === undefined ? {} : { _meta: { progressToken: token } }),
         },
@@ -1922,4 +1922,12 @@ test("status progress is request scoped and JSON remains the default", async (t)
   assert.match(denied.headers.get("content-type"), /application\/json/);
   const deniedBody = await denied.json();
   assert.equal(deniedBody.result.isError, true);
+  const coding = await call("p1", 0, userToken, "fast_context");
+  assert.match(coding.headers.get("content-type"), /text\/event-stream/);
+  const codingEvents = (await coding.text())
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:") && line.slice(5).trim())
+    .map((line) => JSON.parse(line.slice(5)));
+  assert.equal(codingEvents.at(-1).id, 73);
+  assert.equal(codingEvents.filter((event) => event.method === "notifications/progress").length, 2);
 });

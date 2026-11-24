@@ -29,9 +29,9 @@ export function compactWorkBrief({
     device,
     project,
     evidence: {
-      git: git?.ok === true,
-      tasks: autopilot?.ok === true,
-      capacity: capacity?.ok === true,
+      git: false,
+      tasks: false,
+      capacity: false,
     },
     git: null,
     tasks: null,
@@ -44,29 +44,41 @@ export function compactWorkBrief({
   };
   if (git?.ok && typeof git.value?.status === "string") {
     const firstLine = git.value.status.split("\n", 1)[0] ?? "";
-    const branch = /^## ([A-Za-z0-9._/-]{1,120})/.exec(firstLine);
+    const branch = /^## ([A-Za-z0-9._/-]{1,120})/.exec(
+      firstLine.split("...", 1)[0],
+    );
+    brief.evidence.git = true;
     brief.git = {
       branch: branch ? branch[1] : null,
-      dirty: /\n\s*(?:M|A|D|R|\?\?|U)/m.test(git.value.status),
+      dirty: git.value.status
+        .split("\n")
+        .slice(1)
+        .some((line) => /^[ MADRCUT?!]{2} /.test(line) && !line.startsWith("!!")),
     };
   }
-  if (autopilot?.ok) {
-    brief.tasks = Object.fromEntries(
-      STATES.map((key) => [
-        key,
+  if (
+    autopilot?.ok &&
+    STATES.every(
+      (key) =>
         Number.isSafeInteger(autopilot.value?.counts?.[key]) &&
-        autopilot.value.counts[key] >= 0
-          ? autopilot.value.counts[key]
-          : 0,
-      ]),
+        autopilot.value.counts[key] >= 0,
+    )
+  ) {
+    brief.evidence.tasks = true;
+    brief.tasks = Object.fromEntries(
+      STATES.map((key) => [key, autopilot.value.counts[key]]),
     );
     brief.nextReadyTaskId = cleanId(autopilot.value?.next?.id);
   }
   if (
     capacity?.ok &&
     Number.isSafeInteger(capacity.value?.effectiveMaxConcurrent) &&
-    Number.isSafeInteger(capacity.value?.activeJobs)
+    capacity.value.effectiveMaxConcurrent >= 0 &&
+    Number.isSafeInteger(capacity.value?.activeJobs) &&
+    capacity.value.activeJobs >= 0 &&
+    typeof capacity.value.blocked === "boolean"
   ) {
+    brief.evidence.capacity = true;
     const cap = capacity.value;
     brief.availableAuthorizedSlots = cap.blocked
       ? 0
