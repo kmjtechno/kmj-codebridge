@@ -335,7 +335,9 @@ test("disabled task settings and exact registration readback precede agent propo
   const verify = install.indexOf("SUPERVISOR_DISABLED_TASK_READBACK_FAILED");
   const proposal = install.indexOf('$proposed = "$AgentConfig.proposed"');
   assert.ok(register > 0 && verify > register && proposal > verify);
-  assert.ok(install.indexOf("SUPERVISOR_DISABLED_SETTINGS_REQUIRED") < register);
+  assert.ok(
+    install.indexOf("SUPERVISOR_DISABLED_SETTINGS_REQUIRED") < register,
+  );
   assert.ok(
     install.indexOf("SUPERVISOR_TASK_ACTION_READBACK_MISMATCH") < proposal,
   );
