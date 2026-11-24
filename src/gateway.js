@@ -1380,11 +1380,15 @@ export async function startGateway(rawConfig) {
                         ),
                 }));
                 const visibleAgents = [...agents.values()]
-                  .filter((agent) => membershipFor(user, agent.tenant))
+                  .filter((agent) => allowedProjects(user, agent)?.length)
                   .map((agent) => ({
                     id: agent.id,
                     tenant: agent.tenant,
-                    projects: [...(agent.projects ?? [])].sort(),
+                    projects: (agent.projects ?? [])
+                      .filter((project) =>
+                        allowedProjects(user, agent)?.includes(project),
+                      )
+                      .sort(),
                     ...connectionHealth(
                       lastSeen.get(agent.id),
                       agentHealth.get(agent.id),
