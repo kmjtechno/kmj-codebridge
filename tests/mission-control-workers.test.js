@@ -10,10 +10,12 @@ const fixture = () => ({
     evidence: "ACTIVE_AGENT_WORKER_HANDLES",
     processAvailable: true,
     workers: Object.fromEntries(
-      ["gate", "repair", "githubCiWatch", "localDraft", "coding"].map((kind) => [
-        kind,
-        { configured: true, loopStarted: kind === "gate", token: "PRIVATE" },
-      ]),
+      ["gate", "repair", "githubCiWatch", "localDraft", "coding"].map(
+        (kind) => [
+          kind,
+          { configured: true, loopStarted: kind === "gate", token: "PRIVATE" },
+        ],
+      ),
     ),
   },
 });
