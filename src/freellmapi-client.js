@@ -57,13 +57,14 @@ export function createFreeLlmApiClient({
     fail("FREELLMAPI_INVALID_BILLING_ADMISSION");
   if (authorizeGeneration !== null && typeof authorizeGeneration !== "function")
     fail("FREELLMAPI_INVALID_GENERATION_AUTHORIZATION");
-  const requireCurrentGenerationConsent = () => {
-    if (authorizeGeneration === null) return;
+  const requireCurrentGenerationConsent = (authorizeRequest) => {
     let authorized = false;
     try {
-      authorized = authorizeGeneration() === true;
+      authorized =
+        (authorizeGeneration === null || authorizeGeneration() === true) &&
+        (authorizeRequest === undefined || authorizeRequest() === true);
     } catch {
-      // Never let a failing consent lookup authorize a cloud request.
+      // Never let a failing consent or task-grant lookup authorize a request.
     }
     if (!authorized) fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
   };
@@ -223,6 +224,8 @@ export function createFreeLlmApiClient({
       localProcessingApproved,
       upstreamCloudApproved,
       taskType,
+      // Internal trusted callback for the exact task, never an MCP argument.
+      authorizeRequest,
     }) {
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
       if (upstreamCloudApproved !== true)
@@ -244,12 +247,12 @@ export function createFreeLlmApiClient({
         !["code", "chat", "auto"].includes(taskType)
       )
         fail("FREELLMAPI_INVALID_TASK_TYPE");
-      requireCurrentGenerationConsent();
+      requireCurrentGenerationConsent(authorizeRequest);
       await verifyChainAdmission(chain);
       // Billing and route attestation awaits can outlive owner consent.
       // Recheck synchronously at the outbound request boundary, without
       // another await between this check and the loopback transport call.
-      requireCurrentGenerationConsent();
+      requireCurrentGenerationConsent(authorizeRequest);
       const res = await call(
         "POST",
         "/v1/chat/completions",
