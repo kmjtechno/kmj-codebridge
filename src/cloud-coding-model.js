@@ -85,8 +85,24 @@ export function createVerifiedFreeCloudCodingModel({
         models,
       };
     },
-    async generate({ model, prompt, maxTokens, timeoutSeconds }) {
-      if (!approved()) deny();
+    async generate({
+      model,
+      prompt,
+      maxTokens,
+      timeoutSeconds,
+      authorizeRequest,
+    }) {
+      const requestApproved = () => {
+        try {
+          return (
+            approved() &&
+            (authorizeRequest === undefined || authorizeRequest() === true)
+          );
+        } catch {
+          return false;
+        }
+      };
+      if (!requestApproved()) deny();
       if (typeof model !== "string" || !CHAIN.test(model))
         throw new Error("CLOUD_CODING_CHAIN_INVALID");
       // localProcessingApproved here refers ONLY to loopback proxy access:
@@ -98,11 +114,14 @@ export function createVerifiedFreeCloudCodingModel({
         timeoutSeconds,
         localProcessingApproved: true,
         upstreamCloudApproved: true,
+        ...(authorizeRequest === undefined
+          ? {}
+          : { authorizeRequest: requestApproved }),
       });
       // Revocation while the remote request was in flight must prevent
       // applying its returned patch, even though already sent bytes cannot
       // be recalled.
-      if (!approved()) deny();
+      if (!requestApproved()) deny();
       if (
         result?.provider !== "freellmapi-loopback" ||
         result?.chain !== model ||
