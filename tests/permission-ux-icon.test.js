@@ -92,7 +92,7 @@ async function verifyCatalog(iconUrl) {
   }
 }
 
-test("locked KMJ icon is present on initialize AND read/write tool catalog by default", async () => {
+test("locked server brand and distinct tool activity icons are advertised", async () => {
   const { serverInfo, tools } = await verifyCatalog();
   assert.match(APPROVED_ICON_URL, /^https:\/\/raw\.githubusercontent\.com\//);
   assert.deepEqual(serverInfo.icons, [
@@ -106,8 +106,17 @@ test("locked KMJ icon is present on initialize AND read/write tool catalog by de
   ]) {
     const tool = tools.find((item) => item.name === name);
     assert.ok(tool, "missing " + name);
-    assert.deepEqual(tool.icons, serverInfo.icons);
+    if (name === "render_codebridge_status") {
+      assert.deepEqual(tool.icons, serverInfo.icons);
+    } else {
+      assert.match(tool.icons[0].src, /^data:image\/png;base64,/);
+      assert.equal(tool.icons[0].mimeType, "image/png");
+    }
   }
+  assert.notDeepEqual(
+    tools.find((x) => x.name === "read_file").icons,
+    tools.find((x) => x.name === "write_file").icons,
+  );
   assert.equal(
     tools.find((x) => x.name === "read_file").annotations.readOnlyHint,
     true,
