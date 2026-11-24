@@ -16,7 +16,11 @@ const userToken = "u".repeat(48),
   otherToken = "b".repeat(48);
 async function setup(
   t,
-  { includeMainPlatformCi = false, includeArtifactCommand = false } = {},
+  {
+    includeMainPlatformCi = false,
+    includeArtifactCommand = false,
+    includeUnassignedAgent = false,
+  } = {},
 ) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-e2e-"));
   const root = path.join(dir, "project");
@@ -41,7 +45,18 @@ async function setup(
         permissions: ["read"],
       },
     ],
-    agents: [{ id: "d1", tenant: "t1", tokenHash: digest(agentToken) }],
+    agents: [
+      { id: "d1", tenant: "t1", tokenHash: digest(agentToken) },
+      ...(includeUnassignedAgent
+        ? [
+            {
+              id: "unassigned",
+              tenant: "t1",
+              tokenHash: digest("unassigned-token"),
+            },
+          ]
+        : []),
+    ],
   });
   const agent = await startAgent({
     gateway: gw.url,
@@ -456,6 +471,17 @@ test("account diagnostics expose safe membership and same-tenant agent visibilit
   );
   assert.ok(Number.isFinite(Date.parse(result.visibleAgents[0].lastHealthAt)));
   assert.equal(result.visibleAgents[0].dynamic, false);
+});
+
+test("account diagnostics do not reveal ungranted same-tenant agents", async (t) => {
+  const { client } = await setup(t, { includeUnassignedAgent: true });
+  const result = content(
+    await client.callTool({ name: "account_diagnostics", arguments: {} }),
+  );
+  assert.deepEqual(
+    result.visibleAgents.map((agent) => agent.id),
+    ["d1"],
+  );
 });
 
 test("device listing includes safe account context for visibility diagnostics", async (t) => {
