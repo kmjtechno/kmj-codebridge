@@ -249,3 +249,69 @@ test("cloud status fails closed when consent is revoked during zero-cost verific
     models: [],
   });
 });
+
+test("cloud consent is checked after billing proof and before any private POST", async () => {
+  for (const revoked of [false, "throw", "nonboolean", null]) {
+    const now = 1_800_000_000_000;
+    let consent = true;
+    let proofs = 0;
+    let posts = 0;
+    const model = createVerifiedFreeCloudCodingModel({
+      authorized: () => {
+        if (consent === "throw") throw new Error("CONSENT_BACKEND_OFFLINE");
+        return consent;
+      },
+      createClient: (options) =>
+        createFreeLlmApiClient({
+          ...options,
+          apiKey: "codebridge-test-key",
+          approvedFreeChains: ["auto:code"],
+          now: () => now,
+          verifyZeroCostChain: async ({ chain }) => {
+            proofs++;
+            await Promise.resolve();
+            if (revoked !== null) consent = revoked;
+            return {
+              source: "authenticated_provider_billing_and_route_binding",
+              chain,
+              routeBindingVerified: true,
+              accountNoChargeVerified: true,
+              noPaidFallback: true,
+              inputPriceUsdPerToken: 0,
+              outputPriceUsdPerToken: 0,
+              requestsRemaining: 1,
+              observedAtEpochMs: now,
+              expiresAtEpochMs: now + 1000,
+            };
+          },
+          request: async ({ method }) => {
+            assert.equal(method, "POST");
+            posts++;
+            return {
+              choices: [
+                {
+                  message: { content: "safe fixture patch" },
+                  finish_reason: "stop",
+                },
+              ],
+            };
+          },
+        }),
+    });
+    const generate = () =>
+      model.generate({
+        model: "auto:code",
+        prompt: "PRIVATE_SOURCE_FIXTURE",
+        maxTokens: 256,
+        timeoutSeconds: 10,
+      });
+    if (revoked === null) {
+      assert.equal((await generate()).response, "safe fixture patch");
+      assert.equal(posts, 1);
+    } else {
+      await assert.rejects(generate(), /FREELLMAPI_CLOUD_CONSENT_REQUIRED/);
+      assert.equal(posts, 0);
+    }
+    assert.equal(proofs, 1);
+  }
+});
