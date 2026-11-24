@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { toolActivityMeta, toolSecurityMeta } from "../src/client-extensions.js";
+import {
+  toolActivityMeta,
+  toolSecurityMeta,
+} from "../src/client-extensions.js";
 
 test("native activity metadata distinguishes tool categories without claiming success", () => {
   for (const [name, expected] of [
