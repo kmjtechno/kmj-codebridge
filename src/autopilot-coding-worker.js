@@ -532,8 +532,21 @@ export class LocalFirstCodingWorker {
               Boolean(parseCodingTask(candidate.key, recipes)),
           });
           if (!task) continue;
-          const wait = (reason) =>
-            this.journal.wait(task.id, project.id, reason, task.leaseToken);
+          const ownsLease = () => {
+            try {
+              const currentTask = this.journal.get(task.id, project.id);
+              if (currentTask.state !== "running" || !currentTask.lease)
+                return false;
+              this.journal.assertLease(currentTask, task.leaseToken);
+              return true;
+            } catch {
+              return false;
+            }
+          };
+          const wait = (reason) => {
+            if (ownsLease())
+              this.journal.wait(task.id, project.id, reason, task.leaseToken);
+          };
           if (task.checkpoint) {
             wait("PREVIOUS_LOCAL_CODING_REQUIRES_REVIEW");
             continue;
@@ -584,10 +597,18 @@ export class LocalFirstCodingWorker {
 
           const releaseLaneIfPristine = () => {
             try {
+              // Losing the task lease also loses authority over its lane.
+              // Preserve even a pristine lane for the current holder/review.
+              if (!ownsLease()) return;
               const entry = this.lanes
                 .status(project.id, project.root)
                 .lanes.find((item) => item.laneId === laneId);
-              if (entry && entry.head === parsed.expectedHead && !entry.dirty) {
+              if (
+                entry &&
+                entry.head === parsed.expectedHead &&
+                !entry.dirty &&
+                ownsLease()
+              ) {
                 this.lanes.cleanup(
                   project.id,
                   project.root,
@@ -640,10 +661,7 @@ export class LocalFirstCodingWorker {
           // Revalidate those here before any private source enters a prompt.
           const authorizeRequest = () => {
             try {
-              const currentTask = this.journal.get(task.id, project.id);
-              if (currentTask.state !== "running" || !currentTask.lease)
-                return false;
-              this.journal.assertLease(currentTask, task.leaseToken);
+              if (!ownsLease()) return false;
               const currentEntitlement = this.licenseProvider();
               return (
                 this.canStart() &&

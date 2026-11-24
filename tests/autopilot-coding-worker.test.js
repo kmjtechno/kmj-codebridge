@@ -1290,6 +1290,23 @@ test("worker rechecks task grants at the real client POST boundary", async (t) =
       },
     ],
     ["maintenance admission", (_f, options) => (options.paused = true)],
+    [
+      "expired lease",
+      (f) => {
+        const expiredAt = f.journal.now() + f.journal.leaseMs + 1;
+        f.journal.now = () => expiredAt;
+      },
+    ],
+    [
+      "superseded lease",
+      (f, options) => {
+        const expiredAt = f.journal.now() + f.journal.leaseMs + 1;
+        f.journal.now = () => expiredAt;
+        options.replacement = f.journal.claim("repo", {
+          holder: "replacement-worker",
+        });
+      },
+    ],
     ["unchanged grants", null],
   ];
   for (const [reason, revoke] of scenarios) {
@@ -1357,8 +1374,33 @@ test("worker rechecks task grants at the real client POST boundary", async (t) =
     if (revoke) {
       assert.equal(posts, 0, reason);
       assert.equal(f.starts.length, 0, reason);
-      assert.equal(f.journal.get(task.id, "repo").state, "waiting", reason);
-      assert.deepEqual(f.lanes.status("repo", f.root).lanes, [], reason);
+      if (reason === "expired lease" || reason === "superseded lease") {
+        const record = f.journal.get(task.id, "repo");
+        assert.equal(record.state, "running", reason);
+        assert.equal(
+          record.checkpoint.next,
+          "LOCAL_CODE_GENERATION_MAY_HAVE_STARTED",
+          reason,
+        );
+        const lanes = f.lanes.status("repo", f.root).lanes;
+        assert.equal(lanes.length, 1, reason);
+        assert.equal(lanes[0].dirty, false, reason);
+        if (reason === "superseded lease") {
+          assert.equal(record.lease.holder, "replacement-worker", reason);
+          assert.equal(record.lease.token, options.replacement.leaseToken);
+        } else {
+          // The normal journal recovery may claim the task, but the durable
+          // checkpoint forces review instead of replaying model generation.
+          await worker.tick();
+          assert.equal(posts, 0, reason);
+          assert.equal(f.starts.length, 0, reason);
+          assert.equal(f.journal.get(task.id, "repo").state, "waiting");
+          assert.equal(f.lanes.status("repo", f.root).lanes.length, 1);
+        }
+      } else {
+        assert.equal(f.journal.get(task.id, "repo").state, "waiting", reason);
+        assert.deepEqual(f.lanes.status("repo", f.root).lanes, [], reason);
+      }
     } else {
       assert.equal(posts, 1, reason);
       assert.equal(f.starts.length, 1, reason);
