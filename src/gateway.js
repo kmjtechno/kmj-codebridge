@@ -1,4 +1,5 @@
 import { buildMissionActivity } from "./mission-control-activity.js";
+import { buildMissionWorkers } from "./mission-control-workers.js";
 import { buildMissionWorkspace } from "./mission-control-workspace.js";
 import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
 import {
@@ -728,7 +729,7 @@ export async function startGateway(rawConfig) {
             scopedRead("git_diff", scope),
           ])
         : Promise.resolve(null);
-    const [brief, jobs, workspaceParts] = await Promise.all([
+    const [brief, jobs, workspaceParts, workers] = await Promise.all([
       getCompactWorkBrief(user, args),
       scopedRead("list_project_jobs", {
         ...scope,
@@ -737,10 +738,12 @@ export async function startGateway(rawConfig) {
         cursor: null,
       }),
       workspaceReads,
+      scopedRead("autopilot_worker_runtime_status", scope),
     ]);
     return {
       ...brief,
       activity: buildMissionActivity({ project: args.project, jobs }),
+      workers: buildMissionWorkers({ ...scope, report: workers }),
       ...(workspaceParts
         ? {
             workspace: buildMissionWorkspace({

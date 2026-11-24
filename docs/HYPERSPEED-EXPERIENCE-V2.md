@@ -22,6 +22,15 @@ speed, not compulsive engagement.
 - [ ] Adaptive accessible light/dark presentation and reduced motion.
 - [ ] Persisted project continuity with verified checkpoint readback.
 
+## Source increment: worker evidence and review
+
+- Five worker types are displayed as scoped observed loop handles, never as
+  five active AI coders. Missing or older agent evidence stays unavailable.
+- File-level tracked diff selection and return to the full bounded snapshot
+  remain read-only. Actual host acceptance and signed deployment are separate.
+- Monthly usage settlement remains blocked on trusted seat and receipt wiring;
+  no fabricated counters or charges.
+
 ## Customer control center
 
 Keep one canonical Main Platform dashboard. Continue the separate
