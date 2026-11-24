@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { toolActivityIcons } from "../src/tool-activity-icons.js";
 
-const brand = [{ src: "https://example.test/brand.png", mimeType: "image/png" }];
+const brand = [
+  { src: "https://example.test/brand.png", mimeType: "image/png" },
+];
 
 test("native tool glyphs are distinct bounded 32x32 PNG data URIs", () => {
   const names = [
