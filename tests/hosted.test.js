@@ -275,7 +275,10 @@ test("OmniDesk public-only opt-in cannot activate or downgrade a private bridge"
     CODEBRIDGE_ENABLE_OMNIDESK_PUBLIC_READ_ONLY_REPOSITORY: "true",
   };
   const raw = JSON.stringify(config);
-  assert.throws(() => hostedConfig(raw, "10000", optIn), /HOSTED_CONFIG_INVALID/);
+  assert.throws(
+    () => hostedConfig(raw, "10000", optIn),
+    /HOSTED_CONFIG_INVALID/,
+  );
   const secured = JSON.stringify({
     ...config,
     github: {
