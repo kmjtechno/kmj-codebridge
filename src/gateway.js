@@ -1682,15 +1682,16 @@ export async function startGateway(rawConfig) {
               openWorldHint:
                 name === "run_quality_gate" || name.startsWith("github_"),
             },
-            ...(config.oauth && name === "render_codebridge_status"
+            ...security,
+            ...(name === "render_codebridge_status"
               ? {
                   _meta: {
+                    ...security._meta,
                     ui: { resourceUri: KMJ_STATUS_RESOURCE_URI },
                     "openai/outputTemplate": KMJ_STATUS_RESOURCE_URI,
                   },
                 }
               : {}),
-            ...security,
           };
         }),
       }));
