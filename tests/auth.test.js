@@ -525,8 +525,9 @@ test("hosted OAuth tools/list defaults to the pinned approved icon", async () =>
     assert.ok(
       json.result.tools.every(
         (tool) =>
-          JSON.stringify(tool.icons) ===
-          JSON.stringify([{ src: APPROVED_ICON_URL, mimeType: "image/png" }]),
+          tool.icons[0].mimeType === "image/png" &&
+          (tool.icons[0].src === APPROVED_ICON_URL ||
+            tool.icons[0].src.startsWith("data:image/png;base64,")),
       ),
     );
   } finally {

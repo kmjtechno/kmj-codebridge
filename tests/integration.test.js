@@ -1741,9 +1741,11 @@ test("MCP server defaults to the pinned icon and honors custom icon override", a
   assert.ok(
     defaultTools.tools.every(
       (tool) =>
-        JSON.stringify(tool.icons) === JSON.stringify(defaultServer?.icons),
+        tool.icons[0].mimeType === "image/png" &&
+        (tool.icons[0].src === APPROVED_ICON_URL ||
+          tool.icons[0].src.startsWith("data:image/png;base64,")),
     ),
-    "non-OAuth catalog advertises the same approved tool icons as serverInfo",
+    "non-OAuth catalog advertises bounded category or brand icons",
   );
 
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-icon-"));

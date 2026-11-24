@@ -17,6 +17,7 @@ import {
   insufficientScopeMeta,
   toolSecurityMeta,
 } from "./client-extensions.js";
+import { toolActivityIcons } from "./tool-activity-icons.js";
 import { readJsonLimited } from "./http.js";
 import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
@@ -258,6 +259,8 @@ export async function startGateway(rawConfig) {
   // whether to display it; this only makes the standards metadata complete.
   const clientIconUrl = config.iconUrl ?? APPROVED_ICON_URL;
   const clientIcons = [{ src: clientIconUrl, mimeType: "image/png" }];
+  const iconsFor = (name) =>
+    toolActivityIcons(name, clientIcons, Boolean(config.iconUrl));
   if (
     new Set(config.agents.map((a) => a.id)).size !== config.agents.length ||
     new Set(
@@ -1270,9 +1273,8 @@ export async function startGateway(rawConfig) {
             title: d.title,
             description: d.description,
             inputSchema: toolInputContract(name, d),
-            // Advertise the same pinned/validated icon as serverInfo.
-            // Hosts may choose to ignore this metadata.
-            icons: clientIcons,
+            // Category glyphs for native chat activity; brand fallback.
+            icons: iconsFor(name),
             ...toolSecurityMeta(config.oauth, d.access, name),
             annotations: {
               title: d.title,
@@ -1671,9 +1673,8 @@ export async function startGateway(rawConfig) {
                   pipeStrategy: "input",
                 })
               : { type: "object", properties: {} },
-            // Advertise the approved icon on every tools/list path (OAuth and
-            // non-OAuth) so ChatGPT/MCP Apps hosts can resolve tool icons.
-            icons: clientIcons,
+            // The same icon policy on OAuth and non-OAuth catalogs.
+            icons: iconsFor(name),
             annotations: {
               title: d.title,
               readOnlyHint: d.access === "read",
