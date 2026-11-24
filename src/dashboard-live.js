@@ -16,6 +16,7 @@ function count(value) {
 export function getLiveDashboardMetrics({
   reports = [],
   authorizedDeviceIds = null,
+  authorizedProjectGrants = null,
   jobReceipts = [],
   now = Date.now(),
 } = {}) {
@@ -31,13 +32,34 @@ export function getLiveDashboardMetrics({
         authorizedDeviceIds.length > MAX_REPORTS ||
         authorizedDeviceIds.some(
           (id) => typeof id !== "string" || !ID.test(id),
+        ))) ||
+    (authorizedProjectGrants !== null &&
+      (!Array.isArray(authorizedProjectGrants) ||
+        authorizedProjectGrants.length > MAX_REPORTS ||
+        authorizedProjectGrants.some(
+          (grant) =>
+            !grant ||
+            typeof grant.deviceId !== "string" ||
+            !ID.test(grant.deviceId) ||
+            typeof grant.projectId !== "string" ||
+            !ID.test(grant.projectId),
         )))
   )
     throw new Error("DASHBOARD_TELEMETRY_INVALID_INPUT");
 
   const authorized =
     authorizedDeviceIds === null ? null : new Set(authorizedDeviceIds);
+  const pairKey = (device, project) => device + "/" + project;
+  const projectGrants =
+    authorizedProjectGrants === null
+      ? null
+      : new Set(
+          authorizedProjectGrants
+            .filter((grant) => authorized?.has(grant.deviceId))
+            .map((grant) => pairKey(grant.deviceId, grant.projectId)),
+        );
   const fresh = new Map();
+  const freshProjects = new Map();
   for (const report of reports) {
     // The status must be produced by an authenticated backend, never by an
     // untrusted browser or a client-declared health string.
@@ -59,10 +81,20 @@ export function getLiveDashboardMetrics({
     const previous = fresh.get(report.deviceId);
     if (!previous || previous.observedAtEpochMs < report.observedAtEpochMs)
       fresh.set(report.deviceId, report);
+    if (typeof report.projectId !== "string" || !ID.test(report.projectId))
+      continue;
+    const key = pairKey(report.deviceId, report.projectId);
+    if (!projectGrants?.has(key)) continue;
+    const previousProject = freshProjects.get(key);
+    if (
+      !previousProject ||
+      previousProject.observedAtEpochMs < report.observedAtEpochMs
+    )
+      freshProjects.set(key, report);
   }
 
   const projects = new Map();
-  for (const report of fresh.values()) {
+  for (const report of freshProjects.values()) {
     const id = report.projectId;
     if (typeof id !== "string" || !ID.test(id)) continue;
     const tasks = report.queue;
@@ -114,7 +146,7 @@ export function getLiveDashboardMetrics({
     projects: summaries.sort((a, b) => a.name.localeCompare(b.name)),
     // True live status needs a fresh authenticated source and device grant.
     // This is not a whole-project percentage or a background poller.
-    developmentProgress: [...fresh.values()]
+    developmentProgress: [...freshProjects.values()]
       .filter(
         (report) =>
           typeof report.projectId === "string" && ID.test(report.projectId),
@@ -130,7 +162,12 @@ export function getLiveDashboardMetrics({
       )
       .filter((entry) => entry.source === "FRESH_AUTHORIZED_AGENT")
       .sort((a, b) => a.device.localeCompare(b.device)),
-    partial: fresh.size === 0 || summaries.some((p) => !p.queueComplete),
+    partial:
+      authorized === null ||
+      projectGrants === null ||
+      fresh.size !== authorized.size ||
+      freshProjects.size !== projectGrants.size ||
+      summaries.some((p) => !p.queueComplete),
     note: "Live means a recent backend-authorized agent report. Missing evidence is unknown, not healthy or offline.",
   };
 }
