@@ -277,6 +277,15 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     <div class="cell"><small>Cancelled</small><strong id="cancelled">—</strong></div>
   </div>
   <div class="statusrow"><i aria-hidden="true"></i><span id="workHint">No authenticated task snapshot received.</span></div>
+  <h2 class="sectiontitle" style="margin-top:19px">Parallel worker loops</h2>
+  <p class="note" id="workerNotice" role="status">No worker handle snapshot received.</p>
+  <ol class="timeline" aria-label="Authorized agent worker handles">
+    <li id="worker-0" hidden><i aria-hidden="true"></i><strong id="worker-title-0"></strong><span id="worker-state-0"></span></li>
+    <li id="worker-1" hidden><i aria-hidden="true"></i><strong id="worker-title-1"></strong><span id="worker-state-1"></span></li>
+    <li id="worker-2" hidden><i aria-hidden="true"></i><strong id="worker-title-2"></strong><span id="worker-state-2"></span></li>
+    <li id="worker-3" hidden><i aria-hidden="true"></i><strong id="worker-title-3"></strong><span id="worker-state-3"></span></li>
+    <li id="worker-4" hidden><i aria-hidden="true"></i><strong id="worker-title-4"></strong><span id="worker-state-4"></span></li>
+  </ol>
   <h2 class="sectiontitle" style="margin-top:19px">Verified operation receipts</h2>
   <p class="note" id="activityNotice">No recent job receipts requested.</p>
   <ol class="timeline" aria-label="Recent authorized project jobs">
@@ -326,6 +335,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
     </div>
     <div class="diff-pane">
       <strong class="sectiontitle" id="workspaceDiffTitle">Tracked changes</strong>
+      <button type="button" id="showAllDiff">All tracked changes</button>
       <p class="note" id="workspaceDiffHint">No verified working-tree diff requested.</p>
       <pre class="patch" id="workspaceDiff" aria-label="Redacted working-tree patch"></pre>
     </div>
@@ -412,6 +422,24 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      tab(view);document.getElementById("tab-"+view).focus();
    });
  });
+ function renderWorkers(workers){
+   var kinds=["gate","repair","githubCiWatch","localDraft","coding"];
+   var labels=["Quality gates","Repair","GitHub CI watch","Local draft","Coding"];
+   var okay=workers&&workers.source==="AUTHORIZED_AGENT_WORKER_HANDLES"&&
+     workers.status==="AVAILABLE"&&Array.isArray(workers.items)&&workers.items.length===5&&
+     workers.items.every(function(item,index){
+       return item&&item.kind===kinds[index]&&typeof item.configured==="boolean"&&typeof item.loopStarted==="boolean";
+     });
+   text("workerNotice",okay?"Observed worker-loop handles only; active inference and task completion not verified.":"Worker handles not verified.");
+   for(var i=0;i<5;i++){
+     var row=document.getElementById("worker-"+i);
+     row.hidden=!okay;
+     if(!okay)continue;
+     var item=workers.items[i];
+     text("worker-title-"+i,labels[i]);
+     text("worker-state-"+i,item.loopStarted?(item.configured?"Handle started":"Handle/config mismatch"):item.configured?"Configured only":"Not configured");
+   }
+ }
  function renderActivity(activity){
    var okay=activity&&activity.source==="AUTHORIZED_PROJECT_JOB_RECEIPTS"&&
      activity.status==="AVAILABLE"&&Array.isArray(activity.items)&&activity.items.length<=6;
@@ -689,6 +717,13 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
 
  var selectedWorkspaceFiles=[];
  var selectedPatch=null;
+ document.getElementById("showAllDiff").addEventListener("click",function(){
+   for(var i=0;i<12;i++){
+     document.getElementById("workspace-file-"+i).setAttribute("aria-pressed","false");
+   }
+   text("workspaceDiffTitle","Tracked changes");
+   patchText(selectedPatch===null?"":selectedPatch||"Working tree has no tracked changes.");
+ });
  function renderSelectedFile(path){
    var selected=selectedWorkspaceFiles.indexOf(path)>=0?path:null;
    for(var i=0;i<12;i++){
@@ -771,12 +806,13 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    text("verifyState","Independent CI and policy gates");
    text("nextAction",data.nextReadyTaskId?"Next ready task: "+safeName(data.nextReadyTaskId):"Next: "+safeName(data.action));
    text("workHint",tasks?"Task counts from latest authorized snapshot.":"No authenticated task snapshot received.");
+   renderWorkers(data.workers);
    renderActivity(data.activity);
    renderWorkspace(data.workspace);
  }
  // ChatGPT's legacy bridge is optional. The portable MCP Apps protocol
  // requires a JSON-RPC initialize/initialized handshake with the parent host.
- // This view intentionally sends no tools/call and has no write capabilities.
+ // Read snapshots and explicit user actions use host-mediated tools; writes remain gated.
  try{if(window.openai&&window.openai.toolOutput)render(window.openai.toolOutput);}catch(_){}
  var initializeId=1;
  var initialized=false;

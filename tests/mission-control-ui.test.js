@@ -354,6 +354,8 @@ test("optional Workspace renders scoped files and filters tracked diffs on click
   );
   assert.match(view.element("workspaceDiff").textContent, /new-doc/);
   assert.doesNotMatch(view.element("workspaceDiff").textContent, /\+new\n/);
+  view.element("showAllDiff").handlers.click();
+  assert.equal(view.element("workspaceDiff").textContent, patch);
 
   view.send({ product: "KMJ CodeBridge", project: "project1" });
   assert.equal(view.element("workspace-file-0").hidden, true);
@@ -1595,4 +1597,27 @@ test("Pairing remains official domain-owner approval and never starts untrusted 
   assert.match(req.params.content.text, /No GitHub login/);
   v.replyHost(10, "denied");
   assert.match(v.element("fleetActionNotice").textContent, /denied or failed/);
+});
+
+test("worker handles are distinct from running jobs and disappear on scope refresh", () => {
+  const view = openCard();
+  const kinds = ["gate", "repair", "githubCiWatch", "localDraft", "coding"];
+  view.send({
+    product: "KMJ CodeBridge",
+    project: "project1",
+    workers: {
+      source: "AUTHORIZED_AGENT_WORKER_HANDLES",
+      status: "AVAILABLE",
+      items: kinds.map((kind, index) => ({
+        kind,
+        configured: index === 0,
+        loopStarted: index === 0,
+      })),
+    },
+  });
+  assert.equal(view.element("worker-0").hidden, false);
+  assert.equal(view.element("worker-state-0").textContent, "Handle started");
+  assert.match(view.element("workerNotice").textContent, /not verified/);
+  view.send({ product: "KMJ CodeBridge", project: "project2" });
+  assert.equal(view.element("worker-0").hidden, true);
 });

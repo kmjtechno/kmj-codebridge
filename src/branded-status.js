@@ -145,6 +145,18 @@ export function compactStatusText(value) {
     "Authorized slots: " + (value.availableAuthorizedSlots ?? "unavailable"),
   ];
   lines.push(...activityText(value.activity));
+  const workers = value.workers;
+  if (
+    workers?.source === "AUTHORIZED_AGENT_WORKER_HANDLES" &&
+    workers.status === "AVAILABLE" &&
+    Array.isArray(workers.items) &&
+    workers.items.length === 5
+  ) {
+    const started = workers.items.filter((item) => item?.loopStarted === true);
+    lines.push("Worker handles started: " + started.length + " of 5");
+  } else {
+    lines.push("Worker handles: NOT VERIFIED");
+  }
   lines.push("Whole-product release: NOT_EVALUATED");
   return lines.join("\n");
 }
