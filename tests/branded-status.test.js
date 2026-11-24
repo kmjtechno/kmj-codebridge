@@ -64,3 +64,38 @@ test("status UI is explicitly opt-in, uses pinned approved logo and no third-par
   assert.doesNotMatch(KMJ_STATUS_HTML, /<script src=|http:\/\//);
   assert.doesNotMatch(KMJ_STATUS_HTML, /SECRET_DONT_OUTPUT/);
 });
+
+test("native chat fallback shows bounded verified project receipts, not raw output", () => {
+  const x = state();
+  x.activity = {
+    source: "AUTHORIZED_PROJECT_JOB_RECEIPTS",
+    status: "AVAILABLE",
+    items: [
+      { state: "running", gate: "build", output: "DO_NOT_RENDER" },
+      { state: "failed", gate: "lint", exitCode: 1 },
+      { state: "succeeded", gate: "unit", exitCode: 0 },
+      { state: "queued", gate: "integration" },
+    ],
+    hasMore: false,
+  };
+  const text = compactStatusText(x);
+  assert.match(text, /Device: device1/);
+  assert.match(text, /\[RUNNING\] build/);
+  assert.match(text, /\[FAILED\] lint · exit 1/);
+  assert.match(text, /\[SUCCEEDED\] unit · exit 0/);
+  assert.match(text, /More receipts available/);
+  assert.doesNotMatch(text, /DO_NOT_RENDER|integration/);
+  assert.match(text, /Whole-product release: NOT_EVALUATED/);
+});
+
+test("unavailable receipt evidence cannot masquerade as success", () => {
+  const x = state();
+  x.activity = {
+    status: "AVAILABLE",
+    source: "UNVERIFIED",
+    items: [{ state: "succeeded", gate: "build" }],
+  };
+  const text = compactStatusText(x);
+  assert.match(text, /Recent jobs: NOT VERIFIED/);
+  assert.doesNotMatch(text, /SUCCEEDED/);
+});
