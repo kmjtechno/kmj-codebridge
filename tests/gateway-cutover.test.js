@@ -24,7 +24,9 @@ const NEW_SHA = "5eab929549edbef644f0b93c22eda42a4c48a320";
 // A small but faithful fake host: systemd state, /proc, git and the gateway's
 // MCP responses all derive from the files the controller really writes.
 function host(t, tweak = {}) {
-  const base = fs.mkdtempSync(path.join(os.tmpdir(), "cb-cutover-"));
+  const base = fs.mkdtempSync(
+    path.join(os.tmpdir(), tweak.tempPrefix ?? "cb-cutover-"),
+  );
   t.after(() => fs.rmSync(base, { recursive: true, force: true }));
   const dir = (...p) => {
     const full = path.join(base, ...p);
@@ -71,6 +73,7 @@ function host(t, tweak = {}) {
     qaRoot: null,
     gitHeadOld: OLD_SHA,
     calls: [],
+    argvCalls: [],
     user: options.serviceUser,
     ignoreDropIn: false,
     ignoreCommitEnv: false,
@@ -99,6 +102,7 @@ function host(t, tweak = {}) {
   ];
   const run = (argv, { input, cwd } = {}) => {
     state.calls.push(argv.join(" "));
+    state.argvCalls.push([...argv]);
     const [cmd, ...rest] = argv;
     if (cmd === "systemctl") {
       if (rest[0] === "show") {
@@ -478,11 +482,51 @@ test(
   },
 );
 
+// Inspect executable positions rather than joined argv strings: temporary
+// directory names, URLs and file arguments can contain forbidden substrings.
+function assertCutoverCommand(argv, node) {
+  if (argv[0] === "runuser") {
+    assert.equal(argv[1], "-u");
+    assert.deepEqual(argv.slice(3, 6), ["--", "env", "-i"]);
+    let i = 6;
+    while (/^[A-Z_][A-Z0-9_]*=/.test(argv[i] ?? "")) i++;
+    assert.ok(
+      ["git", "mktemp", "cp", "rm", "npm", node].includes(argv[i]),
+      "unexpected service-user executable",
+    );
+  } else {
+    assert.ok(
+      ["systemctl", "curl", "getent", node].includes(argv[0]),
+      "unexpected direct executable",
+    );
+  }
+}
+
+test("cutover command guard ignores fixture path substrings but rejects forbidden executables", () => {
+  const node = "/tmp/cb-cutover-dns/nginx/node";
+  const wrapped = [
+    "runuser",
+    "-u",
+    "kmjcode",
+    "--",
+    "env",
+    "-i",
+    "HOME=/tmp/certbot",
+    "PATH=/usr/bin",
+  ];
+  assertCutoverCommand([node, "--version"], node);
+  assertCutoverCommand([...wrapped, "git", "-C", "/tmp/dns"], node);
+  for (const cmd of ["nginx", "dns", "certbot", "/usr/bin/certbot", "sh"]) {
+    assert.throws(() => assertCutoverCommand([cmd], node));
+    assert.throws(() => assertCutoverCommand([...wrapped, cmd], node));
+  }
+});
+
 test(
   "successful cutover pins the runtime, backs up, restarts once and asserts the commit",
   { skip: POSIX_ONLY },
   async (t) => {
-    const h = host(t);
+    const h = host(t, { tempPrefix: "cb-cutover-dns-nginx-certbot-" });
     const previous = dropInContent({
       target: h.oldRoot,
       sha: OLD_SHA,
@@ -527,10 +571,8 @@ test(
     );
     assert.equal(fs.statSync(backup).mode & 0o077, 0);
     assert.equal(fs.existsSync(h.options.lockFile), false);
-    // Only systemd, git, curl and the config check were ever invoked.
-    for (const call of h.state.calls)
-      assert.match(call, /^(systemctl|git|curl|getent|runuser|\S*node )/);
-    assert.ok(!h.state.calls.some((c) => /nginx|dns|certbot/i.test(c)));
+    // Check direct and wrapped executable allowlists, not random path text.
+    for (const argv of h.state.argvCalls) assertCutoverCommand(argv, h.node);
   },
 );
 
