@@ -210,6 +210,7 @@ test("connection overview derives projects when dynamic membership omits device 
     arguments: { expectedDevice: "device1", expectedProject: "project1" },
   });
   const overview = JSON.parse(response.content[0].text);
+  assert.deepEqual(response.structuredContent, overview);
   assert.equal(overview.overallStatus, "READY");
   assert.equal(overview.readyCount, 1);
   assert.deepEqual(overview.devices, [

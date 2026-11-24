@@ -936,6 +936,34 @@ test("real connection_overview may omit connectionState on unregistered device w
   );
 });
 
+test("a registered device that has never reported does not invalidate the fleet", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: [
+        {
+          device: "device1",
+          project: "project1",
+          status: "READY",
+          connectionState: "online",
+        },
+        {
+          device: "device2",
+          project: "project2",
+          status: "AGENT_NEVER_ONLINE",
+          connectionState: "never_seen",
+        },
+      ],
+    },
+  });
+  assert.equal(v.element("fleetKnown").textContent, "2");
+  assert.equal(v.element("fleetReady").textContent, "1");
+  assert.equal(v.element("fleetAttention").textContent, "1");
+  assert.match(v.element("fleet-device-1").textContent, /AGENT_NEVER_ONLINE/);
+});
+
 test("authenticated Linux systemd receipt displays running service without Windows HMAC assumption", () => {
   const v = openCard();
   v.handshake();

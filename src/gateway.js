@@ -1323,42 +1323,39 @@ export async function startGateway(rawConfig) {
                 const expectedNotGranted =
                   Boolean(args.expectedDevice || args.expectedProject) &&
                   devices.length === 0;
-                return {
-                  content: [
-                    {
-                      type: "text",
-                      text: JSON.stringify({
-                        overallStatus: expectedNotGranted
-                          ? args.expectedProject && !args.expectedDevice
-                            ? "ACCOUNT_PROJECT_GRANT_MISSING"
-                            : "ACCOUNT_GRANT_MISSING"
-                          : !devices.length
-                            ? "NO_GRANTED_DEVICES"
-                            : devices.every((entry) => entry.status === "READY")
-                              ? "READY"
-                              : "NEEDS_ATTENTION",
-                        ...(expectedNotGranted
-                          ? {
-                              ...(args.expectedDevice
-                                ? { expectedDevice: args.expectedDevice }
-                                : {}),
-                              ...(args.expectedProject
-                                ? { expectedProject: args.expectedProject }
-                                : {}),
-                              nextAction:
-                                "CHECK_MAIN_PLATFORM_ACCOUNT_AND_DEVICE_PAIRING",
-                            }
+                const overview = {
+                  overallStatus: expectedNotGranted
+                    ? args.expectedProject && !args.expectedDevice
+                      ? "ACCOUNT_PROJECT_GRANT_MISSING"
+                      : "ACCOUNT_GRANT_MISSING"
+                    : !devices.length
+                      ? "NO_GRANTED_DEVICES"
+                      : devices.every((entry) => entry.status === "READY")
+                        ? "READY"
+                        : "NEEDS_ATTENTION",
+                  ...(expectedNotGranted
+                    ? {
+                        ...(args.expectedDevice
+                          ? { expectedDevice: args.expectedDevice }
                           : {}),
-                        readyCount: devices.filter(
-                          (entry) => entry.status === "READY",
-                        ).length,
-                        attentionCount: devices.filter(
-                          (entry) => entry.status !== "READY",
-                        ).length,
-                        devices,
-                      }),
-                    },
-                  ],
+                        ...(args.expectedProject
+                          ? { expectedProject: args.expectedProject }
+                          : {}),
+                        nextAction:
+                          "CHECK_MAIN_PLATFORM_ACCOUNT_AND_DEVICE_PAIRING",
+                      }
+                    : {}),
+                  readyCount: devices.filter(
+                    (entry) => entry.status === "READY",
+                  ).length,
+                  attentionCount: devices.filter(
+                    (entry) => entry.status !== "READY",
+                  ).length,
+                  devices,
+                };
+                return {
+                  content: [{ type: "text", text: JSON.stringify(overview) }],
+                  structuredContent: overview,
                 };
               }
               if (name === "account_diagnostics") {

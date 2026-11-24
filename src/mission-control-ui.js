@@ -565,7 +565,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
      if(!x||!validFleetId(x.device)||!validFleetId(x.project)||
         typeof x.status!=="string"||!/^[A-Z][A-Z0-9_]{1,63}$/.test(x.status)||
         (x.connectionState!==undefined&&x.connectionState!==null&&
-        (typeof x.connectionState!=="string"||!/^(online|offline|stale|unknown)$/.test(x.connectionState))))return false;
+        (typeof x.connectionState!=="string"||!/^(online|offline|stale|never_seen|unknown)$/.test(x.connectionState))))return false;
      var key=x.device+"/"+x.project;
      if(unique[key])return false;unique[key]=true;
      // An absent connectionState is a legitimate unregistered/offline device;
