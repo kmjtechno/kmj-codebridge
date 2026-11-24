@@ -640,6 +640,10 @@ export class LocalFirstCodingWorker {
           // Revalidate those here before any private source enters a prompt.
           const authorizeRequest = () => {
             try {
+              const currentTask = this.journal.get(task.id, project.id);
+              if (currentTask.state !== "running" || !currentTask.lease)
+                return false;
+              this.journal.assertLease(currentTask, task.leaseToken);
               const currentEntitlement = this.licenseProvider();
               return (
                 this.canStart() &&
