@@ -39,7 +39,9 @@ export function createConfiguredFreeLlmApiClient({
   const authorization =
     authorizeGeneration === undefined ? {} : { authorizeGeneration };
   if (!zeroCostConfigured(env))
-    return authorizeGeneration === undefined ? factory() : factory(authorization);
+    return authorizeGeneration === undefined
+      ? factory()
+      : factory(authorization);
   const pins = env.CODEBRIDGE_FREELLMAPI_PINS_DIR;
   const snaps = env.CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR;
   const fetcher = createOpenRouterEvidenceFetcher({
