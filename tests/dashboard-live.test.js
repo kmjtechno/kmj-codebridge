@@ -12,6 +12,11 @@ const sample = (overrides = {}) => ({
   ...overrides,
 });
 
+const grant = (deviceId, projectId = "kmj-codebridge") => ({
+  deviceId,
+  projectId,
+});
+
 test("no agent evidence never fabricates online devices, queue or AI health", () => {
   const result = getLiveDashboardMetrics({ now: NOW });
   assert.equal(result.activeDevices, null);
@@ -26,6 +31,7 @@ test("only a fresh authorized report counts and repeated device samples deduplic
   const result = getLiveDashboardMetrics({
     now: NOW,
     authorizedDeviceIds: ["device1", "device2", "revoked"],
+    authorizedProjectGrants: [grant("device1"), grant("device2")],
     reports: [
       sample({
         queue: { queued: 99, running: 9 },
@@ -52,7 +58,7 @@ test("only a fresh authorized report counts and repeated device samples deduplic
     })),
     [{ name: "kmj-codebridge", queuedTasks: 5, activeWorkers: 1 }],
   );
-  assert.equal(result.partial, false);
+  assert.equal(result.partial, true);
 });
 
 test("stale/future, forged or malformed samples cannot create healthy fleet", () => {
@@ -76,6 +82,7 @@ test("missing or malformed queue is unknown, not a misleading zero", () => {
   const result = getLiveDashboardMetrics({
     now: NOW,
     authorizedDeviceIds: ["device1", "device2"],
+    authorizedProjectGrants: [grant("device1"), grant("device2")],
     reports: [sample(), sample({ deviceId: "device2", queue: null })],
   });
   assert.equal(result.activeDevices, 2);
@@ -128,6 +135,7 @@ test("dashboard exposes only fresh authorized development progress, never invent
   const result = getLiveDashboardMetrics({
     now: NOW,
     authorizedDeviceIds: ["device1"],
+    authorizedProjectGrants: [grant("device1")],
     reports: [sample()],
     jobReceipts: [
       {
@@ -164,4 +172,49 @@ test("dashboard never materializes progress for ungranted or stale agent reports
     ],
   });
   assert.deepEqual(result.developmentProgress, []);
+});
+
+test("device presence cannot authorize unrelated project telemetry", () => {
+  const result = getLiveDashboardMetrics({
+    now: NOW,
+    authorizedDeviceIds: ["device1"],
+    authorizedProjectGrants: [grant("device1")],
+    reports: [sample({ projectId: "other-project" })],
+  });
+  assert.equal(result.activeDevices, 1);
+  assert.deepEqual(result.projects, []);
+  assert.deepEqual(result.developmentProgress, []);
+  assert.equal(result.partial, true);
+  const unscoped = getLiveDashboardMetrics({
+    now: NOW,
+    authorizedDeviceIds: ["device1"],
+    reports: [sample()],
+  });
+  assert.deepEqual(unscoped.projects, []);
+  assert.equal(unscoped.partial, true);
+});
+
+test("one reporting device can have multiple independently authorized projects", () => {
+  const result = getLiveDashboardMetrics({
+    now: NOW,
+    authorizedDeviceIds: ["device1"],
+    authorizedProjectGrants: [
+      grant("device1"),
+      grant("device1", "kmj-omnidesk"),
+    ],
+    reports: [
+      sample(),
+      sample({ projectId: "kmj-omnidesk", queue: { queued: 4, running: 0 } }),
+      sample({
+        observedAtEpochMs: NOW - 2000,
+        queue: { queued: 99, running: 9 },
+      }),
+    ],
+  });
+  assert.equal(result.activeDevices, 1);
+  assert.equal(result.projects.length, 2);
+  assert.equal(result.projects[0].queuedTasks, 2);
+  assert.equal(result.projects[1].queuedTasks, 4);
+  assert.equal(result.developmentProgress.length, 2);
+  assert.equal(result.partial, false);
 });
