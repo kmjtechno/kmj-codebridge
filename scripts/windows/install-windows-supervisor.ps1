@@ -172,9 +172,26 @@ $principal = New-ScheduledTaskPrincipal -UserId $ServiceAccount -LogonType S4U -
 # A persistent agent must recover after reboot and transient failures. This
 # task remains DISABLED after preparation; activation is a distinct step.
 $trigger = New-ScheduledTaskTrigger -AtStartup
-$settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
-Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Principal $principal -Trigger $trigger -Settings $settings | Out-Null
-Disable-ScheduledTask -TaskName $TaskName -TaskPath '\' | Out-Null
+# Register already disabled. Registering an enabled startup task and then
+# calling Disable-ScheduledTask leaves a window in which it can run.
+$settings = New-ScheduledTaskSettingsSet -Disable -ExecutionTimeLimit ([TimeSpan]::Zero) -MultipleInstances IgnoreNew -RestartCount 3 -RestartInterval ([TimeSpan]::FromMinutes(1)) -StartWhenAvailable
+if ($settings.Enabled -ne $false) { throw 'SUPERVISOR_DISABLED_SETTINGS_REQUIRED' }
+# Recheck all namespaces immediately before registration, without replacing
+# a task created by an operator while token preparation was in progress.
+Assert-NoSupervisorTaskCollision -Tasks @(Get-ScheduledTask -ErrorAction Stop)
+Register-ScheduledTask -TaskName $TaskName -TaskPath '\' -Action $action -Principal $principal -Trigger $trigger -Settings $settings -ErrorAction Stop | Out-Null
+$preparedTask = @(Get-ScheduledTask -TaskName $TaskName -TaskPath '\' -ErrorAction Stop)
+if ($preparedTask.Count -ne 1 -or $preparedTask[0].Settings.Enabled -ne $false -or
+    [string]$preparedTask[0].State -cne 'Disabled') {
+  throw 'SUPERVISOR_DISABLED_TASK_READBACK_FAILED'
+}
+$preparedActions = @($preparedTask[0].Actions)
+if ($preparedActions.Count -ne 1 -or
+    [string]$preparedActions[0].Execute -ine $node -or
+    [string]$preparedActions[0].Arguments -cne $taskArgs -or
+    [string]$preparedActions[0].WorkingDirectory -ine $RuntimeDir) {
+  throw 'SUPERVISOR_TASK_ACTION_READBACK_MISMATCH'
+}
 
 $proposed = "$AgentConfig.proposed"
 $json | Add-Member -NotePropertyName supervisorPipe -NotePropertyValue $pipe -Force
