@@ -62,7 +62,8 @@ export async function loadPilotSigner(config) {
     const key = createPrivateKey({ key: bytes, format: "der", type: "pkcs8" });
     if (key.asymmetricKeyType !== "ed25519")
       throw Error("HOSTED_RECEIPT_KEY_INVALID");
-    return (message) => sign(null, Buffer.from(message), key).toString("base64");
+    return (message) =>
+      sign(null, Buffer.from(message), key).toString("base64");
   } catch {
     throw Error("HOSTED_RECEIPT_KEY_INVALID");
   }

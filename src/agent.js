@@ -1,5 +1,8 @@
 import { requestRenewal } from "./renewal.js";
-import { loadPilotSigner, pilotReceiptMessage } from "./hosted-metering-pilot.js";
+import {
+  loadPilotSigner,
+  pilotReceiptMessage,
+} from "./hosted-metering-pilot.js";
 import { readJsonLimited } from "./http.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -524,7 +527,8 @@ export async function startAgent(
             let receiptMessage;
             try {
               if (work.metering !== undefined) {
-                if (!receiptSigner) throw Error("HOSTED_RECEIPT_SIGNER_MISSING");
+                if (!receiptSigner)
+                  throw Error("HOSTED_RECEIPT_SIGNER_MISSING");
                 receiptMessage = pilotReceiptMessage(work.metering, work, c);
               }
               const output = await activity.run(() =>

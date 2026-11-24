@@ -68,7 +68,8 @@ test("metering is disabled without explicit configuration and rejects foreign en
     () =>
       createHostedMeteringPilot(
         {
-          endpoint: "https://other.example/api/codebridge/v1/hosted-metering-pilot",
+          endpoint:
+            "https://other.example/api/codebridge/v1/hosted-metering-pilot",
           tenant,
           tokenEnv: "METER_TOKEN",
         },

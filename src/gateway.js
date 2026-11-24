@@ -257,7 +257,10 @@ function json(res, status, data) {
 const body = readJsonLimited;
 export async function startGateway(rawConfig) {
   const config = gatewaySchema.parse(rawConfig);
-  const meter = createHostedMeteringPilot(config.hostedMeteringPilot, config.oauth);
+  const meter = createHostedMeteringPilot(
+    config.hostedMeteringPilot,
+    config.oauth,
+  );
   // Use the repository-approved, immutable CodeBridge icon when the operator
   // has not configured a different public HTTPS icon URL. MCP hosts decide
   // whether to display it; this only makes the standards metadata complete.
@@ -1212,7 +1215,9 @@ export async function startGateway(rawConfig) {
             try {
               await meter.settle(p.metering, data.receiptSignature);
             } catch {
-              json(res, 409, { error: "HOSTED_METERING_SETTLEMENT_UNVERIFIED" });
+              json(res, 409, {
+                error: "HOSTED_METERING_SETTLEMENT_UNVERIFIED",
+              });
               return;
             }
           }
