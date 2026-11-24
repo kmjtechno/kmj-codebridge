@@ -58,6 +58,25 @@ function canonical(target) {
   const real = fs.realpathSync(target);
   return process.platform === "win32" ? real.toLowerCase() : real;
 }
+// Windows Git may use an 8.3 alias, while Node returns the long path.
+// Resolve the nearest existing ancestor using the native filesystem API;
+// append missing components without following a missing or unsafe leaf.
+function registryParentIdentity(target) {
+  if (process.platform !== "win32") return target;
+  const missing = [];
+  let current = target;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync.native(current), ...missing);
+    } catch (error) {
+      if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      missing.unshift(path.basename(current));
+      current = parent;
+    }
+  }
+}
 function source(root) {
   const safe = directory(root);
   if (
@@ -182,8 +201,8 @@ export class WorktreeLanes {
     // removal. Read its NUL-delimited porcelain records without trimming:
     // newlines, spaces and other characters can be part of a pathname.
     // Match the full private parent, not a suffix that another checkout
-    // could share. Normalize Windows drive/slash spelling lexically so
-    // even a missing registered lane can be identified without realpath.
+    // could share. Resolve Windows aliases using existing ancestors,
+    // never the lane leaf, so missing and broken lanes remain visible.
     const fold = (value) =>
       process.platform === "win32" ? value.toLowerCase() : value;
     const present = new Map(names.map((name) => [fold(name), name]));
@@ -194,6 +213,7 @@ export class WorktreeLanes {
       });
       if (!inventory.endsWith("\0\0"))
         return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
+      const privateParent = fold(registryParentIdentity(parent));
       for (const record of inventory.slice(0, -2).split("\0\0")) {
         const fields = record.split("\0");
         const first = fields[0];
@@ -202,7 +222,12 @@ export class WorktreeLanes {
         const printed = first.slice("worktree ".length);
         if (!path.isAbsolute(printed))
           return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
-        const relative = path.relative(fold(parent), fold(printed));
+        const name = path.basename(printed);
+        const registeredParent = registryParentIdentity(path.dirname(printed));
+        const relative = path.relative(
+          privateParent,
+          fold(path.join(registeredParent, name)),
+        );
         if (
           relative === "" ||
           relative === ".." ||
@@ -210,7 +235,6 @@ export class WorktreeLanes {
           path.isAbsolute(relative)
         )
           continue;
-        const name = path.basename(printed);
         if (relative.includes(path.sep) || !LANE.test(name))
           return result("REGISTERED_LANE_NAME_UNSAFE_REVIEW_REQUIRED");
         const key = fold(name);
