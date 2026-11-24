@@ -132,5 +132,8 @@ test("only exact tenant and active introspected project can report READY", async
     ).status,
     400,
   );
-  assert.equal((await presence({ ...request, command: "restart" })).status, 400);
+  assert.equal(
+    (await presence({ ...request, command: "restart" })).status,
+    400,
+  );
 });
