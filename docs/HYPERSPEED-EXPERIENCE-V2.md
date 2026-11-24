@@ -11,14 +11,14 @@ speed, not compulsive engagement.
 - [x] Source-level ChatGPT native invocation labels and MCP Apps discovery.
 - [ ] Distinct tool-category icons: review, CI and real host acceptance.
 - [ ] Compact evidence receipts in plain-text clients, with bounded output,
-  explicit unavailable states, project/device scope and no secrets.
+      explicit unavailable states, project/device scope and no secrets.
 - [ ] Portable progress notifications: negotiate transport and progress token,
-  enforce scope before reporting activity, cap cadence, measure actual stages
-  and provide final receipts. Do not simulate progress or claim completion
-  merely because the request returned.
+      enforce scope before reporting activity, cap cadence, measure actual stages
+      and provide final receipts. Do not simulate progress or claim completion
+      merely because the request returned.
 - [ ] Parallel authorized work lanes and actual worker state.
 - [ ] Interactive diffs, safe review actions and repository architecture views
-  in clients supporting MCP Apps; otherwise provide concise text alternatives.
+      in clients supporting MCP Apps; otherwise provide concise text alternatives.
 - [ ] Adaptive accessible light/dark presentation and reduced motion.
 - [ ] Persisted project continuity with verified checkpoint readback.
 
