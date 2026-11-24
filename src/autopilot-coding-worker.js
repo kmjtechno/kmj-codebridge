@@ -172,9 +172,7 @@ function committedCloudContext(root, expectedHead, file, bytes) {
     "--",
     file,
   ]).toString("utf8");
-  const match = /^(100644|100755) blob ([a-f0-9]{40})\t([^\0]+)\0$/.exec(
-    entry,
-  );
+  const match = /^(100644|100755) blob ([a-f0-9]{40})\t([^\0]+)\0$/.exec(entry);
   if (!match || match[3] !== file)
     throw new Error("CODING_CONTEXT_COMMIT_PATH_UNSAFE");
   const committed = git(
