@@ -87,15 +87,52 @@ export function compactWorkBrief({
   return brief;
 }
 
+const receiptLabels = {
+  queued: "QUEUED",
+  running: "RUNNING",
+  succeeded: "SUCCEEDED",
+  failed: "FAILED",
+  cancelled: "CANCELLED",
+  timed_out: "TIMED OUT",
+  interrupted: "INTERRUPTED",
+};
+
+function activityText(activity) {
+  if (
+    activity?.source !== "AUTHORIZED_PROJECT_JOB_RECEIPTS" ||
+    activity.status !== "AVAILABLE" ||
+    !Array.isArray(activity.items)
+  )
+    return ["Recent jobs: NOT VERIFIED"];
+  const lines = ["Recent project job receipts (snapshot):"];
+  for (const item of activity.items.slice(0, 3)) {
+    if (!item || !Object.hasOwn(receiptLabels, item.state)) continue;
+    const gate = cleanId(item.gate);
+    if (!gate) continue;
+    const code = Number.isSafeInteger(item.exitCode)
+      ? " · exit " + item.exitCode
+      : "";
+    lines.push("- [" + receiptLabels[item.state] + "] " + gate + code);
+  }
+  if (lines.length === 1) lines.push("- No valid receipts in snapshot");
+  if (activity.hasMore || activity.items.length > 3)
+    lines.push("- More receipts available in project jobs");
+  return lines;
+}
+
 export function compactStatusText(value) {
   const status = value.action === "NEXT_READY_TASK" ? "READY" : "REVIEW";
-  return [
+  const lines = [
     "KMJ CodeBridge — " + status,
-    "Project: " + value.project,
-    "Next: " + (value.nextReadyTaskId ?? value.action),
+    "Project: " + (cleanId(value.project) ?? "unavailable"),
+    "Device: " + (cleanId(value.device) ?? "unavailable"),
+    "Next: " +
+      (cleanId(value.nextReadyTaskId ?? value.action) ?? "unavailable"),
     "Authorized slots: " + (value.availableAuthorizedSlots ?? "unavailable"),
-    "Whole-product release: NOT_EVALUATED",
-  ].join("\n");
+  ];
+  lines.push(...activityText(value.activity));
+  lines.push("Whole-product release: NOT_EVALUATED");
+  return lines.join("\n");
 }
 
 // The approved, immutable KMJ brand icon remains pinned. Keep the existing
