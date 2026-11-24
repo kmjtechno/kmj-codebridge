@@ -43,6 +43,16 @@ const SAFE_ACTIONS = Object.freeze({
     nextAction:
       "A Windows named pipe is configured but its authenticated status RPC is not verified. Check the existing native supervisor, ACL token and installed runtime; no task restart or credential exposure.",
   },
+  WINDOWS_UPDATE_NOT_IMPLEMENTED: {
+    requiredCodeBridgeFeature: "WINDOWS_SIGNED_AGENT_UPDATE",
+    nextAction:
+      "The authenticated Windows Supervisor explicitly reports that update is not implemented. Develop and verify the signed Windows updater; preserve pairing and project data. Do not retry permissions, reinstall blindly or run Linux update scripts.",
+  },
+  WINDOWS_PROCESS_IDENTITY_NOT_CORRELATED: {
+    requiredCodeBridgeFeature: "WINDOWS_LIVE_AGENT_IDENTITY_ATTESTATION",
+    nextAction:
+      "Correlate the actual running agent with its protected task, executable, account identity and pinned runtime before restart or update. Do not restart an unknown process.",
+  },
   SUPERVISOR_SOCKET_MISSING: {
     requiredCodeBridgeFeature: "TRUSTED_LINUX_SUPERVISOR_SOCKET_BOOTSTRAP",
     nextAction:
@@ -127,6 +137,7 @@ export function inspectBlockers({
   supervisorConfigured = null,
   supervisorObservation = null,
   supervisorHealthVerified = false,
+  windowsSupervisorStatus = null,
   ciObservation = "unknown",
   checkoutState = "unknown",
 } = {}) {
@@ -197,7 +208,36 @@ export function inspectBlockers({
   )
     throw new TypeError("INVALID_SUPERVISOR_SOCKET_OBSERVATION");
 
+  // Only the dispatcher may attach a live authenticated Windows RPC result.
+  // Do not accept a caller-reported status as runtime evidence.
+  if (
+    windowsSupervisorStatus !== null &&
+    (!supervisorHealthVerified ||
+      supervisorObservation?.state !== "WINDOWS_PIPE_CONFIGURED_UNVERIFIED" ||
+      !isTrustedWindowsSupervisorStatus(windowsSupervisorStatus))
+  )
+    throw new TypeError("INVALID_WINDOWS_SUPERVISOR_LIVE_EVIDENCE");
+
   const blockers = [];
+  if (
+    windowsSupervisorStatus?.update?.reason ===
+    "WINDOWS_UPDATE_NOT_IMPLEMENTED"
+  )
+    blockers.push(
+      issue("WINDOWS_UPDATE_NOT_IMPLEMENTED", {
+        updateSupported: false,
+      }),
+    );
+  if (
+    windowsSupervisorStatus?.activeProcessRuntime?.verified === false &&
+    windowsSupervisorStatus.activeProcessRuntime.reason ===
+      "PROCESS_IDENTITY_NOT_CORRELATED"
+  )
+    blockers.push(
+      issue("WINDOWS_PROCESS_IDENTITY_NOT_CORRELATED", {
+        processIdentityVerified: false,
+      }),
+    );
   const socketState = supervisorObservation?.state ?? null;
   const socketStatus =
     socketState ??
