@@ -441,3 +441,52 @@ test("deep untracked owner work stays dirty without overflowing lane scans", (t)
     "PRESERVE OWNER WORK\n",
   );
 });
+
+test("worktree doctor ignores registrations with an identical private directory suffix elsewhere", (t) => {
+  const x = fixture(t);
+  const lanes = new WorktreeLanes(x.state);
+  const outside = path.join(
+    path.dirname(x.state),
+    "outside",
+    "isolated-worktrees",
+    "project1",
+    "foreignLane",
+  );
+  fs.mkdirSync(path.dirname(outside), { recursive: true });
+  git(x.repo, "worktree", "add", "--detach", outside, x.head);
+  fs.writeFileSync(path.join(outside, "owner.txt"), "preserve\n");
+
+  const empty = lanes.diagnose("project1", x.repo);
+  assert.equal(empty.status, "NO_PRIVATE_LANES");
+  assert.deepEqual(empty.lanes, []);
+  const local = lanes.prepare("project1", x.repo, "ownedLane", x.head);
+  const report = lanes.diagnose("project1", x.repo);
+  assert.equal(report.status, "READ_ONLY_INVENTORY");
+  assert.deepEqual(report.lanes, [
+    {
+      laneId: "ownedLane",
+      status: "INSPECTED",
+      head: x.head,
+      dirty: false,
+    },
+  ]);
+  assert.equal(fs.existsSync(local.path), true);
+  assert.equal(
+    fs.readFileSync(path.join(outside, "owner.txt"), "utf8"),
+    "preserve\n",
+  );
+  assert.equal(report.cleanupPerformed, false);
+});
+
+test("worktree doctor handles spaces in owner-configured registry paths", (t) => {
+  const x = fixture(t);
+  const base = path.join(path.dirname(x.state), "owner lane storage");
+  fs.mkdirSync(base);
+  const lanes = new WorktreeLanes(x.state, base);
+  const lane = lanes.prepare("project1", x.repo, "lane1", x.head);
+  const report = lanes.diagnose("project1", x.repo);
+  assert.equal(report.status, "READ_ONLY_INVENTORY");
+  assert.equal(report.lanes[0].laneId, "lane1");
+  assert.equal(report.lanes[0].head, x.head);
+  assert.equal(fs.existsSync(lane.path), true);
+});
