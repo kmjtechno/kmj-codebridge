@@ -45,6 +45,8 @@ export function createFreeLlmApiClient({
   // Must be supplied by trusted device code, never an MCP caller or env flag.
   // The default is NO provider calls until zero-cost account/route proof exists.
   verifyZeroCostChain = null,
+  // Optional live owner-consent callback, supplied only by trusted device code.
+  authorizeGeneration = null,
 } = {}) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     fail("FREELLMAPI_INVALID_PORT");
@@ -53,6 +55,18 @@ export function createFreeLlmApiClient({
   if (typeof now !== "function") fail("FREELLMAPI_INVALID_CLOCK");
   if (verifyZeroCostChain !== null && typeof verifyZeroCostChain !== "function")
     fail("FREELLMAPI_INVALID_BILLING_ADMISSION");
+  if (authorizeGeneration !== null && typeof authorizeGeneration !== "function")
+    fail("FREELLMAPI_INVALID_GENERATION_AUTHORIZATION");
+  const requireCurrentGenerationConsent = () => {
+    if (authorizeGeneration === null) return;
+    let authorized = false;
+    try {
+      authorized = authorizeGeneration() === true;
+    } catch {
+      // Never let a failing consent lookup authorize a cloud request.
+    }
+    if (!authorized) fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
+  };
   if (
     !Array.isArray(approvedFreeChains) ||
     approvedFreeChains.length > 20 ||
@@ -230,7 +244,12 @@ export function createFreeLlmApiClient({
         !["code", "chat", "auto"].includes(taskType)
       )
         fail("FREELLMAPI_INVALID_TASK_TYPE");
+      requireCurrentGenerationConsent();
       await verifyChainAdmission(chain);
+      // Billing and route attestation awaits can outlive owner consent.
+      // Recheck synchronously at the outbound request boundary, without
+      // another await between this check and the loopback transport call.
+      requireCurrentGenerationConsent();
       const res = await call(
         "POST",
         "/v1/chat/completions",
