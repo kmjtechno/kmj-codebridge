@@ -16,6 +16,7 @@ import {
   safeReleasePath,
   validateArchiveEntries,
   validateRuntimeArchiveEntries,
+  validateWindowsRuntimeArchiveEntries,
   verifyReleaseArchive,
   verifyReleaseManifest,
 } from "../src/update.js";
@@ -392,3 +393,50 @@ test(
     );
   },
 );
+
+test("Windows archive admission accepts canonical paths and implicit directories", () => {
+  const { manifest } = fixture();
+  const root = "kmj-codebridge-" + releaseDirectoryName(manifest);
+  const entries = [
+    root + "/",
+    root + "/package.json",
+    root + "/src/cli.js",
+    root + "/src/",
+    root + "/docs/Read Me.md",
+  ];
+  assert.equal(validateWindowsRuntimeArchiveEntries(entries, manifest), root);
+});
+
+test("Windows archive admission rejects NTFS aliases and conflicting parents", () => {
+  const { manifest } = fixture();
+  const root = "kmj-codebridge-" + releaseDirectoryName(manifest);
+  const valid = [root + "/package.json", root + "/src/cli.js"];
+  for (const members of [
+    ["src/CLI.js"],
+    ["SRC/other.js"],
+    ["src"],
+    ["file", "file/child"],
+    ["file/child", "file"],
+    ["dir/", "DIR/"],
+    ["dir/", "dir"],
+    ["src/a."],
+    ["src/a "],
+    ["src/NUL.txt"],
+    ["src/COM1"],
+    ["src/LPT9.txt"],
+    ["src/CON .txt"],
+    ["src/a:b"],
+    ["src/PROGRA~1"],
+    ["src/a?b"],
+    ["src/é.js"],
+  ]) {
+    assert.throws(
+      () =>
+        validateWindowsRuntimeArchiveEntries(
+          [...valid, ...members.map((name) => root + "/" + name)],
+          manifest,
+        ),
+      /UPDATE_WINDOWS_ARCHIVE_LAYOUT_INVALID/,
+    );
+  }
+});

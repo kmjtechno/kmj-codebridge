@@ -447,6 +447,54 @@ export function validateRuntimeArchiveEntries(entries, manifest) {
   return root;
 }
 
+// Windows names have additional aliases and collisions that POSIX tar names
+// do not. This is an admission check, not an extractor or an activation grant.
+// The future Windows extractor must derive entries from the verified archive,
+// reject non-regular entries, and enforce the protected destination ACL.
+export function validateWindowsRuntimeArchiveEntries(entries, manifest) {
+  const root = validateRuntimeArchiveEntries(entries, manifest);
+  const seen = new Map();
+  const invalid = () => fail("UPDATE_WINDOWS_ARCHIVE_LAYOUT_INVALID");
+  for (const entry of entries) {
+    if (entry === root + "/") continue;
+    const relative = entry.slice(root.length + 1);
+    const directory = relative.endsWith("/");
+    const components = relative.replace(/\/$/, "").split("/");
+    let spelling = "";
+    for (let index = 0; index < components.length; index++) {
+      const component = components[index];
+      // A conservative portable name subset excludes ADS, control characters,
+      // Unicode case-fold ambiguity and DOS short-name aliases.
+      if (
+        !/^[A-Za-z0-9._ -]{1,255}$/.test(component) ||
+        /[. ]$/.test(component) ||
+        /^(?:CON|PRN|AUX|NUL|COM[0-9]|LPT[0-9])(?:\.|$)/i.test(
+          component.split(".")[0].trimEnd(),
+        )
+      )
+        invalid();
+      spelling += (index ? "/" : "") + component;
+      const key = spelling.toLowerCase();
+      const leaf = index === components.length - 1;
+      const kind = !leaf || directory ? "directory" : "file";
+      const prior = seen.get(key);
+      if (
+        prior &&
+        (prior.spelling !== spelling ||
+          prior.kind !== kind ||
+          (leaf && prior.explicit))
+      )
+        invalid();
+      seen.set(key, {
+        spelling,
+        kind,
+        explicit: (prior?.explicit ?? false) || leaf,
+      });
+    }
+  }
+  return root;
+}
+
 function defaultTarRun(args) {
   return execFileSync("tar", args, {
     encoding: "utf8",
