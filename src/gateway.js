@@ -1041,6 +1041,91 @@ export async function startGateway(rawConfig) {
         });
         return;
       }
+      if (req.url === "/internal/dashboard/presence") {
+        // The platform is the trusted session/license/grant authorizer.
+        // This endpoint is deliberately NOT an MCP tool or a public route.
+        const reader = config.dashboardPresence;
+        if (
+          !reader ||
+          req.socket.remoteAddress !== "127.0.0.1" ||
+          hostname !== "127.0.0.1" ||
+          req.headers.origin ||
+          req.headers.forwarded ||
+          req.headers["x-forwarded-for"] ||
+          req.headers["x-forwarded-host"] ||
+          req.headers["x-forwarded-proto"]
+        ) {
+          json(res, 404, { error: "NOT_FOUND" });
+          return;
+        }
+        if (req.method !== "POST") {
+          json(res, 405, { error: "METHOD_NOT_ALLOWED" });
+          return;
+        }
+        if (!identify(req, [reader])) {
+          json(res, 401, { error: "UNAUTHORIZED" });
+          return;
+        }
+        const id = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+        const parsed = z
+          .object({
+            tenant: id,
+            grants: z
+              .array(z.object({ device: id, project: id }).strict())
+              .max(100),
+          })
+          .strict()
+          .safeParse(await body(req, 16384));
+        if (!parsed.success) {
+          json(res, 400, { error: "INVALID_PRESENCE_SCOPE" });
+          return;
+        }
+        const { tenant, grants } = parsed.data;
+        if (
+          new Set(grants.map((g) => g.device + "/" + g.project)).size !==
+          grants.length
+        ) {
+          json(res, 400, { error: "INVALID_PRESENCE_SCOPE" });
+          return;
+        }
+        const now = Date.now();
+        const entries = grants.map(({ device, project }) => {
+          const agent = agents.get(device);
+          // Static legacy registrations do not advertise an independently
+          // introspected project list. They cannot prove project readiness.
+          const verified = agent?.dynamic
+            ? dynamicByToken.get(agent.tokenHash)
+            : null;
+          if (
+            !agent ||
+            agent.tenant !== tenant ||
+            !agent.projects?.includes(project) ||
+            !verified ||
+            verified.agent !== agent ||
+            now - verified.verifiedAt >=
+              config.agentIntrospection.cacheSeconds * 1000 ||
+            !agentProjectPermissions(agent, project).includes("read")
+          )
+            return { device, project, status: "UNKNOWN", lastSeenAt: null };
+          const health = connectionHealth(
+            lastSeen.get(device),
+            agentHealth.get(device),
+            now,
+          );
+          return {
+            device,
+            project,
+            status: health.online ? "READY" : "UNKNOWN",
+            lastSeenAt: health.lastSeenAt,
+          };
+        });
+        json(res, 200, {
+          tenant,
+          observedAt: new Date(now).toISOString(),
+          entries,
+        });
+        return;
+      }
       if (req.url?.startsWith("/agent/")) {
         const a = await identifyAgent(req);
         if (!a) {
@@ -1052,9 +1137,9 @@ export async function startGateway(rawConfig) {
           return;
         }
         const data = await body(req);
-        lastSeen.set(a.id, Date.now());
         if (req.url === "/agent/health") {
-          const now = lastSeen.get(a.id) ?? Date.now();
+          const now = Date.now();
+          lastSeen.set(a.id, now);
           const previous = agentHealth.get(a.id);
           agentHealth.set(a.id, recordSessionStart(previous, now));
           json(res, 200, { ok: true });
@@ -1065,6 +1150,7 @@ export async function startGateway(rawConfig) {
             json(res, 409, { error: "POLL_ALREADY_OPEN" });
             return;
           }
+          lastSeen.set(a.id, Date.now());
           const immediate = next(a);
           if (immediate) {
             json(res, 200, immediate);
@@ -1101,6 +1187,7 @@ export async function startGateway(rawConfig) {
             json(res, 400, { error: "INVALID_RESULT" });
             return;
           }
+          lastSeen.set(a.id, Date.now());
           p.resolve(data.result);
           json(res, 200, { ok: true });
           return;

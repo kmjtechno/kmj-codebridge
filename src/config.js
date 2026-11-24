@@ -93,6 +93,13 @@ export const gatewaySchema = z
         cacheSeconds: z.number().int().min(5).max(300).default(60),
       })
       .optional(),
+    // Dedicated same-host dashboard reader; never an MCP or agent token.
+    dashboardPresence: z
+      .object({
+        tokenHash: digest,
+      })
+      .strict()
+      .optional(),
     userIntrospection: z
       .object({
         endpoint: httpsUrl,
@@ -189,6 +196,17 @@ export const gatewaySchema = z
         code: z.ZodIssueCode.custom,
         message:
           "At least one agent or agent introspection endpoint is required",
+      });
+    }
+    if (
+      config.dashboardPresence &&
+      [...config.users, ...config.agents].some(
+        (entry) => entry.tokenHash === config.dashboardPresence.tokenHash,
+      )
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Dashboard presence credential must be independent",
       });
     }
     const names = new Set();
