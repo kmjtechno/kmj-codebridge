@@ -34,8 +34,12 @@ export function createConfiguredFreeLlmApiClient({
   factory = createFreeLlmApiClient,
   read = readFile,
   evidenceRequest,
+  authorizeGeneration,
 } = {}) {
-  if (!zeroCostConfigured(env)) return factory();
+  const authorization =
+    authorizeGeneration === undefined ? {} : { authorizeGeneration };
+  if (!zeroCostConfigured(env))
+    return authorizeGeneration === undefined ? factory() : factory(authorization);
   const pins = env.CODEBRIDGE_FREELLMAPI_PINS_DIR;
   const snaps = env.CODEBRIDGE_FREELLMAPI_SNAPSHOT_DIR;
   const fetcher = createOpenRouterEvidenceFetcher({
@@ -56,5 +60,5 @@ export function createConfiguredFreeLlmApiClient({
     }),
     ...fetcher,
   });
-  return factory({ verifyZeroCostChain: verifier });
+  return factory({ ...authorization, verifyZeroCostChain: verifier });
 }
