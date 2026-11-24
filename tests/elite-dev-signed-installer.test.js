@@ -93,3 +93,39 @@ test("Elite installer has fixed identities, signature gate, negative RPC and rol
   assert.doesNotMatch(source, /systemctl", "reboot"/);
   assert.doesNotMatch(source, /rm -rf|chmod 777|chmod 666/);
 });
+
+const ARCHIVE_CODE = [
+  "import importlib.util,io,tarfile",
+  "spec=importlib.util.spec_from_file_location('installer','scripts/production/owner_install_elite_dev_supervisor.py')",
+  "mod=importlib.util.module_from_spec(spec)",
+  "spec.loader.exec_module(mod)",
+  "stem='kmj-codebridge-0.3.2-'+'a'*12",
+  "buf=io.BytesIO()",
+  "with tarfile.open(fileobj=buf,mode='w:gz') as t:",
+  "    root=tarfile.TarInfo(stem+'/');root.type=tarfile.DIRTYPE;t.addfile(root)",
+  "    f=tarfile.TarInfo(stem+'/src/cli.js');f.size=0;t.addfile(f,io.BytesIO(b''))",
+  "buf.seek(0)",
+  "with tarfile.open(fileobj=buf,mode='r:gz') as t:",
+  "    names=[(m.name,m.isdir()) for m in t]",
+  "assert names[0]==(stem,True),names",
+  "assert mod.archive_relative(stem,stem,True)==''",
+  "assert mod.archive_relative(stem+'/src/cli.js',stem,False)=='src/cli.js'",
+  "for name,is_dir in [(stem,False),('other/src/cli.js',False),(stem+'x/a',False),('/'+stem+'/a',False),('',True)]:",
+  "    try:mod.archive_relative(name,stem,is_dir)",
+  "    except mod.Blocked:pass",
+  "    else:raise AssertionError('accepted '+repr(name))",
+  "print('ARCHIVE_ROOT_ENTRY_ACCEPTED_ONLY_AS_DIRECTORY=PASS')",
+].join("\n");
+
+test(
+  "git-archive root directory entry is accepted as the root, nothing else outside the signed prefix is",
+  { skip: !PYTHON },
+  () => {
+    const result = invoke("-I", "-c", ARCHIVE_CODE);
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(
+      result.stdout,
+      /ARCHIVE_ROOT_ENTRY_ACCEPTED_ONLY_AS_DIRECTORY=PASS/,
+    );
+  },
+);
