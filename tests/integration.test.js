@@ -1870,3 +1870,56 @@ test("gateway configuration rejects a local/loopback icon URL", async () => {
     }),
   );
 });
+
+test("status progress is request scoped and JSON remains the default", async (t) => {
+  const { gw } = await setup(t);
+  const call = (project, token, bearer = userToken) =>
+    fetch(gw.url + "/mcp", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer " + bearer,
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 73,
+        method: "tools/call",
+        params: {
+          name: "render_codebridge_status",
+          arguments: { device: "d1", project },
+          ...(token === undefined ? {} : { _meta: { progressToken: token } }),
+        },
+      }),
+    });
+  const streamed = await call("p1", "status-progress");
+  assert.equal(streamed.status, 200);
+  assert.match(streamed.headers.get("content-type"), /text\/event-stream/);
+  const raw = await streamed.text();
+  const messages = raw
+    .split(/\r?\n/)
+    .filter((line) => line.startsWith("data:") && line.slice(5).trim())
+    .map((line) => JSON.parse(line.slice(5)));
+  const updates = messages.filter(
+    (message) => message.method === "notifications/progress",
+  );
+  assert.deepEqual(
+    updates.map((message) => message.params.progress),
+    [1, 2],
+  );
+  assert.ok(
+    updates.every(
+      (message) => message.params.progressToken === "status-progress",
+    ),
+  );
+  const final = messages.at(-1);
+  assert.equal(final.id, 73);
+  assert.equal(final.result.structuredContent.project, "p1");
+  const plain = await call("p1");
+  assert.match(plain.headers.get("content-type"), /application\/json/);
+  assert.equal((await plain.json()).result.structuredContent.project, "p1");
+  const denied = await call("p1", "denied", otherToken);
+  assert.match(denied.headers.get("content-type"), /application\/json/);
+  const deniedBody = await denied.json();
+  assert.equal(deniedBody.result.isError, true);
+});

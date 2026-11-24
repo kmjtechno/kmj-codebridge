@@ -18,6 +18,7 @@ import {
   toolSecurityMeta,
 } from "./client-extensions.js";
 import { toolActivityIcons } from "./tool-activity-icons.js";
+import { progressRequested, notifyProgress } from "./chat-progress.js";
 import { readJsonLimited } from "./http.js";
 import http from "node:http";
 import { randomUUID, createHash, timingSafeEqual } from "node:crypto";
@@ -1249,6 +1250,15 @@ export async function startGateway(rawConfig) {
           return;
         }
       }
+      let streamProgress = false;
+      if (user && progressRequested(data, req.headers.accept)) {
+        try {
+          authorize(user, data.params.arguments, "read");
+          streamProgress = user.permissions.includes("read");
+        } catch {
+          // Denials retain the existing JSON transport and error handling.
+        }
+      }
       const serverCommit = deployedCommit();
       const mcp = new McpServer({
         name: "kmj-codebridge",
@@ -1285,7 +1295,7 @@ export async function startGateway(rawConfig) {
                 name === "run_quality_gate" || name.startsWith("github_"),
             },
           },
-          async (args) => {
+          async (args, extra) => {
             try {
               if (!user) {
                 const authenticate = config.oauth
@@ -1597,7 +1607,12 @@ export async function startGateway(rawConfig) {
                 };
               }
               if (name === "render_codebridge_status") {
+                authorize(user, args, "read");
+                if (streamProgress)
+                  await notifyProgress(extra, 1, "Collecting project evidence");
                 const result = await getMissionControlBrief(user, args);
+                if (streamProgress)
+                  await notifyProgress(extra, 2, "Project snapshot returned");
                 return {
                   content: [{ type: "text", text: compactStatusText(result) }],
                   structuredContent: result,
@@ -1728,7 +1743,7 @@ export async function startGateway(rawConfig) {
 
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: undefined,
-        enableJsonResponse: true,
+        enableJsonResponse: !streamProgress,
       });
       res.on("close", () => {
         void transport.close();
