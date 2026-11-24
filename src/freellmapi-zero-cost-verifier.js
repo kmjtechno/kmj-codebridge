@@ -57,15 +57,18 @@ export function createZeroCostVerifier({
     const pinned = checkManifest(await readManifest(chain), chain);
     // Route binding: the router's LIVE membership must equal the owner-pinned
     // list exactly, and every member must be an OpenRouter platform model.
-    const live = await readLiveChainMembers(chain);
-    if (
-      !Array.isArray(live) ||
-      live.length !== pinned.length ||
-      !live.every((r) => r?.platform === "openrouter")
-    )
-      deny();
-    const liveIds = live.map((r) => r.modelId).sort();
-    if (!liveIds.every((id, i) => id === pinned[i])) deny();
+    const assertLiveMembers = async () => {
+      const live = await readLiveChainMembers(chain);
+      if (
+        !Array.isArray(live) ||
+        live.length !== pinned.length ||
+        !live.every((r) => r?.platform === "openrouter")
+      )
+        deny();
+      const liveIds = live.map((r) => r.modelId).sort();
+      if (!liveIds.every((id, i) => id === pinned[i])) deny();
+    };
+    await assertLiveMembers();
     const catalog = await fetchOpenRouterModels();
     const rows = Array.isArray(catalog?.data) ? catalog.data : [];
     // An ambiguous catalog cannot prove which price applies to a pinned route.
@@ -83,6 +86,17 @@ export function createZeroCostVerifier({
       keyResponse: await fetchOpenRouterKey(),
       routeBinding: { chain, verified: true, noPaidFallback: true, models },
     });
-    return proof ?? deny();
+    if (!proof) deny();
+    // Provider evidence reads await network IO. Recheck owner pins and the
+    // fresh route snapshot afterward, before returning even an advisory proof.
+    // This narrows the race; it does not establish atomic router dispatch.
+    const currentPins = checkManifest(await readManifest(chain), chain);
+    if (
+      currentPins.length !== pinned.length ||
+      !currentPins.every((id, i) => id === pinned[i])
+    )
+      deny();
+    await assertLiveMembers();
+    return proof;
   };
 }
