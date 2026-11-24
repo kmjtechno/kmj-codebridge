@@ -22,6 +22,25 @@ const SAFE_PATH = /^[A-Za-z0-9_.-]+(?:\/[A-Za-z0-9_.-]+)*$/;
 const SENSITIVE_PATH =
   /(?:^|\/)(?:\.env(?:\.[^/]*)?|secrets?|credentials?|private|id_rsa|id_ed25519)(?:\/|$)|\.(?:pem|key|p12|pfx|age|db|sqlite|log)$/i;
 
+// A filename can be allowlisted while its tracked text accidentally contains
+// credentials. Fail closed before building or sending any cloud coding prompt.
+// High-confidence patterns mirror the distribution secret scanner; do not
+// record the matched material, file contents or even a token substring.
+const CLOUD_CREDENTIAL_MARKERS = [
+  /-----BEGIN (?:[A-Z]+ )*PRIVATE KEY-----/,
+  /Bearer\s+(?!\$\{)[A-Za-z0-9._~+/-]{24,}={0,2}/,
+  /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}/,
+  /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{40,})/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bxox[abprs]-[A-Za-z0-9-]{20,}/,
+];
+export function cloudCodingContextHasCredential(text) {
+  return (
+    typeof text !== "string" ||
+    CLOUD_CREDENTIAL_MARKERS.some((marker) => marker.test(text))
+  );
+}
+
 function hasCodingEntitlement(entitlement) {
   return (
     entitlement?.features?.includes("write") === true &&
@@ -598,6 +617,19 @@ export class LocalFirstCodingWorker {
           } catch {
             releaseLaneIfPristine();
             wait("LOCAL_CODING_CONTEXT_REJECTED_REVIEW_REQUIRED");
+            continue;
+          }
+
+          // The approved file list alone cannot prevent a committed token
+          // inside an ordinary source file (or task text) from leaving the
+          // device. Deny cloud transfer without logging matched material.
+          if (
+            cloud &&
+            (cloudCodingContextHasCredential(context.text) ||
+              cloudCodingContextHasCredential(task.objective.slice(0, 3000)))
+          ) {
+            releaseLaneIfPristine();
+            wait("CLOUD_CODING_CONTEXT_CREDENTIAL_REVIEW_REQUIRED");
             continue;
           }
 
