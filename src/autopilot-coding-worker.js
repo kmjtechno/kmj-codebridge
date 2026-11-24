@@ -532,8 +532,21 @@ export class LocalFirstCodingWorker {
               Boolean(parseCodingTask(candidate.key, recipes)),
           });
           if (!task) continue;
-          const wait = (reason) =>
-            this.journal.wait(task.id, project.id, reason, task.leaseToken);
+          const ownsLease = () => {
+            try {
+              const currentTask = this.journal.get(task.id, project.id);
+              if (currentTask.state !== "running" || !currentTask.lease)
+                return false;
+              this.journal.assertLease(currentTask, task.leaseToken);
+              return true;
+            } catch {
+              return false;
+            }
+          };
+          const wait = (reason) => {
+            if (ownsLease())
+              this.journal.wait(task.id, project.id, reason, task.leaseToken);
+          };
           if (task.checkpoint) {
             wait("PREVIOUS_LOCAL_CODING_REQUIRES_REVIEW");
             continue;
@@ -584,10 +597,18 @@ export class LocalFirstCodingWorker {
 
           const releaseLaneIfPristine = () => {
             try {
+              // Losing the task lease also loses authority over its lane.
+              // Preserve even a pristine lane for the current holder/review.
+              if (!ownsLease()) return;
               const entry = this.lanes
                 .status(project.id, project.root)
                 .lanes.find((item) => item.laneId === laneId);
-              if (entry && entry.head === parsed.expectedHead && !entry.dirty) {
+              if (
+                entry &&
+                entry.head === parsed.expectedHead &&
+                !entry.dirty &&
+                ownsLease()
+              ) {
                 this.lanes.cleanup(
                   project.id,
                   project.root,
@@ -638,28 +659,32 @@ export class LocalFirstCodingWorker {
           // transport checks its own provider/route proofs; it cannot infer
           // the worker's licensed job grants, exact approved recipe or QA gate.
           // Revalidate those here before any private source enters a prompt.
-          let authorizedBeforePrompt = false;
-          try {
-            const currentEntitlement = this.licenseProvider();
-            authorizedBeforePrompt =
-              this.canStart() &&
-              project.writable === true &&
-              project.autopilotCodingWorker === config &&
-              config.enabled === true &&
-              codingRouteApproved(config) &&
-              config.recipes?.[parsed.recipe] === recipe &&
-              project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
-                true &&
-              codingApprovalFingerprint(
-                config,
-                recipe,
-                project.gates?.[recipe.verifyGate],
-              ) === approvalFingerprint &&
-              hasCodingEntitlement(currentEntitlement);
-          } catch {
-            // Missing, revoked or throwing authorization always denies.
-          }
-          if (!authorizedBeforePrompt) {
+          const authorizeRequest = () => {
+            try {
+              if (!ownsLease()) return false;
+              const currentEntitlement = this.licenseProvider();
+              return (
+                this.canStart() &&
+                project.writable === true &&
+                project.autopilotCodingWorker === config &&
+                config.enabled === true &&
+                codingRouteApproved(config) &&
+                config.recipes?.[parsed.recipe] === recipe &&
+                project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
+                  true &&
+                codingApprovalFingerprint(
+                  config,
+                  recipe,
+                  project.gates?.[recipe.verifyGate],
+                ) === approvalFingerprint &&
+                hasCodingEntitlement(currentEntitlement)
+              );
+            } catch {
+              // Missing, revoked or throwing authorization always denies.
+              return false;
+            }
+          };
+          if (!authorizeRequest()) {
             releaseLaneIfPristine();
             wait("LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED");
             continue;
@@ -687,6 +712,7 @@ export class LocalFirstCodingWorker {
               prompt,
               maxTokens: config.maxTokens,
               timeoutSeconds: config.timeoutSeconds,
+              ...(cloud ? { authorizeRequest } : {}),
             });
           } catch {
             releaseLaneIfPristine();
@@ -697,28 +723,7 @@ export class LocalFirstCodingWorker {
           // Local generation is asynchronous. The owner can revoke project
           // consent, grants, or the safe gate while the model is responding.
           // Recheck before any generated patch is applied or gate is started.
-          let stillAuthorized = false;
-          try {
-            const currentEntitlement = this.licenseProvider();
-            stillAuthorized =
-              this.canStart() &&
-              project.writable === true &&
-              project.autopilotCodingWorker === config &&
-              config.enabled === true &&
-              codingRouteApproved(config) &&
-              config.recipes?.[parsed.recipe] === recipe &&
-              project.gates?.[recipe.verifyGate]?.autopilotCodingSafe ===
-                true &&
-              codingApprovalFingerprint(
-                config,
-                recipe,
-                project.gates?.[recipe.verifyGate],
-              ) === approvalFingerprint &&
-              hasCodingEntitlement(currentEntitlement);
-          } catch {
-            // Invalid or unavailable authorization fails closed.
-          }
-          if (!stillAuthorized) {
+          if (!authorizeRequest()) {
             releaseLaneIfPristine();
             wait("LOCAL_CODING_AUTHORIZATION_REVOKED_REVIEW_REQUIRED");
             continue;

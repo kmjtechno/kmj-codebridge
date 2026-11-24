@@ -45,6 +45,8 @@ export function createFreeLlmApiClient({
   // Must be supplied by trusted device code, never an MCP caller or env flag.
   // The default is NO provider calls until zero-cost account/route proof exists.
   verifyZeroCostChain = null,
+  // Optional live owner-consent callback, supplied only by trusted device code.
+  authorizeGeneration = null,
 } = {}) {
   if (!Number.isInteger(port) || port < 1024 || port > 65535)
     fail("FREELLMAPI_INVALID_PORT");
@@ -53,6 +55,19 @@ export function createFreeLlmApiClient({
   if (typeof now !== "function") fail("FREELLMAPI_INVALID_CLOCK");
   if (verifyZeroCostChain !== null && typeof verifyZeroCostChain !== "function")
     fail("FREELLMAPI_INVALID_BILLING_ADMISSION");
+  if (authorizeGeneration !== null && typeof authorizeGeneration !== "function")
+    fail("FREELLMAPI_INVALID_GENERATION_AUTHORIZATION");
+  const requireCurrentGenerationConsent = (authorizeRequest) => {
+    let authorized = false;
+    try {
+      authorized =
+        (authorizeGeneration === null || authorizeGeneration() === true) &&
+        (authorizeRequest === undefined || authorizeRequest() === true);
+    } catch {
+      // Never let a failing consent or task-grant lookup authorize a request.
+    }
+    if (!authorized) fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
+  };
   if (
     !Array.isArray(approvedFreeChains) ||
     approvedFreeChains.length > 20 ||
@@ -209,6 +224,8 @@ export function createFreeLlmApiClient({
       localProcessingApproved,
       upstreamCloudApproved,
       taskType,
+      // Internal trusted callback for the exact task, never an MCP argument.
+      authorizeRequest,
     }) {
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
       if (upstreamCloudApproved !== true)
@@ -230,7 +247,12 @@ export function createFreeLlmApiClient({
         !["code", "chat", "auto"].includes(taskType)
       )
         fail("FREELLMAPI_INVALID_TASK_TYPE");
+      requireCurrentGenerationConsent(authorizeRequest);
       await verifyChainAdmission(chain);
+      // Billing and route attestation awaits can outlive owner consent.
+      // Recheck synchronously at the outbound request boundary, without
+      // another await between this check and the loopback transport call.
+      requireCurrentGenerationConsent(authorizeRequest);
       const res = await call(
         "POST",
         "/v1/chat/completions",

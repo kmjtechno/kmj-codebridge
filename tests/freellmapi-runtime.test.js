@@ -133,3 +133,21 @@ test("MCP tools and agent cloud coding both use the owner-configured verifier", 
   );
   assert.deepEqual(importers.sort(), ["agent.js", "tools.js"]);
 });
+
+test("runtime forwards the trusted live generation consent callback", () => {
+  const authorizeGeneration = () => false;
+  for (const env of [{}, ENV]) {
+    let options;
+    createConfiguredFreeLlmApiClient({
+      env,
+      authorizeGeneration,
+      factory: (value) => (options = value),
+    });
+    assert.equal(options.authorizeGeneration, authorizeGeneration);
+    if (env === ENV) {
+      assert.equal(typeof options.verifyZeroCostChain, "function");
+    } else {
+      assert.equal(options.verifyZeroCostChain, undefined);
+    }
+  }
+});
