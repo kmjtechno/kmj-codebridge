@@ -59,13 +59,12 @@ ChatGPT's tool activity surface (for example "Interacted with GitHub") has a
 distinct icon resolution path. For clients honoring the official MCP Apps
 extension, entrypoint tool `icons` metadata in `tools/list` is preferred,
 then the app registration icon or `serverInfo.icons`, then a generic fallback.
-The CodeBridge gateway advertises the same icon in `serverInfo.icons` and in
-the `icons` field of every tool in `tools/list`, on both the hosted OAuth path
-and the non-OAuth path (PR 885 removed the earlier OAuth-only condition). The
-icon is the repository-pinned approved PNG (`APPROVED_ICON_URL`, an immutable
-raw.githubusercontent.com commit URL) unless a deploy operator configures a
-verified public HTTPS `iconUrl`. Integration tests assert that every tool
-carries the same icons as `serverInfo`. A URL can identify the CodeBridge server
+The gateway retains the repository-pinned approved PNG (`APPROVED_ICON_URL`)
+in `serverInfo.icons`. Both hosted OAuth and non-OAuth tool catalogs advertise
+embedded category PNG glyphs, with the approved logo as fallback. An explicit
+validated HTTPS `iconUrl` retains the uniform branding override. These
+category icons identify actions, not successful outcomes. This identifies
+the CodeBridge server
 without altering OAuth, tenant grants or model use. This is source-level only:
 a deployed gateway shows it after a signed release, and ChatGPT may still ignore
 MCP icons in favour of the registered app icon.
