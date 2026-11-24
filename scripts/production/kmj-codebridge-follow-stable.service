@@ -1,0 +1,13 @@
+[Unit]
+Description=Restart allowlisted CodeBridge agents that are behind the signed stable runtime (idle only)
+After=network.target
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/usr/bin/python3 -I /usr/local/libexec/kmj-codebridge-follow-stable/follow_stable_release.py
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+TimeoutStartSec=180
