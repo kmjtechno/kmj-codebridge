@@ -1273,7 +1273,7 @@ export async function startGateway(rawConfig) {
             // Advertise the same pinned/validated icon as serverInfo.
             // Hosts may choose to ignore this metadata.
             icons: clientIcons,
-            ...toolSecurityMeta(config.oauth, d.access),
+            ...toolSecurityMeta(config.oauth, d.access, name),
             annotations: {
               title: d.title,
               readOnlyHint: d.access === "read",
@@ -1660,7 +1660,7 @@ export async function startGateway(rawConfig) {
       mcp.server.setRequestHandler(ListToolsRequestSchema, () => ({
         tools: Object.entries(allDefinitions).map(([name, d]) => {
           const input = normalizeObjectSchema(toolInputContract(name, d));
-          const security = toolSecurityMeta(config.oauth, d.access);
+          const security = toolSecurityMeta(config.oauth, d.access, name);
           return {
             name,
             title: d.title,
