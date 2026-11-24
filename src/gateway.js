@@ -1,4 +1,5 @@
 import { buildMissionActivity } from "./mission-control-activity.js";
+import { createHostedMeteringPilot } from "./hosted-metering-pilot.js";
 import { buildMissionWorkers } from "./mission-control-workers.js";
 import { buildMissionWorkspace } from "./mission-control-workspace.js";
 import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
@@ -256,6 +257,10 @@ function json(res, status, data) {
 const body = readJsonLimited;
 export async function startGateway(rawConfig) {
   const config = gatewaySchema.parse(rawConfig);
+  const meter = createHostedMeteringPilot(
+    config.hostedMeteringPilot,
+    config.oauth,
+  );
   // Use the repository-approved, immutable CodeBridge icon when the operator
   // has not configured a different public HTTPS icon URL. MCP hosts decide
   // whether to display it; this only makes the standards metadata complete.
@@ -511,6 +516,7 @@ export async function startGateway(rawConfig) {
           tool: job.tool,
           args: job.args,
           permissions: job.permissions,
+          ...(job.metering ? { metering: job.metering } : {}),
         };
       }
     return null;
@@ -522,8 +528,17 @@ export async function startGateway(rawConfig) {
       [...pending.values()].filter((p) => p.agent === a.id).length >= 16
     )
       fail("GATEWAY_BUSY");
+    const id = randomUUID();
+    const metering =
+      meter && a.tenant === meter.tenant && name === "git_status"
+        ? await meter.reserve(user, a, id, args)
+        : null;
+    if (
+      pending.size >= 256 ||
+      [...pending.values()].filter((p) => p.agent === a.id).length >= 16
+    )
+      fail("GATEWAY_BUSY");
     return new Promise((resolve, reject) => {
-      const id = randomUUID();
       const timer = setTimeout(
         () => {
           pending.delete(id);
@@ -534,6 +549,8 @@ export async function startGateway(rawConfig) {
       pending.set(id, {
         id,
         agent: a.id,
+        tenant: a.tenant,
+        metering,
         tool: name,
         args,
         permissions: allowedPermissions(user, a).filter(
@@ -1182,7 +1199,7 @@ export async function startGateway(rawConfig) {
         }
         if (req.url === "/agent/result") {
           const p = pending.get(data?.id);
-          if (!p || p.agent !== a.id || !p.delivered) {
+          if (!p || p.agent !== a.id || p.tenant !== a.tenant || !p.delivered) {
             json(res, 404, { error: "REQUEST_NOT_FOUND" });
             return;
           }
@@ -1193,6 +1210,16 @@ export async function startGateway(rawConfig) {
           ) {
             json(res, 400, { error: "INVALID_RESULT" });
             return;
+          }
+          if (p.metering && data.result.isError !== true) {
+            try {
+              await meter.settle(p.metering, data.receiptSignature);
+            } catch {
+              json(res, 409, {
+                error: "HOSTED_METERING_SETTLEMENT_UNVERIFIED",
+              });
+              return;
+            }
           }
           lastSeen.set(a.id, Date.now());
           p.resolve(data.result);

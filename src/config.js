@@ -93,6 +93,15 @@ export const gatewaySchema = z
         cacheSeconds: z.number().int().min(5).max(300).default(60),
       })
       .optional(),
+    // Explicit, single-tenant, default-off receipt pilot.
+    hostedMeteringPilot: z
+      .object({
+        endpoint: httpsUrl,
+        tenant: id,
+        tokenEnv: z.string().regex(/^[A-Z][A-Z0-9_]{2,63}$/),
+      })
+      .strict()
+      .optional(),
     // Dedicated same-host dashboard reader; never an MCP or agent token.
     dashboardPresence: z
       .object({
@@ -257,6 +266,7 @@ export const agentSchema = z.object({
   // New dedicated service identities can use a separate private file.
   token: z.string().min(32).optional(),
   gatewayTokenFile: z.string().min(3).max(4096).optional(),
+  hostedReceiptKeyFile: z.string().min(3).max(4096).optional(),
   id,
   tenant: id,
   stateDir: z.string(),
