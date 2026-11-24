@@ -1277,7 +1277,10 @@ test("worker rechecks task grants at the real client POST boundary", async (t) =
     ["license execute", (_f, options) => (options.noExecute = true)],
     ["license write", (_f, options) => (options.noWrite = true)],
     ["license concurrency", (_f, options) => (options.concurrentJobs = 0)],
-    ["QA permission", (f) => (f.project.gates.check.autopilotCodingSafe = false)],
+    [
+      "QA permission",
+      (f) => (f.project.gates.check.autopilotCodingSafe = false),
+    ],
     [
       "approved recipe",
       (f) => {
