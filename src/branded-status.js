@@ -53,7 +53,9 @@ export function compactWorkBrief({
       dirty: git.value.status
         .split("\n")
         .slice(1)
-        .some((line) => /^[ MADRCUT?!]{2} /.test(line) && !line.startsWith("!!")),
+        .some(
+          (line) => /^[ MADRCUT?!]{2} /.test(line) && !line.startsWith("!!"),
+        ),
     };
   }
   if (

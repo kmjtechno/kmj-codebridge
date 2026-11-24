@@ -69,7 +69,10 @@ test("notifications preserve token zero and ignore unavailable transports", asyn
 test("scoped coding reads opt in without enabling write progress", () => {
   for (const name of ["fast_context", "git_diff", "read_file_range"]) {
     assert.equal(
-      progressRequested({ ...request, params: { ...request.params, name } }, accept),
+      progressRequested(
+        { ...request, params: { ...request.params, name } },
+        accept,
+      ),
       true,
     );
   }

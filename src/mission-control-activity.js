@@ -45,7 +45,11 @@ export function buildMissionActivity({ project, jobs, now = Date.now() }) {
   const total =
     Number.isSafeInteger(input.total) && input.total >= 0 ? input.total : null;
   // A project mismatch is not a partial result: it is an invalid response.
-  if (total === null || input.jobs.length > MAX_ITEMS || total < input.jobs.length)
+  if (
+    total === null ||
+    input.jobs.length > MAX_ITEMS ||
+    total < input.jobs.length
+  )
     return unavailable;
 
   const items = [];
