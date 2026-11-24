@@ -152,6 +152,64 @@ class ReleaseTest(unittest.TestCase):
         self.assertNotIn('shell=True', text)
         self.assertNotIn('os.system(', text)
 
+class StatusTest(unittest.TestCase):
+    def test_status_listed_and_needs_no_confirmation(self):
+        for project in ('main-platform', 'codebridge'):
+            self.assertIn('status', release.PROJECTS[project]['actions'])
+
+    def test_main_platform_status_is_read_only_and_reports_live_match(self):
+        names = release.PROJECTS['main-platform']['required_workflows']
+        data = [{'object': {'sha': SHA}}, response('x', SHA, names)[1]]
+        out = []
+        with patch.object(release, 'github_json', side_effect=data), \
+             patch.object(release, 'current_main_platform', return_value='platform-' + SHA[:12]), \
+             patch('builtins.print', side_effect=lambda *a: out.append(' '.join(map(str, a)))):
+            release.run_status('main-platform')
+        self.assertIn('CI_ALL=GREEN', out)
+        self.assertIn('LIVE_MATCHES_MAIN_HEAD=YES', out)
+        self.assertIn('FAST_RELEASE=STATUS_READ_ONLY', out)
+
+    def test_status_reports_red_and_pending_without_raising(self):
+        names = release.PROJECTS['main-platform']['required_workflows']
+        runs = response('x', SHA, names)[1]
+        runs['workflow_runs'][0]['conclusion'] = 'failure'
+        runs['workflow_runs'][1]['status'] = 'in_progress'
+        out = []
+        with patch.object(release, 'github_json', side_effect=[{'object': {'sha': SHA}}, runs]), \
+             patch.object(release, 'current_main_platform', return_value='platform-aaaaaaaaaaaa'), \
+             patch('builtins.print', side_effect=lambda *a: out.append(' '.join(map(str, a)))):
+            release.run_status('main-platform')
+        self.assertIn('CI_ALL=NOT_GREEN', out)
+        self.assertIn('LIVE_MATCHES_MAIN_HEAD=NO', out)
+        self.assertTrue(any(x.endswith('=FAIL') for x in out))
+        self.assertTrue(any(x.endswith('=PENDING') for x in out))
+
+    def test_codebridge_status_reads_updater_line_and_never_touches_signer(self):
+        names = release.PROJECTS['codebridge']['required_workflows']
+        data = [{'object': {'sha': CB_SHA}}, response('x', CB_SHA, names)[1]]
+        out = []
+        fake = type('R', (), {'stdout': 'noise\nKMJ CodeBridge stable update complete; version 0.3.2, sequence 35, updated=false.\n'})()
+        with patch.object(release, 'github_json', side_effect=data), \
+             patch.object(release, 'trusted_regular_file', side_effect=AssertionError('signer must not be touched')), \
+             patch.object(release.subprocess, 'run', return_value=fake), \
+             patch('builtins.print', side_effect=lambda *a: out.append(' '.join(map(str, a)))):
+            release.run_status('codebridge')
+        self.assertIn('CODEBRIDGE_LIVE_VERSION=0.3.2', out)
+        self.assertIn('CODEBRIDGE_LIVE_SEQUENCE=35', out)
+        self.assertIn('CODEBRIDGE_SIGNING=OWNER_OFFLINE_KEY_ON_P520', out)
+
+    def test_codebridge_status_without_updater_line_is_unknown_not_invented(self):
+        fake = type('R', (), {'stdout': 'nothing useful'})()
+        with patch.object(release.subprocess, 'run', return_value=fake):
+            self.assertIsNone(release.codebridge_live_from_updater())
+
+    def test_status_rejects_sha_argument_and_confirm(self):
+        with patch.object(release, 'require_elite_root'), patch.object(release, 'require_installed_self'):
+            with self.assertRaises(release.Blocked):
+                release.main(['--project', 'codebridge', '--action', 'status', '--sha', CB_SHA])
+            with self.assertRaises(release.Blocked):
+                release.main(['--project', 'codebridge', '--action', 'status', '--confirm', release.CONFIRM])
+
 
 if __name__ == '__main__':
     unittest.main()

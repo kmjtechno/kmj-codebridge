@@ -42,12 +42,12 @@ PROJECTS = {
     'main-platform': {
         'repo': 'kmjtechno/kmj-main-platform',
         'required_workflows': ('Verify Foundation', 'Staging Promotion Gate', 'Server Infrastructure CI'),
-        'actions': ('inspect', 'prepare', 'release', 'post-activation'),
+        'actions': ('status', 'inspect', 'prepare', 'release', 'post-activation'),
     },
     'codebridge': {
         'repo': 'kmjtechno/kmj-codebridge',
         'required_workflows': ('CodeBridge CI',),
-        'actions': ('inspect', 'sign'),
+        'actions': ('status', 'inspect', 'sign'),
     },
 }
 DISABLED_PROJECTS = {
@@ -264,6 +264,73 @@ def run_codebridge(action: str, sha: str | None) -> None:
     print('FAST_RELEASE=SIGNED_PR_REVIEW_REQUIRED_NOT_LIVE')
 
 
+CB_UPDATER_UNIT = 'kmj-codebridge-stable-update.service'
+CB_UPDATER_LINE = re.compile(r'version ([0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}), sequence ([0-9]{1,6}), updated=(true|false)')
+
+
+def ci_summary(repo: str, sha: str, required: tuple[str, ...]) -> dict[str, str]:
+    """Read-only CI verdict per required workflow for one exact SHA (never raises on red)."""
+    runs = github_json(f'/repos/{repo}/actions/runs?branch=main&head_sha={sha}&per_page=100')
+    rows = runs.get('workflow_runs')
+    require(isinstance(rows, list) and len(rows) < 100, 'EXACT_HEAD_WORKFLOW_RUNS_UNVERIFIED')
+    latest: dict[str, dict] = {}
+    for x in rows:
+        if (not isinstance(x, dict) or x.get('head_sha') != sha or x.get('head_branch') != 'main'
+                or not isinstance(x.get('name'), str) or not isinstance(x.get('id'), int)):
+            continue
+        if x['name'] not in latest or x['id'] > latest[x['name']]['id']:
+            latest[x['name']] = x
+    out: dict[str, str] = {}
+    for name in required:
+        run = latest.get(name)
+        if run is None:
+            out[name] = 'ABSENT'
+        elif run.get('status') != 'completed':
+            out[name] = 'PENDING'
+        else:
+            out[name] = 'PASS' if run.get('conclusion') == 'success' else 'FAIL'
+    return out
+
+
+def codebridge_live_from_updater() -> tuple[str, str] | None:
+    """Last 'version X, sequence N' line the signed stable updater printed (read-only journal)."""
+    try:
+        result = subprocess.run(['/usr/bin/journalctl', '-u', CB_UPDATER_UNIT, '-n', '60', '--no-pager', '-o', 'cat'],
+                                capture_output=True, text=True, timeout=20, cwd='/',
+                                env={'PATH': '/usr/bin:/bin', 'LANG': 'C', 'LC_ALL': 'C'}, check=False)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    found = CB_UPDATER_LINE.findall(result.stdout or '')
+    return (found[-1][0], found[-1][1]) if found else None
+
+
+def run_status(project: str) -> None:
+    """Read-only release status: main HEAD, exact-head CI, what is live. Never mutates anything."""
+    spec = PROJECTS[project]
+    repo = spec['repo']
+    head = github_json(f'/repos/{repo}/git/ref/heads/main').get('object', {}).get('sha')
+    require(isinstance(head, str) and bool(SHA.fullmatch(head)), 'MAIN_HEAD_UNVERIFIED')
+    tag = project.upper().replace('-', '_')
+    print(f'{tag}_MAIN_HEAD={head}')
+    ci = ci_summary(repo, head, spec['required_workflows'])
+    for name, verdict in ci.items():
+        print('CI_' + re.sub(r'[^A-Z0-9]+', '_', name.upper()).strip('_') + '=' + verdict)
+    print('CI_ALL=' + ('GREEN' if all(v == 'PASS' for v in ci.values()) else 'NOT_GREEN'))
+    if project == 'main-platform':
+        live = current_main_platform()
+        print('MAIN_PLATFORM_LIVE=' + live)
+        print('LIVE_MATCHES_MAIN_HEAD=' + ('YES' if live == 'platform-' + head[:12] else 'NO'))
+    else:
+        live_cb = codebridge_live_from_updater()
+        if live_cb is None:
+            print('CODEBRIDGE_LIVE=UNKNOWN_NO_UPDATER_LINE')
+        else:
+            print('CODEBRIDGE_LIVE_VERSION=' + live_cb[0])
+            print('CODEBRIDGE_LIVE_SEQUENCE=' + live_cb[1])
+        print('CODEBRIDGE_SIGNING=OWNER_OFFLINE_KEY_ON_P520')
+    print('FAST_RELEASE=STATUS_READ_ONLY')
+
+
 def require_installed_self() -> None:
     require(Path(__file__).resolve() == SELF and SELF.is_file(), 'REVIEWED_ROOT_INSTALL_REQUIRED')
     selfstat = SELF.lstat()
@@ -279,7 +346,7 @@ def require_installed_self() -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='KMJ Elite protected, project-adapter fast release')
     parser.add_argument('--project', help='fixed project ID (catalog to list)')
-    parser.add_argument('--action', choices=('catalog', 'inspect', 'prepare', 'release', 'post-activation', 'sign'),
+    parser.add_argument('--action', choices=('catalog', 'status', 'inspect', 'prepare', 'release', 'post-activation', 'sign'),
                         default='catalog')
     parser.add_argument('--sha', help='exact 40-character GitHub main commit SHA')
     parser.add_argument('--confirm', help='explicit owner confirmation for mutations')
@@ -299,6 +366,10 @@ def main(argv: list[str] | None = None) -> int:
     require(args.action in PROJECTS[args.project]['actions'], 'ACTION_NOT_APPROVED_FOR_PROJECT')
     require((args.action in ('prepare', 'release', 'post-activation', 'sign')) == (args.confirm == CONFIRM),
             'EXPLICIT_OWNER_APPROVAL_REQUIRED_OR_UNEXPECTED')
+    if args.action == 'status':
+        require(args.sha is None, 'STATUS_SHA_NOT_ALLOWED')
+        run_status(args.project)
+        return 0
     if args.action == 'inspect':
         require(args.sha is None, 'INSPECT_SHA_NOT_ALLOWED')
         if args.project == 'main-platform':

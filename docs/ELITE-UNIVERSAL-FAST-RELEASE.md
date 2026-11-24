@@ -106,6 +106,24 @@ CodeBridge release. Only the preexisting root-owned signed auto-release timer
 can eventually deploy reviewed signed artifacts and perform guarded rollback.
 The existing signed agent-update timer is separate from gateway release.
 
+## Read-only status (no approval needed)
+
+```bash
+kmj-fast-release --project main-platform --action status
+kmj-fast-release --project codebridge --action status
+```
+
+Prints the fixed repository's `main` HEAD, the exact-head CI verdict for every
+required workflow (`PASS`, `FAIL`, `PENDING`, `ABSENT`), and what is live:
+Main Platform's `platform-<sha12>` pointer and whether it matches `main`; for
+CodeBridge the version/sequence printed by the signed stable updater's last log
+line (`UNKNOWN_NO_UPDATER_LINE` if none, never guessed). It never reads or
+touches the signer, never needs `--confirm` or `--sha`, and changes nothing.
+CodeBridge signing stays an owner step on the offline-key PC
+(`scripts/RELEASE-CODEBRIDGE.cmd`); the elite `sign` adapter additionally needs
+an owner-installed on-host signer and key custody, which this status action does
+not require.
+
 ## Operator rules and evidence
 
 - Run on **KMJ-elite as root** only. Other hosts/identities are rejected.
