@@ -13,9 +13,9 @@ const MAX_LANES = 4;
 // and then build). Any other untracked or modified path still counts.
 const BUILD_DIR = ".kmj-codebridge-build";
 
-function git(root, args) {
+function git(root, args, { raw = false } = {}) {
   try {
-    return execFileSync(
+    const output = execFileSync(
       "git",
       ["--no-optional-locks", "-c", "core.hooksPath=/dev/null", ...args],
       {
@@ -33,7 +33,8 @@ function git(root, args) {
           GIT_OPTIONAL_LOCKS: "0",
         },
       },
-    ).trim();
+    );
+    return raw ? output : output.trim();
   } catch {
     fail("WORKTREE_GIT_FAILED");
   }
@@ -56,6 +57,25 @@ function directory(target) {
 function canonical(target) {
   const real = fs.realpathSync(target);
   return process.platform === "win32" ? real.toLowerCase() : real;
+}
+// Windows Git may use an 8.3 alias, while Node returns the long path.
+// Resolve the nearest existing ancestor using the native filesystem API;
+// append missing components without following a missing or unsafe leaf.
+function registryParentIdentity(target) {
+  if (process.platform !== "win32") return target;
+  const missing = [];
+  let current = target;
+  for (;;) {
+    try {
+      return path.join(fs.realpathSync.native(current), ...missing);
+    } catch (error) {
+      if (error.code !== "ENOENT" && error.code !== "ENOTDIR") throw error;
+      const parent = path.dirname(current);
+      if (parent === current) throw error;
+      missing.unshift(path.basename(current));
+      current = parent;
+    }
+  }
 }
 function source(root) {
   const safe = directory(root);
@@ -164,40 +184,63 @@ export class WorktreeLanes {
     } catch {
       return result("SOURCE_UNAVAILABLE_REVIEW_REQUIRED");
     }
-    const parent = path.join(this.base, project);
+    let parent = path.join(this.base, project);
     let names = [];
     try {
-      if (exists(this.base) && exists(parent)) {
-        directory(this.base);
-        directory(parent);
-        names = fs.readdirSync(parent);
+      if (exists(this.base)) {
+        parent = path.join(directory(this.base), project);
+        if (exists(parent)) {
+          parent = directory(parent);
+          names = fs.readdirSync(parent);
+        }
       }
     } catch {
       return result("PRIVATE_LANE_ROOT_UNSAFE_REVIEW_REQUIRED");
     }
-    // A failed git worktree remove can leave a stale registration while the
-    // directory is already gone. Read Git's own registry, never prune it.
-    // Compare only direct children under the private project lane root.
-    // Git for Windows and Windows Node may represent the same worktree using
-    // different drive spelling, slash direction or letter case. Match the
-    // exact private base/project suffix, then require ONE safe lane component.
-    // Ambiguity only blocks recovery; it never grants filesystem access.
+    // Git's registry may retain a missing directory after an interrupted
+    // removal. Read its NUL-delimited porcelain records without trimming:
+    // newlines, spaces and other characters can be part of a pathname.
+    // Match the full private parent, not a suffix that another checkout
+    // could share. Resolve Windows aliases using existing ancestors,
+    // never the lane leaf, so missing and broken lanes remain visible.
     const fold = (value) =>
       process.platform === "win32" ? value.toLowerCase() : value;
-    const marker = `/${path.basename(this.base)}/${project}/`;
     const present = new Map(names.map((name) => [fold(name), name]));
     const registered = new Map();
     try {
-      const inventory = git(repo, ["worktree", "list", "--porcelain"]);
-      for (const line of inventory.split(/\r?\n/)) {
-        if (!line.startsWith("worktree ")) continue;
-        const printed = line.slice("worktree ".length).replaceAll("\\", "/");
-        const at = fold(printed).lastIndexOf(fold(marker));
-        if (at < 0) continue;
-        const relative = printed.slice(at + marker.length);
-        if (!LANE.test(relative))
+      const inventory = git(repo, ["worktree", "list", "--porcelain", "-z"], {
+        raw: true,
+      });
+      if (!inventory.endsWith("\0\0"))
+        return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
+      const privateParent = fold(registryParentIdentity(parent));
+      for (const record of inventory.slice(0, -2).split("\0\0")) {
+        const fields = record.split("\0");
+        const first = fields[0];
+        if (!first.startsWith("worktree "))
+          return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
+        const printed = first.slice("worktree ".length);
+        if (!path.isAbsolute(printed))
+          return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
+        const name = path.basename(printed);
+        const registeredParent = registryParentIdentity(path.dirname(printed));
+        const relative = path.relative(
+          privateParent,
+          fold(path.join(registeredParent, name)),
+        );
+        if (
+          relative === "" ||
+          relative === ".." ||
+          relative.startsWith(".." + path.sep) ||
+          path.isAbsolute(relative)
+        )
+          continue;
+        if (relative.includes(path.sep) || !LANE.test(name))
           return result("REGISTERED_LANE_NAME_UNSAFE_REVIEW_REQUIRED");
-        registered.set(fold(relative), relative);
+        const key = fold(name);
+        if (registered.has(key))
+          return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
+        registered.set(key, name);
       }
     } catch {
       return result("WORKTREE_REGISTRY_UNAVAILABLE_REVIEW_REQUIRED");
