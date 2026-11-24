@@ -189,3 +189,51 @@ test("malformed catalog row denies before account key lookup", async () => {
   });
   assert.equal(keyReads, 0);
 });
+
+test("route evidence is revalidated after asynchronous account lookup", async () => {
+  let changed = false;
+  for (const drift of ["membership", "pin", "expired"]) {
+    changed = false;
+    const replacement = ["other/new:free"];
+    await assert.rejects(
+      run({
+        readManifest: async () =>
+          changed && drift === "pin"
+            ? manifest({
+                models: replacement,
+                sha256: manifestDigest(replacement),
+              })
+            : manifest(),
+        readLiveChainMembers: async () => {
+          if (changed && drift === "expired")
+            throw new Error("CHAIN_SNAPSHOT_UNUSABLE");
+          const ids = changed && drift === "membership" ? replacement : IDS;
+          return ids.map((modelId) => ({ platform: "openrouter", modelId }));
+        },
+        fetchOpenRouterKey: async () => {
+          changed = true;
+          return key();
+        },
+      }),
+      /ZERO_COST_NOT_ATTESTED|CHAIN_SNAPSHOT_UNUSABLE/,
+    );
+  }
+});
+
+test("unchanged pins and membership are each read twice on successful proof", async () => {
+  let pinReads = 0;
+  let memberReads = 0;
+  const proof = await run({
+    readManifest: async () => {
+      pinReads++;
+      return manifest();
+    },
+    readLiveChainMembers: async () => {
+      memberReads++;
+      return IDS.map((modelId) => ({ platform: "openrouter", modelId }));
+    },
+  });
+  assert.equal(proof.routeBindingVerified, true);
+  assert.equal(pinReads, 2);
+  assert.equal(memberReads, 2);
+});
