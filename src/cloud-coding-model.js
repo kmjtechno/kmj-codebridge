@@ -33,7 +33,10 @@ export function createVerifiedFreeCloudCodingModel({
     activeRequest: false,
     models: [],
   });
-  const getClient = () => (client ??= createClient());
+  // The trusted client repeats this live consent check immediately before
+  // POST, including after asynchronous provider billing verification.
+  const getClient = () =>
+    (client ??= createClient({ authorizeGeneration: approved }));
   return {
     async status() {
       if (!approved()) return unavailable();
