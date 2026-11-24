@@ -24,8 +24,14 @@ test("hosted validation failure emits only safe stage, never a private config va
   assert.equal(result.status, 1);
   assert.match(result.stderr, /SAFE_STARTUP_STAGE=CONFIG_VALIDATION/);
   assert.match(result.stderr, /Hosted startup failed/);
-  assert.doesNotMatch(result.stderr + result.stdout, /DO_NOT_PRINT_PRIVATE_OWNER_CONFIG_123456/);
-  assert.doesNotMatch(result.stderr, /\bAuthorization\b|\btokenEnv\b|\bpassword\b/);
+  assert.doesNotMatch(
+    result.stderr + result.stdout,
+    /DO_NOT_PRINT_PRIVATE_OWNER_CONFIG_123456/,
+  );
+  assert.doesNotMatch(
+    result.stderr,
+    /\bAuthorization\b|\btokenEnv\b|\bpassword\b/,
+  );
 });
 
 test("hosted port collision emits runtime stage without error details or config", async (t) => {
@@ -54,6 +60,12 @@ test("hosted port collision emits runtime stage without error details or config"
   assert.equal(result.status, 1);
   assert.match(result.stderr, /SAFE_STARTUP_STAGE=GATEWAY_RUNTIME/);
   assert.match(result.stderr, /Hosted startup failed/);
-  assert.doesNotMatch(result.stderr + result.stdout, /DO_NOT_PRINT_OWNER_JWKS_789012/);
-  assert.doesNotMatch(result.stderr, /\bEADDRINUSE\b|\bpassword\b|\btokenEnv\b/);
+  assert.doesNotMatch(
+    result.stderr + result.stdout,
+    /DO_NOT_PRINT_OWNER_JWKS_789012/,
+  );
+  assert.doesNotMatch(
+    result.stderr,
+    /\bEADDRINUSE\b|\bpassword\b|\btokenEnv\b/,
+  );
 });
