@@ -1,4 +1,5 @@
 import { requestRenewal } from "./renewal.js";
+import { loadPilotSigner, pilotReceiptMessage } from "./hosted-metering-pilot.js";
 import { readJsonLimited } from "./http.js";
 import fs from "node:fs";
 import path from "node:path";
@@ -135,6 +136,7 @@ export async function startAgent(
   // Validate the gateway's credential source before acquiring an agent lock,
   // starting workers, or contacting the network. No credential is logged.
   const gatewayCredential = await resolveAgentGatewayCredential(c);
+  const receiptSigner = await loadPilotSigner(c);
   const url = new URL(c.gateway);
   if (
     url.protocol !== "https:" &&
@@ -519,7 +521,12 @@ export async function startAgent(
         if (work) {
           await activity.track(async () => {
             let result;
+            let receiptMessage;
             try {
+              if (work.metering !== undefined) {
+                if (!receiptSigner) throw Error("HOSTED_RECEIPT_SIGNER_MISSING");
+                receiptMessage = pilotReceiptMessage(work.metering, work, c);
+              }
               const output = await activity.run(() =>
                 dispatch(work.tool, work.args, work.permissions),
               );
@@ -534,7 +541,13 @@ export async function startAgent(
                 ],
               };
             }
-            await post("/agent/result", { id: work.id, result });
+            await post("/agent/result", {
+              id: work.id,
+              result,
+              ...(receiptMessage && !result.isError
+                ? { receiptSignature: receiptSigner(receiptMessage) }
+                : {}),
+            });
           });
         }
       } catch (error) {
