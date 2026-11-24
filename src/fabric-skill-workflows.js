@@ -202,6 +202,108 @@ const SKILLS = Object.freeze([
       "cross-platform CI",
     ],
   },
+  {
+    id: "node-mcp-engineering",
+    title: "Node.js and MCP protocol engineering",
+    task: "code",
+    signals: [
+      /\bnode\.js\b/i,
+      /\bnodejs\b/i,
+      /\bmcp protocol\b/i,
+      /package-lock\.json/i,
+    ],
+    workflow: [
+      "confirm Node version, module format and MCP schema compatibility",
+      "trace async lifecycle, cancellation and trust boundaries",
+      "add protocol and failure-path regressions",
+      "run approved Node checks and exact-head client CI",
+    ],
+    evidence: [
+      "Node and protocol versions",
+      "negative protocol and lifecycle tests",
+      "client and platform CI",
+    ],
+  },
+  {
+    id: "python-engineering",
+    title: "Python typing and test engineering",
+    task: "code",
+    signals: [/\bpython\b/i, /\bpytest\b/i, /pyproject\.toml/i, /\.py\b/i],
+    workflow: [
+      "confirm interpreter, dependency lock and supported environments",
+      "trace typing, exception handling and resource lifetime",
+      "add focused deterministic tests without network dependencies",
+      "run approved Python lint, type and test profiles",
+    ],
+    evidence: [
+      "interpreter and locked dependencies",
+      "focused test and type-check results",
+      "supported platform receipts",
+    ],
+  },
+  {
+    id: "go-engineering",
+    title: "Go concurrency and service engineering",
+    task: "code",
+    signals: [/\bgolang\b/i, /\bgo test\b/i, /go\.mod/i, /\.go\b/i],
+    workflow: [
+      "confirm Go module and target toolchain versions",
+      "trace context cancellation, goroutines and error propagation",
+      "add bounded concurrency and service failure regressions",
+      "run approved Go tests, race checks and vet where supported",
+    ],
+    evidence: [
+      "Go version and module lock",
+      "concurrency regression receipts",
+      "target build and CI results",
+    ],
+  },
+  {
+    id: "dotnet-engineering",
+    title: ".NET and C# application engineering",
+    task: "code",
+    signals: [
+      /\.net\b/i,
+      /\bcsharp\b/i,
+      /\bc#(?=\W|$)/i,
+      /\.csproj\b/i,
+      /\.cs\b/i,
+    ],
+    workflow: [
+      "confirm SDK, target framework and project dependencies",
+      "trace async cancellation, disposal and authorization",
+      "add focused contract and failure-path tests",
+      "run approved dotnet build and test profiles",
+    ],
+    evidence: [
+      "SDK and target framework",
+      "unit and integration test receipts",
+      "platform compatibility results",
+    ],
+  },
+  {
+    id: "jvm-engineering",
+    title: "Java and Kotlin JVM engineering",
+    task: "code",
+    signals: [
+      /\bjava\b/i,
+      /\bkotlin\b/i,
+      /pom\.xml/i,
+      /build\.gradle(?:\.kts)?\b/i,
+      /\.(?:java|kt)\b/i,
+    ],
+    workflow: [
+      "confirm JDK, build tool and target runtime",
+      "trace nullability, thread safety and resource ownership",
+      "add deterministic compatibility and failure-path tests",
+      "run approved Maven or Gradle verification profiles",
+    ],
+    evidence: [
+      "JDK and build tool versions",
+      "regression and integration test receipts",
+      "target runtime compatibility",
+    ],
+  },
 ]);
 const FROZEN = SKILLS.map(({ signals, ...skill }) =>
   Object.freeze({

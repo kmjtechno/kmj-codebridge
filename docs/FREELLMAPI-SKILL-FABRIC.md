@@ -6,7 +6,7 @@ Status: source implementation candidate, not an enrolled-device activation, no l
 
 All **new skill-backed AI generation** flows through the _existing_ `freellmapi_generate` CodeBridge MCP tool on the authorized device. There is no direct OpenAI/Anthropic/Gemini/Codex/SDK model call, local Ollama fallback, separate swarm, shared secret copy, paid provider or new service.
 
-- Call `skill_recommendations({device,project,objective,changedFiles})`. Its existing `skills` output is preserved; `fabricSkills` adds nine original, bounded optional workflows.
+- Call `skill_recommendations({device,project,objective,changedFiles})`. Its existing `skills` output is preserved; `fabricSkills` adds fourteen original, bounded optional workflows.
 - To run an explicitly approved workflow, call `freellmapi_generate({device,project,skillId,prompt,localProcessingApproved:true,upstreamCloudApproved:true})`, only after the owner's permission and external source-transfer/data policy authorizations. The selected skill sets a deterministic `code` or `reasoning` task preference; FreeLLMAPI chooses only allowed, advertised `auto:<chain>` routes.
 - **The trusted chain verifier remains mandatory**. The existing FreeLLMAPI adapter denies all generation without current authenticated zero-cost, account, quota, pinned route and no-paid-fallback evidence. This proposal does not supply or fabricate that proof.
 - Output is **untrusted advice**, not applied code. Worktrees, fixed-gate tests, exact-head CI, owner approval and Elite signing remain independently enforced.
@@ -37,3 +37,13 @@ Do not remove production commands, historical signed-release workflows, P720 rol
 2. An authorized MCP run with synthetic verifier sends only to FreeLLMAPI loopback; invalid skill, denied grants or absent consent send no prompt.
 3. A separately verified real-owner FreeLLMAPI zero-cost account/route receipt and consent is required before any production inference.
 4. Track exact current branch SHA and CI; only a reviewed PR is eligible for merge, and merge is not agent activation or signed deployment.
+
+## Additional polyglot workflows
+
+- `node-mcp-engineering`: Node.js/MCP protocol and lifecycle verification.
+- `python-engineering`: Python typing, test isolation and dependency evidence.
+- `go-engineering`: Go service concurrency and cancellation.
+- `dotnet-engineering`: C#/.NET SDK and application contracts.
+- `jvm-engineering`: Java/Kotlin runtime and compatibility checks.
+
+These are advisory workflows selected from explicit language or manifest hints. They do not install toolchains, create grants, invoke commands or prove runtime support.
