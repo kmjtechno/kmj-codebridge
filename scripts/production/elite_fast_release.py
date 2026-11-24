@@ -232,7 +232,10 @@ def run_main_platform(action: str, sha: str) -> None:
         args.extend(['--post-activation', sha])
     else:
         args.append(sha)
-    receipt = invoke_fixed(args, 4500, {'PATH': '/usr/bin:/bin', 'HOME': '/root', 'LANG': 'C', 'LC_ALL': 'C'})
+    # Root-owned system dirs only. Ubuntu 24.04 ships runuser only in /usr/sbin and the pinned owner
+    # helper calls it by bare name; /usr/bin:/bin alone made post-activation exit 127.
+    receipt = invoke_fixed(args, 4500, {'PATH': '/usr/sbin:/usr/bin:/sbin:/bin', 'HOME': '/root',
+                                        'LANG': 'C', 'LC_ALL': 'C'})
     markers = {
         'prepare': 'APPROVAL_DONE_PREPARE_ONLY_ACTIVATE_THEN_RUN_POST_ACTIVATION',
         'release': 'CHAIN_EXIT=0',
