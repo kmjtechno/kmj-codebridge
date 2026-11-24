@@ -1412,3 +1412,63 @@ test("worker rechecks task grants at the real client POST boundary", async (t) =
     );
   }
 });
+
+test("cloud coding rejects same-size context bytes not present at the approved commit", async (t) => {
+  let outbound = 0;
+  const f = fixture(t, {
+    onStatus: () => {
+      throw new Error("LOCAL_MODEL_MUST_NOT_RUN");
+    },
+    cloudModel: () => ({
+      status: async () => ({
+        available: true,
+        activeRequest: false,
+        models: ["auto:code"],
+      }),
+      generate: async () => {
+        outbound++;
+        throw new Error("UNAPPROVED_SOURCE_TRANSFER");
+      },
+    }),
+  });
+  const config = f.project.autopilotCodingWorker;
+  config.inferenceRoute = "verified-free-cloud-only";
+  config.localProcessingApproved = false;
+  config.cloudProxyApproved = true;
+  config.cloudSourceTransferApproved = true;
+  config.model = "auto:code";
+  const task = f.enqueue();
+  const originalRead = fs.readSync;
+  let changed = false;
+  fs.readSync = (...args) => {
+    const count = originalRead(...args);
+    if (!changed && count > 0 && Buffer.isBuffer(args[1])) {
+      const chunk = args[1].subarray(0, count);
+      const position = chunk.indexOf("export const value = 1;");
+      if (position >= 0) {
+        chunk.write("export const value = 9;", position, "utf8");
+        changed = true;
+      }
+    }
+    return count;
+  };
+  try {
+    await f.makeWorker().tick();
+  } finally {
+    fs.readSync = originalRead;
+  }
+  assert.equal(changed, true);
+  assert.equal(outbound, 0);
+  assert.equal(f.generated(), 0);
+  assert.equal(f.starts.length, 0);
+  const record = f.journal.get(task.id, "repo");
+  assert.equal(record.state, "waiting");
+  assert.equal(
+    record.lastReason,
+    "LOCAL_CODING_CONTEXT_REJECTED_REVIEW_REQUIRED",
+  );
+  assert.equal(
+    fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+    "export const value = 1;\n",
+  );
+});
