@@ -159,6 +159,40 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     fail("HOSTED_CONFIG_INVALID");
   }
 }
+// Read-only shadow validation: no gateway start, network request, permission
+// mutation or disclosure of configuration values. Only constant reason codes.
+export function hostedOmniDeskOptInWitness(
+  text,
+  port = "10000",
+  env = process.env,
+) {
+  try {
+    const baseline = hostedConfig(text, port, {
+      ...env,
+      CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "false",
+    });
+    if (!baseline.github) return "GITHUB_BRIDGE_MISSING";
+    if (baseline.github.publicReadOnly) return "GITHUB_PUBLIC_READ_ONLY";
+    if (!baseline.github.tokenEnv) return "GITHUB_TOKEN_ENV_MISSING";
+    if (
+      !baseline.github.repositories.includes(EXACT_OMNIDESK_REPO) &&
+      baseline.github.repositories.length >= 100
+    )
+      return "GITHUB_REPOSITORY_LIMIT";
+    try {
+      hostedConfig(text, port, {
+        ...env,
+        CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "true",
+      });
+      return "SHADOW_VALIDATION_PASS";
+    } catch {
+      return "SHADOW_SCHEMA_REJECTED";
+    }
+  } catch {
+    return "BASELINE_VALIDATION_FAILED";
+  }
+}
+
 export async function startHostedGateway(text, port) {
   return startGateway(hostedConfig(text, port));
 }
