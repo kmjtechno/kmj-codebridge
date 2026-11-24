@@ -1271,3 +1271,99 @@ test("cloud coding never transfers source or task text containing credentials", 
     assert.equal(git(f.root, "rev-parse", "HEAD"), head, location);
   }
 });
+
+test("worker rechecks task grants at the real client POST boundary", async (t) => {
+  const scenarios = [
+    ["license execute", (_f, options) => (options.noExecute = true)],
+    ["license write", (_f, options) => (options.noWrite = true)],
+    ["license concurrency", (_f, options) => (options.concurrentJobs = 0)],
+    ["QA permission", (f) => (f.project.gates.check.autopilotCodingSafe = false)],
+    [
+      "approved recipe",
+      (f) => {
+        f.project.autopilotCodingWorker.recipes.feature.contextPaths = [
+          "README.md",
+        ];
+      },
+    ],
+    ["maintenance admission", (_f, options) => (options.paused = true)],
+    ["unchanged grants", null],
+  ];
+  for (const [reason, revoke] of scenarios) {
+    const options = {
+      onStatus: () => {
+        throw new Error("LOCAL_MODEL_MUST_NOT_RUN");
+      },
+    };
+    const f = fixture(t, options);
+    const config = f.project.autopilotCodingWorker;
+    config.inferenceRoute = "verified-free-cloud-only";
+    config.localProcessingApproved = false;
+    config.cloudProxyApproved = true;
+    config.cloudSourceTransferApproved = true;
+    config.model = "auto:code";
+    const now = 1_800_000_000_000;
+    let proofs = 0;
+    let posts = 0;
+    const model = createVerifiedFreeCloudCodingModel({
+      authorized: () => codingRouteApproved(config),
+      createClient: (settings) =>
+        createFreeLlmApiClient({
+          ...settings,
+          apiKey: "codebridge-test-key",
+          approvedFreeChains: ["auto:code"],
+          now: () => now,
+          verifyZeroCostChain: async ({ chain }) => {
+            proofs++;
+            await Promise.resolve();
+            if (proofs === 2 && revoke) revoke(f, options);
+            return {
+              source: "authenticated_provider_billing_and_route_binding",
+              chain,
+              routeBindingVerified: true,
+              accountNoChargeVerified: true,
+              noPaidFallback: true,
+              inputPriceUsdPerToken: 0,
+              outputPriceUsdPerToken: 0,
+              requestsRemaining: 1,
+              observedAtEpochMs: now,
+              expiresAtEpochMs: now + 1000,
+            };
+          },
+          request: async ({ method }) => {
+            if (method === "GET") return { data: [{ id: "auto:code" }] };
+            assert.equal(method, "POST");
+            posts++;
+            return {
+              choices: [
+                {
+                  message: { content: PATCH },
+                  finish_reason: "stop",
+                },
+              ],
+            };
+          },
+        }),
+    });
+    const worker = f.makeWorker();
+    worker.cloudModel = () => model;
+    const task = f.enqueue();
+    await worker.tick();
+    assert.equal(proofs, 2, reason);
+    assert.equal(f.generated(), 0, reason);
+    if (revoke) {
+      assert.equal(posts, 0, reason);
+      assert.equal(f.starts.length, 0, reason);
+      assert.equal(f.journal.get(task.id, "repo").state, "waiting", reason);
+      assert.deepEqual(f.lanes.status("repo", f.root).lanes, [], reason);
+    } else {
+      assert.equal(posts, 1, reason);
+      assert.equal(f.starts.length, 1, reason);
+    }
+    assert.equal(
+      fs.readFileSync(path.join(f.root, "src", "app.js"), "utf8"),
+      "export const value = 1;\n",
+      reason,
+    );
+  }
+});
