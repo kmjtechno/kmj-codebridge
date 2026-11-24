@@ -1,4 +1,4 @@
-import { hostedConfig } from "./hosted.js";
+import { hostedConfig, hostedOmniDeskOptInWitness } from "./hosted.js";
 import { startGateway } from "./gateway.js";
 // Fixed, non-secret lifecycle labels only. No error object, configuration,
 // token, repository list or stack trace is ever written to deployment logs.
@@ -8,6 +8,14 @@ try {
     process.env.CODEBRIDGE_GATEWAY_CONFIG,
     process.env.PORT ?? "10000",
   );
+  if (process.env.CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY === "false") {
+    console.log(
+      `SAFE_OMNIDESK_SHADOW=${hostedOmniDeskOptInWitness(
+        process.env.CODEBRIDGE_GATEWAY_CONFIG,
+        process.env.PORT ?? "10000",
+      )}`,
+    );
+  }
   startupStage = "GATEWAY_RUNTIME";
   const service = await startGateway(config);
   console.log("KMJ CodeBridge gateway started with OAuth required.");

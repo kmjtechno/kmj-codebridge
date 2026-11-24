@@ -1,7 +1,11 @@
 import http from "node:http";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { hostedConfig, startHostedGateway } from "../src/hosted.js";
+import {
+  hostedConfig,
+  hostedOmniDeskOptInWitness,
+  startHostedGateway,
+} from "../src/hosted.js";
 import { deployedCommit } from "../src/gateway.js";
 import { VERSION } from "../src/version.js";
 import { generateKeyPairSync } from "node:crypto";
@@ -240,6 +244,65 @@ test("hosted CloudOS and Calibration Studio owner opt-ins preserve both exact sc
     "kmjtechno/kmj-cloudos",
     "kmjtechno/KMJ-Calibration-Studio",
   ]);
+});
+
+test("OmniDesk shadow preflight classifies without changing the actual scope", () => {
+  const env = { CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "false" };
+  const before = { ...env };
+  const secured = {
+    ...config,
+    github: {
+      tokenEnv: "KMJ_PRIVATE_TEST_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge"],
+    },
+  };
+  const raw = JSON.stringify(secured);
+  assert.equal(
+    hostedOmniDeskOptInWitness(raw, "10000", env),
+    "SHADOW_VALIDATION_PASS",
+  );
+  assert.deepEqual(env, before);
+  assert.deepEqual(hostedConfig(raw, "10000", env).github.repositories, [
+    "kmjtechno/kmj-codebridge",
+  ]);
+});
+
+test("OmniDesk shadow preflight safely classifies unavailable GitHub modes", () => {
+  assert.equal(
+    hostedOmniDeskOptInWitness("invalid", "10000", {}),
+    "BASELINE_VALIDATION_FAILED",
+  );
+  assert.equal(
+    hostedOmniDeskOptInWitness(JSON.stringify(config), "10000", {}),
+    "GITHUB_BRIDGE_MISSING",
+  );
+  assert.equal(
+    hostedOmniDeskOptInWitness(JSON.stringify(config), "10000", {
+      CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+      CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+    }),
+    "GITHUB_PUBLIC_READ_ONLY",
+  );
+});
+
+test("OmniDesk shadow preflight preserves the exact repository capacity gate", () => {
+  const repositories = Array.from(
+    { length: 100 },
+    (_, i) => `kmjtechno/test-${i}`,
+  );
+  const secured = {
+    ...config,
+    github: { tokenEnv: "KMJ_PRIVATE_TEST_TOKEN", repositories },
+  };
+  assert.equal(
+    hostedOmniDeskOptInWitness(JSON.stringify(secured), "10000", {}),
+    "GITHUB_REPOSITORY_LIMIT",
+  );
+  repositories[99] = "kmjtechno/kmj-omnidesk";
+  assert.equal(
+    hostedOmniDeskOptInWitness(JSON.stringify(secured), "10000", {}),
+    "SHADOW_VALIDATION_PASS",
+  );
 });
 
 test("hosted OmniDesk owner opt-in allows only the exact repository and preserves existing grants", () => {
