@@ -220,8 +220,7 @@ export function inspectBlockers({
 
   const blockers = [];
   if (
-    windowsSupervisorStatus?.update?.reason ===
-    "WINDOWS_UPDATE_NOT_IMPLEMENTED"
+    windowsSupervisorStatus?.update?.reason === "WINDOWS_UPDATE_NOT_IMPLEMENTED"
   )
     blockers.push(
       issue("WINDOWS_UPDATE_NOT_IMPLEMENTED", {
