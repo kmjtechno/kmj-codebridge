@@ -2486,6 +2486,7 @@ export function createDispatcher(
                 configured: Boolean(config.supervisorSocket),
               });
       let doctorSupervisorVerified = false;
+      let doctorWindowsSupervisorStatus = null;
       if (
         [
           "SOCKET_PRESENT_UNVERIFIED",
@@ -2506,6 +2507,12 @@ export function createDispatcher(
                 status?.subState === "running" &&
                 Number.isSafeInteger(status?.mainPid) &&
                 status.mainPid > 0;
+          if (
+            doctorSupervisorVerified &&
+            doctorSocketObservation.state ===
+              "WINDOWS_PIPE_CONFIGURED_UNVERIFIED"
+          )
+            doctorWindowsSupervisorStatus = status;
         } catch {
           // No warning payload, secrets, or false-positive health claims.
           doctorSupervisorVerified = false;
@@ -2554,6 +2561,7 @@ export function createDispatcher(
                 ),
                 supervisorObservation: doctorSocketObservation,
                 supervisorHealthVerified: doctorSupervisorVerified,
+                windowsSupervisorStatus: doctorWindowsSupervisorStatus,
                 workerConfiguration: {
                   gate: p.autopilotGateWorker?.enabled === true,
                   repair: p.autopilotRepairWorker?.enabled === true,

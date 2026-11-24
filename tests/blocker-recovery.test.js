@@ -361,6 +361,59 @@ test("Windows native pipe is not conflated with unsupported Linux socket", () =>
   assert.match(verified.supervisor.note, /does not prove/);
 });
 
+test("authenticated Windows status surfaces missing updater and process identity independently", () => {
+  const status = {
+    service: "agent",
+    platform: "win32",
+    supervisor: "windows-native",
+    installed: true,
+    state: "unknown",
+    restart: { supported: false },
+    update: { supported: false, reason: "WINDOWS_UPDATE_NOT_IMPLEMENTED" },
+    activeProcessRuntime: {
+      verified: false,
+      reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+    },
+  };
+  const observation = {
+    state: "WINDOWS_PIPE_CONFIGURED_UNVERIFIED",
+    authenticated: false,
+    noServiceMutation: true,
+  };
+  const input = {
+    supervisorConfigured: true,
+    supervisorObservation: observation,
+    supervisorHealthVerified: true,
+    windowsSupervisorStatus: status,
+  };
+  const result = inspectBlockers(input);
+  assert.equal(result.supervisor.connectionVerified, true);
+  assert.ok(
+    result.blockers.some((b) => b.code === "WINDOWS_UPDATE_NOT_IMPLEMENTED"),
+  );
+  assert.ok(
+    result.blockers.some(
+      (b) => b.code === "WINDOWS_PROCESS_IDENTITY_NOT_CORRELATED",
+    ),
+  );
+  assert.equal(result.productionOrBillingModified, false);
+  assert.throws(
+    () => inspectBlockers({ ...input, supervisorHealthVerified: false }),
+    /INVALID_WINDOWS_SUPERVISOR_LIVE_EVIDENCE/,
+  );
+  assert.throws(
+    () =>
+      inspectBlockers({
+        ...input,
+        supervisorObservation: {
+          ...observation,
+          state: "SOCKET_PRESENT_UNVERIFIED",
+        },
+      }),
+    /INVALID_WINDOWS_SUPERVISOR_LIVE_EVIDENCE/,
+  );
+});
+
 test("Windows connection doctor validates native pipe response without starting tasks", async (t) => {
   if (process.platform !== "win32") return;
   let calls = 0;
@@ -375,7 +428,14 @@ test("Windows connection doctor validates native pipe response without starting 
         installed: true,
         state: "unknown",
         restart: { supported: false },
-        update: { supported: false },
+        update: {
+          supported: false,
+          reason: "WINDOWS_UPDATE_NOT_IMPLEMENTED",
+        },
+        activeProcessRuntime: {
+          verified: false,
+          reason: "PROCESS_IDENTITY_NOT_CORRELATED",
+        },
       };
     },
   };
@@ -389,6 +449,16 @@ test("Windows connection doctor validates native pipe response without starting 
   );
   assert.equal(report.blockerRecovery.autonomousCodingProven, false);
   assert.equal(report.blockerRecovery.productionOrBillingModified, false);
+  assert.ok(
+    report.blockerRecovery.blockers.some(
+      (b) => b.code === "WINDOWS_UPDATE_NOT_IMPLEMENTED",
+    ),
+  );
+  assert.ok(
+    report.blockerRecovery.blockers.some(
+      (b) => b.code === "WINDOWS_PROCESS_IDENTITY_NOT_CORRELATED",
+    ),
+  );
   supervisor.request = async () => ({ service: "agent", platform: "linux" });
   const refused = await dispatch("connection_doctor", scope, ["read"]);
   assert.equal(refused.blockerRecovery.supervisor.connectionVerified, false);
