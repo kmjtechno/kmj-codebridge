@@ -163,6 +163,20 @@ if(k.asymmetricKeyType!=='ed25519'||fingerprint!==x.pin||sig.length!==64||
     run([str(node), "-e", js], timeout=30, input_bytes=payload)
 
 
+def archive_relative(name, stem, is_dir):
+    """Path of an archive member below the signed prefix.
+
+    `git archive --prefix=stem/` stores the top directory as its own entry, and
+    tarfile reports it as `stem` without the trailing slash. That one entry is
+    the root and maps to ""; every other member must live under `stem/`.
+    """
+    if name == stem:
+        need(is_dir, "ARCHIVE_PREFIX_UNEXPECTED")
+        return ""
+    need(name.startswith(stem + "/"), "ARCHIVE_PREFIX_UNEXPECTED")
+    return name[len(stem) + 1:]
+
+
 def verify_archive_tree(source, archive_bytes, stem):
     """Compare every signed Git archive entry against the immutable installed files.
 
@@ -177,9 +191,7 @@ def verify_archive_tree(source, archive_bytes, stem):
     files_seen = set()
     with tarfile.open(fileobj=io.BytesIO(archive_bytes), mode="r:gz") as archive:
         for member in archive:
-            need(member.name.startswith(stem + "/"),
-                 "ARCHIVE_PREFIX_UNEXPECTED")
-            relative = member.name[len(stem) + 1:]
+            relative = archive_relative(member.name, stem, member.isdir())
             if not relative:
                 continue
             parts = PurePosixPath(relative).parts
