@@ -3,7 +3,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { generateKeyPairSync } from "node:crypto";
 import { startHostedGateway } from "../src/hosted.js";
-import { APPROVED_ICON_URL } from "../src/branded-status.js";
+import {
+  APPROVED_ICON_URL,
+  KMJ_STATUS_RESOURCE_URI,
+} from "../src/branded-status.js";
 import { definitions } from "../src/tools.js";
 
 const { publicKey } = generateKeyPairSync("ed25519");
@@ -118,6 +121,20 @@ test("locked KMJ icon is present on initialize AND read/write tool catalog by de
       .destructiveHint,
     true,
   );
+});
+
+test("OAuth discovery preserves both portable MCP Apps UI and security metadata", async () => {
+  const { tools } = await verifyCatalog();
+  const status = tools.find((tool) => tool.name === "render_codebridge_status");
+  assert.deepEqual(status._meta.ui, { resourceUri: KMJ_STATUS_RESOURCE_URI });
+  assert.equal(status._meta["openai/outputTemplate"], KMJ_STATUS_RESOURCE_URI);
+  assert.deepEqual(status._meta.securitySchemes, status.securitySchemes);
+  assert.deepEqual(status.securitySchemes, [
+    { type: "oauth2", scopes: ["codebridge:read"] },
+  ]);
+  const write = tools.find((tool) => tool.name === "write_file");
+  assert.equal(write._meta.ui, undefined);
+  assert.deepEqual(write._meta.securitySchemes, write.securitySchemes);
 });
 
 test("operator validated custom HTTPS icon continues to override the locked default", async () => {
