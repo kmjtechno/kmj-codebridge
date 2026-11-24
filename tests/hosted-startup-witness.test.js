@@ -1,7 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { createServer } from "node:net";
 import { fileURLToPath } from "node:url";
 
 const cli = fileURLToPath(new URL("../src/hosted-cli.js", import.meta.url));
@@ -34,11 +33,7 @@ test("hosted validation failure emits only safe stage, never a private config va
   );
 });
 
-test("hosted port collision emits runtime stage without error details or config", async (t) => {
-  const blocker = createServer();
-  await new Promise((resolve) => blocker.listen(0, "127.0.0.1", resolve));
-  t.after(() => blocker.close());
-  const port = blocker.address().port;
+test("hosted duplicate identity emits runtime stage without private details", () => {
   const privateMarker = "DO_NOT_PRINT_OWNER_JWKS_789012";
   const candidate = {
     allowedHosts: ["bridge.example"],
@@ -48,13 +43,16 @@ test("hosted port collision emits runtime stage without error details or config"
       jwksUri: "https://bridge.example/jwks.json",
     },
     users: [],
-    agents: [],
+    agents: [
+      { id: "d1", tenant: "t1", tokenHash: "a".repeat(64) },
+      { id: "d1", tenant: "t1", tokenHash: "b".repeat(64) },
+    ],
     // Non-secret sentinel intentionally omitted from schema: never log it.
     privateProbeMarker: privateMarker,
   };
   const result = runHosted({
     CODEBRIDGE_GATEWAY_CONFIG: JSON.stringify(candidate),
-    PORT: String(port),
+    PORT: "0",
     CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "false",
   });
   assert.equal(result.status, 1);
@@ -66,6 +64,6 @@ test("hosted port collision emits runtime stage without error details or config"
   );
   assert.doesNotMatch(
     result.stderr,
-    /\bEADDRINUSE\b|\bpassword\b|\btokenEnv\b/,
+    /\bDUPLICATE_IDENTITY\b|\bpassword\b|\btokenEnv\b/,
   );
 });
