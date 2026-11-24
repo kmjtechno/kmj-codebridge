@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { buildChatWorkspaceOpen } from "../src/chat-workspace-open.js";
 
-test("gateway intercepts workspace open and reuses only four scoped read tools", () => {
+test("gateway intercepts workspace open and reuses scoped read tools", () => {
   const source = fs.readFileSync(
     new URL("../src/gateway.js", import.meta.url),
     "utf8",
@@ -37,7 +37,7 @@ test("gateway intercepts workspace open and reuses only four scoped read tools",
   assert.match(source, /if \(name === "chat_workspace_open"\)/);
   assert.match(
     source,
-    /const result = await getChatWorkspaceOpen\(user, args\)/,
+    /const result = await withProgress\(\(\) =>\s*getChatWorkspaceOpen\(user, args\),\s*\)/,
   );
 });
 

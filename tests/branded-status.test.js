@@ -19,7 +19,14 @@ const state = () =>
     autopilot: {
       ok: true,
       value: {
-        counts: { queued: 2, waiting: 1 },
+        counts: {
+          queued: 2,
+          running: 0,
+          waiting: 1,
+          succeeded: 0,
+          failed: 0,
+          cancelled: 0,
+        },
         next: { id: "task-1", objective: "SECRET_DONT_OUTPUT" },
       },
     },
@@ -31,7 +38,7 @@ const state = () =>
 test("minimal reusable work brief excludes objectives and large Git output", () => {
   const x = state();
   assert.equal(x.product, "KMJ CodeBridge");
-  assert.equal(x.git.branch, "feat/branch...origin/feat/branch");
+  assert.equal(x.git.branch, "feat/branch");
   assert.equal(x.git.dirty, true);
   assert.equal(x.nextReadyTaskId, "task-1");
   assert.equal(x.availableAuthorizedSlots, 1);
@@ -98,4 +105,21 @@ test("unavailable receipt evidence cannot masquerade as success", () => {
   const text = compactStatusText(x);
   assert.match(text, /Recent jobs: NOT VERIFIED/);
   assert.doesNotMatch(text, /SUCCEEDED/);
+});
+
+test("malformed counts and negative capacity cannot invent zero or ready slots", () => {
+  const x = compactWorkBrief({
+    device: "d",
+    project: "p",
+    git: { ok: true, value: { status: "## main\n T file.txt\n" } },
+    autopilot: { ok: true, value: { counts: { queued: 1 } } },
+    capacity: {
+      ok: true,
+      value: { blocked: false, effectiveMaxConcurrent: 4, activeJobs: -1 },
+    },
+  });
+  assert.equal(x.tasks, null);
+  assert.equal(x.availableAuthorizedSlots, null);
+  assert.equal(x.evidence.tasks, false);
+  assert.equal(x.evidence.capacity, false);
 });

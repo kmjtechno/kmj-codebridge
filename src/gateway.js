@@ -1254,7 +1254,9 @@ export async function startGateway(rawConfig) {
       if (user && progressRequested(data, req.headers.accept)) {
         try {
           authorize(user, data.params.arguments, "read");
-          streamProgress = user.permissions.includes("read");
+          streamProgress =
+            allDefinitions[data.params.name]?.access === "read" &&
+            user.permissions.includes("read");
         } catch {
           // Denials retain the existing JSON transport and error handling.
         }
@@ -1334,6 +1336,14 @@ export async function startGateway(rawConfig) {
                   ],
                   ...insufficientScopeMeta(config.oauth, user, d.access),
                 };
+              const withProgress = async (operation) => {
+                if (!streamProgress) return operation();
+                authorize(user, args, "read");
+                await notifyProgress(extra, 1, "Collecting project evidence");
+                const result = await operation();
+                await notifyProgress(extra, 2, "Project evidence returned");
+                return result;
+              };
               if (name === "connection_overview") {
                 const memberships = user.memberships?.length
                   ? user.memberships
@@ -1579,14 +1589,18 @@ export async function startGateway(rawConfig) {
                 };
               }
               if (name === "compact_work_brief") {
-                const result = await getCompactWorkBrief(user, args);
+                const result = await withProgress(() =>
+                  getCompactWorkBrief(user, args),
+                );
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                   structuredContent: result,
                 };
               }
               if (name === "chat_workspace_open") {
-                const result = await getChatWorkspaceOpen(user, args);
+                const result = await withProgress(() =>
+                  getChatWorkspaceOpen(user, args),
+                );
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                   structuredContent: result,
@@ -1600,7 +1614,9 @@ export async function startGateway(rawConfig) {
                 };
               }
               if (name === "context_resume") {
-                const result = await getContextResume(user, args);
+                const result = await withProgress(() =>
+                  getContextResume(user, args),
+                );
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                   structuredContent: result,
@@ -1625,13 +1641,17 @@ export async function startGateway(rawConfig) {
                 };
               }
               if (name === "fast_context") {
-                const result = await fastContext(user, args);
+                const result = await withProgress(() =>
+                  fastContext(user, args),
+                );
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
               if (name === "fast_read_batch") {
-                const result = await fastReadBatch(user, args);
+                const result = await withProgress(() =>
+                  fastReadBatch(user, args),
+                );
                 return {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                 };
@@ -1648,7 +1668,7 @@ export async function startGateway(rawConfig) {
                   content: [{ type: "text", text: JSON.stringify(result) }],
                 };
               }
-              return await forward(user, name, args);
+              return await withProgress(() => forward(user, name, args));
             } catch (e) {
               return {
                 isError: true,
