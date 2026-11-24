@@ -161,7 +161,42 @@ export function validateCodingPatch(
   return { files: files.sort(), bytes: Buffer.byteLength(patch, "utf8") };
 }
 
-function readContext(root, recipe) {
+// Only the exact approved commit's regular blob may enter a cloud prompt.
+// Disable replacement objects so local replace refs cannot redefine that SHA.
+function committedCloudContext(root, expectedHead, file, bytes) {
+  const entry = git(root, [
+    "--no-replace-objects",
+    "ls-tree",
+    "-z",
+    expectedHead,
+    "--",
+    file,
+  ]).toString("utf8");
+  const match = /^(100644|100755) blob ([a-f0-9]{40})\t([^\0]+)\0$/.exec(
+    entry,
+  );
+  if (!match || match[3] !== file)
+    throw new Error("CODING_CONTEXT_COMMIT_PATH_UNSAFE");
+  const committed = git(
+    root,
+    ["--no-replace-objects", "cat-file", "blob", match[2]],
+    undefined,
+    MAX_CONTEXT_FILE_BYTES + 1,
+  );
+  if (committed.length > MAX_CONTEXT_FILE_BYTES || committed.includes(0))
+    throw new Error("CODING_CONTEXT_COMMIT_BLOB_UNSAFE");
+  // Git for Windows may materialize LF text as CRLF. Compare only that
+  // specific conversion and always send the immutable committed bytes.
+  const normalized =
+    process.platform === "win32"
+      ? Buffer.from(bytes.toString("utf8").replaceAll("\r\n", "\n"), "utf8")
+      : bytes;
+  if (!bytes.equals(committed) && !normalized.equals(committed))
+    throw new Error("CODING_CONTEXT_COMMIT_BYTES_MISMATCH");
+  return committed;
+}
+
+function readContext(root, recipe, cloudExpectedHead) {
   const { paths, contextPaths } = recipe;
   if (
     !Array.isArray(paths) ||
@@ -248,6 +283,8 @@ function readContext(root, recipe) {
       fs.closeSync(descriptor);
     }
     if (bytes.includes(0)) throw new Error("CODING_CONTEXT_BINARY");
+    if (cloudExpectedHead !== undefined)
+      bytes = committedCloudContext(rootReal, cloudExpectedHead, file, bytes);
     totalBytes += bytes.length;
     if (totalBytes > MAX_CONTEXT_BYTES)
       throw new Error("CODING_CONTEXT_LIMIT_EXCEEDED");
@@ -634,7 +671,11 @@ export class LocalFirstCodingWorker {
 
           let context;
           try {
-            context = readContext(lane.path, recipe);
+            context = readContext(
+              lane.path,
+              recipe,
+              cloud ? parsed.expectedHead : undefined,
+            );
           } catch {
             releaseLaneIfPristine();
             wait("LOCAL_CODING_CONTEXT_REJECTED_REVIEW_REQUIRED");
