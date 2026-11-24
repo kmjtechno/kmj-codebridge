@@ -246,6 +246,73 @@ test("hosted CloudOS and Calibration Studio owner opt-ins preserve both exact sc
   ]);
 });
 
+test("OmniDesk public-only opt-in preserves public mode and existing grants", () => {
+  const baseline = {
+    CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+    CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+  };
+  const raw = JSON.stringify(config);
+  const original = hostedConfig(raw, "10000", baseline);
+  const actual = hostedConfig(raw, "10000", {
+    ...baseline,
+    CODEBRIDGE_ENABLE_OMNIDESK_PUBLIC_READ_ONLY_REPOSITORY: "true",
+  });
+  assert.deepEqual(actual, {
+    ...original,
+    github: {
+      ...original.github,
+      repositories: ["kmjtechno/kmj-codebridge", "kmjtechno/kmj-omnidesk"],
+    },
+  });
+  assert.equal(actual.github.publicReadOnly, true);
+  assert.equal(actual.github.apiBase, "https://api.github.com/");
+  assert.equal(actual.github.tokenEnv, undefined);
+  assert.deepEqual(hostedConfig(raw, "10000", baseline), original);
+});
+
+test("OmniDesk public-only opt-in cannot activate or downgrade a private bridge", () => {
+  const optIn = {
+    CODEBRIDGE_ENABLE_OMNIDESK_PUBLIC_READ_ONLY_REPOSITORY: "true",
+  };
+  const raw = JSON.stringify(config);
+  assert.throws(
+    () => hostedConfig(raw, "10000", optIn),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  const secured = JSON.stringify({
+    ...config,
+    github: {
+      tokenEnv: "KMJ_PRIVATE_TEST_TOKEN",
+      repositories: ["kmjtechno/kmj-codebridge"],
+    },
+  });
+  assert.throws(
+    () => hostedConfig(secured, "10000", optIn),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  const publicMode = {
+    CODEBRIDGE_GITHUB_PUBLIC_READ_ONLY: "true",
+    CODEBRIDGE_GITHUB_REPOSITORIES: "kmjtechno/kmj-codebridge",
+  };
+  assert.throws(
+    () =>
+      hostedConfig(raw, "10000", {
+        ...publicMode,
+        ...optIn,
+        CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "true",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+  assert.throws(
+    () =>
+      hostedConfig(raw, "10000", {
+        ...publicMode,
+        CODEBRIDGE_ENABLE_OMNIDESK_PUBLIC_READ_ONLY_REPOSITORY: "TRUE",
+      }),
+    /HOSTED_CONFIG_INVALID/,
+  );
+});
+
 test("OmniDesk shadow preflight classifies without changing the actual scope", () => {
   const env = { CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY: "false" };
   const before = { ...env };

@@ -61,10 +61,19 @@ export function hostedConfig(text, port = "10000", env = process.env) {
     const calibrationOptIn =
       env.CODEBRIDGE_ENABLE_CALIBRATION_STUDIO_REPOSITORY;
     const omnideskOptIn = env.CODEBRIDGE_ENABLE_OMNIDESK_REPOSITORY;
-    for (const optIn of [cloudosOptIn, calibrationOptIn, omnideskOptIn]) {
+    const omnideskPublicReadOnlyOptIn =
+      env.CODEBRIDGE_ENABLE_OMNIDESK_PUBLIC_READ_ONLY_REPOSITORY;
+    for (const optIn of [
+      cloudosOptIn,
+      calibrationOptIn,
+      omnideskOptIn,
+      omnideskPublicReadOnlyOptIn,
+    ]) {
       if (optIn !== undefined && optIn !== "true" && optIn !== "false")
         fail("HOSTED_CONFIG_INVALID");
     }
+    if (omnideskOptIn === "true" && omnideskPublicReadOnlyOptIn === "true")
+      fail("HOSTED_CONFIG_INVALID");
     const github = parsed.github ?? hostedGitHubConfig(env);
     let userIntrospection = parsed.userIntrospection;
     const userIntrospectionEndpoint =
@@ -143,6 +152,24 @@ export function hostedConfig(text, port = "10000", env = process.env) {
         !config.github ||
         config.github.publicReadOnly ||
         !config.github.tokenEnv
+      )
+        fail("HOSTED_CONFIG_INVALID");
+      const existing = config.github.repositories;
+      const repositories = existing.includes(EXACT_OMNIDESK_REPO)
+        ? existing
+        : [...existing, EXACT_OMNIDESK_REPO];
+      config = gatewaySchema.parse({
+        ...config,
+        github: { ...config.github, repositories },
+      });
+    }
+    // Separate, default-off public-only grant for the public OmniDesk repo.
+    // Never promote anonymous access, attach credentials, or change existing
+    // read-only dispatch restrictions. Private-capable mode uses its own flag.
+    if (omnideskPublicReadOnlyOptIn === "true") {
+      if (
+        config.github?.publicReadOnly !== true ||
+        new URL(config.github.apiBase).href !== "https://api.github.com/"
       )
         fail("HOSTED_CONFIG_INVALID");
       const existing = config.github.repositories;
