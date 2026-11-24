@@ -239,11 +239,11 @@ favicon is out of scope for this phase of work and will be addressed
 separately.
 
 **Standards-compliant forward path.** The gateway advertises the existing
-approved, commit-pinned CodeBridge PNG by default through MCP
-`initialize.serverInfo.icons`, registered tool metadata, and the public
-`tools/list` catalog. Operators may override it using a validated
-public HTTPS `iconUrl`. This is an existing immutable reviewed repository
-asset, not a guessed icon path.
+approved, commit-pinned CodeBridge PNG through MCP
+`initialize.serverInfo.icons`. Registered tools and the public `tools/list`
+catalog use distinct embedded PNG category glyphs with the approved logo as
+fallback. An explicit validated public HTTPS `iconUrl` retains the existing
+uniform branding override. Glyphs identify operations, not success.
 
 ChatGPT and Claude may ignore MCP icons, cache earlier connector metadata, or
 display a generic native approval icon. CodeBridge cannot restyle the host's
