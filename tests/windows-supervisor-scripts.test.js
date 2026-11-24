@@ -28,7 +28,7 @@ test("install script is dry-run by default and never activates the runtime", () 
     /Set-Content\s+-LiteralPath\s+\$AgentConfig\b/,
   ])
     assert.doesNotMatch(install, forbidden, String(forbidden));
-  assert.match(install, /Disable-ScheduledTask/);
+  assert.match(install, /New-ScheduledTaskSettingsSet -Disable/);
   assert.match(install, /\.proposed/);
 });
 
@@ -116,7 +116,7 @@ test("prepared Windows supervisor restarts after reboot but is not activated by 
   assert.match(install, /New-ScheduledTaskTrigger -AtStartup/);
   assert.match(install, /-Trigger \$trigger/);
   assert.match(install, /-RestartCount 3 -RestartInterval/);
-  assert.match(install, /Disable-ScheduledTask/);
+  assert.match(install, /New-ScheduledTaskSettingsSet -Disable/);
   assert.doesNotMatch(install, /Enable-ScheduledTask|Start-ScheduledTask/);
 });
 
@@ -329,3 +329,34 @@ test("installer accepts bounded Windows task principals with internal spaces onl
   ])
     assert.equal(principal.test(name), false, JSON.stringify(name));
 });
+
+test("disabled task settings and exact registration readback precede agent proposal", () => {
+  const register = install.indexOf("Register-ScheduledTask -TaskName");
+  const verify = install.indexOf("SUPERVISOR_DISABLED_TASK_READBACK_FAILED");
+  const proposal = install.indexOf('$proposed = "$AgentConfig.proposed"');
+  assert.ok(register > 0 && verify > register && proposal > verify);
+  assert.ok(install.indexOf("SUPERVISOR_DISABLED_SETTINGS_REQUIRED") < register);
+  assert.ok(
+    install.indexOf("SUPERVISOR_TASK_ACTION_READBACK_MISMATCH") < proposal,
+  );
+  assert.doesNotMatch(install, /^Disable-ScheduledTask\s/m);
+});
+
+test(
+  "real Windows task settings object starts disabled without registering a task",
+  { skip: process.platform !== "win32" },
+  () => {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$ErrorActionPreference='Stop'; " +
+          "$s=New-ScheduledTaskSettingsSet -Disable -StartWhenAvailable; " +
+          "if($s.Enabled -ne $false){throw 'TASK_SETTINGS_ENABLED'}",
+      ],
+      { timeout: 20000, stdio: "pipe" },
+    );
+  },
+);
