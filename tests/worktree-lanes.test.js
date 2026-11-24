@@ -258,6 +258,52 @@ test("owner-set short lane base hosts lanes outside stateDir and rejects unsafe 
   assert.ok(legacy.path.startsWith(fs.realpathSync(x.state) + path.sep));
 });
 
+test("cleanup preserves ignored owner files outside the reserved build folder", (t) => {
+  const x = fixture(t);
+  fs.writeFileSync(path.join(x.repo, ".gitignore"), "owner-private/\n");
+  git(x.repo, "add", ".gitignore");
+  git(x.repo, "commit", "-qm", "ignore fixture");
+  const head = git(x.repo, "rev-parse", "HEAD");
+  const lanes = new WorktreeLanes(x.state);
+  const lane = lanes.prepare("project1", x.repo, "ignoredOwner", head);
+  const owner = path.join(lane.path, "owner-private");
+  const build = path.join(lane.path, ".kmj-codebridge-build");
+  fs.mkdirSync(owner);
+  fs.mkdirSync(build);
+  fs.writeFileSync(path.join(owner, "notes.txt"), "KEEP OWNER WORK\n");
+  fs.writeFileSync(path.join(build, "CMakeCache.txt"), "generated\n");
+  assert.equal(lanes.status("project1", x.repo).lanes[0].dirty, false);
+  assert.throws(
+    () => lanes.cleanup("project1", x.repo, "ignoredOwner", head),
+    /WORKTREE_HAS_UNSAVED_WORK/,
+  );
+  assert.equal(
+    fs.readFileSync(path.join(owner, "notes.txt"), "utf8"),
+    "KEEP OWNER WORK\n",
+  );
+  assert.equal(fs.existsSync(path.join(build, "CMakeCache.txt")), true);
+});
+
+test("cleanup refuses tracked content in the reserved build directory", (t) => {
+  const x = fixture(t);
+  const build = path.join(x.repo, ".kmj-codebridge-build");
+  fs.mkdirSync(build);
+  fs.writeFileSync(path.join(build, "tracked.txt"), "tracked owner work\n");
+  git(x.repo, "add", ".kmj-codebridge-build");
+  git(x.repo, "commit", "-qm", "tracked build fixture");
+  const head = git(x.repo, "rev-parse", "HEAD");
+  const lanes = new WorktreeLanes(x.state);
+  const lane = lanes.prepare("project1", x.repo, "trackedBuild", head);
+  const tracked = path.join(lane.path, ".kmj-codebridge-build", "tracked.txt");
+  fs.writeFileSync(tracked, "unsaved owner work\n");
+  assert.throws(
+    () => lanes.cleanup("project1", x.repo, "trackedBuild", head),
+    /WORKTREE_HAS_UNSAVED_WORK/,
+  );
+  assert.equal(fs.readFileSync(tracked, "utf8"), "unsaved owner work\n");
+  assert.equal(git(lane.path, "rev-parse", "HEAD"), head);
+});
+
 test("generated cmake build directory does not make a lane dirty and is removed on cleanup", (t) => {
   const x = fixture(t);
   const lanes = new WorktreeLanes(x.state);

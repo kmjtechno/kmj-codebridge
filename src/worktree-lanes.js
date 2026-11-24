@@ -354,6 +354,24 @@ export class WorktreeLanes {
     if (current.head !== expectedHead || current.dirty)
       fail("WORKTREE_HAS_UNSAVED_WORK");
     const target = path.join(this.folder(project), laneId);
+    // Git's ordinary worktree removal silently deletes ignored files.
+    // They may contain owner work, so verify them before removing anything.
+    // The dedicated build directory is the only existing exception, and
+    // it must not contain tracked paths in either HEAD or the index.
+    if (
+      git(target, ["ls-tree", "HEAD", "--", BUILD_DIR]) !== "" ||
+      git(target, ["ls-files", "--", BUILD_DIR]) !== "" ||
+      git(target, [
+        "status",
+        "--porcelain",
+        "--untracked-files=normal",
+        "--ignored=matching",
+        "--",
+        ".",
+        `:(exclude)${BUILD_DIR}`,
+      ]) !== ""
+    )
+      fail("WORKTREE_HAS_UNSAVED_WORK");
     // Only the generated build directory may remain; remove it as a real
     // directory (never through a link) so plain `worktree remove` can succeed.
     const build = path.join(target, BUILD_DIR);
