@@ -118,3 +118,39 @@ test("inherited evidence and hostile getters cannot forge activation proofs", ()
   // All-positive caller-controlled booleans have no authority to start work.
   assert.equal(evaluateCloudCodingAdmission(fixture()).allowed, false);
 });
+
+test("root evidence getters are rejected without invoking them", () => {
+  const input = fixture();
+  let reads = 0;
+  Object.defineProperty(input, "provider", {
+    get() {
+      reads++;
+      return fixture().provider;
+    },
+  });
+  assert.deepEqual(evaluateCloudCodingAdmission(input), {
+    allowed: false,
+    reason: "UNTRUSTED_EVIDENCE_FIELDS",
+  });
+  assert.equal(reads, 0);
+});
+
+test("validated descriptor values cannot be replaced by proxy get traps", () => {
+  const input = fixture();
+  input.provider.billingVerified = false;
+  let reads = 0;
+  const handler = {
+    get(target, key, receiver) {
+      reads++;
+      if (key === "billingVerified") return true;
+      return Reflect.get(target, key, receiver);
+    },
+  };
+  input.provider = new Proxy(input.provider, handler);
+  const root = new Proxy(input, handler);
+  assert.deepEqual(evaluateCloudCodingAdmission(root), {
+    allowed: false,
+    reason: "PROVIDER_ACCOUNT_UNVERIFIED",
+  });
+  assert.equal(reads, 0);
+});
