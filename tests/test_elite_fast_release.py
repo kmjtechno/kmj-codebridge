@@ -116,6 +116,21 @@ class ReleaseTest(unittest.TestCase):
             args = call.call_args.args[0]
             self.assertEqual(args, ['/bin/bash', str(release.MAIN_HELPER), '--prepare-only', SHA])
 
+    def test_main_helper_path_includes_root_sbin_for_runuser(self):
+        # Ubuntu 24.04 has no /usr/bin/runuser; the pinned owner helper calls a bare `runuser`.
+        # Without a root-owned sbin dir in PATH, post-activation exits 127 and is reported only
+        # as PINNED_OPERATOR_REFUSED_OR_FAILED. PATH must stay root-owned system dirs only.
+        marker = 'CHAIN_EXIT=0'
+        with patch.object(release, 'trusted_regular_file'), \
+             patch.object(release, 'current_main_platform', return_value='platform-' + SHA[:12]), \
+             patch.object(release, 'invoke_fixed', return_value=marker) as call:
+            release.run_main_platform('post-activation', SHA)
+            env = call.call_args.args[2]
+            dirs = env['PATH'].split(':')
+            self.assertIn('/usr/sbin', dirs)
+            self.assertTrue(all(d in ('/usr/sbin', '/usr/bin', '/sbin', '/bin') for d in dirs))
+            self.assertEqual(env['HOME'], '/root')
+
     def test_signer_requires_inspect_ready(self):
         with patch.object(release, 'trusted_regular_file'), \
              patch.object(release, 'verified_node24', return_value='/usr/bin/node'), \
