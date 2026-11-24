@@ -15,7 +15,9 @@ const request = {
 async function setup(t, enabled = true) {
   const realFetch = globalThis.fetch;
   t.mock.method(globalThis, "fetch", async (url, options) => {
-    if (String(url) === "https://platform.example/introspect")
+    if (String(url) === "https://platform.example/introspect") {
+      if (options?.headers?.authorization !== "Bearer " + agentToken)
+        return Response.json({ active: false }, { status: 401 });
       return Response.json({
         active: true,
         device_id: "desk1",
@@ -23,6 +25,7 @@ async function setup(t, enabled = true) {
         projects: ["project1"],
         permissions: ["read"],
       });
+    }
     return realFetch(url, options);
   });
   const gateway = await startGateway({
@@ -61,7 +64,19 @@ async function setup(t, enabled = true) {
 }
 
 test("private presence requires opt-in and an independent reader", async (t) => {
-  const { presence } = await setup(t);
+  const { post, presence } = await setup(t);
+  assert.equal((await post("/agent/health", reader, {})).status, 401);
+  assert.equal(
+    (
+      await post("/mcp", reader, {
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: "connection_overview", arguments: {} },
+      })
+    ).status,
+    401,
+  );
   assert.equal((await presence(request, userToken)).status, 401);
   assert.equal((await presence(request, agentToken)).status, 401);
   assert.equal(
@@ -72,7 +87,7 @@ test("private presence requires opt-in and an independent reader", async (t) => 
   assert.equal(
     (await presence(request, reader, { origin: "https://kmjtechno.com" }))
       .status,
-    404,
+    403,
   );
 });
 
