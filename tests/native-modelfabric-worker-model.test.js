@@ -78,7 +78,10 @@ test("native worker consumes fresh request-bound ticket without legacy calls", a
     authorizeRequest: () => true,
   });
   assert.equal(result.response, "patch");
-  assert.equal(normalizeModelReceipt(result.modelUsage).provider, "kmj-modelfabric");
+  assert.equal(
+    normalizeModelReceipt(result.modelUsage).provider,
+    "kmj-modelfabric",
+  );
   assert.equal(result.modelUsage.paidInference, null);
   assert.deepEqual(
     calls.map((c) => c.method),
