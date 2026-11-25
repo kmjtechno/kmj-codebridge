@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 from pathlib import Path
 import unittest
 from unittest.mock import patch
@@ -130,6 +131,12 @@ class ReleaseTest(unittest.TestCase):
             self.assertIn('/usr/sbin', dirs)
             self.assertTrue(all(d in ('/usr/sbin', '/usr/bin', '/sbin', '/bin') for d in dirs))
             self.assertEqual(env['HOME'], '/root')
+
+    def test_dispatcher_pin_matches_reviewed_signer_wrapper(self):
+        wrapper = MODULE.parent / 'elite-onehost-release.mjs'
+        self.assertEqual(hashlib.sha256(wrapper.read_bytes()).hexdigest(),
+                         release.SIGNER_SHA256)
+        self.assertIn('/opt/kmj-codebridge-node/bin/node', release.NODE_CANDIDATES)
 
     def test_signer_requires_inspect_ready(self):
         with patch.object(release, 'trusted_regular_file'), \

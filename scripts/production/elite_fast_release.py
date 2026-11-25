@@ -25,8 +25,8 @@ MAIN_HELPER = ROOT / 'owner-release-main-platform.sh'
 # Reviewed owner helper at kmj-main-platform 7d8cc8d9e5c5...
 MAIN_HELPER_SHA256 = '325b24d32ebcf01b42994276a7beb550ed72c69cb044f8ffab03db6f1e218cec'
 SIGNER = Path('/usr/local/libexec/kmj-codebridge-elite-signer/production/elite-onehost-release.mjs')
-# Independent immutable pin from CodeBridge root-only signer installation contract.
-SIGNER_SHA256 = 'cd3198b1f07ea5d24d4ac07c003a314fb76d7fdfea6bfa7c5cc4bf86dd2836c9'
+# Reviewed 2026-11-23 signer CI-gate upgrade; never trust a runtime-supplied hash.
+SIGNER_SHA256 = '9b291b59d5be85c1b050c89b8ec79b2ca8cb1ccdf59055717ecb54e068bcdc1e'
 RUNUSER = '/usr/sbin/runuser'
 SELF = ROOT / 'elite_fast_release.py'
 SHA = re.compile(r'^[0-9a-f]{40}$')
@@ -34,7 +34,7 @@ CONFIRM = 'OWNER_APPROVES_PINNED_FAST_RELEASE'
 GITHUB_API = 'https://api.github.com'
 ROOT_RELEASES = Path('/home/kmjprod/releases')
 CURRENT = Path('/home/kmjprod/current')
-NODE_CANDIDATES = ('/usr/local/bin/node', '/usr/bin/node', '/opt/node24/bin/node')
+NODE_CANDIDATES = ('/opt/kmj-codebridge-node/bin/node', '/usr/local/bin/node', '/usr/bin/node', '/opt/node24/bin/node')
 
 # Every supported project must have reviewed, fixed source and exact adapters.
 # A root CLI caller cannot register a new repository or select an executable.
