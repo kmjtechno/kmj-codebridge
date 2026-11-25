@@ -76,6 +76,7 @@ export function createNativeModelFabricWorkerModel({
         a?.source !== "kmj_native_provider_admission" ||
         a.request_digest !== requestDigest ||
         typeof a.ticket !== "string" ||
+        a.ticket.length !== 64 ||
         !/^[A-Za-z0-9]{64}$/.test(a.ticket) ||
         !Number.isSafeInteger(a.requests_remaining) ||
         a.requests_remaining < 1 ||
@@ -116,27 +117,45 @@ export function createNativeModelFabricWorkerModel({
   });
   let nextProbe = 0;
   let readyUntil = 0;
+  let activeRequest = false;
+  function snapshot() {
+    const available = !activeRequest && approved() && now() < readyUntil;
+    return {
+      available,
+      activeRequest,
+      models: available ? [MODEL] : [],
+    };
+  }
   return {
     async status() {
-      if (approved() && now() >= nextProbe) {
-        nextProbe = now() + 30_000;
+      if (activeRequest || !approved()) return snapshot();
+      if (now() >= nextProbe) {
+        activeRequest = true;
         readyUntil = 0;
-        const proof = await admission(randomBytes(32).toString("hex"));
-        if (proof && approved()) readyUntil = proof.expiresAtEpochMs;
+        try {
+          const proof = await admission(randomBytes(32).toString("hex"));
+          if (proof && approved()) readyUntil = proof.expiresAtEpochMs;
+        } finally {
+          nextProbe = now() + 30_000;
+          activeRequest = false;
+        }
       }
-      const available = approved() && now() < readyUntil;
-      return {
-        available,
-        activeRequest: false,
-        models: available ? [MODEL] : [],
-      };
+      return snapshot();
     },
     async generate(input) {
-      const result = await generation.generate(input);
-      return {
-        ...result,
-        modelUsage: nativeCloudCodingReceipt(),
-      };
+      if (activeRequest) throw new Error("NATIVE_MODEL_FABRIC_BUSY");
+      activeRequest = true;
+      readyUntil = 0;
+      try {
+        const result = await generation.generate(input);
+        return {
+          ...result,
+          modelUsage: nativeCloudCodingReceipt(),
+        };
+      } finally {
+        nextProbe = 0;
+        activeRequest = false;
+      }
     },
   };
 }
