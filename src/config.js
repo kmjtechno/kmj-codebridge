@@ -348,14 +348,25 @@ export const agentSchema = z.object({
               // files can be sent to the already-running loopback model.
               localProcessingApproved: z.boolean().default(false),
               inferenceRoute: z
-                .enum(["local-only", "verified-free-cloud-only"])
+                .enum([
+                  "local-only",
+                  "verified-free-cloud-only",
+                  "native-verified-free-cloud-only",
+                ])
                 .default("local-only"),
               // Separate owner consent for local proxy contact and transfer
               // of scoped repository source to remote cloud models.
               cloudProxyApproved: z.boolean().default(false),
+              nativeModelFabricApproved: z.boolean().default(false),
+              nativeTokenEnv: z
+                .string()
+                .regex(
+                  /^CODEBRIDGE_KMJ_MODELFABRIC_TOKEN(?:_[A-Z0-9_]{1,40})?$/,
+                )
+                .optional(),
               cloudSourceTransferApproved: z.boolean().default(false),
               model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
-              maxTokens: z.number().int().min(64).max(512).default(384),
+              maxTokens: z.number().int().min(64).max(4096).default(384),
               timeoutSeconds: z.number().int().min(5).max(90).default(45),
               recipes: z
                 .record(
@@ -412,10 +423,41 @@ export const agentSchema = z.object({
             })
             .strict()
             .superRefine((worker, ctx) => {
+              if (
+                worker.inferenceRoute !== "native-verified-free-cloud-only" &&
+                worker.maxTokens > 512
+              ) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  path: ["maxTokens"],
+                  message: "Non-native coding output limit is 512 tokens",
+                });
+              }
               if (worker.enabled) {
-                if (worker.inferenceRoute === "verified-free-cloud-only") {
+                if (
+                  worker.inferenceRoute === "native-verified-free-cloud-only"
+                ) {
+                  if (
+                    worker.localProcessingApproved ||
+                    worker.cloudProxyApproved ||
+                    !worker.nativeModelFabricApproved ||
+                    !worker.cloudSourceTransferApproved ||
+                    worker.model !== "modelfabric-auto" ||
+                    !worker.nativeTokenEnv
+                  ) {
+                    ctx.addIssue({
+                      code: z.ZodIssueCode.custom,
+                      path: ["inferenceRoute"],
+                      message:
+                        "Native coding requires explicit native and source-transfer grants, a scoped token environment name, and no legacy/local fallback",
+                    });
+                  }
+                } else if (
+                  worker.inferenceRoute === "verified-free-cloud-only"
+                ) {
                   if (
                     worker.localProcessingApproved === true ||
+                    worker.nativeModelFabricApproved === true ||
                     worker.cloudProxyApproved !== true ||
                     worker.cloudSourceTransferApproved !== true ||
                     !/^auto:[A-Za-z0-9_-]{1,20}$/.test(worker.model)
@@ -429,6 +471,7 @@ export const agentSchema = z.object({
                   }
                 } else if (
                   worker.localProcessingApproved !== true ||
+                  worker.nativeModelFabricApproved === true ||
                   worker.cloudProxyApproved === true ||
                   worker.cloudSourceTransferApproved === true
                 ) {

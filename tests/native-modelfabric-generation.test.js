@@ -9,6 +9,7 @@ const proof = ({ endpoint, policy, requestDigest }) => ({
   endpoint,
   policy,
   requestDigest,
+  admissionTicket: "t".repeat(64),
   accountNoChargeVerified: true,
   exactRouteBindingVerified: true,
   noPaidFallback: true,
@@ -80,6 +81,10 @@ test("native generation uses only fixed origin and bounded policy", async () => 
       );
       assert.equal(options.method, "POST");
       assert.equal(options.redirect, "error");
+      assert.equal(
+        options.headers["X-ModelFabric-Admission-Ticket"],
+        "t".repeat(64),
+      );
       assert.equal(JSON.parse(options.body).max_tokens, 4096);
       assert.equal(JSON.parse(options.body).stream, false);
       return Response.json(output);
