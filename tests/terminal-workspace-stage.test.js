@@ -102,3 +102,43 @@ test(
     );
   },
 );
+
+test(
+  "stage disposal removes only the owned directory and is idempotent",
+  { skip: process.platform !== "linux" },
+  (t) => {
+    const { options } = fixture(t);
+    const result = stageTerminalWorkspace(options);
+    const neighbor = path.join(options.stateDir, "neighbor");
+    fs.mkdirSync(neighbor);
+    assert.deepEqual(result.dispose(), {
+      removed: true,
+      alreadyDisposed: false,
+    });
+    assert.deepEqual(result.dispose(), {
+      removed: false,
+      alreadyDisposed: true,
+    });
+    assert.equal(fs.existsSync(result.directory), false);
+    assert.equal(fs.existsSync(neighbor), true);
+  },
+);
+
+test(
+  "stage disposal refuses a substituted directory",
+  { skip: process.platform !== "linux" },
+  (t) => {
+    const { options } = fixture(t);
+    const result = stageTerminalWorkspace(options);
+    fs.renameSync(result.directory, result.directory + "-original");
+    fs.mkdirSync(result.directory, { mode: 0o700 });
+    const marker = path.join(result.directory, "preserve.txt");
+    fs.writeFileSync(marker, "unrelated");
+    assert.throws(
+      () => result.dispose(),
+      /TERMINAL_STAGE_CLEANUP_IDENTITY_CHANGED/,
+    );
+    assert.equal(fs.readFileSync(marker, "utf8"), "unrelated");
+    assert.equal(fs.existsSync(result.directory + "-original"), true);
+  },
+);
