@@ -88,45 +88,31 @@ test(
       stateDir: state,
       projects: [{ id: "project-a", root: project }],
     };
-    const script = String.raw`
-$ErrorActionPreference = 'Stop'
-$sid = [Security.Principal.WindowsIdentity]::GetCurrent().User
-$acl = New-Object Security.AccessControl.DirectorySecurity
-$acl.SetOwner($sid)
-$acl.SetAccessRuleProtection($true, $false)
-$inherit = [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit'
-$propagate = [Security.AccessControl.PropagationFlags]::None
-$allow = [Security.AccessControl.AccessControlType]::Allow
-$ownerRule = New-Object Security.AccessControl.FileSystemAccessRule($sid, 'FullControl', $inherit, $propagate, $allow)
-$acl.AddAccessRule($ownerRule)
-if ($env:KMJ_TEST_BROAD -eq '1') {
-    $everyone = New-Object Security.Principal.SecurityIdentifier('S-1-1-0')
-    $rule = New-Object Security.AccessControl.FileSystemAccessRule($everyone, 'ReadAndExecute', $inherit, $propagate, $allow)
-    $acl.AddAccessRule($rule)
-}
-Set-Acl -LiteralPath $env:KMJ_TEST_CUSTODY -AclObject $acl
-`;
-    const setAcl = (broad) => {
-      const result = spawnSync(
-        "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe",
-        [
-          "-NoProfile",
-          "-NonInteractive",
-          "-EncodedCommand",
-          Buffer.from(script, "utf16le").toString("base64"),
-        ],
-        {
-          env: {
-            SystemRoot: "C:\\Windows",
-            KMJ_TEST_CUSTODY: custody,
-            KMJ_TEST_BROAD: broad ? "1" : "0",
-          },
-          timeout: 15000,
-          windowsHide: true,
-          stdio: "ignore",
-        },
-      );
+    const system32 = path.join(
+      process.env.SystemRoot ?? "C:\\Windows",
+      "System32",
+    );
+    const run = (exe, args) => {
+      const result = spawnSync(path.join(system32, exe), args, {
+        encoding: "utf8",
+        timeout: 30000,
+        windowsHide: true,
+      });
+      assert.equal(result.error?.code, undefined, "fixture command failed");
       assert.equal(result.status, 0, "fixture ACL setup failed");
+      return result.stdout;
+    };
+    const identity = run("whoami.exe", ["/user", "/fo", "csv", "/nh"]);
+    const sid = identity.match(/"(S-1-[0-9-]+)"\s*$/)?.[1];
+    assert.ok(sid, "fixture owner SID missing");
+    run("icacls.exe", [custody, "/grant:r", "*" + sid + ":(OI)(CI)F"]);
+    run("icacls.exe", [custody, "/inheritance:r"]);
+    const setAcl = (broad) => {
+      if (broad) {
+        run("icacls.exe", [custody, "/grant:r", "*S-1-1-0:(OI)(CI)RX"]);
+      } else {
+        run("icacls.exe", [custody, "/remove:g", "*S-1-1-0"]);
+      }
     };
     setAcl(true);
     assert.equal(privateWindowsReceiptPath(custody, true), false);
