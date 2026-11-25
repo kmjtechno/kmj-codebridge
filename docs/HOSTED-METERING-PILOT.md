@@ -8,6 +8,6 @@ This is a paired source change with Main Platform PR #1152, not a commercial rel
 - Keep `hostedMeteringPilot` absent and `hostedReceiptKeyFile` absent for ordinary production. No billable customer meter is activated.
 - Verify actual reservation, device signature, settlement, rejection of another tenant, and retry/transport loss on isolated PostgreSQL before considering activation. Unknown delivery retains reservations. Do not expose pilot counts as general customer usage.
 
-## POSIX provisioning helper
+## Local provisioning and owner proof
 
-On a separately approved device identity, the explicit `scripts/provision-hosted-receipt-key.js` helper creates or reuses a protected local key and emits only its public key and `OWNER_PIN_REQUIRED`. It neither mutates agent configuration nor enrolls the key remotely. Windows atomic private ACL creation and owner approval remain separate gates.
+On a separately approved device identity, the explicit `scripts/provision-hosted-receipt-key.js` helper creates or reuses a protected local key and emits only its public key and `OWNER_PIN_REQUIRED`. It neither mutates agent configuration nor enrolls the key remotely. Windows requires a pre-existing protected, current-user-owned directory and verifies SID-based ACLs before writing any private bytes. The optional fourth argument is the owner's five-minute challenge JSON; the helper emits only public key, detached proof and confirmation. No remote request or private key export occurs. Actual Windows ACL and owner enrollment QA remain required.

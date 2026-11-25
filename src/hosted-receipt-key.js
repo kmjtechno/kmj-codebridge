@@ -6,6 +6,7 @@ import {
   generateKeyPairSync,
 } from "node:crypto";
 import { resolveAgentGatewayCredential } from "./agent-gateway-credential.js";
+import { privateWindowsReceiptPath } from "./receipt-windows-custody.js";
 
 function inside(root, candidate) {
   const relative = path.relative(root, candidate);
@@ -17,10 +18,11 @@ function inside(root, candidate) {
   );
 }
 
-// POSIX-only creation in an already private operator-controlled directory.
-// Windows requires a separately reviewed atomic private DACL creation path.
+// Creation only in an already private operator-controlled directory.
+// Windows validates inherited custody before any private bytes are written.
 export async function provisionReceiptKey(config, filename) {
-  if (process.platform === "win32" || process.getuid?.() === undefined)
+  const windows = process.platform === "win32";
+  if (!windows && process.getuid?.() === undefined)
     throw Error("HOSTED_RECEIPT_PROVISIONING_PLATFORM_UNSUPPORTED");
   if (!path.isAbsolute(filename))
     throw Error("HOSTED_RECEIPT_KEY_PATH_INVALID");
@@ -28,12 +30,15 @@ export async function provisionReceiptKey(config, filename) {
   const parent = path.dirname(destination);
   const parentStat = fs.lstatSync(parent);
   if (
-    fs.realpathSync(parent) !== parent ||
+    path.relative(fs.realpathSync(parent), parent) !== "" ||
     !parentStat.isDirectory() ||
     parentStat.isSymbolicLink() ||
-    parentStat.uid !== process.getuid() ||
-    (parentStat.mode & 0o077) !== 0 ||
-    destination === config.gatewayTokenFile ||
+    (windows
+      ? !privateWindowsReceiptPath(parent, true)
+      : parentStat.uid !== process.getuid() ||
+        (parentStat.mode & 0o077) !== 0) ||
+    (config.gatewayTokenFile &&
+      path.relative(destination, config.gatewayTokenFile) === "") ||
     inside(path.resolve(config.stateDir), destination) ||
     config.projects.some((project) =>
       inside(fs.realpathSync(project.root), destination),
@@ -49,6 +54,8 @@ export async function provisionReceiptKey(config, filename) {
       .toString("base64");
     const fd = fs.openSync(destination, "wx", 0o600);
     try {
+      if (windows && !privateWindowsReceiptPath(destination))
+        throw Error("HOSTED_RECEIPT_KEY_ACL_UNSAFE");
       fs.writeFileSync(fd, encoded + "\n");
       fs.fsyncSync(fd);
       created = true;
@@ -58,7 +65,8 @@ export async function provisionReceiptKey(config, filename) {
   }
 
   const stat = fs.lstatSync(destination);
-  if (stat.nlink !== 1) throw Error("HOSTED_RECEIPT_KEY_PATH_UNSAFE");
+  if (stat.nlink !== 1 || (windows && !privateWindowsReceiptPath(destination)))
+    throw Error("HOSTED_RECEIPT_KEY_PATH_UNSAFE");
   const encoded = await resolveAgentGatewayCredential({
     ...config,
     token: undefined,

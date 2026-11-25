@@ -1,6 +1,7 @@
 import { createHash, createPrivateKey, sign } from "node:crypto";
 import { resolveAgentGatewayCredential } from "./agent-gateway-credential.js";
 import { readJsonLimited } from "./http.js";
+import { privateWindowsReceiptPath } from "./receipt-windows-custody.js";
 
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const id = /^[A-Za-z0-9_-]{1,64}$/;
@@ -50,6 +51,11 @@ export async function loadPilotSigner(config) {
   if (!config.hostedReceiptKeyFile) return null;
   if (config.hostedReceiptKeyFile === config.gatewayTokenFile)
     throw Error("HOSTED_RECEIPT_KEY_MUST_BE_SEPARATE");
+  if (
+    process.platform === "win32" &&
+    !privateWindowsReceiptPath(config.hostedReceiptKeyFile)
+  )
+    throw Error("HOSTED_RECEIPT_KEY_ACL_UNSAFE");
   const encoded = await resolveAgentGatewayCredential({
     ...config,
     token: undefined,
