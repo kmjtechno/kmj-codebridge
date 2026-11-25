@@ -4,6 +4,7 @@
 // nothing by itself. Any failure throws; the adapter maps a throw to
 // FREELLMAPI_ZERO_COST_NOT_ATTESTED. Design: docs/FREELLMAPI-ZERO-COST-VERIFIER-DESIGN-20261117.md
 import { createHash } from "node:crypto";
+import { isGlobalFabricAlias } from "./freellmapi-fabric-policy.js";
 import {
   buildZeroCostProof,
   isVerifiedFreeModel,
@@ -53,7 +54,12 @@ export function createZeroCostVerifier({
   ])
     if (typeof fn !== "function") throw new Error("VERIFIER_IO_MISSING");
   return async ({ chain, observedAtEpochMs }) => {
-    if (typeof chain !== "string" || !CHAIN.test(chain)) deny();
+    if (
+      typeof chain !== "string" ||
+      !CHAIN.test(chain) ||
+      isGlobalFabricAlias(chain)
+    )
+      deny();
     const pinned = checkManifest(await readManifest(chain), chain);
     // Route binding: the router's LIVE membership must equal the owner-pinned
     // list exactly, and every member must be an OpenRouter platform model.
