@@ -40,8 +40,7 @@ export function planTerminalWorkspaceSnapshot({
     )
       throw new Error("TERMINAL_SNAPSHOT_INVALID_ENTRY");
     const alias = entry.path.toLowerCase();
-    if (aliases.has(alias))
-      throw new Error("TERMINAL_SNAPSHOT_PATH_COLLISION");
+    if (aliases.has(alias)) throw new Error("TERMINAL_SNAPSHOT_PATH_COLLISION");
     aliases.add(alias);
     requested.push({ path: entry.path, sha256: entry.sha256 });
   }
