@@ -140,3 +140,34 @@ test(
     assert.match(out.stdout, /EXACT_BINDING_FLAG_PASS/);
   },
 );
+
+test(
+  "effective status retains environment values and fails closed on duplicate or missing properties",
+  { skip: !LINUX },
+  () => {
+    const out = python(
+      [
+        "import importlib.util, types",
+        "spec=importlib.util.spec_from_file_location('b','scripts/production/owner_stage_elite_dev_supervisor_binding.py')",
+        "b=importlib.util.module_from_spec(spec)",
+        "spec.loader.exec_module(b)",
+        "base=['LoadState=loaded','ActiveState=active','User=kmjdev','Group=kmjdev','MainPID=123','NRestarts=0','NeedDaemonReload=no','FragmentPath='+str(b.ROOT/b.UNIT)]",
+        "def status(rows):",
+        "    return b.fixed_status(types.SimpleNamespace(run=lambda argv: chr(10).join(rows)))",
+        "s=status(base+['Environment=OTHER=a=b '+b.FLAG])",
+        "assert b.binding_env_is_exact(s['Environment'])",
+        "assert not b.binding_env_is_exact('OTHER='+chr(34)+'x '+b.FLAG+chr(34))",
+        "assert not b.binding_env_is_exact(b.FLAG+' '+b.FLAG)",
+        "assert not b.binding_env_is_exact('OTHER='+chr(34)+'unterminated')",
+        "assert status(base+['Environment='])['Environment']==''",
+        "for rows in [base,base+['Environment=','Environment='+b.FLAG],base+['Environment=','MainPID=456'],base+['Environment=bad']]:",
+        "    try:status(rows)",
+        "    except b.Blocked:pass",
+        "    else:raise AssertionError('ambiguous or missing property accepted')",
+        "print('EFFECTIVE_ENVIRONMENT_PARSER_PASS')",
+      ].join("\n"),
+    );
+    assert.equal(out.status, 0, out.stderr);
+    assert.match(out.stdout, /EFFECTIVE_ENVIRONMENT_PARSER_PASS/);
+  },
+);
