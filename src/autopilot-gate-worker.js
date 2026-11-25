@@ -1,3 +1,4 @@
+import { gitChildEnvironment } from "./git-child-env.js";
 import { execFileSync } from "node:child_process";
 import { waitForTaskChange } from "./autopilot-continuation.js";
 
@@ -44,7 +45,7 @@ export function verifyCleanGateCheckout(root, expectedHead) {
     maxBuffer: 65536,
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    env: gitChildEnvironment(),
   };
   const args = ["--no-optional-locks", "-c", "core.hooksPath=/dev/null"];
   const head = execFileSync(

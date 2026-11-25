@@ -1,3 +1,4 @@
+import { gitChildEnvironment } from "./git-child-env.js";
 import { execFileSync } from "node:child_process";
 import { readJsonLimited } from "./http.js";
 
@@ -36,7 +37,7 @@ export function gitFacts(root, run = execFileSync) {
     maxBuffer: 262144,
     windowsHide: true,
     stdio: ["ignore", "pipe", "pipe"],
-    env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
+    env: gitChildEnvironment(),
   };
   const base = ["--no-optional-locks", "-c", "core.hooksPath=/dev/null"];
   const head = run("git", [...base, "rev-parse", "--verify", "HEAD"], options)

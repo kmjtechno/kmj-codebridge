@@ -1,3 +1,4 @@
+import { gitChildEnvironment } from "./git-child-env.js";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fail } from "./errors.js";
@@ -109,11 +110,7 @@ export function reviewRepairCandidate({
         maxBuffer: 100000,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_OPTIONAL_LOCKS: "0",
-        },
+        env: gitChildEnvironment(),
       },
     );
     const refreshed = verifyRepairCandidate(lane.path, recipeConfig.paths);
