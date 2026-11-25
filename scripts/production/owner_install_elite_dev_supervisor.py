@@ -135,8 +135,11 @@ def verify_signature(raw, signature):
          "TRUST_KEY_MISSING")
     root_parents(NODE)
     nstat = os.lstat(NODE)
-    need(nstat.st_uid == 0 and not (nstat.st_mode & 0o022)
-         and (stat.S_ISREG(nstat.st_mode) or stat.S_ISLNK(nstat.st_mode)),
+    # Linux symlink mode bits do not grant permission to alter its target.
+    # Trust the link owner and protected parents; validate the resolved file below.
+    need(nstat.st_uid == 0
+         and (stat.S_ISLNK(nstat.st_mode) or
+              (stat.S_ISREG(nstat.st_mode) and not (nstat.st_mode & 0o022))),
          "NODE_LINK_UNTRUSTED")
     node = NODE.resolve(strict=True)
     need(str(node).startswith("/opt/kmj-codebridge-node/")
@@ -232,12 +235,17 @@ def verify_archive_tree(source, archive_bytes, stem):
             need(count <= 250000, "RUNTIME_TREE_TOO_LARGE")
             path = Path(directory) / name
             item = os.lstat(path)
-            need(item.st_uid == 0 and not (item.st_mode & 0o022),
-                 "RUNTIME_WRITABLE_BY_AGENT")
+            need(item.st_uid == 0, "RUNTIME_WRITABLE_BY_AGENT")
             if stat.S_ISLNK(item.st_mode):
-                need(path.resolve(strict=True).is_relative_to(source),
-                     "RUNTIME_SYMLINK_ESCAPE")
+                target = path.resolve(strict=True)
+                need(target.is_relative_to(source), "RUNTIME_SYMLINK_ESCAPE")
+                root_parents(target)
+                resolved = os.lstat(target)
+                need(resolved.st_uid == 0 and not (resolved.st_mode & 0o022)
+                     and (stat.S_ISREG(resolved.st_mode) or stat.S_ISDIR(resolved.st_mode)),
+                     "RUNTIME_SYMLINK_TARGET_UNTRUSTED")
             else:
+                need(not (item.st_mode & 0o022), "RUNTIME_WRITABLE_BY_AGENT")
                 need(stat.S_ISREG(item.st_mode) or stat.S_ISDIR(item.st_mode),
                      "RUNTIME_SPECIAL_FILE")
     need((source / "node_modules").is_dir(), "RUNTIME_DEPENDENCIES_MISSING")
@@ -264,7 +272,7 @@ def signed_source(revision):
     return source, d["version"]
 
 
-def verify_enrollment():
+def verify_enrollment(allow_existing=False):
     uid = pwd.getpwnam("kmjdev")
     need(uid.pw_uid != 0, "DEV_PRINCIPAL_INVALID")
     props = run(["/usr/bin/systemctl", "show", AGENT_UNIT,
@@ -293,12 +301,13 @@ def verify_enrollment():
          and d["projects"][0].get("id") == "kmj-codebridge"
          and d.get("supervisorSocket") in (None, str(SOCKET)),
          "DEV_ENROLLMENT_SCOPE_MISMATCH")
-    need(not os.path.lexists(SOCKET), "DEV_SOCKET_ALREADY_EXISTS")
-    for u in (SERVICE_UNIT, SOCKET_UNIT):
-        need(not os.path.lexists(UNIT_DIR / u),
-             "DEV_SUPERVISOR_UNIT_ALREADY_EXISTS")
-        need(run(["/usr/bin/systemctl", "show", u, "-p", "LoadState", "--value"])
-             == "not-found", "DEV_SUPERVISOR_UNIT_COLLISION")
+    if not allow_existing:
+        need(not os.path.lexists(SOCKET), "DEV_SOCKET_ALREADY_EXISTS")
+        for u in (SERVICE_UNIT, SOCKET_UNIT):
+            need(not os.path.lexists(UNIT_DIR / u),
+                 "DEV_SUPERVISOR_UNIT_ALREADY_EXISTS")
+            need(run(["/usr/bin/systemctl", "show", u, "-p", "LoadState", "--value"])
+                 == "not-found", "DEV_SUPERVISOR_UNIT_COLLISION")
 
 
 def unit_texts(source, revision, version):
@@ -374,7 +383,8 @@ def write_exclusive(path, data):
 
 def private_socket_probe():
     js = r"""
-const n=require('node:net'),p='/run/kmj-codebridge-dev/supervisor.sock';
+import n from 'node:net';
+const p='/run/kmj-codebridge-dev/supervisor.sock';
 const cases=[{op:'status',service:'agent'},{op:'restart',service:'agent'},
 {op:'status',service:'gateway'}];
 async function one(x){return new Promise((resolve,reject)=>{
@@ -389,7 +399,7 @@ if(!r[0]?.ok||r[1]?.ok!==false||r[2]?.ok!==false)process.exit(2);
 process.stdout.write('PRIVATE_READ_ONLY_RPC_PASS\n');
 """
     output = run(["/usr/sbin/runuser", "-u", "kmjdev", "--",
-                  str(NODE), "-e", js], timeout=20)
+                  str(NODE), "--input-type=module", "-e", js], timeout=20)
     need(output == "PRIVATE_READ_ONLY_RPC_PASS",
          "PRIVATE_IPC_AUTH_PROBE_FAILED")
 
@@ -463,6 +473,9 @@ def main(argv):
 if __name__ == "__main__":
     try:
         sys.exit(main(sys.argv[1:]))
-    except (Blocked, OSError, KeyError, ValueError, TypeError, tarfile.TarError):
+    except (Blocked, OSError, KeyError, ValueError, TypeError, tarfile.TarError) as error:
+        reason = str(error) if isinstance(error, Blocked) else ""
+        if re.fullmatch(r"[A-Z][A-Z0-9_]{3,90}", reason):
+            print("DEV_SUPERVISOR_BLOCKER=" + reason)
         print("DEV_SUPERVISOR_INSTALL=BLOCKED_NO_LIVE_CREDIT")
         sys.exit(2)
