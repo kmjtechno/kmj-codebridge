@@ -124,7 +124,11 @@ export function createNativeModelFabricWorkerModel({
         if (proof && approved()) readyUntil = proof.expiresAtEpochMs;
       }
       const available = approved() && now() < readyUntil;
-      return { available, activeRequest: false, models: available ? [MODEL] : [] };
+      return {
+        available,
+        activeRequest: false,
+        models: available ? [MODEL] : [],
+      };
     },
     async generate(input) {
       const result = await generation.generate(input);
