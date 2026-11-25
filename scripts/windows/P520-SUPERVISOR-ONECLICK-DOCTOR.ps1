@@ -108,8 +108,41 @@ try {
   Need ((Split-Path -Leaf ([string]$action.Execute)) -ieq 'node.exe') 'TASK_EXECUTABLE_MISMATCH'
   $acl = Get-Acl -LiteralPath $tokenFile
   Need ($acl.AreAccessRulesProtected) 'TOKEN_ACL_NOT_PROTECTED'
-  $principal = [Security.Principal.NTAccount]::new([string]$task.Principal.UserId)
-  $principalSid = $principal.Translate([Security.Principal.SecurityIdentifier]).Value
+  $principalId = [string]$task.Principal.UserId
+  if ($principalId -match '^S-1-[0-9-]+
+  $allowed = @('S-1-5-18', 'S-1-5-32-544', $principalSid)
+  $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
+  foreach ($rule in $rules) {
+    Need ($rule.IdentityReference.Value -in $allowed -and $rule.AccessControlType -eq [Security.AccessControl.AccessControlType]::Allow) 'TOKEN_ACL_UNSAFE_PRINCIPAL'
+  }
+  Need ((Get-Item -LiteralPath $tokenFile).Length -le 4096) 'TOKEN_SIZE_INVALID'
+  $token = [IO.File]::ReadAllText($tokenFile).Trim()
+  Need ($token.Length -ge 32) 'TOKEN_SIZE_INVALID'
+  $statusRequest = '{"op":"status","service":"agent"}'
+  $negative = Invoke-Probe $token $false $statusRequest
+  Need ($negative.ok -eq $false -and $negative.error -ceq 'SUPERVISOR_UNAUTHENTICATED') 'NEGATIVE_HMAC_CHECK_FAILED'
+  $status = Invoke-Probe $token $true $statusRequest
+  Need ($status.ok -eq $true -and $status.result.supervisor -ceq 'windows-native') 'AUTHENTICATED_STATUS_FAILED'
+  Write-Output 'P520_HMAC_STATUS=PASS'
+  $device = Invoke-Probe $token $true '{"op":"device_status"}'
+  Need ($device.ok -eq $true -and [int]$device.result.cpuCount -gt 0) 'HARDWARE_STATUS_FAILED'
+  Write-Output ('P520_CPU_COUNT=' + [int]$device.result.cpuCount)
+  Write-Output 'P520_HARDWARE_RPC=PASS_LOCAL_ONLY'
+  Write-Output 'P520_SETUP=REMOTE_AGENT_READBACK_REQUIRED'
+} catch {
+  $reason = [string]$_.Exception.Message
+  if ($reason -cnotmatch '^[A-Z][A-Z0-9_]{3,90}$') { $reason = 'REVIEW_REQUIRED' }
+  Write-Output ('P520_SETUP_BLOCKER=' + $reason)
+  exit 2
+} finally {
+  Remove-Variable token -ErrorAction SilentlyContinue
+}
+) {
+    $principalSid = [Security.Principal.SecurityIdentifier]::new($principalId).Value
+  } else {
+    $principal = [Security.Principal.NTAccount]::new($principalId)
+    $principalSid = $principal.Translate([Security.Principal.SecurityIdentifier]).Value
+  }
   $allowed = @('S-1-5-18', 'S-1-5-32-544', $principalSid)
   $rules = $acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier])
   foreach ($rule in $rules) {
