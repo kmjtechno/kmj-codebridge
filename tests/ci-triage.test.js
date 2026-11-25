@@ -157,3 +157,19 @@ test("invalid triage payload fails closed", () => {
   );
   assert.deepEqual(sanitizeCiLog(null).lines, []);
 });
+
+test("Pint failure wins over Composer PHPStan installation chatter", () => {
+  const result = triageCiFailure({
+    lines: [
+      "2026-11-25T07:11:40Z - Downloading phpstan/phpstan (2.2.13)",
+      "2026-11-25T07:11:40Z - Installing phpunit/phpunit (12.5.35)",
+      "FAIL 500 files, 1 style issue",
+      "Script pint --parallel --test handling the lint:check event returned with error code 1",
+    ],
+    stepName: "php-quality-and-tests",
+    evidence: "REDACTED_OUTPUT",
+  });
+  assert.equal(result.category, "PHP_FORMATTING");
+  assert.equal(result.suggestedGateRole, "lint");
+  assert.equal(result.rootCauseVerified, false);
+});

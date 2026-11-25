@@ -10,6 +10,11 @@ const SECRET_INDICATOR =
 const KEY_VALUE = /\b(?:token|secret|password|api[_-]?key)\s*[=:]\s*[^\s,;]+/i;
 const UNSAFE_URL = /https?:\/\/\S+/i;
 const EMAIL = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+// Package installation chatter is not a failure diagnostic.
+const PHP_DEPENDENCY_NOISE =
+  /(?:^|\s)-\s+(?:Downloading|Installing|Upgrading|Removing)\s+(?:phpstan\/|larastan\/|laravel\/pint\b|phpunit\/)/i;
+const PINT_FAILURE =
+  /(?:\b(?:pint|php-cs-fixer)\b.*(?:exit code [1-9]|(?:failed|error)|style issues?)|(?:failed|error).*?\bpint\b)/i;
 const MAX_TEXT = 96 * 1024;
 const MAX_LINES = 18;
 
@@ -30,7 +35,7 @@ export function sanitizeCiLog(text, maxLines = MAX_LINES) {
   const lines = [];
   let more = false;
   for (const raw of input) {
-    if (!DIAGNOSTIC.test(raw)) continue;
+    if (!DIAGNOSTIC.test(raw) || PHP_DEPENDENCY_NOISE.test(raw)) continue;
     if (raw.length > 400 || UNSAFE_URL.test(raw) || EMAIL.test(raw)) continue;
     // The broad skip is intentional: even a known redactor cannot safely
     // infer every proprietary provider credential syntax or session cookie.
@@ -157,7 +162,11 @@ export function triageCiFailure({
   const safeLines = sanitizeCiLog(lines.join("\n")).lines;
   const cleanStep = safeCiStepName(stepName);
   const text = [cleanStep, ...safeLines].join(" ");
-  const matched = RULES.find(({ pattern }) => pattern.test(text));
+  // Explicit failed formatter evidence takes precedence over package names
+  // from dependency installation and generic step titles.
+  const matched = safeLines.some((line) => PINT_FAILURE.test(line))
+    ? RULES.find(({ code }) => code === "PHP_FORMATTING")
+    : RULES.find(({ pattern }) => pattern.test(text));
   const verifiedExcerpt =
     safeLines.length > 0 && evidence === "REDACTED_OUTPUT";
   const category = matched?.code ?? "UNCLASSIFIED";
