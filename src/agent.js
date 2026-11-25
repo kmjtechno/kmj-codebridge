@@ -415,6 +415,27 @@ export async function startAgent(
     githubCiWatch: ciWatchWorker.enabledProjects,
     localDraft: localDraftWorker.enabledProjects,
     coding: codingWorker.enabledProjects,
+    nativeCodingReadiness: (projectId) => {
+      const project = c.projects.find((item) => item.id === projectId);
+      const config = project?.autopilotCodingWorker;
+      if (
+        project?.writable !== true ||
+        config?.inferenceRoute !== "native-verified-free-cloud-only" ||
+        !codingRouteApproved(config)
+      )
+        return "NOT_AUTHORIZED";
+      const token = process.env[config.nativeTokenEnv];
+      if (
+        typeof token !== "string" ||
+        token.length !== 54 ||
+        !/^kmjmf_[A-Za-z0-9]{48}$/.test(token)
+      )
+        return "NOT_AUTHORIZED";
+      const cached = nativeCodingModels.get(project);
+      if (cached?.config !== config || cached.token !== token)
+        return "NOT_VERIFIED";
+      return cached.model.readiness();
+    },
     continuation: continuationBridge.projects,
     continuationStatus: (project) => continuationBridge.status(project),
     get agentRunning() {
