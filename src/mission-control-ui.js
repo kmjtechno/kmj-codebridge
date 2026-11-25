@@ -236,6 +236,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <div class="kmj-fleet-controls">
     <button type="button" id="refreshFleet">↻ Refresh devices</button>
     <button type="button" id="checkSupervisor">Check Agent + Supervisor</button>
+    <button type="button" id="checkHardware">Test Hardware</button>
     <button type="button" id="connectDevice">Connect / Repair selected</button>
     <button type="button" id="beginPairing">＋ Pair new device</button>
   </div>
@@ -243,6 +244,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
   <div class="kmj-fleet-selected"><strong>Selected:</strong> <span id="fleetSelected">Select a verified device below.</span>
     <p class="note">Agent: <strong id="fleetAgentState">UNKNOWN</strong> · Gateway: <strong id="fleetGatewayState">UNKNOWN</strong></p>
     <p class="note" id="fleetSupervisorDetail">Supervisor service identity and restart rights have not been checked.</p>
+    <p class="note">Hardware: <strong id="fleetHardwareState">UNKNOWN</strong></p>
+    <p class="note" id="fleetHardwareDetail">Authenticated CPU and memory readback has not been requested.</p>
   </div>
   <div class="kmj-device-list" aria-label="Account-authorized device and project connections">
     <button type="button" class="kmj-device-item" id="fleet-device-0" aria-pressed="false" hidden></button>
@@ -558,6 +561,7 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  var supervisorRounds=0,supervisorReplyIds={agent:null,gateway:null};
  var supervisorReceived={agent:false,gateway:false};
  var verifyPending=false,verifyScope=null;
+ var hardwareRound=0,hardwareRequest=null;
  function validFleetId(s){return typeof s==="string"&&/^[A-Za-z0-9_-]{1,64}$/.test(s);}
  function currentFleetScope(){
    if(!selectedFleet||!Array.isArray(fleet))return null;
@@ -633,6 +637,8 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
  }
  function clearSupervisor(){
    supervisorScope=null;supervisorPending=0;
+   hardwareRequest=null;
+   text("fleetHardwareState","UNKNOWN");text("fleetHardwareDetail","No verified hardware snapshot for this selection.");
    supervisorReplyIds={agent:null,gateway:null};
    supervisorReceived={agent:false,gateway:false};
    text("fleetAgentState","UNKNOWN");text("fleetGatewayState","UNKNOWN");
@@ -684,6 +690,18 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
    }
  }
  document.getElementById("checkSupervisor").addEventListener("click",checkSupervisor);
+ document.getElementById("checkHardware").addEventListener("click",function(){
+   var scope=currentFleetScope();
+   if(!initialized||!scope||hardwareRequest||supervisorPending||verifyPending||fleetPending||connectPending||pairPending){
+     text("fleetActionNotice","Select an authorized device and finish the current check first.");return;
+   }
+   hardwareRequest={id:"hardware-"+(++hardwareRound),device:scope.device,project:scope.project};
+   text("fleetHardwareState","CHECKING");
+   text("fleetHardwareDetail","Requesting authenticated read-only hardware facts; no service changes.");
+   window.parent.postMessage({jsonrpc:"2.0",id:hardwareRequest.id,method:"tools/call",params:{
+     name:"supervisor_device_status",arguments:{device:scope.device,project:scope.project}
+   }},"*");
+ });
  function hostConnect(kind){
    var scope=kind==="pair"?null:currentFleetScope();
    if(!initialized||connectPending||pairPending||verifyPending||aiMessagePending||handoffPending||(kind!=="pair"&&!scope)){
@@ -865,6 +883,28 @@ nav button:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
        text("fleetReady","—");text("fleetAttention","—");text("fleetKnown","—");
        text("fleetNotice","Verified account fleet unavailable or malformed. No connection state assumed.");
      }else clearSupervisor();
+     return;
+   }
+   if(hardwareRequest&&message.id===hardwareRequest.id){
+     var request=hardwareRequest;hardwareRequest=null;
+     var selected=currentFleetScope();
+     if(!selected||selected.device!==request.device||selected.project!==request.project)return;
+     var facts=message.result&&message.result.structuredContent;
+     var valid=!message.error&&message.result&&!message.result.isError&&facts&&
+       (facts.platform==="linux"||facts.platform==="win32")&&
+       Number.isSafeInteger(facts.cpuCount)&&facts.cpuCount>0&&facts.cpuCount<=4096&&
+       Number.isSafeInteger(facts.totalMemoryBytes)&&facts.totalMemoryBytes>0&&
+       Number.isSafeInteger(facts.freeMemoryBytes)&&facts.freeMemoryBytes>=0&&
+       facts.freeMemoryBytes<=facts.totalMemoryBytes;
+     if(valid){
+       text("fleetHardwareState","RPC VERIFIED");
+       text("fleetHardwareDetail",facts.cpuCount+" logical CPUs · "+
+         (facts.totalMemoryBytes/1073741824).toFixed(1)+" GiB RAM · "+
+         (facts.freeMemoryBytes/1073741824).toFixed(1)+" GiB free. Snapshot only; not a GPU, camera or stress test.");
+     }else{
+       text("fleetHardwareState","NOT VERIFIED");
+       text("fleetHardwareDetail","Authenticated hardware response unavailable or invalid. Use the approved signed host-side setup; no hardware failure or repair is inferred.");
+     }
      return;
    }
    if((message.id===supervisorReplyIds.agent||message.id===supervisorReplyIds.gateway)&&supervisorPending>0){
