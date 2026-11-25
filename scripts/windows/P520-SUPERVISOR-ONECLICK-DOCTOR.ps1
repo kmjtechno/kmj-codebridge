@@ -28,18 +28,18 @@ function Invoke-Probe([string]$Token, [bool]$Authenticated, [string]$Request) {
   $writer = $null
   $hmac = $null
   try {
-    $pipe = New-Object IO.Pipes.NamedPipeClientStream('.', $pipeName, [IO.Pipes.PipeDirection]::InOut)
+    $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [IO.Pipes.PipeDirection]::InOut)
     $pipe.Connect(4000)
-    $utf8 = New-Object Text.UTF8Encoding($false)
-    $reader = New-Object IO.StreamReader($pipe, $utf8)
-    $writer = New-Object IO.StreamWriter($pipe, $utf8)
+    $utf8 = [Text.UTF8Encoding]::new($false)
+    $reader = [IO.StreamReader]::new($pipe, $utf8)
+    $writer = [IO.StreamWriter]::new($pipe, $utf8)
     $writer.NewLine = [string][char]10
     $writer.AutoFlush = $true
     $challenge = Read-BoundedLine $reader | ConvertFrom-Json
     Need ([string]$challenge.nonce -cmatch '^[0-9a-f]{32}$') 'PIPE_NONCE_INVALID'
     $mac = '0' * 64
     if ($Authenticated) {
-      $hmac = New-Object Security.Cryptography.HMACSHA256
+      $hmac = [Security.Cryptography.HMACSHA256]::new()
       $hmac.Key = $utf8.GetBytes($Token)
       $mac = [BitConverter]::ToString($hmac.ComputeHash($utf8.GetBytes($challenge.nonce + [char]10 + $Request))).Replace('-', '').ToLowerInvariant()
     }
