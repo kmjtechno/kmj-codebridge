@@ -107,8 +107,7 @@ def main(argv):
              and binding.binding_env_is_exact(before.get("Environment", "")),
              "EXISTING_BINDING_MISMATCH")
     else:
-        need(not any(item.startswith(binding.FLAG.split("=")[0] + "=")
-                     for item in before.get("Environment", "").split()),
+        need(not binding.binding_env_flags(before["Environment"]),
              "UNMANAGED_BINDING_PRESENT")
     print("ONECLICK_SIGNED_SCOPE=PASS")
     print("ONECLICK_EXISTING_UNITS=" + ("EXACT" if existing else "ABSENT"))
