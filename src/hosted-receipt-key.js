@@ -1,12 +1,16 @@
 import fs from "node:fs";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import {
   createPrivateKey,
   createPublicKey,
   generateKeyPairSync,
 } from "node:crypto";
 import { resolveAgentGatewayCredential } from "./agent-gateway-credential.js";
-import { privateWindowsReceiptPath } from "./receipt-windows-custody.js";
+import {
+  privateWindowsReceiptPath,
+  windowsReceiptPathStatus,
+} from "./receipt-windows-custody.js";
 
 function inside(root, candidate) {
   const relative = path.relative(root, candidate);
@@ -16,6 +20,61 @@ function inside(root, candidate) {
       !relative.startsWith(".." + path.sep) &&
       !path.isAbsolute(relative))
   );
+}
+
+// An elevated Windows token may create a file owned by Administrators even
+// inside a user-owned private directory. Normalize ONLY a newly created,
+// empty file, never an existing signer or its directory. Recheck all ACLs.
+function ensureNewWindowsReceiptCustody(filename, fd) {
+  const sameEmptyFile = () => {
+    const opened = fs.fstatSync(fd);
+    const current = fs.lstatSync(filename);
+    return (
+      opened.isFile() &&
+      current.isFile() &&
+      !current.isSymbolicLink() &&
+      opened.nlink === 1 &&
+      current.nlink === 1 &&
+      opened.size === 0 &&
+      current.size === 0 &&
+      opened.dev === current.dev &&
+      opened.ino === current.ino
+    );
+  };
+  if (!sameEmptyFile()) throw Error("HOSTED_RECEIPT_KEY_PATH_UNSAFE");
+  let status = windowsReceiptPathStatus(filename);
+  if (status === "OWNER_MISMATCH") {
+    const env = {
+      SystemRoot: "C:\\Windows",
+      windir: "C:\\Windows",
+    };
+    const identity = spawnSync(
+      "C:\\Windows\\System32\\whoami.exe",
+      ["/user", "/fo", "csv", "/nh"],
+      {
+        env,
+        encoding: "utf8",
+        timeout: 30000,
+        maxBuffer: 4096,
+        windowsHide: true,
+      },
+    );
+    const sid = identity.stdout?.match(/"(S-1-[0-9-]+)"\s*$/)?.[1];
+    if (identity.status !== 0 || identity.error || identity.signal || !sid)
+      throw Error("HOSTED_RECEIPT_KEY_OWNER_IDENTITY_FAILED");
+    if (!sameEmptyFile()) throw Error("HOSTED_RECEIPT_KEY_PATH_UNSAFE");
+    const changed = spawnSync(
+      "C:\\Windows\\System32\\icacls.exe",
+      [filename, "/setowner", "*" + sid],
+      { env, timeout: 30000, windowsHide: true, stdio: "ignore" },
+    );
+    if (changed.status !== 0 || changed.error || changed.signal)
+      throw Error("HOSTED_RECEIPT_KEY_OWNER_BIND_FAILED");
+    status = windowsReceiptPathStatus(filename);
+  }
+  if (status !== "PRIVATE")
+    throw Error("HOSTED_RECEIPT_KEY_ACL_UNSAFE:" + status);
+  if (!sameEmptyFile()) throw Error("HOSTED_RECEIPT_KEY_PATH_UNSAFE");
 }
 
 // Creation only in an already private operator-controlled directory.
@@ -54,8 +113,7 @@ export async function provisionReceiptKey(config, filename) {
       .toString("base64");
     const fd = fs.openSync(destination, "wx", 0o600);
     try {
-      if (windows && !privateWindowsReceiptPath(destination))
-        throw Error("HOSTED_RECEIPT_KEY_ACL_UNSAFE");
+      if (windows) ensureNewWindowsReceiptCustody(destination, fd);
       fs.writeFileSync(fd, encoded + "\n");
       fs.fsyncSync(fd);
       created = true;
