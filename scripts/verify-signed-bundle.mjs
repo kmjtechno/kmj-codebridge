@@ -141,7 +141,8 @@ async function hashArchive(file, expectedSize) {
       ARCHIVE_LIMIT,
       "BUNDLE_ARCHIVE_CHANGED",
     );
-    if (before.size !== BigInt(expectedSize)) throw Error("BUNDLE_ARCHIVE_CHANGED");
+    if (before.size !== BigInt(expectedSize))
+      throw Error("BUNDLE_ARCHIVE_CHANGED");
     const hash = createHash("sha256");
     let bytes = 0;
     for await (const chunk of handle.createReadStream({ autoClose: false })) {
