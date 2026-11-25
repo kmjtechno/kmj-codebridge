@@ -393,7 +393,8 @@ export function createFreeLlmApiClient({
   return client;
 }
 
-function httpRequest({
+// Internal loopback transport, exported for hermetic transport regression tests.
+export function httpRequest({
   port,
   method,
   path,
@@ -404,6 +405,15 @@ function httpRequest({
 }) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
+    let timer;
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(value);
+    };
     const req = http.request(
       {
         host: "127.0.0.1",
@@ -426,27 +436,48 @@ function httpRequest({
         const chunks = [];
         let size = 0;
         res.on("data", (c) => {
+          if (settled) return;
           size += c.length;
-          if (size > MAX_RESPONSE_BYTES)
-            req.destroy(codedError("FREELLMAPI_TOO_LARGE"));
-          else chunks.push(c);
+          if (size > MAX_RESPONSE_BYTES) {
+            finish(codedError("FREELLMAPI_TOO_LARGE"));
+            req.destroy();
+          } else chunks.push(c);
         });
         res.on("end", () => {
+          if (settled) return;
+          if (!res.complete)
+            return finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE"));
           if (res.statusCode === 429)
-            return reject(codedError("FREELLMAPI_QUOTA_EXHAUSTED"));
+            return finish(codedError("FREELLMAPI_QUOTA_EXHAUSTED"));
           if (res.statusCode < 200 || res.statusCode > 299)
-            return reject(codedError(`FREELLMAPI_HTTP_${res.statusCode}`));
+            return finish(codedError(`FREELLMAPI_HTTP_${res.statusCode}`));
           try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+            finish(null, JSON.parse(Buffer.concat(chunks).toString("utf8")));
           } catch {
-            reject(codedError("FREELLMAPI_BAD_RESPONSE"));
+            finish(codedError("FREELLMAPI_BAD_RESPONSE"));
           }
         });
-        res.on("error", reject);
+        res.on("aborted", () =>
+          finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE")),
+        );
+        res.on("error", () =>
+          finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE")),
+        );
+        res.on("close", () => {
+          if (!res.complete)
+            finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE"));
+        });
       },
     );
-    req.on("timeout", () => req.destroy(codedError("FREELLMAPI_TIMEOUT")));
-    req.on("error", reject);
+    const timeout = () => {
+      finish(codedError("FREELLMAPI_TIMEOUT"));
+      req.destroy();
+    };
+    // Node's socket timeout is an inactivity timer, not a wall-clock
+    // deadline. A trickling response must not keep a chat lane busy forever.
+    timer = setTimeout(timeout, timeoutMs);
+    req.on("timeout", timeout);
+    req.on("error", () => finish(codedError("FREELLMAPI_CONNECTION_FAILED")));
     req.end(payload);
   });
 }
