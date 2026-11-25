@@ -22,6 +22,7 @@ export function createNativeModelFabricWorkerModel({
       return (
         authorized() === true &&
         typeof token === "string" &&
+        token.length === 54 &&
         /^kmjmf_[A-Za-z0-9]{48}$/.test(token)
       );
     } catch {
