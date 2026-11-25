@@ -64,7 +64,9 @@ test(
   "durable journal survives reopening and refuses identity replacement",
   { skip: process.platform !== "linux" },
   (t) => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-terminal-recovery-"));
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kmj-terminal-recovery-"),
+    );
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     const journal = new TerminalRecoveryJournal(root);
     const created = journal.begin({ imageId, daemonId });
@@ -89,7 +91,9 @@ test(
   "private journal rejects insecure root and malformed binding",
   { skip: process.platform !== "linux" },
   (t) => {
-    const root = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-terminal-recovery-"));
+    const root = fs.mkdtempSync(
+      path.join(os.tmpdir(), "kmj-terminal-recovery-"),
+    );
     t.after(() => fs.rmSync(root, { recursive: true, force: true }));
     fs.chmodSync(root, 0o755);
     assert.throws(
