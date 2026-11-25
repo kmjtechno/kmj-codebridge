@@ -1195,6 +1195,7 @@ test("cloud context credential filter rejects high-confidence tokens without fal
     "sk-" + "a".repeat(28),
     "ghp_" + "A".repeat(36),
     "github_pat_" + "A".repeat(42),
+    "kmjmf_" + "a".repeat(48),
     "AKIA" + "A".repeat(16),
     "xoxb-" + "a".repeat(24),
   ];
