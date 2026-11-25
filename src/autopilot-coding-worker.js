@@ -303,9 +303,20 @@ function verifyBaseHead(root, expectedHead) {
 // model call. Object identity alone does not detect in-place config mutations.
 export function codingRouteApproved(config) {
   if (config?.enabled !== true) return false;
+  if (config.inferenceRoute === "native-verified-free-cloud-only")
+    return (
+      config.nativeModelFabricApproved === true &&
+      config.cloudSourceTransferApproved === true &&
+      config.cloudProxyApproved !== true &&
+      config.localProcessingApproved !== true &&
+      config.model === "modelfabric-auto" &&
+      typeof config.nativeTokenEnv === "string" &&
+      /^CODEBRIDGE_KMJ_MODELFABRIC_TOKEN(?:_[A-Z0-9_]{1,40})?$/.test(config.nativeTokenEnv)
+    );
   if (config.inferenceRoute === "verified-free-cloud-only")
     return (
       config.cloudProxyApproved === true &&
+      config.nativeModelFabricApproved !== true &&
       config.cloudSourceTransferApproved === true &&
       config.localProcessingApproved !== true &&
       typeof config.model === "string" &&
@@ -318,6 +329,7 @@ export function codingRouteApproved(config) {
     return false;
   return (
     config.localProcessingApproved === true &&
+    config.nativeModelFabricApproved !== true &&
     config.cloudProxyApproved !== true &&
     config.cloudSourceTransferApproved !== true
   );
@@ -328,6 +340,8 @@ function codingApprovalFingerprint(config, recipe, gate) {
     model: config?.model,
     inferenceRoute: config?.inferenceRoute ?? "local-only",
     cloudProxyApproved: config?.cloudProxyApproved === true,
+    nativeModelFabricApproved: config?.nativeModelFabricApproved === true,
+    nativeTokenEnv: config?.nativeTokenEnv,
     cloudSourceTransferApproved: config?.cloudSourceTransferApproved === true,
     localProcessingApproved: config?.localProcessingApproved === true,
     maxTokens: config?.maxTokens,
@@ -516,7 +530,9 @@ export class LocalFirstCodingWorker {
           )
             continue;
 
-          const cloud = config.inferenceRoute === "verified-free-cloud-only";
+          const cloud =
+            config.inferenceRoute === "verified-free-cloud-only" ||
+            config.inferenceRoute === "native-verified-free-cloud-only";
           const model = cloud ? this.cloudModel?.(project) : this.localModel();
           if (!model) continue;
           const status = await model.status();
