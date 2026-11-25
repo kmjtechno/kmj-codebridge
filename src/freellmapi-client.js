@@ -147,6 +147,22 @@ export function createFreeLlmApiClient({
       fail("FREELLMAPI_BAD_RESPONSE");
     return res;
   };
+  const withinAdmissionBudget = async (chain, budgetMs) => {
+    let timer;
+    try {
+      await Promise.race([
+        verifyChainAdmission(chain),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(codedError("FREELLMAPI_DEADLINE_EXCEEDED")),
+            budgetMs,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const client = {
     // Read-only live catalog rows (id, availability, execution status) for
     // planning only. It proves neither zero cost nor a working generation.
@@ -228,6 +244,8 @@ export function createFreeLlmApiClient({
       taskType,
       // Internal trusted callback for the exact task, never an MCP argument.
       authorizeRequest,
+      // Internal only: routed attempts share the original exact deadline.
+      deadlineAt,
     }) {
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
       if (upstreamCloudApproved !== true)
@@ -250,11 +268,24 @@ export function createFreeLlmApiClient({
         !["code", "chat", "auto"].includes(taskType)
       )
         fail("FREELLMAPI_INVALID_TASK_TYPE");
+      const started = now();
+      const ownDeadline = started + timeoutSeconds * 1000;
+      if (!Number.isSafeInteger(started) || !Number.isSafeInteger(ownDeadline))
+        fail("FREELLMAPI_INVALID_CLOCK");
+      if (deadlineAt !== undefined && !Number.isSafeInteger(deadlineAt))
+        fail("FREELLMAPI_INVALID_CLOCK");
+      const deadline = Math.min(ownDeadline, deadlineAt ?? ownDeadline);
+      if (deadline <= started) fail("FREELLMAPI_DEADLINE_EXCEEDED");
       requireCurrentGenerationConsent(authorizeRequest);
-      await verifyChainAdmission(chain);
+      await withinAdmissionBudget(chain, deadline - started);
       // Billing and route attestation awaits can outlive owner consent.
       // Recheck synchronously at the outbound request boundary, without
       // another await between this check and the loopback transport call.
+      const checked = now();
+      if (!Number.isSafeInteger(checked) || checked < started)
+        fail("FREELLMAPI_INVALID_CLOCK");
+      const remaining = deadline - checked;
+      if (remaining <= 0) fail("FREELLMAPI_DEADLINE_EXCEEDED");
       requireCurrentGenerationConsent(authorizeRequest);
       const res = await call(
         "POST",
@@ -265,7 +296,7 @@ export function createFreeLlmApiClient({
           max_tokens: maxTokens,
           messages: [{ role: "user", content: prompt }],
         },
-        timeoutSeconds * 1000,
+        remaining,
         taskType,
       );
       const choice = res?.choices?.[0];
@@ -374,6 +405,7 @@ export function createFreeLlmApiClient({
             ...rest,
             chain: candidate,
             timeoutSeconds: remainingSeconds,
+            deadlineAt: deadline,
             taskType:
               task === "code" ? "code" : task === "reasoning" ? "auto" : "chat",
           });
