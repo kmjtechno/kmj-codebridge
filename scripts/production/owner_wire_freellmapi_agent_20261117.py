@@ -19,6 +19,7 @@ import hashlib
 import json
 import os
 import pathlib
+import socket
 import re
 import stat
 import subprocess
@@ -138,7 +139,7 @@ def preflight():
         guard(protected_parent(DROPIN_DIR), "DROPIN_DIR_UNSAFE")
 
 
-def rollback():
+def rollback(restart=True):
     # A failure before our first write must never touch an owner-owned unit.
     if not CREATED:
         return
@@ -160,7 +161,7 @@ def rollback():
         if target in CREATED:
             target.unlink()
     CREATED.clear()
-    if had_dropin:
+    if had_dropin and restart:
         cmd("systemctl", "daemon-reload", check=False)
         cmd("systemctl", "restart", UNIT, check=False)
 
@@ -208,8 +209,77 @@ def write_and_restart(key, chosen):
     raise ValueError("AGENT_NOT_ACTIVE_AFTER_RESTART")
 
 
+def select_elite_dev():
+    # Deliberately separate the dev agent's credential and systemd unit from
+    # the already-configured Main Platform agent. Never copy its secret.
+    global UNIT, DROPIN_DIR, DROPIN, ENV_FILE, DROPIN_TEXT
+    UNIT = "kmj-codebridge-dev.service"
+    DROPIN_DIR = pathlib.Path(f"/etc/systemd/system/{UNIT}.d")
+    DROPIN = DROPIN_DIR / "kmj-freellmapi-env.conf"
+    ENV_FILE = pathlib.Path("/etc/kmj-freellmapi/codebridge-dev.env")
+    DROPIN_TEXT = f"[Service]\nEnvironmentFile={ENV_FILE}\n"
+
+
+def elite_dev_identity():
+    guard(os.geteuid() == 0, "ROOT_REQUIRED")
+    guard(socket.gethostname().split(".")[0].lower() == "kmj-elite",
+          "WRONG_HOST")
+    props = cmd("systemctl", "show", UNIT, "-p", "LoadState", "-p", "ActiveState",
+                "-p", "User", "-p", "Group", "-p", "FragmentPath",
+                "-p", "NeedDaemonReload", "-p", "MainPID").stdout
+    rows = dict(line.split("=", 1) for line in props.splitlines() if "=" in line)
+    guard(rows.get("LoadState") == "loaded" and
+          rows.get("ActiveState") == "active" and
+          rows.get("User") == "kmjdev" and rows.get("Group") == "kmjdev" and
+          rows.get("FragmentPath") == f"/etc/systemd/system/{UNIT}" and
+          rows.get("NeedDaemonReload") == "no" and
+          rows.get("MainPID", "").isdigit() and int(rows["MainPID"]) > 1,
+          "DEV_AGENT_EFFECTIVE_IDENTITY_INVALID")
+    # No config values or credentials are read. Systemd's fixed service
+    # identity is sufficient for staging a distinct EnvironmentFile only.
+
+
+def stage_elite_dev(key, chosen):
+    elite_dev_identity()
+    preflight()
+    guard(protected_parent(DROPIN_DIR.parent), "DROPIN_PARENT_UNSAFE")
+    if not exists_including_dangling(DROPIN_DIR):
+        DROPIN_DIR.mkdir(mode=0o755)
+    guard(protected_parent(DROPIN_DIR), "DROPIN_DIR_UNSAFE")
+    try:
+        write_new_file(
+            ENV_FILE,
+            f"CODEBRIDGE_FREELLMAPI_KEY={key}\n"
+            f"CODEBRIDGE_FREELLMAPI_APPROVED_FREE_CHAINS={','.join(chosen)}\n",
+            0o600,
+        )
+        write_new_file(DROPIN, DROPIN_TEXT, 0o644)
+    except BaseException:
+        rollback(restart=False)
+        raise
+
+
+def elite_dev_main(args):
+    select_elite_dev()
+    elite_dev_identity()
+    preflight()
+    print("DEV_AGENT_PREFLIGHT=OK")
+    if args == ["--elite-dev"]:
+        print("DEV_WIRING=DRY_RUN_UNCHANGED")
+        return
+    key, chosen = collect()
+    stage_elite_dev(key, chosen)
+    print("DEV_WIRING=STAGED_ONLY")
+    print("DAEMON_RELOAD=NOT_ATTEMPTED")
+    print("AGENT_RESTART=NOT_ATTEMPTED")
+    print("GENERATION=NOT_VERIFIED")
+
+
 def main():
     args = sys.argv[1:]
+    if args in (["--elite-dev"], ["--stage-elite-dev", "--confirm-owner-staging"]):
+        elite_dev_main(args)
+        return
     guard(args in ([], ["--apply", "--confirm-no-active-jobs"]),
           "USAGE_DRY_RUN_OR_--apply_--confirm-no-active-jobs")
     preflight()
