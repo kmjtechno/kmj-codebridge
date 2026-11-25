@@ -7,7 +7,10 @@ import { spawnSync } from "node:child_process";
 import { verify, createPublicKey } from "node:crypto";
 import { provisionReceiptKey } from "../src/hosted-receipt-key.js";
 import { loadPilotSigner } from "../src/hosted-metering-pilot.js";
-import { privateWindowsReceiptPath } from "../src/receipt-windows-custody.js";
+import {
+  privateWindowsReceiptPath,
+  windowsReceiptPathStatus,
+} from "../src/receipt-windows-custody.js";
 
 test(
   "private POSIX signer provisioning is idempotent and never returns private key",
@@ -105,6 +108,7 @@ test(
     const identity = run("whoami.exe", ["/user", "/fo", "csv", "/nh"]);
     const sid = identity.match(/"(S-1-[0-9-]+)"\s*$/)?.[1];
     assert.ok(sid, "fixture owner SID missing");
+    run("icacls.exe", [custody, "/setowner", "*" + sid]);
     run("icacls.exe", [custody, "/grant:r", "*" + sid + ":(OI)(CI)F"]);
     run("icacls.exe", [custody, "/inheritance:r"]);
     const setAcl = (broad) => {
@@ -115,11 +119,11 @@ test(
       }
     };
     setAcl(true);
-    assert.equal(privateWindowsReceiptPath(custody, true), false);
+    assert.equal(windowsReceiptPathStatus(custody, true), "PRINCIPAL_UNSAFE");
     await assert.rejects(provisionReceiptKey(config, keyFile), /PATH_UNSAFE/);
     assert.equal(fs.existsSync(keyFile), false);
     setAcl(false);
-    assert.equal(privateWindowsReceiptPath(custody, true), true);
+    assert.equal(windowsReceiptPathStatus(custody, true), "PRIVATE");
     const first = await provisionReceiptKey(config, keyFile);
     assert.equal(first.created, true);
     assert.equal(first.publicKey.length, 44);
