@@ -1,4 +1,6 @@
-# P520 VIOSO Clone — exact-head read-only rig command onboarding
+# Retired: P520 VIOSO rig preset onboarding
+
+**Historical reference only.** The owner retired the VIOSO Clone repository on 2026-11-25. This preset is no longer supported; do not follow the onboarding instructions below. Remove any stale preset from protected agent configuration before upgrading. Calibration Studio and Calibration Pro are separate projects.
 
 The owner's P520 `kmj-vioso-clone-r3-desktop-5fvjmet / vioso-clone` is online but currently exposes only `python_verify:test` and `rea_doctor:check`. Neither permits actual desktop inventory. **Connectivity and user permission do not automatically add an administrator-approved command profile.**
 

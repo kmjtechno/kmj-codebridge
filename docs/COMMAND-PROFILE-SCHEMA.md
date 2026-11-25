@@ -22,7 +22,7 @@ not proven on a real device; see "What is not claimed".
 5. Explicit `commands` entries override a preset with the same id (`expandCommandPresets`).
    An unknown preset id fails config load (`UNKNOWN_COMMAND_PRESET`).
 6. Profiles in `commandRequiresIsolatedLane` (`main_platform_ui_ci`,
-   `calibration_v4_qa`, `calibration_studio_qt_qa`, `vioso_rig_preflight`) run only in a SHA-pinned isolated
+   `calibration_v4_qa`, `calibration_studio_qt_qa`) run only in a SHA-pinned isolated
    worktree lane, never in the main checkout. Pinned lanes require `laneId` and
    `expectedHead`; head mismatch or dirty lane is refused and re-verified in the
    `beforeStart` hook.
@@ -87,7 +87,6 @@ Timeouts are per variant, in ms. "Lane" = must run in a pinned isolated lane.
 | `windows-python-trial-qa`       | `windows_python_trial_qa`  | build    | `node`                       | `doctor` (30000), `tests` (300000), `smoke` (120000)                    | no      |
 | `calibration-v4-software-qa`    | `calibration_v4_qa`        | build    | `python` (win32) / `python3` | `full` = `tools/verify.py` (300000)                                     | **yes** |
 | `calibration-studio-qt-offline` | `calibration_studio_qt_qa` | build    | `python` (win32) / `python3` | `full` = `tools/codebridge_locked_release_qa.py` (300000)               | **yes** |
-| `vioso-clone-rig-readonly`      | `vioso_rig_preflight`      | build    | `python` (win32) / `python3` | `displays` (30000)                                                      | **yes** |
 | `go-standard`                   | `go_verify`                | build    | `go`                         | `test`, `vet`, `build` (300000)                                         | no      |
 | `go-standard`                   | `go_format`                | write    | `gofmt`                      | `write` = `-w .` (300000)                                               | no      |
 

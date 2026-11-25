@@ -283,25 +283,6 @@ const PRESETS = freeze({
       }),
     }),
   }),
-  // Explicit administrator opt-in for the enrolled VIOSO Clone P520 project.
-  // This Python command only reports the interactive Windows desktop's
-  // current rectangles; the actual target project must already contain the
-  // reviewed vclone.rig_preflight source at the current exact local HEAD.
-  // No camera stream, projection pattern, scripts, shell or Git fetch.
-  "vioso-clone-rig-readonly": freeze({
-    vioso_rig_preflight: freeze({
-      category: "build",
-      description:
-        "Inspect two-projector Windows desktop rectangles read-only; projector identity, power and camera remain unverified.",
-      command: process.platform === "win32" ? "python" : "python3",
-      variants: freeze({
-        displays: freeze({
-          args: ["-m", "vclone", "rig-preflight", "--expected-projectors", "2"],
-          timeoutMs: 30000,
-        }),
-      }),
-    }),
-  }),
   "go-standard": freeze({
     go_verify: freeze({
       category: "build",
@@ -329,12 +310,16 @@ const PRESETS = freeze({
       requireIsolatedLane: true,
       command: "dotnet",
       variants: freeze({
-        locked: freeze({ args: ["restore", "--locked-mode"], timeoutMs: 300000 }),
+        locked: freeze({
+          args: ["restore", "--locked-mode"],
+          timeoutMs: 300000,
+        }),
       }),
     }),
     dotnet_verify: freeze({
       category: "build",
-      description: "Build or test a restored .NET project in an isolated IDE lane.",
+      description:
+        "Build or test a restored .NET project in an isolated IDE lane.",
       requireIsolatedLane: true,
       command: "dotnet",
       variants: freeze({
@@ -346,13 +331,23 @@ const PRESETS = freeze({
   "java-maven-standard": freeze({
     maven_verify: freeze({
       category: "build",
-      description: "Run offline Maven compile and tests in an isolated IDE lane.",
+      description:
+        "Run offline Maven compile and tests in an isolated IDE lane.",
       requireIsolatedLane: true,
       command: "mvn",
       variants: freeze({
-        compile: freeze({ args: ["--batch-mode", "--offline", "compile"], timeoutMs: 300000 }),
-        test: freeze({ args: ["--batch-mode", "--offline", "test"], timeoutMs: 300000 }),
-        verify: freeze({ args: ["--batch-mode", "--offline", "verify"], timeoutMs: 300000 }),
+        compile: freeze({
+          args: ["--batch-mode", "--offline", "compile"],
+          timeoutMs: 300000,
+        }),
+        test: freeze({
+          args: ["--batch-mode", "--offline", "test"],
+          timeoutMs: 300000,
+        }),
+        verify: freeze({
+          args: ["--batch-mode", "--offline", "verify"],
+          timeoutMs: 300000,
+        }),
       }),
     }),
   }),
@@ -365,7 +360,6 @@ export function commandRequiresIsolatedLane(commandId) {
     "main_platform_ui_ci",
     "calibration_v4_qa",
     "calibration_studio_qt_qa",
-    "vioso_rig_preflight",
   ].includes(commandId);
 }
 
