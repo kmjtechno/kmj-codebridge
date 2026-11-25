@@ -39,21 +39,9 @@ export const TASK_ROUTE_PREFERENCES = Object.freeze({
     "auto:coder",
     "auto:default",
   ]),
-  fast: Object.freeze([
-    "auto:quick",
-    "auto:lowlatency",
-    "auto:default",
-  ]),
-  reasoning: Object.freeze([
-    "auto:reasoning",
-    "auto:analysis",
-    "auto:default",
-  ]),
-  general: Object.freeze([
-    "auto:general",
-    "auto:chat",
-    "auto:default",
-  ]),
+  fast: Object.freeze(["auto:quick", "auto:lowlatency", "auto:default"]),
+  reasoning: Object.freeze(["auto:reasoning", "auto:analysis", "auto:default"]),
+  general: Object.freeze(["auto:general", "auto:chat", "auto:default"]),
 });
 const MAX_CATALOG = 4096;
 
