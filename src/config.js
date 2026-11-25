@@ -360,7 +360,9 @@ export const agentSchema = z.object({
               nativeModelFabricApproved: z.boolean().default(false),
               nativeTokenEnv: z
                 .string()
-                .regex(/^CODEBRIDGE_KMJ_MODELFABRIC_TOKEN(?:_[A-Z0-9_]{1,40})?$/)
+                .regex(
+                  /^CODEBRIDGE_KMJ_MODELFABRIC_TOKEN(?:_[A-Z0-9_]{1,40})?$/,
+                )
                 .optional(),
               cloudSourceTransferApproved: z.boolean().default(false),
               model: z.string().regex(/^[A-Za-z0-9._:/-]{1,96}$/),
@@ -432,7 +434,9 @@ export const agentSchema = z.object({
                 });
               }
               if (worker.enabled) {
-                if (worker.inferenceRoute === "native-verified-free-cloud-only") {
+                if (
+                  worker.inferenceRoute === "native-verified-free-cloud-only"
+                ) {
                   if (
                     worker.localProcessingApproved ||
                     worker.cloudProxyApproved ||
@@ -444,10 +448,13 @@ export const agentSchema = z.object({
                     ctx.addIssue({
                       code: z.ZodIssueCode.custom,
                       path: ["inferenceRoute"],
-                      message: "Native coding requires explicit native and source-transfer grants, a scoped token environment name, and no legacy/local fallback",
+                      message:
+                        "Native coding requires explicit native and source-transfer grants, a scoped token environment name, and no legacy/local fallback",
                     });
                   }
-                } else if (worker.inferenceRoute === "verified-free-cloud-only") {
+                } else if (
+                  worker.inferenceRoute === "verified-free-cloud-only"
+                ) {
                   if (
                     worker.localProcessingApproved === true ||
                     worker.nativeModelFabricApproved === true ||
