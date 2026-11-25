@@ -41,21 +41,30 @@ test("selected workspace plan is deterministic and returns no contents", (t) => 
 test("stale head, stale bytes and case aliases fail closed", (t) => {
   const options = fixture(t);
   assert.throws(
-    () => planTerminalWorkspaceSnapshot({ ...options, readHead: () => "b".repeat(40) }),
+    () =>
+      planTerminalWorkspaceSnapshot({
+        ...options,
+        readHead: () => "b".repeat(40),
+      }),
     /TERMINAL_SNAPSHOT_HEAD_MISMATCH/,
   );
   assert.throws(
-    () => planTerminalWorkspaceSnapshot({
-      ...options,
-      entries: [{ path: "a.txt", sha256: "b".repeat(64) }],
-    }),
+    () =>
+      planTerminalWorkspaceSnapshot({
+        ...options,
+        entries: [{ path: "a.txt", sha256: "b".repeat(64) }],
+      }),
     /TERMINAL_SNAPSHOT_CONTENT_MISMATCH/,
   );
   assert.throws(
-    () => planTerminalWorkspaceSnapshot({
-      ...options,
-      entries: [...options.entries, { path: "A.txt", sha256: hash("alpha\r\n") }],
-    }),
+    () =>
+      planTerminalWorkspaceSnapshot({
+        ...options,
+        entries: [
+          ...options.entries,
+          { path: "A.txt", sha256: hash("alpha\r\n") },
+        ],
+      }),
     /TERMINAL_SNAPSHOT_PATH_COLLISION/,
   );
 });
@@ -72,10 +81,11 @@ test("path policy remains authoritative and HEAD is checked after reading", (t) 
   }
   let reads = 0;
   assert.throws(
-    () => planTerminalWorkspaceSnapshot({
-      ...options,
-      readHead: () => (++reads === 1 ? head : "b".repeat(40)),
-    }),
+    () =>
+      planTerminalWorkspaceSnapshot({
+        ...options,
+        readHead: () => (++reads === 1 ? head : "b".repeat(40)),
+      }),
     /TERMINAL_SNAPSHOT_HEAD_MISMATCH/,
   );
 });
