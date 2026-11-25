@@ -147,6 +147,22 @@ export function createFreeLlmApiClient({
       fail("FREELLMAPI_BAD_RESPONSE");
     return res;
   };
+  const withinAdmissionBudget = async (chain, budgetMs) => {
+    let timer;
+    try {
+      await Promise.race([
+        verifyChainAdmission(chain),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () => reject(codedError("FREELLMAPI_DEADLINE_EXCEEDED")),
+            budgetMs,
+          );
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  };
   const client = {
     // Read-only live catalog rows (id, availability, execution status) for
     // planning only. It proves neither zero cost nor a working generation.
@@ -228,6 +244,8 @@ export function createFreeLlmApiClient({
       taskType,
       // Internal trusted callback for the exact task, never an MCP argument.
       authorizeRequest,
+      // Internal only: routed attempts share the original exact deadline.
+      deadlineAt,
     }) {
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
       if (upstreamCloudApproved !== true)
@@ -250,11 +268,24 @@ export function createFreeLlmApiClient({
         !["code", "chat", "auto"].includes(taskType)
       )
         fail("FREELLMAPI_INVALID_TASK_TYPE");
+      const started = now();
+      const ownDeadline = started + timeoutSeconds * 1000;
+      if (!Number.isSafeInteger(started) || !Number.isSafeInteger(ownDeadline))
+        fail("FREELLMAPI_INVALID_CLOCK");
+      if (deadlineAt !== undefined && !Number.isSafeInteger(deadlineAt))
+        fail("FREELLMAPI_INVALID_CLOCK");
+      const deadline = Math.min(ownDeadline, deadlineAt ?? ownDeadline);
+      if (deadline <= started) fail("FREELLMAPI_DEADLINE_EXCEEDED");
       requireCurrentGenerationConsent(authorizeRequest);
-      await verifyChainAdmission(chain);
+      await withinAdmissionBudget(chain, deadline - started);
       // Billing and route attestation awaits can outlive owner consent.
       // Recheck synchronously at the outbound request boundary, without
       // another await between this check and the loopback transport call.
+      const checked = now();
+      if (!Number.isSafeInteger(checked) || checked < started)
+        fail("FREELLMAPI_INVALID_CLOCK");
+      const remaining = deadline - checked;
+      if (remaining <= 0) fail("FREELLMAPI_DEADLINE_EXCEEDED");
       requireCurrentGenerationConsent(authorizeRequest);
       const res = await call(
         "POST",
@@ -265,7 +296,7 @@ export function createFreeLlmApiClient({
           max_tokens: maxTokens,
           messages: [{ role: "user", content: prompt }],
         },
-        timeoutSeconds * 1000,
+        remaining,
         taskType,
       );
       const choice = res?.choices?.[0];
@@ -374,6 +405,7 @@ export function createFreeLlmApiClient({
             ...rest,
             chain: candidate,
             timeoutSeconds: remainingSeconds,
+            deadlineAt: deadline,
             taskType:
               task === "code" ? "code" : task === "reasoning" ? "auto" : "chat",
           });
@@ -393,7 +425,8 @@ export function createFreeLlmApiClient({
   return client;
 }
 
-function httpRequest({
+// Internal loopback transport, exported for hermetic transport regression tests.
+export function httpRequest({
   port,
   method,
   path,
@@ -404,6 +437,15 @@ function httpRequest({
 }) {
   return new Promise((resolve, reject) => {
     const payload = body === undefined ? undefined : JSON.stringify(body);
+    let timer;
+    let settled = false;
+    const finish = (error, value) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (error) reject(error);
+      else resolve(value);
+    };
     const req = http.request(
       {
         host: "127.0.0.1",
@@ -426,27 +468,48 @@ function httpRequest({
         const chunks = [];
         let size = 0;
         res.on("data", (c) => {
+          if (settled) return;
           size += c.length;
-          if (size > MAX_RESPONSE_BYTES)
-            req.destroy(codedError("FREELLMAPI_TOO_LARGE"));
-          else chunks.push(c);
+          if (size > MAX_RESPONSE_BYTES) {
+            finish(codedError("FREELLMAPI_TOO_LARGE"));
+            req.destroy();
+          } else chunks.push(c);
         });
         res.on("end", () => {
+          if (settled) return;
+          if (!res.complete)
+            return finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE"));
           if (res.statusCode === 429)
-            return reject(codedError("FREELLMAPI_QUOTA_EXHAUSTED"));
+            return finish(codedError("FREELLMAPI_QUOTA_EXHAUSTED"));
           if (res.statusCode < 200 || res.statusCode > 299)
-            return reject(codedError(`FREELLMAPI_HTTP_${res.statusCode}`));
+            return finish(codedError(`FREELLMAPI_HTTP_${res.statusCode}`));
           try {
-            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+            finish(null, JSON.parse(Buffer.concat(chunks).toString("utf8")));
           } catch {
-            reject(codedError("FREELLMAPI_BAD_RESPONSE"));
+            finish(codedError("FREELLMAPI_BAD_RESPONSE"));
           }
         });
-        res.on("error", reject);
+        res.on("aborted", () =>
+          finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE")),
+        );
+        res.on("error", () =>
+          finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE")),
+        );
+        res.on("close", () => {
+          if (!res.complete)
+            finish(codedError("FREELLMAPI_INCOMPLETE_RESPONSE"));
+        });
       },
     );
-    req.on("timeout", () => req.destroy(codedError("FREELLMAPI_TIMEOUT")));
-    req.on("error", reject);
+    const timeout = () => {
+      finish(codedError("FREELLMAPI_TIMEOUT"));
+      req.destroy();
+    };
+    // Node's socket timeout is an inactivity timer, not a wall-clock
+    // deadline. A trickling response must not keep a chat lane busy forever.
+    timer = setTimeout(timeout, timeoutMs);
+    req.on("timeout", timeout);
+    req.on("error", () => finish(codedError("FREELLMAPI_CONNECTION_FAILED")));
     req.end(payload);
   });
 }
