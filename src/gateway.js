@@ -109,10 +109,15 @@ const STALE_WINDOW_MS = 120000;
 // work that waits for the backoff to end. The gateway therefore never holds
 // an empty poll longer than this cap, whatever pollWaitMs is configured.
 export const AGENT_POLL_WAIT_CAP_MS = 15000;
-export function effectivePollWaitMs(configuredMs) {
+export const FLAPPING_POLL_WAIT_CAP_MS = 5000;
+export function effectivePollWaitMs(configuredMs, health, now = Date.now()) {
+  const cap =
+    sessionChurn(health, now).sessionChurn === "flapping"
+      ? FLAPPING_POLL_WAIT_CAP_MS
+      : AGENT_POLL_WAIT_CAP_MS;
   return Number.isFinite(configuredMs) && configuredMs > 0
-    ? Math.min(configuredMs, AGENT_POLL_WAIT_CAP_MS)
-    : AGENT_POLL_WAIT_CAP_MS;
+    ? Math.min(configuredMs, cap)
+    : cap;
 }
 
 // A healthy agent opens one /agent/health session per gateway or agent start.
@@ -1196,7 +1201,10 @@ export async function startGateway(rawConfig) {
               resolve();
             };
             waiting.set(a.id, finish);
-            timer = setTimeout(finish, effectivePollWaitMs(config.pollWaitMs));
+            timer = setTimeout(
+              finish,
+              effectivePollWaitMs(config.pollWaitMs, agentHealth.get(a.id)),
+            );
             res.once("close", finish);
           });
           return;
