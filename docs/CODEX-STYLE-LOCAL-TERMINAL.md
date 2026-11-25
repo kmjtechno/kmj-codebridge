@@ -27,3 +27,25 @@ command profile mechanism. Full host Administrator/PowerShell access is
 not a substitute for a sandbox. The host ChatGPT client controls its
 available tools and UI; a connector cannot grant itself Codex's internal
 permissions or change the host product.
+
+## Pinned local Docker adapter candidate
+
+The internal adapter admits only the fixed core argv and process limits,
+requires explicit opt-in, verifies the canonical Docker executable SHA-256,
+uses a fixed local Linux socket or Windows Docker Desktop Linux pipe, and
+runs without inherited Docker/proxy/credential settings. It only starts or
+removes container IDs created by that adapter instance. The installation
+path and local daemon must be protected by the operator; hashing alone is
+not a filesystem lock or daemon identity attestation. Output is withheld
+except for container creation identity. A process timeout or failed create
+may leave an orphan, so restart-safe reconciliation, workspace transfer,
+cancellation, streaming redaction, MCP routing and real P520 tests remain
+required. This source candidate does not activate Docker or alter a device.
+
+The internal core also accepts an optional trusted AbortSignal. Cancellation
+before create prevents execution, cancellation during create skips start
+after a verified ID arrives, and cancellation during start interrupts the
+CLI. Exact-ID cleanup is never passed that signal; cleanup failure takes
+precedence over a cancellation receipt. This does not cancel an ambiguous
+create or prove that a remote job has stopped. Agent restart recovery and
+public MCP job cancellation are not yet connected.
