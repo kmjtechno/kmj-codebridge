@@ -26,7 +26,10 @@ test("native discovery is fixed-origin, scoped and does not attest billing", asy
       assert.equal(options.method, "GET");
       assert.equal(options.redirect, "error");
       assert.equal(options.headers.Authorization, `Bearer ${token}`);
-      assert.equal(options.headers["X-ModelFabric-Policy"], "strict-free-cloud");
+      assert.equal(
+        options.headers["X-ModelFabric-Policy"],
+        "strict-free-cloud",
+      );
       return Response.json(payload);
     },
   });
