@@ -31,6 +31,7 @@ const CLOUD_CREDENTIAL_MARKERS = [
   /Bearer\s+(?!\$\{)[A-Za-z0-9._~+/-]{24,}={0,2}/,
   /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}/,
   /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{40,})/,
+  /\bkmjmf_[A-Za-z0-9]{48,}/,
   /\bAKIA[0-9A-Z]{16}\b/,
   /\bxox[abprs]-[A-Za-z0-9-]{20,}/,
 ];
