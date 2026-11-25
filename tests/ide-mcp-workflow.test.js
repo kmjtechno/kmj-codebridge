@@ -35,6 +35,17 @@ function fixture(t) {
         writable: true,
         gates: {},
         commands: {
+          local_debug: {
+            category: "build",
+            command: process.execPath,
+            requireIsolatedLane: true,
+            variants: {
+              smoke: {
+                args: ["-e", "console.log('IDE_DEBUG_SMOKE=PASS')"],
+                timeoutMs: 5000,
+              },
+            },
+          },
           calibration_v4_qa: {
             category: "build",
             command: process.execPath,
@@ -140,4 +151,44 @@ test("IDE command blocks arbitrary shell, unapproved profile and wrong device", 
     x.dispatch("ide_run_project_task", request, ["execute"]),
     /ACCESS_DENIED/,
   );
+});
+
+test("custom owner IDE task requires explicit exact-head lane", async (t) => {
+  const x = fixture(t);
+  const request = {
+    ...x.scope,
+    command: "local_debug",
+    variant: "smoke",
+    requestKey: "local-debug-smoke",
+    waitMs: 10000,
+  };
+  await assert.rejects(
+    x.dispatch("ide_run_project_task", request, x.grants),
+    /WORKTREE_LANE_REQUIRED/,
+  );
+  await x.dispatch(
+    "worktree_lane_prepare",
+    {
+      ...x.scope,
+      laneId: "local-debug",
+      expectedHead: x.head,
+      approveLocalGitCheckout: true,
+    },
+    x.grants,
+  );
+  await assert.rejects(
+    x.dispatch(
+      "ide_run_project_task",
+      { ...request, laneId: "local-debug" },
+      x.grants,
+    ),
+    /WORKTREE_EXPECTED_HEAD_REQUIRED/,
+  );
+  const receipt = await x.dispatch(
+    "ide_run_project_task",
+    { ...request, laneId: "local-debug", expectedHead: x.head },
+    x.grants,
+  );
+  assert.equal(receipt.executionSucceeded, true);
+  assert.equal(fs.readFileSync(x.originalUserFile, "utf8"), "PRESERVE");
 });

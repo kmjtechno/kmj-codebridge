@@ -1,4 +1,4 @@
-name: CodeBridge VIOSO rig preset safety
+name: CodeBridge command profile safety
 on:
   pull_request:
     paths:

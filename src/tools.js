@@ -4398,6 +4398,10 @@ export function createDispatcher(
             description: profile.description,
             risk: commandRisk(profile.category),
             approvalRequired: approvalRequired(commandRisk(profile.category)),
+            ...(profile.requireIsolatedLane === true ||
+            commandRequiresIsolatedLane(id)
+              ? { requiresIsolatedLane: true }
+              : {}),
             variants: Object.keys(profile.variants),
           })),
           // First-party compatibility profile for clients whose captured MCP
@@ -5396,10 +5400,8 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
-      // A VIOSO optical preflight may only run for its explicitly enrolled
-      // VIOSO project. An unrelated administrator opt-in does not grant it.
-      if (a.command === "vioso_rig_preflight" && p.id !== "vioso-clone")
-        fail("VIOSO_RIG_PROJECT_NOT_ALLOWED");
+      // Retired integration: stale explicitly configured profiles must not run.
+      if (a.command === "vioso_rig_preflight") fail("COMMAND_NOT_ALLOWED");
       if (
         a.command === "calibration_studio_qt_qa" &&
         p.id !== "kmj-calibration-studio"
@@ -5420,11 +5422,9 @@ export function createDispatcher(
             : a.command === "calibration_studio_qt_qa" &&
                 p.id === "kmj-calibration-studio"
               ? "calibration_studio_qa"
-              : a.command === "vioso_rig_preflight" && p.id === "vioso-clone"
-                ? "vioso_rig_qa"
-                : isPinnedPowerShell
-                  ? "windows_ps_" + a.command.slice(0, 15)
-                  : null;
+              : isPinnedPowerShell
+                ? "windows_ps_" + a.command.slice(0, 15)
+                : null;
       const autoLane =
         autoLanePrefix !== null &&
         a.laneId === undefined &&
@@ -5439,6 +5439,7 @@ export function createDispatcher(
       const selectedHead = autoLane?.head ?? a.expectedHead;
       const pinned =
         commandRequiresIsolatedLane(a.command) ||
+        profile.requireIsolatedLane === true ||
         isPinnedPowerShell ||
         selectedHead !== undefined;
       if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED");
