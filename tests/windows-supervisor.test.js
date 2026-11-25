@@ -687,8 +687,14 @@ test("unverified process termination blocks subsequent verification", async (t) 
     projectId: "kmj-cinecore",
     sha: SHA,
   };
-  await assert.rejects(handler(req), /SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED/);
-  await assert.rejects(handler(req), /SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED/);
+  await assert.rejects(
+    handler(req),
+    /SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED/,
+  );
+  await assert.rejects(
+    handler(req),
+    /SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED/,
+  );
   assert.equal(calls, 1);
 });
 
