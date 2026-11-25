@@ -58,9 +58,7 @@ function privateDirectory(dir) {
 function syncDirectory(dir) {
   const fd = fs.openSync(
     dir,
-    fs.constants.O_RDONLY |
-      fs.constants.O_DIRECTORY |
-      fs.constants.O_NOFOLLOW,
+    fs.constants.O_RDONLY | fs.constants.O_DIRECTORY | fs.constants.O_NOFOLLOW,
   );
   try {
     fs.fsyncSync(fd);
