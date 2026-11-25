@@ -21,7 +21,10 @@ export function createIsolatedTerminalCore({
     throw new Error("TERMINAL_LOCAL_BACKEND_REQUIRED");
 
   return Object.freeze({
-    async execute(command) {
+    async execute(command, { signal } = {}) {
+      if (signal !== undefined && !(signal instanceof AbortSignal))
+        throw new Error("TERMINAL_INVALID_CANCELLATION_SIGNAL");
+      if (signal?.aborted) throw new Error("TERMINAL_EXECUTION_CANCELLED");
       if (
         typeof command !== "string" ||
         !command.trim() ||
@@ -74,10 +77,13 @@ export function createIsolatedTerminalCore({
       let result;
       let failed = false;
       try {
-        result = await invokeDocker(["start", "--attach", id], {
-          timeoutMs: MAX_RUNTIME_MS,
-          maxOutputBytes: MAX_OUTPUT_BYTES,
-        });
+        if (!signal?.aborted) {
+          result = await invokeDocker(["start", "--attach", id], {
+            timeoutMs: MAX_RUNTIME_MS,
+            maxOutputBytes: MAX_OUTPUT_BYTES,
+            ...(signal ? { signal } : {}),
+          });
+        }
       } catch {
         failed = true;
       } finally {
@@ -94,6 +100,8 @@ export function createIsolatedTerminalCore({
           throw new Error("TERMINAL_CLEANUP_UNVERIFIED");
         }
       }
+      // Cancellation is reported only after exact-ID cleanup succeeded.
+      if (signal?.aborted) throw new Error("TERMINAL_EXECUTION_CANCELLED");
       if (failed || !Number.isInteger(result?.exitCode))
         throw new Error("TERMINAL_EXECUTION_UNVERIFIED");
       // Only fixed status metadata crosses this core. The existing JobRunner
