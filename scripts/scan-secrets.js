@@ -13,6 +13,7 @@ export const patterns = [
   ["bearer credential", /Bearer\s+(?!\$\{)[A-Za-z0-9._~+/-]{24,}={0,2}/],
   ["Anthropic/OpenAI key", /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{24,}/],
   ["GitHub token", /\b(?:gh[pousr]_[A-Za-z0-9]{30,}|github_pat_\w{40,})/],
+  ["KMJ ModelFabric token", /\bkmjmf_[A-Za-z0-9]{48,}/],
   ["AWS access key", /\bAKIA[0-9A-Z]{16}\b/],
   ["Slack token", /\bxox[abprs]-[A-Za-z0-9-]{20,}/],
 ];

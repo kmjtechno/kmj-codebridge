@@ -28,6 +28,7 @@ export function createNativeModelFabricPreflight({
     async status() {
       if (
         typeof token !== "string" ||
+        token.length !== 54 ||
         !TOKEN.test(token) ||
         typeof request !== "function" ||
         !approved()
