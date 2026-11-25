@@ -79,7 +79,7 @@ test("invalid, repeated or forged catalog/profile data is rejected", () => {
   assert.equal(Object.isFrozen(TASK_ROUTE_PREFERENCES), true);
 });
 
-test("owner-pinned named profiles outrank global auto-sort aliases", () => {
+test("owner-pinned named profiles exclude global auto-sort aliases", () => {
   const overview = inspectFabricCatalog(
     [
       { id: "auto:general", available: true, execution_status: "ready" },
@@ -90,13 +90,9 @@ test("owner-pinned named profiles outrank global auto-sort aliases", () => {
     ["auto:general", "auto:quick", "auto:fast", "auto:balanced"],
     1000000,
   );
-  assert.deepEqual(selectFabricCandidates(overview, "fast"), [
-    "auto:quick",
-    "auto:fast",
-  ]);
+  assert.deepEqual(selectFabricCandidates(overview, "fast"), ["auto:quick"]);
   assert.deepEqual(selectFabricCandidates(overview, "general"), [
     "auto:general",
-    "auto:balanced",
   ]);
   assert.equal(overview.inferenceReady, false);
 });
@@ -350,4 +346,61 @@ test("non-429 failures are never retried to another chain", async () => {
     { message: "FREELLMAPI_TIMEOUT" },
   );
   assert.equal(posts, 1);
+});
+
+test("global aliases cannot reach attestation or cloud POST even with synthetic proof", async () => {
+  const aliases = [
+    "smart",
+    "smartest",
+    "intelligence",
+    "fast",
+    "fastest",
+    "speed",
+    "cheap",
+    "cheapest",
+    "price",
+    "budget",
+    "reliable",
+    "reliability",
+    "balanced",
+    "SMART",
+  ].map((name) => "auto:" + name);
+  let attestations = 0;
+  let posts = 0;
+  const client = createFreeLlmApiClient({
+    apiKey: key,
+    approvedFreeChains: aliases,
+    verifyZeroCostChain: (args) => {
+      attestations++;
+      return proof(args);
+    },
+    request: async ({ method }) => {
+      if (method === "POST") posts++;
+      return {
+        data: aliases.map((id) => ({
+          id,
+          available: true,
+          execution_status: "ready",
+        })),
+      };
+    },
+  });
+  const status = await client.status();
+  assert.equal(status.fabric.eligibleCandidateCount, 0);
+  for (const chain of aliases) {
+    await assert.rejects(client.checkZeroCostChain({ chain }), {
+      message: "FREELLMAPI_GLOBAL_ALIAS_DENIED",
+    });
+    await assert.rejects(
+      client.generate({
+        chain,
+        prompt: "test",
+        localProcessingApproved: true,
+        upstreamCloudApproved: true,
+      }),
+      { message: "FREELLMAPI_GLOBAL_ALIAS_DENIED" },
+    );
+  }
+  assert.equal(attestations, 0);
+  assert.equal(posts, 0);
 });
