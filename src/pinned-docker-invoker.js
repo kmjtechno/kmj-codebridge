@@ -147,10 +147,7 @@ export async function createPinnedDockerInvoker({
             encoding: "utf8",
           },
           (error, stdout, stderr) => {
-            if (
-              error &&
-              (error.killed || !Number.isInteger(error.code))
-            ) {
+            if (error && (error.killed || !Number.isInteger(error.code))) {
               reject(new Error("TERMINAL_DOCKER_PROCESS_UNVERIFIED"));
               return;
             }
