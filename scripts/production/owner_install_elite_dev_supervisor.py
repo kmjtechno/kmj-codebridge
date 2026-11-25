@@ -385,8 +385,8 @@ def private_socket_probe():
     js = r"""
 import n from 'node:net';
 const p='/run/kmj-codebridge-dev/supervisor.sock';
-const cases=[{op:'status',service:'agent'},{op:'restart',service:'agent'},
-{op:'status',service:'gateway'}];
+const cases=[{op:'status',service:'agent'},{op:'device_status'},
+{op:'disk_space'},{op:'restart',service:'agent'},{op:'status',service:'gateway'}];
 async function one(x){return new Promise((resolve,reject)=>{
 const s=n.createConnection(p);let b='';
 s.setTimeout(3000,()=>s.destroy(Error('timeout')));
@@ -395,7 +395,9 @@ s.on('data',c=>{b+=c;if(b.includes('\n')){s.end();try{resolve(JSON.parse(b.split
 s.on('error',reject);s.on('end',()=>{if(!b.includes('\n'))reject(Error('eof'))});
 })}
 const r=[];for(const x of cases)r.push(await one(x));
-if(!r[0]?.ok||r[1]?.ok!==false||r[2]?.ok!==false)process.exit(2);
+if(!r[0]?.ok||r[0]?.result?.activeState!=='active'||
+!r[1]?.ok||!Number.isSafeInteger(r[1]?.result?.cpuCount)||r[1].result.cpuCount<1||
+!r[2]?.ok||r[3]?.ok!==false||r[4]?.ok!==false)process.exit(2);
 process.stdout.write('PRIVATE_READ_ONLY_RPC_PASS\n');
 """
     output = run(["/usr/sbin/runuser", "-u", "kmjdev", "--",
