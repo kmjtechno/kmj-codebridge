@@ -46,8 +46,7 @@ export function createNativeModelFabricPreflight({
           },
           signal: AbortSignal.timeout(10_000),
         });
-        if (!response.ok || !response.body || !approved())
-          return unavailable();
+        if (!response.ok || !response.body || !approved()) return unavailable();
         const reader = response.body.getReader();
         const decoder = new TextDecoder("utf-8", { fatal: true });
         let bytes = 0;
