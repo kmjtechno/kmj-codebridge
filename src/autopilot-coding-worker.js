@@ -311,7 +311,9 @@ export function codingRouteApproved(config) {
       config.localProcessingApproved !== true &&
       config.model === "modelfabric-auto" &&
       typeof config.nativeTokenEnv === "string" &&
-      /^CODEBRIDGE_KMJ_MODELFABRIC_TOKEN(?:_[A-Z0-9_]{1,40})?$/.test(config.nativeTokenEnv)
+      /^CODEBRIDGE_KMJ_MODELFABRIC_TOKEN(?:_[A-Z0-9_]{1,40})?$/.test(
+        config.nativeTokenEnv,
+      )
     );
   if (config.inferenceRoute === "verified-free-cloud-only")
     return (
