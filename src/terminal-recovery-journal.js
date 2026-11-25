@@ -166,6 +166,37 @@ export class TerminalRecoveryJournal {
     });
   }
 
+  complete(name, id) {
+    const record = this.read(name);
+    if (record.boundId !== id || typeof id !== "string")
+      throw new Error("TERMINAL_RECOVERY_INVALID_BINDING");
+    writeExclusive(this.file(name, ".complete"), {
+      version: 1,
+      name,
+      id,
+    });
+  }
+
+  completion(name) {
+    const record = this.read(name);
+    let completed;
+    try {
+      completed = readPrivate(this.file(name, ".complete"));
+    } catch (error) {
+      if (error.code === "ENOENT") return false;
+      throw error;
+    }
+    if (
+      completed?.version !== 1 ||
+      completed.name !== name ||
+      typeof completed.id !== "string" ||
+      completed.id !== record.boundId ||
+      Object.keys(completed).length !== 3
+    )
+      throw new Error("TERMINAL_RECOVERY_INVALID_COMPLETION");
+    return true;
+  }
+
   readIntent(name) {
     const intent = readPrivate(this.file(name, ".intent"));
     if (!validIntent(intent) || intent.name !== name)
