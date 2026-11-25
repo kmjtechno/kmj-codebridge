@@ -41,3 +41,11 @@ except for container creation identity. A process timeout or failed create
 may leave an orphan, so restart-safe reconciliation, workspace transfer,
 cancellation, streaming redaction, MCP routing and real P520 tests remain
 required. This source candidate does not activate Docker or alter a device.
+
+The internal core also accepts an optional trusted AbortSignal. Cancellation
+before create prevents execution, cancellation during create skips start
+after a verified ID arrives, and cancellation during start interrupts the
+CLI. Exact-ID cleanup is never passed that signal; cleanup failure takes
+precedence over a cancellation receipt. This does not cancel an ambiguous
+create or prove that a remote job has stopped. Agent restart recovery and
+public MCP job cancellation are not yet connected.
