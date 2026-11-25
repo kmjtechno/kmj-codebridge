@@ -3,6 +3,31 @@
 // provider authorization or route-member immutability.
 const CHAIN = /^auto:[A-Za-z0-9_-]{1,20}$/;
 const STATE = new Set(["ready", "needsKey", "exhausted"]);
+// Upstream global sort aliases resolve across all enabled models, not the
+// owner-pinned named profile. Case-insensitive, matching upstream dispatch.
+const GLOBAL_SORT = new Set([
+  "smart",
+  "smartest",
+  "intelligence",
+  "fast",
+  "fastest",
+  "speed",
+  "cheap",
+  "cheapest",
+  "price",
+  "budget",
+  "reliable",
+  "reliability",
+  "balanced",
+]);
+
+export function isGlobalFabricAlias(chain) {
+  return (
+    typeof chain === "string" &&
+    GLOBAL_SORT.has(chain.toLowerCase().slice(5)) &&
+    chain.toLowerCase().startsWith("auto:")
+  );
+}
 // Prefer owner-defined narrow named profiles over FreeLLMAPI's global
 // auto:smart/fast/balanced sorts, which can include ALL enabled providers.
 // Keep legacy auto:default only if the live router actually advertises it;
@@ -12,27 +37,21 @@ export const TASK_ROUTE_PREFERENCES = Object.freeze({
     "auto:code",
     "auto:coding",
     "auto:coder",
-    "auto:smart",
     "auto:default",
   ]),
   fast: Object.freeze([
     "auto:quick",
     "auto:lowlatency",
-    "auto:fast",
-    "auto:reliable",
     "auto:default",
   ]),
   reasoning: Object.freeze([
     "auto:reasoning",
     "auto:analysis",
-    "auto:smart",
-    "auto:reliable",
     "auto:default",
   ]),
   general: Object.freeze([
     "auto:general",
     "auto:chat",
-    "auto:balanced",
     "auto:default",
   ]),
 });
@@ -81,24 +100,27 @@ export function inspectFabricCatalog(
     // Explicitly negative router evidence is meaningful; absence of fields
     // is UNKNOWN, not proof of route readiness or successful upstream.
     const excluded =
+      isGlobalFabricAlias(chain) ||
       !published ||
       cooling ||
       state === "needsKey" ||
       state === "exhausted" ||
       row?.available === false;
-    const reason = !published
-      ? "NOT_ADVERTISED"
-      : cooling
-        ? "RECENT_429_COOLDOWN"
-        : state === "needsKey"
-          ? "NEEDS_PROVIDER_KEY"
-          : state === "exhausted"
-            ? "QUOTA_EXHAUSTED"
-            : row.available === false
-              ? "ROUTER_UNAVAILABLE"
-              : state === "ready" && row.available === true
-                ? "ROUTER_READY_COST_UNVERIFIED"
-                : "ROUTER_STATUS_UNKNOWN";
+    const reason = isGlobalFabricAlias(chain)
+      ? "GLOBAL_ALIAS_NOT_PINNABLE"
+      : !published
+        ? "NOT_ADVERTISED"
+        : cooling
+          ? "RECENT_429_COOLDOWN"
+          : state === "needsKey"
+            ? "NEEDS_PROVIDER_KEY"
+            : state === "exhausted"
+              ? "QUOTA_EXHAUSTED"
+              : row.available === false
+                ? "ROUTER_UNAVAILABLE"
+                : state === "ready" && row.available === true
+                  ? "ROUTER_READY_COST_UNVERIFIED"
+                  : "ROUTER_STATUS_UNKNOWN";
     return {
       chain,
       routeStatus: excluded ? "EXCLUDED" : "CANDIDATE",
