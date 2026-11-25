@@ -18,6 +18,8 @@ function proofValid(proof, requestDigest, now) {
     proof.requestDigest === requestDigest &&
     proof.endpoint === ENDPOINT &&
     proof.policy === POLICY &&
+    typeof proof.admissionTicket === "string" &&
+    /^[A-Za-z0-9]{64}$/.test(proof.admissionTicket) &&
     proof.accountNoChargeVerified === true &&
     proof.exactRouteBindingVerified === true &&
     proof.noPaidFallback === true &&
@@ -110,6 +112,7 @@ export function createNativeModelFabricGeneration({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
             "X-ModelFabric-Policy": POLICY,
+            "X-ModelFabric-Admission-Ticket": proof.admissionTicket,
           },
           body,
           signal: AbortSignal.timeout(timeoutSeconds * 1000),
