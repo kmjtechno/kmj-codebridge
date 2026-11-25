@@ -575,6 +575,8 @@ export const agentSchema = z.object({
               z.object({
                 category: z.enum(["inspect", "build", "write", "network"]),
                 description: z.string().max(160).default(""),
+                // Optional owner-selected isolation for custom native IDE tasks.
+                requireIsolatedLane: z.boolean().optional(),
                 command: z
                   .string()
                   .min(1)

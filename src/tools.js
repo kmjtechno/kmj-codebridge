@@ -4398,6 +4398,9 @@ export function createDispatcher(
             description: profile.description,
             risk: commandRisk(profile.category),
             approvalRequired: approvalRequired(commandRisk(profile.category)),
+            ...(profile.requireIsolatedLane === true || commandRequiresIsolatedLane(id)
+              ? { requiresIsolatedLane: true }
+              : {}),
             variants: Object.keys(profile.variants),
           })),
           // First-party compatibility profile for clients whose captured MCP
@@ -5439,6 +5442,7 @@ export function createDispatcher(
       const selectedHead = autoLane?.head ?? a.expectedHead;
       const pinned =
         commandRequiresIsolatedLane(a.command) ||
+        profile.requireIsolatedLane === true ||
         isPinnedPowerShell ||
         selectedHead !== undefined;
       if (pinned && !selectedLaneId) fail("WORKTREE_LANE_REQUIRED");

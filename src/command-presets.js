@@ -322,6 +322,40 @@ const PRESETS = freeze({
       }),
     }),
   }),
+  "dotnet-standard": freeze({
+    dotnet_restore: freeze({
+      category: "network",
+      description: "Restore locked .NET dependencies in an isolated IDE lane.",
+      requireIsolatedLane: true,
+      command: "dotnet",
+      variants: freeze({
+        locked: freeze({ args: ["restore", "--locked-mode"], timeoutMs: 300000 }),
+      }),
+    }),
+    dotnet_verify: freeze({
+      category: "build",
+      description: "Build or test a restored .NET project in an isolated IDE lane.",
+      requireIsolatedLane: true,
+      command: "dotnet",
+      variants: freeze({
+        build: freeze({ args: ["build", "--no-restore"], timeoutMs: 300000 }),
+        test: freeze({ args: ["test", "--no-restore"], timeoutMs: 300000 }),
+      }),
+    }),
+  }),
+  "java-maven-standard": freeze({
+    maven_verify: freeze({
+      category: "build",
+      description: "Run offline Maven compile and tests in an isolated IDE lane.",
+      requireIsolatedLane: true,
+      command: "mvn",
+      variants: freeze({
+        compile: freeze({ args: ["--batch-mode", "--offline", "compile"], timeoutMs: 300000 }),
+        test: freeze({ args: ["--batch-mode", "--offline", "test"], timeoutMs: 300000 }),
+        verify: freeze({ args: ["--batch-mode", "--offline", "verify"], timeoutMs: 300000 }),
+      }),
+    }),
+  }),
 });
 
 // Fail closed on the production/main checkout even after an administrator
@@ -338,7 +372,7 @@ export function commandRequiresIsolatedLane(commandId) {
 // Machine-readable version of the command-profile contract documented in
 // docs/COMMAND-PROFILE-SCHEMA.md. Informational only: it does not change which
 // commands may run. Bump it together with the document when a field is added.
-export const COMMAND_PROFILE_SCHEMA_VERSION = "1.4";
+export const COMMAND_PROFILE_SCHEMA_VERSION = "1.5";
 
 export const COMMAND_PRESET_IDS = Object.freeze(Object.keys(PRESETS));
 

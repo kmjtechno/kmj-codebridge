@@ -1,6 +1,6 @@
 # Command-profile schema and compatibility matrix
 
-Document version: **1.4** (2026-11-19). Milestone: **M0 inventory/contracts** of
+Document version: **1.5** (2026-11-19). Milestone: **M0 inventory/contracts** of
 `docs/UNIVERSAL-LOCAL-DEVELOPMENT-ENGINE.md`.
 
 This documents the contract that the code enforces **today**. It adds no new
@@ -26,7 +26,8 @@ not proven on a real device; see "What is not claimed".
    worktree lane, never in the main checkout. Pinned lanes require `laneId` and
    `expectedHead`; head mismatch or dirty lane is refused and re-verified in the
    `beforeStart` hook.
-7. A profile with a pinned `powershellScript {path, sha256}` is re-hashed before
+7. An explicitly owner-configured profile with `requireIsolatedLane: true` also requires the exact lane and head, with the same pre-start check. This is not an OS sandbox.
+8. A profile with a pinned `powershellScript {path, sha256}` is re-hashed before
    start; a changed file -> `POWERSHELL_SCRIPT_CHANGED_BEFORE_START`.
 
 ## 2. Profile schema (config `commands.<id>`)
@@ -36,6 +37,7 @@ not proven on a real device; see "What is not claimed".
 | `category`                  | `inspect` \| `build` \| `write` \| `network`   |
 | `description`               | string, <= 160 chars                           |
 | `command`                   | string, <= 260 chars, no control characters    |
+| `requireIsolatedLane`       | optional boolean, default absent               |
 | `variants.<name>.args`      | array, <= 32 items, each <= 512 chars          |
 | `variants.<name>.timeoutMs` | integer 10..300000 (default 30000)             |
 | `powershellScript`          | optional `{ path, sha256 }`, pinned            |
@@ -88,6 +90,13 @@ Timeouts are per variant, in ms. "Lane" = must run in a pinned isolated lane.
 | `vioso-clone-rig-readonly`      | `vioso_rig_preflight`      | build    | `python` (win32) / `python3` | `displays` (30000)                                                      | **yes** |
 | `go-standard`                   | `go_verify`                | build    | `go`                         | `test`, `vet`, `build` (300000)                                         | no      |
 | `go-standard`                   | `go_format`                | write    | `gofmt`                      | `write` = `-w .` (300000)                                               | no      |
+
+Additional opt-in native IDE presets: `dotnet-standard` provides
+`dotnet_restore` (locked restore) and `dotnet_verify` (build/test without
+restore). `java-maven-standard` provides `maven_verify` (offline compile,
+test, verify). Both require explicit exact-head lanes; tools/dependencies and
+Windows executable compatibility must be verified on the target device.
+These are not unrestricted shell access, admin elevation or OS isolation.
 
 Fixed built-in commands (not config-driven, fixed variants): `browser_public_qa`
 (`start`), `main_platform_ui_deps` (`ci`), `main_platform_php_deps`

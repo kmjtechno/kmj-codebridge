@@ -42,6 +42,8 @@ test("command presets are fixed, bounded and never expose a shell profile", () =
     "calibration-studio-qt-offline",
     "vioso-clone-rig-readonly",
     "go-standard",
+    "dotnet-standard",
+    "java-maven-standard",
   ]);
   const commands = expandCommandPresets(COMMAND_PRESET_IDS);
   assert.ok(Object.keys(commands).length >= 8);
@@ -510,4 +512,37 @@ test("VIOSO P520 rig preflight preset stays explicitly opt-in and detached-head"
     ),
   );
   assert.ok(toolsSource.includes('"vioso_rig_qa"'));
+});
+
+test("owner can require an exact isolated lane for native IDE commands", () => {
+  const project = agentSchema.parse({
+    ...base,
+    projects: [
+      {
+        ...base.projects[0],
+        commandPresets: ["dotnet-standard", "java-maven-standard"],
+        commands: {
+          local_debug: {
+            category: "build",
+            command: "node",
+            requireIsolatedLane: true,
+            variants: { smoke: { args: ["scripts/debug-smoke.mjs"] } },
+          },
+        },
+      },
+    ],
+  }).projects[0];
+  for (const profile of Object.values(project.commands)) {
+    assert.equal(profile.requireIsolatedLane, true);
+  }
+  assert.deepEqual(project.commands.dotnet_restore.variants.locked.args, [
+    "restore",
+    "--locked-mode",
+  ]);
+  assert.deepEqual(project.commands.maven_verify.variants.test.args, [
+    "--batch-mode",
+    "--offline",
+    "test",
+  ]);
+  assert.equal(project.commands.local_debug.command, "node");
 });
