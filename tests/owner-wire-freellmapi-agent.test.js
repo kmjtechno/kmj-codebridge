@@ -304,3 +304,29 @@ m.elite_dev_identity()
 `,
   );
 });
+
+test("onboarding rejects credentials and profile lists the runtime would refuse", (t) => {
+  isolatedPythonCase(
+    t,
+    String.raw`
+import importlib.util, sys, builtins
+spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+assert m.KEY_RE.fullmatch("synthetic-key")
+assert not m.KEY_RE.fullmatch("synthetic/key")
+assert not m.KEY_RE.fullmatch("synthetic-key\n")
+assert m.chain_names({"data": [{"id": "auto:code"}, {"id": "auto:bad.name"},
+                             {"id": "auto:" + "x" * 21}]}) == ["auto:code"]
+m.getpass.getpass = lambda *_: "synthetic-key"
+m.models = lambda *_: {"data": [{"id": "auto:code"}]}
+builtins.input = lambda *_: "auto:code,auto:code"
+try:
+    m.collect()
+except ValueError as exc:
+    assert str(exc) == "INVALID_APPROVED_CHAIN_COUNT"
+else:
+    raise AssertionError("DUPLICATE_PROFILE_ACCEPTED")
+`,
+  );
+});
