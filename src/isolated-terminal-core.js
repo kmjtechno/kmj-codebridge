@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { TerminalRecoveryJournal } from "./terminal-recovery-journal.js";
 
 const IMAGE_ID = /^sha256:[a-f0-9]{64}$/;
 const CONTAINER_ID = /^[a-f0-9]{64}$/;
@@ -13,12 +14,22 @@ export function createIsolatedTerminalCore({
   enabled = false,
   imageId,
   invokeDocker,
+  recoveryJournal,
+  daemonId,
 }) {
   if (enabled !== true) throw new Error("TERMINAL_OWNER_OPT_IN_REQUIRED");
   if (typeof imageId !== "string" || !IMAGE_ID.test(imageId))
     throw new Error("TERMINAL_PINNED_IMAGE_REQUIRED");
   if (typeof invokeDocker !== "function")
     throw new Error("TERMINAL_LOCAL_BACKEND_REQUIRED");
+
+  if (
+    recoveryJournal !== undefined &&
+    (!(recoveryJournal instanceof TerminalRecoveryJournal) ||
+      typeof daemonId !== "string" ||
+      !/^[A-Za-z0-9._:-]{1,128}$/.test(daemonId))
+  )
+    throw new Error("TERMINAL_RECOVERY_CONTEXT_UNVERIFIED");
 
   return Object.freeze({
     async execute(command, { signal } = {}) {
@@ -33,7 +44,8 @@ export function createIsolatedTerminalCore({
       )
         throw new Error("TERMINAL_INVALID_COMMAND");
 
-      const name = "kmj-terminal-" + randomUUID();
+      const intent = recoveryJournal?.begin({ imageId, daemonId });
+      const name = intent?.name ?? "kmj-terminal-" + randomUUID();
       // No host bind mount or Docker socket. A later reviewed export/import
       // layer can supply project data without exposing the host checkout.
       const args = [
@@ -76,7 +88,12 @@ export function createIsolatedTerminalCore({
 
       let result;
       let failed = false;
+      let bound = false;
       try {
+        if (recoveryJournal) {
+          recoveryJournal.bind(name, id);
+          bound = true;
+        }
         if (!signal?.aborted) {
           result = await invokeDocker(["start", "--attach", id], {
             timeoutMs: MAX_RUNTIME_MS,
@@ -100,6 +117,7 @@ export function createIsolatedTerminalCore({
           throw new Error("TERMINAL_CLEANUP_UNVERIFIED");
         }
       }
+      if (bound) recoveryJournal.complete(name, id);
       // Cancellation is reported only after exact-ID cleanup succeeded.
       if (signal?.aborted) throw new Error("TERMINAL_EXECUTION_CANCELLED");
       if (failed || !Number.isInteger(result?.exitCode))
@@ -110,6 +128,7 @@ export function createIsolatedTerminalCore({
         exitCode: result.exitCode,
         executionSucceeded: result.exitCode === 0,
         containerCleanupVerified: true,
+        recoveryJournalCompleted: bound,
         projectWorkspaceMounted: false,
         hostShellUsed: false,
         productionMutationAuthorized: false,
