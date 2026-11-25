@@ -68,8 +68,7 @@ export function planTerminalWorkspaceSnapshot({
     )
       throw new Error("TERMINAL_SNAPSHOT_BYTE_ROUNDTRIP_MISMATCH");
     bytes += encoded.length;
-    if (bytes > MAX_BYTES)
-      throw new Error("TERMINAL_SNAPSHOT_BYTE_LIMIT");
+    if (bytes > MAX_BYTES) throw new Error("TERMINAL_SNAPSHOT_BYTE_LIMIT");
     verified.push({ ...entry, bytes: encoded.length });
   }
   if (readHead() !== expectedHead)
