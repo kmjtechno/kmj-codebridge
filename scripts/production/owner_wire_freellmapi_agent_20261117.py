@@ -34,8 +34,8 @@ DROPIN_DIR = pathlib.Path(f"/etc/systemd/system/{UNIT}.d")
 DROPIN = DROPIN_DIR / "kmj-freellmapi-env.conf"
 ENV_FILE = pathlib.Path("/etc/kmj-freellmapi/codebridge.env")
 BASE = "http://127.0.0.1:31415"
-KEY_RE = re.compile(r"^[A-Za-z0-9._~+/=-]{16,200}$")
-CHAIN_RE = re.compile(r"^auto:[A-Za-z0-9][A-Za-z0-9._-]{0,47}$")
+KEY_RE = re.compile(r"^[A-Za-z0-9._-]{8,200}$")
+CHAIN_RE = re.compile(r"^auto:[A-Za-z0-9_-]{1,20}$")
 GLOBAL_ALIASES = frozenset({
     "smart", "smartest", "intelligence", "fast", "fastest", "speed",
     "cheap", "cheapest", "price", "budget", "reliable", "reliability", "balanced",
@@ -173,7 +173,7 @@ def collect():
             key = getpass.getpass("FreeLLMAPI unified API key (hidden, not echoed): ").strip()
         except getpass.GetPassWarning:
             raise ValueError("PRIVATE_INPUT_UNAVAILABLE") from None
-    guard(KEY_RE.match(key), "KEY_FORMAT_REJECTED")
+    guard(KEY_RE.fullmatch(key), "KEY_FORMAT_REJECTED")
     chains = chain_names(models(key))
     guard(chains, "NO_AUTO_CHAINS_ADVERTISED")
     print("Advertised auto chains:")
@@ -181,7 +181,9 @@ def collect():
         print(f"  {name}")
     raw = input("Approve which chains? comma-separated names from above: ")
     chosen = [c.strip() for c in raw.split(",") if c.strip()]
-    guard(chosen and all(c in chains for c in chosen), "CHAIN_NOT_ADVERTISED")
+    guard(1 <= len(chosen) <= 20 and len(set(chosen)) == len(chosen),
+          "INVALID_APPROVED_CHAIN_COUNT")
+    guard(all(c in chains for c in chosen), "CHAIN_NOT_ADVERTISED")
     return key, chosen
 
 
