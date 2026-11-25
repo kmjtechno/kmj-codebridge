@@ -14,6 +14,14 @@ test("Windows one-click doctor is read-only, bounded and checks HMAC before hard
   assert.match(source, /TOKEN_ACL_UNSAFE_PRINCIPAL/);
   assert.match(source, /SUPERVISOR_UNAUTHENTICATED/);
   assert.match(source, /P520_HARDWARE_RPC=PASS_LOCAL_ONLY/);
+  for (const marker of [
+    "TASK_RUNTIME_REVISION_INVALID",
+    "TASK_ARGUMENTS_MISMATCH",
+    "P520_SETUP=REMOTE_AGENT_READBACK_REQUIRED",
+    "Remove-Variable token",
+  ]) {
+    assert.equal(source.split(marker).length, 2, marker);
+  }
   assert.doesNotMatch(
     source,
     /(?:Start|Stop|Register|Unregister|Enable|Disable)-ScheduledTask/,
@@ -36,7 +44,7 @@ test(
         "-Command",
         "$e=$null;$t=$null;[void][System.Management.Automation.Language.Parser]::ParseFile('" +
           windows +
-          "',[ref]$t,[ref]$e);if($e.Count){exit 2}",
+          "',[ref]$t,[ref]$e);if($e.Count){$e | ForEach-Object { [Console]::Error.WriteLine($_.ErrorId + ' at line ' + $_.Extent.StartLineNumber) };exit 2}",
       ],
       { timeout: 15000, encoding: "utf8" },
     );
