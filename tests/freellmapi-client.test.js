@@ -498,3 +498,62 @@ test("catalog() returns strictly validated live rows and rejects malformed catal
       /FREELLMAPI_BAD_RESPONSE/,
     );
 });
+
+test("billing attestation consumes the remaining transport budget", async () => {
+  let clock = 1000000;
+  const calls = [];
+  const client = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:default"],
+    verifyZeroCostChain: async (args) => {
+      clock += 17000;
+      return verifiedProof(args);
+    },
+    request: async (r) => {
+      if (r.path === "/v1/models") {
+        clock += 1000;
+        return { data: [{ id: "auto:default" }] };
+      }
+      calls.push(r.timeoutMs);
+      return {
+        choices: [{ message: { content: "done" }, finish_reason: "stop" }],
+      };
+    },
+  });
+  await client.generateRouted({
+    prompt: "synthetic",
+    timeoutSeconds: 30,
+    localProcessingApproved: true,
+    upstreamCloudApproved: true,
+  });
+  assert.deepEqual(calls, [12000]);
+});
+
+test("expired billing lookup cannot initiate a provider POST", async () => {
+  let clock = 1000000;
+  let posts = 0;
+  const client = createFreeLlmApiClient({
+    apiKey: KEY,
+    now: () => clock,
+    approvedFreeChains: ["auto:default"],
+    verifyZeroCostChain: async (args) => {
+      clock += 6000;
+      return verifiedProof(args);
+    },
+    request: async () => {
+      posts++;
+      throw new Error("POST_NOT_ALLOWED");
+    },
+  });
+  await assert.rejects(
+    client.generate({
+      prompt: "synthetic",
+      timeoutSeconds: 5,
+      localProcessingApproved: true,
+      upstreamCloudApproved: true,
+    }),
+    { message: "FREELLMAPI_DEADLINE_EXCEEDED" },
+  );
+  assert.equal(posts, 0);
+});
