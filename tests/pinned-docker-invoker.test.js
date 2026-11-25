@@ -72,3 +72,76 @@ test("adapter requires trusted local opt-in and rejects remote endpoints", async
     );
   }
 });
+
+test("cancellation before creation never invokes the backend", async () => {
+  const controller = new AbortController();
+  controller.abort();
+  let calls = 0;
+  const terminal = createIsolatedTerminalCore({
+    enabled: true,
+    imageId,
+    invokeDocker: async () => {
+      calls++;
+    },
+  });
+  await assert.rejects(
+    terminal.execute("true", { signal: controller.signal }),
+    /TERMINAL_EXECUTION_CANCELLED/,
+  );
+  assert.equal(calls, 0);
+});
+
+test("cancellation during creation skips start but removes the exact ID", async () => {
+  const controller = new AbortController();
+  const calls = [];
+  const terminal = createIsolatedTerminalCore({
+    enabled: true,
+    imageId,
+    invokeDocker: async (args, options) => {
+      validateDockerInvocation(args, options);
+      assert.equal(options.signal, undefined);
+      calls.push(args[0]);
+      if (args[0] === "create") controller.abort();
+      if (args[0] === "rm") assert.equal(args[2], id);
+      return { exitCode: 0, stdout: id };
+    },
+  });
+  await assert.rejects(
+    terminal.execute("true", { signal: controller.signal }),
+    /TERMINAL_EXECUTION_CANCELLED/,
+  );
+  assert.deepEqual(calls, ["create", "rm"]);
+});
+
+test("cancellation during start cannot cancel cleanup or hide cleanup failure", async () => {
+  const controller = new AbortController();
+  const terminal = createIsolatedTerminalCore({
+    enabled: true,
+    imageId,
+    invokeDocker: async (args, options) => {
+      validateDockerInvocation(args, options);
+      if (args[0] === "start") {
+        assert.equal(options.signal, controller.signal);
+        controller.abort();
+        throw new Error("aborted");
+      }
+      assert.equal(options.signal, undefined);
+      return { exitCode: args[0] === "rm" ? 1 : 0, stdout: id };
+    },
+  });
+  await assert.rejects(
+    terminal.execute("true", { signal: controller.signal }),
+    /TERMINAL_CLEANUP_UNVERIFIED/,
+  );
+});
+
+test("Docker cleanup does not accept an abort signal", () => {
+  assert.throws(
+    () =>
+      validateDockerInvocation(["rm", "--force", id], {
+        ...limits,
+        signal: new AbortController().signal,
+      }),
+    /TERMINAL_DOCKER_INVOCATION_DENIED/,
+  );
+});
