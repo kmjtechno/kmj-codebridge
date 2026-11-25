@@ -339,7 +339,9 @@ export async function startAgent(
     localModel,
     cloudModel: (project) => {
       const approvedConfig = project.autopilotCodingWorker;
-      if (approvedConfig?.inferenceRoute === "native-verified-free-cloud-only") {
+      if (
+        approvedConfig?.inferenceRoute === "native-verified-free-cloud-only"
+      ) {
         const tokenEnv = approvedConfig.nativeTokenEnv;
         const token = process.env[tokenEnv];
         const cached = nativeCodingModels.get(project);
@@ -350,12 +352,17 @@ export async function startAgent(
           authorized: () =>
             project.writable === true &&
             project.autopilotCodingWorker === approvedConfig &&
-            approvedConfig.inferenceRoute === "native-verified-free-cloud-only" &&
+            approvedConfig.inferenceRoute ===
+              "native-verified-free-cloud-only" &&
             approvedConfig.nativeTokenEnv === tokenEnv &&
             process.env[tokenEnv] === token &&
             codingRouteApproved(approvedConfig),
         });
-        nativeCodingModels.set(project, { config: approvedConfig, token, model });
+        nativeCodingModels.set(project, {
+          config: approvedConfig,
+          token,
+          model,
+        });
         return model;
       }
       return createVerifiedFreeCloudCodingModel({
