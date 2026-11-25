@@ -66,6 +66,7 @@ export function createNativeModelFabricGeneration({
         !approved() ||
         typeof verifyAdmission !== "function" ||
         typeof token !== "string" ||
+        token.length !== 54 ||
         !/^kmjmf_[A-Za-z0-9]{48}$/.test(token) ||
         model !== MODEL ||
         typeof prompt !== "string" ||
