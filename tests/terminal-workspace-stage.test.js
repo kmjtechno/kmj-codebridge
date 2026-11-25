@@ -81,7 +81,8 @@ test(
       /TERMINAL_STAGE_OWNER_OPT_IN_REQUIRED/,
     );
     assert.throws(
-      () => stageTerminalWorkspace({ ...options, stateDir: options.files.root }),
+      () =>
+        stageTerminalWorkspace({ ...options, stateDir: options.files.root }),
       /TERMINAL_STAGE_ROOT_OVERLAP/,
     );
     fs.writeFileSync(path.join(options.files.root, "src", "a.txt"), "changed");
