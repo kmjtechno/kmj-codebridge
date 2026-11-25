@@ -5,22 +5,49 @@ a productive engineering workspace, while retaining one feature-complete
 customer dashboard. Optimize usefulness, transparency, accessibility and
 speed, not compulsive engagement.
 
-## Native conversation experience
+## Native conversation experience — evidence checklist (2026-11-25)
 
-- [x] Source-level standard server and tool icon metadata.
-- [x] Source-level ChatGPT native invocation labels and MCP Apps discovery.
-- [ ] Distinct tool-category icons: review, CI and real host acceptance.
-- [ ] Compact evidence receipts in plain-text clients, with bounded output,
-      explicit unavailable states, project/device scope and no secrets.
-- [ ] Portable progress notifications: negotiate transport and progress token,
-      enforce scope before reporting activity, cap cadence, measure actual stages
-      and provide final receipts. Do not simulate progress or claim completion
-      merely because the request returned.
-- [ ] Parallel authorized work lanes and actual worker state.
-- [ ] Interactive diffs, safe review actions and repository architecture views
-      in clients supporting MCP Apps; otherwise provide concise text alternatives.
-- [ ] Adaptive accessible light/dark presentation and reduced motion.
-- [ ] Persisted project continuity with verified checkpoint readback.
+Source acceptance and production acceptance are tracked separately. The eight
+checked source milestones below have merged PR evidence or a directly verified
+checkpoint; they do not imply signed deployment or host-native visual acceptance.
+
+- [x] Standard server and tool icon metadata (PR #1198).
+- [x] ChatGPT invocation labels and MCP Apps discovery (PRs #1196–#1197).
+- [x] Distinct embedded tool-category icons and source regression (PR #1198).
+- [x] Portable compact development receipts with text fallback (PR #1199).
+- [x] Authenticated request-scoped SSE progress pilot (PR #1200).
+- [x] Scoped coding progress and evidence (PR #1201).
+- [x] Observed worker handles and read-only tracked diff navigation (PR #1202).
+- [x] Project continuity checkpoint save/readback (verified P520 device on
+      2026-11-25; not automatic host chat wake).
+
+## Remaining acceptance checklist
+
+- [ ] Real host icon and activity acceptance in ChatGPT, Claude, Cursor and Zed.
+- [ ] Measure actual SSE first frame and final receipt integrity through nginx/CDN.
+- [ ] Prove parallel isolated coding execution, not merely worker handles.
+- [ ] Interactive review actions and architecture views with authorized scope.
+- [ ] Verify adaptive accessible light/dark presentation and reduced motion in hosts
+      (reduced-motion CSS exists; no end-to-end visual acceptance yet).
+- [ ] Canonical customer dashboard, authoritative paid-seat authorization and
+      full signed hosted monthly usage; live billing remains disabled.
+- [ ] Real P520 isolated receipt custody and paired Platform signer enrollment QA.
+- [ ] Exact signed Elite deployment and post-release acceptance.
+
+## Signed usage pilot source evidence
+
+- [x] Device signer and gateway pilot transport (PR #1203).
+- [x] Protected POSIX receipt key and concurrent result guard (PR #1204).
+- [x] Native Windows receipt custody and owner challenge proof (PR #1205).
+- [ ] Main Platform #1155 owner review and merge (exact-head CI green when checked).
+- [ ] Single-tenant end-to-end pilot on an isolated environment, nonbillable.
+- [ ] Trusted paid-seat assignment and all-tool metering, reconciliation, and billing
+      acceptance; the current git_status pilot is not a commercial meter.
+
+PRs #1198–#1205 had green exact-head CI at audit; merged main observed at
+`aa14fed3ae71c296afc2757b083ef23c2079091e`. Merged-main CI, signed deployment
+and host acceptance must be verified separately. This checklist is not the
+whole-project completion percentage.
 
 ## Source increment: worker evidence and review
 
