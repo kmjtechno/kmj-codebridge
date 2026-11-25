@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import {
   AGENT_POLL_WAIT_CAP_MS,
+  FLAPPING_POLL_WAIT_CAP_MS,
   effectivePollWaitMs,
   startGateway,
 } from "../src/gateway.js";
@@ -57,5 +58,29 @@ test("default gateway returns an idle poll cleanly before the agent would abort"
   assert.ok(
     elapsed < AGENT_REQUEST_TIMEOUT_MS - 2000,
     `held too long: ${elapsed}ms`,
+  );
+});
+
+test("flapping agents temporarily use a shorter idle poll cap", () => {
+  const now = Date.parse("2026-11-25T08:35:00.000Z");
+  const health = {
+    recentSessionStarts: Array.from({ length: 5 }, (_, i) => now - i * 1000),
+  };
+  assert.equal(
+    effectivePollWaitMs(45000, health, now),
+    FLAPPING_POLL_WAIT_CAP_MS,
+  );
+  assert.equal(effectivePollWaitMs(100, health, now), 100);
+  assert.equal(
+    effectivePollWaitMs(undefined, health, now),
+    FLAPPING_POLL_WAIT_CAP_MS,
+  );
+  assert.equal(
+    effectivePollWaitMs(45000, health, now + 10 * 60 * 1000),
+    AGENT_POLL_WAIT_CAP_MS,
+  );
+  assert.equal(
+    effectivePollWaitMs(45000, { recentSessionStarts: [now] }, now),
+    AGENT_POLL_WAIT_CAP_MS,
   );
 });
