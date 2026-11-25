@@ -419,7 +419,7 @@ export function createGitHubBridge(config) {
       ? { operation: receipt.operation, evidence: "confirmed_native_mutation" }
       : null;
   };
-  const recordWriteFailure = (method, repository, status, headers, attempt) => {
+  const recordWriteFailure = (method, repository, status, headers, attempt, suffix) => {
     if (
       method === "GET" ||
       latestWriteAttempts.get(repository) !== attempt ||
@@ -444,6 +444,7 @@ export function createGitHubBridge(config) {
     recentWriteFailures.set(repository, {
       httpStatus: status,
       classification,
+      operation: nativeWriteOperation(method, suffix),
       observedAtMs: Date.now(),
     });
     if (recentWriteFailures.size > 32)
@@ -455,6 +456,7 @@ export function createGitHubBridge(config) {
       ? {
           httpStatus: receipt.httpStatus,
           classification: receipt.classification,
+          operation: receipt.operation,
         }
       : null;
   };
@@ -615,6 +617,7 @@ export function createGitHubBridge(config) {
           response.status,
           response.headers,
           writeAttempt,
+          suffix,
         );
         if (response.status === 401) fail("GITHUB_AUTHORIZATION_FAILED");
         if (response.status === 403) {
@@ -775,6 +778,7 @@ export function createGitHubBridge(config) {
         )
           fail("GITHUB_RESPONSE_INVALID");
         const nativeWrite = recentNativeWrite(a.repository);
+        const writeFailure = recentWriteFailure(a.repository);
         return {
           repository: a.repository,
           status: "read_ready",
@@ -792,12 +796,16 @@ export function createGitHubBridge(config) {
               : data.permissions?.push === false
                 ? "not_granted"
                 : "unknown",
-          lastWriteFailure: recentWriteFailure(a.repository),
+          lastWriteFailure: writeFailure,
           privateRepository: data.private,
           mode: publicReadOnly ? "public_read_only" : "server_credential",
           remediation: publicReadOnly
             ? "Private repositories and writes require an operator-approved GitHub App installation with least-privilege access."
-            : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
+            : writeFailure?.classification === "http_403"
+              ? "Native write denied. Check the exact repository grant and the gateway credential's Contents/Pull requests/Issues permission required by the recorded operation; inspect organization policy and branch protection. Do not widen unrelated grants."
+              : writeFailure?.classification === "rate_limited"
+                ? "Native write rate limited. Respect quota; do not widen credentials."
+                : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
         };
       } catch (error) {
         const code = error?.code;

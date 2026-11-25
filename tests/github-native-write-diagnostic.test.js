@@ -75,7 +75,9 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.deepEqual(forbidden.lastWriteFailure, {
     httpStatus: 403,
     classification: "http_403",
+    operation: "issue_comment",
   });
+  assert.match(forbidden.remediation, /exact repository grant/);
   assert.equal(forbidden.writeVerified, false);
   assert.equal(forbidden.lastNativeWrite, null);
 
@@ -84,6 +86,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.deepEqual((await doctor()).lastWriteFailure, {
     httpStatus: 401,
     classification: "http_401",
+    operation: "issue_comment",
   });
 
   writeStatus = 403;
@@ -92,6 +95,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.deepEqual((await doctor()).lastWriteFailure, {
     httpStatus: 403,
     classification: "rate_limited",
+    operation: "issue_comment",
   });
 
   // A denied write must retain only fixed HTTP classes, including
@@ -106,7 +110,11 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     writeStatus = status;
     await assert.rejects(write(), new RegExp(code));
     const receipt = (await doctor()).lastWriteFailure;
-    assert.deepEqual(receipt, { httpStatus: status, classification });
+    assert.deepEqual(receipt, {
+      httpStatus: status,
+      classification,
+      operation: "issue_comment",
+    });
     assert.equal((await doctor()).writeVerified, false);
   }
 
@@ -117,6 +125,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.deepEqual((await doctor()).lastWriteFailure, {
     httpStatus: 429,
     classification: "rate_limited",
+    operation: "issue_comment",
   });
 
   invalidSuccessBody = false;
@@ -127,6 +136,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.deepEqual((await doctor()).lastWriteFailure, {
     httpStatus: 429,
     classification: "rate_limited",
+    operation: "issue_comment",
   });
 
   unconfirmedSuccessBody = false;
@@ -152,6 +162,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   assert.deepEqual(revoked.lastWriteFailure, {
     httpStatus: 403,
     classification: "http_403",
+    operation: "issue_comment",
   });
   assert.equal(calls.filter((call) => call.method === "POST").length, 11);
 
@@ -286,6 +297,7 @@ test("newer write attempts win even when responses finish out of order", async (
   assert.deepEqual(denied.lastWriteFailure, {
     httpStatus: 403,
     classification: "http_403",
+    operation: "issue_comment",
   });
 
   // The reverse completion order must not let A's stale failure overwrite

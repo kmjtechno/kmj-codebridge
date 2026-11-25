@@ -96,3 +96,7 @@ CODEBRIDGE_GITHUB_REPOSITORIES=kmjtechno/kmj-codebridge
 
 Use the private broker/token mode when private repositories or GitHub writes are
 required. Public read-only fallback never grants access to private repositories.
+
+## Development permission recovery
+
+A live doctor result of `read_ready` plus `http_403` is not a write pass. Check the recorded operation against the exact repository grant of the gateway-held credential. For branch and source changes require Contents read/write; for PR creation and merging require Pull requests and Contents read/write; for issue operations require Issues read/write; for CI evidence require Actions and Checks read. Metadata read is required. Workflow-file edits require separately reviewed Workflows write only when needed. Do not enable administration, bypass branch protection, grant all repositories or expose tokens. Preserve exact-head owner review and signed release controls. The protected gateway owner must repair the actual token/installation and exact allowlist; source changes cannot modify those grants. Recheck the doctor and prove a real authorized branch or PR mutation before marking native write recovered.
