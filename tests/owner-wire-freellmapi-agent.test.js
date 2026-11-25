@@ -193,3 +193,53 @@ with tempfile.TemporaryDirectory() as temp:
 `,
   );
 });
+
+test("onboarding accepts only named profiles and refuses malformed catalogs", (t) => {
+  isolatedPythonCase(
+    t,
+    String.raw`
+import importlib.util, sys
+spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+aliases = ["smart", "fast", "reliability", "SMART", "balanced", "price"]
+rows = [{"id": "auto:" + name} for name in aliases]
+rows += [{"id": "auto:code"}, {"id": "auto:or-free"}, {"id": "auto:a..b"}]
+assert m.chain_names({"data": rows}) == ["auto:code", "auto:or-free"]
+for payload in (None, {"data": [{}]}, {"data": [{"id": 1}]},
+                {"data": [{"id": "auto:code"}, {"id": "auto:code"}]}):
+    try:
+        m.chain_names(payload)
+    except ValueError as exc:
+        assert str(exc) == "INVALID_CATALOG"
+    else:
+        raise AssertionError("MALFORMED_CATALOG_ACCEPTED")
+try:
+    m.RejectRedirect().redirect_request(None, None, 302, "", {}, "https://example.invalid")
+except ValueError as exc:
+    assert str(exc) == "ROUTER_REDIRECT_DENIED"
+else:
+    raise AssertionError("REDIRECT_ALLOWED")
+`,
+  );
+});
+
+test("onboarding aborts if hidden terminal input is unavailable", (t) => {
+  isolatedPythonCase(
+    t,
+    String.raw`
+import importlib.util, sys, warnings
+spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+m.getpass.getpass = lambda *_: warnings.warn("unavailable", m.getpass.GetPassWarning)
+m.models = lambda *_: (_ for _ in ()).throw(AssertionError("NETWORK_REACHED"))
+try:
+    m.collect()
+except ValueError as exc:
+    assert str(exc) == "PRIVATE_INPUT_UNAVAILABLE"
+else:
+    raise AssertionError("UNSAFE_INPUT_ACCEPTED")
+`,
+  );
+});
