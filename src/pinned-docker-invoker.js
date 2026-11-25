@@ -40,7 +40,9 @@ export function validateDockerInvocation(args, limits) {
     limits.timeoutMs > 120000 ||
     !Number.isSafeInteger(limits?.maxOutputBytes) ||
     limits.maxOutputBytes < 1 ||
-    limits.maxOutputBytes > 32768
+    limits.maxOutputBytes > 32768 ||
+    (limits.signal !== undefined &&
+      (!(limits.signal instanceof AbortSignal) || args[0] !== "start"))
   )
     throw new Error("TERMINAL_DOCKER_INVOCATION_DENIED");
 
@@ -140,6 +142,7 @@ export async function createPinnedDockerInvoker({
             cwd: dir,
             env,
             shell: false,
+            ...(limits.signal ? { signal: limits.signal } : {}),
             windowsHide: true,
             timeout: limits.timeoutMs,
             maxBuffer: limits.maxOutputBytes,
