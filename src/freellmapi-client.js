@@ -7,6 +7,7 @@ import http from "node:http";
 import { CodeBridgeError } from "./errors.js";
 import {
   inspectFabricCatalog,
+  isGlobalFabricAlias,
   selectFabricCandidates,
   TASK_ROUTE_PREFERENCES,
 } from "./freellmapi-fabric-policy.js";
@@ -86,6 +87,7 @@ export function createFreeLlmApiClient({
   // Read-only proof can be checked BEFORE claiming a coding task or reading
   // private project source. A second check ALWAYS runs before each POST.
   const verifyChainAdmission = async (chain) => {
+    if (isGlobalFabricAlias(chain)) fail("FREELLMAPI_GLOBAL_ALIAS_DENIED");
     if (!CHAIN.test(chain) || !approved.has(chain))
       fail("FREELLMAPI_CHAIN_NOT_APPROVED");
     // An owner-allowed chain is NOT proof of free provider billing.
@@ -230,6 +232,7 @@ export function createFreeLlmApiClient({
       if (localProcessingApproved !== true) fail("FREELLMAPI_CONSENT_REQUIRED");
       if (upstreamCloudApproved !== true)
         fail("FREELLMAPI_CLOUD_CONSENT_REQUIRED");
+      if (isGlobalFabricAlias(chain)) fail("FREELLMAPI_GLOBAL_ALIAS_DENIED");
       if (!CHAIN.test(chain)) fail("FREELLMAPI_CHAIN_NOT_ALLOWED");
       if (!approved.has(chain)) fail("FREELLMAPI_CHAIN_NOT_APPROVED");
       if (typeof prompt !== "string" || !prompt || prompt.length > MAX_PROMPT)
