@@ -92,6 +92,32 @@ export function stageTerminalWorkspace({
     throw new Error("TERMINAL_SNAPSHOT_HEAD_MISMATCH");
 
   const directory = fs.mkdtempSync(path.join(root, "terminal-stage-"));
+  const identity = fs.lstatSync(directory);
+  const rootIdentity = fs.lstatSync(root);
+  let disposed = false;
+  // Internal capability: the caller cannot supply a cleanup target. A changed
+  // parent or directory is preserved for review rather than recursively removed.
+  const dispose = () => {
+    if (disposed) return { removed: false, alreadyDisposed: true };
+    const checkedRoot = privateRoot(root);
+    const currentRoot = fs.lstatSync(checkedRoot);
+    const current = fs.lstatSync(directory);
+    if (
+      currentRoot.dev !== rootIdentity.dev ||
+      currentRoot.ino !== rootIdentity.ino ||
+      !current.isDirectory() ||
+      current.isSymbolicLink() ||
+      current.uid !== process.getuid() ||
+      current.dev !== identity.dev ||
+      current.ino !== identity.ino ||
+      (current.mode & 0o077) !== 0 ||
+      fs.realpathSync(directory) !== directory
+    )
+      throw new Error("TERMINAL_STAGE_CLEANUP_IDENTITY_CHANGED");
+    fs.rmSync(directory, { recursive: true, force: false });
+    disposed = true;
+    return { removed: true, alreadyDisposed: false };
+  };
   try {
     for (const item of payload) {
       const target = path.join(directory, ...item.path.split("/"));
@@ -112,10 +138,11 @@ export function stageTerminalWorkspace({
       locallyStaged: true,
       containerTransferred: false,
       hostWriteBack: false,
+      dispose,
     };
   } catch (error) {
     // Only the newly allocated directory under the trusted private root.
-    fs.rmSync(directory, { recursive: true, force: true });
+    dispose();
     throw error;
   }
 }
