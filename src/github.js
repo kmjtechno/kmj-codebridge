@@ -419,7 +419,14 @@ export function createGitHubBridge(config) {
       ? { operation: receipt.operation, evidence: "confirmed_native_mutation" }
       : null;
   };
-  const recordWriteFailure = (method, repository, status, headers, attempt, suffix) => {
+  const recordWriteFailure = (
+    method,
+    repository,
+    status,
+    headers,
+    attempt,
+    suffix,
+  ) => {
     if (
       method === "GET" ||
       latestWriteAttempts.get(repository) !== attempt ||
