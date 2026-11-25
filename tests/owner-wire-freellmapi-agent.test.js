@@ -243,3 +243,64 @@ else:
 `,
   );
 });
+
+test("Elite development staging has separate credentials and never restarts either agent", (t) => {
+  isolatedPythonCase(
+    t,
+    String.raw`
+import importlib.util, pathlib, tempfile, types, sys
+spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+original = m.ENV_FILE
+m.select_elite_dev()
+assert m.UNIT == "kmj-codebridge-dev.service"
+assert m.ENV_FILE != original
+assert m.ENV_FILE.name == "codebridge-dev.env"
+assert m.DROPIN.parent.name == "kmj-codebridge-dev.service.d"
+m.elite_dev_identity = lambda: None
+m.preflight = lambda: None
+m.protected_parent = lambda p: p.is_dir() and not p.is_symlink()
+calls = []
+m.cmd = lambda *args, **kw: calls.append(args)
+with tempfile.TemporaryDirectory() as temp:
+    root = pathlib.Path(temp)
+    m.ENV_FILE = root / "env"
+    m.DROPIN_DIR = root / "dev.service.d"
+    m.DROPIN = m.DROPIN_DIR / "fabric.conf"
+    m.DROPIN_TEXT = "[Service]\nEnvironmentFile=" + str(m.ENV_FILE) + "\n"
+    m.stage_elite_dev("SYNTHETIC_ONLY_12345", ["auto:or-free"])
+    assert m.ENV_FILE.is_file() and m.DROPIN.is_file()
+    assert m.ENV_FILE.stat().st_mode & 0o077 == 0
+    assert not calls
+    m.rollback(restart=False)
+    assert not m.ENV_FILE.exists() and not m.DROPIN.exists()
+    assert not calls
+`,
+  );
+});
+
+test("Elite development identity denies a wrong service account", (t) => {
+  isolatedPythonCase(
+    t,
+    String.raw`
+import importlib.util, types, sys
+spec = importlib.util.spec_from_file_location("kmj_wire", sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+m.select_elite_dev()
+m.os.geteuid = lambda: 0
+m.socket.gethostname = lambda: "KMJ-elite"
+base = "LoadState=loaded\nActiveState=active\nGroup=kmjdev\nFragmentPath=/etc/systemd/system/kmj-codebridge-dev.service\nNeedDaemonReload=no\nMainPID=123\n"
+m.cmd = lambda *args, **kw: types.SimpleNamespace(stdout=base + "User=root\n")
+try:
+    m.elite_dev_identity()
+except ValueError as exc:
+    assert str(exc) == "DEV_AGENT_EFFECTIVE_IDENTITY_INVALID"
+else:
+    raise AssertionError("WRONG_SERVICE_IDENTITY_ALLOWED")
+m.cmd = lambda *args, **kw: types.SimpleNamespace(stdout=base + "User=kmjdev\n")
+m.elite_dev_identity()
+`,
+  );
+});
