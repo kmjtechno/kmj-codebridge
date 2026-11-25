@@ -59,10 +59,11 @@ test(
     ]) {
       const result = invoke("-I", "-B", FILE, ...args);
       assert.equal(result.status, 2, JSON.stringify(args));
-      assert.equal(
+      assert.match(
         result.stdout.trim(),
-        "DEV_SUPERVISOR_INSTALL=BLOCKED_NO_LIVE_CREDIT",
+        /DEV_SUPERVISOR_INSTALL=BLOCKED_NO_LIVE_CREDIT$/,
       );
+      assert.match(result.stdout, /DEV_SUPERVISOR_BLOCKER=[A-Z0-9_]+/);
     }
   },
 );
@@ -129,3 +130,23 @@ test(
     );
   },
 );
+
+test("Elite private RPC probe uses unambiguous Node module format", () => {
+  const source = fs.readFileSync(FILE, "utf8");
+  assert.match(source, /import n from 'node:net'/);
+  assert.match(source, /str\(NODE\), "--input-type=module", "-e", js/);
+  assert.doesNotMatch(source, /const n=require\('node:net'\)/);
+});
+
+test("one-click setup preserves immutable unit and enrollment boundaries", () => {
+  const source = fs.readFileSync(
+    "scripts/production/owner_oneclick_elite_dev_supervisor.py",
+    "utf8",
+  );
+  assert.match(source, /mod\.signed_source\(revision\)/);
+  assert.match(source, /EXISTING_UNIT_BYTES_MISMATCH/);
+  assert.match(source, /PARTIAL_UNIT_INSTALL_REVIEW_REQUIRED/);
+  assert.match(source, /binding\.verify_private_config\(mod\) == digest/);
+  assert.match(source, /ONECLICK_SETUP=STAGED_JOB_DRAINED_ACTIVATION_REQUIRED/);
+  assert.doesNotMatch(source, /systemctl", "restart"/);
+});
