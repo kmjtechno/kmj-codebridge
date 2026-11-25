@@ -48,52 +48,44 @@ test(
   },
 );
 
-test(
-  "failed cleanup leaves bound intent recoverable",
-  linuxOnly,
-  async (t) => {
-    const journal = setup(t);
-    let name;
-    const terminal = createIsolatedTerminalCore({
-      enabled: true,
-      imageId,
-      daemonId,
-      recoveryJournal: journal,
-      invokeDocker: async (args) => {
-        if (args[0] === "create") {
-          name = args[2];
-          return { exitCode: 0, stdout: id };
-        }
-        return { exitCode: args[0] === "rm" ? 1 : 0 };
-      },
-    });
-    await assert.rejects(terminal.execute("true"), /CLEANUP_UNVERIFIED/);
-    assert.equal(journal.read(name).boundId, id);
-    assert.equal(journal.completion(name), false);
-  },
-);
-
-test(
-  "ambiguous create is journaled but cannot start",
-  linuxOnly,
-  async (t) => {
-    const journal = setup(t);
-    let name;
-    const calls = [];
-    const terminal = createIsolatedTerminalCore({
-      enabled: true,
-      imageId,
-      daemonId,
-      recoveryJournal: journal,
-      invokeDocker: async (args) => {
-        calls.push(args[0]);
+test("failed cleanup leaves bound intent recoverable", linuxOnly, async (t) => {
+  const journal = setup(t);
+  let name;
+  const terminal = createIsolatedTerminalCore({
+    enabled: true,
+    imageId,
+    daemonId,
+    recoveryJournal: journal,
+    invokeDocker: async (args) => {
+      if (args[0] === "create") {
         name = args[2];
-        throw new Error("connection lost");
-      },
-    });
-    await assert.rejects(terminal.execute("true"));
-    assert.deepEqual(calls, ["create"]);
-    assert.equal(journal.read(name).boundId, null);
-    assert.equal(journal.completion(name), false);
-  },
-);
+        return { exitCode: 0, stdout: id };
+      }
+      return { exitCode: args[0] === "rm" ? 1 : 0 };
+    },
+  });
+  await assert.rejects(terminal.execute("true"), /CLEANUP_UNVERIFIED/);
+  assert.equal(journal.read(name).boundId, id);
+  assert.equal(journal.completion(name), false);
+});
+
+test("ambiguous create is journaled but cannot start", linuxOnly, async (t) => {
+  const journal = setup(t);
+  let name;
+  const calls = [];
+  const terminal = createIsolatedTerminalCore({
+    enabled: true,
+    imageId,
+    daemonId,
+    recoveryJournal: journal,
+    invokeDocker: async (args) => {
+      calls.push(args[0]);
+      name = args[2];
+      throw new Error("connection lost");
+    },
+  });
+  await assert.rejects(terminal.execute("true"));
+  assert.deepEqual(calls, ["create"]);
+  assert.equal(journal.read(name).boundId, null);
+  assert.equal(journal.completion(name), false);
+});
