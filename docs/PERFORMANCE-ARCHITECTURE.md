@@ -219,3 +219,18 @@ conservative regression budgets.
 This simulation exists to catch accidental algorithmic/control-plane regressions
 cheaply in normal CI. Real multi-host and multi-replica load/failover tests remain
 a separate production benchmark and must not be inferred from these numbers.
+
+## Adaptive idle polling for reconnect churn (2026-11-25)
+
+A live P520 connection overview reported `flapping` while ordinary MCP calls
+returned in roughly 2.4–3.0 seconds and the device had no active or queued
+jobs. This does not establish the cause of a ChatGPT UI hang. On the source
+side, a gateway now limits empty polls to five seconds only for an agent with
+five or more health sessions in the existing ten-minute churn window. The
+normal 15-second cap returns when churn expires; smaller configured waits
+are respected. Immediate work wake, authorization and device isolation are
+unchanged. This trades increased idle requests for a shorter proxy-idle
+exposure on affected devices. It is not a measured speedup or a cure for
+all reconnect causes. Verify real signed gateway deployment, P520 session
+stability, round-trip latency, proxy timeouts and request-rate impact before
+marking the live issue resolved.
