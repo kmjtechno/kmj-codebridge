@@ -26,6 +26,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import warnings
 
 UNIT = "kmj-codebridge-kmj-main-platform.service"  # live elite project agent (verified by owner unit list)
 DROPIN_DIR = pathlib.Path(f"/etc/systemd/system/{UNIT}.d")
@@ -33,7 +34,13 @@ DROPIN = DROPIN_DIR / "kmj-freellmapi-env.conf"
 ENV_FILE = pathlib.Path("/etc/kmj-freellmapi/codebridge.env")
 BASE = "http://127.0.0.1:31415"
 KEY_RE = re.compile(r"^[A-Za-z0-9._~+/=-]{16,200}$")
-CHAIN_RE = re.compile(r"^auto:[A-Za-z0-9._-]{1,48}$")
+CHAIN_RE = re.compile(r"^auto:[A-Za-z0-9][A-Za-z0-9._-]{0,47}$")
+GLOBAL_ALIASES = frozenset({
+    "smart", "smartest", "intelligence", "fast", "fastest", "speed",
+    "cheap", "cheapest", "price", "budget", "reliable", "reliability", "balanced",
+})
+MAX_CATALOG_BYTES = 2 * 1024 * 1024
+MAX_CATALOG_ROWS = 4096
 DROPIN_TEXT = f"[Service]\nEnvironmentFile={ENV_FILE}\n"
 CREATED = {}  # Only this process-created regular files may be rolled back.
 
@@ -48,13 +55,26 @@ def cmd(*args, check=True):
                           check=check)
 
 
+class RejectRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("ROUTER_REDIRECT_DENIED")
+
+
 def models(key):
     req = urllib.request.Request(
         f"{BASE}/v1/models", headers={"Authorization": f"Bearer {key}"})
+    # Local credential must never follow a redirect or environment proxy.
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}), RejectRedirect())
     try:
-        with urllib.request.urlopen(req, timeout=20) as resp:
+        with opener.open(req, timeout=20) as resp:
             guard(resp.status == 200, "MODELS_NOT_200")
-            return json.load(resp)
+            raw = resp.read(MAX_CATALOG_BYTES + 1)
+            guard(len(raw) <= MAX_CATALOG_BYTES, "CATALOG_TOO_LARGE")
+            try:
+                return json.loads(raw)
+            except (UnicodeError, ValueError):
+                raise ValueError("INVALID_CATALOG") from None
     except urllib.error.HTTPError as exc:
         raise ValueError(f"MODELS_HTTP_{exc.code}") from None
     except OSError:
@@ -62,8 +82,21 @@ def models(key):
 
 
 def chain_names(payload):
-    ids = [m.get("id", "") for m in payload.get("data", []) if isinstance(m, dict)]
-    return sorted({i for i in ids if CHAIN_RE.match(i)})
+    guard(isinstance(payload, dict), "INVALID_CATALOG")
+    rows = payload.get("data")
+    guard(isinstance(rows, list) and len(rows) <= MAX_CATALOG_ROWS,
+          "INVALID_CATALOG")
+    names = set()
+    seen = set()
+    for row in rows:
+        guard(isinstance(row, dict), "INVALID_CATALOG")
+        name = row.get("id")
+        guard(isinstance(name, str) and name not in seen, "INVALID_CATALOG")
+        seen.add(name)
+        if (CHAIN_RE.fullmatch(name) and ".." not in name
+                and name[5:].lower() not in GLOBAL_ALIASES):
+            names.add(name)
+    return sorted(names)
 
 
 def exists_including_dangling(path):
@@ -133,7 +166,12 @@ def rollback():
 
 
 def collect():
-    key = getpass.getpass("FreeLLMAPI unified API key (hidden, not echoed): ").strip()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", getpass.GetPassWarning)
+        try:
+            key = getpass.getpass("FreeLLMAPI unified API key (hidden, not echoed): ").strip()
+        except getpass.GetPassWarning:
+            raise ValueError("PRIVATE_INPUT_UNAVAILABLE") from None
     guard(KEY_RE.match(key), "KEY_FORMAT_REJECTED")
     chains = chain_names(models(key))
     guard(chains, "NO_AUTO_CHAINS_ADVERTISED")
