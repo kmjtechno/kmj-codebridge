@@ -16,21 +16,24 @@ const ARCHIVE_NAME = /^[A-Za-z0-9._-]+\.tar\.gz$/;
 // A checked pathname must still designate the same file after it is opened.
 // Compare the opened inode with the pathname both before and after the read;
 // O_NOFOLLOW alone does not prevent a regular-file rename/swap race.
+// Windows file IDs can exceed Number.MAX_SAFE_INTEGER; retain exact bigint
+// identity and nanosecond timestamps rather than rounded Number fields.
 function sameFileIdentity(a, b) {
   return (
     a.dev === b.dev &&
     a.ino === b.ino &&
     a.nlink === b.nlink &&
     a.size === b.size &&
-    a.mtimeMs === b.mtimeMs &&
-    a.ctimeMs === b.ctimeMs
+    a.mtimeNs === b.mtimeNs &&
+    a.ctimeNs === b.ctimeNs &&
+    a.birthtimeNs === b.birthtimeNs
   );
 }
 
 function assertUnchangedFile(file, initial, opened, limit, errorCode) {
   let byPath;
   try {
-    byPath = fs.lstatSync(file);
+    byPath = fs.lstatSync(file, { bigint: true });
   } catch {
     throw Error(errorCode);
   }
@@ -39,10 +42,10 @@ function assertUnchangedFile(file, initial, opened, limit, errorCode) {
     !byPath.isFile() ||
     opened.isSymbolicLink() ||
     byPath.isSymbolicLink() ||
-    opened.nlink !== 1 ||
-    byPath.nlink !== 1 ||
-    opened.size < 1 ||
-    opened.size > limit ||
+    opened.nlink !== 1n ||
+    byPath.nlink !== 1n ||
+    opened.size < 1n ||
+    opened.size > BigInt(limit) ||
     !sameFileIdentity(initial, opened) ||
     !sameFileIdentity(initial, byPath)
   )
@@ -54,16 +57,16 @@ function boundedRegularFile(file, limit) {
     throw Error("BUNDLE_PATH_INVALID");
   let stat;
   try {
-    stat = fs.lstatSync(file);
+    stat = fs.lstatSync(file, { bigint: true });
   } catch {
     throw Error("BUNDLE_FILE_UNAVAILABLE");
   }
   if (
     !stat.isFile() ||
     stat.isSymbolicLink() ||
-    stat.nlink !== 1 ||
-    stat.size < 1 ||
-    stat.size > limit
+    stat.nlink !== 1n ||
+    stat.size < 1n ||
+    stat.size > BigInt(limit)
   )
     throw Error("BUNDLE_FILE_UNSAFE");
   return stat;
@@ -77,9 +80,9 @@ function readBounded(file, limit) {
       file,
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
-    const stat = fs.fstatSync(fd);
+    const stat = fs.fstatSync(fd, { bigint: true });
     assertUnchangedFile(file, initial, stat, limit, "BUNDLE_FILE_CHANGED");
-    const bytes = Buffer.alloc(stat.size);
+    const bytes = Buffer.alloc(Number(stat.size));
     let cursor = 0;
     while (cursor < bytes.length) {
       const amount = fs.readSync(
@@ -95,7 +98,7 @@ function readBounded(file, limit) {
     assertUnchangedFile(
       file,
       initial,
-      fs.fstatSync(fd),
+      fs.fstatSync(fd, { bigint: true }),
       limit,
       "BUNDLE_FILE_CHANGED",
     );
@@ -122,7 +125,7 @@ async function hashArchive(file, expectedSize) {
   )
     throw Error("BUNDLE_ARCHIVE_SIZE_INVALID");
   const initial = boundedRegularFile(file, ARCHIVE_LIMIT);
-  if (initial.size !== expectedSize)
+  if (initial.size !== BigInt(expectedSize))
     throw Error("BUNDLE_ARCHIVE_SIZE_MISMATCH");
   let handle;
   try {
@@ -130,7 +133,7 @@ async function hashArchive(file, expectedSize) {
       file,
       fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0),
     );
-    const before = await handle.stat();
+    const before = await handle.stat({ bigint: true });
     assertUnchangedFile(
       file,
       initial,
@@ -138,7 +141,8 @@ async function hashArchive(file, expectedSize) {
       ARCHIVE_LIMIT,
       "BUNDLE_ARCHIVE_CHANGED",
     );
-    if (before.size !== expectedSize) throw Error("BUNDLE_ARCHIVE_CHANGED");
+    if (before.size !== BigInt(expectedSize))
+      throw Error("BUNDLE_ARCHIVE_CHANGED");
     const hash = createHash("sha256");
     let bytes = 0;
     for await (const chunk of handle.createReadStream({ autoClose: false })) {
@@ -146,7 +150,7 @@ async function hashArchive(file, expectedSize) {
       if (bytes > expectedSize) throw Error("BUNDLE_ARCHIVE_SIZE_MISMATCH");
       hash.update(chunk);
     }
-    const after = await handle.stat();
+    const after = await handle.stat({ bigint: true });
     assertUnchangedFile(
       file,
       initial,

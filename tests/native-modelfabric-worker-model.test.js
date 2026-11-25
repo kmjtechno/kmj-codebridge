@@ -71,13 +71,18 @@ test("native worker consumes fresh request-bound ticket without legacy calls", a
       });
     },
   });
+  assert.equal(model.readiness(), "NOT_VERIFIED");
+  assert.equal(calls.length, 0);
   assert.equal((await model.status()).available, true);
+  assert.equal(model.readiness(), "FREE_ADMISSION_CACHED");
+  assert.equal(calls.length, 1);
   const result = await model.generate({
     model: config.model,
     prompt: "synthetic task",
     authorizeRequest: () => true,
   });
   assert.equal(result.response, "patch");
+  assert.equal(model.readiness(), "NOT_VERIFIED");
   assert.equal(
     normalizeModelReceipt(result.modelUsage).provider,
     "kmj-modelfabric",
@@ -135,6 +140,7 @@ test("native worker exposes busy state and refuses overlapping probes or generat
     authorizeRequest: () => true,
   };
   const pending = model.status();
+  assert.equal(model.readiness(), "BUSY");
   assert.deepEqual(await model.status(), {
     available: false,
     activeRequest: true,

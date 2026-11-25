@@ -127,6 +127,13 @@ export function createNativeModelFabricWorkerModel({
     };
   }
   return {
+    // Pure observation: never probes the provider or reads credentials into
+    // a tool response. Fresh request-specific admission is still mandatory.
+    readiness() {
+      if (!approved()) return "NOT_AUTHORIZED";
+      if (activeRequest) return "BUSY";
+      return now() < readyUntil ? "FREE_ADMISSION_CACHED" : "NOT_VERIFIED";
+    },
     async status() {
       if (activeRequest || !approved()) return snapshot();
       if (now() >= nextProbe) {
