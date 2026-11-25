@@ -509,7 +509,11 @@ export async function startGateway(rawConfig) {
   }
   function next(agent) {
     for (const job of pending.values())
-      if (job.agent === agent.id && !job.delivered) {
+      if (
+        job.agent === agent.id &&
+        job.tenant === agent.tenant &&
+        !job.delivered
+      ) {
         job.delivered = true;
         return {
           id: job.id,
@@ -1211,10 +1215,16 @@ export async function startGateway(rawConfig) {
             json(res, 400, { error: "INVALID_RESULT" });
             return;
           }
+          if (p.settling) {
+            json(res, 409, { error: "RESULT_SETTLEMENT_IN_PROGRESS" });
+            return;
+          }
           if (p.metering && data.result.isError !== true) {
+            p.settling = true;
             try {
               await meter.settle(p.metering, data.receiptSignature);
             } catch {
+              p.settling = false;
               json(res, 409, {
                 error: "HOSTED_METERING_SETTLEMENT_UNVERIFIED",
               });
