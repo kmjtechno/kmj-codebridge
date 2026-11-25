@@ -19,6 +19,7 @@ function proofValid(proof, requestDigest, now) {
     proof.endpoint === ENDPOINT &&
     proof.policy === POLICY &&
     typeof proof.admissionTicket === "string" &&
+    proof.admissionTicket.length === 64 &&
     /^[A-Za-z0-9]{64}$/.test(proof.admissionTicket) &&
     proof.accountNoChargeVerified === true &&
     proof.exactRouteBindingVerified === true &&

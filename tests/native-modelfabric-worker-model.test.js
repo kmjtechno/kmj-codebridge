@@ -114,3 +114,45 @@ test("planning-only response cannot activate or send source", async () => {
   );
   assert.equal(posts, 0);
 });
+
+test("native worker exposes busy state and refuses overlapping probes or generation", async () => {
+  let resolveProbe;
+  let calls = 0;
+  const model = createNativeModelFabricWorkerModel({
+    token,
+    authorized: () => true,
+    now,
+    request: () => {
+      calls++;
+      return new Promise((resolve) => {
+        resolveProbe = resolve;
+      });
+    },
+  });
+  const input = {
+    model: config.model,
+    prompt: "synthetic task",
+    authorizeRequest: () => true,
+  };
+  const pending = model.status();
+  assert.deepEqual(await model.status(), {
+    available: false,
+    activeRequest: true,
+    models: [],
+  });
+  await assert.rejects(model.generate(input), /NATIVE_MODEL_FABRIC_BUSY/);
+  assert.equal(calls, 1);
+  resolveProbe(Response.json({ object: "list" }));
+  assert.equal((await pending).activeRequest, false);
+
+  const generation = model.generate(input);
+  assert.equal((await model.status()).activeRequest, true);
+  await assert.rejects(model.generate(input), /NATIVE_MODEL_FABRIC_BUSY/);
+  assert.equal(calls, 2);
+  resolveProbe(Response.json({ object: "list" }));
+  await assert.rejects(generation, /NATIVE_MODEL_FABRIC_NOT_AUTHORIZED/);
+  const next = model.status();
+  assert.equal(calls, 3);
+  resolveProbe(Response.json({ object: "list" }));
+  assert.equal((await next).activeRequest, false);
+});
