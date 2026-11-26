@@ -14,7 +14,7 @@ import {
 export function redact(text) {
   return text
     .replace(/(Bearer\s+)[A-Za-z0-9._~+\/-]+/gi, "$1[REDACTED]")
-    .replace(/\bkmjmf_[A-Za-z0-9]{48,}/g, "[REDACTED]")
+    .replace(/kmjmf_[A-Za-z0-9]{48,}/g, "[REDACTED]")
     .replace(
       /((?:password|secret|token|api[_-]?key)\s*[=:]\s*)[^\s,;]+/gi,
       "$1[REDACTED]",
