@@ -97,7 +97,7 @@ function gitStatusHints(status) {
   };
   // Only expose explicit numeric divergence. Never include branch text.
   const divergence =
-    / \\[(?:ahead ([0-9]{1,10})(?:, behind ([0-9]{1,10}))?|behind ([0-9]{1,10}))\\]$/.exec(
+    / \[(?:ahead ([0-9]{1,10})(?:, behind ([0-9]{1,10}))?|behind ([0-9]{1,10}))\]$/.exec(
       header,
     );
   if (divergence) {
