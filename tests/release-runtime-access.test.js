@@ -148,12 +148,12 @@ test(
 );
 
 test(
-  "finalize strips writable and special permission bits from the complete runtime",
+  "finalize strips writable permission bits from the complete runtime",
   { skip: process.platform === "win32" },
   (t) => {
     const { manifest, store, staged } = fixture(t);
-    fs.chmodSync(path.join(staged.staging, "src"), 0o7777);
-    fs.chmodSync(path.join(staged.staging, "src/cli.js"), 0o6777);
+    fs.chmodSync(path.join(staged.staging, "src"), 0o777);
+    fs.chmodSync(path.join(staged.staging, "src/cli.js"), 0o777);
     const release = store.finalize(manifest, staged.staging);
     assert.equal(
       fs.statSync(path.join(release.target, "src")).mode & 0o7777,
@@ -163,5 +163,26 @@ test(
       fs.statSync(path.join(release.target, "src/cli.js")).mode & 0o7777,
       0o755,
     );
+  },
+);
+
+// Special-bit fixture is separate: retain the actual assertion on normal
+// GitHub Linux CI, but do not ask a hardened service to remove its own policy.
+test(
+  "finalize strips special permission bits from the complete runtime",
+  { skip: process.platform === "win32" },
+  (t) => {
+    const { manifest, store, staged } = fixture(t);
+    try {
+      fs.chmodSync(path.join(staged.staging, "src"), 0o7777);
+      fs.chmodSync(path.join(staged.staging, "src/cli.js"), 0o6777);
+    } catch (error) {
+      if (error.code === "EPERM" && process.env.GITHUB_ACTIONS !== "true")
+        return t.skip("host policy denies setting special permission bits");
+      throw error;
+    }
+    const release = store.finalize(manifest, staged.staging);
+    assert.equal(fs.statSync(path.join(release.target, "src")).mode & 0o7777, 0o755);
+    assert.equal(fs.statSync(path.join(release.target, "src/cli.js")).mode & 0o7777, 0o755);
   },
 );
