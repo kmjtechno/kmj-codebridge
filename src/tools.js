@@ -79,7 +79,7 @@ import {
 // jobs.js exactly (same text, same flags) so a value only ever counts as
 // "sensitive" here when redact() would also mask it there.
 const BEARER_BINDING = /Bearer\s+([A-Za-z0-9._~+\/-]+)/gi;
-const NATIVE_TOKEN_BINDING = /\bkmjmf_[A-Za-z0-9]{48,}/g;
+const NATIVE_TOKEN_BINDING = /kmjmf_[A-Za-z0-9]{48,}/g;
 const KEY_VALUE_BINDING =
   /(password|secret|token|api[_-]?key)\s*[=:]\s*([^\s,;]+)/gi;
 const PRIVATE_KEY_BINDING =

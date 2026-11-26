@@ -162,3 +162,39 @@ test("native worker exposes busy state and refuses overlapping probes or generat
   resolveProbe(Response.json({ object: "list" }));
   assert.equal((await next).activeRequest, false);
 });
+
+test("native admission refreshes at proof expiry rather than waiting for a stale probe interval", async () => {
+  let time = 100_000;
+  let calls = 0;
+  const model = createNativeModelFabricWorkerModel({
+    token,
+    authorized: () => true,
+    now: () => time,
+    request: async (_, options) => {
+      calls++;
+      return Response.json({
+        object: "list",
+        modelfabric: {
+          scope: "private-source-coding",
+          policy: "strict-free-cloud",
+          native_admission: {
+            source: "kmj_native_provider_admission",
+            request_digest: options.headers["X-ModelFabric-Request-Digest"],
+            ticket: "t".repeat(64),
+            requests_remaining: 1,
+            issued_at_ms: time,
+            expires_at_ms: time + 20_000,
+          },
+        },
+      });
+    },
+  });
+  assert.equal((await model.status()).available, true);
+  time += 19_999;
+  assert.equal((await model.status()).available, true);
+  assert.equal(calls, 1);
+  time++;
+  assert.equal(model.readiness(), "NOT_VERIFIED");
+  assert.equal((await model.status()).available, true);
+  assert.equal(calls, 2);
+});
