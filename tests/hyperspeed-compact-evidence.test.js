@@ -128,3 +128,32 @@ test("adaptive mode keeps material savings and meaningful evidence", () => {
   );
   assert.ok(!JSON.stringify(result).includes("private/"));
 });
+
+test("compact integrity receipts retain scan bounds without file paths", () => {
+  const value = {
+    path: "private",
+    entries: [{ path: "private/file.txt", sha256: "a".repeat(64) }],
+    files: 1,
+    bytesHashed: 20,
+    truncated: true,
+    coverage: "partial",
+  };
+  const result = compactReadBatchResult(
+    row("project_integrity_manifest", value),
+  );
+  assert.deepEqual(result.hints, {
+    truncated: true,
+    coverage: "partial",
+    files: 1,
+    bytesHashed: 20,
+  });
+  assert.ok(!JSON.stringify(result).includes("private"));
+  assert.deepEqual(
+    hints("project_integrity_manifest", {
+      coverage: "untrusted text",
+      truncated: "false",
+      files: -1,
+    }),
+    {},
+  );
+});

@@ -123,6 +123,17 @@ function operationalHints(tool, value) {
       hints.entriesTruncated = value.entriesTruncated;
     return hints;
   }
+  if (tool === "project_integrity_manifest") {
+    const hints = {};
+    if (typeof value.truncated === "boolean")
+      hints.truncated = value.truncated;
+    if (value.coverage === "partial" || value.coverage === "bounded")
+      hints.coverage = value.coverage;
+    for (const key of ["files", "bytesHashed"]) {
+      if (countValue(value[key])) hints[key] = value[key];
+    }
+    return hints;
+  }
   if (tool === "execution_capacity") {
     const hints = {};
     if (typeof value.constrained === "boolean")

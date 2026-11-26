@@ -36,3 +36,37 @@ capacity grows from 32 to 256 lanes, with a maximum of 16 KiB per packet
 capacity; new lanes fail closed at the limit. No automatic eviction, deletion,
 or unverified active-lane classification is introduced. Reuse stable lane IDs
 and conditional resume to avoid needless new checkpoints.
+
+## Upstream research and adoption gates (2026-11-26)
+
+- Symphony (Apache-2.0): https://github.com/openai/symphony — compare issue
+  scheduling, retry budgets, and isolated workspace lifecycles with native
+  mission and worktree lanes. Do not add a second scheduler.
+- Aider (Apache-2.0): https://github.com/Aider-AI/aider — evaluate ranked
+  symbol maps against the existing repo map and HyperIndex.
+- RTK CLI (Apache-2.0): https://github.com/rtk-ai/rtk — evaluate deterministic
+  command-specific projections; exclude separately licensed engines.
+- ast-grep (MIT): https://github.com/ast-grep/ast-grep — pilot read-only
+  structural search on Rust, C++, PHP and TypeScript before scoped rewrites.
+- Context Mode (Elastic-2.0): https://github.com/mksglu/context-mode — design
+  reference only; no upstream source or package incorporated.
+- OpenHands: https://github.com/OpenHands/OpenHands — evaluate sandbox and
+  agent lifecycle patterns; review each component license before reuse.
+- OpenCode (MIT): https://github.com/anomalyco/opencode — compare provider and
+  tool adapters; retain KMJ ModelFabric as the sole provider control plane.
+- ACP (Apache-2.0): https://github.com/agentclientprotocol/agent-client-protocol
+  — evaluate protocol interoperability with explicit scoped grants.
+- Agent Skills: https://github.com/agentskills/agentskills — validate skill
+  manifests and individual licenses; skills never grant execution authority.
+
+Native integrity-manifest compact receipts preserve bounded file and byte
+counts, truncation and recognized coverage labels without disclosing paths.
+A bounded scan is not evidence of whole-repository coverage.
+
+Before integrating any dependency, pin an immutable revision, inspect its
+license and transitive dependencies, verify signed distribution and run
+independent Linux/Windows regression gates. Compare p50/p95 tool latency,
+response bytes, task completion, defect rate and cost against a fixed baseline.
+These references are candidates, not installed dependencies or performance
+claims. No local LLM, paid provider, blanket permissions or extra service is
+required by this change.
