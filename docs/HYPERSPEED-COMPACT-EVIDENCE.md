@@ -27,3 +27,12 @@ ChatGPT inference latency or the changed candidate. The candidate must pass
 exact-head regression tests and be independently benchmarked after rollout.
 No paid AI, transcript ingestion, permission relaxation, or chat UI control is
 introduced.
+
+## Continuity capacity
+
+The existing checkpoint format and revision checks remain unchanged. Device-wide
+capacity grows from 32 to 256 lanes, with a maximum of 16 KiB per packet
+(4 MiB of packet payload). Existing lanes remain readable and updatable at
+capacity; new lanes fail closed at the limit. No automatic eviction, deletion,
+or unverified active-lane classification is introduced. Reuse stable lane IDs
+and conditional resume to avoid needless new checkpoints.

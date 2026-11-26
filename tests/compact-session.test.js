@@ -224,3 +224,39 @@ test("MCP permissions and exact project scope govern save and resume", async (t)
   assert.equal(definitions.compact_session_save.access, "write");
   assert.equal(definitions.compact_session_resume.access, "read");
 });
+
+test("capacity extends legacy lanes without evicting existing checkpoints", (t) => {
+  const { state, store } = fixture(t);
+  const first = store.save("p1", "lane-0", {
+    requestKey: "first",
+    expectedRevision: null,
+    ...draft(),
+  });
+  for (let i = 1; i < 256; i++) {
+    store.save(i % 2 ? "p1" : "p2", "lane-" + i, {
+      requestKey: "initial",
+      expectedRevision: null,
+      ...draft(),
+    });
+  }
+  const reopened = new CompactSessionStore(state);
+  assert.equal(reopened.resume("p1", "lane-0").revision, first.revision);
+  assert.equal(reopened.resume("p1", "lane-33").exists, true);
+  assert.equal(reopened.resume("p1", "lane-255").exists, true);
+  assert.throws(
+    () =>
+      reopened.save("p3", "overflow", {
+        requestKey: "overflow",
+        expectedRevision: null,
+        ...draft(),
+      }),
+    /COMPACT_SESSION_CAPACITY_REACHED/,
+  );
+  const updated = reopened.save("p1", "lane-0", {
+    requestKey: "update",
+    expectedRevision: first.revision,
+    ...draft({ summary: "Updated at full capacity" }),
+  });
+  assert.equal(reopened.resume("p1", "lane-0").revision, updated.revision);
+  assert.equal(reopened.resume("p1", "lane-255").exists, true);
+});
