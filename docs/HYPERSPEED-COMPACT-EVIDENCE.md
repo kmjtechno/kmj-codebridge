@@ -70,3 +70,13 @@ response bytes, task completion, defect rate and cost against a fixed baseline.
 These references are candidates, not installed dependencies or performance
 claims. No local LLM, paid provider, blanket permissions or extra service is
 required by this change.
+
+## Request-local duplicate suppression
+
+Compact and adaptive batches share the result of identical scoped file reads
+within one request only (file content, range, tail, and metadata). Each caller
+key retains its own response row. Full mode and other read tools retain their
+original execution behavior. Results and errors are not cached across requests,
+users, devices, or projects; failures remain failures and the next request may
+retry. This avoids duplicate agent round trips without a persistent private
+source cache. Independent calls still run in parallel.
