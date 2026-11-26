@@ -48,6 +48,23 @@ the installed signed schema and stage only after the owner has approved the
 recipe and source scope. Do not restart a busy agent; use the job-drained
 activation path and preserve the previous config for rollback.
 
+## Owner-only read-only admission check
+
+From a trusted exact-head checkout with locked dependencies, an owner can run
+the native admission check using the dedicated token already present in a
+protected environment. Do not place the token in the command or shell history.
+
+```sh
+node scripts/native-modelfabric-admission-check.mjs --confirm-readonly-native-admission
+```
+
+This checks a short-lived admission using only an authenticated GET to the
+fixed native endpoint. Exit 0 means admission was verified at the instant of
+the check; it does not authorize generation, transfer any source, activate a
+worker, reserve quota for a task or prove the live signed runtime. Each actual
+coding request still requires fresh request-bound admission. Exit 2 is a
+blocker, not permission to use another inference route.
+
 ## First real coding task
 
 The worker recognizes only keys of the form
