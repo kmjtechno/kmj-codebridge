@@ -143,7 +143,10 @@ export function createNativeModelFabricWorkerModel({
           const proof = await admission(randomBytes(32).toString("hex"));
           if (proof && approved()) readyUntil = proof.expiresAtEpochMs;
         } finally {
-          nextProbe = now() + 30_000;
+          nextProbe =
+            readyUntil > now()
+              ? Math.min(readyUntil, now() + 30_000)
+              : now() + 30_000;
           activeRequest = false;
         }
       }
