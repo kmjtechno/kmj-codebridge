@@ -47,6 +47,8 @@ test("the independent test is outside the only editable and transferable file", 
   assert.ok(!recipe.paths.includes(plan.gate.args[1]));
   assert.equal(recipe.verifyGate, plan.gateName);
   assert.ok(
-    plan.requiredBeforeActivation.includes("LIVE_STRICT_FREE_ACCOUNT_AND_QUOTA"),
+    plan.requiredBeforeActivation.includes(
+      "LIVE_STRICT_FREE_ACCOUNT_AND_QUOTA",
+    ),
   );
 });
