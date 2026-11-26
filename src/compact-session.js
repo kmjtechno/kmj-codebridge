@@ -10,7 +10,8 @@ const ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,95}$/;
 const PROJECT = /^[A-Za-z0-9_-]{1,64}$/;
 const HASH = /^[a-f0-9]{64}$/;
 const MAX_FILE_BYTES = 16384;
-const MAX_LANES = 32;
+// Bounded device-wide capacity; never evict a live lane to make space.
+const MAX_LANES = 256;
 const FIELDS = Object.freeze({
   decisions: [10, 200],
   constraints: [12, 200],

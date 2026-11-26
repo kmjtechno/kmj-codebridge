@@ -36,6 +36,7 @@ import {
   adaptiveReadBatchResult,
   compactReadBatchResult,
 } from "./compact-read-results.js";
+import { createReadBatchCoalescer } from "./batch-read-coalescer.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { createCiFailureReader, ciFailureDefinitions } from "./ci-failure.js";
 import {
@@ -971,6 +972,7 @@ export async function startGateway(rawConfig) {
   async function fastReadBatch(user, args) {
     authorize(user, args, "read");
     const scope = { device: args.device, project: args.project };
+    const read = createReadBatchCoalescer(args.responseMode);
     const results = await Promise.all(
       args.calls.map(async (call) => {
         if (!fastReadTools.has(call.tool))
@@ -985,7 +987,9 @@ export async function startGateway(rawConfig) {
           return {
             key: call.key,
             tool: call.tool,
-            ...decodeForwardedResult(await forward(user, call.tool, input)),
+            ...(await read(call.tool, input, async () =>
+              decodeForwardedResult(await forward(user, call.tool, input)),
+            )),
           };
         } catch (error) {
           return {
