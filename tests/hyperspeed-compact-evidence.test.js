@@ -114,7 +114,9 @@ test("capacity preserves bounded scheduling facts, never raw reasons", () => {
 test("adaptive mode keeps material savings and meaningful evidence", () => {
   const status =
     "## main...origin/main [behind 908]\n" +
-    Array.from({ length: 250 }, (_, i) => "?? private/" + i + ".txt\n").join("");
+    Array.from({ length: 250 }, (_, i) => "?? private/" + i + ".txt\n").join(
+      "",
+    );
   const input = row("git_status", { status });
   const result = adaptiveReadBatchResult(input);
   assert.equal(result.responseMode, "compact");

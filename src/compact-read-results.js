@@ -117,7 +117,8 @@ function operationalHints(tool, value) {
     const git = value.git;
     const hints = {};
     if (typeof git?.available === "boolean") hints.gitAvailable = git.available;
-    if (git?.available === true) Object.assign(hints, gitStatusHints(git.status));
+    if (git?.available === true)
+      Object.assign(hints, gitStatusHints(git.status));
     if (typeof value.entriesTruncated === "boolean")
       hints.entriesTruncated = value.entriesTruncated;
     return hints;
