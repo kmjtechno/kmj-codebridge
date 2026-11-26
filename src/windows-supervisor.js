@@ -39,6 +39,7 @@ const TASK_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const PIPE_NAME = /^kmj-codebridge-supervisor-[a-z0-9-]{1,40}$/;
 const MAX_REQUEST_BYTES = 8192;
 const MAX_CONNECTIONS = 4;
+const CHILD_TERMINATION_GRACE_MS = 2000;
 const STAGES = ["configure", "build", "ctest"];
 const RUST_STAGES = ["fmt", "clippy", "test"];
 const WIN32_SYSTEM_DIR = "C:\\Windows\\System32";
@@ -243,6 +244,7 @@ export function runBounded(
     let size = 0;
     let truncated = false;
     let timedOut = false;
+    let terminationTimer;
     const collect = (chunk) => {
       if (size >= maxBytes) {
         truncated = true;
@@ -258,6 +260,14 @@ export function runBounded(
     child.stderr?.on("data", collect);
     const timer = setTimeout(() => {
       timedOut = true;
+      // A child can fail to deliver close after kill (for example an inherited
+      // pipe held open by a descendant). Never leave the request pending.
+      terminationTimer = setTimeout(() => {
+        finish(null, false, true);
+        child.stdout?.destroy?.();
+        child.stderr?.destroy?.();
+        child.unref?.();
+      }, CHILD_TERMINATION_GRACE_MS);
       try {
         killTree(child.pid);
       } catch {}
@@ -266,16 +276,22 @@ export function runBounded(
       } catch {}
     }, timeoutMs);
     let settled = false;
-    const finish = (exitCode, spawnFailed = false) => {
+    const finish = (
+      exitCode,
+      spawnFailed = false,
+      terminationUnverified = false,
+    ) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearTimeout(terminationTimer);
       const raw = Buffer.concat(chunks).toString("utf8");
       resolve({
         exitCode,
         spawnFailed,
         timedOut,
         truncated,
+        terminationUnverified,
         output: redact(raw),
         logSha256: sha256(raw),
         durationMs: Date.now() - started,
@@ -304,6 +320,7 @@ export function createWindowsSupervisorHandler({
   now = () => new Date(),
 } = {}) {
   let busy = false;
+  let terminationUnverified = false;
 
   const project = (id) => {
     if (typeof id !== "string" || !PROJECT_ID.test(id))
@@ -331,8 +348,8 @@ export function createWindowsSupervisorHandler({
       : {}),
   });
 
-  const exec = (p, exe, args, cwd, { timeoutMs, maxBytes } = {}) =>
-    runner(exe, args, {
+  const exec = async (p, exe, args, cwd, { timeoutMs, maxBytes } = {}) => {
+    const result = await runner(exe, args, {
       cwd,
       env: baseEnv(p),
       timeoutMs: timeoutMs ?? 60000,
@@ -347,6 +364,12 @@ export function createWindowsSupervisorHandler({
           });
       },
     });
+    if (result.terminationUnverified) {
+      terminationUnverified = true;
+      fail("SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED");
+    }
+    return result;
+  };
 
   const git = (p, cwd, args, opts) =>
     exec(
@@ -372,6 +395,8 @@ export function createWindowsSupervisorHandler({
   };
 
   const withLock = async (fn) => {
+    if (terminationUnverified)
+      fail("SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED");
     if (busy) fail("SUPERVISOR_BUSY");
     busy = true;
     try {
@@ -402,7 +427,7 @@ export function createWindowsSupervisorHandler({
         spawnImpl,
       },
     );
-    if (r.exitCode !== 0)
+    if (r.exitCode !== 0 || r.timedOut || r.spawnFailed || r.truncated)
       return { exists: false, state: "unknown", enabled: false };
     const columns = r.output.trim().split(/","/);
     const state = (columns[columns.length - 1] ?? "").replace(/"/g, "").trim();
