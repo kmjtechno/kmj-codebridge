@@ -24,11 +24,17 @@ test("stage only a disabled candidate without mutating unrelated state", () => {
   assert.deepEqual(original, fixture());
   const project = result.candidate.projects[0];
   assert.equal(project.autopilotCodingWorker.enabled, false);
-  assert.equal(project.autopilotCodingWorker.cloudSourceTransferApproved, false);
+  assert.equal(
+    project.autopilotCodingWorker.cloudSourceTransferApproved,
+    false,
+  );
   assert.equal(project.gates.native_pilot_check.autopilotCodingSafe, false);
   assert.deepEqual(project.gates.existing, original.projects[0].gates.existing);
   assert.deepEqual(result.candidate.projects[1], original.projects[1]);
-  assert.deepEqual(project.autopilotRepairWorker, original.projects[0].autopilotRepairWorker);
+  assert.deepEqual(
+    project.autopilotRepairWorker,
+    original.projects[0].autopilotRepairWorker,
+  );
   assert.equal(stageDisabledNativePilot(result.candidate, scope).changed, false);
 });
 
