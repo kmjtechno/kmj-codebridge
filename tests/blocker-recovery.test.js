@@ -822,3 +822,19 @@ test("recovery task IDs are scoped to source task and idempotent", (t) => {
     /UNKNOWN_RECOVERY_CODE/,
   );
 });
+
+test("coding recovery respects the approved native-only route and still requires live evidence", () => {
+  const report = inspectBlockers({
+    workerConfiguration: { coding: true },
+    workerStarted: { coding: true },
+  });
+  const blocker = report.blockers.find(
+    (entry) => entry.code === "NO_AUTONOMOUS_CODING_EXECUTOR",
+  );
+  assert.match(blocker.nextAction, /native ModelFabric/);
+  assert.match(blocker.nextAction, /private-source consent/);
+  assert.match(blocker.nextAction, /no paid or local fallback/);
+  assert.match(blocker.nextAction, /Never switch routes/);
+  assert.equal(report.autonomousCodingProven, false);
+  assert.equal(report.taskActuallyClaimed, false);
+});
