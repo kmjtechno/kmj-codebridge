@@ -35,7 +35,10 @@ test("stage only a disabled candidate without mutating unrelated state", () => {
     project.autopilotRepairWorker,
     original.projects[0].autopilotRepairWorker,
   );
-  assert.equal(stageDisabledNativePilot(result.candidate, scope).changed, false);
+  assert.equal(
+    stageDisabledNativePilot(result.candidate, scope).changed,
+    false,
+  );
 });
 
 test("refuse mismatched revisions, ambiguous projects and existing workers", () => {
