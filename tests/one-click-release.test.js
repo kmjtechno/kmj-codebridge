@@ -37,13 +37,23 @@ test(
     const repo = mkdtempSync(path.join(tmpdir(), "kmj-seq29-"));
     t.after(() => rmSync(repo, { recursive: true, force: true }));
     assert.equal(
-      run("git", ["clone", "-q", "--shared", "--no-checkout", path.resolve("."), repo]).status,
+      run("git", [
+        "clone",
+        "-q",
+        "--shared",
+        "--no-checkout",
+        path.resolve("."),
+        repo,
+      ]).status,
       0,
     );
     const folder = path.join("releases/stable", SEQ29);
     mkdirSync(path.join(repo, folder), { recursive: true });
     for (const name of ["release-manifest.json", "release-manifest.sig"])
-      writeFileSync(path.join(repo, folder, name), readFileSync(path.join(folder, name)));
+      writeFileSync(
+        path.join(repo, folder, name),
+        readFileSync(path.join(folder, name)),
+      );
     const r = verifyStableRelease({ repo, revision: SEQ29 });
     assert.equal(r.sequence, 29);
     assert.equal(r.tag, "codebridge-stable-seq29-e8c353dc");
@@ -134,10 +144,10 @@ function releaseFixture(t) {
   );
   writeFileSync(
     path.join(bin, "gh"),
-    `#!/usr/bin/env node
+    String.raw`#!/usr/bin/env node
 const args = process.argv.slice(2);
 if (args.join(" ") === "auth status") process.exit(0);
-const match = /^repos\\/kmjtechno\\/kmj-codebridge\\/commits\\/([a-f0-9]{40})\\/check-runs\\?per_page=100$/.exec(args[1] || "");
+const match = /^repos\/kmjtechno\/kmj-codebridge\/commits\/([a-f0-9]{40})\/check-runs\?per_page=100$/.exec(args[1] || "");
 if (args[0] === "api" && match) {
   const names = ["registry_manifest", "verify (ubuntu-24.04)", "verify (windows-latest)", "clients", "distribution"];
   console.log(JSON.stringify({total_count: names.length, check_runs: names.map(name => ({name, head_sha: match[1], app: {slug: "github-actions"}, status: "completed", conclusion: "success"}))}));
@@ -151,7 +161,12 @@ if (args[0] === "api" && match) {
   const seq = Math.max(
     ...readdirSync(stable)
       .filter((name) => /^[a-f0-9]{40}$/.test(name))
-      .map((name) => JSON.parse(readFileSync(path.join(stable, name, "release-manifest.json"), "utf8")).sequence),
+      .map(
+        (name) =>
+          JSON.parse(
+            readFileSync(path.join(stable, name, "release-manifest.json"), "utf8"),
+          ).sequence,
+      ),
   ) + 1;
   return { root, repo, origin, home, publicKey, npmrc, bin, realGit, seq };
 }
@@ -162,6 +177,7 @@ function oneClick(f, extra = {}) {
     env: {
       PATH: f.bin + path.delimiter + process.env.PATH,
       FIXTURE_REAL_GIT: f.realGit,
+      GIT_ALLOW_PROTOCOL: "file",
       HOME: f.home,
       TMPDIR: f.root,
       GH_CONFIG_DIR: path.join(f.root, "no-gh"),
@@ -193,8 +209,14 @@ test(
     // The pushed branch holds exactly the two public files for that commit.
     const check = path.join(f.root, "check");
     assert.equal(
-      run("git", ["clone", "-q", "-b", `release/stable-seq${f.seq}`, f.origin, check])
-        .status,
+      run("git", [
+        "clone",
+        "-q",
+        "-b",
+        `release/stable-seq${f.seq}`,
+        f.origin,
+        check,
+      ]).status,
       0,
     );
     const changed = git(check, "diff", "--name-only", "origin/main", "HEAD")

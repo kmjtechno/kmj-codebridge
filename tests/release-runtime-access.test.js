@@ -182,7 +182,13 @@ test(
       throw error;
     }
     const release = store.finalize(manifest, staged.staging);
-    assert.equal(fs.statSync(path.join(release.target, "src")).mode & 0o7777, 0o755);
-    assert.equal(fs.statSync(path.join(release.target, "src/cli.js")).mode & 0o7777, 0o755);
+    assert.equal(
+      fs.statSync(path.join(release.target, "src")).mode & 0o7777,
+      0o755,
+    );
+    assert.equal(
+      fs.statSync(path.join(release.target, "src/cli.js")).mode & 0o7777,
+      0o755,
+    );
   },
 );
