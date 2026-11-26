@@ -136,3 +136,35 @@ Mission Control UI need their own signed website release and HTTPS readback.
   and actual one-click device controls are verified.
 
 These are independent gates. Do not collapse them into a single `READY` label.
+
+## One-click setup and recovery (signed release only)
+
+After the original-owner signed release containing the new entrypoint is
+installed, the owner can stage the dedicated socket and binding in one
+operation. Dry-run is the default:
+
+```bash
+sudo python3 -I -B /opt/kmj-codebridge-stable/current/scripts/production/owner_oneclick_elite_dev_supervisor.py
+```
+
+To authorize the fixed installation/resume and binding stage in the same
+invocation:
+
+```bash
+sudo python3 -I -B /opt/kmj-codebridge-stable/current/scripts/production/owner_oneclick_elite_dev_supervisor.py --apply --confirm-elite-dev-supervisor-oneclick-owner-go
+```
+
+Existing units are reused only when both match the signed renderer byte for
+byte and the effective systemd configuration has no unexpected drop-ins.
+Partial or mismatched installation stops with a categorical blocker; it is
+not silently overwritten. No private enrollment is changed. An inactive
+exact socket can be started and probed; the agent itself is not restarted.
+The job-drained agent activation and authenticated remote hardware RPC
+remain separate gates. Source CI is not live proof.
+
+For P520, double-click the reviewed
+`scripts/windows/P520-SUPERVISOR-ONECLICK-DOCTOR.cmd` in the trusted
+runtime. It checks the existing running task, fixed action and token ACL,
+denies a bad HMAC, and requests local status and hardware facts. It does
+not restart or register a task, read another project's configuration, or
+print the token. Its local PASS still requires remote agent RPC readback.

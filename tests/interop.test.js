@@ -504,6 +504,41 @@ test("universal MCP clients can opt into compact batch receipts without losing a
   );
 });
 
+test("adaptive duplicate reads preserve caller keys and refresh across batches", async (t) => {
+  const { connect, root } = await bridge(t);
+  const client = await connect(readToken);
+  const calls = ["first", "second"].map((key) => ({
+    key,
+    tool: "read_file",
+    args: { path: "hello.txt" },
+  }));
+  const read = async () =>
+    body(
+      await client.callTool({
+        name: "fast_read_batch",
+        arguments: { ...scoped, calls, responseMode: "compact" },
+      }),
+    ).results;
+  const first = await read();
+  assert.deepEqual(
+    first.map((row) => row.key),
+    ["first", "second"],
+  );
+  assert.ok(first.every((row) => row.ok && !row.detailsReturned));
+  assert.equal(first[0].contentSha256, first[1].contentSha256);
+  fs.writeFileSync(path.join(root, "hello.txt"), "changed");
+  const next = await read();
+  assert.equal(next[0].contentSha256, next[1].contentSha256);
+  assert.notEqual(next[0].contentSha256, first[0].contentSha256);
+  await expectRejected(
+    client.callTool({
+      name: "fast_read_batch",
+      arguments: { ...scoped, project: "other", calls },
+    }),
+    "ACCESS_DENIED",
+  );
+});
+
 test("responses are bounded for large files and broad searches", async (t) => {
   const { connect } = await bridge(t);
   const client = await connect(fullToken);

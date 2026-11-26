@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { redact } from "../src/jobs.js";
 import {
   createDispatcher,
   preservesSensitiveBindings,
@@ -223,4 +224,24 @@ test("separator-only formatting and harmless token-named identifiers stay editab
     },
     ["write"],
   );
+});
+
+test("bare native ModelFabric credentials are redacted and protected", () => {
+  const value = "kmjmf_" + "a".repeat(48);
+  assert.equal(redact(value), "[REDACTED]");
+  assert.deepEqual(sensitiveBindings(value), [["native-token", value]]);
+  assert.equal(preservesSensitiveBindings(value, "removed"), false);
+  assert.equal(preservesSensitiveBindings(value, value + "\nmode=fast"), true);
+  assert.equal(redact("kmjmf_"), "kmjmf_");
+});
+
+test("embedded native credentials are redacted and protected without a word boundary", () => {
+  const value = "kmjmf_" + "a".repeat(48);
+  for (const prefix of ["prefix", "log_", "1"]) {
+    assert.equal(redact(prefix + value), prefix + "[REDACTED]");
+    assert.deepEqual(sensitiveBindings(prefix + value), [
+      ["native-token", value],
+    ]);
+    assert.equal(preservesSensitiveBindings(prefix + value, prefix), false);
+  }
 });

@@ -213,3 +213,51 @@ test("local-only worker missing local consent cannot report configured", async (
   );
   assert.equal(r.workers.coding.configured, false);
 });
+
+test("native readiness exposes only bounded project-scoped evidence", async (t) => {
+  const config = {
+    enabled: true,
+    inferenceRoute: "native-verified-free-cloud-only",
+    nativeModelFabricApproved: true,
+    cloudSourceTransferApproved: true,
+    cloudProxyApproved: false,
+    localProcessingApproved: false,
+    model: "modelfabric-auto",
+    nativeTokenEnv: "CODEBRIDGE_KMJ_MODELFABRIC_TOKEN",
+  };
+  let state = "FREE_ADMISSION_CACHED";
+  let probes = 0;
+  const f = fixture(
+    t,
+    () => ({
+      coding: ["project1"],
+      agentRunning: true,
+      nativeCodingReadiness: (project) => {
+        assert.equal(project, "project1");
+        probes++;
+        return state;
+      },
+    }),
+    config,
+  );
+  const read = () =>
+    f.dispatch(
+      "autopilot_worker_runtime_status",
+      { device: "device1", project: "project1" },
+      ["read"],
+    );
+  const first = await read();
+  assert.deepEqual(first.workers.coding.nativeModelFabric, {
+    readiness: "FREE_ADMISSION_CACHED",
+    evidence: "CACHED_OBSERVATION_ONLY",
+    liveInferenceVerified: false,
+  });
+  state = "private-secret-invalid-state";
+  const second = await read();
+  assert.equal(
+    second.workers.coding.nativeModelFabric.readiness,
+    "NOT_INSTRUMENTED",
+  );
+  assert.doesNotMatch(JSON.stringify(second), /private-secret-invalid-state/);
+  assert.equal(probes, 2);
+});

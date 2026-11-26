@@ -56,6 +56,21 @@ export function cloudCodingReceipt(
   };
 }
 
+// Native receipt records the verified server admission path, not the final bill.
+export function nativeCloudCodingReceipt() {
+  return {
+    provider: "kmj-modelfabric",
+    model: "modelfabric-auto",
+    execution: "verified_zero_cost_route_admission",
+    operation: "autopilot_coding_worker",
+    routing: "native-verified-free-cloud-only",
+    cloudFallback: null,
+    paidInference: null,
+    scope: "codebridge_invocation",
+    hostChatModel: "not_observable_by_codebridge",
+  };
+}
+
 // Used for legacy/replayed checkpoints for which the original model was not
 // durably recorded. The caller's requested model must never be substituted.
 export function unknownModelReceipt() {
@@ -77,6 +92,17 @@ export function unknownModelReceipt() {
 // any model-generated content, browser request or API credential.
 export function normalizeModelReceipt(value) {
   if (value === undefined) return null;
+  if (value?.provider === "kmj-modelfabric") {
+    const expected = nativeCloudCodingReceipt();
+    if (
+      typeof value !== "object" ||
+      Array.isArray(value) ||
+      Object.keys(value).length !== Object.keys(expected).length ||
+      !Object.entries(expected).every(([key, field]) => value[key] === field)
+    )
+      throw new TypeError("INVALID_MODEL_ATTRIBUTION");
+    return expected;
+  }
   if (
     value &&
     value.provider === "freellmapi-loopback" &&

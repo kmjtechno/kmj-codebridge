@@ -1621,3 +1621,53 @@ test("worker handles are distinct from running jobs and disappear on scope refre
   view.send({ product: "KMJ CodeBridge", project: "project2" });
   assert.equal(view.element("worker-0").hidden, true);
 });
+
+test("one-click hardware readback is scoped, bounded and rejects stale replies", () => {
+  const v = openCard();
+  v.handshake();
+  v.element("openDevices").handlers.click();
+  v.replyResult(6, {
+    structuredContent: {
+      devices: ["device1", "device2"].map((device) => ({
+        device,
+        project: "project1",
+        status: "READY",
+        connectionState: "online",
+      })),
+    },
+  });
+  v.element("fleet-device-0").handlers.click();
+  v.element("checkHardware").handlers.click();
+  const first = v.parentMessages.at(-1).message;
+  assert.equal(first.params.name, "supervisor_device_status");
+  assert.equal(first.params.arguments.device, "device1");
+  const facts = {
+    platform: "linux",
+    cpuCount: 16,
+    totalMemoryBytes: 32 * 1073741824,
+    freeMemoryBytes: 8 * 1073741824,
+  };
+  v.element("fleet-device-1").handlers.click();
+  v.replyResult(first.id, { structuredContent: facts });
+  assert.equal(v.element("fleetHardwareState").textContent, "UNKNOWN");
+  v.element("checkHardware").handlers.click();
+  const second = v.parentMessages.at(-1).message;
+  assert.notEqual(second.id, first.id);
+  assert.equal(second.params.arguments.device, "device2");
+  v.replyResult(first.id, { structuredContent: facts });
+  assert.equal(v.element("fleetHardwareState").textContent, "CHECKING");
+  v.replyResult(second.id, { structuredContent: facts });
+  assert.equal(v.element("fleetHardwareState").textContent, "RPC VERIFIED");
+  assert.match(v.element("fleetHardwareDetail").textContent, /16 logical CPUs/);
+  v.element("checkHardware").handlers.click();
+  const third = v.parentMessages.at(-1).message;
+  v.replyResult(third.id, {
+    structuredContent: { ...facts, freeMemoryBytes: -1 },
+  });
+  assert.equal(v.element("fleetHardwareState").textContent, "NOT VERIFIED");
+  assert.ok(
+    !v.parentMessages.some(
+      ({ message }) => message.params?.name === "supervisor_restart",
+    ),
+  );
+});

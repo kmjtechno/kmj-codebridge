@@ -76,7 +76,7 @@ const SAFE_ACTIONS = Object.freeze({
   NO_AUTONOMOUS_CODING_EXECUTOR: {
     requiredCodeBridgeFeature: "LEASE_BOUND_LOCAL_FIRST_CODING_EXECUTOR",
     nextAction:
-      "Verify the installed coding-worker revision, explicit local consent, live configured local model, one lease-bound exact-SHA patch, independent verification gate and restart recovery. Keep this blocker until runtime evidence proves the complete path; queue or loop startup alone is not coding.",
+      "Verify the installed coding-worker revision and explicitly approved inference route. For native ModelFabric, require scoped token, private-source consent, live strict-free-cloud account and route admission, and no paid or local fallback. For other routes, require their own explicit grants and verified model. Never switch routes to recover a blocker. Prove one lease-bound exact-SHA patch, independent verification gate and restart recovery; queue or loop startup alone is not coding.",
   },
   CI_NO_RUNNER_STEPS: {
     requiredCodeBridgeFeature:

@@ -24,6 +24,7 @@ import {
   codingRouteApproved,
 } from "./autopilot-coding-worker.js";
 import { createVerifiedFreeCloudCodingModel } from "./cloud-coding-model.js";
+import { createNativeModelFabricWorkerModel } from "./native-modelfabric-worker-model.js";
 import { createConfiguredFreeLlmApiClient } from "./freellmapi-runtime.js";
 import { createLocalModelClient } from "./local-model.js";
 import { AuditLedger } from "./audit.js";
@@ -327,6 +328,7 @@ export async function startAgent(
     localModel,
     runner,
   });
+  const nativeCodingModels = new WeakMap();
   const codingWorker = startLocalFirstCodingWorker({
     activity,
     canStart: () => activity.canStart(),
@@ -337,6 +339,32 @@ export async function startAgent(
     localModel,
     cloudModel: (project) => {
       const approvedConfig = project.autopilotCodingWorker;
+      if (
+        approvedConfig?.inferenceRoute === "native-verified-free-cloud-only"
+      ) {
+        const tokenEnv = approvedConfig.nativeTokenEnv;
+        const token = process.env[tokenEnv];
+        const cached = nativeCodingModels.get(project);
+        if (cached?.config === approvedConfig && cached.token === token)
+          return cached.model;
+        const model = createNativeModelFabricWorkerModel({
+          token,
+          authorized: () =>
+            project.writable === true &&
+            project.autopilotCodingWorker === approvedConfig &&
+            approvedConfig.inferenceRoute ===
+              "native-verified-free-cloud-only" &&
+            approvedConfig.nativeTokenEnv === tokenEnv &&
+            process.env[tokenEnv] === token &&
+            codingRouteApproved(approvedConfig),
+        });
+        nativeCodingModels.set(project, {
+          config: approvedConfig,
+          token,
+          model,
+        });
+        return model;
+      }
       return createVerifiedFreeCloudCodingModel({
         // Use the SAME owner-controlled zero-cost verifier wiring as the
         // read-only FreeLLMAPI tools. The plain client rejects all routes
@@ -387,6 +415,27 @@ export async function startAgent(
     githubCiWatch: ciWatchWorker.enabledProjects,
     localDraft: localDraftWorker.enabledProjects,
     coding: codingWorker.enabledProjects,
+    nativeCodingReadiness: (projectId) => {
+      const project = c.projects.find((item) => item.id === projectId);
+      const config = project?.autopilotCodingWorker;
+      if (
+        project?.writable !== true ||
+        config?.inferenceRoute !== "native-verified-free-cloud-only" ||
+        !codingRouteApproved(config)
+      )
+        return "NOT_AUTHORIZED";
+      const token = process.env[config.nativeTokenEnv];
+      if (
+        typeof token !== "string" ||
+        token.length !== 54 ||
+        !/^kmjmf_[A-Za-z0-9]{48}$/.test(token)
+      )
+        return "NOT_AUTHORIZED";
+      const cached = nativeCodingModels.get(project);
+      if (cached?.config !== config || cached.token !== token)
+        return "NOT_VERIFIED";
+      return cached.model.readiness();
+    },
     continuation: continuationBridge.projects,
     continuationStatus: (project) => continuationBridge.status(project),
     get agentRunning() {

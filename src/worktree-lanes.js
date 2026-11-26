@@ -1,3 +1,4 @@
+import { gitChildEnvironment } from "./git-child-env.js";
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
@@ -27,11 +28,7 @@ function git(root, args, { raw = false } = {}) {
         maxBuffer: 16 * 1024 * 1024,
         windowsHide: true,
         stdio: ["ignore", "pipe", "pipe"],
-        env: {
-          ...process.env,
-          GIT_TERMINAL_PROMPT: "0",
-          GIT_OPTIONAL_LOCKS: "0",
-        },
+        env: gitChildEnvironment(),
       },
     );
     return raw ? output : output.trim();

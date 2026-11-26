@@ -300,3 +300,39 @@ test("rejects same-byte archive replacement between stat and opened descriptor",
     fs.promises.open = originalOpen;
   }
 });
+
+test("rejects distinct 64-bit archive identities that round to the same Number", async (t) => {
+  const { options } = fixture(t);
+  const first = 2n ** 53n;
+  const second = first + 1n;
+  assert.equal(Number(first), Number(second));
+  const originalLstat = fs.lstatSync;
+  const originalOpen = fs.promises.open;
+  try {
+    fs.lstatSync = function (file, ...args) {
+      const stat = originalLstat.call(fs, file, ...args);
+      if (file === options.archivePath)
+        stat.ino = args[0]?.bigint ? first : Number(first);
+      return stat;
+    };
+    fs.promises.open = async function (file, ...args) {
+      const handle = await originalOpen.call(fs.promises, file, ...args);
+      if (file === options.archivePath) {
+        const originalStat = handle.stat.bind(handle);
+        handle.stat = async (statOptions) => {
+          const stat = await originalStat(statOptions);
+          stat.ino = statOptions?.bigint ? second : Number(second);
+          return stat;
+        };
+      }
+      return handle;
+    };
+    await assert.rejects(
+      verifySignedReleaseBundle(options),
+      /BUNDLE_ARCHIVE_CHANGED/,
+    );
+  } finally {
+    fs.lstatSync = originalLstat;
+    fs.promises.open = originalOpen;
+  }
+});

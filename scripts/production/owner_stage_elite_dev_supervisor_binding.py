@@ -14,6 +14,8 @@ import json
 import os
 from pathlib import Path
 import pwd
+import re
+import shlex
 import socket
 import stat
 import sys
@@ -77,8 +79,18 @@ def fixed_status(mod):
         "-p", "NeedDaemonReload", "-p", "FragmentPath",
         "-p", "Environment",
     ])
-    d = dict(line.split("=", 1) for line in props.splitlines()
-             if line.count("=") == 1)
+    # Environment values contain '=' themselves. Preserve the entire value,
+    # require every requested property exactly once, and reject unexpected rows.
+    expected = {"LoadState", "ActiveState", "User", "Group", "MainPID",
+                "NRestarts", "NeedDaemonReload", "FragmentPath", "Environment"}
+    d = {}
+    for line in props.splitlines():
+        key, sep, value = line.partition("=")
+        need(sep == "=" and key in expected and key not in d,
+             "DEV_AGENT_PROPERTIES_INVALID")
+        d[key] = value
+    need(set(d) == expected, "DEV_AGENT_PROPERTIES_INCOMPLETE")
+    environment_items(d["Environment"])
     need(d.get("LoadState") == "loaded"
          and d.get("ActiveState") == "active"
          and d.get("User") == "kmjdev"
@@ -187,13 +199,28 @@ def remove_owned(mod, expected_identity):
     mod.run(["/usr/bin/systemctl", "daemon-reload"])
 
 
-def binding_env_is_exact(text):
-    if type(text) is not str:
-        return False
-    items = text.split()
+def environment_items(text):
+    need(type(text) is str and len(text) <= 8192 and
+         not any(ord(c) < 32 for c in text), "DEV_AGENT_ENVIRONMENT_INVALID")
+    try:
+        items = shlex.split(text, posix=True)
+    except ValueError:
+        raise Blocked("DEV_AGENT_ENVIRONMENT_INVALID") from None
+    need(all(re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", item.partition("=")[0])
+             and "=" in item for item in items), "DEV_AGENT_ENVIRONMENT_INVALID")
+    return items
+
+
+def binding_env_flags(text):
     prefix = "KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND="
-    flags = [x for x in items if x.startswith(prefix)]
-    return flags == [FLAG]
+    return [item for item in environment_items(text) if item.startswith(prefix)]
+
+
+def binding_env_is_exact(text):
+    try:
+        return binding_env_flags(text) == [FLAG]
+    except Blocked:
+        return False
 
 
 def main(argv):
@@ -205,8 +232,7 @@ def main(argv):
     mod, source = release_guard(argv[1])
     before = fixed_status(mod)
     before_digest = verify_private_config(mod)
-    need(not any(item.startswith("KMJ_CODEBRIDGE_ELITE_DEV_SUPERVISOR_BIND=")
-                 for item in before.get("Environment", "").split()),
+    need(not binding_env_flags(before["Environment"]),
          "BIND_FLAG_ALREADY_PRESENT")
     trust_dropin_dir(mod)
     need(not os.path.lexists(DROPIN), "DROPIN_ALREADY_PRESENT")

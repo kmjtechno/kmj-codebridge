@@ -79,6 +79,7 @@ import {
 // jobs.js exactly (same text, same flags) so a value only ever counts as
 // "sensitive" here when redact() would also mask it there.
 const BEARER_BINDING = /Bearer\s+([A-Za-z0-9._~+\/-]+)/gi;
+const NATIVE_TOKEN_BINDING = /kmjmf_[A-Za-z0-9]{48,}/g;
 const KEY_VALUE_BINDING =
   /(password|secret|token|api[_-]?key)\s*[=:]\s*([^\s,;]+)/gi;
 const PRIVATE_KEY_BINDING =
@@ -96,6 +97,8 @@ export function sensitiveBindings(text) {
     ]);
   for (const match of text.matchAll(PRIVATE_KEY_BINDING))
     bindings.push(["private-key", match[0]]);
+  for (const match of text.matchAll(NATIVE_TOKEN_BINDING))
+    bindings.push(["native-token", match[0]]);
   return bindings;
 }
 
@@ -3563,6 +3566,31 @@ export function createDispatcher(
         source === null || !Array.isArray(source[kind])
           ? null
           : source[kind].includes(p.id);
+      const nativeRoute =
+        p.autopilotCodingWorker?.inferenceRoute ===
+        "native-verified-free-cloud-only";
+      let nativeReadiness = "NOT_INSTRUMENTED";
+      if (nativeRoute && !codingRouteApproved(p.autopilotCodingWorker)) {
+        nativeReadiness = "NOT_AUTHORIZED";
+      } else if (
+        nativeRoute &&
+        typeof source?.nativeCodingReadiness === "function"
+      ) {
+        try {
+          const state = source.nativeCodingReadiness(p.id);
+          if (
+            [
+              "NOT_AUTHORIZED",
+              "BUSY",
+              "FREE_ADMISSION_CACHED",
+              "NOT_VERIFIED",
+            ].includes(state)
+          )
+            nativeReadiness = state;
+        } catch {
+          nativeReadiness = "NOT_VERIFIED";
+        }
+      }
       return {
         device: config.id,
         project: p.id,
@@ -3592,6 +3620,15 @@ export function createDispatcher(
             localProcessingApproved:
               p.autopilotCodingWorker?.localProcessingApproved === true,
             loopStarted: observed("coding"),
+            ...(nativeRoute
+              ? {
+                  nativeModelFabric: {
+                    readiness: nativeReadiness,
+                    evidence: "CACHED_OBSERVATION_ONLY",
+                    liveInferenceVerified: false,
+                  },
+                }
+              : {}),
           },
         },
         note: "Loop started is not evidence of successful CI polling, a completed fix, service uptime or deployment.",
