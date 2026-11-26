@@ -5,14 +5,34 @@ import { stageDisabledNativePilot } from "../src/native-coding-pilot-stage.js";
 const head = "a".repeat(40);
 const scope = { head, ownerApprovedHead: head };
 const fixture = () => ({
+  gateway: "https://example.invalid/",
+  token: "t".repeat(32),
+  id: "device1",
+  tenant: "tenant1",
+  stateDir: "/tmp/codebridge-state",
+  license: { mode: "free" },
   projects: [
     {
       id: "kmj-codebridge",
+      root: "/tmp/codebridge",
       writable: true,
       gates: { existing: { command: "existing", args: [] } },
-      autopilotRepairWorker: { enabled: true },
+      autopilotRepairWorker: {
+        enabled: true,
+        recipes: {
+          existing: {
+            fixGate: "existing",
+            verifyGate: "existing",
+            paths: ["src/"],
+          },
+        },
+      },
     },
-    { id: "kmj-main-platform", writable: true },
+    {
+      id: "kmj-main-platform",
+      root: "/tmp/platform",
+      writable: true,
+    },
   ],
 });
 
@@ -64,5 +84,19 @@ test("refuse a conflicting independent gate", () => {
   original.projects[0].gates.native_pilot_check = { command: "other" };
   assert.deepEqual(stageDisabledNativePilot(original, scope), {
     status: "EXISTING_CODING_CONFIG_REVIEW_REQUIRED",
+  });
+});
+
+test("invalid candidate config fails closed without returning private details", () => {
+  const original = fixture();
+  original.token = "invalid";
+  assert.deepEqual(stageDisabledNativePilot(original, scope), {
+    status: "CONFIG_SCHEMA_VALIDATION_FAILED",
+  });
+  assert.equal(original.projects[0].autopilotCodingWorker, undefined);
+  const other = fixture();
+  other.projects[1].root = 42;
+  assert.deepEqual(stageDisabledNativePilot(other, scope), {
+    status: "CONFIG_SCHEMA_VALIDATION_FAILED",
   });
 });
