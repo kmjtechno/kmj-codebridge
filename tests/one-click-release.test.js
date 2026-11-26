@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import {
   existsSync,
+  readdirSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -30,8 +31,30 @@ const haveSeq29 = git(".", "cat-file", "-e", `${SEQ29}^{commit}`).status === 0;
 test(
   "generic checker derives the exact seq29 values that were hand-pinned before",
   { skip: !haveSeq29 },
-  () => {
-    const r = verifyStableRelease({ repo: path.resolve("."), revision: SEQ29 });
+  (t) => {
+    // Historical verification belongs to a disposable snapshot, not today's
+    // newest-sequence admission check.
+    const repo = mkdtempSync(path.join(tmpdir(), "kmj-seq29-"));
+    t.after(() => rmSync(repo, { recursive: true, force: true }));
+    assert.equal(
+      run("git", [
+        "clone",
+        "-q",
+        "--shared",
+        "--no-checkout",
+        path.resolve("."),
+        repo,
+      ]).status,
+      0,
+    );
+    const folder = path.join("releases/stable", SEQ29);
+    mkdirSync(path.join(repo, folder), { recursive: true });
+    for (const name of ["release-manifest.json", "release-manifest.sig"])
+      writeFileSync(
+        path.join(repo, folder, name),
+        readFileSync(path.join(folder, name)),
+      );
+    const r = verifyStableRelease({ repo, revision: SEQ29 });
     assert.equal(r.sequence, 29);
     assert.equal(r.tag, "codebridge-stable-seq29-e8c353dc");
     assert.equal(
@@ -108,14 +131,57 @@ function releaseFixture(t) {
   // npm ci inside the temporary checkout uses the existing local cache only.
   const npmrc = path.join(root, "npmrc");
   writeFileSync(npmrc, "offline=true\n");
-  return { root, repo, origin, home, publicKey, npmrc };
+  // All network boundaries are synthetic. The real release script, signer,
+  // CI validator and local bare Git remote still execute unchanged.
+  const bin = path.join(root, "bin");
+  mkdirSync(bin);
+  const realGit = run("bash", ["-c", "command -v git"]).stdout.trim();
+  assert.ok(path.isAbsolute(realGit));
+  writeFileSync(
+    path.join(bin, "git"),
+    '#!/bin/sh\nif [ "$1 $2 $3" = "remote get-url origin" ]; then\n  printf "%s\\n" https://github.com/kmjtechno/kmj-codebridge.git\n  exit 0\nfi\nexec "$FIXTURE_REAL_GIT" "$@"\n',
+    { mode: 0o700 },
+  );
+  writeFileSync(
+    path.join(bin, "gh"),
+    String.raw`#!/usr/bin/env node
+const args = process.argv.slice(2);
+if (args.join(" ") === "auth status") process.exit(0);
+const match = /^repos\/kmjtechno\/kmj-codebridge\/commits\/([a-f0-9]{40})\/check-runs\?per_page=100$/.exec(args[1] || "");
+if (args[0] === "api" && match) {
+  const names = ["registry_manifest", "verify (ubuntu-24.04)", "verify (windows-latest)", "clients", "distribution"];
+  console.log(JSON.stringify({total_count: names.length, check_runs: names.map(name => ({name, head_sha: match[1], app: {slug: "github-actions"}, status: "completed", conclusion: "success"}))}));
+} else if (args[0] === "api" && args[1] === "repos/kmjtechno/kmj-codebridge/pulls") {
+  console.log("https://example.invalid/fixture-pr");
+} else process.exit(2);
+`,
+    { mode: 0o700 },
+  );
+  const stable = path.join(repo, "releases/stable");
+  const seq =
+    Math.max(
+      ...readdirSync(stable)
+        .filter((name) => /^[a-f0-9]{40}$/.test(name))
+        .map(
+          (name) =>
+            JSON.parse(
+              readFileSync(
+                path.join(stable, name, "release-manifest.json"),
+                "utf8",
+              ),
+            ).sequence,
+        ),
+    ) + 1;
+  return { root, repo, origin, home, publicKey, npmrc, bin, realGit, seq };
 }
 
 function oneClick(f, extra = {}) {
   return run("bash", [path.join(f.repo, "scripts/release.sh"), "--yes"], {
     cwd: f.repo,
     env: {
-      PATH: process.env.PATH,
+      PATH: f.bin + path.delimiter + process.env.PATH,
+      FIXTURE_REAL_GIT: f.realGit,
+      GIT_ALLOW_PROTOCOL: "file",
       HOME: f.home,
       TMPDIR: f.root,
       GH_CONFIG_DIR: path.join(f.root, "no-gh"),
@@ -141,14 +207,20 @@ test(
     const r = oneClick(f);
     assert.equal(r.status, 0, r.stdout + r.stderr);
     assert.match(r.stdout, /KMJ_RELEASE=PR_READY/);
-    assert.match(r.stdout, /SEQUENCE=30/);
+    assert.match(r.stdout, new RegExp("SEQUENCE=" + f.seq + "\\n"));
     assert.doesNotMatch(r.stdout + r.stderr, /PRIVATE KEY/);
 
     // The pushed branch holds exactly the two public files for that commit.
     const check = path.join(f.root, "check");
     assert.equal(
-      run("git", ["clone", "-q", "-b", "release/stable-seq30", f.origin, check])
-        .status,
+      run("git", [
+        "clone",
+        "-q",
+        "-b",
+        `release/stable-seq${f.seq}`,
+        f.origin,
+        check,
+      ]).status,
       0,
     );
     const changed = git(check, "diff", "--name-only", "origin/main", "HEAD")
@@ -159,8 +231,11 @@ test(
       `releases/stable/${source}/release-manifest.sig`,
     ]);
     const result = verifyStableRelease({ repo: check, revision: source });
-    assert.equal(result.sequence, 30);
-    assert.equal(result.tag, `codebridge-stable-seq30-${source.slice(0, 8)}`);
+    assert.equal(result.sequence, f.seq);
+    assert.equal(
+      result.tag,
+      `codebridge-stable-seq${f.seq}-${source.slice(0, 8)}`,
+    );
 
     // Signature really is the owner key's Ed25519 signature over the bytes.
     const folder = path.join(check, "releases/stable", source);

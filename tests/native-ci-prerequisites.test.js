@@ -192,8 +192,15 @@ test("runtime publication refuses missing outputs and unsafe binaries", (t) => {
     run("runtime", runtime).status,
     process.getuid?.() === 0 ? 0 : 3,
   );
-  fs.chmodSync(path.join(runtime, names[0]), 0o4777);
+  // A hardened non-root service can forbid setuid chmod altogether.
+  // Always exercise writable binary rejection; privileged CI additionally
+  // exercises the actual special-bit case.
+  fs.chmodSync(path.join(runtime, names[0]), 0o777);
   assert.equal(run("runtime", runtime).status, 3);
+  if (process.getuid?.() === 0) {
+    fs.chmodSync(path.join(runtime, names[0]), 0o4755);
+    assert.equal(run("runtime", runtime).status, 3);
+  }
 });
 
 test("prerequisite readback exposes only fixed trusted states and missing tool enums", async () => {

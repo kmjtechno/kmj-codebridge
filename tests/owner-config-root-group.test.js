@@ -30,9 +30,9 @@ test("config owner script executes real root-only behaviour tests in Linux CI", 
   const python = "/usr/bin/python3";
   assert.ok(fs.existsSync(python), "Linux CI needs pinned system Python");
   const isRoot = typeof process.getuid === "function" && process.getuid() === 0;
-  if (!isRoot && !process.env.CI) {
+  if (!isRoot && process.env.GITHUB_ACTIONS !== "true") {
     return t.skip(
-      "root-only fixture; executed in Linux CI via noninteractive sudo",
+      "root-only fixture; executed in GitHub Linux CI via noninteractive sudo",
     );
   }
 
