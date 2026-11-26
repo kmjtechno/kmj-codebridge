@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import net from "node:net";
 import os from "node:os";
@@ -654,6 +655,47 @@ test("runBounded: success, exit code, timeout kill, output cap, redaction, spawn
     { env: process.env, timeoutMs: 2000, maxBytes: 1000 },
   );
   assert.equal(missing.spawnFailed, true);
+});
+
+test("runBounded settles when a timed-out child never closes", async () => {
+  const child = new EventEmitter();
+  child.pid = 123;
+  child.kill = () => false;
+  let killed = false;
+  const result = await runBounded("fixture", [], {
+    timeoutMs: 5,
+    maxBytes: 100,
+    spawnImpl: () => child,
+    killTree: () => (killed = true),
+  });
+  assert.equal(killed, true);
+  assert.equal(result.timedOut, true);
+  assert.equal(result.terminationUnverified, true);
+  assert.equal(result.exitCode, null);
+});
+
+test("unverified process termination blocks subsequent verification", async (t) => {
+  let calls = 0;
+  const { handler } = makeHandler(t, {
+    runner: async () => {
+      calls++;
+      return { exitCode: null, timedOut: true, terminationUnverified: true };
+    },
+  });
+  const req = {
+    op: "project_verify_prepare",
+    projectId: "kmj-cinecore",
+    sha: SHA,
+  };
+  await assert.rejects(
+    handler(req),
+    /SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED/,
+  );
+  await assert.rejects(
+    handler(req),
+    /SUPERVISOR_PROCESS_TERMINATION_UNVERIFIED/,
+  );
+  assert.equal(calls, 1);
 });
 
 async function withServer(t, handler, options = {}) {
