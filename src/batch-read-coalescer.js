@@ -10,10 +10,7 @@ const COALESCIBLE = new Set([
 export function createReadBatchCoalescer(mode) {
   const pending = new Map();
   return async (tool, input, execute) => {
-    if (
-      (mode !== "auto" && mode !== "compact") ||
-      !COALESCIBLE.has(tool)
-    )
+    if ((mode !== "auto" && mode !== "compact") || !COALESCIBLE.has(tool))
       return execute();
     const key = JSON.stringify([tool, input]);
     if (!pending.has(key)) pending.set(key, Promise.resolve().then(execute));

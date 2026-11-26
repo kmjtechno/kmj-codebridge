@@ -125,8 +125,7 @@ function operationalHints(tool, value) {
   }
   if (tool === "project_integrity_manifest") {
     const hints = {};
-    if (typeof value.truncated === "boolean")
-      hints.truncated = value.truncated;
+    if (typeof value.truncated === "boolean") hints.truncated = value.truncated;
     if (value.coverage === "partial" || value.coverage === "bounded")
       hints.coverage = value.coverage;
     for (const key of ["files", "bytesHashed"]) {
