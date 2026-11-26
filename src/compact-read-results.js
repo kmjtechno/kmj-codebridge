@@ -59,6 +59,97 @@ function visibleValue(field, value) {
   return undefined;
 }
 
+// Preserve useful operational facts from known tool schemas without copying
+// branch names, paths, filenames, error messages, or arbitrary nested text.
+const COUNT_LIMIT = 1000000000;
+const countValue = (value) =>
+  Number.isSafeInteger(value) && value >= 0 && value <= COUNT_LIMIT;
+const CONFLICT = new Set(["DD", "AU", "UD", "UA", "DU", "AA", "UU"]);
+
+function gitStatusHints(status) {
+  if (typeof status !== "string" || Buffer.byteLength(status) > 32768)
+    return {};
+  const lines = status.split("\n");
+  const header = lines.shift();
+  if (!header.startsWith("## ")) return {};
+  if (lines.at(-1) === "") lines.pop();
+  let tracked = 0;
+  let untracked = 0;
+  let conflicts = 0;
+  for (const line of lines) {
+    if (line.length < 4 || line[2] !== " ") return {};
+    const code = line.slice(0, 2);
+    if (code === "??") {
+      untracked++;
+    } else if (/^[ MADRCUT]{2}$/.test(code) && code !== "  ") {
+      tracked++;
+      if (CONFLICT.has(code)) conflicts++;
+    } else {
+      // Do not misreport malformed or incomplete data as a clean tree.
+      return {};
+    }
+  }
+  const hints = {
+    gitDirty: tracked + untracked > 0,
+    gitTrackedRows: tracked,
+    gitUntrackedRows: untracked,
+    gitConflictRows: conflicts,
+  };
+  // Only expose explicit numeric divergence. Never include branch text.
+  const divergence =
+    / \\[(?:ahead ([0-9]{1,10})(?:, behind ([0-9]{1,10}))?|behind ([0-9]{1,10}))\\]$/.exec(
+      header,
+    );
+  if (divergence) {
+    const ahead = Number(divergence[1] ?? 0);
+    const behind = Number(divergence[2] ?? divergence[3] ?? 0);
+    if (countValue(ahead) && countValue(behind)) {
+      hints.gitAhead = ahead;
+      hints.gitBehind = behind;
+    }
+  }
+  return hints;
+}
+
+function operationalHints(tool, value) {
+  if (tool === "git_status") return gitStatusHints(value.status);
+  if (tool === "project_snapshot") {
+    const git = value.git;
+    const hints = {};
+    if (typeof git?.available === "boolean") hints.gitAvailable = git.available;
+    if (git?.available === true) Object.assign(hints, gitStatusHints(git.status));
+    if (typeof value.entriesTruncated === "boolean")
+      hints.entriesTruncated = value.entriesTruncated;
+    return hints;
+  }
+  if (tool === "execution_capacity") {
+    const hints = {};
+    if (typeof value.constrained === "boolean")
+      hints.constrained = value.constrained;
+    for (const key of [
+      "configuredMaxConcurrent",
+      "effectiveMaxConcurrent",
+      "activeJobs",
+      "queuedJobs",
+      "queueLimit",
+      "journalRemaining",
+      "archiveRemaining",
+    ]) {
+      if (countValue(value[key])) hints[key] = value[key];
+    }
+    if (
+      typeof value.blocked === "boolean" &&
+      countValue(value.effectiveMaxConcurrent) &&
+      countValue(value.activeJobs)
+    )
+      hints.availableAuthorizedSlots = value.blocked
+        ? 0
+        : Math.max(0, value.effectiveMaxConcurrent - value.activeJobs);
+    return hints;
+  }
+  return {};
+}
+
 export function compactReadBatchResult(row) {
   if (
     !row ||
@@ -88,6 +179,7 @@ export function compactReadBatchResult(row) {
       const safe = visibleValue(name, value[name]);
       if (safe !== undefined) hints[name] = safe;
     }
+    Object.assign(hints, operationalHints(row.tool, value));
   }
   return {
     key: row.key,
