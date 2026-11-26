@@ -158,16 +158,20 @@ if (args[0] === "api" && match) {
     { mode: 0o700 },
   );
   const stable = path.join(repo, "releases/stable");
-  const seq = Math.max(
-    ...readdirSync(stable)
-      .filter((name) => /^[a-f0-9]{40}$/.test(name))
-      .map(
-        (name) =>
-          JSON.parse(
-            readFileSync(path.join(stable, name, "release-manifest.json"), "utf8"),
-          ).sequence,
-      ),
-  ) + 1;
+  const seq =
+    Math.max(
+      ...readdirSync(stable)
+        .filter((name) => /^[a-f0-9]{40}$/.test(name))
+        .map(
+          (name) =>
+            JSON.parse(
+              readFileSync(
+                path.join(stable, name, "release-manifest.json"),
+                "utf8",
+              ),
+            ).sequence,
+        ),
+    ) + 1;
   return { root, repo, origin, home, publicKey, npmrc, bin, realGit, seq };
 }
 
@@ -228,7 +232,10 @@ test(
     ]);
     const result = verifyStableRelease({ repo: check, revision: source });
     assert.equal(result.sequence, f.seq);
-    assert.equal(result.tag, `codebridge-stable-seq${f.seq}-${source.slice(0, 8)}`);
+    assert.equal(
+      result.tag,
+      `codebridge-stable-seq${f.seq}-${source.slice(0, 8)}`,
+    );
 
     // Signature really is the owner key's Ed25519 signature over the bytes.
     const folder = path.join(check, "releases/stable", source);
