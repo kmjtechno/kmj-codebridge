@@ -24,11 +24,26 @@ const examples = [
   ["Go test cancellation", "go-engineering"],
   [".NET C# disposal", "dotnet-engineering"],
   ["Kotlin JVM concurrency", "jvm-engineering"],
+  [
+    "Analyze dependency impact and call graph",
+    "architecture-impact-intelligence",
+  ],
+  ["Debug adapter breakpoints and stack trace", "native-debugging"],
+  [
+    "Change-aware test selection and affected tests",
+    "intelligent-test-selection",
+  ],
+  [
+    "Measure performance bottleneck and latency benchmark",
+    "performance-observability",
+  ],
+  ["Check upstream API and SDK compatibility", "source-driven-engineering"],
+  ["Safe bulk refactor with codemod", "safe-large-refactoring"],
 ];
 
 test("fabric contains bounded, original skills with no executable provider configuration", () => {
-  assert.equal(FABRIC_SKILLS.length, 14);
-  assert.equal(new Set(FABRIC_SKILLS.map((s) => s.id)).size, 14);
+  assert.equal(FABRIC_SKILLS.length, 20);
+  assert.equal(new Set(FABRIC_SKILLS.map((s) => s.id)).size, 20);
   for (const s of FABRIC_SKILLS) {
     assert.equal(s.inference, "FREELLMAPI_VERIFIED_FREE_CLOUD_ONLY");
     assert.equal(s.execution, "ADVISORY_UNTIL_EXPLICIT_AUTHORIZED_GENERATION");

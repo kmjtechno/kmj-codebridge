@@ -1,4 +1,5 @@
 import { hyperIndexOperation } from "./hyperindex-service.js";
+import { batchHyperSearch } from "./hyperindex-batch.js";
 import { CLOUDOS_N2_READINESS_PYTHON } from "./cloudos-n2-readiness.js";
 import { verifiedFastReceipt } from "./browser-fast-receipt.js";
 import { browserRuntimeStatus } from "./browser-runtime.js";
@@ -1560,10 +1561,15 @@ export const definitions = {
   hyperindex_search: {
     title: "Search project HyperIndex with safe fallback",
     description:
-      "Search literal text with policy revalidation and explicit coverage. Reconcile an existing index; if absent, corrupt or unavailable use bounded live lexical search. Does not enable an index automatically. No guaranteed speedup.",
+      "Search literal text with policy revalidation and explicit coverage. Optional additionalQueries (1-5 distinct terms) uses one fresh bounded live scan, including Windows, with maxResults 1-16 per query. Single-query mode reconciles an existing index or safely falls back. No automatic index setup or guaranteed speedup.",
     input: {
       ...scoped,
       query: z.string().min(1).max(200),
+      additionalQueries: z
+        .array(z.string().min(1).max(200))
+        .min(1)
+        .max(5)
+        .optional(),
       maxResults: z.number().int().min(1).max(100).optional(),
     },
     access: "read",
@@ -3453,6 +3459,10 @@ export function createDispatcher(
       });
       return { files, count: files.length };
     }
+    if (name === "hyperindex_search" && a.additionalQueries !== undefined)
+      return batchHyperSearch(p.files, [a.query, ...a.additionalQueries], {
+        maxResults: a.maxResults ?? 10,
+      });
     if (
       ["hyperindex_status", "hyperindex_build", "hyperindex_search"].includes(
         name,
