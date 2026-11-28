@@ -1,7 +1,7 @@
 # Owner-only P520 Calibration Studio development profile admission.
 # No private config is printed, no service is installed, no project file is overwritten.
 [CmdletBinding()]
-param([switch]$Apply,[switch]$EnableHardware,[switch]$SelfTest,[switch]$SchemaSelfTest)
+param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$SelfTest,[switch]$SchemaSelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $device='kmj-kmj-calibration-studio-desktop-5fvjmet'
@@ -86,6 +86,116 @@ function ValidateStagedConfig([string]$Node,[string]$Runtime,[string]$InputFile)
     if($result.ExitCode -eq 3 -and $result.Marker -ceq 'SCHEMA_IMPORT_FAILED'){throw 'STUDIO_RUNTIME_SCHEMA_IMPORT_FAILED'}
     if($result.ExitCode -eq 2 -and $result.Marker -ceq 'SCHEMA_REJECTED'){throw 'STUDIO_CONFIG_SCHEMA_REJECTED'}
     Require ($result.ExitCode -eq 0 -and $result.Marker -ceq 'SCHEMA_PASS') 'STUDIO_SCHEMA_PROCESS_FAILED'
+}
+# Owner-scoped native supervisor: no elevated service, restart task or other
+# project authority. The existing interactive launcher remains the agent owner.
+$studioPipeName='kmj-codebridge-supervisor-p520-studio'
+function StudioSupervisorConfig([string]$Runtime,[string]$Root,[string]$Config,[string]$Token) {
+    return [ordered]@{
+        pipeName=$studioPipeName
+        tokenFile=$Token
+        agent=@{installDir=$Runtime;configPath=$Config}
+        projects=@()
+        rustProjects=@()
+        readOnlyProjects=@(@{id=$project;repoRoot=$Root})
+    }
+}
+function WritePrivateNew([string]$File,[string]$Content) {
+    $bytes=[Text.UTF8Encoding]::new($false).GetBytes($Content)
+    $stream=[IO.File]::Open($File,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+    try{$stream.Write($bytes,0,$bytes.Length);$stream.Flush($true)}finally{$stream.Dispose()}
+    $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+    & "$env:SystemRoot\System32\icacls.exe" $File '/inheritance:r' '/grant:r' ('*'+$sid+':F') 1>$null 2>$null
+    Require ($LASTEXITCODE -eq 0) 'STUDIO_PRIVATE_FILE_ACL_FAILED'
+    PrivateAcl $File
+}
+function ValidateSupervisorFile([string]$Node,[string]$Runtime,[string]$File) {
+    $source='import fs from "node:fs";import {createWindowsSupervisorConfigSchema} from "./src/windows-supervisor.js";try{createWindowsSupervisorConfigSchema().parse(JSON.parse(fs.readFileSync(process.argv[2],"utf8")));process.stdout.write("SUPERVISOR_SCHEMA_PASS")}catch{process.exit(2)}'
+    $result=InvokeNodeInput $Node $Runtime $File $source
+    Require ($result.ExitCode -eq 0 -and $result.Marker -ceq 'SUPERVISOR_SCHEMA_PASS') 'STUDIO_SUPERVISOR_SCHEMA_REJECTED'
+}
+function ProbeStudioSupervisor([string]$Node,[string]$Runtime,[string]$File) {
+    $source='import fs from "node:fs";import {windowsSupervisorRequest} from "./src/supervisor-client.js";const c=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));try{const o=await windowsSupervisorRequest({pipePath:"\\\\.\\pipe\\"+c.pipeName,tokenFile:c.tokenFile},{op:"status",service:"agent"},{timeoutMs:1500});if(o.supervisor==="windows-native"&&o.service==="agent"&&o.restart.supported===false){process.stdout.write("SUPERVISOR_HMAC_PASS")}else{process.exit(3)}}catch{process.exit(2)}'
+    $result=InvokeNodeInput $Node $Runtime $File $source
+    return ($result.ExitCode -eq 0 -and $result.Marker -ceq 'SUPERVISOR_HMAC_PASS')
+}
+function InstallStudioSupervisor([string]$Node,[string]$Cli,[string]$Runtime,[string]$Root,[string]$Config,[string]$SupFile,[string]$Token,[string]$Shortcut) {
+    foreach($file in @($SupFile,$Token,$Shortcut)){Require (!(Test-Path -LiteralPath $file)) 'STUDIO_SUPERVISOR_EXISTING_REVIEW'}
+    $createdToken=$false
+    $createdConfig=$false
+    $createdShortcut=$false
+    $child=$null
+    $success=$false
+    try{
+        # Parent directory was already validated private; token is random and
+        # written once with a protected owner-only ACL. Never reuse a secret.
+        $random=New-Object byte[] 32
+        $rng=[Security.Cryptography.RandomNumberGenerator]::Create()
+        try{$rng.GetBytes($random)}finally{$rng.Dispose()}
+        $secret=[BitConverter]::ToString($random).Replace('-','').ToLowerInvariant()
+        # Mark ownership only after a successful exclusive create.
+        WritePrivateNew $Token $secret
+        $createdToken=$true
+        $secret=$null
+        $supervisor=StudioSupervisorConfig $Runtime $Root $Config $Token
+        WritePrivateNew $SupFile ($supervisor|ConvertTo-Json -Depth 8)
+        $createdConfig=$true
+        ValidateSupervisorFile $Node $Runtime $SupFile
+        $argv='"'+$Cli+'" windows-supervisor "'+$SupFile+'"'
+        $child=Start-Process -FilePath $Node -ArgumentList $argv -WorkingDirectory $Runtime -WindowStyle Hidden -PassThru
+        $verified=$false
+        for($i=0;$i -lt 5;$i++){
+            Start-Sleep -Milliseconds 500
+            $child.Refresh()
+            Require (!$child.HasExited) 'STUDIO_SUPERVISOR_EXITED'
+            if(ProbeStudioSupervisor $Node $Runtime $SupFile){$verified=$true;break}
+        }
+        Require $verified 'STUDIO_SUPERVISOR_HMAC_FAILED'
+        $child.Refresh()
+        Require (!$child.HasExited) 'STUDIO_SUPERVISOR_EXITED'
+        Require (!(Test-Path -LiteralPath $Shortcut)) 'STUDIO_SUPERVISOR_SHORTCUT_COLLISION'
+        $shell=New-Object -ComObject WScript.Shell
+        $link=$shell.CreateShortcut($Shortcut)
+        $link.TargetPath=$Node
+        $link.Arguments=$argv
+        $link.WorkingDirectory=$Runtime
+        $link.WindowStyle=7
+        $link.Description='KMJ Studio project-only native supervisor'
+        $link.Save()
+        $createdShortcut=$true
+        Ordinary $Shortcut $false
+        $confirm=$shell.CreateShortcut($Shortcut)
+        Require ($confirm.TargetPath -ieq $Node -and $confirm.Arguments -ceq $argv -and $confirm.WorkingDirectory -ieq $Runtime) 'STUDIO_SUPERVISOR_SHORTCUT_VERIFY_FAILED'
+        $success=$true
+        Write-Output 'STUDIO_SUPERVISOR_HMAC=PASS'
+        Write-Output 'STUDIO_SUPERVISOR_STARTUP=OWNER_SHORTCUT'
+    }finally{
+        if(!$success){
+            if($null -ne $child){
+                $child.Refresh()
+                if(!$child.HasExited){$child.Kill();$null=$child.WaitForExit(3000)}
+            }
+            # Only exact files created by this attempt; never touch prior files.
+            if($createdShortcut){Remove-Item -LiteralPath $Shortcut -ErrorAction SilentlyContinue}
+            if($createdConfig){Remove-Item -LiteralPath $SupFile -ErrorAction SilentlyContinue}
+            if($createdToken){Remove-Item -LiteralPath $Token -ErrorAction SilentlyContinue}
+        }
+        if($null -ne $child){$child.Dispose()}
+    }
+}
+function ExtraStudioProfiles([string]$Root,[string]$Python,[string]$Git) {
+    $extra=[ordered]@{}
+    $extra.studio_git_read=Profile 'inspect' 'Inspect the current project Git HEAD and status without changing the index or source.' $Git ([ordered]@{
+        head=(Variant @('--no-optional-locks','-C',$Root,'rev-parse','HEAD') 10000)
+        status=(Variant @('--no-optional-locks','-C',$Root,'status','--short','--untracked-files=normal') 15000)
+    })
+    if($Python){
+        $extra.studio_python=Profile 'build' 'Run selected offline Python calibration regressions; no dependency installation or hardware access requested.' $Python ([ordered]@{
+            version=(Variant @('--version') 10000)
+            regression=(Variant @('-B','-m','pytest','-p','no:cacheprovider','-q','tests/test_fisheye_calibration.py','tests/test_calibration_map_integrity.py','tests/test_relative_surface.py','tests/test_projector_coverage.py') 300000)
+        })
+    }
+    return $extra
 }
 function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
     return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
@@ -174,6 +284,18 @@ try {
                 $synthetic=[ordered]@{id=$device;tenant='fixture';gateway='https://kmjtechno.com';token=('x'*32);stateDir=$transportFixture;license=@{mode='free'};projects=@(@{id=$project;root=$transportFixture;writable=$true;commands=(Profiles $transportFixture 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' $transportFixture $true)})}
                 [IO.File]::WriteAllText($json,($synthetic|ConvertTo-Json -Depth 32),[Text.UTF8Encoding]::new($false))
                 ValidateStagedConfig $nodeFixture $runtimeFixture $json
+                $extra=ExtraStudioProfiles $transportFixture 'C:\Python\python.exe' 'C:\Git\git.exe'
+                foreach($name in $extra.Keys){$synthetic.projects[0].commands[$name]=$extra[$name]}
+                $supervisorFixture=StudioSupervisorConfig $runtimeFixture $transportFixture $json (Join-Path $transportFixture 'fixture.token')
+                $supervisorFile=Join-Path $transportFixture 'supervisor fixture.json'
+                [IO.File]::WriteAllText($supervisorFile,($supervisorFixture|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
+                ValidateSupervisorFile $nodeFixture $runtimeFixture $supervisorFile
+                $synthetic.supervisorPipe='\\.\pipe\'+$studioPipeName
+                $synthetic.supervisorTokenFile=$supervisorFixture.tokenFile
+                [IO.File]::WriteAllText($json,($synthetic|ConvertTo-Json -Depth 32),[Text.UTF8Encoding]::new($false))
+                ValidateStagedConfig $nodeFixture $runtimeFixture $json
+                Require ($supervisorFixture.projects.Count -eq 0 -and $supervisorFixture.readOnlyProjects.Count -eq 1 -and !$supervisorFixture.agent.ContainsKey('restartTask')) 'STUDIO_SELFTEST_SUPERVISOR_SCOPE'
+                Write-Output 'STUDIO_SUPERVISOR_SCHEMA_SELFTEST=PASS'
                 $synthetic.projects[0].commands.studio_build.variants.debug.timeoutMs=300001
                 [IO.File]::WriteAllText($json,($synthetic|ConvertTo-Json -Depth 32),[Text.UTF8Encoding]::new($false))
                 $schemaDenied=$false
@@ -220,6 +342,7 @@ try {
     Require (@($cfg.projects).Count -eq 1 -and $cfg.projects[0].id -ceq $project -and $cfg.projects[0].writable -ceq $true) 'STUDIO_PROJECT_SCOPE_MISMATCH'
     $p=$cfg.projects[0]
     $root=[IO.Path]::GetFullPath([string]$p.root)
+    Require ($root -ieq 'D:\KMJ Calibration Studio') 'STUDIO_ROOT_MISMATCH'
     GitScope $root $studioOrigins
 
     # The actual, already enrolled agent must identify exactly one active
@@ -229,6 +352,8 @@ try {
         $_.CommandLine -match '(?i)src[\\/]cli\.js"?\s+agent(?:\s|$)'
     })
     Require ($agentProcesses.Count -eq 1) 'STUDIO_AGENT_PROCESS_NOT_UNIQUE'
+    $ownerResult=Invoke-CimMethod -InputObject $agentProcesses[0] -MethodName GetOwnerSid
+    Require ($ownerResult.ReturnValue -eq 0 -and $ownerResult.Sid -ceq [Security.Principal.WindowsIdentity]::GetCurrent().User.Value) 'STUDIO_AGENT_OWNER_MISMATCH'
     $node=[string]$agentProcesses[0].ExecutablePath
     Ordinary $node $false
     $cliMatch=[regex]::Match([string]$agentProcesses[0].CommandLine,'(?i)(?:"(?<cli>[^"]+[\\/]src[\\/]cli\.js)"|(?<cli>[A-Z]:[\\/][^"\s]+[\\/]src[\\/]cli\.js))\s+agent(?:\s|$)')
@@ -265,7 +390,47 @@ try {
         }
     }
     $wanted=Profiles $root $cmake $ctest $qt $evidence ([bool]$EnableHardware)
+    $git=(Get-Command git.exe -CommandType Application -ErrorAction Stop|Select-Object -First 1).Source
+    Ordinary $git $false
+    $python=''
+    if($EnablePython){
+        $python=(Get-Command python.exe -CommandType Application -ErrorAction Stop|Select-Object -First 1).Source
+        Ordinary $python $false
+        foreach($test in @('test_fisheye_calibration.py','test_calibration_map_integrity.py','test_relative_surface.py','test_projector_coverage.py')){
+            Ordinary (Join-Path $root ('tests\'+$test)) $false
+        }
+    }
+    $extra=ExtraStudioProfiles $root $python $git
+    foreach($name in $extra.Keys){$wanted[$name]=$extra[$name]}
     $changed=AddProfiles $p $wanted
+    $newSupervisor=$false
+    if($EnableSupervisor){
+        $supFile=Join-Path $base 'studio-supervisor.json'
+        $token=Join-Path $base 'studio-supervisor.token'
+        $startup=[Environment]::GetFolderPath([Environment+SpecialFolder]::Startup)
+        Ordinary $startup $true
+        $shortcut=Join-Path $startup 'KMJ CodeBridge Studio Supervisor.lnk'
+        $pipe='\\.\pipe\'+$studioPipeName
+        Require ($null -eq $cfg.PSObject.Properties['supervisorSocket']) 'STUDIO_SUPERVISOR_SOCKET_CONFLICT'
+        $bound=($null -ne $cfg.PSObject.Properties['supervisorPipe']) -or ($null -ne $cfg.PSObject.Properties['supervisorTokenFile'])
+        if($bound){
+            Require ($null -ne $cfg.PSObject.Properties['supervisorPipe'] -and $null -ne $cfg.PSObject.Properties['supervisorTokenFile']) 'STUDIO_SUPERVISOR_BINDING_INCOMPLETE'
+            Require ($cfg.supervisorPipe -ceq $pipe -and $cfg.supervisorTokenFile -ieq $token) 'STUDIO_SUPERVISOR_BINDING_CONFLICT'
+            Ordinary $supFile $false
+            Ordinary $token $false
+            PrivateAcl $supFile
+            PrivateAcl $token
+            Ordinary $shortcut $false
+            Require (ProbeStudioSupervisor $node $runtime $supFile) 'STUDIO_SUPERVISOR_EXISTING_NOT_VERIFIED'
+            Write-Output 'STUDIO_SUPERVISOR_HMAC=PASS'
+        }else{
+            foreach($file in @($supFile,$token,$shortcut)){Require (!(Test-Path -LiteralPath $file)) 'STUDIO_SUPERVISOR_EXISTING_REVIEW'}
+            $cfg|Add-Member -MemberType NoteProperty -Name supervisorPipe -Value $pipe
+            $cfg|Add-Member -MemberType NoteProperty -Name supervisorTokenFile -Value $token
+            $newSupervisor=$true
+            $changed=$true
+        }
+    }
     Write-Output ('STUDIO_DEV_PROFILES='+$wanted.Count)
     Write-Output ('STUDIO_HARDWARE_OPTIN='+[int][bool]$EnableHardware)
     if(!$changed){
@@ -296,6 +461,10 @@ try {
             New-Item -ItemType Directory -Path $evidence|Out-Null
         }
         Ordinary $evidence $true
+        if($newSupervisor){
+            InstallStudioSupervisor $node $cli $runtime $root $config $supFile $token $shortcut
+            Require ((Get-FileHash -LiteralPath $config -Algorithm SHA256).Hash -ceq $originalHash) 'STUDIO_CONFIG_MOVED_AFTER_SUPERVISOR'
+        }
         [IO.File]::Replace($tmp,$config,$backup)
         PrivateAcl $config
         PrivateAcl $backup
@@ -303,6 +472,10 @@ try {
         Require ($check.id -ceq $device -and @($check.projects).Count -eq 1 -and $check.projects[0].id -ceq $project) 'STUDIO_CONFIG_POSTWRITE_SCOPE'
         foreach($name in $wanted.Keys){
             Require ($check.projects[0].commands.PSObject.Properties.Name -ccontains $name) 'STUDIO_CONFIG_POSTWRITE_PROFILE'
+        }
+        if($EnableSupervisor){
+            Require ($check.supervisorPipe -ceq $pipe -and $check.supervisorTokenFile -ieq $token) 'STUDIO_SUPERVISOR_POSTWRITE_BINDING'
+            Write-Output 'STUDIO_SUPERVISOR_BINDING=CONFIG_APPLIED'
         }
         Write-Output 'STUDIO_DEV=CONFIG_APPLIED_RESTART_REQUIRED'
         Write-Output 'AGENT_RESTARTED=NO'
