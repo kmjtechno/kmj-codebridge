@@ -360,6 +360,7 @@ export function commandRequiresIsolatedLane(commandId) {
     "main_platform_ui_ci",
     "calibration_v4_qa",
     "calibration_studio_qt_qa",
+    "calibration_studio_package",
   ].includes(commandId);
 }
 
