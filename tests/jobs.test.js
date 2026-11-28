@@ -38,6 +38,26 @@ test("runs command without a shell and persists result", async (t) => {
   assert.equal(done.exitCode, 0);
   assert.match(done.output, /hello/);
 });
+test("synchronous spawn failure is terminal and does not stall the queue", async (t) => {
+  const { root, runner } = fixture(t);
+  const failed = runner.run({
+    ...opts(root, "sync-spawn-error", ""),
+    args: ["-e", "invalid\0argument"],
+  });
+  assert.equal(failed.state, "failed");
+  assert.equal(failed.output, "JOB_SPAWN_FAILED");
+  assert.equal(failed.exitCode, null);
+  assert.equal(runner.capacity(root).activeJobs, 0);
+  const following = runner.run(opts(root, "after-spawn-error", ""));
+  assert.equal((await finished(runner, following.id)).state, "succeeded");
+  const reopened = new JobRunner(root);
+  try {
+    assert.equal(reopened.get(failed.id, "p1").state, "failed");
+  } finally {
+    await reopened.close();
+  }
+});
+
 test("idempotency key returns the same job without executing twice", async (t) => {
   const { root, runner } = fixture(t);
   const o = opts(root, "same", 'console.log("once")');
