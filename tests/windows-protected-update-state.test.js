@@ -17,16 +17,19 @@ function run(args) {
   );
 }
 
-test("Windows native updater ACL admits only admin and SYSTEM", windowsOnly, () => {
+test("Windows ACL admits admin and SYSTEM", windowsOnly, () => {
   const result = run(["-CheckAclContract"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /WINDOWS_UPDATE_STATE_ACL_CONTRACT=PASS/);
   assert.doesNotMatch(result.stdout, /CREATED_PROTECTED/);
 });
 
-test("Windows native setup rejects apply without explicit approval", windowsOnly, () => {
+test("Windows setup requires owner approval", windowsOnly, () => {
   const result = run(["-Apply"]);
   assert.equal(result.status, 1);
-  assert.match(result.stderr, /WINDOWS_UPDATE_STATE_OWNER_CONFIRMATION_REQUIRED/);
+  assert.match(
+    result.stderr,
+    /WINDOWS_UPDATE_STATE_OWNER_CONFIRMATION_REQUIRED/,
+  );
   assert.doesNotMatch(result.stdout, /CREATED_PROTECTED/);
 });
