@@ -100,7 +100,11 @@ export class DapFrameDecoder {
 // The trusted caller owns adapter lifecycle and passes a dedicated stdio
 // transport. No process command, host path or executable is accepted here.
 // The caller must close the adapter on any transport failure.
-export function createDapConnection({ write, closeTransport, timeoutMs = 5000 }) {
+export function createDapConnection({
+  write,
+  closeTransport,
+  timeoutMs = 5000,
+}) {
   if (
     typeof write !== "function" ||
     typeof closeTransport !== "function" ||

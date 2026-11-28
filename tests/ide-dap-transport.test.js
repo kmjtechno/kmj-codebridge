@@ -88,7 +88,8 @@ test("arbitrary evaluation, attach and reverse process launch are denied", async
   for (const command of ["evaluate", "attach", "setVariable", "runInTerminal"])
     await assert.rejects(connection.request(command), /DAP_REQUEST_INVALID/);
   assert.throws(
-    () => connection.receive(frame({ type: "request", command: "runInTerminal" })),
+    () =>
+      connection.receive(frame({ type: "request", command: "runInTerminal" })),
     /DAP_CONNECTION_PROTOCOL_FAILURE/,
   );
   assert.equal(closed, 1);
@@ -102,7 +103,11 @@ test("events retain bounded metadata rather than untrusted log data", () => {
   });
   for (let i = 0; i < 40; i++)
     connection.receive(
-      frame({ type: "event", event: "output", body: { output: "secret-data" } }),
+      frame({
+        type: "event",
+        event: "output",
+        body: { output: "secret-data" },
+      }),
     );
   const result = connection.drainEvents();
   assert.equal(result.events.length, 32);
@@ -119,7 +124,10 @@ test("timeouts close the connection rather than replaying debugger commands", as
     write: () => writes++,
     closeTransport: () => closed++,
   });
-  await assert.rejects(connection.request("next", { threadId: 1 }), /DAP_REQUEST_TIMEOUT/);
+  await assert.rejects(
+    connection.request("next", { threadId: 1 }),
+    /DAP_REQUEST_TIMEOUT/,
+  );
   assert.equal(writes, 1);
   assert.equal(closed, 1);
   assert.equal(connection.status().closed, true);
