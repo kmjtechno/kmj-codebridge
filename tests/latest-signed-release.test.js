@@ -285,10 +285,10 @@ test("owner-exported public PEM verifies real signed stable release", (t) => {
     }))
     .sort((a, b) => b.sequence - a.sequence)[0];
   assert.ok(newest.sequence >= 31);
-  assert.deepEqual(
-    latestSignedRelease(catalog, { trustedPublicKeyPem }),
-    { sequence: newest.sequence, revision: newest.revision },
-  );
+  assert.deepEqual(latestSignedRelease(catalog, { trustedPublicKeyPem }), {
+    sequence: newest.sequence,
+    revision: newest.revision,
+  });
 });
 
 test("writable catalog ancestor still fails closed", (t) => {
