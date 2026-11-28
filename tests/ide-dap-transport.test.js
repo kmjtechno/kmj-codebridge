@@ -157,3 +157,19 @@ test("mismatched response fails closed and rejects the pending request", async (
   await rejected;
   assert.throws(() => encodeDapRequest(0, "threads"), /DAP_REQUEST_INVALID/);
 });
+
+test("pending request cap rejects excess work and close settles all requests", async () => {
+  let writes = 0;
+  const connection = createDapConnection({
+    write: () => writes++,
+    closeTransport: () => {},
+  });
+  const pending = Array.from({ length: 16 }, () =>
+    assert.rejects(connection.request("threads"), /DAP_CONNECTION_CLOSED/),
+  );
+  await assert.rejects(connection.request("threads"), /DAP_PENDING_LIMIT/);
+  assert.equal(writes, 16);
+  connection.close();
+  await Promise.all(pending);
+  assert.equal(connection.status().pending, 0);
+});
