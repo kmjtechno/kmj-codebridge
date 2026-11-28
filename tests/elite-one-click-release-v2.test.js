@@ -49,7 +49,9 @@ test("signing and preflight require an exact SHA; inspect is nonmutating", () =>
 
 test("only one known blocker code may leave the pinned signer", () => {
   assert.equal(
-    signerFailureCode("AUTO_SIGNED_RELEASE=BLOCKED:SEQUENCE_POLICY_EXHAUSTED\n"),
+    signerFailureCode(
+      "AUTO_SIGNED_RELEASE=BLOCKED:SEQUENCE_POLICY_EXHAUSTED\n",
+    ),
     "SEQUENCE_POLICY_EXHAUSTED",
   );
   for (const output of [
@@ -72,7 +74,9 @@ test("new operator pins the V2 signer and keeps legacy operator unchanged", () =
     "scripts/production/elite-onehost-release-v2.mjs",
     "utf8",
   );
-  assert.ok(wrapper.includes(createHash("sha256").update(signer).digest("hex")));
+  assert.ok(
+    wrapper.includes(createHash("sha256").update(signer).digest("hex")),
+  );
   assert.match(signer.toString(), /if \(preflight\) \{/);
   assert.match(signer.toString(), /OWNER_POLICY_CHANGED_BEFORE_KEY/);
   assert.ok(
