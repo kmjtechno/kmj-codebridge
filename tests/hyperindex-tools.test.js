@@ -123,3 +123,33 @@ test("fallback exposes partial coverage when redacted matches consume the raw li
   assert.deepEqual(r.matches, []);
   assert.equal(r.truncated, true);
 });
+
+test("multi-term MCP search works without index creation and denies wrong scope", async (t) => {
+  const f = setup(t);
+  fs.writeFileSync(path.join(f.root, "b.js"), "other needle\n");
+  const result = await f.call("hyperindex_search", {
+    query: "needle",
+    additionalQueries: ["other"],
+    maxResults: 8,
+  });
+  assert.equal(result.coverage.scans, 1);
+  assert.equal(result.coverage.filesRead, 2);
+  assert.deepEqual(
+    result.results.map((r) => r.matches.length),
+    [2, 1],
+  );
+  assert.deepEqual(fs.readdirSync(f.stateDir), []);
+  await assert.rejects(
+    f.call("hyperindex_search", {
+      project: "other",
+      query: "needle",
+      additionalQueries: ["other"],
+    }),
+  );
+  await assert.rejects(
+    f.call("hyperindex_search", {
+      query: "needle",
+      additionalQueries: ["needle"],
+    }),
+  );
+});
