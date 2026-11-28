@@ -1,7 +1,7 @@
 # Owner-only P520 Calibration Studio development profile admission.
 # No private config is printed, no service is installed, no project file is overwritten.
 [CmdletBinding()]
-param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$EnablePackaging,[switch]$EnableDesktopUI,[switch]$SelfTest,[switch]$SchemaSelfTest)
+param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$EnablePackaging,[switch]$EnableDesktopUI,[switch]$EnableDesktopCapture,[switch]$SelfTest,[switch]$SchemaSelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $device='kmj-kmj-calibration-studio-desktop-5fvjmet'
@@ -226,6 +226,14 @@ function StudioDesktopProfile([string]$Runtime,[string]$Root,[string]$PowerShell
         release=(Variant @('-NoProfile','-NonInteractive','-STA','-File',$helper,'-Mode','Inspect','-TargetExe',(Join-Path $build 'Release\KJApp.exe')) 15000)
     }))
 }
+function StudioDesktopCaptureProfile([string]$Runtime,[string]$Root,[string]$PowerShell,[string]$PrivateState) {
+    $helper=Join-Path $Runtime 'scripts\windows\PROJECT-DESKTOP-UI.ps1'
+    $build=Join-Path $Root '.kmj-codebridge-studio-build'
+    return (Profile 'inspect' 'Capture only an approved foreground Studio window into owner-private local evidence; never transfer image bytes.' $PowerShell ([ordered]@{
+        debug=(Variant @('-NoProfile','-NonInteractive','-STA','-File',$helper,'-Mode','Capture','-TargetExe',(Join-Path $build 'Debug\KJApp.exe'),'-EvidenceDir',$PrivateState) 20000)
+        release=(Variant @('-NoProfile','-NonInteractive','-STA','-File',$helper,'-Mode','Capture','-TargetExe',(Join-Path $build 'Release\KJApp.exe'),'-EvidenceDir',$PrivateState) 20000)
+    }))
+}
 function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
     return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
 }
@@ -329,6 +337,10 @@ try {
                 $parseErrors=$null
                 $null=[Management.Automation.Language.Parser]::ParseFile($desktopScript,[ref]$parseTokens,[ref]$parseErrors)
                 Require ($parseErrors.Count -eq 0) 'STUDIO_DESKTOP_HELPER_PARSE_FAILED'
+                $capture=StudioDesktopCaptureProfile $runtimeFixture $transportFixture 'C:\powershell.exe' $transportFixture
+                Require ($capture.category -ceq 'inspect' -and $capture.variants.release.args -ccontains 'Capture' -and !($capture.variants.release.args -ccontains 'Invoke') -and $capture.variants.release.args[-1] -ieq $transportFixture) 'STUDIO_DESKTOP_CAPTURE_PROFILE_SCOPE'
+                $synthetic.projects[0].commands.studio_desktop_capture=$capture
+                Write-Output 'STUDIO_DESKTOP_CAPTURE_PROFILE_SELFTEST=PASS'
                 Write-Output 'STUDIO_DESKTOP_PROFILE_SELFTEST=PASS'
                 Write-Output 'STUDIO_PACKAGE_PROFILE_SELFTEST=PASS'
                 Write-Output 'STUDIO_EXACT_PROFILE_SELFTEST=PASS'
@@ -489,6 +501,20 @@ try {
         Ordinary $desktopPs $false
         $wanted.studio_desktop_ui=StudioDesktopProfile $runtime $root $desktopPs
         Write-Output 'STUDIO_DESKTOP_PROFILE=INSPECT_READY'
+    }
+    if($EnableDesktopCapture){
+        $desktopHelper=Join-Path $runtime 'scripts\windows\PROJECT-DESKTOP-UI.ps1'
+        Ordinary $desktopHelper $false
+        $null=& git.exe -C $runtime ls-files --error-unmatch -- 'scripts/windows/PROJECT-DESKTOP-UI.ps1' 2>$null
+        Require ($LASTEXITCODE -eq 0) 'STUDIO_DESKTOP_HELPER_UNTRACKED'
+        $desktopState=[IO.Path]::GetFullPath([string]$cfg.stateDir)
+        Require ($desktopState -ieq (Join-Path $base 'state')) 'STUDIO_DESKTOP_STATE_SCOPE_MISMATCH'
+        Ordinary $desktopState $true
+        PrivateAcl $desktopState
+        $desktopPs=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        Ordinary $desktopPs $false
+        $wanted.studio_desktop_capture=StudioDesktopCaptureProfile $runtime $root $desktopPs $desktopState
+        Write-Output 'STUDIO_DESKTOP_CAPTURE_PROFILE=LOCAL_ONLY_READY'
     }
     $changed=AddProfiles $p $wanted
     $newSupervisor=$false
