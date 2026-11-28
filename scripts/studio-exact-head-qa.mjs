@@ -125,7 +125,9 @@ function main() {
       );
       if (inventory.error || inventory.status !== 0)
         throw new Error("STUDIO_QA_TEST_INVENTORY_FAILED");
-      const coverage = classifyStudioTestInventory(JSON.parse(inventory.stdout));
+      const coverage = classifyStudioTestInventory(
+        JSON.parse(inventory.stdout),
+      );
       console.log("STUDIO_EXACT_QA_MEASURED=" + coverage);
     }
     const result = spawnSync(stage.command, stage.args, {
