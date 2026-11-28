@@ -91,7 +91,7 @@ function ConnectionChoices([object[]]$Candidates,[bool]$AllowNew) {
     if($seen.ContainsKey([string]$candidate.id)){throw 'DEVICE_DUPLICATE_ENROLLMENTS_REVIEW'}
     $seen[[string]$candidate.id]=$true
     $label=(@($candidate.projects | ForEach-Object {[string]$_.id}) -join ', ')
-    $choices+= [pscustomobject]@{Label=($label+'  —  '+[string]$candidate.id);Path=[string]$candidate.path;New=$false}
+    $choices+= [pscustomobject]@{Label=($label+'  -  '+[string]$candidate.id);Path=[string]$candidate.path;New=$false}
   }
   if($AllowNew){$choices+= [pscustomobject]@{Label='Connect a new project';Path='';New=$true}}
   return $choices
