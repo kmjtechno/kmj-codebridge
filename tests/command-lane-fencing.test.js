@@ -51,6 +51,35 @@ function fixture(t, laneId = "ci") {
             },
           },
         },
+        {
+          id: "kmj-calibration-studio",
+          root,
+          writable: true,
+          commands: Object.fromEntries(
+            [
+              "studio_configure",
+              "studio_build",
+              "studio_test",
+              "studio_run",
+              "studio_hardware",
+              "studio_git_read",
+              "studio_desktop_ui",
+              "studio_desktop_capture",
+            ].map((id) => [
+              id,
+              {
+                category: "build",
+                command: process.execPath,
+                variants: {
+                  check: {
+                    args: ["-e", "console.log('SHARED_PROFILE_EXECUTED')"],
+                    timeoutMs: 2000,
+                  },
+                },
+              },
+            ]),
+          ),
+        },
       ],
     },
     runner,
@@ -256,4 +285,30 @@ test("Calibration Pro QA auto-pins HEAD in one tool call without touching owner 
   assert.equal(fs.readFileSync(dirty, "utf8"), "never delete me");
   assert.equal(fs.readFileSync(path.join(root, "tracked.txt"), "utf8"), "keep");
   assert.equal(git("rev-parse", "HEAD"), head);
+});
+
+test("legacy Studio shared-root profiles cannot claim a private lane receipt", async (t) => {
+  const x = fixture(t);
+  for (const command of [
+    "studio_configure",
+    "studio_build",
+    "studio_test",
+    "studio_run",
+    "studio_hardware",
+    "studio_git_read",
+    "studio_desktop_ui",
+    "studio_desktop_capture",
+  ]) {
+    for (const scope of [
+      {},
+      { expectedHead: undefined },
+      { laneId: undefined },
+    ]) {
+      await assert.rejects(
+        x.run({ project: "kmj-calibration-studio", command, ...scope }),
+        /STUDIO_SHARED_PROFILE_LANE_DENIED/,
+      );
+    }
+  }
+  assert.equal(x.runner.jobs.size, 0);
 });
