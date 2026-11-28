@@ -758,6 +758,17 @@ export function createWindowsSupervisorHandler({
       return await withLock(async () => {
         const dir = worktreeDir(p, request.sha);
         if (!exists(dir)) fail("SUPERVISOR_WORKTREE_MISSING");
+        // Directory names use only a SHA prefix; verify the full commit
+        // before removing an existing lane, even when Git considers it clean.
+        const head = await git(p, dir, ["rev-parse", "HEAD"]);
+        if (
+          head.exitCode !== 0 ||
+          head.spawnFailed ||
+          head.timedOut ||
+          head.truncated ||
+          head.output.trim() !== request.sha
+        )
+          fail("SUPERVISOR_WORKTREE_UNVERIFIED");
         const before = await checkoutDigest(p);
         // No --force: a worktree with unsaved changes is refused, not destroyed.
         const rm = await git(p, p.repoRoot, ["worktree", "remove", dir]);
