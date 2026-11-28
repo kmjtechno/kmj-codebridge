@@ -430,7 +430,7 @@ export function createGitHubBridge(config) {
     if (
       method === "GET" ||
       latestWriteAttempts.get(repository) !== attempt ||
-      ![401, 403, 404, 409, 422, 429].includes(status)
+      ![401, 403, 404, 405, 409, 422, 429].includes(status)
     )
       return;
     const quota =
@@ -446,7 +446,9 @@ export function createGitHubBridge(config) {
           ? "http_403"
           : status === 404
             ? "http_404"
-            : "conflict";
+            : status === 405
+              ? "http_405"
+              : "conflict";
     recentWriteFailures.delete(repository);
     recentWriteFailures.set(repository, {
       httpStatus: status,
@@ -812,7 +814,9 @@ export function createGitHubBridge(config) {
               ? "Native write denied. Check the exact repository grant and the gateway credential's Contents/Pull requests/Issues permission required by the recorded operation; inspect organization policy and branch protection. Do not widen unrelated grants."
               : writeFailure?.classification === "rate_limited"
                 ? "Native write rate limited. Respect quota; do not widen credentials."
-                : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
+                : writeFailure?.classification === "http_405"
+                  ? "GitHub refused the native operation (HTTP 405). For a merge, inspect the current pull request, required checks, base freshness and repository merge policy. Do not bypass protection."
+                  : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
         };
       } catch (error) {
         const code = error?.code;
