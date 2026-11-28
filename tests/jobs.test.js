@@ -127,7 +127,9 @@ test("cancel terminates a running job", async (t) => {
 });
 test("shutdown preserves the first accepted cancellation reason", async (t) => {
   const { root, runner } = fixture(t);
-  const job = runner.run(opts(root, "cancel-close", "setTimeout(()=>{},10000)"));
+  const job = runner.run(
+    opts(root, "cancel-close", "setTimeout(()=>{},10000)"),
+  );
   runner.cancel(job.id, "p1");
   await runner.close();
   assert.equal(runner.get(job.id, "p1").state, "cancelled");
@@ -135,7 +137,9 @@ test("shutdown preserves the first accepted cancellation reason", async (t) => {
 
 test("subsequent stop requests cannot overwrite a timeout", async (t) => {
   const { root, runner } = fixture(t);
-  const job = runner.run(opts(root, "timeout-cancel", "setTimeout(()=>{},10000)"));
+  const job = runner.run(
+    opts(root, "timeout-cancel", "setTimeout(()=>{},10000)"),
+  );
   runner.stop(job.id, "timed_out");
   runner.cancel(job.id, "p1");
   assert.equal((await finished(runner, job.id)).state, "timed_out");
