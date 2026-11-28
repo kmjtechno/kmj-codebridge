@@ -43,7 +43,8 @@ jobs:
       - name: Fail on high-severity production dependency advisories
         if: matrix.os == 'ubuntu-24.04'
         run: npm audit --omit=dev --audit-level=high
-      - run: npm run check
+      - id: source_check
+        run: npm run check
       # D3 lifecycle tests are Python and are not exercised by npm test.
       # Keep the root-only repair script strictly unexecuted in CI; run its
       # injected-runner negative tests without sudo or service mutations.
@@ -88,17 +89,18 @@ jobs:
           Write-Output 'P520_POWERSHELL5_PARSER=PASS'
       # Formats every path `npm run check` covers, so a failed check shows the
       # exact diff for whichever file broke it rather than three fixed files.
-      - name: Print exact formatting diff on failed checks
-        if: failure()
+      - name: Print exact formatting diff on failed source checks
+        if: failure() && steps.source_check.outcome == 'failure'
         run: |
           npm run format
           git --no-pager diff
-      - run: npm test
+      - id: node_tests
+        run: npm test
       # Diagnostic only, on failure: job log blobs are not readable through the
       # REST API, check-run annotations are. Re-runs the suite with a reporter
       # that annotates the failing tests; it never changes the job result.
       - name: Annotate failing tests
-        if: failure()
+        if: failure() && steps.node_tests.outcome == 'failure'
         continue-on-error: true
         run: node --test --test-concurrency=2 --test-reporter=./scripts/github-annotations-reporter.mjs tests/*.test.js
       - run: npm run package:runtime
