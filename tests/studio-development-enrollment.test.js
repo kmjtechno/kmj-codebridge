@@ -32,6 +32,7 @@ test(
     assert.match(result.stdout, /STUDIO_EXACT_PROFILE_SELFTEST=PASS/);
     assert.match(result.stdout, /STUDIO_PACKAGE_PROFILE_SELFTEST=PASS/);
     assert.match(result.stdout, /STUDIO_DESKTOP_PROFILE_SELFTEST=PASS/);
+    assert.match(result.stdout, /STUDIO_DESKTOP_CAPTURE_PROFILE_SELFTEST=PASS/);
     assert.match(result.stdout, /STUDIO_SUPERVISOR_SCHEMA_SELFTEST=PASS/);
     assert.match(result.stdout, /STUDIO_REAL_SCHEMA_SELFTEST=PASS/);
     assert.match(result.stdout, /STUDIO_DEV_SELFTEST=PASS/);
