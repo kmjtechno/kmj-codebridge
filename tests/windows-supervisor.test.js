@@ -999,3 +999,77 @@ test("agent config accepts only the fixed-prefix Windows pipe", () => {
     agentSchema.shape.supervisorTokenFile.safeParse("D:\\s\\token").success,
   );
 });
+
+test("worktree release verifies full SHA before invoking removal", async (t) => {
+  const calls = [];
+  const other = SHA.slice(0, 12) + "b".repeat(28);
+  const { handler } = makeHandler(t, {
+    runner: async (_exe, args) => {
+      calls.push(args);
+      return {
+        exitCode: 0,
+        output: other + "\n",
+        truncated: false,
+        timedOut: false,
+        spawnFailed: false,
+      };
+    },
+  });
+  await assert.rejects(
+    handler({
+      op: "project_verify_release",
+      projectId: "kmj-cinecore",
+      sha: SHA,
+    }),
+    /SUPERVISOR_WORKTREE_UNVERIFIED/,
+  );
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].slice(-2), ["rev-parse", "HEAD"]);
+});
+
+test("worktree release rejects incomplete HEAD evidence even on matching SHA", async (t) => {
+  for (const flag of ["truncated", "timedOut", "spawnFailed"]) {
+    const calls = [];
+    const { handler } = makeHandler(t, {
+      runner: async (_exe, args) => {
+        calls.push(args);
+        return { exitCode: 0, output: SHA + "\n", [flag]: true };
+      },
+    });
+    await assert.rejects(
+      handler({
+        op: "project_verify_release",
+        projectId: "kmj-cinecore",
+        sha: SHA,
+      }),
+      /SUPERVISOR_WORKTREE_UNVERIFIED/,
+    );
+    assert.equal(calls.length, 1);
+  }
+});
+
+test("prepare and stage reject incomplete matching HEAD before verification", async (t) => {
+  for (const op of ["project_verify_prepare", "project_verify_stage"]) {
+    for (const flag of ["truncated", "timedOut", "spawnFailed"]) {
+      const calls = [];
+      const { handler } = makeHandler(t, {
+        runner: async (_exe, args) => {
+          calls.push(args);
+          return args.includes("rev-parse")
+            ? { exitCode: 0, output: SHA + "\n", [flag]: true }
+            : { exitCode: 0, output: "" };
+        },
+      });
+      await assert.rejects(
+        handler({
+          op,
+          projectId: "kmj-cinecore",
+          sha: SHA,
+          ...(op === "project_verify_stage" ? { stage: "build" } : {}),
+        }),
+        /SUPERVISOR_WORKTREE_UNVERIFIED/,
+      );
+      assert.deepEqual(calls.at(-1).slice(-2), ["rev-parse", "HEAD"]);
+    }
+  }
+});
