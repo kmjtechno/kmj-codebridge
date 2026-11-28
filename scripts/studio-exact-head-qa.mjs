@@ -128,7 +128,10 @@ function main() {
   console.log("STUDIO_EXACT_QA=PASS");
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (
+  process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href
+) {
   try {
     main();
   } catch {

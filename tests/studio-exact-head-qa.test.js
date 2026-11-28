@@ -22,7 +22,9 @@ test("exact Studio Qt plan is bounded and never targets the shared root", () => 
   assert.deepEqual(stages[0].args.slice(0, 4), ["-S", ".", "-B", "lane-build"]);
   assert.ok(stages[2].args.includes("--no-tests=error"));
   assert.ok(
-    stages[2].args.includes("^(desktop-smoke|independent-engine|media-control)$"),
+    stages[2].args.includes(
+      "^(desktop-smoke|independent-engine|media-control)$",
+    ),
   );
 });
 
