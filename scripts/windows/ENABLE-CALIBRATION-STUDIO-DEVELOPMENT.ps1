@@ -197,6 +197,22 @@ function ExtraStudioProfiles([string]$Root,[string]$Python,[string]$Git) {
     }
     return $extra
 }
+# Reserved calibration_studio_qt_qa ID already enforces a detached exact HEAD
+# on older agents; the bundled first-party script executes all three phases
+# in one job because subsequent jobs refuse a dirty generated worktree.
+function ExactStudioProfiles([string]$Node,[string]$Runtime,[string]$State,[string]$Cmake,[string]$Ctest,[string]$Qt,[bool]$Hardware) {
+    $extra=[ordered]@{}
+    $helper=Join-Path $Runtime 'scripts\studio-exact-head-qa.mjs'
+    $extra.calibration_studio_qt_qa=Profile 'build' 'Build and run required offline Qt CTests in an exact-head private lane only; no hardware or release.' $Node ([ordered]@{
+        full=(Variant @($helper,$State,$Cmake,$Ctest,$Qt) 300000)
+    })
+    if($Hardware){
+        $extra.studio_hardware_evidence=Profile 'inspect' 'Hash existing local camera QA evidence; no new camera or projector activation.' $Cmake ([ordered]@{
+            camera=(Variant @('-E','sha256sum','.kmj-codebridge-studio-qa/artifacts/camera-probe.txt','.kmj-codebridge-studio-qa/artifacts/camera-readonly-result.json','.kmj-codebridge-studio-qa/artifacts/standalone-camera-live.png') 15000)
+        })
+    }
+    return $extra
+}
 function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
     return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
 }
@@ -286,6 +302,10 @@ try {
                 ValidateStagedConfig $nodeFixture $runtimeFixture $json
                 $extra=ExtraStudioProfiles $transportFixture 'C:\Python\python.exe' 'C:\Git\git.exe'
                 foreach($name in $extra.Keys){$synthetic.projects[0].commands[$name]=$extra[$name]}
+                $exact=ExactStudioProfiles $nodeFixture $runtimeFixture $transportFixture 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' $true
+                Require ($exact.Count -eq 2 -and $exact.calibration_studio_qt_qa.variants.full.args[0] -ieq (Join-Path $runtimeFixture 'scripts\studio-exact-head-qa.mjs')) 'STUDIO_EXACT_PROFILE_SCOPE'
+                foreach($name in $exact.Keys){$synthetic.projects[0].commands[$name]=$exact[$name]}
+                Write-Output 'STUDIO_EXACT_PROFILE_SELFTEST=PASS'
                 $supervisorFixture=StudioSupervisorConfig $runtimeFixture $transportFixture $json (Join-Path $transportFixture 'fixture.token')
                 $supervisorFile=Join-Path $transportFixture 'supervisor fixture.json'
                 [IO.File]::WriteAllText($supervisorFile,($supervisorFixture|ConvertTo-Json -Depth 8),[Text.UTF8Encoding]::new($false))
@@ -402,6 +422,23 @@ try {
     }
     $extra=ExtraStudioProfiles $root $python $git
     foreach($name in $extra.Keys){$wanted[$name]=$extra[$name]}
+    # Admit these extra profiles only when the running, tracked-clean
+    # CodeBridge runtime actually contains the reviewed bundled helper.
+    $qaHelper=Join-Path $runtime 'scripts\studio-exact-head-qa.mjs'
+    if(Test-Path -LiteralPath $qaHelper -PathType Leaf){
+        Ordinary $qaHelper $false
+        $null=& git.exe -C $runtime ls-files --error-unmatch -- 'scripts/studio-exact-head-qa.mjs' 2>$null
+        Require ($LASTEXITCODE -eq 0) 'STUDIO_QA_HELPER_UNTRACKED'
+        $state=[IO.Path]::GetFullPath([string]$cfg.stateDir)
+        Require ($state -ieq (Join-Path $base 'state')) 'STUDIO_QA_STATE_SCOPE_MISMATCH'
+        Ordinary $state $true
+        PrivateAcl $state
+        $exact=ExactStudioProfiles $node $runtime $state $cmake $ctest $qt ([bool]$EnableHardware)
+        foreach($name in $exact.Keys){$wanted[$name]=$exact[$name]}
+        Write-Output 'STUDIO_EXACT_QA_PROFILE=READY'
+    }else{
+        Write-Output 'STUDIO_EXACT_QA_PROFILE=NEW_RUNTIME_REQUIRED'
+    }
     $changed=AddProfiles $p $wanted
     $newSupervisor=$false
     if($EnableSupervisor){
