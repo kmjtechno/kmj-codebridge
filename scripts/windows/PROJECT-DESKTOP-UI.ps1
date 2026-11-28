@@ -1,8 +1,9 @@
 param(
-    [Parameter(Mandatory)][ValidateSet('Inspect','Invoke')][string]$Mode,
+    [Parameter(Mandatory)][ValidateSet('Inspect','Invoke','Capture')][string]$Mode,
     [Parameter(Mandatory)][string]$TargetExe,
     [ValidatePattern('^[A-Za-z0-9_.-]{1,80}$')][string]$AutomationId,
-    [ValidatePattern('^[a-f0-9]{64}$')][string]$ExecutableSha256
+    [ValidatePattern('^[a-f0-9]{64}$')][string]$ExecutableSha256,
+    [string]$EvidenceDir
 )
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
@@ -50,8 +51,64 @@ function TargetWindow([string]$Path,[int]$Session) {
     Require ($null -ne $element -and $element.Current.ProcessId -eq $targetPid) 'DESKTOP_UIA_ROOT_UNVERIFIED'
     return @{Handle=$handle;Pid=$targetPid;Element=$element;Started=$p.StartTime.ToUniversalTime().Ticks}
 }
+function CaptureEvidence($Target,[string]$Path,[string]$Directory,[int]$Session) {
+    Require ([IO.Path]::IsPathRooted($Directory) -and $Directory -match '^[A-Za-z]:\\') 'DESKTOP_EVIDENCE_PATH'
+    $dir=Get-Item -LiteralPath $Directory -Force
+    Require ($dir -is [IO.DirectoryInfo]) 'DESKTOP_EVIDENCE_DIRECTORY'
+    $cursor=$dir
+    while($null -ne $cursor){
+        Require (!(($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint))) 'DESKTOP_REPARSE_DENIED'
+        $cursor=$cursor.Parent
+    }
+    $sid=[Security.Principal.WindowsIdentity]::GetCurrent().User
+    $allowed=@($sid.Value,'S-1-5-18','S-1-5-32-544')
+    $acl=Get-Acl -LiteralPath $dir.FullName
+    Require ($acl.AreAccessRulesProtected -and $acl.GetOwner([Security.Principal.SecurityIdentifier]).Value -in $allowed) 'DESKTOP_EVIDENCE_ACL'
+    foreach($rule in $acl.GetAccessRules($true,$true,[Security.Principal.SecurityIdentifier])){
+        Require ($rule.IdentityReference.Value -in $allowed) 'DESKTOP_EVIDENCE_ACL'
+    }
+    Require (@(Get-ChildItem -LiteralPath $dir.FullName -Filter 'kmj-desktop-*.png' -Force).Count -lt 20) 'DESKTOP_EVIDENCE_RETENTION_LIMIT'
+    Add-Type -AssemblyName System.Drawing
+    $rect=New-Object KMJDesktopNative+RECT
+    Require ([KMJDesktopNative]::GetWindowRect($Target.Handle,[ref]$rect)) 'DESKTOP_CAPTURE_RECT_UNVERIFIED'
+    $width=$rect.Right-$rect.Left
+    $height=$rect.Bottom-$rect.Top
+    Require ($width -gt 0 -and $width -le 3840 -and $height -gt 0 -and $height -le 2160) 'DESKTOP_CAPTURE_DIMENSIONS'
+    $bitmap=New-Object Drawing.Bitmap $width,$height
+    $memory=New-Object IO.MemoryStream
+    try{
+        $graphics=[Drawing.Graphics]::FromImage($bitmap)
+        try{
+            $dc=$graphics.GetHdc()
+            try{Require ([KMJDesktopNative]::PrintWindow($Target.Handle,$dc,2)) 'DESKTOP_CAPTURE_FAILED'}
+            finally{$graphics.ReleaseHdc($dc)}
+        }finally{$graphics.Dispose()}
+        $again=TargetWindow $Path (AssertInteractive)
+        Require ($again.Handle -eq $Target.Handle -and $again.Pid -eq $Target.Pid -and $again.Started -eq $Target.Started -and $Session -eq [Diagnostics.Process]::GetCurrentProcess().SessionId) 'DESKTOP_TARGET_CHANGED'
+        $bitmap.Save($memory,[Drawing.Imaging.ImageFormat]::Png)
+        Require ($memory.Length -gt 0 -and $memory.Length -le 16777216) 'DESKTOP_CAPTURE_SIZE'
+        # Create a unique owner-only file. Never fall back to screen-wide
+        # capture, overwrite evidence, or print image bytes into chat logs.
+        $id=[guid]::NewGuid().ToString('N')
+        $destination=Join-Path $dir.FullName ('kmj-desktop-'+$id+'.png')
+        $fileAcl=New-Object Security.AccessControl.FileSecurity
+        $fileAcl.SetAccessRuleProtection($true,$false)
+        $fileAcl.SetOwner($sid)
+        $fileAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($sid,[Security.AccessControl.FileSystemRights]::FullControl,[Security.AccessControl.AccessControlType]::Allow))
+        $stream=[IO.FileStream]::new($destination,[IO.FileMode]::CreateNew,[Security.AccessControl.FileSystemRights]::Write,[IO.FileShare]::None,4096,[IO.FileOptions]::None,$fileAcl)
+        try{$memory.Position=0;$memory.CopyTo($stream);$stream.Flush()}
+        finally{$stream.Dispose()}
+        $hash=(Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+        Write-Output ('DESKTOP_EVIDENCE_ID='+$id)
+        Write-Output ('DESKTOP_EVIDENCE_SHA256='+$hash)
+        Write-Output ('DESKTOP_EVIDENCE_BYTES='+$memory.Length)
+        Write-Output 'DESKTOP_CAPTURE=LOCAL_PNG_ONLY'
+        Write-Output 'DESKTOP_VISUAL_EFFECT=NOT_VERIFIED'
+        Write-Output 'DESKTOP_SCREENSHOT_TRANSFER=NOT_ATTEMPTED'
+    }finally{$memory.Dispose();$bitmap.Dispose()}
+}
 try {
-    Require (($Mode -eq 'Inspect' -and !$AutomationId -and !$ExecutableSha256) -or ($Mode -eq 'Invoke' -and $AutomationId -and $ExecutableSha256)) 'DESKTOP_MODE_SCOPE'
+    Require (($Mode -eq 'Inspect' -and !$AutomationId -and !$ExecutableSha256 -and !$EvidenceDir) -or ($Mode -eq 'Invoke' -and $AutomationId -and $ExecutableSha256 -and !$EvidenceDir) -or ($Mode -eq 'Capture' -and !$AutomationId -and !$ExecutableSha256 -and $EvidenceDir)) 'DESKTOP_MODE_SCOPE'
     $approved=OrdinaryExe $TargetExe
     Add-Type -AssemblyName UIAutomationClient,UIAutomationTypes
     Add-Type -TypeDefinition @'
@@ -63,6 +120,9 @@ public static class KMJDesktopNative {
   [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p);
   [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr h);
   [DllImport("user32.dll")] public static extern bool IsIconic(IntPtr h);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int Left,Top,Right,Bottom; }
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h,out RECT rect);
+  [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr h,IntPtr dc,uint flags);
   [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr OpenInputDesktop(uint flags,bool inherit,uint access);
   [DllImport("user32.dll", CharSet=CharSet.Unicode, SetLastError=true)] public static extern bool GetUserObjectInformation(IntPtr h,int index,StringBuilder name,int length,out int needed);
   [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr h);
@@ -70,6 +130,10 @@ public static class KMJDesktopNative {
 '@
     $session=AssertInteractive
     $target=TargetWindow $approved $session
+    if($Mode -eq 'Capture'){
+        CaptureEvidence $target $approved $EvidenceDir $session
+        exit 0
+    }
     if($Mode -eq 'Invoke'){
         Require ((Get-FileHash -LiteralPath $approved -Algorithm SHA256).Hash.ToLowerInvariant() -ceq $ExecutableSha256) 'DESKTOP_EXECUTABLE_HASH_CHANGED'
     }
