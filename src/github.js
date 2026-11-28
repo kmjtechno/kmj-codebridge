@@ -815,8 +815,8 @@ export function createGitHubBridge(config) {
               : writeFailure?.classification === "rate_limited"
                 ? "Native write rate limited. Respect quota; do not widen credentials."
                 : writeFailure?.classification === "http_405"
-                ? "GitHub refused the native operation (HTTP 405). For a merge, inspect the current pull request, required checks, base freshness and repository merge policy. Do not bypass protection."
-                : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
+                  ? "GitHub refused the native operation (HTTP 405). For a merge, inspect the current pull request, required checks, base freshness and repository merge policy. Do not bypass protection."
+                  : "Read verified. Writes remain subject to independent permission, policy, branch protection and exact-head checks.",
         };
       } catch (error) {
         const code = error?.code;
