@@ -26,13 +26,17 @@ if ($hostSlug.Length -gt 40) { $hostSlug = $hostSlug.Substring(0,40) }
 function Ordinary([string]$Value,[bool]$Dir) {
   if (![IO.Path]::IsPathRooted($Value)) { throw 'DEVICE_PATH_NOT_ABSOLUTE' }
   $item = Get-Item -LiteralPath $Value -ErrorAction Stop
-  if ([bool]$item.PSIsContainer -ne $Dir) { throw 'DEVICE_PATH_TYPE_MISMATCH' }
-  $cursor = if ($Dir) { $item } else { $item.Directory }
+  if (!(($Dir -and $item -is [IO.DirectoryInfo]) -or (!$Dir -and $item -is [IO.FileInfo]))) {
+    throw 'DEVICE_PATH_TYPE_MISMATCH'
+  }
+  $cursor = $item
   while ($null -ne $cursor) {
     if ($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint) {
       throw 'DEVICE_PATH_REPARSE_DENIED'
     }
-    $cursor = $cursor.Parent
+    if ($cursor -is [IO.DirectoryInfo]) { $cursor = $cursor.Parent }
+    elseif ($cursor -is [IO.FileInfo]) { $cursor = $cursor.Directory }
+    else { throw 'DEVICE_PATH_TYPE_MISMATCH' }
   }
 }
 function PrivateFile([string]$Value) {
@@ -78,19 +82,67 @@ function ReadApproved([string]$Value) {
   }
   return $cfg
 }
-function ChooseExisting {
+# Customer sees project/device names, not private enrollment paths or tokens.
+# The local list never leaves this process. Exact duplicates fail closed.
+function ConnectionChoices([object[]]$Candidates,[bool]$AllowNew) {
+  $seen=@{}
+  $choices=@()
+  foreach($candidate in $Candidates){
+    if($seen.ContainsKey([string]$candidate.id)){throw 'DEVICE_DUPLICATE_ENROLLMENTS_REVIEW'}
+    $seen[[string]$candidate.id]=$true
+    $label=(@($candidate.projects | ForEach-Object {[string]$_.id}) -join ', ')
+    $choices+= [pscustomobject]@{Label=($label+'  —  '+[string]$candidate.id);Path=[string]$candidate.path;New=$false}
+  }
+  if($AllowNew){$choices+= [pscustomobject]@{Label='Connect a new project';Path='';New=$true}}
+  return $choices
+}
+function ChooseConnection([string[]]$Known,[bool]$AllowNew) {
+  $candidates=@()
+  foreach($path in $Known){
+    $cfg=ReadApproved $path
+    $candidates+= [pscustomobject]@{id=$cfg.id;projects=$cfg.projects;path=$path}
+  }
+  $choices=@(ConnectionChoices $candidates $AllowNew)
+  if($choices.Count -eq 0){throw 'DEVICE_NO_APPROVED_ENROLLMENT'}
+  if($choices.Count -eq 1){return $choices[0]}
   Add-Type -AssemblyName System.Windows.Forms
-  $dialog = New-Object System.Windows.Forms.OpenFileDialog
-  $dialog.Title = 'KMJ CodeBridge: select EXISTING private agent.json from THIS computer'
-  $dialog.Filter = 'Private approved agent|agent.json'
-  $dialog.CheckFileExists = $true
-  $dialog.Multiselect = $false
-  try {
-    if ($dialog.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) {
-      return $null
-    }
-    return [IO.Path]::GetFullPath($dialog.FileName)
-  } finally { $dialog.Dispose() }
+  Add-Type -AssemblyName System.Drawing
+  $form=New-Object System.Windows.Forms.Form
+  $form.Text='KMJ CodeBridge | Connect'
+  $form.Size=New-Object System.Drawing.Size(640,250)
+  $form.MinimumSize=$form.Size
+  $form.StartPosition='CenterScreen'
+  $form.FormBorderStyle='FixedDialog'
+  $form.MaximizeBox=$false
+  $form.MinimizeBox=$false
+  $label=New-Object System.Windows.Forms.Label
+  $label.Text='Select your project. Existing devices reconnect without pairing.'
+  $label.Location=New-Object System.Drawing.Point(20,20)
+  $label.Size=New-Object System.Drawing.Size(580,34)
+  $list=New-Object System.Windows.Forms.ComboBox
+  $list.DropDownStyle='DropDownList'
+  $list.Location=New-Object System.Drawing.Point(20,65)
+  $list.Size=New-Object System.Drawing.Size(580,32)
+  $list.DropDownWidth=580
+  foreach($choice in $choices){[void]$list.Items.Add($choice.Label)}
+  $list.SelectedIndex=0
+  $ok=New-Object System.Windows.Forms.Button
+  $ok.Text='Connect'
+  $ok.Location=New-Object System.Drawing.Point(394,140)
+  $ok.Size=New-Object System.Drawing.Size(100,36)
+  $ok.DialogResult=[System.Windows.Forms.DialogResult]::OK
+  $cancel=New-Object System.Windows.Forms.Button
+  $cancel.Text='Cancel'
+  $cancel.Location=New-Object System.Drawing.Point(500,140)
+  $cancel.Size=New-Object System.Drawing.Size(100,36)
+  $cancel.DialogResult=[System.Windows.Forms.DialogResult]::Cancel
+  $form.Controls.AddRange(@($label,$list,$ok,$cancel))
+  $form.AcceptButton=$ok
+  $form.CancelButton=$cancel
+  try{
+    if($form.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK){throw 'DEVICE_OWNER_CANCELLED'}
+    return $choices[$list.SelectedIndex]
+  }finally{$form.Dispose()}
 }
 function SelectProject {
   if (![string]::IsNullOrWhiteSpace($ProjectRoot)) {
@@ -305,10 +357,15 @@ function RunApprovedAgent([string]$Value,$Cfg,[string]$Node) {
   if ($existing.Count -gt 1) { throw 'DEVICE_DUPLICATE_APPROVED_AGENTS' }
   $owner = LockOwner ([string]$Cfg.stateDir)
   if ($existing.Count -eq 1) {
-    if ($null -ne $owner -and $owner -ne [int]$existing[0].ProcessId) {
+    $identity=Invoke-CimMethod -InputObject $existing[0] -MethodName GetOwnerSid -ErrorAction Stop
+    if ($identity.ReturnValue -ne 0 -or $identity.Sid -cne [Security.Principal.WindowsIdentity]::GetCurrent().User.Value) {
+      throw 'DEVICE_AGENT_OWNER_MISMATCH'
+    }
+    if ($null -eq $owner -or $owner -ne [int]$existing[0].ProcessId) {
       throw 'DEVICE_LOCK_PROCESS_MISMATCH'
     }
-    Write-Output 'KMJ_UNIVERSAL_AGENT=ALREADY_RUNNING'
+    # Existing PID and lock are not proof of a fresh authenticated heartbeat.
+    Write-Output 'KMJ_UNIVERSAL_AGENT=ALREADY_RUNNING_VERIFY_DASHBOARD'
     return
   }
   if ($null -ne $owner -and (Get-Process -Id $owner -ErrorAction SilentlyContinue)) {
@@ -441,6 +498,24 @@ try {
         $rejected = $true
       }
       if (!$rejected) { throw 'DEVICE_TEST_UNTRUSTED_PROJECT_ORIGIN_ACCEPTED' }
+      # Exercise actual nested DirectoryInfo/FileInfo ancestry in PS 5.1.
+      $nested=Join-Path $dir 'safe nested\child'
+      [void][IO.Directory]::CreateDirectory($nested)
+      $fileFixture=Join-Path $nested 'sample.txt'
+      [IO.File]::WriteAllText($fileFixture,'fixture')
+      Ordinary $nested $true
+      Ordinary $fileFixture $false
+      $wrongType=$false
+      try{Ordinary $fileFixture $true}catch{$wrongType=$_.Exception.Message -ceq 'DEVICE_PATH_TYPE_MISMATCH'}
+      if(!$wrongType){throw 'DEVICE_TEST_PATH_TYPE_NOT_REJECTED'}
+      $candidate=[pscustomobject]@{id='fixture-device';projects=@([pscustomobject]@{id='fixture-project'});path='private-fixture'}
+      $choices=@(ConnectionChoices @($candidate) $true)
+      if($choices.Count -ne 2 -or $choices[0].New -or !$choices[1].New -or $choices[0].Label.Contains('private-fixture')){throw 'DEVICE_TEST_PROJECT_CHOOSER'}
+      if(@(ConnectionChoices @() $true).Count -ne 1 -or @(ConnectionChoices @($candidate) $false).Count -ne 1){throw 'DEVICE_TEST_PROJECT_CHOOSER_SINGLE'}
+      $duplicate=$false
+      try{$null=ConnectionChoices @($candidate,$candidate) $true}catch{$duplicate=$_.Exception.Message -ceq 'DEVICE_DUPLICATE_ENROLLMENTS_REVIEW'}
+      if(!$duplicate){throw 'DEVICE_TEST_DUPLICATE_ENROLLMENT'}
+      Write-Output 'KMJ_UNIVERSAL_CUSTOMER_CHOOSER_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_SPACE_DIR_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_RETRY_SELFTEST=PASS'
       Write-Output 'KMJ_UNIVERSAL_SELFTEST=PASS'
@@ -478,64 +553,25 @@ try {
   if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
     if ($AtLogon) { throw 'DEVICE_UNATTENDED_REQUIRES_EXACT_CONFIG' }
     if ($DisableAutoStart) {
-      $known = @(FindKnownApproved)
-      if ($known.Count -eq 1) {
-        $ConfigPath = $known[0]
-        Write-Host 'KMJ_UNIVERSAL=EXISTING_SCOPED_AGENT_AUTO_SELECTED'
-      } else {
-        $ConfigPath = ChooseExisting
-      }
-      if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
-    } else {
-    # One-click: decide automatically whenever the answer is unambiguous.
-    $known = @(FindKnownApproved)
-    $auto = $null
-    if (![string]::IsNullOrWhiteSpace($ProjectRoot)) {
-      $givenRoot = SelectProject
+      $selection=ChooseConnection @(FindKnownApproved) $false
+      $ConfigPath=$selection.Path
+    } elseif (![string]::IsNullOrWhiteSpace($ProjectRoot)) {
+      $givenRoot=SelectProject
       KnownGitRoot $givenRoot
-      $givenId = ProjectIdForRoot $givenRoot
-      $match = @(FindKnownApproved $givenRoot $givenId)
+      $givenId=ProjectIdForRoot $givenRoot
+      $match=@(FindKnownApproved $givenRoot $givenId)
+      if ($match.Count -gt 1) { throw 'DEVICE_DUPLICATE_PROJECT_ENROLLMENTS_REVIEW' }
       if ($match.Count -eq 1) {
-        $auto = $match[0]
+        $ConfigPath=$match[0]
         Write-Host 'KMJ_UNIVERSAL=EXISTING_PROJECT_AGENT_AUTO_SELECTED'
-      } elseif ($match.Count -eq 0) {
+      } else {
         Write-Host 'KMJ_UNIVERSAL=NEW_PROJECT_AUTO_PAIRING'
-        $auto = FirstPair
-      } else {
-        throw 'DEVICE_DUPLICATE_PROJECT_ENROLLMENTS_REVIEW'
+        $ConfigPath=FirstPair
       }
-    } elseif ($known.Count -eq 0) {
-      # Nothing is paired on this PC yet: the only sensible action is a new pairing.
-      Write-Host 'KMJ_UNIVERSAL=NEW_DEVICE_AUTO_PAIRING'
-      $auto = FirstPair
-    }
-    if ($null -ne $auto) {
-      $ConfigPath = $auto
     } else {
-    Add-Type -AssemblyName System.Windows.Forms
-    $choice = [System.Windows.Forms.MessageBox]::Show(
-      'YES = reconnect an agent already paired on this PC.' + [Environment]::NewLine +
-      'NO = connect a NEW project folder (browser approval).' + [Environment]::NewLine +
-      'CANCEL = stop without changes.',
-      'KMJ TECHNO - Connect Device',
-      [System.Windows.Forms.MessageBoxButtons]::YesNoCancel
-    )
-    if ($choice -eq [System.Windows.Forms.DialogResult]::Cancel) {
-      throw 'DEVICE_OWNER_CANCELLED'
-    }
-    if ($choice -eq [System.Windows.Forms.DialogResult]::Yes) {
-      $known = @(FindKnownApproved)
-      if ($known.Count -eq 1) {
-        $ConfigPath = $known[0]
-        Write-Host 'KMJ_UNIVERSAL=EXISTING_SCOPED_AGENT_AUTO_SELECTED'
-      } else {
-        $ConfigPath = ChooseExisting
-      }
-      if ([string]::IsNullOrWhiteSpace($ConfigPath)) { throw 'DEVICE_OWNER_CANCELLED' }
-    } else {
-      $ConfigPath = FirstPair
-    }
-    }
+      $selection=ChooseConnection @(FindKnownApproved) $true
+      if ($selection.New) { $ConfigPath=FirstPair }
+      else { $ConfigPath=$selection.Path }
     }
   }
   $ConfigPath = [IO.Path]::GetFullPath($ConfigPath)
