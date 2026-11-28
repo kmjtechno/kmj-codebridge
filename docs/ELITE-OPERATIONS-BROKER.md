@@ -34,3 +34,17 @@ The catalog lists toolkit installation, database isolation, backup, restore
 rehearsal, staging preparation, staging activation, authenticated QA, production
 deployment and production readback. Keep production activation separate from
 readback and distinguish pending or unknown evidence from completed operations.
+
+## Independent readback and policy warnings
+
+The read-only status interpreter combines existing staging, production and
+maintenance supervisor observations. A ready production adapter must not
+override staging identity mismatch, production drift, or missing backup and
+restore evidence. Even complete metadata does not prove authenticated QA
+or authorize deployment. The caller must collect fresh authenticated observations.
+
+The signing-policy status helper warns when five or fewer sequences remain
+or expiry is within seven days. It never modifies the owner policy, renews
+consent or authorizes signing. These are advisory defaults, not new signing
+policy limits. Wire these helpers to an authorized backend before displaying
+live status; the functions alone are not an installed broker or alert service.
