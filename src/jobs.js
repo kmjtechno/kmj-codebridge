@@ -792,8 +792,12 @@ export class JobRunner {
   }
   stop(id, reason) {
     const a = this.active.get(id);
-    if (!a) return;
+    // The first stop request determines the terminal outcome. A later
+    // deadline, cancellation or shutdown must not overwrite that evidence
+    // or issue a duplicate process-tree termination.
+    if (!a || a.reason) return;
     a.reason = reason;
+    clearTimeout(a.timer);
     const kill = (signal) => {
       try {
         if (process.platform === "win32") {
