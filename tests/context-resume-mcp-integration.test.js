@@ -55,6 +55,27 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
     ],
     agents: [{ id: "d1", tenant: "t1", tokenHash: hash(agentToken) }],
   });
+  const originalFetch = globalThis.fetch;
+  const delivered = [];
+  let healthReady;
+  const health = new Promise((resolve) => {
+    healthReady = resolve;
+  });
+  t.mock.method(globalThis, "fetch", async (input, init) => {
+    const response = await originalFetch(input, init);
+    if (
+      input instanceof URL &&
+      input.origin === new URL(gateway.url).origin &&
+      response.ok
+    ) {
+      if (input.pathname === "/agent/health") healthReady();
+      if (input.pathname === "/agent/poll") {
+        const work = await response.clone().json();
+        if (work) delivered.push(work.tool);
+      }
+    }
+    return response;
+  });
   agent = await startAgent({
     gateway: gateway.url,
     token: agentToken,
@@ -71,28 +92,33 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
     { requestInit: { headers: { Authorization: `Bearer ${userToken}` } } },
   );
   await client.connect(transport);
+  await health;
 
   const tools = await client.listTools();
   assert.ok(tools.tools.some((tool) => tool.name === "context_resume"));
 
+  const beforeResume = delivered.length;
   const full = value(
     await client.callTool({
       name: "context_resume",
       arguments: scope,
     }),
   );
+  assert.deepEqual(delivered.slice(beforeResume), ["context_resume"]);
   assert.equal(full.kind, "codebridge.context_resume");
   assert.equal(full.version, 1);
   assert.match(full.digest, /^[a-f0-9]{64}$/);
   assert.equal(full.mailbox.actorLabelsVerified, false);
   assert.equal(full.git, "UNKNOWN");
 
+  const beforeDelta = delivered.length;
   const unchanged = value(
     await client.callTool({
       name: "context_resume",
       arguments: { ...scope, ifNoneMatch: full.digest },
     }),
   );
+  assert.deepEqual(delivered.slice(beforeDelta), ["context_resume"]);
   assert.deepEqual(unchanged, {
     version: 1,
     kind: "codebridge.context_resume",

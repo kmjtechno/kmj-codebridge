@@ -191,12 +191,11 @@ export class AgentCoordination {
       (a, b) =>
         a.createdAtEpochMs - b.createdAtEpochMs || a.id.localeCompare(b.id),
     );
-    const start =
-      latest
-        ? Math.max(0, all.length - limit)
-        : after === null
-          ? 0
-          : all.findIndex((row) => row.id === after) + 1;
+    const start = latest
+      ? Math.max(0, all.length - limit)
+      : after === null
+        ? 0
+        : all.findIndex((row) => row.id === after) + 1;
     if (after !== null && start === 0) fail("COORDINATION_CURSOR_UNKNOWN");
     const page = all.slice(start, start + limit);
     return {

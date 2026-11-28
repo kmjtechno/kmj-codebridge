@@ -4,6 +4,7 @@ import { verifiedFastReceipt } from "./browser-fast-receipt.js";
 import { browserRuntimeStatus } from "./browser-runtime.js";
 import { browserAgenticReadiness } from "./browser-agentic.js";
 import { buildChatWorkspaceOpen } from "./chat-workspace-open.js";
+import { buildContextResume, unchangedResume } from "./context-resume.js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -2469,6 +2470,37 @@ export function createDispatcher(
         access: definition.access,
         writable: p.writable,
       });
+    // Fixed read-only compound request: no caller-selected child tools,
+    // scope overrides, cached authorization, or additional job slots.
+    if (name === "context_resume") {
+      const scope = { device: a.device, project: a.project };
+      const read = async (tool, args) => {
+        try {
+          return {
+            ok: true,
+            value: await dispatchCore(tool, { ...scope, ...args }, permissions),
+          };
+        } catch (error) {
+          return { ok: false, error: publicError(error).error };
+        }
+      };
+      const [git, tasks, locks, mailbox, capacity] = await Promise.all([
+        read("git_status", {}),
+        read("autopilot_status", { limit: 10 }),
+        read("chat_lane_status", {}),
+        read("coordination_list", { limit: 5, latest: true, after: null }),
+        read("execution_capacity", {}),
+      ]);
+      const packet = buildContextResume({
+        ...scope,
+        git,
+        autopilot: tasks,
+        lanes: locks,
+        mailbox,
+        capacity,
+      });
+      return a.ifNoneMatch === packet.digest ? unchangedResume(packet) : packet;
+    }
     if (name === "inspect_project" || name === "connection_doctor") {
       // Only a trusted read-only RPC can verify reachability.
       // Windows HMAC named pipes are independent of the Linux socket probe.
