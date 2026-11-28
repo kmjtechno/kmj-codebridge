@@ -25,7 +25,10 @@ function field(bytes) {
 }
 
 function octal(bytes) {
-  const value = bytes.toString("latin1").replace(/[\0 ]+$/, "").trimStart();
+  const value = bytes
+    .toString("latin1")
+    .replace(/[\0 ]+$/, "")
+    .trimStart();
   if (!/^[0-7]+$/.test(value)) invalid();
   const number = Number.parseInt(value, 8);
   if (!Number.isSafeInteger(number)) invalid();
