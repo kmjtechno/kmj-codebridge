@@ -1,7 +1,7 @@
 # Owner-only P520 Calibration Studio development profile admission.
 # No private config is printed, no service is installed, no project file is overwritten.
 [CmdletBinding()]
-param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$EnablePackaging,[switch]$SelfTest,[switch]$SchemaSelfTest)
+param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$EnablePackaging,[switch]$EnableDesktopUI,[switch]$SelfTest,[switch]$SchemaSelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $device='kmj-kmj-calibration-studio-desktop-5fvjmet'
@@ -218,6 +218,14 @@ function StudioPackageProfile([string]$Node,[string]$Runtime,[string]$State,[str
         candidate=(Variant @((Join-Path $Runtime 'scripts\studio-locked-package.mjs'),$State,$Git,$PowerShell,$Qt) 300000)
     }))
 }
+function StudioDesktopProfile([string]$Runtime,[string]$Root,[string]$PowerShell) {
+    $helper=Join-Path $Runtime 'scripts\windows\PROJECT-DESKTOP-UI.ps1'
+    $build=Join-Path $Root '.kmj-codebridge-studio-build'
+    return (Profile 'inspect' 'Inspect only the foreground approved Studio development window in the interactive Default desktop.' $PowerShell ([ordered]@{
+        debug=(Variant @('-NoProfile','-NonInteractive','-STA','-File',$helper,'-Mode','Inspect','-TargetExe',(Join-Path $build 'Debug\KJApp.exe')) 15000)
+        release=(Variant @('-NoProfile','-NonInteractive','-STA','-File',$helper,'-Mode','Inspect','-TargetExe',(Join-Path $build 'Release\KJApp.exe')) 15000)
+    }))
+}
 function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
     return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
 }
@@ -313,6 +321,15 @@ try {
                 $package=StudioPackageProfile $nodeFixture $runtimeFixture $transportFixture 'C:\git.exe' 'C:\powershell.exe' 'C:\Qt'
                 Require ($package.variants.candidate.args[0] -ieq (Join-Path $runtimeFixture 'scripts\studio-locked-package.mjs')) 'STUDIO_PACKAGE_PROFILE_SCOPE'
                 $synthetic.projects[0].commands.calibration_studio_package=$package
+                $desktop=StudioDesktopProfile $runtimeFixture $transportFixture 'C:\powershell.exe'
+                Require ($desktop.category -ceq 'inspect' -and $desktop.variants.release.args -ccontains 'Inspect' -and !($desktop.variants.release.args -ccontains 'Invoke')) 'STUDIO_DESKTOP_PROFILE_SCOPE'
+                $synthetic.projects[0].commands.studio_desktop_ui=$desktop
+                $desktopScript=Join-Path $runtimeFixture 'scripts\windows\PROJECT-DESKTOP-UI.ps1'
+                $parseTokens=$null
+                $parseErrors=$null
+                $null=[Management.Automation.Language.Parser]::ParseFile($desktopScript,[ref]$parseTokens,[ref]$parseErrors)
+                Require ($parseErrors.Count -eq 0) 'STUDIO_DESKTOP_HELPER_PARSE_FAILED'
+                Write-Output 'STUDIO_DESKTOP_PROFILE_SELFTEST=PASS'
                 Write-Output 'STUDIO_PACKAGE_PROFILE_SELFTEST=PASS'
                 Write-Output 'STUDIO_EXACT_PROFILE_SELFTEST=PASS'
                 $supervisorFixture=StudioSupervisorConfig $runtimeFixture $transportFixture $json (Join-Path $transportFixture 'fixture.token')
@@ -462,6 +479,16 @@ try {
         Ordinary $ps $false
         $wanted.calibration_studio_package=StudioPackageProfile $node $runtime $packageState $git $ps $qt
         Write-Output 'STUDIO_PACKAGE_PROFILE=READY'
+    }
+    if($EnableDesktopUI){
+        $desktopHelper=Join-Path $runtime 'scripts\windows\PROJECT-DESKTOP-UI.ps1'
+        Ordinary $desktopHelper $false
+        $null=& git.exe -C $runtime ls-files --error-unmatch -- 'scripts/windows/PROJECT-DESKTOP-UI.ps1' 2>$null
+        Require ($LASTEXITCODE -eq 0) 'STUDIO_DESKTOP_HELPER_UNTRACKED'
+        $desktopPs=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        Ordinary $desktopPs $false
+        $wanted.studio_desktop_ui=StudioDesktopProfile $runtime $root $desktopPs
+        Write-Output 'STUDIO_DESKTOP_PROFILE=INSPECT_READY'
     }
     $changed=AddProfiles $p $wanted
     $newSupervisor=$false
