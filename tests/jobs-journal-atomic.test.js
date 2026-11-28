@@ -121,3 +121,32 @@ test("restart refuses a malformed idempotency key before accepting a job", async
   runner.persist(invalid);
   assert.throws(() => new JobRunner(root), /CORRUPT_JOURNAL/);
 });
+
+test("failed durable admission does not leave a runnable or replayable job", async (t) => {
+  const { root, runner } = fixture(t);
+  let starts = 0;
+  const request = {
+    project: "p1",
+    gate: "unit",
+    key: "durable-admission",
+    cwd: root,
+    command: process.execPath,
+    args: ["-e", ""],
+    beforeStart: () => {
+      starts++;
+      throw new Error("test intentionally prevents execution");
+    },
+  };
+  const mock = t.mock.method(runner, "persist", () => {
+    throw new Error("simulated journal failure");
+  });
+  assert.throws(() => runner.run(request), /simulated journal failure/);
+  mock.mock.restore();
+  assert.equal(runner.capacity(root).queuedJobs, 0);
+  assert.equal(runner.list("p1").total, 0);
+  assert.equal(starts, 0);
+  const admitted = runner.run(request);
+  assert.equal(admitted.state, "failed");
+  assert.equal(admitted.output, "JOB_PRECONDITION_FAILED");
+  assert.equal(starts, 1);
+});
