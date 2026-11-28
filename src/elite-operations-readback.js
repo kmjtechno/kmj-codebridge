@@ -22,10 +22,7 @@ export function summarizeEliteReadback({
     blockers.push("STAGING_PRODUCTION_CONTINUITY_UNVERIFIED");
   if (production?.approvedSha !== candidateSha)
     blockers.push("PRODUCTION_APPROVAL_SHA_MISMATCH");
-  if (
-    production?.nginxActive !== true ||
-    production?.phpFpmActive !== true
-  )
+  if (production?.nginxActive !== true || production?.phpFpmActive !== true)
     blockers.push("PRODUCTION_HEALTH_UNVERIFIED");
   if (production?.readyToActivate !== true)
     blockers.push("PRODUCTION_ADAPTER_NOT_READY");
