@@ -545,6 +545,8 @@ export class JobRunner {
       output: "",
       truncated: false,
     };
+    // A rejected journal write must not leave a runnable in-memory job.
+    this.persist(j);
     this.jobs.set(j.id, j);
     this.pending.set(j.id, {
       cwd,
@@ -554,7 +556,6 @@ export class JobRunner {
       beforeStart,
       artifacts,
     });
-    this.persist(j);
     this.drain();
     return this.public(j);
   }
@@ -696,14 +697,25 @@ export class JobRunner {
       this.persist(j);
       return;
     }
-    const child = spawn(spawnCommand, spawnArgs, {
-      cwd,
-      env,
-      shell: false,
-      detached: process.platform !== "win32",
-      windowsHide: true,
-      stdio: [powershellStdin ? "pipe" : "ignore", "pipe", "pipe"],
-    });
+    let child;
+    try {
+      child = spawn(spawnCommand, spawnArgs, {
+        cwd,
+        env,
+        shell: false,
+        detached: process.platform !== "win32",
+        windowsHide: true,
+        stdio: [powershellStdin ? "pipe" : "ignore", "pipe", "pipe"],
+      });
+    } catch {
+      // Synchronous spawn errors have no child close event. Publish a
+      // terminal failure so the job cannot remain permanently running.
+      j.state = "failed";
+      j.endedAt = new Date().toISOString();
+      j.output = "JOB_SPAWN_FAILED";
+      this.persist(j);
+      return;
+    }
     if (powershellStdin) child.stdin.end();
     const active = {
       child,
@@ -792,8 +804,12 @@ export class JobRunner {
   }
   stop(id, reason) {
     const a = this.active.get(id);
-    if (!a) return;
+    // The first stop request determines the terminal outcome. A later
+    // deadline, cancellation or shutdown must not overwrite that evidence
+    // or issue a duplicate process-tree termination.
+    if (!a || a.reason) return;
     a.reason = reason;
+    clearTimeout(a.timer);
     const kill = (signal) => {
       try {
         if (process.platform === "win32") {

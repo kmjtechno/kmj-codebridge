@@ -38,6 +38,26 @@ test("runs command without a shell and persists result", async (t) => {
   assert.equal(done.exitCode, 0);
   assert.match(done.output, /hello/);
 });
+test("synchronous spawn failure is terminal and does not stall the queue", async (t) => {
+  const { root, runner } = fixture(t);
+  const failed = runner.run({
+    ...opts(root, "sync-spawn-error", ""),
+    args: ["-e", "invalid\0argument"],
+  });
+  assert.equal(failed.state, "failed");
+  assert.equal(failed.output, "JOB_SPAWN_FAILED");
+  assert.equal(failed.exitCode, null);
+  assert.equal(runner.capacity(root).activeJobs, 0);
+  const following = runner.run(opts(root, "after-spawn-error", ""));
+  assert.equal((await finished(runner, following.id)).state, "succeeded");
+  const reopened = new JobRunner(root);
+  try {
+    assert.equal(reopened.get(failed.id, "p1").state, "failed");
+  } finally {
+    await reopened.close();
+  }
+});
+
 test("idempotency key returns the same job without executing twice", async (t) => {
   const { root, runner } = fixture(t);
   const o = opts(root, "same", 'console.log("once")');
@@ -125,6 +145,26 @@ test("cancel terminates a running job", async (t) => {
   runner.cancel(j.id, "p1");
   assert.equal((await finished(runner, j.id)).state, "cancelled");
 });
+test("shutdown preserves the first accepted cancellation reason", async (t) => {
+  const { root, runner } = fixture(t);
+  const job = runner.run(
+    opts(root, "cancel-close", "setTimeout(()=>{},10000)"),
+  );
+  runner.cancel(job.id, "p1");
+  await runner.close();
+  assert.equal(runner.get(job.id, "p1").state, "cancelled");
+});
+
+test("subsequent stop requests cannot overwrite a timeout", async (t) => {
+  const { root, runner } = fixture(t);
+  const job = runner.run(
+    opts(root, "timeout-cancel", "setTimeout(()=>{},10000)"),
+  );
+  runner.stop(job.id, "timed_out");
+  runner.cancel(job.id, "p1");
+  assert.equal((await finished(runner, job.id)).state, "timed_out");
+});
+
 test("restart marks stale running records interrupted, never reruns", async (t) => {
   const { root, runner } = fixture(t);
   await runner.close();

@@ -241,7 +241,7 @@ test("real repository without owner-provided trusted key fails closed", () => {
   assert.throws(() => latestSignedRelease(), /RELEASE_OWNER_KEY_REQUIRED/);
 });
 
-test("owner-exported public PEM verifies real signed stable release", () => {
+test("owner-exported public PEM verifies real signed stable release", (t) => {
   const trustedPublicKeyPem = fs.readFileSync(
     "tests/fixtures/KMJ_RELEASE_PUBLIC_KEY_EVIDENCE_20261115.txt",
     "utf8",
@@ -250,9 +250,30 @@ test("owner-exported public PEM verifies real signed stable release", () => {
   // release PRs are data-only, so the expected value is derived from the
   // committed manifests instead of being hand-edited per release. The pinned
   // owner key must still verify the newest one.
-  const newest = fs
+  // Verify committed signed bytes in a private catalog rather than relying
+  // on the permissions of the development checkout's parent directories.
+  // The production resolver still rejects untrusted roots.
+  const catalog = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-real-signed-"));
+  t.after(() => fs.rmSync(catalog, { recursive: true, force: true }));
+  const revisions = fs
     .readdirSync("releases/stable", { withFileTypes: true })
-    .filter((e) => e.isDirectory() && /^[a-f0-9]{40}$/.test(e.name))
+    .filter((e) => e.isDirectory() && /^[a-f0-9]{40}$/.test(e.name));
+  for (const revision of revisions) {
+    const source = path.join("releases/stable", revision.name);
+    const destination = path.join(catalog, revision.name);
+    fs.mkdirSync(destination, { mode: 0o700 });
+    for (const name of ["release-manifest.json", "release-manifest.sig"]) {
+      const file = path.join(source, name);
+      if (!fs.existsSync(file)) continue;
+      const stat = fs.lstatSync(file);
+      assert.ok(stat.isFile() && !stat.isSymbolicLink() && stat.nlink === 1);
+      fs.writeFileSync(path.join(destination, name), fs.readFileSync(file), {
+        mode: 0o600,
+        flag: "wx",
+      });
+    }
+  }
+  const newest = revisions
     .map((e) => ({
       revision: e.name,
       sequence: JSON.parse(
@@ -264,8 +285,30 @@ test("owner-exported public PEM verifies real signed stable release", () => {
     }))
     .sort((a, b) => b.sequence - a.sequence)[0];
   assert.ok(newest.sequence >= 31);
-  assert.deepEqual(
-    latestSignedRelease("releases/stable", { trustedPublicKeyPem }),
-    { sequence: newest.sequence, revision: newest.revision },
+  assert.deepEqual(latestSignedRelease(catalog, { trustedPublicKeyPem }), {
+    sequence: newest.sequence,
+    revision: newest.revision,
+  });
+});
+
+test("writable catalog ancestor still fails closed", (t) => {
+  if (process.platform === "win32") {
+    t.skip("POSIX mode contract");
+    return;
+  }
+  const f = freshCatalog(t);
+  f.signed(fullSha("a"), 25);
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), "kmj-writable-"));
+  t.after(() => fs.rmSync(parent, { recursive: true, force: true }));
+  const catalog = path.join(parent, "catalog");
+  fs.cpSync(f.root, catalog, { recursive: true });
+  fs.chmodSync(parent, 0o770);
+  assert.throws(
+    () =>
+      latestSignedRelease(catalog, {
+        trustedPublicKeyPem: f.publicKeyPem,
+        trustedSpkiSha256: f.trustedSpkiSha256,
+      }),
+    /RELEASE_ROOT_UNTRUSTED/,
   );
 });
