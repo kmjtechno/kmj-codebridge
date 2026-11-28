@@ -4,7 +4,10 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const script = fileURLToPath(
-  new URL("../scripts/windows/INSTALL-SIGNED-UPDATE-STATE.ps1", import.meta.url),
+  new URL(
+    "../scripts/windows/INSTALL-SIGNED-UPDATE-STATE.ps1",
+    import.meta.url,
+  ),
 );
 const windowsOnly = { skip: process.platform !== "win32" };
 
