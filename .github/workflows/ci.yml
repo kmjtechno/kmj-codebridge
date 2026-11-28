@@ -51,6 +51,9 @@ jobs:
       - name: Verify D3 guarded lifecycle negative tests (no root mutation)
         if: matrix.os == 'ubuntu-24.04'
         run: python3 -B -m unittest discover -s tests -p 'test_guarded_d3_reset_failed_20261101.py' -v
+      - name: Verify bounded owner policy renewal (no host mutation)
+        if: matrix.os == 'ubuntu-24.04'
+        run: python3 -B -m unittest discover -s tests -p 'test_elite_owner_cap100.py' -v
       # The Node/Prettier suites cannot parse Windows PowerShell source. The
       # reviewed P520 ZIP must pass the actual Windows PowerShell 5.1 parser
       # before its installer is ever described as verified.
