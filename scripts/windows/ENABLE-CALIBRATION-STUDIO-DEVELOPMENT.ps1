@@ -1,7 +1,7 @@
 # Owner-only P520 Calibration Studio development profile admission.
 # No private config is printed, no service is installed, no project file is overwritten.
 [CmdletBinding()]
-param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$SelfTest,[switch]$SchemaSelfTest)
+param([switch]$Apply,[switch]$EnableHardware,[switch]$EnablePython,[switch]$EnableSupervisor,[switch]$EnablePackaging,[switch]$SelfTest,[switch]$SchemaSelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $device='kmj-kmj-calibration-studio-desktop-5fvjmet'
@@ -213,6 +213,11 @@ function ExactStudioProfiles([string]$Node,[string]$Runtime,[string]$State,[stri
     }
     return $extra
 }
+function StudioPackageProfile([string]$Node,[string]$Runtime,[string]$State,[string]$Git,[string]$PowerShell,[string]$Qt) {
+    return (Profile 'build' 'Run exact-head locked acceptance and build an isolated Windows ZIP candidate; never install, sign or publish.' $Node ([ordered]@{
+        candidate=(Variant @((Join-Path $Runtime 'scripts\studio-locked-package.mjs'),$State,$Git,$PowerShell,$Qt) 300000)
+    }))
+}
 function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
     return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
 }
@@ -305,6 +310,10 @@ try {
                 $exact=ExactStudioProfiles $nodeFixture $runtimeFixture $transportFixture 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' $true
                 Require ($exact.Count -eq 2 -and $exact.calibration_studio_qt_qa.variants.full.args[0] -ieq (Join-Path $runtimeFixture 'scripts\studio-exact-head-qa.mjs')) 'STUDIO_EXACT_PROFILE_SCOPE'
                 foreach($name in $exact.Keys){$synthetic.projects[0].commands[$name]=$exact[$name]}
+                $package=StudioPackageProfile $nodeFixture $runtimeFixture $transportFixture 'C:\git.exe' 'C:\powershell.exe' 'C:\Qt'
+                Require ($package.variants.candidate.args[0] -ieq (Join-Path $runtimeFixture 'scripts\studio-locked-package.mjs')) 'STUDIO_PACKAGE_PROFILE_SCOPE'
+                $synthetic.projects[0].commands.calibration_studio_package=$package
+                Write-Output 'STUDIO_PACKAGE_PROFILE_SELFTEST=PASS'
                 Write-Output 'STUDIO_EXACT_PROFILE_SELFTEST=PASS'
                 $supervisorFixture=StudioSupervisorConfig $runtimeFixture $transportFixture $json (Join-Path $transportFixture 'fixture.token')
                 $supervisorFile=Join-Path $transportFixture 'supervisor fixture.json'
@@ -438,6 +447,21 @@ try {
         Write-Output 'STUDIO_EXACT_QA_PROFILE=READY'
     }else{
         Write-Output 'STUDIO_EXACT_QA_PROFILE=NEW_RUNTIME_REQUIRED'
+    }
+    if($EnablePackaging){
+        $packageHelper=Join-Path $runtime 'scripts\studio-locked-package.mjs'
+        Ordinary $packageHelper $false
+        Ordinary $qaHelper $false
+        $null=& git.exe -C $runtime ls-files --error-unmatch -- 'scripts/studio-locked-package.mjs' 'scripts/studio-exact-head-qa.mjs' 2>$null
+        Require ($LASTEXITCODE -eq 0) 'STUDIO_PACKAGE_HELPER_UNTRACKED'
+        $packageState=[IO.Path]::GetFullPath([string]$cfg.stateDir)
+        Require ($packageState -ieq (Join-Path $base 'state')) 'STUDIO_PACKAGE_STATE_SCOPE_MISMATCH'
+        Ordinary $packageState $true
+        PrivateAcl $packageState
+        $ps=Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
+        Ordinary $ps $false
+        $wanted.calibration_studio_package=StudioPackageProfile $node $runtime $packageState $git $ps $qt
+        Write-Output 'STUDIO_PACKAGE_PROFILE=READY'
     }
     $changed=AddProfiles $p $wanted
     $newSupervisor=$false
