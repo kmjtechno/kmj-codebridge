@@ -1,9 +1,12 @@
 import { createHash, createPublicKey } from "node:crypto";
+import fs from "node:fs";
 import {
   downloadPinnedHttpsBytes,
+  downloadVerifiedReleaseArchive,
   releaseManifestSchema,
   verifyReleaseManifest,
 } from "./update.js";
+import { inspectWindowsRuntimeArchive } from "./windows-runtime-archive.js";
 
 const FEED = "https://kmjtechno.com/codebridge/releases/stable";
 const OWNER_KEY_ID = "kmj-release-2026";
@@ -104,7 +107,7 @@ function ownerPublicKey(pem) {
 // Local trusted updater use only. No remote path, URL, signer or sequence-floor
 // override. The caller must load the public key and accepted baseline from a
 // separately ACL-protected local store, never from a chat or gateway request.
-export async function inspectWindowsSignedFeed({
+async function readVerifiedWindowsFeed({
   trustedPublicKeyPem,
   accepted,
   runningRevision,
@@ -128,9 +131,64 @@ export async function inspectWindowsSignedFeed({
   const manifest = verifyReleaseManifest(raw, text, {
     [OWNER_KEY_ID]: key,
   });
-  return planVerifiedWindowsRelease(manifest, {
-    accepted,
-    runningRevision,
-    nodeMajor,
-  });
+  const plan = {
+    ...planVerifiedWindowsRelease(manifest, {
+      accepted,
+      runningRevision,
+      nodeMajor,
+    }),
+    manifestSha256: createHash("sha256").update(raw).digest("hex"),
+  };
+  return { manifest, plan };
+}
+
+export async function inspectWindowsSignedFeed(options) {
+  const { plan } = await readVerifiedWindowsFeed(options);
+  return plan;
+}
+
+// Compare every artifact identity field from a fresh verified feed. Never
+// silently follow a newer "latest" release during an admitted transaction.
+export function assertWindowsCandidateUnchanged(expected, actual) {
+  const keys = [
+    "state",
+    "sequence",
+    "revision",
+    "runningRevision",
+    "archiveSha256",
+    "archiveBytes",
+    "manifestSha256",
+  ];
+  if (
+    !expected ||
+    !actual ||
+    expected.state !== "NEW_SIGNED_RELEASE_CANDIDATE" ||
+    !/^[a-f0-9]{64}$/.test(expected.manifestSha256 ?? "") ||
+    keys.some((key) => expected[key] !== actual[key])
+  )
+    blocked("WINDOWS_UPDATE_CANDIDATE_CHANGED");
+}
+
+// Local trusted updater only. workDir must already be an independently
+// verified private ACL-protected directory; no remotely selected paths.
+// A fresh signature and exact identity check precede archive download.
+// This does not materialize a runtime, run npm or activate any process.
+export async function prepareWindowsSignedRuntime(options, expected, workDir) {
+  const { manifest, plan } = await readVerifiedWindowsFeed(options);
+  assertWindowsCandidateUnchanged(expected, plan);
+  if (manifest.bytes > 64 * 1024 * 1024)
+    blocked("WINDOWS_UPDATE_ARCHIVE_TOO_LARGE");
+  const downloaded = await downloadVerifiedReleaseArchive(manifest, workDir);
+  try {
+    const archive = fs.readFileSync(downloaded.path);
+    const inspected = inspectWindowsRuntimeArchive(archive, manifest);
+    return {
+      ...plan,
+      archiveVerified: true,
+      root: inspected.root,
+      entries: inspected.entries,
+    };
+  } finally {
+    fs.unlinkSync(downloaded.path);
+  }
 }
