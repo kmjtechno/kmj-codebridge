@@ -319,6 +319,7 @@ export async function startGateway(rawConfig) {
     waiting = new Map(),
     lastSeen = new Map(),
     agentHealth = new Map(),
+    nativeResumeAgents = new Map(),
     rate = new Map();
   const membershipFor = (user, tenant) =>
     user.memberships?.find((membership) => membership.tenant === tenant) ??
@@ -784,13 +785,36 @@ export async function startGateway(rawConfig) {
   }
 
   async function getContextResume(user, args) {
-    authorize(user, args, "read");
+    const agent = authorize(user, args, "read");
     const scope = { device: args.device, project: args.project };
+    // Only authenticated, explicitly capable agents use the local aggregate.
+    // Hosted metering still requires the original per-git-status settlement.
+    if (
+      nativeResumeAgents.has(agent.id) &&
+      nativeResumeAgents.get(agent.id) === agent.tokenHash &&
+      !(meter && agent.tenant === meter.tenant)
+    ) {
+      const result = decodeForwardedResult(
+        await forward(user, "context_resume", args),
+      );
+      if (
+        result.ok &&
+        result.value?.kind === "codebridge.context_resume" &&
+        result.value.device === scope.device &&
+        result.value.project === scope.project &&
+        /^[a-f0-9]{64}$/.test(result.value.digest ?? "")
+      )
+        return result.value;
+      if (result.error !== "UNKNOWN_TOOL")
+        fail("NATIVE_CONTEXT_RESUME_UNVERIFIED");
+      // A stale capability advertisement must not cause a retry loop.
+      nativeResumeAgents.delete(agent.id);
+    }
     const requests = [
       ["git_status", scope],
       ["autopilot_status", { ...scope, limit: 10 }],
       ["chat_lane_status", scope],
-      ["coordination_list", { ...scope, limit: 5, after: null }],
+      ["coordination_list", { ...scope, limit: 5, after: null, latest: true }],
       ["execution_capacity", scope],
     ];
     const parts = await Promise.all(
@@ -802,12 +826,27 @@ export async function startGateway(rawConfig) {
         }
       }),
     );
+    // Older agents may ignore the latest flag and return the oldest page.
+    // Only accept a verified tail or a complete small mailbox. Do not page
+    // the entire history on every resume, or label an old prefix as recent.
+    const mailbox = parts[3];
+    const value = mailbox.value;
+    const complete =
+      Array.isArray(value?.messages) &&
+      Number.isSafeInteger(value.totalStored) &&
+      value.totalStored >= 0 &&
+      value.messages.length === Math.min(5, value.totalStored) &&
+      value.nextCursor === null &&
+      (value.latest === true || value.totalStored <= 5);
     const packet = buildContextResume({
       ...scope,
       git: parts[0],
       autopilot: parts[1],
       lanes: parts[2],
-      mailbox: parts[3],
+      mailbox:
+        mailbox.ok && complete
+          ? mailbox
+          : { ok: false, error: "MAILBOX_LATEST_UNVERIFIED" },
       capacity: parts[4],
     });
     return args.ifNoneMatch === packet.digest
@@ -1179,6 +1218,9 @@ export async function startGateway(rawConfig) {
           lastSeen.set(a.id, now);
           const previous = agentHealth.get(a.id);
           agentHealth.set(a.id, recordSessionStart(previous, now));
+          if (data?.nativeContextResume === 1)
+            nativeResumeAgents.set(a.id, a.tokenHash);
+          else nativeResumeAgents.delete(a.id);
           json(res, 200, { ok: true });
           return;
         }
@@ -1188,6 +1230,11 @@ export async function startGateway(rawConfig) {
             return;
           }
           lastSeen.set(a.id, Date.now());
+          // Repeat on polls so a restarted gateway negotiates without
+          // requiring the device to reconnect or re-enroll.
+          if (data?.nativeContextResume === 1)
+            nativeResumeAgents.set(a.id, a.tokenHash);
+          else nativeResumeAgents.delete(a.id);
           const immediate = next(a);
           if (immediate) {
             json(res, 200, immediate);

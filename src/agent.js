@@ -565,10 +565,10 @@ export async function startAgent(
       try {
         await renew();
         if (needsHealthProbe) {
-          await post("/agent/health", {});
+          await post("/agent/health", { nativeContextResume: 1 });
           needsHealthProbe = false;
         }
-        const work = await post("/agent/poll", {});
+        const work = await post("/agent/poll", { nativeContextResume: 1 });
         failures = 0;
         if (work) {
           await activity.track(async () => {

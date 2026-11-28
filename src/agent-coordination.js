@@ -177,11 +177,13 @@ export class AgentCoordination {
     );
   }
 
-  list(project, { limit = 25, after = null } = {}) {
+  list(project, { limit = 25, after = null, latest = false } = {}) {
     if (
       !Number.isInteger(limit) ||
       limit < 1 ||
       limit > 50 ||
+      typeof latest !== "boolean" ||
+      (latest && after !== null) ||
       (after !== null && !DIGEST.test(after))
     )
       fail("COORDINATION_INVALID_QUERY");
@@ -189,8 +191,11 @@ export class AgentCoordination {
       (a, b) =>
         a.createdAtEpochMs - b.createdAtEpochMs || a.id.localeCompare(b.id),
     );
-    const start =
-      after === null ? 0 : all.findIndex((row) => row.id === after) + 1;
+    const start = latest
+      ? Math.max(0, all.length - limit)
+      : after === null
+        ? 0
+        : all.findIndex((row) => row.id === after) + 1;
     if (after !== null && start === 0) fail("COORDINATION_CURSOR_UNKNOWN");
     const page = all.slice(start, start + limit);
     return {
@@ -198,6 +203,7 @@ export class AgentCoordination {
       messages: page.map(({ digest, ...row }) => row),
       nextCursor: start + limit < all.length ? page.at(-1).id : null,
       totalStored: all.length,
+      ...(latest ? { latest: true } : {}),
       automaticWorkerStarted: false,
       actorLabelsVerified: false,
       note: "Authorized clients share this project mailbox; actor names and reported gates are claims, not signed task completion or actual agent presence.",
