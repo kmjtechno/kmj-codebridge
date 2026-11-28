@@ -1047,3 +1047,29 @@ test("worktree release rejects incomplete HEAD evidence even on matching SHA", a
     assert.equal(calls.length, 1);
   }
 });
+
+test("prepare and stage reject incomplete matching HEAD before verification", async (t) => {
+  for (const op of ["project_verify_prepare", "project_verify_stage"]) {
+    for (const flag of ["truncated", "timedOut", "spawnFailed"]) {
+      const calls = [];
+      const { handler } = makeHandler(t, {
+        runner: async (_exe, args) => {
+          calls.push(args);
+          return args.includes("rev-parse")
+            ? { exitCode: 0, output: SHA + "\n", [flag]: true }
+            : { exitCode: 0, output: "" };
+        },
+      });
+      await assert.rejects(
+        handler({
+          op,
+          projectId: "kmj-cinecore",
+          sha: SHA,
+          ...(op === "project_verify_stage" ? { stage: "build" } : {}),
+        }),
+        /SUPERVISOR_WORKTREE_UNVERIFIED/,
+      );
+      assert.deepEqual(calls.at(-1).slice(-2), ["rev-parse", "HEAD"]);
+    }
+  }
+});
