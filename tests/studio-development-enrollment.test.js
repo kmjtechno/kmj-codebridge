@@ -16,11 +16,20 @@ test(
   () => {
     const result = spawnSync(
       "powershell.exe",
-      ["-NoProfile", "-NonInteractive", "-File", script, "-SelfTest"],
-      { encoding: "utf8", timeout: 30000, windowsHide: true },
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        script,
+        "-SelfTest",
+        "-SchemaSelfTest",
+      ],
+      { encoding: "utf8", timeout: 60000, windowsHide: true },
     );
     assert.ifError(result.error);
     assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /STUDIO_NODE_TRANSPORT_SELFTEST=PASS/);
+    assert.match(result.stdout, /STUDIO_REAL_SCHEMA_SELFTEST=PASS/);
     assert.match(result.stdout, /STUDIO_DEV_SELFTEST=PASS/);
   },
 );
