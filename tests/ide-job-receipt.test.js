@@ -144,3 +144,48 @@ test("hostile gate or timestamp strings are dropped, not echoed", () => {
   assert.equal(r.gate, null);
   assert.equal(r.startedAt, null);
 });
+
+test("deduplicates repeated markers without hiding conflicting statuses", () => {
+  const output = [
+    ...Array(30).fill("TEST_RETRY=PASS"),
+    "TEST_RETRY=FAIL",
+    "TEST_RETRY=PASS",
+  ].join("\n");
+  const result = compactIdeJobReceipt(
+    job({ output, state: "failed", exitCode: 1 }),
+  );
+  assert.deepEqual(result.markers, [
+    { key: "TEST_RETRY", value: "FAIL" },
+    { key: "TEST_RETRY", value: "PASS" },
+  ]);
+  assert.equal(result.repeatedMarkers, 30);
+  assert.equal(result.executionSucceeded, false);
+  assert.equal(result.markersTruncated, false);
+});
+
+test("numeric test summaries are bounded, unverified and do not copy logs", () => {
+  const output = [
+    "100% tests passed, 0 tests failed out of 3",
+    "19 passed, 34 subtests passed in 0.52s",
+    "test result: ok. 5 passed; 0 failed; 1 ignored; 0 measured; 3 filtered out; finished in 0.02s",
+    "SECRET=not-for-chat",
+  ].join("\n");
+  const result = compactIdeJobReceipt(
+    job({ output, state: "failed", exitCode: 1 }),
+  );
+  assert.deepEqual(result.testSummaries, [
+    { framework: "ctest", total: 3, failed: 0, passed: 3 },
+    { framework: "pytest", passed: 19, subtestsPassed: 34 },
+    {
+      framework: "cargo",
+      passed: 5,
+      failed: 0,
+      ignored: 1,
+      measured: 0,
+      filteredOut: 3,
+    },
+  ]);
+  assert.equal(result.testSummariesVerified, false);
+  assert.equal(result.executionSucceeded, false);
+  assert.ok(!JSON.stringify(result).includes("not-for-chat"));
+});
