@@ -103,7 +103,10 @@ test("true one-click: no dialog when the choice is unambiguous", () => {
   assert.match(content, /DEVICE_PROJECT_ROOT_NOT_ABSOLUTE/);
   assert.match(content, /DEVICE_PROJECT_ROOT_MISSING/);
   // Nothing paired yet -> only the new-project action, no chooser dialog.
-  assert.match(content, /if\(\$choices\.Count -eq 1\)\{return \$choices\[0\]\}/);
+  assert.match(
+    content,
+    /if\(\$choices\.Count -eq 1\)\{return \$choices\[0\]\}/,
+  );
   assert.match(content, /if \(\$selection\.New\) \{ \$ConfigPath=FirstPair \}/);
   // A project already paired here reconnects instead of re-pairing.
   assert.match(content, /EXISTING_PROJECT_AGENT_AUTO_SELECTED/);
