@@ -56,8 +56,8 @@ function Profiles([string]$Root,[string]$Cmake,[string]$Ctest,[string]$Qt,[strin
         release=(Variant @('-E','env',$envPath,'--',$Ctest,'--test-dir',$build,'-C','Release','--output-on-failure','--no-tests=error','-R','^(desktop-smoke|independent-engine|media-control)$') 300000)
     })
     $result.studio_run=Profile 'build' 'Launch a bounded Studio development instance in a dedicated QA directory.' $Cmake ([ordered]@{
-        debug=(Variant @('-E','chdir',$Evidence,'-E','env',$envPath,'--',(Join-Path $build 'Debug\KJApp.exe')) 300000)
-        release=(Variant @('-E','chdir',$Evidence,'-E','env',$envPath,'--',(Join-Path $build 'Release\KJApp.exe')) 300000)
+        debug=(Variant @('-E','chdir',$Evidence,$Cmake,'-E','env',$envPath,'--',(Join-Path $build 'Debug\KJApp.exe')) 300000)
+        release=(Variant @('-E','chdir',$Evidence,$Cmake,'-E','env',$envPath,'--',(Join-Path $build 'Release\KJApp.exe')) 300000)
     })
     if($Hardware){
         # These existing project-owned native tests may open the camera and
@@ -65,8 +65,8 @@ function Profiles([string]$Root,[string]$Cmake,[string]$Ctest,[string]$Qt,[strin
         # Evidence goes to a disposable QA directory, not the owner's live maps.
         $smoke=Join-Path $build 'Release\KJUiSmoke.exe'
         $result.studio_hardware=Profile 'build' 'Owner-consented camera preview or two-projector calibration smoke. Run only with the rig idle.' $Cmake ([ordered]@{
-            camera=(Variant @('-E','chdir',$Evidence,'-E','env',$envPath,'--',$smoke,'--camera-readonly') 45000)
-            scan=(Variant @('-E','chdir',$Evidence,'-E','env',$envPath,'--',$smoke,'--hardware-scan') 240000)
+            camera=(Variant @('-E','chdir',$Evidence,$Cmake,'-E','env',$envPath,'--',$smoke,'--camera-readonly') 45000)
+            scan=(Variant @('-E','chdir',$Evidence,$Cmake,'-E','env',$envPath,'--',$smoke,'--hardware-scan') 240000)
         })
     }
     return $result
@@ -98,6 +98,11 @@ try {
         Require ($p.label -ceq 'preserve') 'STUDIO_SELFTEST_UNRELATED'
         $hardware=Profiles 'C:\fixture' 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' 'C:\fixture\qa' $true
         Require ($hardware.Count -eq 6 -and $hardware.Contains('studio_hardware')) 'STUDIO_SELFTEST_HARDWARE'
+        foreach($name in @('camera','scan')){
+            $argv=$hardware.studio_hardware.variants[$name].args
+            Require ($argv[0] -ceq '-E' -and $argv[1] -ceq 'chdir' -and $argv[3] -ceq 'C:\cmake.exe' -and $argv[4] -ceq '-E' -and $argv[5] -ceq 'env') 'STUDIO_SELFTEST_NESTED_CMAKE'
+        }
+        Require ($profiles.studio_run.variants.debug.args[3] -ceq 'C:\cmake.exe') 'STUDIO_SELFTEST_RUN_NESTED_CMAKE'
         Require (AddProfiles $p $hardware) 'STUDIO_SELFTEST_HARDWARE_ADMISSION'
         $p.commands.studio_build.variants.debug.timeoutMs=11
         $denied=$false
