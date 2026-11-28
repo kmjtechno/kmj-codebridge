@@ -25,6 +25,41 @@ const EXACT_SHA = /^[a-f0-9]{40}$/;
 const MAX_MARKERS = 16;
 const MAX_OUTPUT_BYTES = 32768;
 
+// Numeric-only, framework-specific summaries. The source is untrusted log
+// text, not an attestation of which tests actually ran. Keep the last
+// summary per framework, never sum repeated banners or copy arbitrary lines.
+export function compactTestSummaries(output) {
+  const summaries = new Map();
+  for (const raw of output.split(/\r?\n/)) {
+    const line = raw.trim();
+    let match =\n      /^(\d{1,3})% tests passed, (\d{1,7}) tests? failed out of (\d{1,7})$/.exec(\n        line,\n      );
+    if (match) {
+      const [percent, failed, total] = match.slice(1).map(Number);
+      if (percent <= 100 && failed <= total && total > 0)
+        summaries.set("ctest", { framework: "ctest", total, failed, passed: total - failed });
+      continue;
+    }
+    match = /^test result: (?:ok|FAILED)\. (\d{1,7}) passed; (\d{1,7}) failed; (\d{1,7}) ignored; (\d{1,7}) measured; (\d{1,7}) filtered out(?:; finished in [\d.]+s)?$/.exec(line);
+    if (match) {
+      const [passed, failed, ignored, measured, filteredOut] = match.slice(1).map(Number);
+      summaries.set("cargo", { framework: "cargo", passed, failed, ignored, measured, filteredOut });
+      continue;
+    }
+    match = /^(?:=+ )?((?:\d{1,7} (?:passed|failed|skipped|errors?|xfailed|xpassed|deselected|subtests passed|warnings?)(?:, |(?= in )))+) in \d+(?:\.\d+)?s(?: =+)?$/.exec(line);
+    if (match) {
+      const summary = { framework: "pytest" };
+      const fields = { passed: "passed", failed: "failed", skipped: "skipped", error: "errors", errors: "errors", xfailed: "xfailed", xpassed: "xpassed", deselected: "deselected", "subtests passed": "subtestsPassed", warning: "warnings", warnings: "warnings" };
+      for (const item of match[1].split(", ")) {
+        const count = /^(\d{1,7}) (.+)$/.exec(item);
+        if (count && Object.hasOwn(fields, count[2]))
+          summary[fields[count[2]]] = Number(count[1]);
+      }
+      summaries.set("pytest", summary);
+    }
+  }
+  return [...summaries.values()];
+}
+
 export function compactIdeJobReceipt(job) {
   if (
     !job ||
@@ -44,7 +79,8 @@ export function compactIdeJobReceipt(job) {
   const state = validStates.has(job.state) ? job.state : "unknown";
   const output =
     typeof job.output === "string" ? job.output.slice(-MAX_OUTPUT_BYTES) : "";
-  const markers = [];
+  const markers = new Map();
+  let repeatedMarkers = 0;
   for (const raw of output.split(/\r?\n/)) {
     const match = /^([A-Z][A-Za-z0-9_]{2,63})=([A-Za-z0-9_.:-]{1,80})$/.exec(
       raw.trim(),
@@ -65,9 +101,15 @@ export function compactIdeJobReceipt(job) {
       ALLOWED_KEYS.has(key) ? !EXACT_SHA.test(value) : !SAFE_STATUS.test(value)
     )
       continue;
-    markers.push({ key, value });
+    const identity = JSON.stringify([key, value]);
+    if (markers.has(identity)) {
+      repeatedMarkers++;
+      markers.delete(identity);
+    }
+    markers.set(identity, { key, value });
   }
-  const selected = markers.slice(-MAX_MARKERS);
+  const selected = [...markers.values()].slice(-MAX_MARKERS);
+  const testSummaries = compactTestSummaries(output);
   const finished = [
     "succeeded",
     "failed",
@@ -116,7 +158,11 @@ export function compactIdeJobReceipt(job) {
     approvalOrDeploymentProven: false,
     evidenceScope: "LOCAL_RUNNER_AND_UNTRUSTED_PROJECT_OUTPUT",
     markers: selected,
-    markersTruncated: markers.length > MAX_MARKERS,
+    markersTruncated: markers.size > MAX_MARKERS,
+    ...(repeatedMarkers ? { repeatedMarkers } : {}),
+    ...(testSummaries.length
+      ? { testSummaries, testSummariesVerified: false }
+      : {}),
     logSha256,
     logTailAvailableVia: "get_job_status",
     // No caller-selected argv, cwd, environment, shell, file path, token,
