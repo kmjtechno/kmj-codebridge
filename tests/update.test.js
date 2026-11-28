@@ -270,6 +270,52 @@ test("release downloader pins verified bytes and rejects redirects", async (t) =
   );
 });
 
+test("release downloader retries partial file writes before attesting bytes", async (t) => {
+  const f = fixture();
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-update-partial-"));
+  t.after(() => fs.rmSync(workDir, { recursive: true, force: true }));
+  const originalWrite = fs.writeSync;
+  t.mock.method(
+    fs,
+    "writeSync",
+    (fd, buffer, offset = 0, length = buffer.length - offset) =>
+      originalWrite(fd, buffer, offset, Math.min(3, length)),
+  );
+  const result = await downloadVerifiedReleaseArchive(f.manifest, workDir, {
+    resolveAddress: async () => ({ address: "1.1.1.1", family: 4 }),
+    request: async () => {
+      const response = Readable.from([f.archive]);
+      response.statusCode = 200;
+      response.headers = {};
+      return response;
+    },
+  });
+  assert.deepEqual(fs.readFileSync(result.path), f.archive);
+  assert.equal(result.bytes, f.archive.length);
+  assert.equal(result.sha256, f.manifest.sha256);
+});
+
+test("release downloader fails closed and removes a stalled partial file", async (t) => {
+  const f = fixture();
+  const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-update-stalled-"));
+  t.after(() => fs.rmSync(workDir, { recursive: true, force: true }));
+  t.mock.method(fs, "writeSync", () => 0);
+  await assert.rejects(
+    () =>
+      downloadVerifiedReleaseArchive(f.manifest, workDir, {
+        resolveAddress: async () => ({ address: "1.1.1.1", family: 4 }),
+        request: async () => {
+          const response = Readable.from([f.archive]);
+          response.statusCode = 200;
+          response.headers = {};
+          return response;
+        },
+      }),
+    /UPDATE_DOWNLOAD_FAILED/,
+  );
+  assert.deepEqual(fs.readdirSync(workDir), []);
+});
+
 test("release metadata fetch is DNS-pinned, bounded and rejects redirects", async () => {
   const resolveAddress = async () => ({ address: "1.1.1.1", family: 4 });
   const body = await downloadPinnedHttpsBytes(
