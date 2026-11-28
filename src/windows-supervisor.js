@@ -626,7 +626,13 @@ export function createWindowsSupervisorHandler({
           if (add.exitCode !== 0) fail("SUPERVISOR_WORKTREE_FAILED");
         }
         const head = await git(p, dir, ["rev-parse", "HEAD"]);
-        if (head.exitCode !== 0 || head.output.trim() !== request.sha)
+        if (
+          head.exitCode !== 0 ||
+          head.spawnFailed ||
+          head.timedOut ||
+          head.truncated ||
+          head.output.trim() !== request.sha
+        )
           fail("SUPERVISOR_WORKTREE_UNVERIFIED");
         const after = await checkoutDigest(p);
         return {
@@ -662,7 +668,13 @@ export function createWindowsSupervisorHandler({
         const dir = worktreeDir(p, request.sha);
         if (!exists(dir)) fail("SUPERVISOR_WORKTREE_MISSING");
         const head = await git(p, dir, ["rev-parse", "HEAD"]);
-        if (head.exitCode !== 0 || head.output.trim() !== request.sha)
+        if (
+          head.exitCode !== 0 ||
+          head.spawnFailed ||
+          head.timedOut ||
+          head.truncated ||
+          head.output.trim() !== request.sha
+        )
           fail("SUPERVISOR_WORKTREE_UNVERIFIED");
         const buildDir = pathLib.join(dir, "build");
         let exe;
@@ -758,6 +770,17 @@ export function createWindowsSupervisorHandler({
       return await withLock(async () => {
         const dir = worktreeDir(p, request.sha);
         if (!exists(dir)) fail("SUPERVISOR_WORKTREE_MISSING");
+        // Directory names use only a SHA prefix; verify the full commit
+        // before removing an existing lane, even when Git considers it clean.
+        const head = await git(p, dir, ["rev-parse", "HEAD"]);
+        if (
+          head.exitCode !== 0 ||
+          head.spawnFailed ||
+          head.timedOut ||
+          head.truncated ||
+          head.output.trim() !== request.sha
+        )
+          fail("SUPERVISOR_WORKTREE_UNVERIFIED");
         const before = await checkoutDigest(p);
         // No --force: a worktree with unsaved changes is refused, not destroyed.
         const rm = await git(p, p.repoRoot, ["worktree", "remove", dir]);

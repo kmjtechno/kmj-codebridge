@@ -406,7 +406,16 @@ export async function downloadVerifiedReleaseArchive(
       const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
       bytes += data.length;
       if (bytes > manifest.bytes) fail("UPDATE_ARCHIVE_SIZE_MISMATCH");
-      fs.writeSync(fd, data);
+      // A synchronous write can succeed with fewer bytes than requested.
+      // Never attest the incoming hash until every byte has reached the file.
+      let offset = 0;
+      while (offset < data.length) {
+        const remaining = data.length - offset;
+        const written = fs.writeSync(fd, data, offset, remaining);
+        if (!Number.isInteger(written) || written <= 0 || written > remaining)
+          fail("UPDATE_DOWNLOAD_FAILED");
+        offset += written;
+      }
       hash.update(data);
     }
     if (bytes !== manifest.bytes) fail("UPDATE_ARCHIVE_SIZE_MISMATCH");
