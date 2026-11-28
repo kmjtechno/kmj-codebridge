@@ -3,6 +3,28 @@ import path from "node:path";
 import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
+const CORE_TESTS = ["desktop-smoke", "independent-engine", "media-control"];
+const MEASURED_TESTS = ["measured-fisheye", "measured-surface"];
+const OFFLINE_TESTS = [...CORE_TESTS, ...MEASURED_TESTS];
+
+export function classifyStudioTestInventory(inventory) {
+  const reject = () => {
+    throw new Error("STUDIO_QA_TEST_INVENTORY_REJECTED");
+  };
+  if (!Array.isArray(inventory?.tests)) reject();
+  const names = inventory.tests.map((test) => test?.name);
+  if (
+    names.some((name) => !OFFLINE_TESTS.includes(name)) ||
+    new Set(names).size !== names.length ||
+    CORE_TESTS.some((name) => !names.includes(name))
+  )
+    reject();
+  const measured = MEASURED_TESTS.filter((name) => names.includes(name));
+  if (measured.length !== 0 && measured.length !== MEASURED_TESTS.length)
+    reject();
+  return measured.length === 0 ? "NOT_REGISTERED" : "REGISTERED";
+}
+
 // First-party bounded job, invoked only through the exact-head Studio profile.
 // The job runner owns the overall deadline and process-tree cancellation.
 export function planStudioQa({ cmake, ctest, qt, build }) {
@@ -39,7 +61,7 @@ export function planStudioQa({ cmake, ctest, qt, build }) {
         "--output-on-failure",
         "--no-tests=error",
         "-R",
-        "^(desktop-smoke|independent-engine|media-control)$",
+        "^(" + OFFLINE_TESTS.join("|") + ")$",
       ],
     },
   ];
@@ -103,13 +125,10 @@ function main() {
       );
       if (inventory.error || inventory.status !== 0)
         throw new Error("STUDIO_QA_TEST_INVENTORY_FAILED");
-      const required = ["desktop-smoke", "independent-engine", "media-control"];
-      const names = JSON.parse(inventory.stdout).tests.map((test) => test.name);
-      if (
-        names.length !== required.length ||
-        required.some((name) => !names.includes(name))
-      )
-        throw new Error("STUDIO_QA_REQUIRED_TESTS_MISSING");
+      const coverage = classifyStudioTestInventory(
+        JSON.parse(inventory.stdout),
+      );
+      console.log("STUDIO_EXACT_QA_MEASURED=" + coverage);
     }
     const result = spawnSync(stage.command, stage.args, {
       cwd,
