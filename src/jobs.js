@@ -696,14 +696,25 @@ export class JobRunner {
       this.persist(j);
       return;
     }
-    const child = spawn(spawnCommand, spawnArgs, {
-      cwd,
-      env,
-      shell: false,
-      detached: process.platform !== "win32",
-      windowsHide: true,
-      stdio: [powershellStdin ? "pipe" : "ignore", "pipe", "pipe"],
-    });
+    let child;
+    try {
+      child = spawn(spawnCommand, spawnArgs, {
+        cwd,
+        env,
+        shell: false,
+        detached: process.platform !== "win32",
+        windowsHide: true,
+        stdio: [powershellStdin ? "pipe" : "ignore", "pipe", "pipe"],
+      });
+    } catch {
+      // Synchronous spawn errors have no child close event. Publish a
+      // terminal failure so the job cannot remain permanently running.
+      j.state = "failed";
+      j.endedAt = new Date().toISOString();
+      j.output = "JOB_SPAWN_FAILED";
+      this.persist(j);
+      return;
+    }
     if (powershellStdin) child.stdin.end();
     const active = {
       child,
