@@ -48,3 +48,15 @@ or expiry is within seven days. It never modifies the owner policy, renews
 consent or authorizes signing. These are advisory defaults, not new signing
 policy limits. Wire these helpers to an authorized backend before displaying
 live status; the functions alone are not an installed broker or alert service.
+
+## Read-only Supervisor batch integration
+
+Use the existing `fast_read_batch` tool on the enrolled
+`kmj-elite-main-platform` device and `kmj-main-platform` project with one
+each of the existing staging, production and maintenance status calls and
+empty arguments. Each call retains existing per-tool read authorization.
+The response includes `operationsReadiness` before compacting the individual
+results. Missing, failed or conflicting observations cannot prove readiness.
+The aggregate is not an atomic host snapshot, exact-main CI, authenticated
+QA, an owner grant, signing permission or an execution receipt. No write
+operation or new privileged Supervisor opcode is added.
