@@ -1,7 +1,7 @@
 # Owner-only P520 Calibration Studio development profile admission.
 # No private config is printed, no service is installed, no project file is overwritten.
 [CmdletBinding()]
-param([switch]$Apply,[switch]$EnableHardware,[switch]$SelfTest)
+param([switch]$Apply,[switch]$EnableHardware,[switch]$SelfTest,[switch]$SchemaSelfTest)
 Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $device='kmj-kmj-calibration-studio-desktop-5fvjmet'
@@ -38,6 +38,54 @@ function GitScope([string]$Root,[string[]]$Origins) {
     Require ($LASTEXITCODE -eq 0 -and [IO.Path]::GetFullPath($top).TrimEnd('\') -ieq [IO.Path]::GetFullPath($Root).TrimEnd('\')) 'STUDIO_GIT_ROOT_MISMATCH'
     $origin=[string]((& git.exe -C $Root remote get-url origin 2>$null)|Select-Object -First 1)
     Require ($LASTEXITCODE -eq 0 -and $origin.Trim() -cin $Origins) 'STUDIO_GIT_ORIGIN_DENIED'
+}
+# PowerShell 5.1's native -e quoting loses embedded JavaScript quotes.
+# Send fixed source via stdin, use an ordinary file argument, and never surface
+# child stderr (which may contain private paths or schema values).
+function InvokeNodeInput([string]$Node,[string]$Runtime,[string]$InputFile,[string]$Source) {
+    Ordinary $Node $false
+    Ordinary $Runtime $true
+    Ordinary $InputFile $false
+    Require (!$InputFile.Contains('"')) 'STUDIO_SCHEMA_PATH_UNSAFE'
+    $start=New-Object Diagnostics.ProcessStartInfo
+    $start.FileName=$Node
+    $start.WorkingDirectory=$Runtime
+    $start.Arguments='--input-type=module - "'+$InputFile+'"'
+    $start.UseShellExecute=$false
+    $start.CreateNoWindow=$true
+    $start.RedirectStandardInput=$true
+    $start.RedirectStandardOutput=$true
+    $start.RedirectStandardError=$true
+    # Do not inherit Node injection/debug settings from the owner environment.
+    foreach($name in @('NODE_OPTIONS','NODE_PATH','NODE_DEBUG','NODE_DEBUG_NATIVE')){
+        $start.EnvironmentVariables.Remove($name)
+    }
+    $child=New-Object Diagnostics.Process
+    $child.StartInfo=$start
+    try {
+        Require ($child.Start()) 'STUDIO_SCHEMA_PROCESS_START_FAILED'
+        $outputTask=$child.StandardOutput.ReadToEndAsync()
+        $errorTask=$child.StandardError.ReadToEndAsync()
+        $child.StandardInput.Write($Source)
+        $child.StandardInput.Close()
+        if(!$child.WaitForExit(15000)){
+            $child.Kill()
+            $null=$child.WaitForExit(3000)
+            throw 'STUDIO_SCHEMA_PROCESS_TIMEOUT'
+        }
+        Require ($outputTask.Wait(2000) -and $errorTask.Wait(2000)) 'STUDIO_SCHEMA_PIPE_TIMEOUT'
+        # Only known fixed status codes are ever printed by the caller.
+        $out=$outputTask.Result
+        Require ($out.Length -le 64) 'STUDIO_SCHEMA_OUTPUT_INVALID'
+        return [pscustomobject]@{ExitCode=$child.ExitCode;Marker=$out}
+    }finally{$child.Dispose()}
+}
+function ValidateStagedConfig([string]$Node,[string]$Runtime,[string]$InputFile) {
+    $source='import fs from "node:fs"; let schema; try { ({agentSchema:schema}=await import("./src/config.js")); } catch {process.stdout.write("SCHEMA_IMPORT_FAILED");process.exit(3);} try {schema.parse(JSON.parse(fs.readFileSync(process.argv[2],"utf8")));process.stdout.write("SCHEMA_PASS");} catch {process.stdout.write("SCHEMA_REJECTED");process.exit(2);}'
+    $result=InvokeNodeInput $Node $Runtime $InputFile $source
+    if($result.ExitCode -eq 3 -and $result.Marker -ceq 'SCHEMA_IMPORT_FAILED'){throw 'STUDIO_RUNTIME_SCHEMA_IMPORT_FAILED'}
+    if($result.ExitCode -eq 2 -and $result.Marker -ceq 'SCHEMA_REJECTED'){throw 'STUDIO_CONFIG_SCHEMA_REJECTED'}
+    Require ($result.ExitCode -eq 0 -and $result.Marker -ceq 'SCHEMA_PASS') 'STUDIO_SCHEMA_PROCESS_FAILED'
 }
 function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
     return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
@@ -91,6 +139,7 @@ function AddProfiles($Project,$Profiles) {
 }
 
 try {
+    Require (!$SchemaSelfTest -or $SelfTest) 'STUDIO_SCHEMA_SELFTEST_SCOPE'
     if($SelfTest){
         # Exercise actual filesystem ancestor traversal, not just profile data.
         $fixture=Join-Path ([IO.Path]::GetTempPath()) ('kmj-studio-path-'+[guid]::NewGuid().ToString('N'))
@@ -107,6 +156,33 @@ try {
             Write-Output 'STUDIO_PATH_TRAVERSAL_SELFTEST=PASS'
         }finally{
             if([IO.Directory]::Exists($fixture)){[IO.Directory]::Delete($fixture,$true)}
+        }
+        $nodeFixture=(Get-Command node.exe -CommandType Application -ErrorAction Stop|Select-Object -First 1).Source
+        $transportFixture=Join-Path ([IO.Path]::GetTempPath()) ('kmj studio schema '+[guid]::NewGuid().ToString('N'))
+        try {
+            [void][IO.Directory]::CreateDirectory($transportFixture)
+            $json=Join-Path $transportFixture 'fixture config.json'
+            [IO.File]::WriteAllText($json,'{"fixture":"quoted value"}',[Text.UTF8Encoding]::new($false))
+            $transport='import fs from "node:fs";const data=JSON.parse(fs.readFileSync(process.argv[2],"utf8"));if(data.fixture!=="quoted value")process.exit(4);process.stdout.write("TRANSPORT_PASS");'
+            $result=InvokeNodeInput $nodeFixture $transportFixture $json $transport
+            Require ($result.ExitCode -eq 0 -and $result.Marker -ceq 'TRANSPORT_PASS') 'STUDIO_SELFTEST_NODE_TRANSPORT'
+            $negative=InvokeNodeInput $nodeFixture $transportFixture $json 'process.stderr.write("FIXTURE_PRIVATE_STDERR");process.stdout.write("REJECTED");process.exit(2);'
+            Require ($negative.ExitCode -eq 2 -and $negative.Marker -ceq 'REJECTED') 'STUDIO_SELFTEST_NODE_NEGATIVE'
+            Write-Output 'STUDIO_NODE_TRANSPORT_SELFTEST=PASS'
+            if($SchemaSelfTest){
+                $runtimeFixture=[IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..\..'))
+                $synthetic=[ordered]@{id=$device;tenant='fixture';gateway='https://kmjtechno.com';token=('x'*32);stateDir=$transportFixture;license=@{mode='free'};projects=@(@{id=$project;root=$transportFixture;writable=$true;commands=(Profiles $transportFixture 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' $transportFixture $true)})}
+                [IO.File]::WriteAllText($json,($synthetic|ConvertTo-Json -Depth 32),[Text.UTF8Encoding]::new($false))
+                ValidateStagedConfig $nodeFixture $runtimeFixture $json
+                $synthetic.projects[0].commands.studio_build.variants.debug.timeoutMs=300001
+                [IO.File]::WriteAllText($json,($synthetic|ConvertTo-Json -Depth 32),[Text.UTF8Encoding]::new($false))
+                $schemaDenied=$false
+                try{ValidateStagedConfig $nodeFixture $runtimeFixture $json}catch{$schemaDenied=$_.Exception.Message -ceq 'STUDIO_CONFIG_SCHEMA_REJECTED'}
+                Require $schemaDenied 'STUDIO_SELFTEST_SCHEMA_NEGATIVE'
+                Write-Output 'STUDIO_REAL_SCHEMA_SELFTEST=PASS'
+            }
+        }finally{
+            if([IO.Directory]::Exists($transportFixture)){[IO.Directory]::Delete($transportFixture,$true)}
         }
         $p=[pscustomobject]@{id=$project;root='C:\fixture';writable=$true;label='preserve'}
         $profiles=Profiles 'C:\fixture' 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' 'C:\fixture\qa' $false
@@ -213,10 +289,8 @@ try {
         & "$env:SystemRoot\System32\icacls.exe" $tmp '/inheritance:r' '/grant:r' ('*'+$sid+':F') 1>$null 2>$null
         Require ($LASTEXITCODE -eq 0) 'STUDIO_STAGE_ACL_FAILED'
         PrivateAcl $tmp
-        $js='import fs from "node:fs"; import {agentSchema} from "./src/config.js"; try {agentSchema.parse(JSON.parse(fs.readFileSync(process.argv[1],"utf8")));process.stdout.write("SCHEMA_PASS");}catch{process.exit(2);}'
-        Push-Location -LiteralPath $runtime
-        try{$valid=[string](& $node --input-type=module -e $js $tmp 2>$null);$rc=$LASTEXITCODE}finally{Pop-Location}
-        Require ($rc -eq 0 -and $valid -ceq 'SCHEMA_PASS') 'STUDIO_CONFIG_SCHEMA_REJECTED'
+        ValidateStagedConfig $node $runtime $tmp
+        Write-Output 'STUDIO_STAGED_SCHEMA=PASS'
         Require ((Get-FileHash -LiteralPath $config -Algorithm SHA256).Hash -ceq $originalHash) 'STUDIO_CONFIG_MOVED'
         if(!(Test-Path -LiteralPath $evidence)){
             New-Item -ItemType Directory -Path $evidence|Out-Null
