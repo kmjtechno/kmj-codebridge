@@ -30,32 +30,73 @@ const MAX_OUTPUT_BYTES = 32768;
 // summary per framework, never sum repeated banners or copy arbitrary lines.
 export function compactTestSummaries(output) {
   const summaries = new Map();
-  for (const raw of output.split(/\r?\n/)) {
+  const fields = {
+    passed: "passed",
+    failed: "failed",
+    skipped: "skipped",
+    error: "errors",
+    errors: "errors",
+    xfailed: "xfailed",
+    xpassed: "xpassed",
+    deselected: "deselected",
+    "subtests passed": "subtestsPassed",
+    warning: "warnings",
+    warnings: "warnings",
+  };
+  for (const raw of output.slice(-MAX_OUTPUT_BYTES).split(/\r?\n/)) {
     const line = raw.trim();
-    let match =\n      /^(\d{1,3})% tests passed, (\d{1,7}) tests? failed out of (\d{1,7})$/.exec(\n        line,\n      );
+    let match =
+      /^(\d{1,3})% tests passed, (\d{1,7}) tests? failed out of (\d{1,7})$/.exec(
+        line,
+      );
     if (match) {
       const [percent, failed, total] = match.slice(1).map(Number);
       if (percent <= 100 && failed <= total && total > 0)
-        summaries.set("ctest", { framework: "ctest", total, failed, passed: total - failed });
+        summaries.set("ctest", {
+          framework: "ctest",
+          total,
+          failed,
+          passed: total - failed,
+        });
       continue;
     }
-    match = /^test result: (?:ok|FAILED)\. (\d{1,7}) passed; (\d{1,7}) failed; (\d{1,7}) ignored; (\d{1,7}) measured; (\d{1,7}) filtered out(?:; finished in [\d.]+s)?$/.exec(line);
+    match =
+      /^test result: (?:ok|FAILED)\. (\d{1,7}) passed; (\d{1,7}) failed; (\d{1,7}) ignored; (\d{1,7}) measured; (\d{1,7}) filtered out(?:; finished in [\d.]+s)?$/.exec(
+        line,
+      );
     if (match) {
-      const [passed, failed, ignored, measured, filteredOut] = match.slice(1).map(Number);
-      summaries.set("cargo", { framework: "cargo", passed, failed, ignored, measured, filteredOut });
+      const [passed, failed, ignored, measured, filteredOut] = match
+        .slice(1)
+        .map(Number);
+      summaries.set("cargo", {
+        framework: "cargo",
+        passed,
+        failed,
+        ignored,
+        measured,
+        filteredOut,
+      });
       continue;
     }
-    match = /^(?:=+ )?((?:\d{1,7} (?:passed|failed|skipped|errors?|xfailed|xpassed|deselected|subtests passed|warnings?)(?:, |(?= in )))+) in \d+(?:\.\d+)?s(?: =+)?$/.exec(line);
-    if (match) {
-      const summary = { framework: "pytest" };
-      const fields = { passed: "passed", failed: "failed", skipped: "skipped", error: "errors", errors: "errors", xfailed: "xfailed", xpassed: "xpassed", deselected: "deselected", "subtests passed": "subtestsPassed", warning: "warnings", warnings: "warnings" };
-      for (const item of match[1].split(", ")) {
-        const count = /^(\d{1,7}) (.+)$/.exec(item);
-        if (count && Object.hasOwn(fields, count[2]))
-          summary[fields[count[2]]] = Number(count[1]);
+    match = /^(?:=+ )?(.+) in \d+(?:\.\d+)?s(?: =+)?$/.exec(line);
+    if (!match) continue;
+    const summary = { framework: "pytest" };
+    const parts = match[1].split(", ");
+    if (parts.length > 11) continue;
+    let valid = true;
+    for (const item of parts) {
+      const count = /^(\d{1,7}) (.+)$/.exec(item);
+      if (
+        !count ||
+        !Object.hasOwn(fields, count[2]) ||
+        Object.hasOwn(summary, fields[count[2]])
+      ) {
+        valid = false;
+        break;
       }
-      summaries.set("pytest", summary);
+      summary[fields[count[2]]] = Number(count[1]);
     }
+    if (valid) summaries.set("pytest", summary);
   }
   return [...summaries.values()];
 }
