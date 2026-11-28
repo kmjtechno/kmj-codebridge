@@ -12,7 +12,9 @@ test("any Windows PC can enroll without a hard-coded PC or project identity", ()
   assert.match(content, /function ValidScope/);
   assert.match(content, /EndsWith\('-' \+ \$hostSlug/);
   assert.match(content, /DEVICE_ENROLLMENT_OR_HOST_SCOPE_MISMATCH/);
-  assert.match(content, /function ChooseExisting/);
+  assert.match(content, /function ChooseConnection/);
+  assert.match(content, /function ConnectionChoices/);
+  assert.doesNotMatch(content, /OpenFileDialog/);
   assert.match(content, /function SelectProject/);
   assert.match(content, /function FirstPair/);
   assert.match(content, /scripts\\enroll-device\.js/);
@@ -25,7 +27,7 @@ test("any Windows PC can enroll without a hard-coded PC or project identity", ()
   assert.match(content, /function FindKnownApproved/);
   assert.match(content, /FindKnownApproved \$projectRoot \$projectId/);
   assert.match(content, /DEVICE_EXISTING_PROJECT_ENROLLMENT_USE_RECONNECT/);
-  assert.match(content, /KMJ_UNIVERSAL=EXISTING_SCOPED_AGENT_AUTO_SELECTED/);
+  assert.match(content, /KMJ_UNIVERSAL=EXISTING_PROJECT_AGENT_AUTO_SELECTED/);
   assert.match(content, /function AssertEmptyRetryState/);
   assert.match(content, /AssertEmptyRetryState \$base \$state/);
   assert.match(content, /DEVICE_EXISTING_PRIVATE_SETUP_REVIEW_REQUIRED/);
@@ -43,7 +45,7 @@ test("spaced OmniDesk checkout is bound to the GitHub repository slug, not the f
   assert.match(content, /https:\/\/github\\\.com/);
   assert.match(content, /DEVICE_PROJECT_ID_UNSUPPORTED/);
   assert.match(content, /\$projectId = ProjectIdForRoot \$projectRoot/);
-  assert.match(content, /\$givenId = ProjectIdForRoot \$givenRoot/);
+  assert.match(content, /\$givenId\s*=\s*ProjectIdForRoot \$givenRoot/);
   assert.match(content, /KnownGitRoot \$givenRoot/);
   assert.match(content, /KMJ_UNIVERSAL_SPACE_DIR_SELFTEST=PASS/);
   assert.doesNotMatch(content, /\$projectId = \[IO\.Path\]::GetFileName/);
@@ -100,18 +102,19 @@ test("true one-click: no dialog when the choice is unambiguous", () => {
   assert.match(content, /\[string\]\$ProjectRoot,/);
   assert.match(content, /DEVICE_PROJECT_ROOT_NOT_ABSOLUTE/);
   assert.match(content, /DEVICE_PROJECT_ROOT_MISSING/);
-  // Nothing paired yet -> straight to browser approval (no Yes/No/Cancel).
-  assert.match(
-    content,
-    /\$known\.Count -eq 0\) \{[\s\S]*?NEW_DEVICE_AUTO_PAIRING[\s\S]*?\$auto = FirstPair/,
-  );
+  // Nothing paired yet -> only the new-project action, no chooser dialog.
+  assert.match(content, /if\(\$choices\.Count -eq 1\)\{return \$choices\[0\]\}/);
+  assert.match(content, /if \(\$selection\.New\) \{ \$ConfigPath=FirstPair \}/);
   // A project already paired here reconnects instead of re-pairing.
   assert.match(content, /EXISTING_PROJECT_AGENT_AUTO_SELECTED/);
   assert.match(content, /NEW_PROJECT_AUTO_PAIRING/);
   assert.match(content, /DEVICE_DUPLICATE_PROJECT_ENROLLMENTS_REVIEW/);
-  // The remaining dialog explains every button.
-  assert.match(content, /NO = connect a NEW project folder/);
-  assert.match(content, /CANCEL = stop without changes/);
+  // One project selector replaces the old Yes/No and raw JSON picker.
+  assert.match(content, /Connect a new project/);
+  assert.match(content, /Existing devices reconnect without pairing/);
+  assert.match(content, /DEVICE_DUPLICATE_ENROLLMENTS_REVIEW/);
+  assert.match(content, /DEVICE_AGENT_OWNER_MISMATCH/);
+  assert.match(content, /ALREADY_RUNNING_VERIFY_DASHBOARD/);
   // Pairing still requires the owner browser approval and grant checks.
   assert.match(content, /KMJ_UNIVERSAL=OWNER_BROWSER_APPROVAL_REQUIRED/);
   assert.match(content, /DEVICE_APPROVAL_GRANT_MISMATCH/);
@@ -162,6 +165,7 @@ test(
     assert.match(r.stdout, /KMJ_UNIVERSAL_SELFTEST=PASS/);
     assert.match(r.stdout, /KMJ_UNIVERSAL_RETRY_SELFTEST=PASS/);
     assert.match(r.stdout, /KMJ_UNIVERSAL_SPACE_DIR_SELFTEST=PASS/);
+    assert.match(r.stdout, /KMJ_UNIVERSAL_CUSTOMER_CHOOSER_SELFTEST=PASS/);
     assert.match(r.stdout, /REAL_STARTUP_CHANGED=NO/);
     const blocked = spawnSync(
       "powershell.exe",
