@@ -13,11 +13,13 @@ function Require([bool]$Ok,[string]$Code) { if(!$Ok){throw $Code} }
 function Ordinary([string]$Path,[bool]$Directory) {
     Require ([IO.Path]::IsPathRooted($Path)) 'STUDIO_PATH_NOT_ABSOLUTE'
     $item=Get-Item -LiteralPath $Path -Force
-    Require ([bool]$item.PSIsContainer -eq $Directory) 'STUDIO_PATH_TYPE'
+    Require ((($Directory -and $item -is [IO.DirectoryInfo]) -or (!$Directory -and $item -is [IO.FileInfo]))) 'STUDIO_PATH_TYPE'
     $cursor=$item
     while($null -ne $cursor) {
         Require (!(($cursor.Attributes -band [IO.FileAttributes]::ReparsePoint))) 'STUDIO_REPARSE_DENIED'
-        if($cursor.PSIsContainer){$cursor=$cursor.Parent}else{$cursor=$cursor.Directory}
+        if($cursor -is [IO.DirectoryInfo]){$cursor=$cursor.Parent}
+        elseif($cursor -is [IO.FileInfo]){$cursor=$cursor.Directory}
+        else{throw 'STUDIO_PATH_TYPE'}
     }
 }
 function PrivateAcl([string]$Path) {
@@ -90,6 +92,22 @@ function AddProfiles($Project,$Profiles) {
 
 try {
     if($SelfTest){
+        # Exercise actual filesystem ancestor traversal, not just profile data.
+        $fixture=Join-Path ([IO.Path]::GetTempPath()) ('kmj-studio-path-'+[guid]::NewGuid().ToString('N'))
+        try {
+            $nested=Join-Path $fixture 'nested'
+            [void][IO.Directory]::CreateDirectory($nested)
+            $leaf=Join-Path $nested 'fixture.txt'
+            [IO.File]::WriteAllText($leaf,'fixture')
+            Ordinary $nested $true
+            Ordinary $leaf $false
+            $wrongTypeDenied=$false
+            try{Ordinary $leaf $true}catch{$wrongTypeDenied=$_.Exception.Message -ceq 'STUDIO_PATH_TYPE'}
+            Require $wrongTypeDenied 'STUDIO_SELFTEST_PATH_TYPE'
+            Write-Output 'STUDIO_PATH_TRAVERSAL_SELFTEST=PASS'
+        }finally{
+            if([IO.Directory]::Exists($fixture)){[IO.Directory]::Delete($fixture,$true)}
+        }
         $p=[pscustomobject]@{id=$project;root='C:\fixture';writable=$true;label='preserve'}
         $profiles=Profiles 'C:\fixture' 'C:\cmake.exe' 'C:\ctest.exe' 'C:\Qt' 'C:\fixture\qa' $false
         Require ($profiles.Count -eq 5 -and !$profiles.Contains('studio_hardware')) 'STUDIO_SELFTEST_DEFAULT_SCOPE'
@@ -227,6 +245,9 @@ try {
         Write-Output ('STUDIO_SELFTEST_ERROR_TYPE='+$_.Exception.GetType().Name)
         Write-Output ('STUDIO_SELFTEST_ERROR='+[string]$_.Exception.Message)
     }
+    # Bounded, non-secret local diagnostics for the real preflight as well.
+    Write-Output ('STUDIO_ERROR_LINE='+$_.InvocationInfo.ScriptLineNumber)
+    Write-Output ('STUDIO_ERROR_TYPE='+$_.Exception.GetType().Name)
     $code=[string]$_.Exception.Message
     if($code -notmatch '^STUDIO_[A-Z0-9_]{3,100}$'){$code='STUDIO_LOCAL_PRECONDITION_FAILED'}
     Write-Output ('STUDIO_DEV=BLOCKED:'+$code)
