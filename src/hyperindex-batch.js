@@ -107,8 +107,7 @@ export function batchHyperSearch(files, queries, { maxResults = 10 } = {}) {
       truncated: row.truncated || coverage.truncated,
     })),
     coverage,
-    truncated:
-      coverage.truncated || results.some((result) => result.truncated),
+    truncated: coverage.truncated || results.some((result) => result.truncated),
     fallback: false,
     persistentIndexUsed: false,
   };
