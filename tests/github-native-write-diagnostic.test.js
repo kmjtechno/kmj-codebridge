@@ -103,6 +103,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
   quota = false;
   for (const [status, code, classification] of [
     [404, "GITHUB_NOT_FOUND", "http_404"],
+    [405, "GITHUB_REQUEST_FAILED", "http_405"],
     [409, "GITHUB_CONFLICT", "conflict"],
     [422, "GITHUB_CONFLICT", "conflict"],
     [429, "GITHUB_RATE_LIMIT", "rate_limited"],
@@ -164,7 +165,7 @@ test("native GitHub doctor reports bounded, repository-scoped write HTTP classes
     classification: "http_403",
     operation: "issue_comment",
   });
-  assert.equal(calls.filter((call) => call.method === "POST").length, 11);
+  assert.equal(calls.filter((call) => call.method === "POST").length, 12);
 
   for (const receipt of [initial, forbidden, recovered]) {
     const serialized = JSON.stringify(receipt);
