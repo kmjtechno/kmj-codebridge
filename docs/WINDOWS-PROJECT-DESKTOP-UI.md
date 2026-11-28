@@ -17,6 +17,14 @@ Invoke requests require a unique enabled, visible matching control and
 recheck the process and foreground identity. A returned invoke request
 does not establish its application-side effect.
 
+A separate EnableDesktopCapture opt-in provides local-only PNG evidence of
+an approved foreground application through PrintWindow. The helper does not
+fall back to desktop-wide capture; it rechecks the target and stores a unique
+owner-only file under protected device state. Capture is bounded to 3840 by
+2160 pixels, 16 MiB, and 20 retained images. It returns an evidence ID,
+byte count and SHA-256, never image bytes. PrintWindow may not render GPU
+content correctly; a receipt is not proof of visual parity.
+
 No global keyboard or mouse injection, arbitrary coordinate action,
 clipboard access, user-session switching, screenshot transfer, camera
 activation, or new OAuth grant is introduced. Application-specific
