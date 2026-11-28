@@ -88,6 +88,29 @@ function main() {
     PATH: path.join(qt, "bin") + path.delimiter + process.env.PATH,
   };
   for (const stage of planStudioQa({ cmake, ctest, qt, build })) {
+    if (stage.name === "ctest") {
+      const inventory = spawnSync(
+        ctest,
+        [...stage.args, "--show-only=json-v1"],
+        {
+          cwd,
+          env,
+          shell: false,
+          windowsHide: true,
+          encoding: "utf8",
+          maxBuffer: 262144,
+        },
+      );
+      if (inventory.error || inventory.status !== 0)
+        throw new Error("STUDIO_QA_TEST_INVENTORY_FAILED");
+      const required = ["desktop-smoke", "independent-engine", "media-control"];
+      const names = JSON.parse(inventory.stdout).tests.map((test) => test.name);
+      if (
+        names.length !== required.length ||
+        required.some((name) => !names.includes(name))
+      )
+        throw new Error("STUDIO_QA_REQUIRED_TESTS_MISSING");
+    }
     const result = spawnSync(stage.command, stage.args, {
       cwd,
       env,
