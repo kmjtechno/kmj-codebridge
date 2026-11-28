@@ -545,6 +545,8 @@ export class JobRunner {
       output: "",
       truncated: false,
     };
+    // A rejected journal write must not leave a runnable in-memory job.
+    this.persist(j);
     this.jobs.set(j.id, j);
     this.pending.set(j.id, {
       cwd,
@@ -554,7 +556,6 @@ export class JobRunner {
       beforeStart,
       artifacts,
     });
-    this.persist(j);
     this.drain();
     return this.public(j);
   }
