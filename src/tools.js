@@ -916,10 +916,11 @@ export const definitions = {
   coordination_list: {
     title: "Read project agent coordination mailbox",
     description:
-      "List bounded notes and replies from authorized project agents: issues, blockers, proposals, handoffs and reported test outcomes. Actor names and PASS/FAIL are caller-reported, not attested. No background work or worker starts.",
+      "List bounded notes and replies from authorized project agents: issues, blockers, proposals, handoffs and reported test outcomes. Set latest=true for the newest page in one call; do not combine with after. Actor names and PASS/FAIL are caller-reported, not attested. No background work or worker starts.",
     input: {
       ...scoped,
       limit: z.number().int().min(1).max(50).default(25),
+      latest: z.boolean().default(false),
       after: z
         .string()
         .regex(/^[a-f0-9]{64}$/)
@@ -2762,7 +2763,11 @@ export function createDispatcher(
     if (name === "coordination_list")
       return {
         device: config.id,
-        ...coordination().list(p.id, { limit: a.limit, after: a.after }),
+        ...coordination().list(p.id, {
+          limit: a.limit,
+          after: a.after,
+          latest: a.latest,
+        }),
       };
     if (name === "coordination_post")
       return {

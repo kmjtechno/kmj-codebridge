@@ -132,6 +132,37 @@ test("real MCP SDK context_resume returns delta only on the same digest", async 
   assert.equal(changed.mailbox.actorLabelsVerified, false);
   assert.equal(changed.mailbox.recent[0].note, "new evidence is ready");
 
+  // A mailbox larger than one page must still surface its newest handoff.
+  for (let n = 2; n <= 7; n++) {
+    const event = value(
+      await client.callTool({
+        name: "coordination_post",
+        arguments: {
+          ...scope,
+          actor: "test-worker",
+          requestKey: "resume-delta-event-" + n,
+          kind: "result",
+          note: "new evidence " + n,
+        },
+      }),
+    );
+    assert.equal(event.stored, true);
+  }
+  const latest = value(
+    await client.callTool({
+      name: "context_resume",
+      arguments: { ...scope, ifNoneMatch: changed.digest },
+    }),
+  );
+  assert.equal(latest.mailbox.totalStored, 7);
+  assert.equal(latest.mailbox.recent.length, 5);
+  assert.equal(latest.mailbox.recent.at(-1).note, "new evidence 7");
+  assert.equal(
+    latest.mailbox.recent.some((m) => m.note === "new evidence is ready"),
+    false,
+  );
+  assert.notEqual(latest.digest, changed.digest);
+
   // Chat A and chat B can independently remember short state without
   // replaying the full conversation, then use one read-only sync tool.
   assert.ok(tools.tools.some((tool) => tool.name === "multi_chat_sync"));

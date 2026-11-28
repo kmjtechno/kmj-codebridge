@@ -57,6 +57,34 @@ test("project-scoped messages support idempotent replies and cursor paging", (t)
   assert.equal(first.automaticWorkerStarted, false);
 });
 
+test("latest mailbox page returns the tail without changing legacy cursors", (t) => {
+  const dir = fs.mkdtempSync(joinTmp());
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  let clock = now;
+  const box = new AgentCoordination(dir, { now: () => clock++ });
+  for (let n = 0; n < 12; n++)
+    box.post("project1", sample({ requestKey: "event-" + n }));
+  const oldest = box.list("project1", { limit: 5 });
+  const latest = box.list("project1", { limit: 5, latest: true });
+  assert.deepEqual(
+    oldest.messages.map((m) => m.requestKey),
+    ["event-0", "event-1", "event-2", "event-3", "event-4"],
+  );
+  assert.deepEqual(
+    latest.messages.map((m) => m.requestKey),
+    ["event-7", "event-8", "event-9", "event-10", "event-11"],
+  );
+  assert.equal(latest.latest, true);
+  assert.equal(latest.nextCursor, null);
+  assert.equal(latest.totalStored, 12);
+  assert.equal(oldest.latest, undefined);
+  assert.throws(
+    () => box.list("project1", { latest: true, after: oldest.nextCursor }),
+    /COORDINATION_INVALID_QUERY/,
+  );
+  assert.deepEqual(box.list("other", { latest: true }).messages, []);
+});
+
 test("retries cannot mutate messages, cross-project replies are denied", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cb-collab-"));
   t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
