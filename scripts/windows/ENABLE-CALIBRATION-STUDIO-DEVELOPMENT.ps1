@@ -37,8 +37,8 @@ function GitScope([string]$Root,[string[]]$Origins) {
     $origin=[string]((& git.exe -C $Root remote get-url origin 2>$null)|Select-Object -First 1)
     Require ($LASTEXITCODE -eq 0 -and $origin.Trim() -cin $Origins) 'STUDIO_GIT_ORIGIN_DENIED'
 }
-function Variant([string[]]$Args,[int]$Timeout) {
-    return [ordered]@{args=@($Args);timeoutMs=$Timeout}
+function Variant([string[]]$ArgumentList,[int]$TimeoutMs) {
+    return [ordered]@{args=@($ArgumentList);timeoutMs=$TimeoutMs}
 }
 function Profile([string]$Category,[string]$Description,[string]$Exe,$Variants) {
     return [ordered]@{category=$Category;description=$Description;command=$Exe;variants=$Variants}
@@ -130,14 +130,14 @@ try {
 
     # The actual, already enrolled agent must identify exactly one active
     # Node/CLI process for this config. Never display process command lines.
-    $matches=@(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
+    $agentProcesses=@(Get-CimInstance Win32_Process -Filter "Name='node.exe'" | Where-Object {
         $_.CommandLine -and $_.CommandLine.IndexOf($config,[StringComparison]::OrdinalIgnoreCase) -ge 0 -and
         $_.CommandLine -match '(?i)src[\\/]cli\.js"?\s+agent(?:\s|$)'
     })
-    Require ($matches.Count -eq 1) 'STUDIO_AGENT_PROCESS_NOT_UNIQUE'
-    $node=[string]$matches[0].ExecutablePath
+    Require ($agentProcesses.Count -eq 1) 'STUDIO_AGENT_PROCESS_NOT_UNIQUE'
+    $node=[string]$agentProcesses[0].ExecutablePath
     Ordinary $node $false
-    $cliMatch=[regex]::Match([string]$matches[0].CommandLine,'(?i)(?:"(?<cli>[^"]+[\\/]src[\\/]cli\.js)"|(?<cli>[A-Z]:[\\/][^"\s]+[\\/]src[\\/]cli\.js))\s+agent(?:\s|$)')
+    $cliMatch=[regex]::Match([string]$agentProcesses[0].CommandLine,'(?i)(?:"(?<cli>[^"]+[\\/]src[\\/]cli\.js)"|(?<cli>[A-Z]:[\\/][^"\s]+[\\/]src[\\/]cli\.js))\s+agent(?:\s|$)')
     Require $cliMatch.Success 'STUDIO_RUNTIME_PATH_UNVERIFIED'
     $cli=[IO.Path]::GetFullPath($cliMatch.Groups['cli'].Value)
     Ordinary $cli $false
@@ -221,6 +221,12 @@ try {
         if(Test-Path -LiteralPath $tmp -PathType Leaf){Remove-Item -LiteralPath $tmp -Force}
     }
 }catch{
+    if($SelfTest){
+        # Fixture-only diagnostics; never expose real owner-config exceptions.
+        Write-Output ('STUDIO_SELFTEST_ERROR_LINE='+$_.InvocationInfo.ScriptLineNumber)
+        Write-Output ('STUDIO_SELFTEST_ERROR_TYPE='+$_.Exception.GetType().Name)
+        Write-Output ('STUDIO_SELFTEST_ERROR='+[string]$_.Exception.Message)
+    }
     $code=[string]$_.Exception.Message
     if($code -notmatch '^STUDIO_[A-Z0-9_]{3,100}$'){$code='STUDIO_LOCAL_PRECONDITION_FAILED'}
     Write-Output ('STUDIO_DEV=BLOCKED:'+$code)
