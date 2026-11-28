@@ -5,6 +5,7 @@ import os from "node:os";
 import path from "node:path";
 import {
   planStudioQa,
+  classifyStudioTestInventory,
   validateStudioLane,
 } from "../scripts/studio-exact-head-qa.mjs";
 
@@ -23,7 +24,7 @@ test("exact Studio Qt plan is bounded and never targets the shared root", () => 
   assert.ok(stages[2].args.includes("--no-tests=error"));
   assert.ok(
     stages[2].args.includes(
-      "^(desktop-smoke|independent-engine|media-control)$",
+      "^(desktop-smoke|independent-engine|media-control|measured-fisheye|measured-surface)$",
     ),
   );
 });
@@ -55,4 +56,32 @@ test("exact Studio QA refuses shared checkouts and preexisting build output", ()
   } finally {
     fs.rmSync(temp, { recursive: true, force: true });
   }
+});
+
+test("Studio exact QA distinguishes legacy and measured offline coverage", () => {
+  const core = ["desktop-smoke", "independent-engine", "media-control"];
+  const inventory = (names) => ({ tests: names.map((name) => ({ name })) });
+  assert.equal(classifyStudioTestInventory(inventory(core)), "NOT_REGISTERED");
+  assert.equal(
+    classifyStudioTestInventory(
+      inventory([...core, "measured-fisheye", "measured-surface"]),
+    ),
+    "REGISTERED",
+  );
+  for (const names of [
+    [...core, "measured-fisheye"],
+    [...core, "measured-surface"],
+    [...core, "hardware-scan"],
+    [...core, "desktop-smoke"],
+    core.slice(1),
+  ]) {
+    assert.throws(
+      () => classifyStudioTestInventory(inventory(names)),
+      /STUDIO_QA_TEST_INVENTORY_REJECTED/,
+    );
+  }
+  assert.throws(
+    () => classifyStudioTestInventory({ tests: [{ name: null }] }),
+    /STUDIO_QA_TEST_INVENTORY_REJECTED/,
+  );
 });
