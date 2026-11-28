@@ -691,6 +691,9 @@ export const FAST_READ_TOOLS = [
   "supervisor_disk_space",
   "supervisor_project_status",
   "supervisor_device_status",
+  "supervisor_main_platform_staging_status",
+  "supervisor_main_platform_production_status",
+  "supervisor_main_platform_maintenance_status",
 ];
 const fastReadTool = z.enum(FAST_READ_TOOLS);
 const harnessMetric = z.strictObject({

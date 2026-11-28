@@ -37,6 +37,11 @@ import {
   compactReadBatchResult,
 } from "./compact-read-results.js";
 import { createReadBatchCoalescer } from "./batch-read-coalescer.js";
+import {
+  allowEliteOperationsRead,
+  eliteOperationsBatchSummary,
+  isEliteOperationsRead,
+} from "./elite-operations-batch.js";
 import { createGitHubBridge, githubDefinitions } from "./github.js";
 import { createCiFailureReader, ciFailureDefinitions } from "./ci-failure.js";
 import {
@@ -1021,6 +1026,16 @@ export async function startGateway(rawConfig) {
             ok: false,
             error: "FAST_READ_TOOL_NOT_ALLOWED",
           };
+        if (
+          isEliteOperationsRead(call.tool) &&
+          !allowEliteOperationsRead(scope, call)
+        )
+          return {
+            key: call.key,
+            tool: call.tool,
+            ok: false,
+            error: "ACCESS_DENIED",
+          };
         const input = { ...call.args, ...scope };
         try {
           return {
@@ -1040,11 +1055,13 @@ export async function startGateway(rawConfig) {
         }
       }),
     );
+    const operationsReadiness = eliteOperationsBatchSummary(scope, results);
     return {
       generatedAt: new Date().toISOString(),
       device: args.device,
       project: args.project,
       responseMode: args.responseMode ?? "full",
+      ...(operationsReadiness ? { operationsReadiness } : {}),
       results:
         args.responseMode === "compact"
           ? results.map(compactReadBatchResult)
