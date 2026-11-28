@@ -30,6 +30,8 @@ not proven on a real device; see "What is not claimed".
 8. A profile with a pinned `powershellScript {path, sha256}` is re-hashed before
    start; a changed file -> `POWERSHELL_SCRIPT_CHANGED_BEFORE_START`.
 
+**Legacy Studio shared-root profiles:** Configure/build/test/run/hardware/Git-read and desktop commands embed fixed checkout or output paths. Explicit lane or expected-head arguments fail with `STUDIO_SHARED_PROFILE_LANE_DENIED`; changing only the working directory is not isolation. Use the separately owner-admitted `calibration_studio_qt_qa` profile for exact-head offline QA. This guard does not install a profile or certify arbitrary commands.
+
 ## 2. Profile schema (config `commands.<id>`)
 
 | Field                       | Type / limit                                   |

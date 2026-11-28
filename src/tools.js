@@ -5487,6 +5487,23 @@ export function createDispatcher(
       const profile = (p.commands ?? {})[a.command];
       const variant = profile?.variants?.[a.variant];
       if (!profile || !variant) fail("COMMAND_NOT_ALLOWED");
+      // Legacy Studio profiles have fixed shared checkout/build paths in argv.
+      // Changing cwd alone cannot isolate them. Never issue a false lane receipt.
+      if (
+        p.id === "kmj-calibration-studio" &&
+        (a.laneId !== undefined || a.expectedHead !== undefined) &&
+        [
+          "studio_configure",
+          "studio_build",
+          "studio_test",
+          "studio_run",
+          "studio_hardware",
+          "studio_git_read",
+          "studio_desktop_ui",
+          "studio_desktop_capture",
+        ].includes(a.command)
+      )
+        fail("STUDIO_SHARED_PROFILE_LANE_DENIED");
       // Retired integration: stale explicitly configured profiles must not run.
       if (a.command === "vioso_rig_preflight") fail("COMMAND_NOT_ALLOWED");
       if (
